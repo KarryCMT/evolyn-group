@@ -1,0 +1,57 @@
+# 本地开发依赖一键启动：PostgreSQL / Redis / MinIO
+# 用法：docker compose -f deploy/docker-compose.yaml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: evolyn-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: evolyn
+    ports:
+      - "5432:5432"
+    volumes:
+      - evolyn-pgdata:/var/lib/postgresql/data
+      - ../apps/evolyn-core/scripts/db.sql:/docker-entrypoint-initdb.d/db.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: evolyn-redis
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "123456"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - evolyn-redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "123456", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: evolyn-minio
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - evolyn-miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  evolyn-pgdata:
+  evolyn-redisdata:
+  evolyn-miniodata:

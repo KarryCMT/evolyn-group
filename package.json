@@ -1,9 +1,10 @@
 {
   "private": true,
+  "name": "evolyn-group",
   "scripts": {
-    "deploy": "./deploy.sh",
-    "dev:web": "pnpm --dir apps/evolyn-web run dev",
-    "dev:all": "cd ./apps/evolyn-core && make all",
-    "dev:dao": "cd ./apps/evolyn-core && make dao"
+    "dev:web": "npm --prefix apps/evolyn-web run dev",
+    "dev:core": "cd apps/evolyn-core && make run",
+    "build:web": "npm --prefix apps/evolyn-web run build",
+    "test:core": "cd apps/evolyn-core && make test"
   }
 }
