@@ -17,8 +17,8 @@
 
 | 规划目录 | 来源 | 说明 |
 | --- | --- | --- |
-| `apps/server/` | 由 `apps/evolyn-core` 演进 | Go + Gin 平台主体（cmd/api、cmd/worker、internal/{platform,engine,infrastructure}） |
-| `apps/web/` | 由 `apps/evolyn-web` 演进 | Vue3 + TypeScript 设计器与运行态 |
+| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、cmd/worker、internal/{platform,engine,infrastructure}） |
+| `apps/evolyn-web/` | 现有目录演进（不改名） | Vue3 + TypeScript 设计器与运行态 |
 | `services/workflow/` | 新建 | Java + Spring Boot + Flowable 流程服务 |
 | `packages/openapi/` | 新建 | 全平台 API 契约唯一事实源 |
 
