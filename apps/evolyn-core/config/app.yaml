@@ -14,15 +14,7 @@ server:
       cacheSize: 2048
   jwtSecret: weaveserver
 
-docker:
-  enable: true # enable docker, start dockerd at first
-  host: unix:///var/run/docker.sock
 
-kubernetes:
-  enable: true # set `KUBECONFIG` env or flag --kubeconfig at first
-  watchResources:
-  - "Deployment.v1.apps"
-  - "Namespace.v1."
 
 db:
   port: 5432

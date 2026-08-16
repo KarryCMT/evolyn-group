@@ -13,8 +13,6 @@ type Config struct {
 	DB          DBConfig               `yaml:"db"`
 	Redis       RedisConfig            `yaml:"redis"`
 	OAuthConfig map[string]OAuthConfig `yaml:"oauth"`
-	Docker      DockerConfig           `yaml:"docker"`
-	Kubernetes  KubeConfig             `yaml:"kubernetes"`
 }
 
 type ServerConfig struct {
@@ -46,16 +44,6 @@ type OAuthConfig struct {
 	AuthType     string `yaml:"authType"`
 	ClientId     string `yaml:"clientId"`
 	ClientSecret string `yaml:"clientSecret"`
-}
-
-type DockerConfig struct {
-	Enable bool   `yaml:"enable"`
-	Host   string `yaml:"host"`
-}
-
-type KubeConfig struct {
-	Enable         bool     `yaml:"enable"`
-	WatchResources []string `yaml:"watchResources"`
 }
 
 func Parse(appConfig string) (*Config, error) {

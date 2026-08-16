@@ -3,8 +3,8 @@ package service
 import (
 	"strconv"
 
-	"github.com/qingwave/weave/pkg/model"
-	"github.com/qingwave/weave/pkg/repository"
+	"github.com/qingwave/weave/internal/model"
+	"github.com/qingwave/weave/internal/repository"
 	"github.com/qingwave/weave/pkg/utils/request"
 )
 

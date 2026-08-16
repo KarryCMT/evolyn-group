@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/qingwave/weave/pkg/model"
-	"github.com/qingwave/weave/pkg/repository"
+	"github.com/qingwave/weave/internal/model"
+	"github.com/qingwave/weave/internal/repository"
 )
 
 type groupService struct {
@@ -26,17 +26,7 @@ func (g *groupService) List() ([]model.Group, error) {
 }
 
 func (g *groupService) Create(user *model.User, group *model.Group) (*model.Group, error) {
-	group, err := g.groupRepository.Create(user, group)
-	if err != nil {
-		return nil, err
-	}
-
-	// create default rbac, and set role binding
-	if err := g.createDefaultRoles(group); err != nil {
-		return nil, err
-	}
-
-	return group, nil
+	return g.groupRepository.Create(user, group)
 }
 
 func (g *groupService) Get(id string) (*model.Group, error) {
@@ -128,50 +118,4 @@ func (g *groupService) DelRole(id, rid string) error {
 	}
 
 	return g.groupRepository.DelRole(&model.Role{ID: uint(roleId)}, &model.Group{ID: uint(gid)})
-}
-
-func (g *groupService) createDefaultRoles(group *model.Group) error {
-	roles := []model.Role{
-		{
-			Name:      fmt.Sprintf("ns-%s-%s", group.Name, "admin"),
-			Scope:     model.NamespaceScope,
-			Namespace: group.Name,
-			Rules: []model.Rule{
-				{
-					Resource:  model.All,
-					Operation: model.All,
-				},
-			},
-		},
-		{
-			Name:      fmt.Sprintf("ns-%s-%s", group.Name, "edit"),
-			Scope:     model.NamespaceScope,
-			Namespace: group.Name,
-			Rules: []model.Rule{
-				{
-					Resource:  model.All,
-					Operation: model.EditOperation,
-				},
-			},
-		},
-		{
-			Name:      fmt.Sprintf("ns-%s-%s", group.Name, "view"),
-			Scope:     model.NamespaceScope,
-			Namespace: group.Name,
-			Rules: []model.Rule{
-				{
-					Resource:  model.All,
-					Operation: model.ViewOperation,
-				},
-			},
-		},
-	}
-
-	for i := range roles {
-		if _, err := g.rbacRepository.Create(&roles[i]); err != nil {
-			return err
-		}
-	}
-
-	return g.groupRepository.RoleBinding(&roles[0], group)
 }

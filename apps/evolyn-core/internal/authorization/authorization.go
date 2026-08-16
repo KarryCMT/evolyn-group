@@ -1,8 +1,8 @@
 package authorization
 
 import (
-	"github.com/qingwave/weave/pkg/model"
-	"github.com/qingwave/weave/pkg/repository"
+	"github.com/qingwave/weave/internal/model"
+	"github.com/qingwave/weave/internal/repository"
 	"github.com/qingwave/weave/pkg/utils/request"
 )
 
@@ -48,14 +48,6 @@ func Authorize(user *model.User, ri *request.RequestInfo) (bool, error) {
 	}
 
 	for _, role := range roles {
-		if ri.Namespace == "" && role.Scope == model.NamespaceScope {
-			continue
-		}
-
-		if ri.Namespace != "" && (role.Scope == model.NamespaceScope && role.Namespace != ri.Namespace) {
-			continue
-		}
-
 		for _, rule := range role.Rules {
 			if (rule.Resource == model.All || rule.Resource == ri.Resource) && rule.Operation.Contain(ri.Verb) {
 				return true, nil

@@ -4,8 +4,8 @@ import (
 	"flag"
 	"os"
 
-	"github.com/qingwave/weave/pkg/config"
-	"github.com/qingwave/weave/pkg/server"
+	"github.com/qingwave/weave/internal/config"
+	"github.com/qingwave/weave/internal/server"
 	"github.com/qingwave/weave/pkg/version"
 
 	"github.com/sirupsen/logrus"
@@ -16,9 +16,9 @@ var (
 	appConfig    = flag.String("config", "config/app.yaml", "application config path")
 )
 
-// @title           Weave Server API
+// @title           evolyn-core API
 // @version         2.0
-// @description     This is a weave server api doc.
+// @description     evolyn low-code platform server api doc.
 
 // @license.name  Apache 2.0
 // @license.url   http://www.apache.org/licenses/LICENSE-2.0.html

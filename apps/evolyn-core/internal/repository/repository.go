@@ -3,8 +3,8 @@ package repository
 import (
 	"context"
 
-	"github.com/qingwave/weave/pkg/database"
-	"github.com/qingwave/weave/pkg/model"
+	"github.com/qingwave/weave/internal/database"
+	"github.com/qingwave/weave/internal/model"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -16,14 +16,12 @@ func NewRepository(db *gorm.DB, rdb *database.RedisDB) Repository {
 		rdb:   rdb,
 		user:  newUserRepository(db, rdb),
 		group: newGroupRepository(db, rdb),
-		post:  newPostRepository(db, rdb),
 		rbac:  newRBACRepository(db, rdb),
 	}
 
 	r.migrants = getMigrants(
 		r.user,
 		r.group,
-		r.post,
 		r.rbac,
 	)
 
@@ -43,7 +41,6 @@ func getMigrants(objs ...interface{}) []Migrant {
 type repository struct {
 	user     UserRepository
 	group    GroupRepository
-	post     PostRepository
 	rbac     RBACRepository
 	db       *gorm.DB
 	rdb      *database.RedisDB
@@ -56,10 +53,6 @@ func (r *repository) User() UserRepository {
 
 func (r *repository) Group() GroupRepository {
 	return r.group
-}
-
-func (r *repository) Post() PostRepository {
-	return r.post
 }
 
 func (r *repository) RBAC() RBACRepository {
@@ -112,27 +105,8 @@ func (r *repository) Migrate() error {
 }
 
 func (r *repository) Init() error {
+	// 平台基础资源注册：随功能演进而增删，K8s 相关资源已随功能剥离移除
 	resources := []model.Resource{
-		{
-			Name:  model.ContainerResource,
-			Scope: model.ClusterScope,
-		},
-		{
-			Name:  model.ContainerResource + "/log",
-			Scope: model.ClusterScope,
-		},
-		{
-			Name:  model.ContainerResource + "/exec",
-			Scope: model.ClusterScope,
-		},
-		{
-			Name:  model.ContainerResource + "/proxy",
-			Scope: model.ClusterScope,
-		},
-		{
-			Name:  model.PostResource,
-			Scope: model.ClusterScope,
-		},
 		{
 			Name:  model.GroupResource,
 			Scope: model.ClusterScope,
@@ -148,34 +122,6 @@ func (r *repository) Init() error {
 		{
 			Name:  model.AuthResource,
 			Scope: model.ClusterScope,
-		},
-		{
-			Name:  model.NamespaceResource,
-			Scope: model.ClusterScope,
-		},
-		{
-			Name:  model.KubeDeployment,
-			Scope: model.NamespaceScope,
-		},
-		{
-			Name:  model.KubeStatefulset,
-			Scope: model.NamespaceScope,
-		},
-		{
-			Name:  model.KubeDaemonset,
-			Scope: model.NamespaceScope,
-		},
-		{
-			Name:  model.KubePod,
-			Scope: model.NamespaceScope,
-		},
-		{
-			Name:  model.KubeService,
-			Scope: model.NamespaceScope,
-		},
-		{
-			Name:  model.KubeIngress,
-			Scope: model.NamespaceScope,
 		},
 	}
 

@@ -3,14 +3,13 @@ package repository
 import (
 	"context"
 
-	"github.com/qingwave/weave/pkg/model"
+	"github.com/qingwave/weave/internal/model"
 	"gorm.io/gorm/clause"
 )
 
 type Repository interface {
 	User() UserRepository
 	Group() GroupRepository
-	Post() PostRepository
 	RBAC() RBACRepository
 	Close() error
 	Ping(ctx context.Context) error
@@ -52,26 +51,6 @@ type GroupRepository interface {
 	AddRole(role *model.Role, group *model.Group) error
 	DelRole(role *model.Role, group *model.Group) error
 	RoleBinding(role *model.Role, group *model.Group) error
-	Migrate() error
-}
-
-type PostRepository interface {
-	GetPostByID(uint) (*model.Post, error)
-	GetPostByName(string) (*model.Post, error)
-	List() ([]model.Post, error)
-	Create(*model.User, *model.Post) (*model.Post, error)
-	Update(*model.Post) (*model.Post, error)
-	Delete(uint) error
-	GetTags(*model.Post) ([]model.Tag, error)
-	GetCategories(*model.Post) ([]model.Category, error)
-	IncView(id uint) error
-	AddLike(pid, uid uint) error
-	DelLike(pid, uid uint) error
-	GetLike(pid, uid uint) (bool, error)
-	GetLikeByUser(uid uint) ([]model.Like, error)
-	AddComment(comment *model.Comment) (*model.Comment, error)
-	DelComment(id string) error
-	ListComment(pid string) ([]model.Comment, error)
 	Migrate() error
 }
 

@@ -11,19 +11,16 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/qingwave/weave/internal/authorization"
+	"github.com/qingwave/weave/internal/config"
+	"github.com/qingwave/weave/internal/controller"
+	"github.com/qingwave/weave/internal/database"
+	"github.com/qingwave/weave/internal/middleware"
+	"github.com/qingwave/weave/internal/repository"
+	"github.com/qingwave/weave/internal/service"
 	"github.com/qingwave/weave/pkg/authentication"
 	"github.com/qingwave/weave/pkg/authentication/oauth"
-	"github.com/qingwave/weave/pkg/authorization"
 	"github.com/qingwave/weave/pkg/common"
-	"github.com/qingwave/weave/pkg/config"
-	"github.com/qingwave/weave/pkg/controller"
-	"github.com/qingwave/weave/pkg/controller/kubecontroller"
-	"github.com/qingwave/weave/pkg/database"
-	"github.com/qingwave/weave/pkg/library/docker"
-	"github.com/qingwave/weave/pkg/library/kubernetes"
-	"github.com/qingwave/weave/pkg/middleware"
-	"github.com/qingwave/weave/pkg/repository"
-	"github.com/qingwave/weave/pkg/service"
 	"github.com/qingwave/weave/pkg/utils/request"
 	"github.com/qingwave/weave/pkg/utils/set"
 	"github.com/qingwave/weave/pkg/version"
@@ -51,24 +48,6 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		return nil, errors.Wrap(err, "redis client failed")
 	}
 
-	var conClient *docker.Client
-	if conf.Docker.Enable {
-		conClient, err = docker.NewClient(conf.Docker.Host)
-		if err != nil {
-			logrus.Warningf("failed to create docker client, container api disabled: %v", err)
-			conf.Docker.Enable = false
-		}
-	}
-
-	var kubeClient *kubernetes.KubeClient
-	if conf.Kubernetes.Enable {
-		kubeClient, err = kubernetes.NewClient(&conf.Kubernetes)
-		if err != nil {
-			logrus.Warnf("failed to create k8s client: %v", err)
-			conf.Kubernetes.Enable = false
-		}
-	}
-
 	repository := repository.NewRepository(db, rdb)
 	if conf.DB.Migrate {
 		if err := repository.Migrate(); err != nil {
@@ -89,22 +68,13 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	userController := controller.NewUserController(userService)
 	groupController := controller.NewGroupController(groupService)
 	authController := controller.NewAuthController(userService, jwtService, oauthManager)
-	containerController := controller.NewContainerController(conClient)
 	rbacController := controller.NewRbacController(rbacService)
-	kubeController := kubecontroller.NewKubeControllers(kubeClient, groupService)
-	postController := controller.NewPostController(service.NewPostService(repository.Post()))
 
 	if err := authorization.InitAuthorization(repository); err != nil {
 		return nil, err
 	}
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, postController}
-	if conf.Docker.Enable {
-		controllers = append(controllers, containerController)
-	}
-	if conf.Kubernetes.Enable {
-		controllers = append(controllers, kubeController)
-	}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController}
 
 	gin.SetMode(conf.Server.ENV)
 
@@ -121,16 +91,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		middleware.TraceMiddleware(),
 	)
 
-	e.LoadHTMLFiles("static/terminal.html")
-
 	return &Server{
-		engine:          e,
-		config:          conf,
-		logger:          logger,
-		repository:      repository,
-		containerClient: conClient,
-		kubeClient:      kubeClient,
-		controllers:     controllers,
+		engine:      e,
+		config:      conf,
+		logger:      logger,
+		repository:  repository,
+		controllers: controllers,
 	}, nil
 }
 
@@ -139,9 +105,7 @@ type Server struct {
 	config *config.Config
 	logger *logrus.Logger
 
-	containerClient *docker.Client
-	kubeClient      *kubernetes.KubeClient
-	repository      repository.Repository
+	repository repository.Repository
 
 	controllers []controller.Controller
 }
@@ -151,12 +115,6 @@ func (s *Server) Run() error {
 	defer s.Close()
 
 	s.initRouter()
-
-	if s.kubeClient != nil {
-		if err := s.kubeClient.StartCache(); err != nil {
-			return err
-		}
-	}
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Address, s.config.Server.Port)
 	s.logger.Infof("Start server on: %s", addr)
@@ -189,11 +147,6 @@ func (s *Server) Close() {
 		s.logger.Warnf("failed to close repository, %v", err)
 	}
 
-	if s.containerClient != nil {
-		if err := s.containerClient.Close(); err != nil {
-			s.logger.Warnf("failed to close container client, %v", err)
-		}
-	}
 }
 
 func (s *Server) initRouter() {

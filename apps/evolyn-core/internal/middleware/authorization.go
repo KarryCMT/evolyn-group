@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/qingwave/weave/pkg/authorization"
+	"github.com/qingwave/weave/internal/authorization"
+	"github.com/qingwave/weave/internal/model"
 	"github.com/qingwave/weave/pkg/common"
-	"github.com/qingwave/weave/pkg/model"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gin-gonic/gin"

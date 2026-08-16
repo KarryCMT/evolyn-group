@@ -1,6 +1,6 @@
 package service
 
-import "github.com/qingwave/weave/pkg/model"
+import "github.com/qingwave/weave/internal/model"
 
 type UserService interface {
 	List() (model.Users, error)
@@ -28,20 +28,6 @@ type GroupService interface {
 	DelUser(user *model.User, gid string) error
 	AddRole(id, rid string) error
 	DelRole(id, rid string) error
-}
-
-type PostService interface {
-	List() ([]model.Post, error)
-	Create(*model.User, *model.Post) (*model.Post, error)
-	Get(user *model.User, id string) (*model.Post, error)
-	Update(id string, post *model.Post) (*model.Post, error)
-	Delete(id string) error
-	GetTags(id string) ([]model.Tag, error)
-	GetCategories(id string) ([]model.Category, error)
-	AddLike(user *model.User, pid string) error
-	DelLike(user *model.User, pid string) error
-	AddComment(user *model.User, pid string, comment *model.Comment) (*model.Comment, error)
-	DelComment(id string) error
 }
 
 type RBACService interface {

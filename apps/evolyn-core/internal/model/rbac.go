@@ -16,8 +16,7 @@ const (
 type Scope string
 
 const (
-	ClusterScope   Scope = "cluster"
-	NamespaceScope Scope = "namespace"
+	ClusterScope Scope = "cluster"
 )
 
 type Role struct {
@@ -84,13 +83,10 @@ const (
 )
 
 const (
-	ContainerResource = "containers"
-	PostResource      = "posts"
-	UserResource      = "users"
-	GroupResource     = "groups"
-	RoleResource      = "roles"
-	AuthResource      = "auth"
-	NamespaceResource = "namespaces"
+	UserResource  = "users"
+	GroupResource = "groups"
+	RoleResource  = "roles"
+	AuthResource  = "auth"
 )
 
 type Resource struct {

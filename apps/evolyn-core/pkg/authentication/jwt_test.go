@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/qingwave/weave/pkg/model"
+	"github.com/qingwave/weave/internal/model"
 	"github.com/stretchr/testify/assert"
 )
 

@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/qingwave/weave/internal/repository"
 	"github.com/qingwave/weave/pkg/authentication"
 	"github.com/qingwave/weave/pkg/common"
-	"github.com/qingwave/weave/pkg/repository"
 
 	"github.com/gin-gonic/gin"
 )
