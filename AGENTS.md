@@ -1,269 +1,138 @@
-# frog Group Agent Guide
+# evolyn-group Agent Guide
 
 本文件适用于整个仓库。进入子目录工作时，先检查该子目录是否另有更近的 `AGENTS.md`；若没有，则遵守本文件。
 
 ## 项目总览
 
-这是一个多端 frog 业务项目，根目录主要负责聚合脚本，不是统一的 pnpm workspace。
+这是一个基于开源项目 [weave](https://github.com/qingwave/weave)（Kubernetes 管理平台）二次开发的多容器单仓项目，前后端分别位于 `apps/` 下：
 
-- `frog-core/`: GoFrame v2 后端服务，包含 HTTP、队列、定时任务、WebSocket、权限、插件、代码生成和部署配置。
-- `frog-web/`: Vue 3 + TypeScript + Vite 管理后台，使用 Naive UI、Pinia、Vue Router、Less、自动导入与组件生成。
-- `frog-applet/`: uni-app + Vue 3 + Vite 小程序/H5 应用，主要面向微信小程序，也保留多平台构建脚本。
-- `frog_app/`: Flutter 多端 App，Very Good CLI 风格，包含 development/staging/production flavor、bloc 相关依赖、l10n 与内置 mini app 资源。
+- `apps/evolyn-core/`: Go 1.25 + Gin 后端服务，模块名保持 `github.com/qingwave/weave`。提供认证（JWT + GitHub OAuth）、自定义 RBAC、用户/分组/文章管理、Kubernetes 资源管理与 Pod 终端（WebSocket）、Docker 集成、速率限制与 swagger 文档。
+- `apps/evolyn-web/`: Vue 3 + Vite 前端（JavaScript，非 TS），使用 Element Plus（unplugin 自动导入）、Tailwind CSS、Pinia、Vue Router、ECharts、CodeMirror、xterm.js，内置 mockjs 数据源。
 
-根目录 `package.json` 只提供跨子应用的便捷命令。依赖安装、锁文件、构建产物都按子应用边界处理。
+根目录聚合内容：
+
+- `go.work` / `go.work.sum`: Go workspace，当前只纳入 `apps/evolyn-core`。所有 `go` 命令应在 `apps/evolyn-core` 内执行。
+- `package.json`: 跨子项目的便捷命令。
+- `deploy.sh`: SSH 部署脚本（见「已知失效内容」）。
+- `docs/`: 后端 swagger 产物（`docs.go`、`swagger.json`、`swagger.yaml`）与 `rbac.png` 架构图。
+
+分支约定：`2.0.0` 为基线分支，`3.0.0` 为当前开发分支。
+
+## 已知失效内容（不要盲目执行）
+
+以下内容继承自旧结构（frog 项目）或上游 weave，与当前目录布局不符，执行前先确认：
+
+- `deploy.sh` 与根 `package.json` 的 `deploy` 脚本：引用 `apps/frog-web`、`apps/frog-core` 和 `gf build`，这些路径与命令在本分支已不存在。
+- 根 `package.json` 的 `dev:all`（`make all`）和 `dev:dao`（`make dao`）：`apps/evolyn-core/Makefile` 中没有 `all` 和 `dao` 目标。可用目标见下文。
+- `apps/evolyn-core/Makefile` 的 `ui`、`docker-build-ui`、`docker-build-ui-mock`：执行 `cd web`，但 `evolyn-core` 下没有 `web` 目录，前端实际在 `apps/evolyn-web`。
+- 后端源码中存在上游拼写遗留：`pkg/service/interfacae.go`、`pkg/repository/repositroy.go`。保持上游命名，除非任务明确要求，不要顺手改名（会引入无谓 diff）。
 
 ## 通用约束
 
-- 不要跨子应用混装依赖。`frog-web` 和 `frog-applet` 各自有 `pnpm-lock.yaml`；进入对应目录后再安装或执行脚本。
-- 不要提交或手改生成产物，除非任务明确要求。常见生成/构建产物包括 `node_modules/`、`dist/`、`build/`、`.dart_tool/`、Go 生成的 DAO/Entity/Service、`auto-imports.d.ts`、`components.d.ts`。
-- 修改接口字段、路由、权限、菜单、模型时，要同步检查前端、小程序、App、后端是否存在同名 API 或模型映射。
-- 不要把密钥、真实 token、生产数据库连接、对象存储凭证写入代码或文档。环境变量示例应使用占位值。
-- 保持现有编码和风格。部分旧文档存在编码异常，不要为了整理文档而大面积重写业务文件。
+- 不要跨子项目混装依赖。前端以 `apps/evolyn-web/package-lock.json` 为准使用 npm；不要在子项目外执行安装。
+- 不要提交或手改生成/构建产物：`node_modules/`、`dist/`、`bin/`、`cover.out`、`coverage.txt`、swagger 生成的 `docs/` 内容、`auto-imports.d.ts`、`components.d.ts`。
+- 不要把密钥、真实 token、生产凭证写入代码或文档。`apps/evolyn-core/config/app.yaml` 中的 jwtSecret、OAuth clientSecret、数据库/Redis 密码目前为本地开发默认值，接入真实环境时通过配置覆盖，不要把真实值写回文件。
+- 后端模块导入路径是 `github.com/qingwave/weave/...`，应用名 evolyn 只是目录名，不要重命名 go module 或批量改导入路径。
+- 修改 API 字段、路由、权限模型时，同步检查 `evolyn-web/src/axios/index.js`、views 与 store 中的调用映射。
 - 遇到工作区已有未提交改动时，默认视为用户改动；只处理当前任务相关文件，不回滚无关文件。
-- 改动的代码需要补充相关注释，简单逻辑简要注释，复杂逻辑详细注释
-- 当前改动`frog_app、frog-applet` 下面任何项目都不允许执行build相关命令，可以执行typecheck和lint命令
+- 改动的代码需要补充相关注释，简单逻辑简要注释，复杂逻辑详细注释。注释可使用中文。
 
-## 常用根命令
-
-在根目录可使用这些聚合脚本：
-
-```bash
-npm run web:dev
-npm run web:build
-npm run weixin:dev
-npm run weixin:build
-npm run go:dev
-npm run go:build
-npm run go:all
-npm run go:dao
-npm run app:dev
-```
-
-注意：`go:*` 脚本会进入 `frog-core` 并调用 `make`；Makefile 中包含类 Unix 命令，在 Windows 环境下可能需要 Git Bash、WSL 或兼容 shell。
-
-## frog-core 后端
+## evolyn-core 后端
 
 技术栈与入口：
 
-- Go 1.24.4，模块名 `frog`。
-- GoFrame v2.9.x，入口为 `main.go`。
-- 配置主要位于 `manifest/config/`，运行资源位于 `resource/`，持久化/本地运行数据位于 `storage/`。
-- 数据访问层、模型、服务接口大量依赖 GoFrame 代码生成。
+- Go 1.25，Gin（`gin-gonic/gin` v1.11）+ GORM（Postgres）+ go-redis v9 + gorilla/websocket + swaggo。
+- 入口 `main.go`，默认配置 `config/app.yaml`（可用 `--config` 覆盖）。
+- 关键配置段：`server`（端口 8080、jwtSecret、rateLimits）、`docker`（docker.sock）、`kubernetes`（watchResources）、`db`（库名 `evolyn`，`migrate: true` 表示启动时 GORM 自动迁移）、`redis`、`oauth.github`。
 
-主要目录职责：
+分层与目录职责（均在 `pkg/` 下）：
 
-- `api/`: API 入参/出参定义。
-- `internal/controller/`: 控制器层。
-- `internal/logic/`: 业务逻辑层。
-- `internal/service/`: 服务接口与实现注册。
-- `internal/dao/`: 数据访问对象，通常由 `gf gen dao` 生成。
-- `internal/model/`: entity、input、output 等模型。
-- `internal/router/`: 路由注册。
-- `internal/queues/`: 队列任务。
-- `internal/crons/`: 定时任务。
-- `internal/websocket/`: WebSocket 相关逻辑。
-- `manifest/`: 配置、部署、Docker、i18n。
-- `resource/`: 静态资源、模板、生成器配置。
-- `utility/`: 通用工具库。
+- `controller/`: HTTP 控制器，按资源拆分（auth、user、group、post、rbac、container、kubecontroller 等），只做参数绑定与响应，业务逻辑下沉 service。
+- `service/`: 业务逻辑层，接口定义在 `interfacae.go`。
+- `repository/`: 数据访问层，接口定义在 `interface.go`，基于 GORM。
+- `model/`: 请求/响应与实体模型。
+- `authentication/`: JWT 签发校验与 GitHub OAuth。
+- `authorization/`: 自定义 RBAC 鉴权（非 Casbin）。
+- `library/kubernetes`、`library/docker`: K8s 客户端、informer watch 与 Docker 封装。
+- `middleware/`、`server/`: 中间件与服务器装配。
+- `scripts/db.sql`: Postgres 初始化脚本；`cert.sh` 生成本地证书。
+- `.golangci.yaml`: lint 配置（gofmt、goimports、gocyclo 等）。
 
-常用命令：
+常用命令（在 `apps/evolyn-core` 内执行）：
 
 ```bash
-cd frog-core
-make deps
-make http
-make all
-make queue
-make cron
-make build
-make dao
-make service
-make lint
-go test ./...
+make run            # 本地运行（需要 kubeconfig/docker/postgres/redis 就绪）
+make build          # 构建到 bin/weave（注入版本 ldflags）
+make test           # 单测 + 覆盖率
+make fmt            # gofmt -s 格式化
+make swagger        # swag init 重新生成 API 文档
+make init           # 安装 swag、起 postgres/redis 容器并导入 db.sql、装 git hooks
+make postgres       # 起本地 postgres 容器并导入 scripts/db.sql
+make redis          # 起本地 redis 容器
+make exec-db        # 进入 postgres 容器的 evolyn 库
+make docker-build-server
+golangci-lint run   # lint（已装 golangci-lint 时）
 ```
 
 后端改动规则：
 
-- 遵循 GoFrame 分层，不要把业务逻辑塞进 controller。
-- 新增或变更数据库表后，优先通过 `make dao` 或 `gf gen dao` 生成 DAO/Entity，不要手写生成文件。
-- 新增服务接口时遵循 `internal/service` 的现有注册模式，可用 `make service` 生成。
-- 路由、权限、Casbin、菜单、演示模式限制通常是联动点；改后台接口时要同步检查。
-- 提交前至少运行相关 Go 测试或说明未运行原因；格式化使用 `gofmt`。
+- 遵循 controller → service → repository 分层，新增资源时同步补 `interface.go`/`interfacae.go` 中的接口定义与注册。
+- 新增或修改 API 后运行 `make swagger` 同步文档；路由与 RBAC 权限通常联动，改接口要检查 `authorization` 与前端调用。
+- 数据库结构变更优先依赖 GORM migrate（model 定义），`scripts/db.sql` 仅作为冷启动初始化参考；两者保持一致。
+- 提交前至少运行 `go test ./...`（或说明未运行原因），格式化使用 `make fmt`。
 
-## frog-web 管理后台
+## evolyn-web 前端
 
 技术栈与入口：
 
-- Vue 3 + TypeScript + Vite。
-- UI 和生态包括 Naive UI、Pinia、Vue Router、VueUse、ECharts、CodeMirror、i18n。
-- 入口为 `src/main.ts` 和 `src/App.vue`。
-- Vite 别名：`@` 指向 `src/`，`/#/` 指向 `types/`。
-- 样式预处理使用 Less，Vite 会注入 `src/styles/var.less`。
+- Vue 3 + Vite 7，JavaScript（非 TypeScript），Element Plus 按需自动导入（`unplugin-auto-import`/`unplugin-vue-components`，勿手改生成文件）。
+- 样式以 Tailwind CSS（含 typography 插件）+ Sass 为主。
+- 入口 `src/main.js`；环境变量前缀 `WEAVE_`：`WEAVE_PORT`（默认 8081）、`WEAVE_SERVER`（默认 http://localhost:8080，`/api` 代理目标，含 WebSocket）、`WEAVE_MOCK`（启用 mock 数据）、`WEAVE_BASE`（子路径部署，如 `/weave/`）。
 
-主要目录职责：
+目录职责：
 
-- `src/api/`: 按业务域拆分的后台 API。
-- `src/views/`: 页面视图。
-- `src/components/`: 复用组件。
-- `src/router/`: 静态路由、动态路由生成、路由守卫。
-- `src/store/`: Pinia 状态模块。
-- `src/layout/`: 后台布局。
-- `src/hooks/`: 组合式逻辑。
-- `src/utils/`: 通用工具。
-- `src/locale/`: 国际化。
-- `build/`: Vite 插件、代理、构建后处理等工程配置。
+- `src/axios/index.js`: 统一 axios 封装与后端 API 调用，不要在页面里散落裸 axios。
+- `src/views/`: 页面，按域分目录：`kube`（Pod/终端/Ingress/Namespace/Service）、`container`、`post`、`user`、`auth`、`doc`、`home` 等。
+- `src/store/`: Pinia 模块（`kube.js`、`post.js`）。
+- `src/router/index.js`: 路由与守卫。
+- `src/mock/`: mockjs 数据源，`npm run mock` 或 `build-with-mock` 使用。
+- `src/components/`、`src/utils/`、`src/config.js`: 复用组件、工具与端侧配置。
 
-常用命令：
+常用命令（在 `apps/evolyn-web` 内执行）：
 
 ```bash
-cd frog-web
-pnpm install
-pnpm run dev
-pnpm run build
-pnpm run lint:eslint
-pnpm run lint:prettier
-pnpm run lint:stylelint
+npm install
+npm run dev             # 本地开发，/api 代理到 WEAVE_SERVER
+npm run mock            # 使用 mock 数据开发
+npm run build           # 生产构建
+npm run build-with-mock # 构建 mock 版本
+npm run preview
 ```
 
 前端改动规则：
 
-- 优先使用 `<script setup>`、组合式 API、现有 hooks 和 store 模式。
-- API 文件按业务域放入 `src/api/<domain>/`，不要在页面中散落裸 `axios` 调用。
-- 路由改动要检查 `src/router/base.ts`、动态路由生成、权限守卫和菜单来源。
-- UI 风格应延续后台管理系统的密度与克制感，避免营销页式大视觉。
-- 不要手工维护 `auto-imports.d.ts`、`components.d.ts`，它们由插件生成。
-- 构建产物在 `dist/`，不要把构建输出作为源码修改。
-
-## frog-applet 小程序/H5
-
-技术栈与入口：
-
-- uni-app + Vue 3 + Vite。
-- 入口为 `src/main.js` 和 `src/App.vue`。
-- 页面、分包、tabBar 由 `src/pages.json` 管理。
-- Vite 别名：`@` 指向 `src/`。
-- 样式包含 `src/uni.scss`、`src/styles/`，页面样式优先延续现有 SCSS/CSS 变量。
-
-主要目录职责：
-
-- `src/apis/`: 小程序端 API 封装。
-- `src/pages/`: 页面目录，目前包含 `home`、`circle`、`login`、`merchants`、`publish`、`release`、`user` 等。
-- `src/components/`: 业务和通用组件。
-- `src/composables/`: 组合式逻辑。
-- `src/config/`: 端侧配置。
-- `src/constants/`: 常量。
-- `src/static/`: 小程序静态资源。
-- `src/utils/`: 工具函数。
-
-常用命令：
-
-```bash
-cd frog-applet
-pnpm install
-pnpm run dev:h5
-pnpm run dev:mp-weixin
-pnpm run build:h5
-pnpm run build:mp-weixin
-```
-
-小程序改动规则：
-
-- 新增页面必须同步维护 `src/pages.json`，包括路径、分包和 tabBar。
-- 跳转路径以 `pages.json` 中真实路径为准，避免复制旧路径导致运行时跳转失败。
-- API 调用优先通过 `src/apis/` 的封装，不要在页面中分散处理 base URL、token、错误提示。
-- 跨端代码要考虑 H5 与微信小程序能力差异，使用条件编译时保持范围最小。
-- 静态资源放入 `src/static/`，避免引入过大的图片或未压缩资源。
-
-## frog_app Flutter App
-
-技术栈与入口：
-
-- Flutter SDK 约束 `^3.41.0`，Dart SDK 约束 `^3.11.0`。
-- 使用 Very Good Analysis、bloc/flutter_bloc、dio、webview_flutter、flutter_localizations。
-- flavor 入口：
-  - `lib/main_development.dart`
-  - `lib/main_staging.dart`
-  - `lib/main_production.dart`
-- 根启动逻辑在 `lib/bootstrap.dart`。
-
-主要目录职责：
-
-- `lib/app/`: App 根组件与应用外壳。
-- `lib/auth/`: 认证相关功能。
-- `lib/network/`: 网络层。
-- `lib/tenant/`: 租户相关功能。
-- `lib/mini_app/`: mini app 容器或资源逻辑。
-- `lib/l10n/`: 国际化配置与生成产物。
-- `assets/mini_app/`: 内置 mini app 静态资源。
-
-常用命令：
-
-```bash
-cd frog_app
-flutter pub get
-flutter run --flavor development --target lib/main_development.dart
-flutter run --flavor staging --target lib/main_staging.dart
-flutter run --flavor production --target lib/main_production.dart
-flutter test
-very_good test --coverage --test-randomize-ordering-seed random
-dart run bloc_tools:bloc lint .
-flutter gen-l10n --arb-dir="lib/l10n/arb"
-```
-
-App 改动规则：
-
-- 新功能优先按 feature 目录组织，延续 bloc/Very Good 风格和 `very_good_analysis` 约束。
-- 网络请求走 `lib/network/` 的现有封装，不要在页面中直接散落 Dio 初始化。
-- 新增文案时维护 ARB 文件，并运行或触发 l10n 生成。
-- flavor 相关配置要分别检查 development、staging、production 入口。
-- 修改内置 mini app 资源时，确认 `pubspec.yaml` 的 assets 声明覆盖到目标文件。
+- 使用 Composition API（`<script setup>`），延续现有 JS 风格，不引入 TS 迁移。
+- API 调用统一走 `src/axios/index.js`，新增接口先在后端 swagger 确认字段。
+- Pod 终端相关改动注意 WebSocket 代理配置（vite proxy `ws: true` 与后端 `pkg/controller/kubecontroller`）。
+- 部署在子路径时检查 `WEAVE_BASE` 与 `nginx.conf`。
 
 ## 验证建议
 
 按修改范围选择最小但有效的验证：
 
-- 后端逻辑：`cd frog-core && go test ./...`，必要时补充 `make lint` 或目标服务启动验证。
-- 管理后台：`cd frog-web && pnpm run build`，样式或 lint 改动补充对应 lint 命令。
-- 小程序：`cd frog-applet && pnpm run build:mp-weixin` 或目标平台构建；H5 改动可先用 `pnpm run dev:h5`。
-- Flutter App：`cd frog_app && flutter test`，涉及 lint 或 bloc 规则时运行 `dart run bloc_tools:bloc lint .`。
-- 跨端接口：后端接口、后台 API、小程序 API、App 网络层都要检查字段名、枚举值、错误码和鉴权逻辑。
+- 后端逻辑：`cd apps/evolyn-core && go test ./...`，必要时 `make fmt`、`golangci-lint run` 或 `make run` 启动验证。
+- API 文档：接口变更后 `make swagger`，确认 `docs/` 更新且编译通过。
+- 前端：`cd apps/evolyn-web && npm run build`；本地联调可先起 `npm run dev` 配合后端 `make run`。
+- 跨端接口：字段名、错误码、鉴权头要在 `evolyn-core` swagger 与 `evolyn-web/src/axios/index.js` 两侧核对。
 
-## 文档目录规范
+## 文档约定
 
-`docs/` 使用固定的信息架构，常规文档不得直接散落在根目录：
-
-- `docs/README.md`：全局导航，新增、移动或删除文档时必须同步更新。
-- `docs/01-产品资料/`：跨迭代的产品原型、业务模型和长期规划。
-- `docs/02-迭代资料/`：明确归属某一期的产品、前端、后端、数据库及交付记录。
-- `docs/03-专题资料/`：跨迭代或独立交付的功能专题。
-- `docs/04-智乒社社团资料/`：智乒社社团资料，可参考社团信息、组织、宗旨、运营方式。
-
-目录与文件命名规则：
-
-- 迭代目录统一使用 `NN-第N期/`，并以 `README.md` 作为该期产品基线和阅读入口。
-- 迭代和专题内部统一使用 `前端/`、`后端/`、`db/`、`交付记录/`；不要再创建 `前端设计/`、`后端设计/`、`数据库设计/` 等同义目录。
-- 专题目录必须包含 `README.md`，说明范围、状态、子文档和正式实现位置。
-- 文件名应在当前目录上下文中保持简短，例如 `B端设计.md`、`小程序端设计.md`、`功能设计.md`；不要重复添加“恩斯邁智乒社”等项目全称前缀。
-- 品牌名称需要出现在标题或正文时统一写作“恩斯邁智乒社”；文件名写 `B端`，正文标题和自然语言写 `B 端`。
-- 同一文档只能有一个权威位置。跨迭代复用时使用链接，不要复制一份到另一个目录。
-- 验收、实现和交付类历史资料放入对应迭代的 `交付记录/`，保留原始结论，不与设计基线混放。
-
-数据库文档规则：
-
-- `docs/**/db/` 仅保存设计参考 SQL、执行顺序和数据库说明，不作为生产迁移的权威来源。
-- 后端正式迁移只放在 `apps/frog-core/docs/migrations/`。设计 SQL 落地后，应在相关 README 或设计文档中链接正式迁移文件。
-- 不要在 `docs/` 和后端迁移目录维护两份都宣称可直接上线的 SQL；必须明确“参考设计”和“正式迁移”的区别。
-
-文档变更检查：
-
-- 移动或改名优先使用 `git mv`，并在同一次改动中修复 Markdown 链接、反引号路径和导航入口。
-- 调整目录后使用 `rg -n "docs/" docs` 检查旧路径残留，并逐一确认本地 Markdown 链接目标存在。
-- 新增顶层分类前，先确认现有三个分类确实无法承载；确需新增时，同时更新 `docs/README.md` 和本节约束。
-- 文档整理只调整结构、命名、导航和失效引用，不借机大面积改写业务结论。
+- `docs/` 当前只存放后端 swagger 产物和 `rbac.png`，属于生成物，不要手工编辑；业务设计文档如需新增，先在 `docs/` 下建子目录并配 `README.md` 导航，不要散落根目录。
+- 移动或改名文档时用 `git mv`，同一次改动内修复引用。
+- 文档整理只调整结构、命名和失效引用，不借机改写业务结论。
 
 ## 文档维护
 
-- 新增子应用、运行脚本、代码生成流程或关键目录时，同步更新本文件。
+- 新增子项目、运行脚本、代码生成流程或关键目录时，同步更新本文件。
 - 若某个子目录需要更细的约束，可在该子目录新增 `AGENTS.md`，范围只覆盖该目录及其子目录。
-- 文档应记录可执行的约束和命令，避免只写愿景或重复 README。
+- 修复「已知失效内容」中列出的脚本或 Makefile 目标时，记得同步更新本文件对应条目。
