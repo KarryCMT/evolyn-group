@@ -1,0 +1,1582 @@
+basePath: /
+definitions:
+  common.Response:
+    properties:
+      code:
+        type: integer
+      data: {}
+      msg:
+        type: string
+    type: object
+  model.AuthInfo:
+    properties:
+      authId:
+        type: string
+      authType:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      updatedAt:
+        type: string
+      url:
+        type: string
+      userId:
+        type: integer
+    type: object
+  model.AuthUser:
+    properties:
+      authCode:
+        type: string
+      authType:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+      setCookie:
+        type: boolean
+    type: object
+  model.Category:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  model.Comment:
+    properties:
+      content:
+        type: string
+      createdAt:
+        type: string
+      id:
+        type: integer
+      parent:
+        $ref: '#/definitions/model.Comment'
+      parentId:
+        type: integer
+      postId:
+        type: integer
+      updatedAt:
+        type: string
+      user:
+        $ref: '#/definitions/model.User'
+      userId:
+        type: integer
+    type: object
+  model.Container:
+    properties:
+      address:
+        type: string
+      cmd:
+        items:
+          type: string
+        type: array
+      id:
+        type: string
+      image:
+        type: string
+      name:
+        type: string
+      port:
+        type: integer
+      startAt:
+        type: string
+      status:
+        type: string
+    type: object
+  model.CreatedContainer:
+    properties:
+      cmd:
+        items:
+          type: string
+        type: array
+      image:
+        type: string
+      name:
+        type: string
+      port:
+        type: integer
+    type: object
+  model.CreatedGroup:
+    properties:
+      creatorId:
+        type: integer
+      describe:
+        type: string
+      name:
+        type: string
+    type: object
+  model.CreatedUser:
+    properties:
+      authInfos:
+        items:
+          $ref: '#/definitions/model.AuthInfo'
+        type: array
+      avatar:
+        type: string
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+    type: object
+  model.Group:
+    properties:
+      createdAt:
+        type: string
+      creatorId:
+        type: integer
+      describe:
+        type: string
+      id:
+        type: integer
+      kind:
+        type: string
+      name:
+        type: string
+      roles:
+        items:
+          $ref: '#/definitions/model.Role'
+        type: array
+      updatedAt:
+        type: string
+      updaterId:
+        type: integer
+      users:
+        items:
+          $ref: '#/definitions/model.User'
+        type: array
+    type: object
+  model.JWTToken:
+    properties:
+      describe:
+        type: string
+      token:
+        type: string
+    type: object
+  model.Operation:
+    enum:
+    - '*'
+    - edit
+    - view
+    type: string
+    x-enum-varnames:
+    - AllOperation
+    - EditOperation
+    - ViewOperation
+  model.Post:
+    properties:
+      categories:
+        items:
+          $ref: '#/definitions/model.Category'
+        type: array
+      comments:
+        items:
+          $ref: '#/definitions/model.Comment'
+        type: array
+      content:
+        type: string
+      createdAt:
+        type: string
+      creator:
+        $ref: '#/definitions/model.User'
+      creatorId:
+        type: integer
+      id:
+        type: integer
+      likes:
+        type: integer
+      name:
+        type: string
+      summary:
+        type: string
+      tags:
+        items:
+          $ref: '#/definitions/model.Tag'
+        type: array
+      updatedAt:
+        type: string
+      userLiked:
+        type: boolean
+      views:
+        type: integer
+    type: object
+  model.Resource:
+    properties:
+      id:
+        type: integer
+      kind:
+        type: string
+      name:
+        type: string
+      scope:
+        $ref: '#/definitions/model.Scope'
+    type: object
+  model.Role:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      namespace:
+        type: string
+      rules:
+        items:
+          $ref: '#/definitions/model.Rule'
+        type: array
+      scope:
+        $ref: '#/definitions/model.Scope'
+    type: object
+  model.Rule:
+    properties:
+      operation:
+        $ref: '#/definitions/model.Operation'
+      resource:
+        type: string
+    type: object
+  model.Scope:
+    enum:
+    - cluster
+    - namespace
+    type: string
+    x-enum-varnames:
+    - ClusterScope
+    - NamespaceScope
+  model.Tag:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
+  model.UpdatedUser:
+    properties:
+      authInfos:
+        items:
+          $ref: '#/definitions/model.AuthInfo'
+        type: array
+      email:
+        type: string
+      name:
+        type: string
+      password:
+        type: string
+    type: object
+  model.User:
+    properties:
+      authInfos:
+        items:
+          $ref: '#/definitions/model.AuthInfo'
+        type: array
+      avatar:
+        type: string
+      createdAt:
+        type: string
+      email:
+        type: string
+      groups:
+        items:
+          $ref: '#/definitions/model.Group'
+        type: array
+      id:
+        type: integer
+      name:
+        type: string
+      roles:
+        items:
+          $ref: '#/definitions/model.Role'
+        type: array
+      updatedAt:
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: This is a weave server api doc.
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  title: Weave Server API
+  version: "2.0"
+paths:
+  /api/v1/auth/token:
+    delete:
+      description: User logout
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      summary: Logout
+      tags:
+      - auth
+    post:
+      consumes:
+      - application/json
+      description: User login
+      parameters:
+      - description: auth user info
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/model.AuthUser'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.JWTToken'
+              type: object
+      summary: Login
+      tags:
+      - auth
+  /api/v1/auth/user:
+    post:
+      consumes:
+      - application/json
+      description: Create user and storage
+      parameters:
+      - description: user info
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreatedUser'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.User'
+              type: object
+      summary: Register user
+      tags:
+      - auth
+  /api/v1/containers:
+    get:
+      description: List container
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.Container'
+                  type: array
+              type: object
+      security:
+      - JWT: []
+      summary: List container
+      tags:
+      - container
+    post:
+      consumes:
+      - application/json
+      description: Create container
+      parameters:
+      - description: container info
+        in: body
+        name: container
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreatedContainer'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Container'
+              type: object
+      security:
+      - JWT: []
+      summary: Create container
+      tags:
+      - container
+  /api/v1/containers/:id:
+    put:
+      consumes:
+      - application/json
+      description: Update container
+      parameters:
+      - description: container info
+        in: body
+        name: container
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreatedContainer'
+      - description: container id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Container'
+              type: object
+      security:
+      - JWT: []
+      summary: Update container
+      tags:
+      - container
+  /api/v1/containers/{id}:
+    delete:
+      description: Delete container
+      parameters:
+      - description: container id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete container
+      tags:
+      - container
+    get:
+      description: Get container
+      parameters:
+      - description: container id
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Container'
+              type: object
+      security:
+      - JWT: []
+      summary: Get container
+      tags:
+      - container
+    post:
+      description: Operate container
+      parameters:
+      - description: container id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 'verb: start/stop/restart'
+        in: query
+        name: verb
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Operate container
+      tags:
+      - container
+  /api/v1/containers/{id}/exec:
+    get:
+      description: exec container
+      parameters:
+      - description: container id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: shell, sh or bash
+        in: query
+        name: shell
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Exec container
+      tags:
+      - container
+  /api/v1/containers/{id}/log:
+    get:
+      description: Get container log
+      parameters:
+      - description: container id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: follow log
+        in: query
+        name: follow
+        type: boolean
+      - description: tail log all or number
+        in: query
+        name: tail
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Get container log
+      tags:
+      - container
+  /api/v1/containers/{id}/proxy:
+    get:
+      description: proxy container
+      parameters:
+      - description: container id
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: shell, sh or bash
+        in: query
+        name: shell
+        type: string
+      responses:
+        "200":
+          description: OK
+          schema:
+            type: string
+      security:
+      - JWT: []
+      summary: Proxy container
+      tags:
+      - container
+  /api/v1/groups:
+    get:
+      description: List group
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.Group'
+                  type: array
+              type: object
+      security:
+      - JWT: []
+      summary: List group
+      tags:
+      - group
+    post:
+      consumes:
+      - application/json
+      description: Create group and storage
+      parameters:
+      - description: group info
+        in: body
+        name: group
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreatedGroup'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Group'
+              type: object
+      security:
+      - JWT: []
+      summary: Create group
+      tags:
+      - group
+  /api/v1/groups/{id}:
+    delete:
+      description: Delete group
+      parameters:
+      - description: group id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete group
+      tags:
+      - group
+    get:
+      description: Get group
+      parameters:
+      - description: group id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Group'
+              type: object
+      security:
+      - JWT: []
+      summary: Get group
+      tags:
+      - group
+    put:
+      consumes:
+      - application/json
+      description: Update group and storage
+      parameters:
+      - description: group info
+        in: body
+        name: group
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdatedUser'
+      - description: group id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Group'
+              type: object
+      security:
+      - JWT: []
+      summary: Update group
+      tags:
+      - group
+  /api/v1/groups/{id}/roles/{rid}:
+    delete:
+      description: delete role from group
+      parameters:
+      - description: group id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: role id
+        in: path
+        name: rid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete role
+      tags:
+      - group
+    post:
+      description: Add role to group
+      parameters:
+      - description: group id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: role id
+        in: path
+        name: rid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Add role
+      tags:
+      - group
+  /api/v1/groups/{id}/users:
+    delete:
+      description: Delete user from group
+      parameters:
+      - description: group id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: user info
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/model.User'
+      - description: user name
+        in: query
+        name: name
+        required: true
+        type: string
+      - description: user role
+        in: query
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete user
+      tags:
+      - group
+    get:
+      description: Get users
+      parameters:
+      - description: group id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Get users
+      tags:
+      - group
+    post:
+      description: Add user to group
+      parameters:
+      - description: group id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: user info
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/model.User'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Add user
+      tags:
+      - group
+  /api/v1/namespaces/:namespace/:resource:
+    get:
+      consumes:
+      - application/json
+      description: List kube resource
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+      security:
+      - JWT: []
+      summary: List kube resource
+      tags:
+      - k8s
+    post:
+      consumes:
+      - application/json
+      description: Create kube resource
+      parameters:
+      - description: k8s json info
+        in: body
+        name: app
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+      security:
+      - JWT: []
+      summary: Create kube resource
+      tags:
+      - k8s
+  /api/v1/namespaces/:namespace/:resource/:name:
+    delete:
+      consumes:
+      - application/json
+      description: Delete kube resource
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete kube resource
+      tags:
+      - k8s
+    get:
+      consumes:
+      - application/json
+      description: Get kube resource
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+      security:
+      - JWT: []
+      summary: Get kube resource
+      tags:
+      - k8s
+    put:
+      consumes:
+      - application/json
+      description: Update kube resource
+      parameters:
+      - description: k8s json info
+        in: body
+        name: app
+        required: true
+        schema:
+          additionalProperties: true
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+      security:
+      - JWT: []
+      summary: Update kube resource
+      tags:
+      - k8s
+  /api/v1/operations:
+    get:
+      description: List operations
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.Operation'
+                  type: array
+              type: object
+      security:
+      - JWT: []
+      summary: List operations
+      tags:
+      - rbac
+  /api/v1/posts:
+    get:
+      description: List post
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.Post'
+                  type: array
+              type: object
+      security:
+      - JWT: []
+      summary: List post
+      tags:
+      - post
+    post:
+      consumes:
+      - application/json
+      description: Create post and storage
+      parameters:
+      - description: post info
+        in: body
+        name: post
+        required: true
+        schema:
+          $ref: '#/definitions/model.Post'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Post'
+              type: object
+      security:
+      - JWT: []
+      summary: Create post
+      tags:
+      - post
+  /api/v1/posts/{id}:
+    delete:
+      description: Delete post
+      parameters:
+      - description: post id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete post
+      tags:
+      - post
+    get:
+      description: Get post
+      parameters:
+      - description: post id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Post'
+              type: object
+      security:
+      - JWT: []
+      summary: Get post
+      tags:
+      - post
+    put:
+      consumes:
+      - application/json
+      description: Update post and storage
+      parameters:
+      - description: post info
+        in: body
+        name: post
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdatedUser'
+      - description: post id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Post'
+              type: object
+      security:
+      - JWT: []
+      summary: Update post
+      tags:
+      - post
+  /api/v1/posts/{id}/comment:
+    post:
+      description: Add Comment
+      parameters:
+      - description: post id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Add Comment
+      tags:
+      - post
+  /api/v1/posts/{id}/comment/${cid}:
+    delete:
+      description: Delete Comment
+      parameters:
+      - description: post id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: comment id
+        in: path
+        name: cid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete Comment
+      tags:
+      - post
+  /api/v1/posts/{id}/like:
+    delete:
+      description: Delete Like
+      parameters:
+      - description: post id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete Like
+      tags:
+      - post
+    post:
+      description: Add Like
+      parameters:
+      - description: post id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Add Like
+      tags:
+      - post
+  /api/v1/resources:
+    get:
+      description: List resources
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.Resource'
+                  type: array
+              type: object
+      security:
+      - JWT: []
+      summary: List resources
+      tags:
+      - rbac
+  /api/v1/roles:
+    get:
+      description: List rbac role
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.Role'
+                  type: array
+              type: object
+      security:
+      - JWT: []
+      summary: List rbac role
+      tags:
+      - rbac
+    post:
+      consumes:
+      - application/json
+      description: Create rbac role
+      parameters:
+      - description: rbac role info
+        in: body
+        name: role
+        required: true
+        schema:
+          $ref: '#/definitions/model.Role'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Create rbac role
+      tags:
+      - rbac
+  /api/v1/roles/:id:
+    put:
+      consumes:
+      - application/json
+      description: Update rbac role
+      parameters:
+      - description: rbac role info
+        in: body
+        name: role
+        required: true
+        schema:
+          $ref: '#/definitions/model.Role'
+      - description: role id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Update rbac role
+      tags:
+      - rbac
+  /api/v1/roles/{id}:
+    delete:
+      description: Delete role
+      parameters:
+      - description: role id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete role
+      tags:
+      - rbac
+    get:
+      description: Get role
+      parameters:
+      - description: role id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.Role'
+              type: object
+      security:
+      - JWT: []
+      summary: Get role
+      tags:
+      - rbac
+  /api/v1/users:
+    get:
+      description: List user and storage
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/model.User'
+                  type: array
+              type: object
+      security:
+      - JWT: []
+      summary: List user
+      tags:
+      - user
+    post:
+      consumes:
+      - application/json
+      description: Create user and storage
+      parameters:
+      - description: user info
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/model.CreatedUser'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.User'
+              type: object
+      security:
+      - JWT: []
+      summary: Create user
+      tags:
+      - user
+  /api/v1/users/{id}:
+    delete:
+      description: Delete user and storage
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete user
+      tags:
+      - user
+    get:
+      description: Get user and storage
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.User'
+              type: object
+      security:
+      - JWT: []
+      summary: Get user
+      tags:
+      - user
+    put:
+      consumes:
+      - application/json
+      description: Update user and storage
+      parameters:
+      - description: user info
+        in: body
+        name: user
+        required: true
+        schema:
+          $ref: '#/definitions/model.UpdatedUser'
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/common.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/model.User'
+              type: object
+      security:
+      - JWT: []
+      summary: Update user
+      tags:
+      - user
+  /api/v1/users/{id}/groups:
+    get:
+      description: Get groups
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Get groups
+      tags:
+      - group
+  /api/v1/users/{id}/roles/{rid}:
+    delete:
+      description: delete role from user
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: role id
+        in: path
+        name: rid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Delete role
+      tags:
+      - user
+    post:
+      description: Add role to user
+      parameters:
+      - description: user id
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: role id
+        in: path
+        name: rid
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/common.Response'
+      security:
+      - JWT: []
+      summary: Add role
+      tags:
+      - user
+  /index:
+    get:
+      produces:
+      - text/html
+      responses: {}
+      summary: Home
+      tags:
+      - home
+securityDefinitions:
+  JWT:
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

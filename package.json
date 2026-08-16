@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "deploy": "./deploy.sh",
+    "dev:web": "pnpm --dir apps/evolyn-web run dev",
+    "dev:all": "cd ./apps/evolyn-core && make all",
+    "dev:dao": "cd ./apps/evolyn-core && make dao"
+  }
+}
