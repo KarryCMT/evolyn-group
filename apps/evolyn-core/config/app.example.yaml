@@ -1,0 +1,38 @@
+# evolyn-core 配置模板
+# 复制为 app.yaml（本地开发）或 app.local.yaml 后按环境填写真实值，真实配置不要提交入库。
+
+server:
+  env: "debug"            # debug / release
+  address: "127.0.0.1"
+  port: 8080
+  gracefulShutdownPeriod: 30
+  rateLimits:
+    - limitType: "server"
+      burst: 500
+      qps: 100
+      cacheSize: 1
+    - limitType: "ip"
+      burst: 50
+      qps: 10
+      cacheSize: 2048
+  jwtSecret: "CHANGE_ME"  # 生产环境必须替换为随机长字符串
+
+db:
+  port: 5432
+  host: "localhost"
+  name: "evolyn"
+  user: "postgres"
+  password: "postgres"
+  migrate: true
+
+redis:
+  enable: true
+  port: 6379
+  host: "localhost"
+  password: "CHANGE_ME"
+
+oauth:
+  github:
+    authType: "github"
+    clientId: ""
+    clientSecret: ""

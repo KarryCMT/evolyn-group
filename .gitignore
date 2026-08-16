@@ -1,5 +1,18 @@
+# 构建产物与本地生成内容
 /bin
 cover.out
 coverage.txt
 vendor/
+node_modules/
+dist/
 .DS_Store
+
+# 本地证书与私钥：由 apps/evolyn-core/scripts/cert.sh 现场生成，禁止入库
+certs/
+*.key
+*.crt
+*.csr
+
+# 本地运行配置与 swagger 生成产物
+apps/evolyn-core/config/app.local.yaml
+apps/evolyn-core/docs/
