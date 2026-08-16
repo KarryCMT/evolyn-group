@@ -39,9 +39,8 @@
 <script setup>
 import { ref } from 'vue';
 import {
-  DashboardCar, ApplicationTwo, Peoples,
+  DashboardCar, Peoples,
   MoreFour, MenuFoldOne, MenuUnfoldOne, CategoryManagement,
-  SailboatOne
 } from '@icon-park/vue-next';
 import { isAdmin } from '@/utils';
 
@@ -56,11 +55,6 @@ const menuList = [
     title: 'Dashboard',
   },
   {
-    name: '/apps',
-    icon: ApplicationTwo,
-    title: 'Applications',
-  },
-  {
     name: '/user_groups',
     icon: Peoples,
     title: 'Groups',
@@ -68,34 +62,6 @@ const menuList = [
 ]
 
 const subMenuList = [
-  {
-    title: 'Kubernetes',
-    icon: SailboatOne,
-    name: "/kubernetes",
-    show: isRoot,
-    children: [
-      {
-        name: '/namespaces',
-        title: 'Namespaces'
-      },
-      {
-        name: '/workloads',
-        title: 'Workloads'
-      },
-      {
-        name: '/pods',
-        title: 'Pods'
-      },
-      {
-        name: '/services',
-        title: 'Services'
-      },
-      {
-        name: '/ingresses',
-        title: 'Ingresses'
-      }
-    ]
-  },
   {
     title: 'Admin',
     icon: CategoryManagement,

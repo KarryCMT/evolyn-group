@@ -54,51 +54,6 @@ const routes = [
         component: () => import("views/auth/RBAC.vue")
       },
       {
-        path: '/apps',
-        name: 'Applications',
-        component: () => import("views/container/Application.vue")
-      },
-      {
-        path: '/apps/:id/exec',
-        name: 'ContainerTerminal',
-        component: () => import("views/container/ContainerTerminal.vue")
-      },
-      {
-        path: '/apps/:id/proxy:proxyPath(.*)',
-        name: 'Proxy',
-        component: () => import("views/container/Proxy.vue"),
-      },
-      {
-        path: '/namespaces',
-        name: 'Namespace',
-        component: () => import("views/kube/Namespace.vue")
-      },
-      {
-        path: '/workloads',
-        name: 'Workload',
-        component: () => import("views/kube/Workload.vue")
-      },
-      {
-        path: '/pods',
-        name: 'Pod',
-        component: () => import("views/kube/Pod.vue")
-      },
-      {
-        path: '/services',
-        name: 'Service',
-        component: () => import("views/kube/Service.vue")
-      },
-      {
-        path: '/ingresses',
-        name: 'Ingress',
-        component: () => import("views/kube/Ingress.vue")
-      },
-      {
-        path: '/namespaces/:namespace/pods/:pod/exec',
-        name: 'PodTerminal',
-        component: () => import("views/kube/PodTerminal.vue")
-      },
-      {
         path: '/webcode',
         name: 'WebCode',
         component: () => import('views/others/WebCode.vue')
@@ -128,47 +83,6 @@ const routes = [
     path: '/oauth',
     name: 'OAuth',
     component: () => import("views/auth/OAuth.vue")
-  },
-  {
-    path: '/docs',
-    name: 'Document',
-    component: () => import("views/doc/List.vue"),
-    redirect: '/docs/introduce',
-    children: [
-      {
-        path: ':page',
-        name: 'DocDetail',
-        component: () => import('views/doc/Detail.vue')
-      }
-    ]
-  },
-  {
-    path: '/posts',
-    name: 'Post',
-    component: () => import('views/post/Home.vue'),
-    redirect: '/posts/list',
-    children: [
-      {
-        path: 'editor',
-        name: 'Editor',
-        component: () => import('views/post/Editor.vue')
-      },
-      {
-        path: 'editor/:id',
-        name: 'Draft',
-        component: () => import('views/post/Editor.vue')
-      },
-      {
-        path: 'list',
-        name: 'PostList',
-        component: () => import('views/post/List.vue')
-      },
-      {
-        path: ':post',
-        name: 'PostDetail',
-        component: () => import('views/post/Detail.vue')
-      }
-    ]
   },
 ]
 
