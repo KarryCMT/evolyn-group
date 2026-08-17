@@ -113,6 +113,10 @@ func (r *repository) Migrate() error {
 }
 
 func (r *repository) Init() error {
+	// 启动期无请求上下文，统一用 Background：无租户上下文时 Callback 无副作用，
+	// 种子数据按列默认值归属默认租户
+	ctx := context.Background()
+
 	// 默认租户必须最先种子化：单租户/存量数据的归属兜底（见架构文档 26.8 P0）
 	if err := r.Tenant().SeedDefaultTenant(); err != nil {
 		return err
@@ -138,7 +142,7 @@ func (r *repository) Init() error {
 		},
 	}
 
-	if err := r.RBAC().CreateResources(resources, clause.OnConflict{DoNothing: true}); err != nil {
+	if err := r.RBAC().CreateResources(ctx, resources, clause.OnConflict{DoNothing: true}); err != nil {
 		return err
 	}
 
@@ -160,7 +164,7 @@ func (r *repository) Init() error {
 			Describe: "system group contains all unauthenticated user",
 		},
 	}
-	if err := r.Group().CreateGroups(groups, clause.OnConflict{DoNothing: true}); err != nil {
+	if err := r.Group().CreateGroups(ctx, groups, clause.OnConflict{DoNothing: true}); err != nil {
 		return err
 	}
 

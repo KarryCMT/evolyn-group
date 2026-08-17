@@ -1,6 +1,7 @@
 package repository
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -27,16 +28,22 @@ func newUserRepository(db *gorm.DB, rdb *database.RedisDB) UserRepository {
 	}
 }
 
-func (u *userRepository) List() (model.Users, error) {
+// withContext 以请求 ctx 打开新会话：GORM 租户 Callback 从
+// Statement.Context 读取租户并自动注入过滤/回填，租户对业务代码透明
+func (u *userRepository) withContext(ctx context.Context) *gorm.DB {
+	return u.db.WithContext(ctx)
+}
+
+func (u *userRepository) List(ctx context.Context) (model.Users, error) {
 	users := make(model.Users, 0)
-	if err := u.db.Preload(model.UserAuthInfoAssociation).Preload(model.GroupAssociation).Preload("Roles").Order("name").Find(&users).Error; err != nil {
+	if err := u.withContext(ctx).Preload(model.UserAuthInfoAssociation).Preload(model.GroupAssociation).Preload("Roles").Order("name").Find(&users).Error; err != nil {
 		return nil, err
 	}
 	return users, nil
 }
 
-func (u *userRepository) Create(user *model.User) (*model.User, error) {
-	if err := u.db.Select(userCreateField).Create(user).Error; err != nil {
+func (u *userRepository) Create(ctx context.Context, user *model.User) (*model.User, error) {
+	if err := u.withContext(ctx).Select(userCreateField).Create(user).Error; err != nil {
 		return nil, err
 	}
 
@@ -45,8 +52,8 @@ func (u *userRepository) Create(user *model.User) (*model.User, error) {
 	return user, nil
 }
 
-func (u *userRepository) Update(user *model.User) (*model.User, error) {
-	if err := u.db.Model(&model.User{}).Where("id = ?", user.ID).Updates(user).Error; err != nil {
+func (u *userRepository) Update(ctx context.Context, user *model.User) (*model.User, error) {
+	if err := u.withContext(ctx).Model(&model.User{}).Where("id = ?", user.ID).Updates(user).Error; err != nil {
 		return nil, err
 	}
 
@@ -55,8 +62,8 @@ func (u *userRepository) Update(user *model.User) (*model.User, error) {
 	return user, nil
 }
 
-func (u *userRepository) Delete(user *model.User) error {
-	err := u.db.Select(model.UserAuthInfoAssociation).Delete(user).Error
+func (u *userRepository) Delete(ctx context.Context, user *model.User) error {
+	err := u.withContext(ctx).Select(model.UserAuthInfoAssociation).Delete(user).Error
 	if err != nil {
 		return err
 	}
@@ -64,14 +71,14 @@ func (u *userRepository) Delete(user *model.User) error {
 	return nil
 }
 
-func (u *userRepository) GetUserByID(id uint) (*model.User, error) {
+func (u *userRepository) GetUserByID(ctx context.Context, id uint) (*model.User, error) {
 	// TODO HSet not support expire, avoid roles and groups inconsistent
 	// if user := u.getCacheUser(id); user != nil {
 	// 	return user, nil
 	// }
 
 	user := new(model.User)
-	if err := u.db.Omit("Password").Preload(model.UserAuthInfoAssociation).Preload("Groups").Preload("Groups.Roles").Preload("Roles").First(user, id).Error; err != nil {
+	if err := u.withContext(ctx).Omit("Password").Preload(model.UserAuthInfoAssociation).Preload("Groups").Preload("Groups.Roles").Preload("Roles").First(user, id).Error; err != nil {
 		return nil, err
 	}
 
@@ -82,51 +89,51 @@ func (u *userRepository) GetUserByID(id uint) (*model.User, error) {
 	return user, nil
 }
 
-func (u *userRepository) GetUserByAuthID(authType, authID string) (*model.User, error) {
+func (u *userRepository) GetUserByAuthID(ctx context.Context, authType, authID string) (*model.User, error) {
 	authInfo := new(model.AuthInfo)
-	if err := u.db.Where("auth_type = ? and auth_id = ?", authType, authID).First(authInfo).Error; err != nil {
+	if err := u.withContext(ctx).Where("auth_type = ? and auth_id = ?", authType, authID).First(authInfo).Error; err != nil {
 		return nil, err
 	}
 
-	return u.GetUserByID(authInfo.UserId)
+	return u.GetUserByID(ctx, authInfo.UserId)
 }
 
-func (u *userRepository) GetUserByName(name string) (*model.User, error) {
+func (u *userRepository) GetUserByName(ctx context.Context, name string) (*model.User, error) {
 	user := new(model.User)
-	if err := u.db.Preload(model.UserAuthInfoAssociation).Preload("Groups").Preload("Groups.Roles").Preload("Roles").Where("name = ?", name).First(user).Error; err != nil {
+	if err := u.withContext(ctx).Preload(model.UserAuthInfoAssociation).Preload("Groups").Preload("Groups.Roles").Preload("Roles").Where("name = ?", name).First(user).Error; err != nil {
 		return nil, err
 	}
 	return user, nil
 }
 
-func (u *userRepository) AddAuthInfo(authInfo *model.AuthInfo) error {
+func (u *userRepository) AddAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error {
 	if authInfo == nil {
 		return nil
 	}
 	if authInfo.UserId == 0 {
 		return fmt.Errorf("empty user id")
 	}
-	return u.db.Create(authInfo).Error
+	return u.withContext(ctx).Create(authInfo).Error
 }
 
-func (u *userRepository) DelAuthInfo(authInfo *model.AuthInfo) error {
+func (u *userRepository) DelAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error {
 	if authInfo == nil {
 		return nil
 	}
-	return u.db.Delete(authInfo).Error
+	return u.withContext(ctx).Delete(authInfo).Error
 }
 
-func (u *userRepository) AddRole(role *model.Role, user *model.User) error {
-	return u.db.Model(user).Association("Roles").Append(role)
+func (u *userRepository) AddRole(ctx context.Context, role *model.Role, user *model.User) error {
+	return u.withContext(ctx).Model(user).Association("Roles").Append(role)
 }
 
-func (u *userRepository) DelRole(role *model.Role, user *model.User) error {
-	return u.db.Model(user).Association("Roles").Delete(role)
+func (u *userRepository) DelRole(ctx context.Context, role *model.Role, user *model.User) error {
+	return u.withContext(ctx).Model(user).Association("Roles").Delete(role)
 }
 
-func (u *userRepository) GetGroups(user *model.User) ([]model.Group, error) {
+func (u *userRepository) GetGroups(ctx context.Context, user *model.User) ([]model.Group, error) {
 	groups := make([]model.Group, 0)
-	err := u.db.Model(user).Association(model.GroupAssociation).Find(&groups)
+	err := u.withContext(ctx).Model(user).Association(model.GroupAssociation).Find(&groups)
 	return groups, err
 }
 

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
@@ -26,25 +27,25 @@ func NewUserService(userRepository repository.UserRepository) UserService {
 	}
 }
 
-func (u *userService) List() (model.Users, error) {
-	return u.userRepository.List()
+func (u *userService) List(ctx context.Context) (model.Users, error) {
+	return u.userRepository.List(ctx)
 }
 
-func (u *userService) Create(user *model.User) (*model.User, error) {
+func (u *userService) Create(ctx context.Context, user *model.User) (*model.User, error) {
 	password, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err
 	}
 	user.Password = string(password)
-	return u.userRepository.Create(user)
+	return u.userRepository.Create(ctx, user)
 }
 
-func (u *userService) Get(id string) (*model.User, error) {
-	return u.getUserByID(id)
+func (u *userService) Get(ctx context.Context, id string) (*model.User, error) {
+	return u.getUserByID(ctx, id)
 }
 
-func (u *userService) Update(id string, new *model.User) (*model.User, error) {
-	old, err := u.getUserByID(id)
+func (u *userService) Update(ctx context.Context, id string, new *model.User) (*model.User, error) {
+	old, err := u.getUserByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -62,15 +63,15 @@ func (u *userService) Update(id string, new *model.User) (*model.User, error) {
 		new.Password = string(password)
 	}
 
-	return u.userRepository.Update(new)
+	return u.userRepository.Update(ctx, new)
 }
 
-func (u *userService) Delete(id string) error {
+func (u *userService) Delete(ctx context.Context, id string) error {
 	user, err := u.getUser(id)
 	if err != nil {
 		return err
 	}
-	return u.userRepository.Delete(user)
+	return u.userRepository.Delete(ctx, user)
 }
 
 func (u *userService) Validate(user *model.User) error {
@@ -95,12 +96,14 @@ func (u *userService) Default(user *model.User) {
 	}
 }
 
-func (u *userService) Auth(auser *model.AuthUser) (*model.User, error) {
+// Auth 登录链路在认证前无租户上下文，按用户名全局查找；
+// 多租户登录入口（租户识别）随 P1 IAM 改造补充
+func (u *userService) Auth(ctx context.Context, auser *model.AuthUser) (*model.User, error) {
 	if auser == nil || auser.Name == "" || auser.Password == "" {
 		return nil, fmt.Errorf("name or password is empty")
 	}
 
-	user, err := u.userRepository.GetUserByName(auser.Name)
+	user, err := u.userRepository.GetUserByName(ctx, auser.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -114,31 +117,31 @@ func (u *userService) Auth(auser *model.AuthUser) (*model.User, error) {
 	return user, nil
 }
 
-func (u *userService) CreateOAuthUser(user *model.User) (*model.User, error) {
+func (u *userService) CreateOAuthUser(ctx context.Context, user *model.User) (*model.User, error) {
 	if len(user.AuthInfos) == 0 {
 		return nil, fmt.Errorf("empty auth info")
 	}
 	authInfo := user.AuthInfos[0]
-	old, err := u.userRepository.GetUserByAuthID(authInfo.AuthType, authInfo.AuthId)
+	old, err := u.userRepository.GetUserByAuthID(ctx, authInfo.AuthType, authInfo.AuthId)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return u.userRepository.Create(user)
+			return u.userRepository.Create(ctx, user)
 		}
 		return nil, err
 	}
 	return old, nil
 }
 
-func (u *userService) GetGroups(id string) ([]model.Group, error) {
-	user, err := u.getUserByID(id)
+func (u *userService) GetGroups(ctx context.Context, id string) ([]model.Group, error) {
+	user, err := u.getUserByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	return u.userRepository.GetGroups(user)
+	return u.userRepository.GetGroups(ctx, user)
 }
 
-func (u *userService) AddRole(id, rid string) error {
+func (u *userService) AddRole(ctx context.Context, id, rid string) error {
 	uid, err := strconv.Atoi(id)
 	if err != nil {
 		return err
@@ -149,10 +152,10 @@ func (u *userService) AddRole(id, rid string) error {
 		return err
 	}
 
-	return u.userRepository.AddRole(&model.Role{ID: uint(roleId)}, &model.User{ID: uint(uid)})
+	return u.userRepository.AddRole(ctx, &model.Role{ID: uint(roleId)}, &model.User{ID: uint(uid)})
 }
 
-func (u *userService) DelRole(id, rid string) error {
+func (u *userService) DelRole(ctx context.Context, id, rid string) error {
 	uid, err := strconv.Atoi(id)
 	if err != nil {
 		return err
@@ -163,15 +166,15 @@ func (u *userService) DelRole(id, rid string) error {
 		return err
 	}
 
-	return u.userRepository.DelRole(&model.Role{ID: uint(roleId)}, &model.User{ID: uint(uid)})
+	return u.userRepository.DelRole(ctx, &model.Role{ID: uint(roleId)}, &model.User{ID: uint(uid)})
 }
 
-func (u *userService) getUserByID(id string) (*model.User, error) {
+func (u *userService) getUserByID(ctx context.Context, id string) (*model.User, error) {
 	uid, err := strconv.Atoi(id)
 	if err != nil {
 		return nil, err
 	}
-	return u.userRepository.GetUserByID(uint(uid))
+	return u.userRepository.GetUserByID(ctx, uint(uid))
 }
 
 func (u *userService) getUser(id string) (*model.User, error) {

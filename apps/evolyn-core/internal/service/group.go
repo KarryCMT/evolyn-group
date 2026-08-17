@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 
@@ -21,50 +22,50 @@ func NewGroupService(groupRepository repository.GroupRepository, userRepository 
 	}
 }
 
-func (g *groupService) List() ([]model.Group, error) {
-	return g.groupRepository.List()
+func (g *groupService) List(ctx context.Context) ([]model.Group, error) {
+	return g.groupRepository.List(ctx)
 }
 
-func (g *groupService) Create(user *model.User, group *model.Group) (*model.Group, error) {
-	return g.groupRepository.Create(user, group)
+func (g *groupService) Create(ctx context.Context, user *model.User, group *model.Group) (*model.Group, error) {
+	return g.groupRepository.Create(ctx, user, group)
 }
 
-func (g *groupService) Get(id string) (*model.Group, error) {
+func (g *groupService) Get(ctx context.Context, id string) (*model.Group, error) {
 	gid, err := strconv.Atoi(id)
 	if err != nil {
 		return nil, err
 	}
-	return g.groupRepository.GetGroupByID(uint(gid))
+	return g.groupRepository.GetGroupByID(ctx, uint(gid))
 }
 
-func (g *groupService) Update(id string, group *model.Group) (*model.Group, error) {
+func (g *groupService) Update(ctx context.Context, id string, group *model.Group) (*model.Group, error) {
 	gid, err := strconv.Atoi(id)
 	if err != nil {
 		return nil, err
 	}
 	group.ID = uint(gid)
-	return g.groupRepository.Update(group)
+	return g.groupRepository.Update(ctx, group)
 }
 
-func (g *groupService) Delete(id string) error {
+func (g *groupService) Delete(ctx context.Context, id string) error {
 	gid, err := strconv.Atoi(id)
 	if err != nil {
 		return err
 	}
 
-	return g.groupRepository.Delete(uint(gid))
+	return g.groupRepository.Delete(ctx, uint(gid))
 }
 
-func (g *groupService) GetUsers(id string) (model.Users, error) {
+func (g *groupService) GetUsers(ctx context.Context, id string) (model.Users, error) {
 	gid, err := strconv.Atoi(id)
 	if err != nil {
 		return nil, err
 	}
 
-	return g.groupRepository.GetUsers(&model.Group{ID: uint(gid)})
+	return g.groupRepository.GetUsers(ctx, &model.Group{ID: uint(gid)})
 }
 
-func (g *groupService) AddUser(user *model.User, id string) error {
+func (g *groupService) AddUser(ctx context.Context, user *model.User, id string) error {
 	var err error
 	if user.ID == 0 {
 		return fmt.Errorf("invaild user info")
@@ -75,10 +76,10 @@ func (g *groupService) AddUser(user *model.User, id string) error {
 		return err
 	}
 
-	return g.groupRepository.AddUser(user, &model.Group{ID: uint(gid)})
+	return g.groupRepository.AddUser(ctx, user, &model.Group{ID: uint(gid)})
 }
 
-func (g *groupService) DelUser(user *model.User, id string) error {
+func (g *groupService) DelUser(ctx context.Context, user *model.User, id string) error {
 	var err error
 	if user.ID == 0 {
 		return fmt.Errorf("invaild user info")
@@ -89,10 +90,10 @@ func (g *groupService) DelUser(user *model.User, id string) error {
 		return err
 	}
 
-	return g.groupRepository.DelUser(user, &model.Group{ID: uint(gid)})
+	return g.groupRepository.DelUser(ctx, user, &model.Group{ID: uint(gid)})
 }
 
-func (g *groupService) AddRole(id, rid string) error {
+func (g *groupService) AddRole(ctx context.Context, id, rid string) error {
 	gid, err := strconv.Atoi(id)
 	if err != nil {
 		return err
@@ -103,10 +104,10 @@ func (g *groupService) AddRole(id, rid string) error {
 		return err
 	}
 
-	return g.groupRepository.AddRole(&model.Role{ID: uint(roleId)}, &model.Group{ID: uint(gid)})
+	return g.groupRepository.AddRole(ctx, &model.Role{ID: uint(roleId)}, &model.Group{ID: uint(gid)})
 }
 
-func (g *groupService) DelRole(id, rid string) error {
+func (g *groupService) DelRole(ctx context.Context, id, rid string) error {
 	gid, err := strconv.Atoi(id)
 	if err != nil {
 		return err
@@ -117,5 +118,5 @@ func (g *groupService) DelRole(id, rid string) error {
 		return err
 	}
 
-	return g.groupRepository.DelRole(&model.Role{ID: uint(roleId)}, &model.Group{ID: uint(gid)})
+	return g.groupRepository.DelRole(ctx, &model.Role{ID: uint(roleId)}, &model.Group{ID: uint(gid)})
 }

@@ -21,7 +21,9 @@ func AuthenticationMiddleware(jwtService *authentication.JWTService, userRepo re
 
 		user, _ := jwtService.ParseToken(token)
 		if user != nil {
-			user, err := userRepo.GetUserByID(user.ID)
+			// 此时尚未经过 TenantMiddleware（租户来自本处加载的用户），
+			// ctx 无租户上下文，GetUserByID 按全局唯一 ID 查询
+			user, err := userRepo.GetUserByID(c.Request.Context(), user.ID)
 			if err != nil {
 				common.ResponseFailed(c, http.StatusInternalServerError, fmt.Errorf("failed to get user"))
 				c.Abort()

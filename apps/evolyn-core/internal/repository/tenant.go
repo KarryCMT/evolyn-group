@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"context"
+
 	"evolyn/internal/database"
 	"evolyn/internal/model"
 
@@ -20,17 +22,23 @@ func newTenantRepository(db *gorm.DB, rdb *database.RedisDB) TenantRepository {
 	}
 }
 
-func (t *tenantRepository) GetByID(id uint) (*model.Tenant, error) {
+// withContext 以请求 ctx 打开新会话；tenants 表自身无 tenant_id 列，
+// Callback 对其无副作用，保持签名统一只为与其余仓储一致
+func (t *tenantRepository) withContext(ctx context.Context) *gorm.DB {
+	return t.db.WithContext(ctx)
+}
+
+func (t *tenantRepository) GetByID(ctx context.Context, id uint) (*model.Tenant, error) {
 	tenant := new(model.Tenant)
-	if err := t.db.First(tenant, id).Error; err != nil {
+	if err := t.withContext(ctx).First(tenant, id).Error; err != nil {
 		return nil, err
 	}
 	return tenant, nil
 }
 
-func (t *tenantRepository) GetByCode(code string) (*model.Tenant, error) {
+func (t *tenantRepository) GetByCode(ctx context.Context, code string) (*model.Tenant, error) {
 	tenant := new(model.Tenant)
-	if err := t.db.Where("code = ?", code).First(tenant).Error; err != nil {
+	if err := t.withContext(ctx).Where("code = ?", code).First(tenant).Error; err != nil {
 		return nil, err
 	}
 	return tenant, nil

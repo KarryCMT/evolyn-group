@@ -29,7 +29,7 @@ func AuthorizationMiddleware() gin.HandlerFunc {
 
 		if ri.IsResourceRequest {
 			resource := ri.Resource
-			ok, err := authorization.Authorize(user, ri)
+			ok, err := authorization.Authorize(c.Request.Context(), user, ri)
 			if err != nil {
 				common.ResponseFailed(c, http.StatusInternalServerError, err)
 				c.Abort()

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"strconv"
 
 	"evolyn/internal/model"
@@ -18,42 +19,42 @@ func NewRBACService(rbacRepository repository.RBACRepository) RBACService {
 	}
 }
 
-func (rbac *rbacService) List() ([]model.Role, error) {
-	return rbac.rbacRepository.List()
+func (rbac *rbacService) List(ctx context.Context) ([]model.Role, error) {
+	return rbac.rbacRepository.List(ctx)
 }
 
-func (rbac *rbacService) Create(role *model.Role) (*model.Role, error) {
-	return rbac.rbacRepository.Create(role)
+func (rbac *rbacService) Create(ctx context.Context, role *model.Role) (*model.Role, error) {
+	return rbac.rbacRepository.Create(ctx, role)
 }
 
-func (rbac *rbacService) Get(id string) (*model.Role, error) {
+func (rbac *rbacService) Get(ctx context.Context, id string) (*model.Role, error) {
 	rid, err := strconv.Atoi(id)
 	if err != nil {
 		return nil, err
 	}
-	return rbac.rbacRepository.GetRoleByID(rid)
+	return rbac.rbacRepository.GetRoleByID(ctx, rid)
 }
 
-func (rbac *rbacService) Update(id string, role *model.Role) (*model.Role, error) {
+func (rbac *rbacService) Update(ctx context.Context, id string, role *model.Role) (*model.Role, error) {
 	rid, err := strconv.Atoi(id)
 	if err != nil {
 		return nil, err
 	}
 	role.ID = uint(rid)
-	return rbac.rbacRepository.Update(role)
+	return rbac.rbacRepository.Update(ctx, role)
 }
 
-func (rbac *rbacService) Delete(id string) error {
+func (rbac *rbacService) Delete(ctx context.Context, id string) error {
 	rid, err := strconv.Atoi(id)
 	if err != nil {
 		return err
 	}
 
-	return rbac.rbacRepository.Delete(uint(rid))
+	return rbac.rbacRepository.Delete(ctx, uint(rid))
 }
 
-func (rbac *rbacService) ListResources() ([]model.Resource, error) {
-	return rbac.rbacRepository.ListResources()
+func (rbac *rbacService) ListResources(ctx context.Context) ([]model.Resource, error) {
+	return rbac.rbacRepository.ListResources(ctx)
 }
 
 func (rbac *rbacService) ListOperations() ([]model.Operation, error) {

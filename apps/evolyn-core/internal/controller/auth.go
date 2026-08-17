@@ -62,9 +62,9 @@ func (ac *AuthController) Login(c *gin.Context) {
 			return
 		}
 
-		user, err = ac.userService.CreateOAuthUser(userInfo.User())
+		user, err = ac.userService.CreateOAuthUser(c.Request.Context(), userInfo.User())
 	} else {
-		user, err = ac.userService.Auth(auser)
+		user, err = ac.userService.Auth(c.Request.Context(), auser)
 	}
 	if err != nil {
 		common.ResponseFailed(c, http.StatusUnauthorized, err)
@@ -127,7 +127,7 @@ func (ac *AuthController) Register(c *gin.Context) {
 	}
 
 	ac.userService.Default(user)
-	user, err := ac.userService.Create(user)
+	user, err := ac.userService.Create(c.Request.Context(), user)
 	if err != nil {
 		common.ResponseFailed(c, http.StatusInternalServerError, err)
 	}

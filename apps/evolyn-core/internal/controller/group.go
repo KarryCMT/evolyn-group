@@ -31,7 +31,7 @@ func NewGroupController(groupService service.GroupService) Controller {
 // @Router /api/v1/groups [get]
 func (g *GroupController) List(c *gin.Context) {
 	common.TraceStep(c, "start list group")
-	groups, err := g.groupService.List()
+	groups, err := g.groupService.List(c.Request.Context())
 	if err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -49,7 +49,7 @@ func (g *GroupController) List(c *gin.Context) {
 // @Success 200 {object} common.Response{data=model.Group}
 // @Router /api/v1/groups/{id} [get]
 func (g *GroupController) Get(c *gin.Context) {
-	group, err := g.groupService.Get(c.Param("id"))
+	group, err := g.groupService.Get(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -83,7 +83,7 @@ func (g *GroupController) Create(c *gin.Context) {
 	common.TraceStep(c, "start create group", trace.Field{"group", group.Name})
 	defer common.TraceStep(c, "create group done", trace.Field{"group", group.Name})
 
-	group, err := g.groupService.Create(user, group)
+	group, err := g.groupService.Create(c.Request.Context(), user, group)
 	if err != nil {
 		common.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -120,7 +120,7 @@ func (g *GroupController) Update(c *gin.Context) {
 	common.TraceStep(c, "start update group", trace.Field{"group", new.Name})
 	defer common.TraceStep(c, "update group done", trace.Field{"group", new.Name})
 
-	group, err := g.groupService.Update(id, new.GetGroup(user.ID))
+	group, err := g.groupService.Update(c.Request.Context(), id, new.GetGroup(user.ID))
 	if err != nil {
 		common.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -144,7 +144,7 @@ func (g *GroupController) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := g.groupService.Delete(c.Param("id")); err != nil {
+	if err := g.groupService.Delete(c.Request.Context(), c.Param("id")); err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
@@ -161,7 +161,7 @@ func (g *GroupController) Delete(c *gin.Context) {
 // @Success 200 {object} common.Response
 // @Router /api/v1/groups/{id}/users [get]
 func (g *GroupController) GetUsers(c *gin.Context) {
-	users, err := g.groupService.GetUsers(c.Param("id"))
+	users, err := g.groupService.GetUsers(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -186,7 +186,7 @@ func (g *GroupController) AddUser(c *gin.Context) {
 		return
 	}
 
-	if err := g.groupService.AddUser(user, c.Param("id")); err != nil {
+	if err := g.groupService.AddUser(c.Request.Context(), user, c.Param("id")); err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
@@ -209,7 +209,7 @@ func (g *GroupController) DelUser(c *gin.Context) {
 	user := new(model.User)
 	user.Name = c.Query("name")
 
-	if err := g.groupService.DelUser(user, c.Param("id")); err != nil {
+	if err := g.groupService.DelUser(c.Request.Context(), user, c.Param("id")); err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
@@ -227,7 +227,7 @@ func (g *GroupController) DelUser(c *gin.Context) {
 // @Success 200 {object} common.Response
 // @Router /api/v1/groups/{id}/roles/{rid} [post]
 func (g *GroupController) AddRole(c *gin.Context) {
-	if err := g.groupService.AddRole(c.Param("id"), c.Param("rid")); err != nil {
+	if err := g.groupService.AddRole(c.Request.Context(), c.Param("id"), c.Param("rid")); err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
@@ -245,7 +245,7 @@ func (g *GroupController) AddRole(c *gin.Context) {
 // @Success 200 {object} common.Response
 // @Router /api/v1/groups/{id}/roles/{rid} [delete]
 func (g *GroupController) DelRole(c *gin.Context) {
-	if err := g.groupService.DelRole(c.Param("id"), c.Param("rid")); err != nil {
+	if err := g.groupService.DelRole(c.Request.Context(), c.Param("id"), c.Param("rid")); err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}

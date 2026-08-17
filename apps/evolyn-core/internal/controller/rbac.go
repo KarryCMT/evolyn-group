@@ -26,7 +26,7 @@ func NewRbacController(rbacService service.RBACService) Controller {
 // @Success 200 {object} common.Response{data=[]model.Role}
 // @Router /api/v1/roles [get]
 func (rbac *RBACController) List(c *gin.Context) {
-	roles, err := rbac.rbacService.List()
+	roles, err := rbac.rbacService.List(c.Request.Context())
 	if err != nil {
 		common.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -51,7 +51,7 @@ func (rbac *RBACController) Create(c *gin.Context) {
 		return
 	}
 
-	role, err := rbac.rbacService.Create(role)
+	role, err := rbac.rbacService.Create(c.Request.Context(), role)
 	if err != nil {
 		common.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -69,7 +69,7 @@ func (rbac *RBACController) Create(c *gin.Context) {
 // @Success 200 {object} common.Response{data=model.Role}
 // @Router /api/v1/roles/{id} [get]
 func (rbac *RBACController) Get(c *gin.Context) {
-	role, err := rbac.rbacService.Get(c.Param("id"))
+	role, err := rbac.rbacService.Get(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -95,7 +95,7 @@ func (rbac *RBACController) Update(c *gin.Context) {
 	}
 
 	id := c.Param("id")
-	role, err := rbac.rbacService.Update(id, role)
+	role, err := rbac.rbacService.Update(c.Request.Context(), id, role)
 	if err != nil {
 		common.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -113,7 +113,7 @@ func (rbac *RBACController) Update(c *gin.Context) {
 // @Success 200 {object} common.Response
 // @Router /api/v1/roles/{id} [delete]
 func (rbac *RBACController) Delete(c *gin.Context) {
-	if err := rbac.rbacService.Delete(c.Param("id")); err != nil {
+	if err := rbac.rbacService.Delete(c.Request.Context(), c.Param("id")); err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
@@ -129,7 +129,7 @@ func (rbac *RBACController) Delete(c *gin.Context) {
 // @Success 200 {object} common.Response{data=[]model.Resource}
 // @Router /api/v1/resources [get]
 func (rbac *RBACController) ListResources(c *gin.Context) {
-	data, err := rbac.rbacService.ListResources()
+	data, err := rbac.rbacService.ListResources(c.Request.Context())
 	if err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return

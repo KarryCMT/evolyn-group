@@ -8,6 +8,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+// ctx 约定：数据方法统一以 ctx 为首参，由调用链一路透传请求 context。
+// ctx 中的租户 ID 经 RegisterTenantCallbacks 注册的 GORM Callback 自动注入
+// 过滤/回填（架构文档 26.3），Repository 层禁止手写租户条件；
+// 启动期路径（Migrate/Init/Seed）使用 context.Background()，无租户上下文即无副作用。
+
 type Repository interface {
 	User() UserRepository
 	Group() GroupRepository
@@ -21,8 +26,8 @@ type Repository interface {
 
 // TenantRepository 租户数据访问；管理面 CRUD 随 P1 internal/tenant 模块补充
 type TenantRepository interface {
-	GetByID(id uint) (*model.Tenant, error)
-	GetByCode(code string) (*model.Tenant, error)
+	GetByID(ctx context.Context, id uint) (*model.Tenant, error)
+	GetByCode(ctx context.Context, code string) (*model.Tenant, error)
 	SeedDefaultTenant() error
 	Migrate() error
 }
@@ -32,49 +37,49 @@ type Migrant interface {
 }
 
 type UserRepository interface {
-	GetUserByID(uint) (*model.User, error)
-	GetUserByAuthID(authType, authID string) (*model.User, error)
-	GetUserByName(string) (*model.User, error)
-	List() (model.Users, error)
-	Create(*model.User) (*model.User, error)
-	Update(*model.User) (*model.User, error)
-	Delete(*model.User) error
-	AddAuthInfo(authInfo *model.AuthInfo) error
-	DelAuthInfo(authInfo *model.AuthInfo) error
-	AddRole(role *model.Role, user *model.User) error
-	DelRole(role *model.Role, user *model.User) error
-	GetGroups(*model.User) ([]model.Group, error)
+	GetUserByID(ctx context.Context, id uint) (*model.User, error)
+	GetUserByAuthID(ctx context.Context, authType, authID string) (*model.User, error)
+	GetUserByName(ctx context.Context, name string) (*model.User, error)
+	List(ctx context.Context) (model.Users, error)
+	Create(ctx context.Context, user *model.User) (*model.User, error)
+	Update(ctx context.Context, user *model.User) (*model.User, error)
+	Delete(ctx context.Context, user *model.User) error
+	AddAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
+	DelAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
+	AddRole(ctx context.Context, role *model.Role, user *model.User) error
+	DelRole(ctx context.Context, role *model.Role, user *model.User) error
+	GetGroups(ctx context.Context, user *model.User) ([]model.Group, error)
 	Migrate() error
 }
 
 type GroupRepository interface {
-	GetGroupByID(uint) (*model.Group, error)
-	GetGroupByName(string) (*model.Group, error)
-	List() ([]model.Group, error)
-	Create(*model.User, *model.Group) (*model.Group, error)
-	CreateGroups(groups []model.Group, conds ...clause.Expression) error
-	Update(*model.Group) (*model.Group, error)
-	Delete(uint) error
-	GetUsers(*model.Group) (model.Users, error)
-	AddUser(user *model.User, group *model.Group) error
-	DelUser(user *model.User, group *model.Group) error
-	AddRole(role *model.Role, group *model.Group) error
-	DelRole(role *model.Role, group *model.Group) error
-	RoleBinding(role *model.Role, group *model.Group) error
+	GetGroupByID(ctx context.Context, id uint) (*model.Group, error)
+	GetGroupByName(ctx context.Context, name string) (*model.Group, error)
+	List(ctx context.Context) ([]model.Group, error)
+	Create(ctx context.Context, user *model.User, group *model.Group) (*model.Group, error)
+	CreateGroups(ctx context.Context, groups []model.Group, conds ...clause.Expression) error
+	Update(ctx context.Context, group *model.Group) (*model.Group, error)
+	Delete(ctx context.Context, id uint) error
+	GetUsers(ctx context.Context, group *model.Group) (model.Users, error)
+	AddUser(ctx context.Context, user *model.User, group *model.Group) error
+	DelUser(ctx context.Context, user *model.User, group *model.Group) error
+	AddRole(ctx context.Context, role *model.Role, group *model.Group) error
+	DelRole(ctx context.Context, role *model.Role, group *model.Group) error
+	RoleBinding(ctx context.Context, role *model.Role, group *model.Group) error
 	Migrate() error
 }
 
 type RBACRepository interface {
-	List() ([]model.Role, error)
-	ListResources() ([]model.Resource, error)
-	Create(role *model.Role) (*model.Role, error)
-	CreateResource(resource *model.Resource) (*model.Resource, error)
-	CreateResources(resources []model.Resource, conds ...clause.Expression) error
-	GetRoleByID(id int) (*model.Role, error)
-	GetResource(id int) (*model.Resource, error)
-	GetRoleByName(name string) (*model.Role, error)
-	Update(role *model.Role) (*model.Role, error)
-	Delete(id uint) error
-	DeleteResource(id uint) error
+	List(ctx context.Context) ([]model.Role, error)
+	ListResources(ctx context.Context) ([]model.Resource, error)
+	Create(ctx context.Context, role *model.Role) (*model.Role, error)
+	CreateResource(ctx context.Context, resource *model.Resource) (*model.Resource, error)
+	CreateResources(ctx context.Context, resources []model.Resource, conds ...clause.Expression) error
+	GetRoleByID(ctx context.Context, id int) (*model.Role, error)
+	GetResource(ctx context.Context, id int) (*model.Resource, error)
+	GetRoleByName(ctx context.Context, name string) (*model.Role, error)
+	Update(ctx context.Context, role *model.Role) (*model.Role, error)
+	Delete(ctx context.Context, id uint) error
+	DeleteResource(ctx context.Context, id uint) error
 	Migrate() error
 }

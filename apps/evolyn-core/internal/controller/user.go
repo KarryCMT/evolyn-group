@@ -33,7 +33,7 @@ func NewUserController(userService service.UserService) Controller {
 // @Router /api/v1/users [get]
 func (u *UserController) List(c *gin.Context) {
 	common.TraceStep(c, "start list user")
-	users, err := u.userService.List()
+	users, err := u.userService.List(c.Request.Context())
 	if err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -51,7 +51,7 @@ func (u *UserController) List(c *gin.Context) {
 // @Success 200 {object} common.Response{data=model.User}
 // @Router /api/v1/users/{id} [get]
 func (u *UserController) Get(c *gin.Context) {
-	user, err := u.userService.Get(c.Param("id"))
+	user, err := u.userService.Get(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -84,7 +84,7 @@ func (u *UserController) Create(c *gin.Context) {
 	u.userService.Default(user)
 	common.TraceStep(c, "start create user", trace.Field{"user", user.Name})
 	defer common.TraceStep(c, "create user done", trace.Field{"user", user.Name})
-	user, err := u.userService.Create(user)
+	user, err := u.userService.Create(c.Request.Context(), user)
 	if err != nil {
 		common.ResponseFailed(c, http.StatusInternalServerError, err)
 	}
@@ -119,7 +119,7 @@ func (u *UserController) Update(c *gin.Context) {
 	common.TraceStep(c, "start update user", trace.Field{"user", new.Name})
 	defer common.TraceStep(c, "update user done", trace.Field{"user", new.Name})
 
-	user, err := u.userService.Update(c.Param("id"), new.GetUser())
+	user, err := u.userService.Update(c.Request.Context(), c.Param("id"), new.GetUser())
 	if err != nil {
 		common.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -143,7 +143,7 @@ func (u *UserController) Delete(c *gin.Context) {
 		return
 	}
 
-	if err := u.userService.Delete(c.Param("id")); err != nil {
+	if err := u.userService.Delete(c.Request.Context(), c.Param("id")); err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
@@ -160,7 +160,7 @@ func (u *UserController) Delete(c *gin.Context) {
 // @Success 200 {object} common.Response
 // @Router /api/v1/users/{id}/groups [get]
 func (u *UserController) GetGroups(c *gin.Context) {
-	groups, err := u.userService.GetGroups(c.Param("id"))
+	groups, err := u.userService.GetGroups(c.Request.Context(), c.Param("id"))
 	if err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -179,7 +179,7 @@ func (u *UserController) GetGroups(c *gin.Context) {
 // @Success 200 {object} common.Response
 // @Router /api/v1/users/{id}/roles/{rid} [post]
 func (u *UserController) AddRole(c *gin.Context) {
-	if err := u.userService.AddRole(c.Param("id"), c.Param("rid")); err != nil {
+	if err := u.userService.AddRole(c.Request.Context(), c.Param("id"), c.Param("rid")); err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
@@ -197,7 +197,7 @@ func (u *UserController) AddRole(c *gin.Context) {
 // @Success 200 {object} common.Response
 // @Router /api/v1/users/{id}/roles/{rid} [delete]
 func (u *UserController) DelRole(c *gin.Context) {
-	if err := u.userService.DelRole(c.Param("id"), c.Param("rid")); err != nil {
+	if err := u.userService.DelRole(c.Request.Context(), c.Param("id"), c.Param("rid")); err != nil {
 		common.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
