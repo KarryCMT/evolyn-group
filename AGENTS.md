@@ -12,7 +12,7 @@
 - `deploy/`: `docker-compose.yaml` 一键起 PostgreSQL/Redis/MinIO。
 - `.github/workflows/ci.yml`: CI（后端 build/vet/test/gofmt，前端 typecheck/build）。
 
-分支约定：`2.0.0` 为基线分支，`3.0.0` 为当前开发分支。
+分支约定：当前固定在 `1.0.0` 分支开发，未明确要求前不要切换到其他分支；`2.0.0` 为基线分支，`3.0.0` 为后续规划分支。
 
 ## 通用约束
 
