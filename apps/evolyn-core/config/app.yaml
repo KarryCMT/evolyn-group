@@ -18,10 +18,10 @@ server:
 
 db:
   port: 5432
-  host: "localhost"
-  name: "evolyn"
-  user: "postgres"
-  password: "postgres"
+  host: "172.17.12.114"
+  name: "firefly"
+  user: "ffdp"
+  password: "newff#c024"
   migrate: true
 
 redis:

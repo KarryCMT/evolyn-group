@@ -7,9 +7,13 @@ packages:
 catalogs:
   frontend:
     'vue': ^3.5.22
-    element-plus: ^2.14.4
     vue-router: ^4.6.3
-    '@element-plus/icons': ^2.3.2
+    '@element-plus/icons-vue': ^2.3.2
+  ui:
+    element-plus: ^2.14.4
+    '@element-plus/icons-vue': ^2.3.2
+  utils:
+    '@vueuse/core': ^13.6.0
   dev:
     'sass': ^1.99.0
     rimraf: ^6.1.0
