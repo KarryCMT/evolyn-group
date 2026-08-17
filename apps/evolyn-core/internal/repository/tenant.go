@@ -22,8 +22,10 @@ func newTenantRepository(db *gorm.DB, rdb *database.RedisDB) TenantRepository {
 	}
 }
 
-// withContext 以请求 ctx 打开新会话；tenants 表自身无 tenant_id 列，
-// Callback 对其无副作用，保持签名统一只为与其余仓储一致
+// withContext 以请求 ctx 打开新会话。注意：tenants 表因内嵌 BaseModel
+// 同样带有 tenant_id 列（default:1），存在租户上下文时 Callback 会对
+// tenants 查询照常追加过滤。当前租户读写均发生在启动期/登录前（无租户
+// 上下文）；P1 运营面租户 CRUD 需以无租户上下文执行查询，避免自我过滤
 func (t *tenantRepository) withContext(ctx context.Context) *gorm.DB {
 	return t.db.WithContext(ctx)
 }
