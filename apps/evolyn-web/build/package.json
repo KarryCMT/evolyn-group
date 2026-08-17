@@ -1,0 +1,22 @@
+{
+  "name": "@evolyn.do/build",
+  "description": "Gulp aggregate build config",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build:gulp": "gulp -f gulpfile.ts",
+    "clean": "rimraf .turbo node_modules dist"
+  },
+  "devDependencies": {
+    "@tsdown/css": "catalog:build",
+    "esbuild-register": "catalog:build",
+    "gulp": "catalog:build",
+    "rimraf": "catalog:dev",
+    "rolldown": "catalog:build",
+    "rolldown-plugin-dts": "catalog:build",
+    "tsdown": "catalog:build",
+    "typescript": "catalog:types",
+    "unplugin-vue": "catalog:build",
+    "vue": "catalog:frontend"
+  }
+}

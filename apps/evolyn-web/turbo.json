@@ -1,0 +1,37 @@
+{
+  // 使用官方 Schema，让编辑器能校验 Turbo 配置。
+  "$schema": "https://turbo.build/schema.json",
+  "tasks": {
+    // 构建任务需要缓存各包产物，文档站点的输出目录和库包不同，所以一起声明。
+    "build": {
+      // 先构建依赖包，避免文档和示例引用到旧产物。
+      "dependsOn": ["^build"],
+      // 环境变量变化也可能影响构建结果，所以纳入缓存输入。
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      // 同时覆盖库包 dist 与 VitePress 的输出目录，避免 Turbo 误判没有产物。
+      "outputs": ["dist/**", ".vitepress/dist/**"]
+    },
+    // lint 任务只依赖源码输入，暂时不声明输出产物。
+    "lint": {},
+    // 清理任务不缓存，避免复用删除动作。
+    "clean": {},
+    // 开发任务是长驻进程，不能作为可缓存任务处理。
+    "dev": {
+      "cache": false,
+      "persistent": true
+    },
+    // 测试任务只关心源码和测试文件变化。
+    "test": {
+      "inputs": ["src/**/*.{ts,tsx,vue}", "**/*.spec.ts", "**/*.test.ts"]
+    },
+    // 覆盖率报告是测试的派生产物，需要显式声明输出目录。
+    "test:coverage": {
+      "dependsOn": ["test"],
+      "outputs": ["coverage/**"]
+    },
+    // 发包前必须先生成最新构建产物。
+    "publish": {
+      "dependsOn": ["build"]
+    }
+  }
+}

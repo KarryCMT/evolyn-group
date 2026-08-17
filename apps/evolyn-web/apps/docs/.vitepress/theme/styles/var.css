@@ -1,0 +1,110 @@
+:root {
+  /* 用偏工程化的中性色承载长文阅读，避免首页视觉影响正文可读性。 */
+  --vp-c-bg: #f7faf8;
+  --vp-c-bg-alt: #eef4f0;
+  --vp-c-bg-soft: #fff;
+  --vp-c-bg-mute: #e7eee9;
+  --vp-c-divider: rgb(21 82 69 / 14%);
+  --vp-c-gutter: rgb(21 82 69 / 12%);
+  --vp-c-text-1: #13201b;
+  --vp-c-text-2: #4a5b53;
+  --vp-c-text-3: #718078;
+
+  /* 品牌色保持 Vue 生态联想，同时加入琥珀强调色让页面不落入单一绿色。 */
+  --vp-c-brand-1: #0f8a68;
+  --vp-c-brand-2: #0a765a;
+  --vp-c-brand-3: #15a77c;
+  --vp-c-brand-soft: rgb(15 138 104 / 14%);
+  --vp-c-default-1: #496158;
+  --vp-c-default-2: #61736c;
+  --vp-c-default-3: #d7e2dc;
+  --vp-c-default-soft: rgb(15 48 40 / 7%);
+  --vp-button-brand-border: #0f8a68;
+  --vp-button-brand-text: #fff;
+  --vp-button-brand-bg: #0f8a68;
+  --vp-button-brand-hover-border: #0a765a;
+  --vp-button-brand-hover-bg: #0a765a;
+  --vp-button-brand-active-border: #075f49;
+  --vp-button-brand-active-bg: #075f49;
+  --vp-button-alt-border: rgb(19 32 27 / 12%);
+  --vp-button-alt-text: #13201b;
+  --vp-button-alt-bg: rgb(255 255 255 / 76%);
+  --vp-button-alt-hover-border: rgb(15 138 104 / 28%);
+  --vp-button-alt-hover-text: #0a765a;
+  --vp-button-alt-hover-bg: #fff;
+  /* 浅色模式使用 Shiki 的浅色 token，代码块同步改为浅底以保证对比度。 */
+  --vp-code-block-color: #24292e;
+  --vp-code-block-bg: #eef4f0;
+  --vp-code-block-divider-color: rgb(21 82 69 / 14%);
+  --vp-code-lang-color: #61736c;
+  --vp-code-line-highlight-color: rgb(15 138 104 / 9%);
+  --vp-code-tab-divider: rgb(21 82 69 / 12%);
+  --vp-code-copy-code-border-color: rgb(21 82 69 / 14%);
+  --vp-code-copy-code-bg: rgb(255 255 255 / 72%);
+  --vp-code-copy-code-hover-border-color: rgb(15 138 104 / 28%);
+  --vp-code-copy-code-hover-bg: #fff;
+
+  /* 首页标题 */
+  --vp-home-hero-name-color: transparent;
+  --vp-home-hero-name-background: linear-gradient(135deg, #0f8a68 0%, #2374ab 58%, #d9912b 100%);
+
+  /* 首页图标背景 */
+  --vp-home-hero-image-background-image:
+    linear-gradient(135deg, rgb(21 167 124 / 42%), rgb(35 116 171 / 20%) 48%, rgb(217 145 43 / 28%)),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 26%) 0 1px, transparent 1px 18px);
+  --vp-home-hero-image-filter: none;
+  --docs-accent: #d9912b;
+  --docs-accent-soft: rgb(217 145 43 / 16%);
+  --docs-surface-border: rgb(21 82 69 / 16%);
+  --docs-surface-shadow: 0 24px 80px rgb(19 32 27 / 12%);
+  --docs-nav-bg: rgb(247 250 248 / 84%);
+}
+
+.dark {
+  color-scheme: dark;
+
+  --vp-c-bg: #0c1310;
+  --vp-c-bg-alt: #101a16;
+  --vp-c-bg-soft: #131f1a;
+  --vp-c-bg-mute: #1b2923;
+  --vp-c-divider: rgb(189 212 202 / 14%);
+  --vp-c-gutter: rgb(189 212 202 / 10%);
+  --vp-c-text-1: #edf7f2;
+  --vp-c-text-2: #bfd0c8;
+  --vp-c-text-3: #8da299;
+  --vp-c-brand-1: #62d5ac;
+  --vp-c-brand-2: #45c497;
+  --vp-c-brand-3: #1ba97e;
+  --vp-c-brand-soft: rgb(98 213 172 / 16%);
+  --vp-c-default-1: #d4e2dc;
+  --vp-c-default-2: #aebfb7;
+  --vp-c-default-3: #31423a;
+  --vp-c-default-soft: rgb(237 247 242 / 8%);
+  --vp-button-brand-border: #62d5ac;
+  --vp-button-brand-text: #07120e;
+  --vp-button-brand-bg: #62d5ac;
+  --vp-button-brand-hover-border: #7ee8bf;
+  --vp-button-brand-hover-bg: #7ee8bf;
+  --vp-button-brand-active-border: #45c497;
+  --vp-button-brand-active-bg: #45c497;
+  --vp-button-alt-border: rgb(237 247 242 / 14%);
+  --vp-button-alt-text: #edf7f2;
+  --vp-button-alt-bg: rgb(255 255 255 / 6%);
+  --vp-button-alt-hover-border: rgb(98 213 172 / 34%);
+  --vp-button-alt-hover-text: #94f0ca;
+  --vp-button-alt-hover-bg: rgb(98 213 172 / 10%);
+  /* 暗色模式保留深底，让 Shiki 的暗色 token 有稳定的阅读对比。 */
+  --vp-code-block-bg: #07110d;
+  --vp-code-block-divider-color: rgb(189 212 202 / 12%);
+  --vp-code-lang-color: #aebfb7;
+  --vp-code-line-highlight-color: rgb(98 213 172 / 14%);
+  --vp-home-hero-name-background: linear-gradient(135deg, #7ee8bf 0%, #79bdf2 56%, #f3c16b 100%);
+  --vp-home-hero-image-background-image:
+    linear-gradient(135deg, rgb(98 213 172 / 34%), rgb(121 189 242 / 18%) 48%, rgb(243 193 107 / 24%)),
+    repeating-linear-gradient(90deg, rgb(255 255 255 / 12%) 0 1px, transparent 1px 18px);
+  --docs-accent: #f3c16b;
+  --docs-accent-soft: rgb(243 193 107 / 14%);
+  --docs-surface-border: rgb(189 212 202 / 14%);
+  --docs-surface-shadow: 0 24px 80px rgb(0 0 0 / 30%);
+  --docs-nav-bg: rgb(12 19 16 / 82%);
+}

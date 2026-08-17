@@ -1,0 +1,11 @@
+{
+  "extends": "./base.json",
+  "include": ["src/**/*.ts", "src/**/*.d.ts"],
+  "compilerOptions": {
+    "target": "ESNext",
+    "declaration": true,
+    "declarationMap": false,
+    "declarationDir": "./dist",
+    "outDir": "./dist"
+  }
+}

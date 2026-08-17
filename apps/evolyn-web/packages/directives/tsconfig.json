@@ -1,0 +1,3 @@
+{
+  "extends": "@evolyn.do/typescript-config/base.json"
+}

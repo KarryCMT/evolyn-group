@@ -1,0 +1,30 @@
+{
+  "name": "@evolyn.do/docs",
+  "version": "1.0.0",
+  "description": "组件库模板说明文档",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vitepress dev",
+    "build": "rimraf .vitepress/dist && vitepress build",
+    "preview": "vitepress preview",
+    "clean": "rimraf .turbo node_modules .vitepress/dist .vitepress/cache .vitepress/.temp"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@evolyn.do/directives": "workspace:*",
+    "@evolyn.do/hooks": "workspace:*",
+    "@evolyn.do/typescript-config": "workspace:*",
+    "@evolyn.do/ui": "workspace:*",
+    "@evolyn.do/utils": "workspace:*",
+    "vue": "catalog:frontend"
+  },
+  "devDependencies": {
+    "sass": "catalog:dev",
+    "typescript": "catalog:types",
+    "oxc-minify": "catalog:build",
+    "vitepress": "catalog:build",
+    "vitepress-demo-plugin": "catalog:build"
+  }
+}

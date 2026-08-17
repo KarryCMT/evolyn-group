@@ -1,0 +1,28 @@
+{
+  "folders": [
+    {
+      "name": "@evolyn.do/docs",
+      "path": "apps/docs",
+    },
+    {
+      "name": "@evolyn.do/playground",
+      "path": "playground",
+    },
+    {
+      "name": "@evolyn.do/utils",
+      "path": "packages/utils",
+    },
+    {
+      "name": "@evolyn.do/ui",
+      "path": "packages/ui",
+    },
+    {
+      "name": "@evolyn.do/hooks",
+      "path": "packages/hooks",
+    },
+    {
+      "name": "@evolyn.do/directives",
+      "path": "packages/directives",
+    },
+  ],
+}

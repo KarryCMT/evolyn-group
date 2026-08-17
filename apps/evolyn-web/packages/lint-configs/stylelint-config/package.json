@@ -1,0 +1,32 @@
+{
+  "name": "@evolyn.do/stylelint-config",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./index.mjs",
+  "module": "./index.mjs",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "default": "./index.mjs"
+    }
+  },
+  "scripts": {
+    "clean": "rimraf .turbo node_modules"
+  },
+  "devDependencies": {
+    "postcss": "catalog:lint",
+    "postcss-html": "catalog:lint",
+    "postcss-scss": "catalog:lint",
+    "stylelint": "catalog:lint",
+    "stylelint-config-recess-order": "catalog:lint",
+    "stylelint-config-recommended-vue": "catalog:lint",
+    "stylelint-config-standard": "catalog:lint",
+    "stylelint-config-standard-scss": "catalog:lint",
+    "stylelint-scss": "catalog:lint",
+    "stylelint-order": "catalog:lint"
+  },
+  "peerDependencies": {
+    "stylelint": "catalog:lint"
+  }
+}

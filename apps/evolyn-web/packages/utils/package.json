@@ -1,0 +1,26 @@
+{
+  "name": "@evolyn.do/utils",
+  "description": "@evolyn.do utils library",
+  "version": "1.0.0",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.mjs",
+  "types": "dist/types/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "rimraf dist && rolldown -c rolldown.config.ts",
+    "clean": "rimraf .turbo node_modules dist",
+    "publish": "pnpm publish"
+  },
+  "devDependencies": {
+    "@evolyn.do/typescript-config": "workspace:*",
+    "rolldown": "catalog:build",
+    "rolldown-plugin-dts": "catalog:build",
+    "typescript": "catalog:types"
+  }
+}

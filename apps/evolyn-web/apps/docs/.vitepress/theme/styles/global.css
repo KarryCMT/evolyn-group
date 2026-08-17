@@ -1,0 +1,434 @@
+@import './var.css';
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-width: 320px;
+  overflow-x: hidden;
+  font-feature-settings: 'tnum';
+  background:
+    linear-gradient(135deg, rgb(15 138 104 / 10%) 0 1px, transparent 1px 34%),
+    linear-gradient(90deg, rgb(217 145 43 / 8%) 0 1px, transparent 1px 28%),
+    var(--vp-c-bg);
+  text-rendering: optimizelegibility;
+}
+
+.dark body {
+  background:
+    linear-gradient(135deg, rgb(98 213 172 / 8%) 0 1px, transparent 1px 34%),
+    linear-gradient(90deg, rgb(243 193 107 / 6%) 0 1px, transparent 1px 28%),
+    var(--vp-c-bg);
+}
+
+::selection {
+  color: var(--vp-c-text-1);
+  background: var(--vp-c-brand-soft);
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--vp-c-brand-1) 72%, transparent);
+  outline-offset: 3px;
+}
+
+.VPNav {
+  background: var(--docs-nav-bg);
+  border-bottom: 1px solid transparent;
+  backdrop-filter: blur(18px);
+}
+
+.VPNavBar {
+  border-bottom-color: var(--vp-c-divider);
+}
+
+.VPNavBarTitle .title {
+  font-weight: 760;
+  letter-spacing: 0;
+}
+
+.VPNavBarTitle .logo {
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgb(15 138 104 / 20%);
+}
+
+.VPNavBarMenuLink,
+.VPNavBarMenuGroup .button {
+  min-height: 44px;
+  color: var(--vp-c-text-2);
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.VPNavBarMenuLink:hover,
+.VPNavBarMenuGroup .button:hover,
+.VPNavBarMenuLink.active {
+  color: var(--vp-c-brand-1);
+}
+
+.VPHome {
+  position: relative;
+  overflow: hidden;
+}
+
+.VPHome::before {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  content: '';
+  background:
+    linear-gradient(90deg, rgb(15 138 104 / 7%) 1px, transparent 1px),
+    linear-gradient(180deg, rgb(15 138 104 / 6%) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(to bottom, black, transparent 62%);
+}
+
+.dark .VPHome::before {
+  background:
+    linear-gradient(90deg, rgb(98 213 172 / 7%) 1px, transparent 1px),
+    linear-gradient(180deg, rgb(98 213 172 / 6%) 1px, transparent 1px);
+}
+
+.VPHero {
+  padding-bottom: 40px;
+}
+
+.VPHero .container {
+  max-width: 1180px;
+}
+
+.VPHero .heading {
+  gap: 8px;
+}
+
+.VPHero .name,
+.VPHero .text {
+  max-width: 720px;
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.VPHero .text {
+  color: var(--vp-c-text-1);
+}
+
+.VPHero .tagline {
+  max-width: 680px;
+  color: var(--vp-c-text-2);
+  text-wrap: pretty;
+}
+
+.VPHero .actions {
+  gap: 12px;
+  padding-top: 32px;
+  margin: 0;
+}
+
+.VPHero .action {
+  padding: 0;
+}
+
+.VPButton {
+  min-height: 44px;
+  font-weight: 700;
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgb(15 138 104 / 12%);
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    color 0.2s ease,
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.VPButton:hover {
+  box-shadow: 0 16px 34px rgb(15 138 104 / 18%);
+  transform: translateY(-1px);
+}
+
+.VPButton:active {
+  transform: translateY(0);
+}
+
+.VPHero .image-container {
+  width: min(420px, 76vw);
+  height: min(420px, 76vw);
+}
+
+.VPHero .image-bg {
+  width: min(330px, 62vw);
+  height: min(330px, 62vw);
+  border: 1px solid var(--docs-surface-border);
+  border-radius: 26px;
+  box-shadow: var(--docs-surface-shadow);
+  transform: translate(-50%, -50%) rotate(-5deg);
+}
+
+.VPHero .image-container::before,
+.VPHero .image-container::after {
+  position: absolute;
+  left: 50%;
+  z-index: 1;
+  width: min(320px, 58vw);
+  content: '';
+  background: color-mix(in srgb, var(--vp-c-bg-soft) 88%, transparent);
+  border: 1px solid var(--docs-surface-border);
+  border-radius: 14px;
+  box-shadow: var(--docs-surface-shadow);
+  transform: translateX(-50%);
+}
+
+.VPHero .image-container::before {
+  top: 58px;
+  height: 74px;
+}
+
+.VPHero .image-container::after {
+  bottom: 58px;
+  height: 112px;
+}
+
+.VPHero .image-src {
+  z-index: 2;
+  border-radius: 28px;
+  filter: drop-shadow(0 18px 40px rgb(15 138 104 / 24%));
+}
+
+.VPHomeFeatures {
+  padding-top: 8px;
+}
+
+.VPFeatures .container {
+  max-width: 1180px;
+}
+
+.VPFeature {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--vp-c-bg-soft) 96%, transparent), var(--vp-c-bg-soft)),
+    var(--vp-c-bg-soft);
+  border-color: var(--docs-surface-border);
+  border-radius: 8px;
+  box-shadow: 0 14px 38px rgb(19 32 27 / 6%);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.VPFeature.link:hover {
+  border-color: color-mix(in srgb, var(--vp-c-brand-1) 56%, transparent);
+  box-shadow: 0 18px 48px rgb(15 138 104 / 14%);
+  transform: translateY(-3px);
+}
+
+.VPFeature .box {
+  padding: 26px;
+}
+
+.VPFeature .icon {
+  color: var(--vp-c-brand-1);
+  background:
+    linear-gradient(135deg, var(--vp-c-brand-soft), var(--docs-accent-soft));
+  border: 1px solid color-mix(in srgb, var(--vp-c-brand-1) 22%, transparent);
+  border-radius: 8px;
+}
+
+.VPFeature .icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+.VPFeature .title {
+  font-size: 17px;
+  font-weight: 760;
+  line-height: 1.35;
+  color: var(--vp-c-text-1);
+  text-wrap: balance;
+}
+
+.VPFeature .details {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.72;
+  color: var(--vp-c-text-2);
+}
+
+.VPFeature .link-text-value {
+  font-weight: 700;
+}
+
+.Layout .VPDoc {
+  background:
+    linear-gradient(180deg, rgb(255 255 255 / 34%), transparent 320px),
+    transparent;
+}
+
+.dark .Layout .VPDoc {
+  background:
+    linear-gradient(180deg, rgb(98 213 172 / 4%), transparent 320px),
+    transparent;
+}
+
+.VPDoc .container {
+  max-width: 1180px;
+}
+
+.VPDocAsideOutline .outline-link {
+  border-radius: 6px;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.VPDocAsideOutline .outline-link:hover,
+.VPDocAsideOutline .outline-link.active {
+  color: var(--vp-c-brand-1);
+}
+
+.VPSidebar {
+  background: color-mix(in srgb, var(--vp-c-bg) 94%, transparent);
+  border-right: 1px solid var(--vp-c-divider);
+  backdrop-filter: blur(14px);
+}
+
+.VPSidebarItem .item {
+  border-radius: 8px;
+}
+
+.VPSidebarItem .link {
+  min-height: 34px;
+  transition:
+    color 0.2s ease,
+    background-color 0.2s ease;
+}
+
+.VPSidebarItem .link:hover,
+.VPSidebarItem.is-active > .item .link {
+  color: var(--vp-c-brand-1);
+}
+
+.vp-doc h1,
+.vp-doc h2,
+.vp-doc h3 {
+  letter-spacing: 0;
+  text-wrap: balance;
+}
+
+.vp-doc h1 {
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.16;
+}
+
+.vp-doc h2 {
+  margin-top: 48px;
+  border-top-color: var(--vp-c-divider);
+}
+
+.vp-doc p,
+.vp-doc li {
+  line-height: 1.78;
+  color: var(--vp-c-text-2);
+  text-wrap: pretty;
+}
+
+.vp-doc a {
+  font-weight: 700;
+  text-decoration-thickness: 0.08em;
+  text-underline-offset: 0.18em;
+}
+
+.vp-doc blockquote {
+  background: var(--vp-c-brand-soft);
+  border-left-color: var(--vp-c-brand-1);
+  border-radius: 0 8px 8px 0;
+}
+
+.vp-doc div[class*='language-'] {
+  border: 1px solid var(--vp-code-block-divider-color);
+  border-radius: 8px;
+  box-shadow: 0 16px 40px rgb(19 32 27 / 10%);
+}
+
+.dark .vp-doc div[class*='language-'] {
+  box-shadow: 0 18px 48px rgb(0 0 0 / 30%);
+}
+
+.vp-doc :not(pre) > code {
+  font-weight: 650;
+  color: var(--vp-c-brand-2);
+  background: var(--vp-c-brand-soft);
+  border: 1px solid color-mix(in srgb, var(--vp-c-brand-1) 18%, transparent);
+  border-radius: 6px;
+}
+
+.dark .vp-doc :not(pre) > code {
+  color: var(--vp-c-brand-1);
+}
+
+.vitepress-demo-preview__element-plus__container,
+.demo-preview,
+.source {
+  border-radius: 8px;
+}
+
+@media (width >= 960px) {
+  .VPHero {
+    padding-top: calc(var(--vp-nav-height) + var(--vp-layout-top-height, 0px) + 108px);
+  }
+
+  .VPHero.has-image .main {
+    max-width: 680px;
+  }
+}
+
+@media (width <= 959px) {
+  .VPHero .actions {
+    justify-content: center;
+  }
+
+  .VPHero .image {
+    margin-bottom: -28px;
+  }
+
+  .VPHero .image-container::before,
+  .VPHero .image-container::after {
+    opacity: 0.82;
+  }
+}
+
+@media (width <= 640px) {
+  .VPHero {
+    padding-right: 20px;
+    padding-left: 20px;
+  }
+
+  .VPHero .actions {
+    width: 100%;
+  }
+
+  .VPHero .action,
+  .VPHero .VPButton {
+    width: 100%;
+  }
+
+  .VPFeature .box {
+    padding: 22px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+}

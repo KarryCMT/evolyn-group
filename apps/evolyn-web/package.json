@@ -1,0 +1,94 @@
+{
+  "name": "@evolyn.do/framework",
+  "description": "This is a modern component library template based on Turborepo + Vue 3.5 + TypeScript.",
+  "version": "2.0.0",
+  "packageManager": "pnpm@10.20.0",
+  "author": "karrylee <18223673150@163.com>",
+  "license": "MIT",
+  "homepage": "https://github.com/KarryCMT/evolyn-group.git",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/KarryCMT/evolyn-group.git"
+  },
+  "bugs": "https://github.com/KarryCMT/evolyn-group.git/issues",
+  "keywords": [
+    "component library template",
+    "component library",
+    "ui framework",
+    "ui",
+    "turborepo",
+    "monorepo",
+    "vue3 typescript",
+    "vite8",
+    "turbo"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:docs": "pnpm -F @evolyn.do/docs run dev",
+    "dev:play": "pnpm -F @evolyn.do/playground run dev",
+    "build": "turbo run build",
+    "build:docs": "pnpm -F @evolyn.do/docs run build",
+    "build:gulp": "gulp -f build/gulpfile.ts",
+    "test": "turbo run test",
+    "test:ui": "pnpm -F @evolyn.do/ui run test:ui",
+    "test:coverage": "turbo run test:coverage",
+    "publish": "turbo run publish",
+    "lint:eslint": "eslint --max-warnings 0 \"**/*.{ts,tsx,js,jsx,cjs,mjs,vue}\" --fix",
+    "lint:format": "prettier --write \"**/*.{js,jsx,cjs,ts,tsx,mjs,mts,md,vue,scss,css,less,html,json}\"",
+    "lint:style": "stylelint \"**/*.{css,scss,less}\" --fix",
+    "lint:all": "pnpm run lint:eslint && pnpm run lint:style && pnpm run lint:format",
+    "clean": "turbo run clean --continue && rimraf .turbo dist && rm -rf node_modules",
+    "changeset:version": "pnpm changeset && pnpm changeset version",
+    "deps:update": "pnpm update -r --latest",
+    "deps:check": "pnpm outdated -r",
+    "preinstall": "npx only-allow pnpm",
+    "postinstall": "turbo run build",
+    "prepare": "husky install",
+    "rename-pkg": "bash ./scripts/rename-package.sh",
+    "generate:component": "node scripts/generate-component.mjs"
+  },
+  "devDependencies": {
+    "@changesets/cli": "catalog:dev",
+    "@commitlint/cli": "catalog:lint",
+    "@evolyn.do/commitlint-config": "workspace:*",
+    "@evolyn.do/directives": "workspace:*",
+    "@evolyn.do/eslint-config": "workspace:*",
+    "@evolyn.do/hooks": "workspace:*",
+    "@evolyn.do/prettier-config": "workspace:*",
+    "@evolyn.do/stylelint-config": "workspace:*",
+    "@evolyn.do/typescript-config": "workspace:*",
+    "@evolyn.do/ui": "workspace:*",
+    "@evolyn.do/utils": "workspace:*",
+    "@emnapi/core": "catalog:build",
+    "@emnapi/runtime": "catalog:build",
+    "esbuild": "catalog:build",
+    "esbuild-register": "catalog:build",
+    "eslint": "catalog:lint",
+    "gulp": "catalog:build",
+    "husky": "catalog:lint",
+    "lint-staged": "catalog:lint",
+    "prettier": "catalog:lint",
+    "rolldown": "catalog:build",
+    "rolldown-plugin-dts": "catalog:build",
+    "stylelint": "catalog:lint",
+    "tsdown": "catalog:build",
+    "turbo": "catalog:build",
+    "typescript": "catalog:types",
+    "unplugin-vue": "catalog:build",
+    "vue": "catalog:frontend",
+    "vue-tsc": "catalog:build",
+    "rimraf": "catalog:dev"
+  },
+  "engines": {
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "pnpm": {
+    "peerDependencyRules": {
+      "ignoreMissing": [
+        "@algolia/client-search",
+        "search-insights"
+      ]
+    }
+  }
+}

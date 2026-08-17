@@ -1,0 +1,27 @@
+{
+  "name": "@evolyn.do/eslint-config",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "main": "./index.mjs",
+  "module": "./index.mjs",
+  "exports": {
+    ".": {
+      "import": "./index.mjs",
+      "default": "./index.mjs"
+    }
+  },
+  "scripts": {
+    "clean": "rimraf .turbo node_modules"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:lint",
+    "eslint-plugin-vue": "catalog:lint",
+    "typescript-eslint": "catalog:lint",
+    "vue-eslint-parser": "catalog:lint",
+    "globals": "catalog:lint"
+  },
+  "peerDependencies": {
+    "eslint": "catalog:lint"
+  }
+}
