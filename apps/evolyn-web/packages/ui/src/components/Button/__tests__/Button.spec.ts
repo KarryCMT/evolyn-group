@@ -83,6 +83,7 @@ describe('Button', () => {
     await wrapper.trigger('click');
 
     const clickEvents = wrapper.emitted('click') as MouseEvent[][];
-    expect(clickEvents[0][0]).toBeInstanceOf(MouseEvent);
+    // noUncheckedIndexedAccess 下首元素可能为 undefined，可选链保证类型安全且断言语义不变
+    expect(clickEvents[0]?.[0]).toBeInstanceOf(MouseEvent);
   });
 });

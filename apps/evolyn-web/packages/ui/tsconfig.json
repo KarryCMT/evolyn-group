@@ -13,11 +13,9 @@
     "moduleResolution": "Bundler",
     // 跳过对声明文件的类型检查
     "skipLibCheck": true,
-    // 基础路径
-    "baseUrl": ".",
-    // 路径映射
+    // 路径映射（TS6 起 baseUrl 已弃用，paths 使用相对 tsconfig 的路径）
     "paths": {
-      "~/*": ["src/*"]
+      "~/*": ["./src/*"]
     }
   },
   // 包含的文件路径

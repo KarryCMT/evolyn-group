@@ -44,6 +44,7 @@
     "tsdown": "catalog:build",
     "typescript": "catalog:types",
     "unplugin-vue": "catalog:build",
+    "unrun": "catalog:build",
     "vite": "catalog:build",
     "vitest": "catalog:test",
     "vue": "catalog:frontend",
