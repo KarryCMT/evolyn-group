@@ -1,12 +1,20 @@
 <script lang="ts" setup>
 import { repository } from '~/../package.json'
+import { useRouter } from 'vue-router'
 
 import { toggleDark } from '~/composables'
+
+const router = useRouter()
+
+function goHome() {
+  router.push('/')
+}
 </script>
 
 <template>
-  <el-menu class="el-menu-demo" mode="horizontal" :ellipsis="false" router>
-    <el-menu-item index="/">
+  <!-- 顶部菜单承载的是动作（主题切换/外链）而非路由导航，因此不开启 router 模式，避免点击动作项触发路由跳转 -->
+  <el-menu class="el-menu-demo" mode="horizontal" :ellipsis="false">
+    <el-menu-item index="/" @click="goHome">
       <div class="flex items-center justify-center gap-2">
         <div class="text-xl" i-ep-element-plus />
         <span>Element Plus</span>
@@ -47,7 +55,7 @@ import { toggleDark } from '~/composables'
       Orders
     </el-menu-item>
 
-    <el-menu-item h="full" @click="toggleDark()">
+    <el-menu-item index="theme-toggle" h="full" @click="toggleDark()">
       <button
         class="w-full cursor-pointer border-none bg-transparent"
         style="height: var(--ep-menu-item-height)"
@@ -56,7 +64,7 @@ import { toggleDark } from '~/composables'
       </button>
     </el-menu-item>
 
-    <el-menu-item h="full">
+    <el-menu-item index="github" h="full">
       <a class="size-full flex items-center justify-center" :href="repository.url" target="_blank">
         <div i-ri-github-fill />
       </a>
