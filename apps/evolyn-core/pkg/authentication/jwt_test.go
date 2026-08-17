@@ -90,3 +90,14 @@ func TestParseToken(t *testing.T) {
 		})
 	}
 }
+
+func TestTokenTenantRoundtrip(t *testing.T) {
+	service := NewJWTService("test")
+
+	token, err := service.CreateToken(&model.User{ID: 7, Name: "someone", BaseModel: model.BaseModel{TenantID: 3}})
+	assert.Empty(t, err)
+
+	user, err := service.ParseToken(token)
+	assert.Empty(t, err)
+	assert.Equal(t, uint(3), user.TenantID)
+}

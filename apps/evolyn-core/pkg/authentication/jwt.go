@@ -11,12 +11,15 @@ import (
 )
 
 const (
-	Issuer = "weave.io"
+	Issuer = "evolyn"
 )
 
+// CustomClaims JWT 载荷；TenantID 为租户上下文的唯一来源，
+// 由租户中间件在 Authentication 之后提取（架构文档 26.4）
 type CustomClaims struct {
-	ID   uint   `json:"id"`
-	Name string `json:"name"`
+	ID       uint   `json:"id"`
+	Name     string `json:"name"`
+	TenantID uint   `json:"tenantId"`
 	jwt.RegisteredClaims
 }
 
@@ -42,8 +45,9 @@ func (s *JWTService) CreateToken(user *model.User) (string, error) {
 	token := jwt.NewWithClaims(
 		jwt.SigningMethodHS256,
 		CustomClaims{
-			Name: user.Name,
-			ID:   user.ID,
+			Name:     user.Name,
+			ID:       user.ID,
+			TenantID: user.TenantID,
 			RegisteredClaims: jwt.RegisteredClaims{
 				ExpiresAt: jwt.NewNumericDate(now.Add(s.expireDuration)),
 				NotBefore: jwt.NewNumericDate(now.Add(-1000 * time.Second)),
@@ -72,6 +76,9 @@ func (s *JWTService) ParseToken(tokenString string) (*model.User, error) {
 	user := &model.User{
 		ID:   claims.ID,
 		Name: claims.Name,
+		BaseModel: model.BaseModel{
+			TenantID: claims.TenantID,
+		},
 	}
 
 	return user, nil

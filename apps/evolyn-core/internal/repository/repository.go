@@ -12,14 +12,17 @@ import (
 
 func NewRepository(db *gorm.DB, rdb *database.RedisDB) Repository {
 	r := &repository{
-		db:    db,
-		rdb:   rdb,
-		user:  newUserRepository(db, rdb),
-		group: newGroupRepository(db, rdb),
-		rbac:  newRBACRepository(db, rdb),
+		db:     db,
+		rdb:    rdb,
+		user:   newUserRepository(db, rdb),
+		group:  newGroupRepository(db, rdb),
+		rbac:   newRBACRepository(db, rdb),
+		tenant: newTenantRepository(db, rdb),
 	}
 
+	// tenants 表最先迁移，保证业务模型加 tenant_id 列时默认租户已就绪
 	r.migrants = getMigrants(
+		r.tenant,
 		r.user,
 		r.group,
 		r.rbac,
@@ -42,6 +45,7 @@ type repository struct {
 	user     UserRepository
 	group    GroupRepository
 	rbac     RBACRepository
+	tenant   TenantRepository
 	db       *gorm.DB
 	rdb      *database.RedisDB
 	migrants []Migrant
@@ -57,6 +61,10 @@ func (r *repository) Group() GroupRepository {
 
 func (r *repository) RBAC() RBACRepository {
 	return r.rbac
+}
+
+func (r *repository) Tenant() TenantRepository {
+	return r.tenant
 }
 
 func (r *repository) Close() error {
@@ -105,6 +113,11 @@ func (r *repository) Migrate() error {
 }
 
 func (r *repository) Init() error {
+	// 默认租户必须最先种子化：单租户/存量数据的归属兜底（见架构文档 26.8 P0）
+	if err := r.Tenant().SeedDefaultTenant(); err != nil {
+		return err
+	}
+
 	// 平台基础资源注册：随功能演进而增删，K8s 相关资源已随功能剥离移除
 	resources := []model.Resource{
 		{

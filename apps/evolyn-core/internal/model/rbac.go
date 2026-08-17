@@ -26,6 +26,9 @@ type Role struct {
 	Scope     Scope  `json:"scope" gorm:"size:100"`
 	Namespace string `json:"namespace"  gorm:"size:100"`
 	Rules     Rules  `json:"rules" gorm:"type:json"`
+	// TenantID 角色为租户内资源（Resource 是平台级目录，不挂租户）；
+	// 不嵌 BaseModel 以避免对本表的额外列变更
+	TenantID uint `json:"tenantId" gorm:"index;not null;default:1"`
 }
 
 const (

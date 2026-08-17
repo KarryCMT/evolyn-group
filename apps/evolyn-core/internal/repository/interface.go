@@ -12,10 +12,19 @@ type Repository interface {
 	User() UserRepository
 	Group() GroupRepository
 	RBAC() RBACRepository
+	Tenant() TenantRepository
 	Close() error
 	Ping(ctx context.Context) error
 	Init() error
 	Migrant
+}
+
+// TenantRepository 租户数据访问；管理面 CRUD 随 P1 internal/tenant 模块补充
+type TenantRepository interface {
+	GetByID(id uint) (*model.Tenant, error)
+	GetByCode(code string) (*model.Tenant, error)
+	SeedDefaultTenant() error
+	Migrate() error
 }
 
 type Migrant interface {

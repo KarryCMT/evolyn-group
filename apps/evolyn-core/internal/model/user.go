@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -28,8 +29,15 @@ func (*User) TableName() string {
 	return "users"
 }
 
+// CacheKey Redis Key 规范：{resource}:{tenant}:{rest}（架构文档 18/26.4 章）。
+// Update 等路径传入的 user 可能未携带 TenantID（请求构造对象），此时兜底默认租户；
+// M1 context 线程化后由中间件保证
 func (u *User) CacheKey() string {
-	return u.TableName() + ":id"
+	tenantID := u.TenantID
+	if tenantID == 0 {
+		tenantID = DefaultTenantID
+	}
+	return fmt.Sprintf("%s:%d:id", u.TableName(), tenantID)
 }
 
 func (u *User) MarshalBinary() ([]byte, error) {

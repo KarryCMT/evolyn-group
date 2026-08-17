@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"net/http/httptest"
 	"testing"
 
@@ -56,4 +57,25 @@ func TestRequestInfoContext(t *testing.T) {
 	SetRequestInfo(c, ri)
 
 	assert.Equal(t, ri, GetRequestInfo(c))
+}
+
+func TestTenantContext(t *testing.T) {
+	// context.Context 注入/读取：GORM Callback 与引擎数据路径的租户来源
+	ctx := NewTenantContext(context.Background(), 3)
+	tenantID, ok := TenantIDFromContext(ctx)
+	assert.True(t, ok)
+	assert.Equal(t, uint(3), tenantID)
+
+	_, ok = TenantIDFromContext(context.Background())
+	assert.False(t, ok)
+
+	// gin.Context 注入/读取
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	SetTenant(c, 0) // 零值不写入
+	assert.Equal(t, uint(0), GetTenant(c))
+
+	SetTenant(c, 3)
+	assert.Equal(t, uint(3), GetTenant(c))
 }

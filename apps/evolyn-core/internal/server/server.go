@@ -88,6 +88,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		middleware.RequestInfoMiddleware(&request.RequestInfoFactory{APIPrefixes: set.NewString("api")}),
 		middleware.LogMiddleware(logger, "/"),
 		middleware.AuthenticationMiddleware(jwtService, repository.User()),
+		middleware.TenantMiddleware(),
 		middleware.AuthorizationMiddleware(),
 		middleware.TraceMiddleware(),
 	)
