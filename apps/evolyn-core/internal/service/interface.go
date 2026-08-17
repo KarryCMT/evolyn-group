@@ -1,6 +1,6 @@
 package service
 
-import "github.com/qingwave/weave/internal/model"
+import "evolyn/internal/model"
 
 type UserService interface {
 	List() (model.Users, error)

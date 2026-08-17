@@ -3,7 +3,7 @@ package config
 import (
 	"os"
 
-	"github.com/qingwave/weave/pkg/utils/ratelimit"
+	"evolyn/pkg/utils/ratelimit"
 
 	"gopkg.in/yaml.v2"
 )

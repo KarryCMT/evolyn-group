@@ -6,7 +6,7 @@
 
 本仓库是企业级低代码平台（对标简道云形态）的单仓工程，由 Kubernetes 管理平台 weave 二次演进而来。整体架构与演进路线见 `docs/低代码平台/企业级低代码平台技术架构设计.md`（M0–M7 里程碑，当前处于 M0 完成后的阶段）。
 
-- `apps/evolyn-core/`: Go 1.25 + Gin 后端，模块名保持 `github.com/qingwave/weave`。当前承载认证（JWT + OAuth）、用户/分组、自定义 RBAC；低代码引擎（Schema/Query/Permission 等）按里程碑逐步落地。
+- `apps/evolyn-core/`: Go 1.25 + Gin 后端，模块名保持 `evolyn`。当前承载认证（JWT + OAuth）、用户/分组、自定义 RBAC；低代码引擎（Schema/Query/Permission 等）按里程碑逐步落地。
 - `apps/evolyn-web/`: Vue 3 + Vite 前端，Element Plus + Tailwind，JavaScript 存量 + TypeScript 渐进迁移（`vue-tsc` 已接入）。
 - `services/`、`packages/`: 规划目录（Java/Flowable 工作流、OpenAPI 契约），落地前不要创建同名内容。
 - `deploy/`: `docker-compose.yaml` 一键起 PostgreSQL/Redis/MinIO。
@@ -20,7 +20,7 @@
 - 不要提交或手改生成/构建产物：`node_modules/`、`dist/`、`bin/`、`cover.out`、`coverage.txt`、swagger 生成的 `apps/evolyn-core/docs/`、`auto-imports.d.ts`、`components.d.ts`。
 - 证书与私钥不入库（`.gitignore` 已拦截 `certs/`、`*.key` 等）；本地证书用 `apps/evolyn-core/scripts/cert.sh` 生成。
 - 真实密钥、token、生产连接串不写入代码或文档。`config/app.yaml` 是本地开发默认值，生产配置通过 `config/app.example.yaml` 复制后填写，不入库。
-- 后端模块导入路径是 `github.com/qingwave/weave/...`，应用名 evolyn 只是目录名，不要重命名 go module 或批量改导入路径。
+- 后端模块导入路径是 `evolyn/...`，应用名 evolyn 只是目录名，不要重命名 go module 或批量改导入路径。
 - 业务代码一律放 `internal/`（编译器强制外部不可导入）；`pkg/` 只放可复用的非业务库（authentication、common、utils、version）。后续引擎代码放 `internal/engine/`，禁止 import gin/gorm。
 - 修改 API 字段、路由、权限模型时，同步检查 `evolyn-web/src`（router、views、axios）与后端 swagger。
 - 遇到工作区已有未提交改动时，默认视为用户改动；只处理当前任务相关文件，不回滚无关文件。

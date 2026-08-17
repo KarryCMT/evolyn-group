@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/qingwave/weave/internal/config"
+	"evolyn/internal/config"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"

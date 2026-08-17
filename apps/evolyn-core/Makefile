@@ -8,11 +8,11 @@ BUILD_DATE = $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 
 BINARY = evolyn-core
 
-LDFLAGS = -X github.com/qingwave/weave/pkg/version.gitVersion=$(GIT_VERSION) \
-	-X github.com/qingwave/weave/pkg/version.gitCommit=$(GIT_COMMIT) \
-	-X github.com/qingwave/weave/pkg/version.gitBranch=$(GIT_BRANCH) \
-	-X github.com/qingwave/weave/pkg/version.gitTreeState=$(GIT_STATE) \
-	-X github.com/qingwave/weave/pkg/version.buildDate=$(BUILD_DATE)
+LDFLAGS = -X evolyn/pkg/version.gitVersion=$(GIT_VERSION) \
+	-X evolyn/pkg/version.gitCommit=$(GIT_COMMIT) \
+	-X evolyn/pkg/version.gitBranch=$(GIT_BRANCH) \
+	-X evolyn/pkg/version.gitTreeState=$(GIT_STATE) \
+	-X evolyn/pkg/version.buildDate=$(BUILD_DATE)
 
 PKGS = $(shell go list ./...)
 GOFILES = $(shell find . -name "*.go" -type f -not -path "./vendor/*")

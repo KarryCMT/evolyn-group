@@ -4,9 +4,11 @@ import (
 	"flag"
 	"os"
 
-	"github.com/qingwave/weave/internal/config"
-	"github.com/qingwave/weave/internal/server"
-	"github.com/qingwave/weave/pkg/version"
+	"evolyn/internal/config"
+
+	"evolyn/internal/server"
+
+	"evolyn/pkg/version"
 
 	"github.com/sirupsen/logrus"
 )

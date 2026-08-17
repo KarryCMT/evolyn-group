@@ -3,7 +3,8 @@ package repository
 import (
 	"context"
 
-	"github.com/qingwave/weave/internal/model"
+	"evolyn/internal/model"
+
 	"gorm.io/gorm/clause"
 )
 

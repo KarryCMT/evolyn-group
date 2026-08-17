@@ -1,4 +1,4 @@
-module github.com/qingwave/weave
+module evolyn
 
 go 1.25.0
 

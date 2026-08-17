@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"github.com/qingwave/weave/internal/database"
-	"github.com/qingwave/weave/internal/model"
+	"evolyn/internal/database"
+	"evolyn/internal/model"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

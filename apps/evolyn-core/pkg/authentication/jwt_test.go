@@ -4,7 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/qingwave/weave/internal/model"
+	"evolyn/internal/model"
+
 	"github.com/stretchr/testify/assert"
 )
 

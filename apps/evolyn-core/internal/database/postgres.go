@@ -3,7 +3,7 @@ package database
 import (
 	"fmt"
 
-	"github.com/qingwave/weave/internal/config"
+	"evolyn/internal/config"
 
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"

@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/qingwave/weave/internal/model"
-	"github.com/qingwave/weave/internal/service"
-	"github.com/qingwave/weave/pkg/authentication"
-	"github.com/qingwave/weave/pkg/authentication/oauth"
-	"github.com/qingwave/weave/pkg/common"
+	"evolyn/internal/model"
+	"evolyn/internal/service"
+	"evolyn/pkg/authentication"
+	"evolyn/pkg/authentication/oauth"
+	"evolyn/pkg/common"
 
 	"github.com/gin-gonic/gin"
 )

@@ -1,9 +1,10 @@
 package common
 
 import (
-	"github.com/qingwave/weave/internal/model"
-	"github.com/qingwave/weave/pkg/utils/request"
-	"github.com/qingwave/weave/pkg/utils/trace"
+	"evolyn/internal/model"
+
+	"evolyn/pkg/utils/request"
+	"evolyn/pkg/utils/trace"
 
 	"github.com/gin-gonic/gin"
 )

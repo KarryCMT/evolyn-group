@@ -4,9 +4,10 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/qingwave/weave/internal/authorization"
-	"github.com/qingwave/weave/internal/model"
-	"github.com/qingwave/weave/pkg/common"
+	"evolyn/internal/authorization"
+	"evolyn/internal/model"
+	"evolyn/pkg/common"
+
 	"github.com/sirupsen/logrus"
 
 	"github.com/gin-gonic/gin"

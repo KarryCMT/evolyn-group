@@ -15,8 +15,8 @@ const authInfo = {
 };
 
 const githubInfo = {
-    project: 'https://github.com/qingwave/weave',
-    doc: 'https://github.com/qingwave/weave/blob/master/README.md#weave',
+    project: 'https://evolyn',
+    doc: 'https://evolyn/blob/master/README.md#weave',
 }
 
 export { authInfo, githubInfo };

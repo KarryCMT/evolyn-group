@@ -1,9 +1,10 @@
 package authorization
 
 import (
-	"github.com/qingwave/weave/internal/model"
-	"github.com/qingwave/weave/internal/repository"
-	"github.com/qingwave/weave/pkg/utils/request"
+	"evolyn/internal/model"
+
+	"evolyn/internal/repository"
+	"evolyn/pkg/utils/request"
 )
 
 var store repository.Repository

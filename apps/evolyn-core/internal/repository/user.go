@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/qingwave/weave/internal/database"
-	"github.com/qingwave/weave/internal/model"
+	"evolyn/internal/database"
+	"evolyn/internal/model"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"

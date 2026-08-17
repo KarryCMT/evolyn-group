@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/qingwave/weave/internal/model"
+	"evolyn/internal/model"
 
 	"github.com/golang-jwt/jwt/v5"
 )
