@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"evolyn/internal/model"
-	"evolyn/internal/service"
+	platformcontroller "evolyn/internal/platform/controller"
+	"evolyn/internal/platform/iam/model"
+	"evolyn/internal/platform/iam/service"
 	"evolyn/pkg/common"
 	"evolyn/pkg/utils/trace"
 
@@ -16,7 +17,7 @@ type GroupController struct {
 	groupService service.GroupService
 }
 
-func NewGroupController(groupService service.GroupService) Controller {
+func NewGroupController(groupService service.GroupService) platformcontroller.Controller {
 	return &GroupController{
 		groupService: groupService,
 	}

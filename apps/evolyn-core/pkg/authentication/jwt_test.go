@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -94,7 +94,9 @@ func TestParseToken(t *testing.T) {
 func TestTokenTenantRoundtrip(t *testing.T) {
 	service := NewJWTService("test")
 
-	token, err := service.CreateToken(&model.User{ID: 7, Name: "someone", BaseModel: model.BaseModel{TenantID: 3}})
+	user0 := &model.User{ID: 7, Name: "someone"}
+	user0.TenantID = 3
+	token, err := service.CreateToken(user0)
 	assert.Empty(t, err)
 
 	user, err := service.ParseToken(token)

@@ -3,16 +3,17 @@ package authorization
 import (
 	"context"
 
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 
-	"evolyn/internal/repository"
+	"evolyn/internal/platform/iam/repository"
 	"evolyn/pkg/utils/request"
 )
 
-var store repository.Repository
+// store 暂以包变量持有 iam 仓储；P0-4 将拆除单例改为中间件内显式注入（随 Casbin 接入）
+var store *repository.Repositories
 
-func InitAuthorization(repository repository.Repository) error {
-	store = repository
+func InitAuthorization(iam *repository.Repositories) error {
+	store = iam
 	return nil
 }
 

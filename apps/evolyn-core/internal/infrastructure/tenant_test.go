@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"testing"
 
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 
 	"github.com/stretchr/testify/assert"
 )

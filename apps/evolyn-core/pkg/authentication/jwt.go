@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 
 	"github.com/golang-jwt/jwt/v5"
 )
@@ -76,10 +76,9 @@ func (s *JWTService) ParseToken(tokenString string) (*model.User, error) {
 	user := &model.User{
 		ID:   claims.ID,
 		Name: claims.Name,
-		BaseModel: model.BaseModel{
-			TenantID: claims.TenantID,
-		},
 	}
+	// TenantID 为内嵌共享内核字段的提升字段，直接赋值避免跨包命名 BaseModel
+	user.TenantID = claims.TenantID
 
 	return user, nil
 }

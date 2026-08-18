@@ -5,8 +5,9 @@ import (
 	"strconv"
 
 	"evolyn/internal/authorization"
-	"evolyn/internal/model"
-	"evolyn/internal/service"
+	platformcontroller "evolyn/internal/platform/controller"
+	"evolyn/internal/platform/iam/model"
+	"evolyn/internal/platform/iam/service"
 	"evolyn/pkg/common"
 	"evolyn/pkg/utils/trace"
 
@@ -18,7 +19,7 @@ type UserController struct {
 	userService service.UserService
 }
 
-func NewUserController(userService service.UserService) Controller {
+func NewUserController(userService service.UserService) platformcontroller.Controller {
 	return &UserController{
 		userService: userService,
 	}

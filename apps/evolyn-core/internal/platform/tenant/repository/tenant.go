@@ -15,7 +15,16 @@ type tenantRepository struct {
 	rdb *infrastructure.RedisDB
 }
 
-func newTenantRepository(db *gorm.DB, rdb *infrastructure.RedisDB) TenantRepository {
+// TenantRepository 租户域数据访问；管理面 CRUD 随 P3 运营域接口补充
+type TenantRepository interface {
+	GetByID(ctx context.Context, id uint) (*model.Tenant, error)
+	GetByCode(ctx context.Context, code string) (*model.Tenant, error)
+	SeedDefaultTenant() error
+	Migrate() error
+}
+
+// NewRepository 租户域仓储工厂（ADR-007 域模块化）
+func NewRepository(db *gorm.DB, rdb *infrastructure.RedisDB) TenantRepository {
 	return &tenantRepository{
 		db:  db,
 		rdb: rdb,

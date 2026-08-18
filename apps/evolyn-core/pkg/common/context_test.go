@@ -7,7 +7,7 @@ import (
 
 	"evolyn/pkg/utils/request"
 
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 
 	"evolyn/pkg/utils/trace"
 

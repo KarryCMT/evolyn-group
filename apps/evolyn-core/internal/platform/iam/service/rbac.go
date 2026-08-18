@@ -4,8 +4,8 @@ import (
 	"context"
 	"strconv"
 
-	"evolyn/internal/model"
-	"evolyn/internal/repository"
+	"evolyn/internal/platform/iam/model"
+	"evolyn/internal/platform/iam/repository"
 	"evolyn/pkg/utils/request"
 )
 

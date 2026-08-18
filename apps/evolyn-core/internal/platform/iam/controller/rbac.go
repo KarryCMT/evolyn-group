@@ -3,8 +3,9 @@ package controller
 import (
 	"net/http"
 
-	"evolyn/internal/model"
-	"evolyn/internal/service"
+	platformcontroller "evolyn/internal/platform/controller"
+	"evolyn/internal/platform/iam/model"
+	"evolyn/internal/platform/iam/service"
 	"evolyn/pkg/common"
 
 	"github.com/gin-gonic/gin"
@@ -14,7 +15,7 @@ type RBACController struct {
 	rbacService service.RBACService
 }
 
-func NewRbacController(rbacService service.RBACService) Controller {
+func NewRbacController(rbacService service.RBACService) platformcontroller.Controller {
 	return &RBACController{rbacService: rbacService}
 }
 

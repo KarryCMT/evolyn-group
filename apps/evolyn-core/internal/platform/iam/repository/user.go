@@ -6,7 +6,7 @@ import (
 	"strconv"
 
 	"evolyn/internal/infrastructure"
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"

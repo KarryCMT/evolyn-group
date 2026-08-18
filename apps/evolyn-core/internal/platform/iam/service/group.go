@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"evolyn/internal/model"
-	"evolyn/internal/repository"
+	"evolyn/internal/platform/iam/model"
+	"evolyn/internal/platform/iam/repository"
 )
 
 type groupService struct {

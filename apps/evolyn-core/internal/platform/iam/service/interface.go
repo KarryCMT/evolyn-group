@@ -3,7 +3,7 @@ package service
 import (
 	"context"
 
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 )
 
 // ctx 约定：触及数据访问的方法统一以 ctx 为首参，由 controller 从

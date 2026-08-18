@@ -3,7 +3,7 @@ package common
 import (
 	"context"
 
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 
 	"evolyn/pkg/utils/request"
 	"evolyn/pkg/utils/trace"

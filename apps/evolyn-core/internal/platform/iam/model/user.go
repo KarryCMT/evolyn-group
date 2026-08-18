@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"time"
+
+	// 共享内核（BaseModel/租户常量）暂驻 internal/model，P1 模型拆分时再评估归位
+	kernel "evolyn/internal/model"
 )
 
 const (
@@ -22,7 +25,7 @@ type User struct {
 	Groups    []Group    `json:"groups" gorm:"many2many:user_groups;"`
 	Roles     []Role     `json:"roles" gorm:"many2many:user_roles;"`
 
-	BaseModel
+	kernel.BaseModel
 }
 
 func (*User) TableName() string {
@@ -35,7 +38,7 @@ func (*User) TableName() string {
 func (u *User) CacheKey() string {
 	tenantID := u.TenantID
 	if tenantID == 0 {
-		tenantID = DefaultTenantID
+		tenantID = kernel.DefaultTenantID
 	}
 	return fmt.Sprintf("%s:%d:id", u.TableName(), tenantID)
 }
@@ -58,7 +61,7 @@ type AuthInfo struct {
 	RefreshToken string    `json:"-" gorm:"size:256"`
 	Expiry       time.Time `json:"-"`
 
-	BaseModel
+	kernel.BaseModel
 }
 
 func (*AuthInfo) TableName() string {

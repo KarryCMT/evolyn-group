@@ -5,7 +5,7 @@ import (
 	"net/http"
 
 	"evolyn/internal/authorization"
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 	"evolyn/pkg/common"
 
 	"github.com/sirupsen/logrus"

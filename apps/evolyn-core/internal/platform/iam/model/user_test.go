@@ -3,12 +3,14 @@ package model
 import (
 	"testing"
 
+	kernel "evolyn/internal/model"
+
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUserCacheKey(t *testing.T) {
 	// Redis Key 规范：{resource}:{tenant}:{rest}
-	u := &User{BaseModel: BaseModel{TenantID: 2}}
+	u := &User{BaseModel: kernel.BaseModel{TenantID: 2}}
 	assert.Equal(t, "users:2:id", u.CacheKey())
 
 	// 请求构造对象未携带租户时兜底默认租户

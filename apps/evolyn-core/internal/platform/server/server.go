@@ -12,11 +12,14 @@ import (
 
 	"evolyn/internal/authorization"
 	"evolyn/internal/config"
-	"evolyn/internal/controller"
 	"evolyn/internal/infrastructure"
+	authcontroller "evolyn/internal/platform/auth/controller"
+	"evolyn/internal/platform/controller"
+	iamcontroller "evolyn/internal/platform/iam/controller"
+	"evolyn/internal/platform/iam/repository"
+	"evolyn/internal/platform/iam/service"
 	"evolyn/internal/platform/middleware"
-	"evolyn/internal/repository"
-	"evolyn/internal/service"
+	tenantrepository "evolyn/internal/platform/tenant/repository"
 	"evolyn/pkg/authentication"
 	"evolyn/pkg/authentication/oauth"
 	"evolyn/pkg/common"
@@ -31,6 +34,7 @@ import (
 	"github.com/sirupsen/logrus"
 	swaggerfiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"gorm.io/gorm"
 )
 
 func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
@@ -49,29 +53,39 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		return nil, errors.Wrap(err, "redis client failed")
 	}
 
-	repository := repository.NewRepository(db, rdb)
+	// 域仓储装配（ADR-007 域模块化）：tenant 先于 iam 迁移，
+	// 保证业务模型加 tenant_id 列时默认租户已就绪
+	tenantRepo := tenantrepository.NewRepository(db, rdb)
+	iamRepo := repository.NewRepositories(db, rdb)
 	if conf.DB.Migrate {
-		if err := repository.Migrate(); err != nil {
+		if err := tenantRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := iamRepo.Migrate(); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := repository.Init(); err != nil {
+	// 种子：默认租户最先（单租户/存量数据归属兜底），再 iam 资源与系统分组
+	if err := tenantRepo.SeedDefaultTenant(); err != nil {
+		return nil, err
+	}
+	if err := iamRepo.Init(); err != nil {
 		return nil, err
 	}
 
-	userService := service.NewUserService(repository.User())
-	groupService := service.NewGroupService(repository.Group(), repository.User())
+	userService := service.NewUserService(iamRepo.User())
+	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User())
 	jwtService := authentication.NewJWTService(conf.Server.JWTSecret)
-	rbacService := service.NewRBACService(repository.RBAC())
+	rbacService := service.NewRBACService(iamRepo.RBAC())
 	oauthManager := oauth.NewOAuthManager(conf.OAuthConfig)
 
-	userController := controller.NewUserController(userService)
-	groupController := controller.NewGroupController(groupService)
-	authController := controller.NewAuthController(userService, jwtService, oauthManager)
-	rbacController := controller.NewRbacController(rbacService)
+	userController := iamcontroller.NewUserController(userService)
+	groupController := iamcontroller.NewGroupController(groupService)
+	authController := authcontroller.NewAuthController(userService, jwtService, oauthManager)
+	rbacController := iamcontroller.NewRbacController(rbacService)
 
-	if err := authorization.InitAuthorization(repository); err != nil {
+	if err := authorization.InitAuthorization(iamRepo); err != nil {
 		return nil, err
 	}
 
@@ -87,7 +101,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		middleware.CORSMiddleware(),
 		middleware.RequestInfoMiddleware(&request.RequestInfoFactory{APIPrefixes: set.NewString("api")}),
 		middleware.LogMiddleware(logger, "/"),
-		middleware.AuthenticationMiddleware(jwtService, repository.User()),
+		middleware.AuthenticationMiddleware(jwtService, iamRepo.User()),
 		middleware.TenantMiddleware(),
 		middleware.AuthorizationMiddleware(),
 		middleware.TraceMiddleware(),
@@ -97,7 +111,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		engine:      e,
 		config:      conf,
 		logger:      logger,
-		repository:  repository,
+		db:          db,
+		rdb:         rdb,
 		controllers: controllers,
 	}, nil
 }
@@ -107,7 +122,9 @@ type Server struct {
 	config *config.Config
 	logger *logrus.Logger
 
-	repository repository.Repository
+	// 存活探测与关闭由 infrastructure 直接承担（域仓储不再聚合生命周期）
+	db  *gorm.DB
+	rdb *infrastructure.RedisDB
 
 	controllers []controller.Controller
 }
@@ -145,8 +162,8 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) Close() {
-	if err := s.repository.Close(); err != nil {
-		s.logger.Warnf("failed to close repository, %v", err)
+	if err := infrastructure.Close(s.db, s.rdb); err != nil {
+		s.logger.Warnf("failed to close db/redis, %v", err)
 	}
 
 }
@@ -195,7 +212,7 @@ func (s *Server) Ping() *ServerStatus {
 	ctx, cannel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cannel()
 
-	if err := s.repository.Ping(ctx); err == nil {
+	if err := infrastructure.Ping(ctx, s.db, s.rdb); err == nil {
 		status.DBRepository = true
 	}
 

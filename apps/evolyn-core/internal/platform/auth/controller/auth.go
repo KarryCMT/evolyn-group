@@ -4,8 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"evolyn/internal/model"
-	"evolyn/internal/service"
+	platformcontroller "evolyn/internal/platform/controller"
+	"evolyn/internal/platform/iam/model"
+	"evolyn/internal/platform/iam/service"
 	"evolyn/pkg/authentication"
 	"evolyn/pkg/authentication/oauth"
 	"evolyn/pkg/common"
@@ -19,7 +20,7 @@ type AuthController struct {
 	oauthManger *oauth.OAuthManager
 }
 
-func NewAuthController(userService service.UserService, jwtService *authentication.JWTService, oauthManager *oauth.OAuthManager) Controller {
+func NewAuthController(userService service.UserService, jwtService *authentication.JWTService, oauthManager *oauth.OAuthManager) platformcontroller.Controller {
 	return &AuthController{
 		userService: userService,
 		jwtService:  jwtService,

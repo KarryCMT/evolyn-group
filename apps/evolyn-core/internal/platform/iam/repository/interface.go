@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 
 	"gorm.io/gorm/clause"
 )
@@ -12,29 +12,6 @@ import (
 // ctx 中的租户 ID 经 RegisterTenantCallbacks 注册的 GORM Callback 自动注入
 // 过滤/回填（架构文档 26.3），Repository 层禁止手写租户条件；
 // 启动期路径（Migrate/Init/Seed）使用 context.Background()，无租户上下文即无副作用。
-
-type Repository interface {
-	User() UserRepository
-	Group() GroupRepository
-	RBAC() RBACRepository
-	Tenant() TenantRepository
-	Close() error
-	Ping(ctx context.Context) error
-	Init() error
-	Migrant
-}
-
-// TenantRepository 租户数据访问；管理面 CRUD 随 P1 internal/tenant 模块补充
-type TenantRepository interface {
-	GetByID(ctx context.Context, id uint) (*model.Tenant, error)
-	GetByCode(ctx context.Context, code string) (*model.Tenant, error)
-	SeedDefaultTenant() error
-	Migrate() error
-}
-
-type Migrant interface {
-	Migrate() error
-}
 
 type UserRepository interface {
 	GetUserByID(ctx context.Context, id uint) (*model.User, error)

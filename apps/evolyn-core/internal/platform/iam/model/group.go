@@ -1,5 +1,10 @@
 package model
 
+import (
+	// 共享内核（BaseModel）暂驻 internal/model
+	kernel "evolyn/internal/model"
+)
+
 const (
 	RootGroup            = "root"
 	AuthenticatedGroup   = "system:authenticated"
@@ -18,7 +23,7 @@ type Group struct {
 	Users     []User `json:"users" gorm:"many2many:user_groups;"`
 	Roles     []Role `json:"roles" gorm:"many2many:group_roles;"`
 
-	BaseModel
+	kernel.BaseModel
 }
 
 type CreatedGroup struct {

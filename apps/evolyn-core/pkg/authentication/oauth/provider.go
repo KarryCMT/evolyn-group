@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"evolyn/internal/config"
-	"evolyn/internal/model"
+	"evolyn/internal/platform/iam/model"
 
 	"golang.org/x/oauth2"
 )
