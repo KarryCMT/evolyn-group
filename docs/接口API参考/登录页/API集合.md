@@ -1227,3 +1227,417 @@ https://www.jiandaoyun.com/portal/v1/message_center/list
   "messages": []
 }
 ```
+
+```
+<!-- 接口 -->
+https://www.jiandaoyun.com/dashboard/apps
+<!-- 请求参数 -->
+{
+}
+<!-- 响应参数 -->
+{
+    "apps": [
+        {
+            "_id": "6a7f31d6b33d6fcbadea4fee",
+            "name": "简道云示例应用",
+            "owner": "6a7f3132e6a0aba27cdb3d2b",
+            "color": 3,
+            "icon": 1,
+            "iconUrl": "",
+            "state": 0,
+            "category": [],
+            "version": 0,
+            "is_share_restricted": false,
+            "group_no": 0,
+            "type": 1,
+            "locales": [],
+            "editable": true,
+            "deletable": true,
+            "copyable": true,
+            "publishable": false,
+            "favoriteId": "6a7f35c3b45587cb78258f9f",
+            "isDisabled": false,
+            "isReadonly": false
+        },
+        {
+            "_id": "6a7f31d68d61f3191f439a5a",
+            "name": "合同管理",
+            "owner": "6a7f3132e6a0aba27cdb3d2b",
+            "color": 2,
+            "icon": 2,
+            "iconUrl": "",
+            "state": 0,
+            "category": [],
+            "version": 0,
+            "is_share_restricted": false,
+            "group_no": 0,
+            "type": 1,
+            "locales": [],
+            "editable": true,
+            "deletable": true,
+            "copyable": true,
+            "publishable": false,
+            "favoriteId": "6a7f35c3b45587cb78258f9b",
+            "isDisabled": false,
+            "isReadonly": false
+        },
+        {
+            "_id": "6a7f31d68d61f3191f439a5c",
+            "name": "IT项目管理",
+            "owner": "6a7f3132e6a0aba27cdb3d2b",
+            "color": 5,
+            "icon": 2,
+            "iconUrl": "",
+            "state": 0,
+            "category": [],
+            "version": 0,
+            "is_share_restricted": false,
+            "group_no": 0,
+            "type": 1,
+            "locales": [],
+            "editable": true,
+            "deletable": true,
+            "copyable": true,
+            "publishable": false,
+            "favoriteId": "6a7f35c3b45587cb78258f9d",
+            "isDisabled": false,
+            "isReadonly": false
+        },
+        {
+            "_id": "6a7f31d68d61f3191f439a5e",
+            "name": "任务管理",
+            "owner": "6a7f3132e6a0aba27cdb3d2b",
+            "color": 4,
+            "icon": 2,
+            "iconUrl": "",
+            "state": 0,
+            "category": [],
+            "version": 0,
+            "is_share_restricted": false,
+            "group_no": 0,
+            "type": 1,
+            "locales": [],
+            "editable": true,
+            "deletable": true,
+            "copyable": true,
+            "publishable": false,
+            "favoriteId": "6a7f35c3b45587cb78258f9e",
+            "isDisabled": false,
+            "isReadonly": false
+        },
+        {
+            "_id": "6a7f3263a18a1c2c198420eb",
+            "name": "简道云高级功能介绍",
+            "owner": "6a7f3132e6a0aba27cdb3d2b",
+            "color": 6,
+            "icon": 6,
+            "state": 0,
+            "category": [],
+            "version": 0,
+            "is_share_restricted": false,
+            "group_no": 0,
+            "type": 1,
+            "locales": [],
+            "editable": true,
+            "deletable": true,
+            "copyable": true,
+            "publishable": false,
+            "favoriteId": "6a7f35c3b45587cb78258f9c",
+            "isDisabled": false,
+            "isReadonly": false
+        }
+    ],
+    "creatable": true,
+    "has_app_group": false,
+    "has_member_app_group": false,
+    "app_group_list": []
+}
+
+```
+
+```
+
+<!-- 接口 -->
+https://www.jiandaoyun.com/dashboard/preferences
+<!-- 请求参数 -->
+{
+}
+<!-- 响应参数 -->
+
+{
+    "preferences": {
+        "_component_c953a262-6982-40ba-995e-5dcf5e075c52": {
+            "component_type": "greeting",
+            "logo_url": "greeting_logo_1"
+        },
+        "_component_c3a08514-36a2-4f77-bc5a-c0b30db89d37": {
+            "component_type": "speedy_entry",
+            "title": "未命名快捷入口",
+            "displayType": "list",
+            "entryList": []
+        },
+        "_component_3ae5d7b6-1ae3-4f6b-a0a5-9374dd34cc0c": {
+            "component_type": "speedy_entry",
+            "title": "未命名快捷入口",
+            "displayType": "list",
+            "entryList": []
+        },
+        "charts": {
+            "component_type": "charts",
+            "charts": []
+        }
+    },
+    "layout": {
+        "pc": {
+            "source": "corp",
+            "content": [
+                {
+                    "type": "col",
+                    "child": [
+                        {
+                            "type": "narrow",
+                            "child": [
+                                {
+                                    "type": "component",
+                                    "component_type": "flow_center",
+                                    "component_id": "_component_flow_center"
+                                }
+                            ]
+                        },
+                        {
+                            "type": "normal",
+                            "child": [
+                                {
+                                    "type": "component",
+                                    "component_type": "recent_visit",
+                                    "component_id": "_component_recent_visit"
+                                },
+                                {
+                                    "type": "component",
+                                    "component_type": "favorites",
+                                    "component_id": "_component_favorites"
+                                },
+                                {
+                                    "type": "component",
+                                    "component_type": "all_app",
+                                    "component_id": "_component_all_app"
+                                },
+                                {
+                                    "type": "component",
+                                    "component_type": "charts",
+                                    "component_id": "charts"
+                                },
+                                {
+                                    "type": "component",
+                                    "component_type": "external_app",
+                                    "component_id": "_component_external_app"
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "grid": [
+                {
+                    "w": 7,
+                    "h": 3,
+                    "x": 0,
+                    "y": 0,
+                    "component_type": "greeting",
+                    "component_id": "_component_c953a262-6982-40ba-995e-5dcf5e075c52"
+                },
+                {
+                    "w": 29,
+                    "h": 8,
+                    "x": 7,
+                    "y": 0,
+                    "component_type": "recent_visit",
+                    "component_id": "_component_c4979c48-646c-46d0-bc15-b62aaaef3c08"
+                },
+                {
+                    "w": 36,
+                    "h": 8,
+                    "x": 0,
+                    "y": 8,
+                    "component_id": "_component_3ae5d7b6-1ae3-4f6b-a0a5-9374dd34cc0c",
+                    "component_type": "speedy_entry"
+                },
+                {
+                    "w": 7,
+                    "h": 15,
+                    "x": 0,
+                    "y": 16,
+                    "component_type": "flow_center",
+                    "component_id": "_component_a2c87535-efc1-4c5a-9be2-0f2099b0a60d"
+                },
+                {
+                    "w": 29,
+                    "h": 8,
+                    "x": 7,
+                    "y": 16,
+                    "component_type": "favorites",
+                    "component_id": "_component_e357613e-705f-430f-b7a1-a72238827b58"
+                },
+                {
+                    "w": 29,
+                    "h": 12,
+                    "x": 7,
+                    "y": 24,
+                    "component_type": "all_app",
+                    "component_id": "_component_8ec24c86-26e0-4e58-ac1e-af46f2a1ab7b"
+                },
+                {
+                    "w": 7,
+                    "h": 8,
+                    "x": 0,
+                    "y": 31,
+                    "component_type": "speedy_entry",
+                    "component_id": "_component_c3a08514-36a2-4f77-bc5a-c0b30db89d37"
+                },
+                {
+                    "w": 29,
+                    "h": 8,
+                    "x": 7,
+                    "y": 36,
+                    "component_type": "charts",
+                    "component_id": "charts"
+                },
+                {
+                    "w": 29,
+                    "h": 12,
+                    "x": 7,
+                    "y": 44,
+                    "component_type": "external_app",
+                    "component_id": "_component_0a9cfe8b-804e-4f25-8f53-a9fc03efdac0"
+                }
+            ]
+        },
+        "mobile": {
+            "source": "default",
+            "component_list": []
+        }
+    },
+    "has_favorite": true,
+    "top_app_groups": [],
+    "apps": [
+        {
+            "_id": "6a7f31d6b33d6fcbadea4fee",
+            "name": "简道云示例应用",
+            "owner": "6a7f3132e6a0aba27cdb3d2b",
+            "color": 3,
+            "icon": 1,
+            "iconUrl": "",
+            "state": 0,
+            "category": [],
+            "version": 0,
+            "is_share_restricted": false,
+            "group_no": 0,
+            "type": 1,
+            "locales": [],
+            "editable": true,
+            "deletable": true,
+            "copyable": true,
+            "publishable": false,
+            "favoriteId": "6a7f35c3b45587cb78258f9f",
+            "isDisabled": false,
+            "isReadonly": false
+        },
+        {
+            "_id": "6a7f31d68d61f3191f439a5a",
+            "name": "合同管理",
+            "owner": "6a7f3132e6a0aba27cdb3d2b",
+            "color": 2,
+            "icon": 2,
+            "iconUrl": "",
+            "state": 0,
+            "category": [],
+            "version": 0,
+            "is_share_restricted": false,
+            "group_no": 0,
+            "type": 1,
+            "locales": [],
+            "editable": true,
+            "deletable": true,
+            "copyable": true,
+            "publishable": false,
+            "favoriteId": "6a7f35c3b45587cb78258f9b",
+            "isDisabled": false,
+            "isReadonly": false
+        },
+        {
+            "_id": "6a7f31d68d61f3191f439a5c",
+            "name": "IT项目管理",
+            "owner": "6a7f3132e6a0aba27cdb3d2b",
+            "color": 5,
+            "icon": 2,
+            "iconUrl": "",
+            "state": 0,
+            "category": [],
+            "version": 0,
+            "is_share_restricted": false,
+            "group_no": 0,
+            "type": 1,
+            "locales": [],
+            "editable": true,
+            "deletable": true,
+            "copyable": true,
+            "publishable": false,
+            "favoriteId": "6a7f35c3b45587cb78258f9d",
+            "isDisabled": false,
+            "isReadonly": false
+        },
+        {
+            "_id": "6a7f31d68d61f3191f439a5e",
+            "name": "任务管理",
+            "owner": "6a7f3132e6a0aba27cdb3d2b",
+            "color": 4,
+            "icon": 2,
+            "iconUrl": "",
+            "state": 0,
+            "category": [],
+            "version": 0,
+            "is_share_restricted": false,
+            "group_no": 0,
+            "type": 1,
+            "locales": [],
+            "editable": true,
+            "deletable": true,
+            "copyable": true,
+            "publishable": false,
+            "favoriteId": "6a7f35c3b45587cb78258f9e",
+            "isDisabled": false,
+            "isReadonly": false
+        },
+        {
+            "_id": "6a7f3263a18a1c2c198420eb",
+            "name": "简道云高级功能介绍",
+            "owner": "6a7f3132e6a0aba27cdb3d2b",
+            "color": 6,
+            "icon": 6,
+            "state": 0,
+            "category": [],
+            "version": 0,
+            "is_share_restricted": false,
+            "group_no": 0,
+            "type": 1,
+            "locales": [],
+            "editable": true,
+            "deletable": true,
+            "copyable": true,
+            "publishable": false,
+            "favoriteId": "6a7f35c3b45587cb78258f9c",
+            "isDisabled": false,
+            "isReadonly": false
+        }
+    ],
+    "creatable": true,
+    "has_member_app_group": false,
+    "has_app_group": true,
+    "app_group_list": [],
+    "app_group_style": "flat",
+    "app_style": "vertical",
+    "has_workbench_advanced": true,
+    "has_kms_favorite": true
+}
+
+```
