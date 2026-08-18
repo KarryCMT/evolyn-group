@@ -1,12 +1,12 @@
 package controller
 
 import (
-	"evolyn/internal/platform/ginctx"
-	"evolyn/internal/platform/httpx"
 	"net/http"
 	"strconv"
 
 	platformcontroller "evolyn/internal/platform/controller"
+	"evolyn/internal/platform/ginctx"
+	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/service"
@@ -16,6 +16,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
+// UserController 成员管理（/users 路径保留，语义为租户成员；ADR-006）
 type UserController struct {
 	userService service.UserService
 }
@@ -26,30 +27,30 @@ func NewUserController(userService service.UserService) platformcontroller.Contr
 	}
 }
 
-// @Summary List user
-// @Description List user and storage
+// @Summary List members
+// @Description List tenant members (current tenant)
 // @Produce json
 // @Tags user
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=model.Users}
 // @Router /api/v1/users [get]
 func (u *UserController) List(c *gin.Context) {
-	ginctx.TraceStep(c, "start list user")
+	ginctx.TraceStep(c, "start list members")
 	users, err := u.userService.List(c.Request.Context())
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	ginctx.TraceStep(c, "list user done")
+	ginctx.TraceStep(c, "list members done")
 	httpx.ResponseSuccess(c, users)
 }
 
-// @Summary Get user
-// @Description Get user and storage
+// @Summary Get member
+// @Description Get tenant member by id
 // @Produce json
 // @Tags user
 // @Security JWT
-// @Param id path int true "user id"
+// @Param id path int true "member id"
 // @Success 200 {object} httpx.Response{data=model.User}
 // @Router /api/v1/users/{id} [get]
 func (u *UserController) Get(c *gin.Context) {
@@ -61,47 +62,14 @@ func (u *UserController) Get(c *gin.Context) {
 	httpx.ResponseSuccess(c, user)
 }
 
-// @Summary Create user
-// @Description Create user and storage
+// @Summary Update member
+// @Description Update member profile (nickname, in-tenant)
 // @Accept json
 // @Produce json
 // @Tags user
 // @Security JWT
-// @Param user body model.CreatedUser true "user info"
-// @Success 200 {object} httpx.Response{data=model.User}
-// @Router /api/v1/users [post]
-func (u *UserController) Create(c *gin.Context) {
-	createdUser := new(model.CreatedUser)
-	if err := c.BindJSON(createdUser); err != nil {
-		httpx.ResponseFailed(c, http.StatusBadRequest, err)
-		return
-	}
-
-	user := createdUser.GetUser()
-	if err := u.userService.Validate(user); err != nil {
-		httpx.ResponseFailed(c, http.StatusBadRequest, err)
-		return
-	}
-
-	u.userService.Default(user)
-	ginctx.TraceStep(c, "start create user", trace.Field{"user", user.Name})
-	defer ginctx.TraceStep(c, "create user done", trace.Field{"user", user.Name})
-	user, err := u.userService.Create(c.Request.Context(), user)
-	if err != nil {
-		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
-	}
-
-	httpx.ResponseSuccess(c, user)
-}
-
-// @Summary Update user
-// @Description Update user and storage
-// @Accept json
-// @Produce json
-// @Tags user
-// @Security JWT
-// @Param user body model.UpdatedUser true "user info"
-// @Param id   path      int  true  "user id"
+// @Param member body model.UpdatedMember true "member info"
+// @Param id   path      int  true  "member id"
 // @Success 200 {object} httpx.Response{data=model.User}
 // @Router /api/v1/users/{id} [put]
 func (u *UserController) Update(c *gin.Context) {
@@ -111,17 +79,16 @@ func (u *UserController) Update(c *gin.Context) {
 		return
 	}
 
-	new := new(model.UpdatedUser)
+	new := new(model.UpdatedMember)
 	if err := c.BindJSON(new); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	logrus.Infof("get update user: %#v", new.Name)
 
-	ginctx.TraceStep(c, "start update user", trace.Field{"user", new.Name})
-	defer ginctx.TraceStep(c, "update user done", trace.Field{"user", new.Name})
+	ginctx.TraceStep(c, "start update member", trace.Field{"member", new.Nickname})
+	defer ginctx.TraceStep(c, "update member done", trace.Field{"member", new.Nickname})
 
-	user, err := u.userService.Update(c.Request.Context(), c.Param("id"), new.GetUser())
+	user, err := u.userService.Update(c.Request.Context(), c.Param("id"), new.GetMember())
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -130,12 +97,12 @@ func (u *UserController) Update(c *gin.Context) {
 	httpx.ResponseSuccess(c, user)
 }
 
-// @Summary Delete user
-// @Description Delete user and storage
+// @Summary Delete member
+// @Description Delete tenant member
 // @Produce json
 // @Tags user
 // @Security JWT
-// @Param id path int true "user id"
+// @Param id path int true "member id"
 // @Success 200 {object} httpx.Response
 // @Router /api/v1/users/{id} [delete]
 func (u *UserController) Delete(c *gin.Context) {
@@ -145,6 +112,7 @@ func (u *UserController) Delete(c *gin.Context) {
 		return
 	}
 
+	logrus.Infof("delete member: %s", c.Param("id"))
 	if err := u.userService.Delete(c.Request.Context(), c.Param("id")); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -154,11 +122,11 @@ func (u *UserController) Delete(c *gin.Context) {
 }
 
 // @Summary Get groups
-// @Description Get groups
+// @Description Get member groups
 // @Produce json
 // @Tags group
 // @Security JWT
-// @Param id path int true "user id"
+// @Param id path int true "member id"
 // @Success 200 {object} httpx.Response
 // @Router /api/v1/users/{id}/groups [get]
 func (u *UserController) GetGroups(c *gin.Context) {
@@ -172,11 +140,11 @@ func (u *UserController) GetGroups(c *gin.Context) {
 }
 
 // @Summary Add role
-// @Description Add role to user
+// @Description Add role to member
 // @Produce json
 // @Tags user
 // @Security JWT
-// @Param id path int true "user id"
+// @Param id path int true "member id"
 // @Param rid path int true "role id"
 // @Success 200 {object} httpx.Response
 // @Router /api/v1/users/{id}/roles/{rid} [post]
@@ -190,11 +158,11 @@ func (u *UserController) AddRole(c *gin.Context) {
 }
 
 // @Summary Delete role
-// @Description delete role from user
+// @Description delete role from member
 // @Produce json
 // @Tags user
 // @Security JWT
-// @Param id path int true "user id"
+// @Param id path int true "member id"
 // @Param rid path int true "role id"
 // @Success 200 {object} httpx.Response
 // @Router /api/v1/users/{id}/roles/{rid} [delete]
@@ -209,7 +177,6 @@ func (u *UserController) DelRole(c *gin.Context) {
 
 func (u *UserController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/users", u.List)
-	api.POST("/users", u.Create)
 	api.GET("/users/:id", u.Get)
 	api.PUT("/users/:id", u.Update)
 	api.DELETE("/users/:id", u.Delete)

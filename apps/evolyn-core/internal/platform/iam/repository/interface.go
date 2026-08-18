@@ -13,19 +13,32 @@ import (
 // 过滤/回填（架构文档 26.3），Repository 层禁止手写租户条件；
 // 启动期路径（Migrate/Init/Seed）使用 context.Background()，无租户上下文即无副作用。
 
+// UserRepository 成员（users 表）数据访问。登录身份见 AccountRepository（ADR-006）
 type UserRepository interface {
 	GetUserByID(ctx context.Context, id uint) (*model.User, error)
-	GetUserByAuthID(ctx context.Context, authType, authID string) (*model.User, error)
-	GetUserByName(ctx context.Context, name string) (*model.User, error)
+	ListByAccount(ctx context.Context, accountID uint) (model.Users, error)
+	GetByAccountAndTenant(ctx context.Context, accountID, tenantID uint) (*model.User, error)
 	List(ctx context.Context) (model.Users, error)
-	Create(ctx context.Context, user *model.User) (*model.User, error)
-	Update(ctx context.Context, user *model.User) (*model.User, error)
-	Delete(ctx context.Context, user *model.User) error
-	AddAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
-	DelAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
+	Create(ctx context.Context, member *model.User) (*model.User, error)
+	Update(ctx context.Context, member *model.User) (*model.User, error)
+	Delete(ctx context.Context, member *model.User) error
 	AddRole(ctx context.Context, role *model.Role, user *model.User) error
 	DelRole(ctx context.Context, role *model.Role, user *model.User) error
 	GetGroups(ctx context.Context, user *model.User) ([]model.Group, error)
+	Migrate() error
+}
+
+// AccountRepository 平台账号（accounts 表）数据访问；平台级表无租户上下文
+type AccountRepository interface {
+	GetByID(ctx context.Context, id uint) (*model.Account, error)
+	GetByName(ctx context.Context, name string) (*model.Account, error)
+	GetByPhone(ctx context.Context, phone string) (*model.Account, error)
+	GetByAuthID(ctx context.Context, authType, authID string) (*model.Account, error)
+	List(ctx context.Context) ([]model.Account, error)
+	Create(ctx context.Context, account *model.Account) (*model.Account, error)
+	Update(ctx context.Context, account *model.Account) (*model.Account, error)
+	AddAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
+	DelAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
 	Migrate() error
 }
 

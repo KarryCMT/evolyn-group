@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	"evolyn/internal/infrastructure"
@@ -13,7 +12,8 @@ import (
 )
 
 var (
-	userCreateField = []string{"name", "email", "password", "avatar", model.UserAuthInfoAssociation}
+	// memberCreateField 成员创建仅写归属与展示字段（ADR-006：登录身份在账号侧）
+	memberCreateField = []string{"account_id", "nickname"}
 )
 
 type userRepository struct {
@@ -36,41 +36,63 @@ func (u *userRepository) withContext(ctx context.Context) *gorm.DB {
 
 func (u *userRepository) List(ctx context.Context) (model.Users, error) {
 	users := make(model.Users, 0)
-	if err := u.withContext(ctx).Preload(model.UserAuthInfoAssociation).Preload(model.GroupAssociation).Preload("Roles").Order("name").Find(&users).Error; err != nil {
+	if err := u.withContext(ctx).Preload(model.GroupAssociation).Preload("Roles").Preload(model.DepartmentAssociation).Order("id").Find(&users).Error; err != nil {
 		return nil, err
 	}
 	return users, nil
 }
 
-func (u *userRepository) Create(ctx context.Context, user *model.User) (*model.User, error) {
-	if err := u.withContext(ctx).Select(userCreateField).Create(user).Error; err != nil {
+// ListByAccount 账号的全部成员关系（登录后租户列表/默认成员解析）。
+// 登录链路可能尚未注入租户上下文，此处显式按账号查全量成员关系
+func (u *userRepository) ListByAccount(ctx context.Context, accountID uint) (model.Users, error) {
+	users := make(model.Users, 0)
+	if err := u.db.WithContext(ctx).Preload(model.GroupAssociation).Preload("Roles").Where("account_id = ?", accountID).Order("id").Find(&users).Error; err != nil {
 		return nil, err
 	}
+	return users, nil
+}
 
-	u.setCacheUser(user)
-
+// GetByAccountAndTenant 精确定位账号在指定租户的成员（租户切换链路）
+func (u *userRepository) GetByAccountAndTenant(ctx context.Context, accountID, tenantID uint) (*model.User, error) {
+	user := new(model.User)
+	if err := u.db.WithContext(ctx).Preload(model.GroupAssociation).Preload(model.DepartmentAssociation).Preload("Roles").
+		Where("account_id = ? and tenant_id = ?", accountID, tenantID).First(user).Error; err != nil {
+		return nil, err
+	}
 	return user, nil
 }
 
-func (u *userRepository) Update(ctx context.Context, user *model.User) (*model.User, error) {
-	if err := u.withContext(ctx).Model(&model.User{}).Where("id = ?", user.ID).Updates(user).Error; err != nil {
+func (u *userRepository) Create(ctx context.Context, member *model.User) (*model.User, error) {
+	if err := u.withContext(ctx).Select(memberCreateField).Create(member).Error; err != nil {
 		return nil, err
 	}
 
-	u.rdb.HDel(user.CacheKey(), strconv.Itoa(int(user.ID)))
+	u.setCacheUser(member)
 
-	return user, nil
+	return member, nil
 }
 
-func (u *userRepository) Delete(ctx context.Context, user *model.User) error {
-	err := u.withContext(ctx).Select(model.UserAuthInfoAssociation).Delete(user).Error
-	if err != nil {
+func (u *userRepository) Update(ctx context.Context, member *model.User) (*model.User, error) {
+	if err := u.withContext(ctx).Model(&model.User{}).Where("id = ?", member.ID).
+		Select("nickname").Updates(member).Error; err != nil {
+		return nil, err
+	}
+
+	u.rdb.HDel(member.CacheKey(), strconv.Itoa(int(member.ID)))
+
+	return member, nil
+}
+
+func (u *userRepository) Delete(ctx context.Context, member *model.User) error {
+	if err := u.withContext(ctx).Delete(member).Error; err != nil {
 		return err
 	}
-	u.rdb.HDel(user.CacheKey(), strconv.Itoa(int(user.ID)))
+	u.rdb.HDel(member.CacheKey(), strconv.Itoa(int(member.ID)))
 	return nil
 }
 
+// GetUserByID 按成员 ID 加载（认证中间件按 JWT memberId 取成员；
+// 此时请求 ctx 尚无租户上下文，随后由 TenantMiddleware 注入）
 func (u *userRepository) GetUserByID(ctx context.Context, id uint) (*model.User, error) {
 	// TODO HSet not support expire, avoid roles and groups inconsistent
 	// if user := u.getCacheUser(id); user != nil {
@@ -78,7 +100,7 @@ func (u *userRepository) GetUserByID(ctx context.Context, id uint) (*model.User,
 	// }
 
 	user := new(model.User)
-	if err := u.withContext(ctx).Omit("Password").Preload(model.UserAuthInfoAssociation).Preload("Groups").Preload("Groups.Roles").Preload("Roles").First(user, id).Error; err != nil {
+	if err := u.withContext(ctx).Preload(model.GroupAssociation).Preload("Groups.Roles").Preload("Roles").First(user, id).Error; err != nil {
 		return nil, err
 	}
 
@@ -87,40 +109,6 @@ func (u *userRepository) GetUserByID(ctx context.Context, id uint) (*model.User,
 	}
 
 	return user, nil
-}
-
-func (u *userRepository) GetUserByAuthID(ctx context.Context, authType, authID string) (*model.User, error) {
-	authInfo := new(model.AuthInfo)
-	if err := u.withContext(ctx).Where("auth_type = ? and auth_id = ?", authType, authID).First(authInfo).Error; err != nil {
-		return nil, err
-	}
-
-	return u.GetUserByID(ctx, authInfo.UserId)
-}
-
-func (u *userRepository) GetUserByName(ctx context.Context, name string) (*model.User, error) {
-	user := new(model.User)
-	if err := u.withContext(ctx).Preload(model.UserAuthInfoAssociation).Preload("Groups").Preload("Groups.Roles").Preload("Roles").Where("name = ?", name).First(user).Error; err != nil {
-		return nil, err
-	}
-	return user, nil
-}
-
-func (u *userRepository) AddAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error {
-	if authInfo == nil {
-		return nil
-	}
-	if authInfo.UserId == 0 {
-		return fmt.Errorf("empty user id")
-	}
-	return u.withContext(ctx).Create(authInfo).Error
-}
-
-func (u *userRepository) DelAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error {
-	if authInfo == nil {
-		return nil
-	}
-	return u.withContext(ctx).Delete(authInfo).Error
 }
 
 func (u *userRepository) AddRole(ctx context.Context, role *model.Role, user *model.User) error {
@@ -138,7 +126,7 @@ func (u *userRepository) GetGroups(ctx context.Context, user *model.User) ([]mod
 }
 
 func (u *userRepository) Migrate() error {
-	return u.db.AutoMigrate(&model.User{}, &model.AuthInfo{})
+	return u.db.AutoMigrate(&model.User{})
 }
 
 func (u *userRepository) setCacheUser(user *model.User) error {

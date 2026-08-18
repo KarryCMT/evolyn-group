@@ -13,6 +13,9 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// AuthenticationMiddleware 会话认证：按 JWT claims 的 memberId 加载成员（ADR-006）。
+// 此时尚未经过 TenantMiddleware（租户上下文来自本处加载成员的归属），
+// ctx 无租户上下文，GetUserByID 按全局唯一 ID 查询
 func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, _ := getTokenFromAuthorizationHeader(c)
@@ -20,17 +23,21 @@ func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.U
 			token, _ = getTokenFromCookie(c)
 		}
 
-		user, _ := jwtService.ParseToken(token)
-		if user != nil {
-			// 此时尚未经过 TenantMiddleware（租户来自本处加载的用户），
-			// ctx 无租户上下文，GetUserByID 按全局唯一 ID 查询
-			user, err := userRepo.GetUserByID(c.Request.Context(), user.ID)
+		claims, _ := jwtService.ParseToken(token)
+		if claims != nil {
+			member, err := userRepo.GetUserByID(c.Request.Context(), claims.MemberID)
 			if err != nil {
 				httpx.ResponseFailed(c, http.StatusInternalServerError, fmt.Errorf("failed to get user"))
 				c.Abort()
 				return
 			}
-			ginctx.SetUser(c, user)
+			// 会话签发后成员被移动到其他租户等异常：拒绝过期会话
+			if member.TenantID != claims.TenantID {
+				httpx.ResponseFailed(c, http.StatusUnauthorized, fmt.Errorf("stale session tenant"))
+				c.Abort()
+				return
+			}
+			ginctx.SetUser(c, member)
 		}
 
 		c.Next()

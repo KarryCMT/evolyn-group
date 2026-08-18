@@ -14,12 +14,16 @@ const (
 	Issuer = "evolyn"
 )
 
-// CustomClaims JWT 载荷；TenantID 为租户上下文的唯一来源，
-// 由租户中间件在 Authentication 之后提取（架构文档 26.4）
+// CustomClaims JWT 载荷（ADR-006 账号×成员拆分）：
+//   - AccountID/Name：平台账号（登录身份）
+//   - MemberID/TenantID：本次会话绑定的成员关系与租户（切换租户即重签 token）
+//
+// TenantID 为租户上下文的唯一来源，由租户中间件在 Authentication 之后提取（架构文档 26.4）
 type CustomClaims struct {
-	ID       uint   `json:"id"`
-	Name     string `json:"name"`
-	TenantID uint   `json:"tenantId"`
+	AccountID uint   `json:"accountId"`
+	MemberID  uint   `json:"memberId"`
+	TenantID  uint   `json:"tenantId"`
+	Name      string `json:"name"`
 	jwt.RegisteredClaims
 }
 
@@ -37,21 +41,23 @@ func NewJWTService(secret string) *JWTService {
 	}
 }
 
-func (s *JWTService) CreateToken(user *model.User) (string, error) {
-	if user == nil {
-		return "", fmt.Errorf("empty user")
+// CreateToken 按账号 + 登录成员签发会话 token
+func (s *JWTService) CreateToken(account *model.Account, member *model.User) (string, error) {
+	if account == nil || member == nil {
+		return "", fmt.Errorf("empty account or member")
 	}
 	now := time.Now()
 	token := jwt.NewWithClaims(
 		jwt.SigningMethodHS256,
 		CustomClaims{
-			Name:     user.Name,
-			ID:       user.ID,
-			TenantID: user.TenantID,
+			AccountID: account.ID,
+			MemberID:  member.ID,
+			TenantID:  member.TenantID,
+			Name:      account.Name,
 			RegisteredClaims: jwt.RegisteredClaims{
 				ExpiresAt: jwt.NewNumericDate(now.Add(s.expireDuration)),
 				NotBefore: jwt.NewNumericDate(now.Add(-1000 * time.Second)),
-				ID:        strconv.Itoa(int(user.ID)),
+				ID:        strconv.Itoa(int(member.ID)),
 				Issuer:    s.issuer,
 			},
 		},
@@ -60,7 +66,8 @@ func (s *JWTService) CreateToken(user *model.User) (string, error) {
 	return token.SignedString(s.signKey)
 }
 
-func (s *JWTService) ParseToken(tokenString string) (*model.User, error) {
+// ParseToken 校验并返回会话 claims；成员/租户加载由调用方按 claims 完成
+func (s *JWTService) ParseToken(tokenString string) (*CustomClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{}, func(token *jwt.Token) (i interface{}, err error) {
 		return s.signKey, nil
 	})
@@ -73,12 +80,5 @@ func (s *JWTService) ParseToken(tokenString string) (*model.User, error) {
 		return nil, fmt.Errorf("invaild token")
 	}
 
-	user := &model.User{
-		ID:   claims.ID,
-		Name: claims.Name,
-	}
-	// TenantID 为内嵌共享内核字段的提升字段，直接赋值避免跨包命名 BaseModel
-	user.TenantID = claims.TenantID
-
-	return user, nil
+	return claims, nil
 }

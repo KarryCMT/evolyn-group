@@ -36,7 +36,7 @@ func TestUserContext(t *testing.T) {
 	SetUser(c, nil)
 	assert.Nil(t, GetUser(c))
 
-	user := &model.User{ID: 1, Name: "some"}
+	user := &model.User{ID: 1, Nickname: "some"}
 	SetUser(c, user)
 
 	assert.Equal(t, user, GetUser(c))

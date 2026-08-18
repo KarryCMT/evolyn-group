@@ -71,7 +71,7 @@ func (a *Authorizer) Authorize(ctx context.Context, user *model.User, ri *reques
 
 // IsClusterAdmin 纯函数：按用户已有角色判定平台管理员，不触碰仓储
 func IsClusterAdmin(user *model.User) bool {
-	if user == nil || user.Name == "" {
+	if user == nil || user.ID == 0 {
 		return false
 	}
 

@@ -2,38 +2,58 @@ package controller
 
 import (
 	"encoding/json"
-	"evolyn/internal/platform/httpx"
 	"net/http"
 
 	"evolyn/internal/platform/auth"
 	"evolyn/internal/platform/auth/oauth"
 	platformcontroller "evolyn/internal/platform/controller"
+	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/service"
 
 	"github.com/gin-gonic/gin"
 )
 
+// AuthController 会话域：登录/注册/登出（ADR-006 账号×成员模型）
 type AuthController struct {
-	userService service.UserService
-	jwtService  *auth.JWTService
-	oauthManger *oauth.OAuthManager
+	accountService service.AccountService
+	jwtService     *auth.JWTService
+	oauthManger    *oauth.OAuthManager
 }
 
-func NewAuthController(userService service.UserService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager) platformcontroller.Controller {
+func NewAuthController(accountService service.AccountService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager) platformcontroller.Controller {
 	return &AuthController{
-		userService: userService,
-		jwtService:  jwtService,
-		oauthManger: oauthManager,
+		accountService: accountService,
+		jwtService:     jwtService,
+		oauthManger:    oauthManager,
 	}
 }
 
+// loginSession 登录成功后的签发与 Cookie 写入：token 绑定「账号+成员+租户」
+func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, member *model.User, setCookie bool) (string, error) {
+	token, err := ac.jwtService.CreateToken(account, member)
+	if err != nil {
+		return "", err
+	}
+
+	if setCookie {
+		memberJson, err := json.Marshal(member)
+		if err != nil {
+			return "", err
+		}
+		c.SetCookie(httpx.CookieTokenName, token, 3600*24, "/", "", true, true)
+		c.SetCookie(httpx.CookieLoginUser, string(memberJson), 3600*24, "/", "", true, false)
+	}
+
+	return token, nil
+}
+
 // @Summary Login
-// @Description User login
+// @Description Account login (name/phone + password), tenant optional
 // @Accept json
 // @Produce json
 // @Tags auth
-// @Param user body model.AuthUser true "auth user info"
+// @Param user body model.AuthUser true "auth info"
 // @Success 200 {object} httpx.Response{data=model.JWTToken}
 // @Router /api/v1/auth/token [post]
 func (ac *AuthController) Login(c *gin.Context) {
@@ -43,9 +63,12 @@ func (ac *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	var user *model.User
-	var err error
-	if !oauth.IsEmptyAuthType(auser.AuthType) && auser.Name == "" {
+	var (
+		account *model.Account
+		member  *model.User
+		err     error
+	)
+	if !oauth.IsEmptyAuthType(auser.AuthType) && auser.Name == "" && auser.Phone == "" {
 		provider, err := ac.oauthManger.GetAuthProvider(auser.AuthType)
 		if err != nil {
 			httpx.ResponseFailed(c, http.StatusBadRequest, err)
@@ -63,29 +86,19 @@ func (ac *AuthController) Login(c *gin.Context) {
 			return
 		}
 
-		user, err = ac.userService.CreateOAuthUser(c.Request.Context(), userInfo.User())
+		account, member, err = ac.accountService.CreateOAuthAccount(c.Request.Context(), userInfo.Account())
 	} else {
-		user, err = ac.userService.Auth(c.Request.Context(), auser)
+		account, member, err = ac.accountService.Auth(c.Request.Context(), auser)
 	}
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
 		return
 	}
 
-	token, err := ac.jwtService.CreateToken(user)
+	token, err := ac.loginSession(c, account, member, auser.SetCookie)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
-	}
-
-	userJson, err := json.Marshal(user)
-	if err != nil {
-		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
-		return
-	}
-	if auser.SetCookie {
-		c.SetCookie(httpx.CookieTokenName, token, 3600*24, "/", "", true, true)
-		c.SetCookie(httpx.CookieLoginUser, string(userJson), 3600*24, "/", "", true, false)
 	}
 
 	httpx.ResponseSuccess(c, model.JWTToken{
@@ -95,7 +108,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 }
 
 // @Summary Logout
-// @Description User logout
+// @Description Logout and clear cookies
 // @Produce json
 // @Tags auth
 // @Success 200 {object} httpx.Response
@@ -106,34 +119,41 @@ func (ac *AuthController) Logout(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// @Summary Register user
-// @Description Create user and storage
+// registerResult 注册结果：账号 + 默认租户成员
+type registerResult struct {
+	Account *model.Account `json:"account"`
+	Member  *model.User    `json:"member"`
+}
+
+// @Summary Register
+// @Description Create account and default-tenant membership
 // @Accept json
 // @Produce json
 // @Tags auth
-// @Param user body model.CreatedUser true "user info"
-// @Success 200 {object} httpx.Response{data=model.User}
+// @Param account body model.CreatedAccount true "account info"
+// @Success 200 {object} httpx.Response{data=controller.registerResult}
 // @Router /api/v1/auth/user [post]
 func (ac *AuthController) Register(c *gin.Context) {
-	createdUser := new(model.CreatedUser)
-	if err := c.BindJSON(createdUser); err != nil {
+	createdAccount := new(model.CreatedAccount)
+	if err := c.BindJSON(createdAccount); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	user := createdUser.GetUser()
-	if err := ac.userService.Validate(user); err != nil {
+	account := createdAccount.GetAccount()
+	if err := ac.accountService.Validate(account); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	ac.userService.Default(user)
-	user, err := ac.userService.Create(c.Request.Context(), user)
+	ac.accountService.Default(account)
+	account, member, err := ac.accountService.Register(c.Request.Context(), account)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
+		return
 	}
 
-	httpx.ResponseSuccess(c, user)
+	httpx.ResponseSuccess(c, registerResult{Account: account, Member: member})
 }
 
 func (ac *AuthController) RegisterRoute(api *gin.RouterGroup) {

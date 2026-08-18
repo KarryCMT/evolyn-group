@@ -72,7 +72,7 @@ func (rbac *rbacRepository) GetResource(ctx context.Context, id int) (*model.Res
 
 func (rbac *rbacRepository) GetRoleByName(ctx context.Context, name string) (*model.Role, error) {
 	role := new(model.Role)
-	if err := rbac.withContext(ctx).Preload(model.UserAssociation).Where("name = ?", name).First(role).Error; err != nil {
+	if err := rbac.withContext(ctx).Where("name = ?", name).First(role).Error; err != nil {
 		return nil, err
 	}
 

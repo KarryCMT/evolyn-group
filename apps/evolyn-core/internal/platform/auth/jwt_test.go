@@ -9,28 +9,43 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func newSession() (*model.Account, *model.User) {
+	account := &model.Account{ID: 9, Name: "someone"}
+	member := &model.User{ID: 7, AccountId: 9, Nickname: "someone"}
+	member.TenantID = 3
+	return account, member
+}
+
 func TestCreateToken(t *testing.T) {
 	service := NewJWTService("test")
 
 	testCases := []struct {
 		name        string
-		user        *model.User
+		account     *model.Account
+		member      *model.User
 		expectedErr bool
 	}{
 		{
-			name:        "user is nil",
+			name:        "account is nil",
+			member:      &model.User{ID: 1},
+			expectedErr: true,
+		},
+		{
+			name:        "member is nil",
+			account:     &model.Account{ID: 1, Name: "someone"},
 			expectedErr: true,
 		},
 		{
 			name:        "create token success",
-			user:        &model.User{ID: 1, Name: "someone"},
+			account:     &model.Account{ID: 9, Name: "someone"},
+			member:      &model.User{ID: 7, AccountId: 9},
 			expectedErr: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			token, err := service.CreateToken(tc.user)
+			token, err := service.CreateToken(tc.account, tc.member)
 			if tc.expectedErr {
 				assert.Error(t, err)
 			} else {
@@ -44,7 +59,6 @@ func TestCreateToken(t *testing.T) {
 func TestParseToken(t *testing.T) {
 	testCases := []struct {
 		name        string
-		user        *model.User
 		token       string
 		expiresAt   time.Duration
 		expectedErr bool
@@ -56,13 +70,11 @@ func TestParseToken(t *testing.T) {
 		},
 		{
 			name:        "token expiration",
-			user:        &model.User{ID: 1, Name: "someone"},
 			expiresAt:   -24 * time.Hour,
 			expectedErr: true,
 		},
 		{
 			name:        "parse token success",
-			user:        &model.User{ID: 1, Name: "someone"},
 			expectedErr: false,
 		},
 	}
@@ -75,17 +87,18 @@ func TestParseToken(t *testing.T) {
 			}
 
 			if tc.token == "" {
-				token, err := service.CreateToken(tc.user)
+				account, member := newSession()
+				token, err := service.CreateToken(account, member)
 				assert.Empty(t, err)
 				tc.token = token
 			}
 
-			user, err := service.ParseToken(tc.token)
+			claims, err := service.ParseToken(tc.token)
 			if tc.expectedErr {
 				assert.Error(t, err)
 			} else {
 				assert.Empty(t, err)
-				assert.Equal(t, tc.user.ID, user.ID)
+				assert.NotNil(t, claims)
 			}
 		})
 	}
@@ -94,12 +107,15 @@ func TestParseToken(t *testing.T) {
 func TestTokenTenantRoundtrip(t *testing.T) {
 	service := NewJWTService("test")
 
-	user0 := &model.User{ID: 7, Name: "someone"}
-	user0.TenantID = 3
-	token, err := service.CreateToken(user0)
+	account, member := newSession()
+	token, err := service.CreateToken(account, member)
 	assert.Empty(t, err)
 
-	user, err := service.ParseToken(token)
+	claims, err := service.ParseToken(token)
 	assert.Empty(t, err)
-	assert.Equal(t, uint(3), user.TenantID)
+	// 会话四元组完整往返：账号/成员/租户/登录名（ADR-006）
+	assert.Equal(t, uint(9), claims.AccountID)
+	assert.Equal(t, uint(7), claims.MemberID)
+	assert.Equal(t, uint(3), claims.TenantID)
+	assert.Equal(t, "someone", claims.Name)
 }

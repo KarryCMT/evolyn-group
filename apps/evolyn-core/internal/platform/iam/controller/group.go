@@ -5,6 +5,7 @@ import (
 	"evolyn/internal/platform/httpx"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	platformcontroller "evolyn/internal/platform/controller"
 	"evolyn/internal/platform/iam/model"
@@ -202,14 +203,17 @@ func (g *GroupController) AddUser(c *gin.Context) {
 // @Tags group
 // @Security JWT
 // @Param id path int true "group id"
-// @Param user body model.User true "user info"
-// @Param name    query     string  true  "user name"
-// @Param name    query     string  true  "user role"
+// @Param id    query     int  true  "member id"
 // @Success 200 {object} httpx.Response
 // @Router /api/v1/groups/{id}/users [delete]
 func (g *GroupController) DelUser(c *gin.Context) {
-	user := new(model.User)
-	user.Name = c.Query("name")
+	// 成员模型无登录名（ADR-006），按成员 ID 移除
+	uid, err := strconv.Atoi(c.Query("id"))
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	user := &model.User{ID: uint(uid)}
 
 	if err := g.groupService.DelUser(c.Request.Context(), user, c.Param("id")); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)

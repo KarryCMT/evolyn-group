@@ -38,14 +38,14 @@ func AuthorizationMiddleware(authorizer *authorization.Authorizer) gin.HandlerFu
 				return
 			}
 
-			logrus.Infof("authorize user [%s(%d)], namespace [%s] resource [%s(%s)] verb [%s], result: %t",
-				user.Name, user.ID, ri.Namespace, ri.Resource, ri.Name, ri.Verb, ok)
+			logrus.Infof("authorize member [%s(%d)], namespace [%s] resource [%s(%s)] verb [%s], result: %t",
+				user.Nickname, user.ID, ri.Namespace, ri.Resource, ri.Name, ri.Verb, ok)
 
 			if !ok {
-				if user.Name == "" {
+				if user.ID == 0 {
 					httpx.ResponseFailed(c, http.StatusUnauthorized, nil)
 				} else {
-					httpx.ResponseFailed(c, http.StatusForbidden, fmt.Errorf("user [%s] is forbidden for resource %s in namespace %s", user.Name, resource, ri.Namespace))
+					httpx.ResponseFailed(c, http.StatusForbidden, fmt.Errorf("member [%d] is forbidden for resource %s in namespace %s", user.ID, resource, ri.Namespace))
 				}
 				c.Abort()
 				return

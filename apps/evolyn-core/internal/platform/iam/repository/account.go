@@ -1,0 +1,108 @@
+package repository
+
+import (
+	"context"
+	"fmt"
+
+	"evolyn/internal/infrastructure"
+	"evolyn/internal/platform/iam/model"
+
+	"gorm.io/gorm"
+)
+
+type accountRepository struct {
+	db  *gorm.DB
+	rdb *infrastructure.RedisDB
+}
+
+func newAccountRepository(db *gorm.DB, rdb *infrastructure.RedisDB) AccountRepository {
+	return &accountRepository{
+		db:  db,
+		rdb: rdb,
+	}
+}
+
+// withContext 以请求 ctx 打开新会话；accounts 为平台级表（无 tenant_id 列），
+// 租户 Callback 对其无副作用
+func (a *accountRepository) withContext(ctx context.Context) *gorm.DB {
+	return a.db.WithContext(ctx)
+}
+
+func (a *accountRepository) GetByID(ctx context.Context, id uint) (*model.Account, error) {
+	account := new(model.Account)
+	if err := a.withContext(ctx).Preload(model.UserAuthInfoAssociation).First(account, id).Error; err != nil {
+		return nil, err
+	}
+	return account, nil
+}
+
+func (a *accountRepository) GetByName(ctx context.Context, name string) (*model.Account, error) {
+	account := new(model.Account)
+	if err := a.withContext(ctx).Preload(model.UserAuthInfoAssociation).Where("name = ?", name).First(account).Error; err != nil {
+		return nil, err
+	}
+	return account, nil
+}
+
+func (a *accountRepository) GetByPhone(ctx context.Context, phone string) (*model.Account, error) {
+	account := new(model.Account)
+	if err := a.withContext(ctx).Preload(model.UserAuthInfoAssociation).Where("phone = ?", phone).First(account).Error; err != nil {
+		return nil, err
+	}
+	return account, nil
+}
+
+// GetByAuthID 按第三方凭证定位账号（OAuth 登录链路；登录前无租户上下文）
+func (a *accountRepository) GetByAuthID(ctx context.Context, authType, authID string) (*model.Account, error) {
+	authInfo := new(model.AuthInfo)
+	if err := a.withContext(ctx).Where("auth_type = ? and auth_id = ?", authType, authID).First(authInfo).Error; err != nil {
+		return nil, err
+	}
+
+	return a.GetByID(ctx, authInfo.AccountId)
+}
+
+func (a *accountRepository) List(ctx context.Context) ([]model.Account, error) {
+	accounts := make([]model.Account, 0)
+	if err := a.withContext(ctx).Order("id").Find(&accounts).Error; err != nil {
+		return nil, err
+	}
+	return accounts, nil
+}
+
+func (a *accountRepository) Create(ctx context.Context, account *model.Account) (*model.Account, error) {
+	if err := a.withContext(ctx).Create(account).Error; err != nil {
+		return nil, err
+	}
+	return account, nil
+}
+
+// Update 更新账号资料（昵称/邮箱/头像等），不含密码（密码走专用重置链路）
+func (a *accountRepository) Update(ctx context.Context, account *model.Account) (*model.Account, error) {
+	if err := a.withContext(ctx).Model(&model.Account{}).Where("id = ?", account.ID).
+		Select("nickname", "phone", "email", "avatar").Updates(account).Error; err != nil {
+		return nil, err
+	}
+	return account, nil
+}
+
+func (a *accountRepository) AddAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error {
+	if authInfo == nil {
+		return nil
+	}
+	if authInfo.AccountId == 0 {
+		return fmt.Errorf("empty account id")
+	}
+	return a.withContext(ctx).Create(authInfo).Error
+}
+
+func (a *accountRepository) DelAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error {
+	if authInfo == nil {
+		return nil
+	}
+	return a.withContext(ctx).Delete(authInfo).Error
+}
+
+func (a *accountRepository) Migrate() error {
+	return a.db.AutoMigrate(&model.Account{}, &model.AuthInfo{})
+}

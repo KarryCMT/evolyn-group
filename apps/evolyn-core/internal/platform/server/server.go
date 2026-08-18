@@ -74,6 +74,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		return nil, err
 	}
 
+	accountService := service.NewAccountService(iamRepo.Account(), iamRepo.User(), tenantRepo)
 	userService := service.NewUserService(iamRepo.User())
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User())
 	jwtService := auth.NewJWTService(conf.Server.JWTSecret)
@@ -82,7 +83,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 
 	userController := iamcontroller.NewUserController(userService)
 	groupController := iamcontroller.NewGroupController(groupService)
-	authController := authcontroller.NewAuthController(userService, jwtService, oauthManager)
+	authController := authcontroller.NewAuthController(accountService, jwtService, oauthManager)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 
 	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）

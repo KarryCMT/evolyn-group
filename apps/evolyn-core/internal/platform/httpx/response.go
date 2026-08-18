@@ -54,7 +54,7 @@ func ResponseFailed(c *gin.Context, code int, err error) {
 		user := ginctx.GetUser(c)
 		var name string
 		if user != nil {
-			name = user.Name
+			name = user.Nickname
 		}
 		var url string
 		if c.Request != nil {

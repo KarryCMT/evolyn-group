@@ -44,11 +44,13 @@ type UserInfo struct {
 	AvatarUrl   string
 }
 
-func (ui *UserInfo) User() *model.User {
-	return &model.User{
-		Name:   ui.Username,
-		Email:  ui.Email,
-		Avatar: ui.AvatarUrl,
+// Account 把第三方资料映射为平台账号（ADR-006：OAuth 登录身份归账号侧）
+func (ui *UserInfo) Account() *model.Account {
+	return &model.Account{
+		Name:     ui.Username,
+		Nickname: ui.DisplayName,
+		Email:    ui.Email,
+		Avatar:   ui.AvatarUrl,
 		AuthInfos: []model.AuthInfo{
 			{
 				AuthType: ui.AuthType,
