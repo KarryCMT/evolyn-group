@@ -8,7 +8,7 @@ import (
 
 	"evolyn/internal/platform/server"
 
-	"evolyn/pkg/version"
+	"evolyn/internal/version"
 
 	"github.com/sirupsen/logrus"
 )

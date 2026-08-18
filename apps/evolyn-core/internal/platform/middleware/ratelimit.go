@@ -1,10 +1,10 @@
 package middleware
 
 import (
+	"evolyn/internal/platform/httpx"
 	"net/http"
 
-	"evolyn/pkg/common"
-	"evolyn/pkg/utils/ratelimit"
+	"evolyn/internal/utils/ratelimit"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,7 +22,7 @@ func RateLimitMiddleware(configs []ratelimit.LimitConfig) (gin.HandlerFunc, erro
 	return func(c *gin.Context) {
 		for _, limiter := range limiters {
 			if err := limiter.Accept(c); err != nil {
-				common.ResponseFailed(c, http.StatusTooManyRequests, err)
+				httpx.ResponseFailed(c, http.StatusTooManyRequests, err)
 				return
 			}
 		}

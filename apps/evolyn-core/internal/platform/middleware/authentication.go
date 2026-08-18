@@ -1,18 +1,19 @@
 package middleware
 
 import (
+	"evolyn/internal/platform/ginctx"
+	"evolyn/internal/platform/httpx"
 	"fmt"
 	"net/http"
 	"strings"
 
+	"evolyn/internal/platform/auth"
 	"evolyn/internal/platform/iam/repository"
-	"evolyn/pkg/authentication"
-	"evolyn/pkg/common"
 
 	"github.com/gin-gonic/gin"
 )
 
-func AuthenticationMiddleware(jwtService *authentication.JWTService, userRepo repository.UserRepository) gin.HandlerFunc {
+func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.UserRepository) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, _ := getTokenFromAuthorizationHeader(c)
 		if token == "" {
@@ -25,11 +26,11 @@ func AuthenticationMiddleware(jwtService *authentication.JWTService, userRepo re
 			// ctx 无租户上下文，GetUserByID 按全局唯一 ID 查询
 			user, err := userRepo.GetUserByID(c.Request.Context(), user.ID)
 			if err != nil {
-				common.ResponseFailed(c, http.StatusInternalServerError, fmt.Errorf("failed to get user"))
+				httpx.ResponseFailed(c, http.StatusInternalServerError, fmt.Errorf("failed to get user"))
 				c.Abort()
 				return
 			}
-			common.SetUser(c, user)
+			ginctx.SetUser(c, user)
 		}
 
 		c.Next()

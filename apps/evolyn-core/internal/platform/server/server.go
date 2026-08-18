@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"evolyn/internal/platform/httpx"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
@@ -13,19 +14,18 @@ import (
 	"evolyn/internal/authorization"
 	"evolyn/internal/config"
 	"evolyn/internal/infrastructure"
+	"evolyn/internal/platform/auth"
 	authcontroller "evolyn/internal/platform/auth/controller"
+	"evolyn/internal/platform/auth/oauth"
 	"evolyn/internal/platform/controller"
 	iamcontroller "evolyn/internal/platform/iam/controller"
 	"evolyn/internal/platform/iam/repository"
 	"evolyn/internal/platform/iam/service"
 	"evolyn/internal/platform/middleware"
 	tenantrepository "evolyn/internal/platform/tenant/repository"
-	"evolyn/pkg/authentication"
-	"evolyn/pkg/authentication/oauth"
-	"evolyn/pkg/common"
-	"evolyn/pkg/utils/request"
-	"evolyn/pkg/utils/set"
-	"evolyn/pkg/version"
+	"evolyn/internal/utils/request"
+	"evolyn/internal/utils/set"
+	"evolyn/internal/version"
 
 	"github.com/pkg/errors"
 
@@ -76,7 +76,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 
 	userService := service.NewUserService(iamRepo.User())
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User())
-	jwtService := authentication.NewJWTService(conf.Server.JWTSecret)
+	jwtService := auth.NewJWTService(conf.Server.JWTSecret)
 	rbacService := service.NewRBACService(iamRepo.RBAC())
 	oauthManager := oauth.NewOAuthManager(conf.OAuthConfig)
 
@@ -172,10 +172,10 @@ func (s *Server) initRouter() {
 	root := s.engine
 
 	// register non-resource routers
-	root.GET("/", common.WrapFunc(s.getRoutes))
+	root.GET("/", httpx.WrapFunc(s.getRoutes))
 	root.GET("/index", controller.Index)
-	root.GET("/healthz", common.WrapFunc(s.Ping))
-	root.GET("/version", common.WrapFunc(version.Get))
+	root.GET("/healthz", httpx.WrapFunc(s.Ping))
+	root.GET("/version", httpx.WrapFunc(version.Get))
 	root.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	root.Any("/debug/pprof/*any", gin.WrapH(http.DefaultServeMux))
 	if gin.Mode() != gin.ReleaseMode {

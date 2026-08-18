@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"evolyn/internal/platform/ginctx"
+	"evolyn/internal/platform/httpx"
 	"net/http"
 	"strconv"
 
@@ -8,8 +10,7 @@ import (
 	platformcontroller "evolyn/internal/platform/controller"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/service"
-	"evolyn/pkg/common"
-	"evolyn/pkg/utils/trace"
+	"evolyn/internal/utils/trace"
 
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
@@ -30,17 +31,17 @@ func NewUserController(userService service.UserService) platformcontroller.Contr
 // @Produce json
 // @Tags user
 // @Security JWT
-// @Success 200 {object} common.Response{data=model.Users}
+// @Success 200 {object} httpx.Response{data=model.Users}
 // @Router /api/v1/users [get]
 func (u *UserController) List(c *gin.Context) {
-	common.TraceStep(c, "start list user")
+	ginctx.TraceStep(c, "start list user")
 	users, err := u.userService.List(c.Request.Context())
 	if err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	common.TraceStep(c, "list user done")
-	common.ResponseSuccess(c, users)
+	ginctx.TraceStep(c, "list user done")
+	httpx.ResponseSuccess(c, users)
 }
 
 // @Summary Get user
@@ -49,15 +50,15 @@ func (u *UserController) List(c *gin.Context) {
 // @Tags user
 // @Security JWT
 // @Param id path int true "user id"
-// @Success 200 {object} common.Response{data=model.User}
+// @Success 200 {object} httpx.Response{data=model.User}
 // @Router /api/v1/users/{id} [get]
 func (u *UserController) Get(c *gin.Context) {
 	user, err := u.userService.Get(c.Request.Context(), c.Param("id"))
 	if err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	common.ResponseSuccess(c, user)
+	httpx.ResponseSuccess(c, user)
 }
 
 // @Summary Create user
@@ -67,30 +68,30 @@ func (u *UserController) Get(c *gin.Context) {
 // @Tags user
 // @Security JWT
 // @Param user body model.CreatedUser true "user info"
-// @Success 200 {object} common.Response{data=model.User}
+// @Success 200 {object} httpx.Response{data=model.User}
 // @Router /api/v1/users [post]
 func (u *UserController) Create(c *gin.Context) {
 	createdUser := new(model.CreatedUser)
 	if err := c.BindJSON(createdUser); err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
 	user := createdUser.GetUser()
 	if err := u.userService.Validate(user); err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
 	u.userService.Default(user)
-	common.TraceStep(c, "start create user", trace.Field{"user", user.Name})
-	defer common.TraceStep(c, "create user done", trace.Field{"user", user.Name})
+	ginctx.TraceStep(c, "start create user", trace.Field{"user", user.Name})
+	defer ginctx.TraceStep(c, "create user done", trace.Field{"user", user.Name})
 	user, err := u.userService.Create(c.Request.Context(), user)
 	if err != nil {
-		common.ResponseFailed(c, http.StatusInternalServerError, err)
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 	}
 
-	common.ResponseSuccess(c, user)
+	httpx.ResponseSuccess(c, user)
 }
 
 // @Summary Update user
@@ -101,32 +102,32 @@ func (u *UserController) Create(c *gin.Context) {
 // @Security JWT
 // @Param user body model.UpdatedUser true "user info"
 // @Param id   path      int  true  "user id"
-// @Success 200 {object} common.Response{data=model.User}
+// @Success 200 {object} httpx.Response{data=model.User}
 // @Router /api/v1/users/{id} [put]
 func (u *UserController) Update(c *gin.Context) {
-	user := common.GetUser(c)
+	user := ginctx.GetUser(c)
 	if user == nil || (strconv.Itoa(int(user.ID)) != c.Param("id") && !authorization.IsClusterAdmin(user)) {
-		common.ResponseFailed(c, http.StatusForbidden, nil)
+		httpx.ResponseFailed(c, http.StatusForbidden, nil)
 		return
 	}
 
 	new := new(model.UpdatedUser)
 	if err := c.BindJSON(new); err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 	logrus.Infof("get update user: %#v", new.Name)
 
-	common.TraceStep(c, "start update user", trace.Field{"user", new.Name})
-	defer common.TraceStep(c, "update user done", trace.Field{"user", new.Name})
+	ginctx.TraceStep(c, "start update user", trace.Field{"user", new.Name})
+	defer ginctx.TraceStep(c, "update user done", trace.Field{"user", new.Name})
 
 	user, err := u.userService.Update(c.Request.Context(), c.Param("id"), new.GetUser())
 	if err != nil {
-		common.ResponseFailed(c, http.StatusInternalServerError, err)
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
 	}
 
-	common.ResponseSuccess(c, user)
+	httpx.ResponseSuccess(c, user)
 }
 
 // @Summary Delete user
@@ -135,21 +136,21 @@ func (u *UserController) Update(c *gin.Context) {
 // @Tags user
 // @Security JWT
 // @Param id path int true "user id"
-// @Success 200 {object} common.Response
+// @Success 200 {object} httpx.Response
 // @Router /api/v1/users/{id} [delete]
 func (u *UserController) Delete(c *gin.Context) {
-	user := common.GetUser(c)
+	user := ginctx.GetUser(c)
 	if user == nil || (strconv.Itoa(int(user.ID)) != c.Param("id") && !authorization.IsClusterAdmin(user)) {
-		common.ResponseFailed(c, http.StatusForbidden, nil)
+		httpx.ResponseFailed(c, http.StatusForbidden, nil)
 		return
 	}
 
 	if err := u.userService.Delete(c.Request.Context(), c.Param("id")); err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	common.ResponseSuccess(c, nil)
+	httpx.ResponseSuccess(c, nil)
 }
 
 // @Summary Get groups
@@ -158,16 +159,16 @@ func (u *UserController) Delete(c *gin.Context) {
 // @Tags group
 // @Security JWT
 // @Param id path int true "user id"
-// @Success 200 {object} common.Response
+// @Success 200 {object} httpx.Response
 // @Router /api/v1/users/{id}/groups [get]
 func (u *UserController) GetGroups(c *gin.Context) {
 	groups, err := u.userService.GetGroups(c.Request.Context(), c.Param("id"))
 	if err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	common.ResponseSuccess(c, groups)
+	httpx.ResponseSuccess(c, groups)
 }
 
 // @Summary Add role
@@ -177,15 +178,15 @@ func (u *UserController) GetGroups(c *gin.Context) {
 // @Security JWT
 // @Param id path int true "user id"
 // @Param rid path int true "role id"
-// @Success 200 {object} common.Response
+// @Success 200 {object} httpx.Response
 // @Router /api/v1/users/{id}/roles/{rid} [post]
 func (u *UserController) AddRole(c *gin.Context) {
 	if err := u.userService.AddRole(c.Request.Context(), c.Param("id"), c.Param("rid")); err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	common.ResponseSuccess(c, nil)
+	httpx.ResponseSuccess(c, nil)
 }
 
 // @Summary Delete role
@@ -195,15 +196,15 @@ func (u *UserController) AddRole(c *gin.Context) {
 // @Security JWT
 // @Param id path int true "user id"
 // @Param rid path int true "role id"
-// @Success 200 {object} common.Response
+// @Success 200 {object} httpx.Response
 // @Router /api/v1/users/{id}/roles/{rid} [delete]
 func (u *UserController) DelRole(c *gin.Context) {
 	if err := u.userService.DelRole(c.Request.Context(), c.Param("id"), c.Param("rid")); err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	common.ResponseSuccess(c, nil)
+	httpx.ResponseSuccess(c, nil)
 }
 
 func (u *UserController) RegisterRoute(api *gin.RouterGroup) {

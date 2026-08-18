@@ -6,7 +6,7 @@ import (
 	"evolyn/internal/platform/iam/model"
 
 	"evolyn/internal/platform/iam/repository"
-	"evolyn/pkg/utils/request"
+	"evolyn/internal/utils/request"
 )
 
 // store 暂以包变量持有 iam 仓储；P0-4 将拆除单例改为中间件内显式注入（随 Casbin 接入）

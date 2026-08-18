@@ -3,7 +3,7 @@ package config
 import (
 	"os"
 
-	"evolyn/pkg/utils/ratelimit"
+	"evolyn/internal/utils/ratelimit"
 
 	"gopkg.in/yaml.v2"
 )

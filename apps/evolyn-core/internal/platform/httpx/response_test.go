@@ -1,4 +1,4 @@
-package common
+package httpx
 
 import (
 	"encoding/json"

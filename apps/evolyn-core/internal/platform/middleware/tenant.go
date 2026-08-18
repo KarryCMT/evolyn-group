@@ -1,7 +1,8 @@
 package middleware
 
 import (
-	"evolyn/pkg/common"
+	"evolyn/internal/contextx"
+	"evolyn/internal/platform/ginctx"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,14 +13,14 @@ import (
 // 引擎等数据路径取用）。未认证请求不带租户上下文，行为与现状一致。
 func TenantMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user := common.GetUser(c)
+		user := ginctx.GetUser(c)
 		if user == nil || user.TenantID == 0 {
 			c.Next()
 			return
 		}
 
-		common.SetTenant(c, user.TenantID)
-		c.Request = c.Request.WithContext(common.NewTenantContext(c.Request.Context(), user.TenantID))
+		ginctx.SetTenant(c, user.TenantID)
+		c.Request = c.Request.WithContext(contextx.NewTenantContext(c.Request.Context(), user.TenantID))
 
 		c.Next()
 	}

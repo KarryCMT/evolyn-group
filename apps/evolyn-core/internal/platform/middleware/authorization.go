@@ -1,12 +1,13 @@
 package middleware
 
 import (
+	"evolyn/internal/platform/ginctx"
+	"evolyn/internal/platform/httpx"
 	"fmt"
 	"net/http"
 
 	"evolyn/internal/authorization"
 	"evolyn/internal/platform/iam/model"
-	"evolyn/pkg/common"
 
 	"github.com/sirupsen/logrus"
 
@@ -15,14 +16,14 @@ import (
 
 func AuthorizationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user := common.GetUser(c)
+		user := ginctx.GetUser(c)
 		if user == nil {
 			user = &model.User{}
 		}
 
-		ri := common.GetRequestInfo(c)
+		ri := ginctx.GetRequestInfo(c)
 		if ri == nil {
-			common.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("failed to get request info"))
+			httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("failed to get request info"))
 			c.Abort()
 			return
 		}
@@ -31,7 +32,7 @@ func AuthorizationMiddleware() gin.HandlerFunc {
 			resource := ri.Resource
 			ok, err := authorization.Authorize(c.Request.Context(), user, ri)
 			if err != nil {
-				common.ResponseFailed(c, http.StatusInternalServerError, err)
+				httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 				c.Abort()
 				return
 			}
@@ -41,9 +42,9 @@ func AuthorizationMiddleware() gin.HandlerFunc {
 
 			if !ok {
 				if user.Name == "" {
-					common.ResponseFailed(c, http.StatusUnauthorized, nil)
+					httpx.ResponseFailed(c, http.StatusUnauthorized, nil)
 				} else {
-					common.ResponseFailed(c, http.StatusForbidden, fmt.Errorf("user [%s] is forbidden for resource %s in namespace %s", user.Name, resource, ri.Namespace))
+					httpx.ResponseFailed(c, http.StatusForbidden, fmt.Errorf("user [%s] is forbidden for resource %s in namespace %s", user.Name, resource, ri.Namespace))
 				}
 				c.Abort()
 				return

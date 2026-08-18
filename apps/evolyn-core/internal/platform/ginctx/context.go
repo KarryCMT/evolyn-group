@@ -1,34 +1,23 @@
-package common
+package ginctx
 
 import (
-	"context"
-
 	"evolyn/internal/platform/iam/model"
-
-	"evolyn/pkg/utils/request"
-	"evolyn/pkg/utils/trace"
+	"evolyn/internal/utils/request"
+	"evolyn/internal/utils/trace"
 
 	"github.com/gin-gonic/gin"
 )
 
-type tenantIDKey struct{}
+// gin 上下文键：请求内快速取用（原 pkg/common 拆分而来，ADR-007）
+const (
+	UserContextKey        = `user`
+	TenantContextKey      = `tenant`
+	TraceContextKey       = `trace`
+	RequestInfoContextKey = `requestInfo`
+)
 
-// NewTenantContext 把租户 ID 注入标准 context，供 GORM Callback、
-// 引擎与 Worker 等脱离 gin 的数据路径读取（架构文档 26.3/26.4）
-func NewTenantContext(ctx context.Context, tenantID uint) context.Context {
-	return context.WithValue(ctx, tenantIDKey{}, tenantID)
-}
-
-// TenantIDFromContext 读取注入的租户 ID；ok 为 false 表示当前链路无租户上下文
-func TenantIDFromContext(ctx context.Context) (uint, bool) {
-	if ctx == nil {
-		return 0, false
-	}
-	tenantID, ok := ctx.Value(tenantIDKey{}).(uint)
-	return tenantID, ok
-}
-
-// SetTenant 把租户 ID 写入 gin 上下文（请求内快速取用）
+// SetTenant 把租户 ID 写入 gin 上下文（请求内快速取用）；
+// 标准 context 通道见 internal/contextx
 func SetTenant(c *gin.Context, tenantID uint) {
 	if c == nil || tenantID == 0 {
 		return

@@ -1,9 +1,8 @@
 package infrastructure
 
 import (
+	"evolyn/internal/contextx"
 	"reflect"
-
-	"evolyn/pkg/common"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -55,7 +54,7 @@ func tenantCreateCallback(tx *gorm.DB) {
 		return
 	}
 
-	tenantID, ok := common.TenantIDFromContext(tx.Statement.Context)
+	tenantID, ok := contextx.TenantIDFromContext(tx.Statement.Context)
 	if !ok {
 		return
 	}
@@ -64,7 +63,7 @@ func tenantCreateCallback(tx *gorm.DB) {
 }
 
 func tenantConditionCallback(tx *gorm.DB) {
-	tenantID, ok := common.TenantIDFromContext(tx.Statement.Context)
+	tenantID, ok := contextx.TenantIDFromContext(tx.Statement.Context)
 	if !ok {
 		return
 	}

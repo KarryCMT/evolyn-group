@@ -6,7 +6,7 @@ import (
 
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/repository"
-	"evolyn/pkg/utils/request"
+	"evolyn/internal/utils/request"
 )
 
 type rbacService struct {

@@ -1,12 +1,12 @@
 package controller
 
 import (
+	"evolyn/internal/platform/httpx"
 	"net/http"
 
 	platformcontroller "evolyn/internal/platform/controller"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/service"
-	"evolyn/pkg/common"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,16 +24,16 @@ func NewRbacController(rbacService service.RBACService) platformcontroller.Contr
 // @Produce json
 // @Tags rbac
 // @Security JWT
-// @Success 200 {object} common.Response{data=[]model.Role}
+// @Success 200 {object} httpx.Response{data=[]model.Role}
 // @Router /api/v1/roles [get]
 func (rbac *RBACController) List(c *gin.Context) {
 	roles, err := rbac.rbacService.List(c.Request.Context())
 	if err != nil {
-		common.ResponseFailed(c, http.StatusInternalServerError, err)
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
 	}
 
-	common.ResponseSuccess(c, roles)
+	httpx.ResponseSuccess(c, roles)
 }
 
 // @Summary Create rbac role
@@ -43,22 +43,22 @@ func (rbac *RBACController) List(c *gin.Context) {
 // @Tags rbac
 // @Security JWT
 // @Param role body model.Role true "rbac role info"
-// @Success 200 {object} common.Response
+// @Success 200 {object} httpx.Response
 // @Router /api/v1/roles [post]
 func (rbac *RBACController) Create(c *gin.Context) {
 	role := &model.Role{}
 	if err := c.BindJSON(role); err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
 	role, err := rbac.rbacService.Create(c.Request.Context(), role)
 	if err != nil {
-		common.ResponseFailed(c, http.StatusInternalServerError, err)
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
 	}
 
-	common.ResponseSuccess(c, role)
+	httpx.ResponseSuccess(c, role)
 }
 
 // @Summary Get role
@@ -67,15 +67,15 @@ func (rbac *RBACController) Create(c *gin.Context) {
 // @Tags rbac
 // @Security JWT
 // @Param id path int true "role id"
-// @Success 200 {object} common.Response{data=model.Role}
+// @Success 200 {object} httpx.Response{data=model.Role}
 // @Router /api/v1/roles/{id} [get]
 func (rbac *RBACController) Get(c *gin.Context) {
 	role, err := rbac.rbacService.Get(c.Request.Context(), c.Param("id"))
 	if err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	common.ResponseSuccess(c, role)
+	httpx.ResponseSuccess(c, role)
 }
 
 // @Summary Update rbac role
@@ -85,24 +85,24 @@ func (rbac *RBACController) Get(c *gin.Context) {
 // @Tags rbac
 // @Security JWT
 // @Param role body model.Role true "rbac role info"
-// @Success 200 {object} common.Response
+// @Success 200 {object} httpx.Response
 // @Param id path int true "role id"
 // @Router /api/v1/roles/:id [put]
 func (rbac *RBACController) Update(c *gin.Context) {
 	role := &model.Role{}
 	if err := c.BindJSON(role); err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
 	id := c.Param("id")
 	role, err := rbac.rbacService.Update(c.Request.Context(), id, role)
 	if err != nil {
-		common.ResponseFailed(c, http.StatusInternalServerError, err)
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
 	}
 
-	common.ResponseSuccess(c, role)
+	httpx.ResponseSuccess(c, role)
 }
 
 // @Summary Delete role
@@ -111,15 +111,15 @@ func (rbac *RBACController) Update(c *gin.Context) {
 // @Tags rbac
 // @Security JWT
 // @Param id path int true "role id"
-// @Success 200 {object} common.Response
+// @Success 200 {object} httpx.Response
 // @Router /api/v1/roles/{id} [delete]
 func (rbac *RBACController) Delete(c *gin.Context) {
 	if err := rbac.rbacService.Delete(c.Request.Context(), c.Param("id")); err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	common.ResponseSuccess(c, nil)
+	httpx.ResponseSuccess(c, nil)
 }
 
 // @Summary List resources
@@ -127,16 +127,16 @@ func (rbac *RBACController) Delete(c *gin.Context) {
 // @Produce json
 // @Tags rbac
 // @Security JWT
-// @Success 200 {object} common.Response{data=[]model.Resource}
+// @Success 200 {object} httpx.Response{data=[]model.Resource}
 // @Router /api/v1/resources [get]
 func (rbac *RBACController) ListResources(c *gin.Context) {
 	data, err := rbac.rbacService.ListResources(c.Request.Context())
 	if err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	common.ResponseSuccess(c, data)
+	httpx.ResponseSuccess(c, data)
 }
 
 // @Summary List operations
@@ -144,16 +144,16 @@ func (rbac *RBACController) ListResources(c *gin.Context) {
 // @Produce json
 // @Tags rbac
 // @Security JWT
-// @Success 200 {object} common.Response{data=[]model.Operation}
+// @Success 200 {object} httpx.Response{data=[]model.Operation}
 // @Router /api/v1/operations [get]
 func (rbac *RBACController) ListOperations(c *gin.Context) {
 	data, err := rbac.rbacService.ListOperations()
 	if err != nil {
-		common.ResponseFailed(c, http.StatusBadRequest, err)
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	common.ResponseSuccess(c, data)
+	httpx.ResponseSuccess(c, data)
 }
 
 func (rbac *RBACController) RegisterRoute(api *gin.RouterGroup) {

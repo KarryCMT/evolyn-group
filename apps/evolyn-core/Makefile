@@ -8,11 +8,11 @@ BUILD_DATE = $(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
 
 BINARY = evolyn-core
 
-LDFLAGS = -X evolyn/pkg/version.gitVersion=$(GIT_VERSION) \
-	-X evolyn/pkg/version.gitCommit=$(GIT_COMMIT) \
-	-X evolyn/pkg/version.gitBranch=$(GIT_BRANCH) \
-	-X evolyn/pkg/version.gitTreeState=$(GIT_STATE) \
-	-X evolyn/pkg/version.buildDate=$(BUILD_DATE)
+LDFLAGS = -X evolyn/internal/version.gitVersion=$(GIT_VERSION) \
+	-X evolyn/internal/version.gitCommit=$(GIT_COMMIT) \
+	-X evolyn/internal/version.gitBranch=$(GIT_BRANCH) \
+	-X evolyn/internal/version.gitTreeState=$(GIT_STATE) \
+	-X evolyn/internal/version.buildDate=$(BUILD_DATE)
 
 PKGS = $(shell go list ./...)
 GOFILES = $(shell find . -name "*.go" -type f -not -path "./vendor/*")

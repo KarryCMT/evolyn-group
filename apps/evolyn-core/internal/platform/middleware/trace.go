@@ -1,10 +1,10 @@
 package middleware
 
 import (
+	"evolyn/internal/platform/ginctx"
 	"time"
 
-	"evolyn/pkg/common"
-	utiltrace "evolyn/pkg/utils/trace"
+	utiltrace "evolyn/internal/utils/trace"
 
 	"github.com/bombsimon/logrusr/v2"
 	"github.com/gin-gonic/gin"
@@ -21,7 +21,7 @@ func TraceMiddleware() gin.HandlerFunc {
 
 		defer trace.LogIfLong(100 * time.Millisecond)
 
-		common.SetTrace(c, trace)
+		ginctx.SetTrace(c, trace)
 
 		c.Next()
 	}

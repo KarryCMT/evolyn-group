@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"strings"
 
-	"evolyn/pkg/utils/set"
+	"evolyn/internal/utils/set"
 )
 
 const (

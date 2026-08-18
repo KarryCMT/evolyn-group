@@ -1,15 +1,12 @@
-package common
+package ginctx
 
 import (
-	"context"
 	"net/http/httptest"
 	"testing"
 
-	"evolyn/pkg/utils/request"
-
 	"evolyn/internal/platform/iam/model"
-
-	"evolyn/pkg/utils/trace"
+	"evolyn/internal/utils/request"
+	"evolyn/internal/utils/trace"
 
 	"github.com/gin-gonic/gin"
 	"github.com/go-logr/logr"
@@ -17,7 +14,6 @@ import (
 )
 
 func TestTraceContext(t *testing.T) {
-
 	trace := trace.New("test", logr.Discard())
 
 	w := httptest.NewRecorder()
@@ -59,16 +55,7 @@ func TestRequestInfoContext(t *testing.T) {
 	assert.Equal(t, ri, GetRequestInfo(c))
 }
 
-func TestTenantContext(t *testing.T) {
-	// context.Context 注入/读取：GORM Callback 与引擎数据路径的租户来源
-	ctx := NewTenantContext(context.Background(), 3)
-	tenantID, ok := TenantIDFromContext(ctx)
-	assert.True(t, ok)
-	assert.Equal(t, uint(3), tenantID)
-
-	_, ok = TenantIDFromContext(context.Background())
-	assert.False(t, ok)
-
+func TestGinTenantContext(t *testing.T) {
 	// gin.Context 注入/读取
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)

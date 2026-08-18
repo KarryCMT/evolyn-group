@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"evolyn/pkg/utils/set"
+	"evolyn/internal/utils/set"
 
-	"evolyn/pkg/utils/request"
+	"evolyn/internal/utils/request"
 )
 
 const (

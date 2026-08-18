@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"testing"
 
-	"evolyn/pkg/utils/set"
+	"evolyn/internal/utils/set"
 
 	"github.com/stretchr/testify/assert"
 )
