@@ -16,3 +16,6 @@ certs/
 # 本地运行配置与 swagger 生成产物
 apps/evolyn-core/config/app.local.yaml
 apps/evolyn-core/docs/
+
+# ZCode 会话状态（计划/临时文件）
+.zcode/
