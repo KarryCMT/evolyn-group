@@ -18,6 +18,7 @@ type tenantRepository struct {
 // TenantRepository 租户域数据访问；管理面 CRUD 随 P3 运营域接口补充
 type TenantRepository interface {
 	GetByID(ctx context.Context, id uint) (*model.Tenant, error)
+	GetByIDs(ctx context.Context, ids []uint) ([]model.Tenant, error)
 	GetByCode(ctx context.Context, code string) (*model.Tenant, error)
 	SeedDefaultTenant() error
 	Migrate() error
@@ -45,6 +46,18 @@ func (t *tenantRepository) GetByID(ctx context.Context, id uint) (*model.Tenant,
 		return nil, err
 	}
 	return tenant, nil
+}
+
+// GetByIDs 批量取租户（成员关系列表组装用）；ids 为空返回空集
+func (t *tenantRepository) GetByIDs(ctx context.Context, ids []uint) ([]model.Tenant, error) {
+	tenants := make([]model.Tenant, 0)
+	if len(ids) == 0 {
+		return tenants, nil
+	}
+	if err := t.withContext(ctx).Where("id IN ?", ids).Find(&tenants).Error; err != nil {
+		return nil, err
+	}
+	return tenants, nil
 }
 
 func (t *tenantRepository) GetByCode(ctx context.Context, code string) (*model.Tenant, error) {

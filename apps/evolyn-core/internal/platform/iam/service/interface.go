@@ -19,6 +19,12 @@ type AccountService interface {
 	Register(ctx context.Context, account *model.Account) (*model.Account, *model.User, error)
 	// CreateOAuthAccount OAuth 链路：复用或创建账号，返回默认成员
 	CreateOAuthAccount(ctx context.Context, account *model.Account) (*model.Account, *model.User, error)
+	// ListTenants 账号的成员关系列表（含 isOwner）
+	ListTenants(ctx context.Context, accountID uint) ([]TenantMembership, error)
+	// SwitchTenant 校验并返回切换租户后的账号+成员
+	SwitchTenant(ctx context.Context, accountID, tenantID uint) (*model.Account, *model.User, error)
+	// GetUserInfo 登录聚合信息（账号+成员+租户/套餐）
+	GetUserInfo(ctx context.Context, accountID uint, member *model.User) (*UserInfoResult, error)
 	Validate(*model.Account) error
 	Default(*model.Account)
 }

@@ -186,3 +186,101 @@ func (s *accountService) createDefaultMember(ctx context.Context, account *model
 	member.TenantID = tenantmodel.DefaultTenantID
 	return s.userRepo.Create(ctx, member)
 }
+
+// TenantMembership 账号的租户成员关系（对齐简道云 owned_tenant_list 形态）
+type TenantMembership struct {
+	TenantID uint   `json:"tenantId"`
+	Code     string `json:"code"`
+	Name     string `json:"name"`
+	MemberID uint   `json:"memberId"`
+	IsOwner  bool   `json:"isOwner"`
+}
+
+// ListTenants 账号的全部成员关系及租户概要（含 owner 标记）
+func (s *accountService) ListTenants(ctx context.Context, accountID uint) ([]TenantMembership, error) {
+	members, err := s.userRepo.ListByAccount(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	tenantIDs := make([]uint, 0, len(members))
+	for _, m := range members {
+		tenantIDs = append(tenantIDs, m.TenantID)
+	}
+	tenants, err := s.tenantRepo.GetByIDs(ctx, tenantIDs)
+	if err != nil {
+		return nil, err
+	}
+	tenantByID := make(map[uint]*tenantmodel.Tenant, len(tenants))
+	for i := range tenants {
+		tenantByID[tenants[i].ID] = &tenants[i]
+	}
+
+	result := make([]TenantMembership, 0, len(members))
+	for _, m := range members {
+		item := TenantMembership{TenantID: m.TenantID, MemberID: m.ID}
+		if t, ok := tenantByID[m.TenantID]; ok {
+			item.Code = t.Code
+			item.Name = t.Name
+			item.IsOwner = t.OwnerAccountId == accountID
+		}
+		result = append(result, item)
+	}
+	return result, nil
+}
+
+// SwitchTenant 切换租户：校验账号在该租户的成员关系，返回重签所需的账号+成员
+func (s *accountService) SwitchTenant(ctx context.Context, accountID, tenantID uint) (*model.Account, *model.User, error) {
+	member, err := s.userRepo.GetByAccountAndTenant(ctx, accountID, tenantID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("account is not a member of tenant %d", tenantID)
+	}
+
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return account, member, nil
+}
+
+// UserInfoResult 登录聚合信息（对齐简道云 get_login_user 引导形态）：
+// 账号资料 + 当前成员身份 + 当前租户（配置/套餐/生效配额）
+type UserInfoResult struct {
+	Account         *model.Account      `json:"account"`
+	Member          *model.User         `json:"member"`
+	Tenant          *tenantmodel.Tenant `json:"tenant"`
+	EffectiveQuotas map[string]int64    `json:"effectiveQuotas"`
+}
+
+// GetUserInfo 聚合账号资料、成员身份与租户配置/套餐（member 由调用方从会话提供）
+func (s *accountService) GetUserInfo(ctx context.Context, accountID uint, member *model.User) (*UserInfoResult, error) {
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+
+	tenant, err := s.tenantRepo.GetByID(ctx, member.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 生效配额：覆盖值优先，缺键回落套餐默认（键集见 tenant model 常量）
+	quotas := make(map[string]int64)
+	for _, key := range []string{
+		tenantmodel.QuotaApps,
+		tenantmodel.QuotaForms,
+		tenantmodel.QuotaMembers,
+		tenantmodel.QuotaStorageGB,
+		tenantmodel.QuotaWorkflowRunsMonth,
+	} {
+		quotas[key] = tenant.Quotas.Get(tenant.Plan, key, 0)
+	}
+
+	return &UserInfoResult{
+		Account:         account,
+		Member:          member,
+		Tenant:          tenant,
+		EffectiveQuotas: quotas,
+	}, nil
+}

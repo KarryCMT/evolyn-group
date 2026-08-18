@@ -25,6 +25,7 @@ func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.U
 
 		claims, _ := jwtService.ParseToken(token)
 		if claims != nil {
+			ginctx.SetSession(c, claims)
 			member, err := userRepo.GetUserByID(c.Request.Context(), claims.MemberID)
 			if err != nil {
 				httpx.ResponseFailed(c, http.StatusInternalServerError, fmt.Errorf("failed to get user"))

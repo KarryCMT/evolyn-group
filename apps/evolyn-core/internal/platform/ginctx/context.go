@@ -1,6 +1,7 @@
 package ginctx
 
 import (
+	"evolyn/internal/platform/auth"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/utils/request"
 	"evolyn/internal/utils/trace"
@@ -11,10 +12,39 @@ import (
 // gin 上下文键：请求内快速取用（原 pkg/common 拆分而来，ADR-007）
 const (
 	UserContextKey        = `user`
+	SessionContextKey     = `session`
 	TenantContextKey      = `tenant`
 	TraceContextKey       = `trace`
 	RequestInfoContextKey = `requestInfo`
 )
+
+// SetSession 保存会话 claims（AuthenticationMiddleware 注入；租户切换等
+// 需要账号身份的接口从会话取 AccountID，ADR-006）
+func SetSession(c *gin.Context, claims *auth.CustomClaims) {
+	if c == nil || claims == nil {
+		return
+	}
+	c.Set(SessionContextKey, claims)
+}
+
+// GetSession 读取会话 claims，未认证请求返回 nil
+func GetSession(c *gin.Context) *auth.CustomClaims {
+	if c == nil {
+		return nil
+	}
+
+	val, ok := c.Get(SessionContextKey)
+	if !ok {
+		return nil
+	}
+
+	claims, ok := val.(*auth.CustomClaims)
+	if !ok {
+		return nil
+	}
+
+	return claims
+}
 
 // SetTenant 把租户 ID 写入 gin 上下文（请求内快速取用）；
 // 标准 context 通道见 internal/contextx

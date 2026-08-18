@@ -2,12 +2,15 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"evolyn/internal/platform/auth"
 	"evolyn/internal/platform/auth/oauth"
 	platformcontroller "evolyn/internal/platform/controller"
+	"evolyn/internal/platform/ginctx"
 	"evolyn/internal/platform/httpx"
+	"evolyn/internal/platform/iam/authorization"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/service"
 
@@ -160,8 +163,133 @@ func (ac *AuthController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/auth/token", ac.Login)
 	api.DELETE("/auth/token", ac.Logout)
 	api.POST("/auth/user", ac.Register)
+	api.GET("/auth/tenants", ac.ListTenants)
+	api.POST("/auth/token/switch", ac.SwitchTenant)
+	api.GET("/auth/userinfo", ac.UserInfo)
+	api.GET("/auth/permissions", ac.Permissions)
 }
 
 func (ac *AuthController) Name() string {
 	return "Authentication"
+}
+
+// sessionFrom 从请求取出会话 claims；未认证返回 false 并已写响应
+func (ac *AuthController) sessionFrom(c *gin.Context) (*auth.CustomClaims, bool) {
+	claims := ginctx.GetSession(c)
+	if claims == nil || claims.AccountID == 0 {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, fmt.Errorf("authentication required"))
+		return nil, false
+	}
+	return claims, true
+}
+
+// @Summary My tenants
+// @Description List account tenant memberships (with owner flag)
+// @Produce json
+// @Tags auth
+// @Security JWT
+// @Success 200 {object} httpx.Response{data=[]service.TenantMembership}
+// @Router /api/v1/auth/tenants [get]
+func (ac *AuthController) ListTenants(c *gin.Context) {
+	claims, ok := ac.sessionFrom(c)
+	if !ok {
+		return
+	}
+
+	memberships, err := ac.accountService.ListTenants(c.Request.Context(), claims.AccountID)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	httpx.ResponseSuccess(c, memberships)
+}
+
+// switchTenantRequest 切换租户请求
+type switchTenantRequest struct {
+	TenantID uint `json:"tenantId" binding:"required"`
+}
+
+// @Summary Switch tenant
+// @Description Switch current tenant membership and re-issue token
+// @Accept json
+// @Produce json
+// @Tags auth
+// @Security JWT
+// @Param body body controller.switchTenantRequest true "tenant id"
+// @Success 200 {object} httpx.Response{data=model.JWTToken}
+// @Router /api/v1/auth/token/switch [post]
+func (ac *AuthController) SwitchTenant(c *gin.Context) {
+	claims, ok := ac.sessionFrom(c)
+	if !ok {
+		return
+	}
+
+	req := new(switchTenantRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	account, member, err := ac.accountService.SwitchTenant(c.Request.Context(), claims.AccountID, req.TenantID)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusForbidden, err)
+		return
+	}
+
+	token, err := ac.loginSession(c, account, member, false)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	httpx.ResponseSuccess(c, model.JWTToken{
+		Token:    token,
+		Describe: "tenant switched, replace your Authorization token",
+	})
+}
+
+// @Summary User info (aggregated)
+// @Description Account profile + current membership + tenant config/plan/quotas
+// @Produce json
+// @Tags auth
+// @Security JWT
+// @Success 200 {object} httpx.Response{data=service.UserInfoResult}
+// @Router /api/v1/auth/userinfo [get]
+func (ac *AuthController) UserInfo(c *gin.Context) {
+	claims, ok := ac.sessionFrom(c)
+	if !ok {
+		return
+	}
+
+	member := ginctx.GetUser(c)
+	if member == nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, fmt.Errorf("member not loaded"))
+		return
+	}
+
+	info, err := ac.accountService.GetUserInfo(c.Request.Context(), claims.AccountID, member)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	httpx.ResponseSuccess(c, info)
+}
+
+// @Summary My permissions
+// @Description Permission boolean set (resource:verb) derived from member roles
+// @Produce json
+// @Tags auth
+// @Security JWT
+// @Success 200 {object} httpx.Response{data=map[string]bool}
+// @Router /api/v1/auth/permissions [get]
+func (ac *AuthController) Permissions(c *gin.Context) {
+	member := ginctx.GetUser(c)
+	if member == nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, fmt.Errorf("authentication required"))
+		return
+	}
+
+	httpx.ResponseSuccess(c, authorization.PermissionsOf(member))
 }
