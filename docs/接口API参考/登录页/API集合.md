@@ -1209,3 +1209,21 @@ https://www.jiandaoyun.com/portal/v1/message_center/menu/get
 }
 
 ```
+
+
+```
+<!-- 接口 -->
+https://www.jiandaoyun.com/portal/v1/message_center/list
+<!-- 请求参数 -->
+{
+  "skip": 0,
+  "limit": 10,
+  "type": "data_notify",
+  "suite_id": 1
+}
+<!-- 响应参数 -->
+{
+  "count": 0,
+  "messages": []
+}
+```
