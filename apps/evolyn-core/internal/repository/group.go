@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"evolyn/internal/database"
+	"evolyn/internal/infrastructure"
 	"evolyn/internal/model"
 
 	"gorm.io/gorm"
@@ -16,10 +16,10 @@ var (
 
 type groupRepository struct {
 	db  *gorm.DB
-	rdb *database.RedisDB
+	rdb *infrastructure.RedisDB
 }
 
-func newGroupRepository(db *gorm.DB, rdb *database.RedisDB) GroupRepository {
+func newGroupRepository(db *gorm.DB, rdb *infrastructure.RedisDB) GroupRepository {
 	return &groupRepository{
 		db:  db,
 		rdb: rdb,

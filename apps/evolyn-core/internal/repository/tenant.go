@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"evolyn/internal/database"
+	"evolyn/internal/infrastructure"
 	"evolyn/internal/model"
 
 	"gorm.io/gorm"
@@ -12,10 +12,10 @@ import (
 
 type tenantRepository struct {
 	db  *gorm.DB
-	rdb *database.RedisDB
+	rdb *infrastructure.RedisDB
 }
 
-func newTenantRepository(db *gorm.DB, rdb *database.RedisDB) TenantRepository {
+func newTenantRepository(db *gorm.DB, rdb *infrastructure.RedisDB) TenantRepository {
 	return &tenantRepository{
 		db:  db,
 		rdb: rdb,

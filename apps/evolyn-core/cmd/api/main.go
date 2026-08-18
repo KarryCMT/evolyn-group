@@ -6,7 +6,7 @@ import (
 
 	"evolyn/internal/config"
 
-	"evolyn/internal/server"
+	"evolyn/internal/platform/server"
 
 	"evolyn/pkg/version"
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"evolyn/internal/database"
+	"evolyn/internal/infrastructure"
 	"evolyn/internal/model"
 
 	"github.com/sirupsen/logrus"
@@ -18,10 +18,10 @@ var (
 
 type userRepository struct {
 	db  *gorm.DB
-	rdb *database.RedisDB
+	rdb *infrastructure.RedisDB
 }
 
-func newUserRepository(db *gorm.DB, rdb *database.RedisDB) UserRepository {
+func newUserRepository(db *gorm.DB, rdb *infrastructure.RedisDB) UserRepository {
 	return &userRepository{
 		db:  db,
 		rdb: rdb,
@@ -154,7 +154,7 @@ func (u *userRepository) getCacheUser(id uint) *model.User {
 	key := user.CacheKey()
 	field := strconv.Itoa(int(id))
 	if err := u.rdb.HGet(key, field, user); err != nil {
-		if err != database.RedisDisableError {
+		if err != infrastructure.RedisDisableError {
 			logrus.Warnf("failed to hget field %s from key %s, %v", field, key, err)
 		}
 		return nil

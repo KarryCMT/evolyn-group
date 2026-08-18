@@ -3,14 +3,14 @@ package repository
 import (
 	"context"
 
-	"evolyn/internal/database"
+	"evolyn/internal/infrastructure"
 	"evolyn/internal/model"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-func NewRepository(db *gorm.DB, rdb *database.RedisDB) Repository {
+func NewRepository(db *gorm.DB, rdb *infrastructure.RedisDB) Repository {
 	r := &repository{
 		db:     db,
 		rdb:    rdb,
@@ -47,7 +47,7 @@ type repository struct {
 	rbac     RBACRepository
 	tenant   TenantRepository
 	db       *gorm.DB
-	rdb      *database.RedisDB
+	rdb      *infrastructure.RedisDB
 	migrants []Migrant
 }
 

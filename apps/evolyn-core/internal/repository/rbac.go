@@ -3,7 +3,7 @@ package repository
 import (
 	"context"
 
-	"evolyn/internal/database"
+	"evolyn/internal/infrastructure"
 	"evolyn/internal/model"
 
 	"gorm.io/gorm"
@@ -12,10 +12,10 @@ import (
 
 type rbacRepository struct {
 	db  *gorm.DB
-	rdb *database.RedisDB
+	rdb *infrastructure.RedisDB
 }
 
-func newRBACRepository(db *gorm.DB, rdb *database.RedisDB) RBACRepository {
+func newRBACRepository(db *gorm.DB, rdb *infrastructure.RedisDB) RBACRepository {
 	return &rbacRepository{
 		db:  db,
 		rdb: rdb,

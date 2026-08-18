@@ -13,8 +13,8 @@ import (
 	"evolyn/internal/authorization"
 	"evolyn/internal/config"
 	"evolyn/internal/controller"
-	"evolyn/internal/database"
-	"evolyn/internal/middleware"
+	"evolyn/internal/infrastructure"
+	"evolyn/internal/platform/middleware"
 	"evolyn/internal/repository"
 	"evolyn/internal/service"
 	"evolyn/pkg/authentication"
@@ -39,12 +39,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		return nil, err
 	}
 
-	db, err := database.NewPostgres(&conf.DB)
+	db, err := infrastructure.NewPostgres(&conf.DB)
 	if err != nil {
 		return nil, errors.Wrap(err, "db init failed")
 	}
 
-	rdb, err := database.NewRedisClient(&conf.Redis)
+	rdb, err := infrastructure.NewRedisClient(&conf.Redis)
 	if err != nil {
 		return nil, errors.Wrap(err, "redis client failed")
 	}
