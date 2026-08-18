@@ -13,6 +13,7 @@ import (
 // Repositories iam 域仓储集合：聚合 user/group/rbac 三仓储与域级迁移/种子。
 // 取代原全局 Repository 巨型聚合接口（ADR-007 域模块化），域间各自自治。
 type Repositories struct {
+	db    *gorm.DB
 	user  UserRepository
 	group GroupRepository
 	rbac  RBACRepository
@@ -20,6 +21,7 @@ type Repositories struct {
 
 func NewRepositories(db *gorm.DB, rdb *infrastructure.RedisDB) *Repositories {
 	return &Repositories{
+		db:    db,
 		user:  newUserRepository(db, rdb),
 		group: newGroupRepository(db, rdb),
 		rbac:  newRBACRepository(db, rdb),
@@ -38,14 +40,15 @@ func (r *Repositories) RBAC() RBACRepository {
 	return r.rbac
 }
 
-// Migrate iam 域表迁移：user/auth_infos → group → role/resource
+// Migrate iam 域表迁移：user/auth_infos → group → role/resource → department
 func (r *Repositories) Migrate() error {
 	for _, m := range []interface{ Migrate() error }{r.user, r.group, r.rbac} {
 		if err := m.Migrate(); err != nil {
 			return err
 		}
 	}
-	return nil
+	// department 随 P3 建仓储，暂由域聚合统一迁移（departments 表 + department_users 关联）
+	return r.db.AutoMigrate(&model.Department{})
 }
 
 // Init iam 域种子：平台基础资源与系统分组（原全局 repository.Init 的 iam 部分）。

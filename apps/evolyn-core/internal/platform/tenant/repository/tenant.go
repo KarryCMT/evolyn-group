@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"evolyn/internal/infrastructure"
-	"evolyn/internal/model"
+	"evolyn/internal/platform/tenant/model"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"

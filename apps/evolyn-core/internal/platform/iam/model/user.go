@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	// 共享内核（BaseModel/租户常量）暂驻 internal/model，P1 模型拆分时再评估归位
+	// BaseModel 在共享内核 internal/model；默认租户常量在租户域模型（跨域常量引用，单向无环）
 	kernel "evolyn/internal/model"
+	tenantmodel "evolyn/internal/platform/tenant/model"
 )
 
 const (
@@ -38,7 +39,7 @@ func (*User) TableName() string {
 func (u *User) CacheKey() string {
 	tenantID := u.TenantID
 	if tenantID == 0 {
-		tenantID = kernel.DefaultTenantID
+		tenantID = tenantmodel.DefaultTenantID
 	}
 	return fmt.Sprintf("%s:%d:id", u.TableName(), tenantID)
 }
