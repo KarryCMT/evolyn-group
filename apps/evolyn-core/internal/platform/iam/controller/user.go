@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"strconv"
 
-	"evolyn/internal/authorization"
 	platformcontroller "evolyn/internal/platform/controller"
+	"evolyn/internal/platform/iam/authorization"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/service"
 	"evolyn/internal/utils/trace"

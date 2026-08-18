@@ -11,13 +11,13 @@ import (
 	"syscall"
 	"time"
 
-	"evolyn/internal/authorization"
 	"evolyn/internal/config"
 	"evolyn/internal/infrastructure"
 	"evolyn/internal/platform/auth"
 	authcontroller "evolyn/internal/platform/auth/controller"
 	"evolyn/internal/platform/auth/oauth"
 	"evolyn/internal/platform/controller"
+	"evolyn/internal/platform/iam/authorization"
 	iamcontroller "evolyn/internal/platform/iam/controller"
 	"evolyn/internal/platform/iam/repository"
 	"evolyn/internal/platform/iam/service"
@@ -85,9 +85,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	authController := authcontroller.NewAuthController(userService, jwtService, oauthManager)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 
-	if err := authorization.InitAuthorization(iamRepo); err != nil {
-		return nil, err
-	}
+	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
+	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
 
 	controllers := []controller.Controller{userController, groupController, authController, rbacController}
 
@@ -103,7 +102,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		middleware.LogMiddleware(logger, "/"),
 		middleware.AuthenticationMiddleware(jwtService, iamRepo.User()),
 		middleware.TenantMiddleware(),
-		middleware.AuthorizationMiddleware(),
+		middleware.AuthorizationMiddleware(authorizer),
 		middleware.TraceMiddleware(),
 	)
 

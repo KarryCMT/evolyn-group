@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"evolyn/internal/authorization"
+	"evolyn/internal/platform/iam/authorization"
 	"evolyn/internal/platform/iam/model"
 
 	"github.com/sirupsen/logrus"
@@ -14,7 +14,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func AuthorizationMiddleware() gin.HandlerFunc {
+// AuthorizationMiddleware 资源级鉴权；authorizer 由 server 显式注入（P0-4 拆单例）
+func AuthorizationMiddleware(authorizer *authorization.Authorizer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := ginctx.GetUser(c)
 		if user == nil {
@@ -30,7 +31,7 @@ func AuthorizationMiddleware() gin.HandlerFunc {
 
 		if ri.IsResourceRequest {
 			resource := ri.Resource
-			ok, err := authorization.Authorize(c.Request.Context(), user, ri)
+			ok, err := authorizer.Authorize(c.Request.Context(), user, ri)
 			if err != nil {
 				httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 				c.Abort()

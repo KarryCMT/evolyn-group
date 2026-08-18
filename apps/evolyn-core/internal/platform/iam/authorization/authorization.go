@@ -4,34 +4,39 @@ import (
 	"context"
 
 	"evolyn/internal/platform/iam/model"
-
 	"evolyn/internal/platform/iam/repository"
 	"evolyn/internal/utils/request"
 )
 
-// store 暂以包变量持有 iam 仓储；P0-4 将拆除单例改为中间件内显式注入（随 Casbin 接入）
-var store *repository.Repositories
+// Authorizer 鉴权器：显式持有 iam 仓储（拆除原全局单例，ADR-007/P0-4）。
+// M1 后 Casbin 接入时在本结构内替换实现，调用方（中间件）无感。
+type Authorizer struct {
+	userRepo  repository.UserRepository
+	groupRepo repository.GroupRepository
+}
 
-func InitAuthorization(iam *repository.Repositories) error {
-	store = iam
-	return nil
+func NewAuthorizer(userRepo repository.UserRepository, groupRepo repository.GroupRepository) *Authorizer {
+	return &Authorizer{
+		userRepo:  userRepo,
+		groupRepo: groupRepo,
+	}
 }
 
 // Authorize 鉴权查询走请求 ctx：已认证用户经 TenantMiddleware 注入租户后，
 // 组/角色数据同样按租户隔离；未认证请求无租户上下文，查询行为与单租户一致
-func Authorize(ctx context.Context, user *model.User, ri *request.RequestInfo) (bool, error) {
+func (a *Authorizer) Authorize(ctx context.Context, user *model.User, ri *request.RequestInfo) (bool, error) {
 	if user == nil || ri == nil {
 		return false, nil
 	}
 
 	if user.ID == 0 {
-		group, err := store.Group().GetGroupByName(ctx, model.UnAuthenticatedGroup)
+		group, err := a.groupRepo.GetGroupByName(ctx, model.UnAuthenticatedGroup)
 		if err != nil {
 			return false, err
 		}
 		user.Groups = append(user.Groups, *group)
 	} else {
-		group, err := store.Group().GetGroupByName(ctx, model.AuthenticatedGroup)
+		group, err := a.groupRepo.GetGroupByName(ctx, model.AuthenticatedGroup)
 		if err != nil {
 			return false, err
 		}
@@ -40,7 +45,7 @@ func Authorize(ctx context.Context, user *model.User, ri *request.RequestInfo) (
 
 	var err error
 	if user.ID != 0 {
-		user, err = store.User().GetUserByID(ctx, user.ID)
+		user, err = a.userRepo.GetUserByID(ctx, user.ID)
 	}
 
 	if err != nil {
@@ -64,6 +69,7 @@ func Authorize(ctx context.Context, user *model.User, ri *request.RequestInfo) (
 	return false, nil
 }
 
+// IsClusterAdmin 纯函数：按用户已有角色判定平台管理员，不触碰仓储
 func IsClusterAdmin(user *model.User) bool {
 	if user == nil || user.Name == "" {
 		return false
