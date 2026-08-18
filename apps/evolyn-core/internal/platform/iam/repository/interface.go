@@ -39,6 +39,8 @@ type AccountRepository interface {
 	Update(ctx context.Context, account *model.Account) (*model.Account, error)
 	AddAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
 	DelAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
+	// UpdatePassword 密码重置（已散列值，散列在服务层完成）
+	UpdatePassword(ctx context.Context, id uint, hashed string) error
 	Migrate() error
 }
 
@@ -56,6 +58,18 @@ type GroupRepository interface {
 	AddRole(ctx context.Context, role *model.Role, group *model.Group) error
 	DelRole(ctx context.Context, role *model.Role, group *model.Group) error
 	RoleBinding(ctx context.Context, role *model.Role, group *model.Group) error
+	Migrate() error
+}
+
+// DepartmentRepository 部门（租户内组织架构）数据访问
+type DepartmentRepository interface {
+	List(ctx context.Context) ([]model.Department, error)
+	GetByID(ctx context.Context, id uint) (*model.Department, error)
+	Create(ctx context.Context, dept *model.Department) (*model.Department, error)
+	Update(ctx context.Context, dept *model.Department) (*model.Department, error)
+	Delete(ctx context.Context, id uint) error
+	// SetMemberDepartments 整体替换成员的部门归属（多部门）
+	SetMemberDepartments(ctx context.Context, member *model.User, departmentIDs []uint) error
 	Migrate() error
 }
 

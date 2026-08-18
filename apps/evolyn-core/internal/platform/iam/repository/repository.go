@@ -13,20 +13,22 @@ import (
 // Repositories iam 域仓储集合：聚合 account/user/group/rbac 四仓储与域级迁移/种子。
 // 取代原全局 Repository 巨型聚合接口（ADR-007 域模块化），域间各自自治。
 type Repositories struct {
-	db      *gorm.DB
-	account AccountRepository
-	user    UserRepository
-	group   GroupRepository
-	rbac    RBACRepository
+	db         *gorm.DB
+	account    AccountRepository
+	user       UserRepository
+	group      GroupRepository
+	rbac       RBACRepository
+	department DepartmentRepository
 }
 
 func NewRepositories(db *gorm.DB, rdb *infrastructure.RedisDB) *Repositories {
 	return &Repositories{
-		db:      db,
-		account: newAccountRepository(db, rdb),
-		user:    newUserRepository(db, rdb),
-		group:   newGroupRepository(db, rdb),
-		rbac:    newRBACRepository(db, rdb),
+		db:         db,
+		account:    newAccountRepository(db, rdb),
+		user:       newUserRepository(db, rdb),
+		group:      newGroupRepository(db, rdb),
+		rbac:       newRBACRepository(db, rdb),
+		department: newDepartmentRepository(db, rdb),
 	}
 }
 
@@ -46,16 +48,16 @@ func (r *Repositories) RBAC() RBACRepository {
 	return r.rbac
 }
 
+func (r *Repositories) Department() DepartmentRepository {
+	return r.department
+}
+
 // Migrate iam 域表迁移：account/auth_infos → user → group → role/resource → department
 func (r *Repositories) Migrate() error {
-	for _, m := range []interface{ Migrate() error }{r.account, r.user, r.group, r.rbac} {
+	for _, m := range []interface{ Migrate() error }{r.account, r.user, r.group, r.rbac, r.department} {
 		if err := m.Migrate(); err != nil {
 			return err
 		}
-	}
-	// department 随 P3 建仓储，暂由域聚合统一迁移（departments 表 + department_users 关联）
-	if err := r.db.AutoMigrate(&model.Department{}); err != nil {
-		return err
 	}
 	return r.dropLegacyUniqueIndexes()
 }

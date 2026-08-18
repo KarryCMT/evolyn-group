@@ -16,14 +16,16 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// UserController 成员管理（/users 路径保留，语义为租户成员；ADR-006）
+// UserController 成员管理（/members，语义为租户成员；ADR-006）
 type UserController struct {
-	userService service.UserService
+	userService       service.UserService
+	departmentService service.DepartmentService
 }
 
-func NewUserController(userService service.UserService) platformcontroller.Controller {
+func NewUserController(userService service.UserService, departmentService service.DepartmentService) platformcontroller.Controller {
 	return &UserController{
-		userService: userService,
+		userService:       userService,
+		departmentService: departmentService,
 	}
 }
 
@@ -33,7 +35,7 @@ func NewUserController(userService service.UserService) platformcontroller.Contr
 // @Tags user
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=model.Users}
-// @Router /api/v1/users [get]
+// @Router /api/v1/members [get]
 func (u *UserController) List(c *gin.Context) {
 	ginctx.TraceStep(c, "start list members")
 	users, err := u.userService.List(c.Request.Context())
@@ -52,7 +54,7 @@ func (u *UserController) List(c *gin.Context) {
 // @Security JWT
 // @Param id path int true "member id"
 // @Success 200 {object} httpx.Response{data=model.User}
-// @Router /api/v1/users/{id} [get]
+// @Router /api/v1/members/{id} [get]
 func (u *UserController) Get(c *gin.Context) {
 	user, err := u.userService.Get(c.Request.Context(), c.Param("id"))
 	if err != nil {
@@ -71,7 +73,7 @@ func (u *UserController) Get(c *gin.Context) {
 // @Param member body model.UpdatedMember true "member info"
 // @Param id   path      int  true  "member id"
 // @Success 200 {object} httpx.Response{data=model.User}
-// @Router /api/v1/users/{id} [put]
+// @Router /api/v1/members/{id} [put]
 func (u *UserController) Update(c *gin.Context) {
 	user := ginctx.GetUser(c)
 	if user == nil || (strconv.Itoa(int(user.ID)) != c.Param("id") && !authorization.IsClusterAdmin(user)) {
@@ -104,7 +106,7 @@ func (u *UserController) Update(c *gin.Context) {
 // @Security JWT
 // @Param id path int true "member id"
 // @Success 200 {object} httpx.Response
-// @Router /api/v1/users/{id} [delete]
+// @Router /api/v1/members/{id} [delete]
 func (u *UserController) Delete(c *gin.Context) {
 	user := ginctx.GetUser(c)
 	if user == nil || (strconv.Itoa(int(user.ID)) != c.Param("id") && !authorization.IsClusterAdmin(user)) {
@@ -128,7 +130,7 @@ func (u *UserController) Delete(c *gin.Context) {
 // @Security JWT
 // @Param id path int true "member id"
 // @Success 200 {object} httpx.Response
-// @Router /api/v1/users/{id}/groups [get]
+// @Router /api/v1/members/{id}/groups [get]
 func (u *UserController) GetGroups(c *gin.Context) {
 	groups, err := u.userService.GetGroups(c.Request.Context(), c.Param("id"))
 	if err != nil {
@@ -147,7 +149,7 @@ func (u *UserController) GetGroups(c *gin.Context) {
 // @Param id path int true "member id"
 // @Param rid path int true "role id"
 // @Success 200 {object} httpx.Response
-// @Router /api/v1/users/{id}/roles/{rid} [post]
+// @Router /api/v1/members/{id}/roles/{rid} [post]
 func (u *UserController) AddRole(c *gin.Context) {
 	if err := u.userService.AddRole(c.Request.Context(), c.Param("id"), c.Param("rid")); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
@@ -165,7 +167,7 @@ func (u *UserController) AddRole(c *gin.Context) {
 // @Param id path int true "member id"
 // @Param rid path int true "role id"
 // @Success 200 {object} httpx.Response
-// @Router /api/v1/users/{id}/roles/{rid} [delete]
+// @Router /api/v1/members/{id}/roles/{rid} [delete]
 func (u *UserController) DelRole(c *gin.Context) {
 	if err := u.userService.DelRole(c.Request.Context(), c.Param("id"), c.Param("rid")); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
@@ -176,15 +178,45 @@ func (u *UserController) DelRole(c *gin.Context) {
 }
 
 func (u *UserController) RegisterRoute(api *gin.RouterGroup) {
-	api.GET("/users", u.List)
-	api.GET("/users/:id", u.Get)
-	api.PUT("/users/:id", u.Update)
-	api.DELETE("/users/:id", u.Delete)
-	api.GET("/users/:id/groups", u.GetGroups)
-	api.POST("/users/:id/roles/:rid", u.AddRole)
-	api.DELETE("/users/:id/roles/:rid", u.DelRole)
+	api.GET("/members", u.List)
+	api.GET("/members/:id", u.Get)
+	api.PUT("/members/:id", u.Update)
+	api.DELETE("/members/:id", u.Delete)
+	api.GET("/members/:id/groups", u.GetGroups)
+	api.POST("/members/:id/roles/:rid", u.AddRole)
+	api.DELETE("/members/:id/roles/:rid", u.DelRole)
+	api.PUT("/members/:id/departments", u.SetDepartments)
 }
 
 func (u *UserController) Name() string {
-	return "User"
+	return "Member"
+}
+
+// setDepartmentsRequest 成员部门归属整体替换
+type setDepartmentsRequest struct {
+	DepartmentIDs []uint `json:"departmentIds"`
+}
+
+// @Summary Set member departments
+// @Description Replace member department memberships (multi-department)
+// @Accept json
+// @Produce json
+// @Tags user
+// @Security JWT
+// @Param id path int true "member id"
+// @Param body body controller.setDepartmentsRequest true "department ids"
+// @Success 200 {object} httpx.Response
+// @Router /api/v1/members/{id}/departments [put]
+func (u *UserController) SetDepartments(c *gin.Context) {
+	req := new(setDepartmentsRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := u.departmentService.SetMemberDepartments(c.Request.Context(), c.Param("id"), req.DepartmentIDs); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, nil)
 }

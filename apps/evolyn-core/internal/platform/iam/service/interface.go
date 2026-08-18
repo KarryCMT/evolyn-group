@@ -25,8 +25,22 @@ type AccountService interface {
 	SwitchTenant(ctx context.Context, accountID, tenantID uint) (*model.Account, *model.User, error)
 	// GetUserInfo 登录聚合信息（账号+成员+租户/套餐）
 	GetUserInfo(ctx context.Context, accountID uint, member *model.User) (*UserInfoResult, error)
+	// 账号自助（P3-2）
+	GetProfile(ctx context.Context, accountID uint) (*model.Account, error)
+	UpdateProfile(ctx context.Context, account *model.Account) (*model.Account, error)
+	ChangePassword(ctx context.Context, accountID uint, oldPassword, newPassword string) error
 	Validate(*model.Account) error
 	Default(*model.Account)
+}
+
+// DepartmentService 部门服务（租户内组织架构，P3-2）
+type DepartmentService interface {
+	List(ctx context.Context) ([]model.Department, error)
+	Tree(ctx context.Context) ([]*DepartmentNode, error)
+	Create(ctx context.Context, dept *model.Department) (*model.Department, error)
+	Update(ctx context.Context, id string, dept *model.Department) (*model.Department, error)
+	Delete(ctx context.Context, id string) error
+	SetMemberDepartments(ctx context.Context, memberID string, departmentIDs []uint) error
 }
 
 // UserService 成员服务（租户内身份）

@@ -79,12 +79,15 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	tenantService := tenantservice.NewTenantService(tenantRepo, iamRepo)
 	accountService := service.NewAccountService(iamRepo.Account(), iamRepo.User(), tenantRepo)
 	userService := service.NewUserService(iamRepo.User())
+	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User())
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User())
 	jwtService := auth.NewJWTService(conf.Server.JWTSecret)
 	rbacService := service.NewRBACService(iamRepo.RBAC())
 	oauthManager := oauth.NewOAuthManager(conf.OAuthConfig)
 
-	userController := iamcontroller.NewUserController(userService)
+	userController := iamcontroller.NewUserController(userService, departmentService)
+	accountController := iamcontroller.NewAccountController(accountService)
+	departmentController := iamcontroller.NewDepartmentController(departmentService)
 	groupController := iamcontroller.NewGroupController(groupService)
 	authController := authcontroller.NewAuthController(accountService, jwtService, oauthManager)
 	rbacController := iamcontroller.NewRbacController(rbacService)
@@ -93,7 +96,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController}
 
 	gin.SetMode(conf.Server.ENV)
 

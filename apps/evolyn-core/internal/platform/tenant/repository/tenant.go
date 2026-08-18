@@ -117,16 +117,17 @@ func (t *tenantRepository) SeedDefaultTenant() error {
 
 // platformCtx 运营面专用：刻意剥离请求携带的租户上下文（tenants 表带
 // tenant_id 列，运营者自身会话的租户上下文会造成自我过滤，见 withContext 注释），
-// 并施加独立超时。仅限平台运营域（/platform/**）调用
-func platformCtx(parent context.Context) context.Context {
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	return ctx
+// 并施加独立超时（调用方 defer cancel）。仅限平台运营域（/platform/**）调用
+func platformCtx(parent context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), 10*time.Second)
 }
 
 // List 运营面租户列表（无租户过滤，软删行不返回）
 func (t *tenantRepository) List(ctx context.Context) ([]model.Tenant, error) {
 	tenants := make([]model.Tenant, 0)
-	if err := t.db.WithContext(platformCtx(ctx)).Order("id").Find(&tenants).Error; err != nil {
+	pctx, cancel := platformCtx(ctx)
+	defer cancel()
+	if err := t.db.WithContext(pctx).Order("id").Find(&tenants).Error; err != nil {
 		return nil, err
 	}
 	return tenants, nil
@@ -134,7 +135,9 @@ func (t *tenantRepository) List(ctx context.Context) ([]model.Tenant, error) {
 
 // Create 开通租户（运营面）：TenantID 列落默认值，OwnerAccountId 由服务层写入
 func (t *tenantRepository) Create(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error) {
-	if err := t.db.WithContext(platformCtx(ctx)).Create(tenant).Error; err != nil {
+	pctx, cancel := platformCtx(ctx)
+	defer cancel()
+	if err := t.db.WithContext(pctx).Create(tenant).Error; err != nil {
 		return nil, err
 	}
 	return tenant, nil
@@ -142,7 +145,9 @@ func (t *tenantRepository) Create(ctx context.Context, tenant *model.Tenant) (*m
 
 // Update 运营面更新（名称/套餐/配置/配额覆盖/归属账号）
 func (t *tenantRepository) Update(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error) {
-	if err := t.db.WithContext(platformCtx(ctx)).Model(&model.Tenant{}).Where("id = ?", tenant.ID).
+	pctx, cancel := platformCtx(ctx)
+	defer cancel()
+	if err := t.db.WithContext(pctx).Model(&model.Tenant{}).Where("id = ?", tenant.ID).
 		Select("name", "plan", "owner_account_id", "config", "quotas").Updates(tenant).Error; err != nil {
 		return nil, err
 	}
@@ -151,7 +156,9 @@ func (t *tenantRepository) Update(ctx context.Context, tenant *model.Tenant) (*m
 
 // UpdateStatus 生命周期流转：deleted 额外触发软删（数据保留期内可查库恢复）
 func (t *tenantRepository) UpdateStatus(ctx context.Context, id uint, status string) error {
-	db := t.db.WithContext(platformCtx(ctx))
+	pctx, cancel := platformCtx(ctx)
+	defer cancel()
+	db := t.db.WithContext(pctx)
 	if err := db.Model(&model.Tenant{}).Where("id = ?", id).Update("status", status).Error; err != nil {
 		return err
 	}

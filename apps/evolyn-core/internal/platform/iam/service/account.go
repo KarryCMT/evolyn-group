@@ -284,3 +284,37 @@ func (s *accountService) GetUserInfo(ctx context.Context, accountID uint, member
 		EffectiveQuotas: quotas,
 	}, nil
 }
+
+// GetProfile 账号自助：取本人账号资料
+func (s *accountService) GetProfile(ctx context.Context, accountID uint) (*model.Account, error) {
+	return s.accountRepo.GetByID(ctx, accountID)
+}
+
+// UpdateProfile 账号自助：更新昵称/邮箱/头像/手机号
+func (s *accountService) UpdateProfile(ctx context.Context, account *model.Account) (*model.Account, error) {
+	if account == nil || account.ID == 0 {
+		return nil, fmt.Errorf("empty account")
+	}
+	return s.accountRepo.Update(ctx, account)
+}
+
+// ChangePassword 账号自助：校验旧密码后重置
+func (s *accountService) ChangePassword(ctx context.Context, accountID uint, oldPassword, newPassword string) error {
+	if len(newPassword) < MinPasswordLength {
+		return fmt.Errorf("password length must great than %d", MinPasswordLength)
+	}
+
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	if err := bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(oldPassword)); err != nil {
+		return fmt.Errorf("old password mismatch")
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.accountRepo.UpdatePassword(ctx, accountID, string(hashed))
+}
