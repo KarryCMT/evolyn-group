@@ -9,18 +9,6 @@ export const router = createRouter({
       path: '/',
       component: () => import('~/pages/index.vue'),
     },
-    {
-      path: '/nav/1/item-1',
-      component: () => import('~/pages/nav/1/item-1.vue'),
-    },
-    {
-      path: '/nav/2',
-      component: () => import('~/pages/nav/2.vue'),
-    },
-    {
-      path: '/nav/4',
-      component: () => import('~/pages/nav/4.vue'),
-    },
   ],
 })
 

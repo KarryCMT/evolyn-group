@@ -43,13 +43,13 @@ lint: ## golangci-lint (requires golangci-lint installed)
 	golangci-lint run
 
 swagger: ## regenerate swagger docs into ./docs (gitignored, for local review only)
-	swag init -g cmd/api/main.go -o docs
+	swag init -g cmd/api/main.go -o docs --parseInternal --parseDependency --parseDepth 3
 
 init: install-swagger postgres redis ## install all dependencies and init config
 	echo "init all"
 
-install-swagger: ## install swagger from golang
-	go install github.com/swaggo/swag/cmd/swag@v1.8.12
+install-swagger: ## install swagger from golang (>= v1.16 required for aliased embedded models e.g. kernel.BaseModel)
+	go install github.com/swaggo/swag/cmd/swag@v1.16.4
 
 postgres: ## init local postgres and import scripts/db.sql
 	@docker start mypostgres || docker run --name mypostgres -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres

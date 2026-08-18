@@ -7,7 +7,7 @@
 ## 状态
 
 - **设计基线，持续更新**：第一部分（第 1–21 章）为技术选型与引擎能力设计；第二部分（第 22 章起）为 2026-08 定版的顶层设计收敛稿。七项关键 ADR 结论（HTTP+OpenAPI、Redis Stream、前端 TypeScript、版本粒度仅表单与流程、多租户一级能力、数据表格 VTable、应用模板）已并入现行章节，其中多租户完整定版（原顶层设计第 25 章）恢复并扩展为第 26 章，含与 M0 现状的差距及 P0–P2 落地阶段。
-- 实现自 M0 起步，当前处于 M0 完成后的阶段。
+- 实现自 M0 起步；M1（账号×成员拆分与租户体系补齐）后端全链路已落地，后续 ADR 自第 27 章集中登记（ADR-006 账号×成员拆分、ADR-007 后端工程结构定版）。
 
 ## 子文档
 
@@ -19,9 +19,9 @@
 
 | 规划目录 | 来源 | 说明 |
 | --- | --- | --- |
-| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、cmd/worker、internal/{platform,engine,infrastructure}） |
-| `apps/evolyn-web/` | 现有目录演进（不改名） | Vue3 + TypeScript 设计器与运行态 |
+| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，engine 随 M2 起） |
+| `apps/evolyn-web/` | 现有目录演进（不改名） | pnpm + Turborepo monorepo：`apps/web/` Vue3 + TypeScript 主应用（脚手架阶段）、`packages/` 共享库 |
 | `services/workflow/` | 新建 | Java + Spring Boot + Flowable 流程服务 |
 | `packages/openapi/` | 新建 | 全平台 API 契约唯一事实源 |
 
-> 本目录存放设计文档；仓库根 `docs/` 下的 `docs.go`、`swagger.*` 为旧后端 swagger 生成产物，与本专题无关。
+> 本目录存放设计文档；后端 swagger 生成物位于 `apps/evolyn-core/docs/`（gitignored，`make swagger` 本地查阅），不入库。

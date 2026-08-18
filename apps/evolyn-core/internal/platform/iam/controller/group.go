@@ -101,7 +101,7 @@ func (g *GroupController) Create(c *gin.Context) {
 // @Produce json
 // @Tags group
 // @Security JWT
-// @Param group body model.UpdatedUser true "group info"
+// @Param group body model.UpdatedGroup true "group info"
 // @Param id   path      int  true  "group id"
 // @Success 200 {object} httpx.Response{data=model.Group}
 // @Router /api/v1/groups/{id} [put]

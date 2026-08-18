@@ -87,7 +87,7 @@ func (rbac *RBACController) Get(c *gin.Context) {
 // @Param role body model.Role true "rbac role info"
 // @Success 200 {object} httpx.Response
 // @Param id path int true "role id"
-// @Router /api/v1/roles/:id [put]
+// @Router /api/v1/roles/{id} [put]
 func (rbac *RBACController) Update(c *gin.Context) {
 	role := &model.Role{}
 	if err := c.BindJSON(role); err != nil {
