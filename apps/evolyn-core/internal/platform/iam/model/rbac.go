@@ -22,7 +22,7 @@ const (
 
 type Role struct {
 	ID        uint   `json:"id" gorm:"autoIncrement;primaryKey"`
-	Name      string `json:"name" gorm:"size:100;not null;unique"`
+	Name      string `json:"name" gorm:"size:100;not null;index"` // 租户内唯一，服务层保证（原全局唯一索引随迁移移除）
 	Scope     Scope  `json:"scope" gorm:"size:100"`
 	Namespace string `json:"namespace"  gorm:"size:100"`
 	Rules     Rules  `json:"rules" gorm:"type:json"`

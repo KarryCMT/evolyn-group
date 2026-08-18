@@ -54,7 +54,10 @@ func (r *Repositories) Migrate() error {
 		}
 	}
 	// department 随 P3 建仓储，暂由域聚合统一迁移（departments 表 + department_users 关联）
-	return r.db.AutoMigrate(&model.Department{})
+	if err := r.db.AutoMigrate(&model.Department{}); err != nil {
+		return err
+	}
+	return r.dropLegacyUniqueIndexes()
 }
 
 // Init iam 域种子与存量回填：账号拆分回填最先执行，再平台基础资源与系统分组。
@@ -83,6 +86,15 @@ func (r *Repositories) Init() error {
 		},
 		{
 			Name:  model.AuthResource,
+			Scope: model.ClusterScope,
+		},
+		// P3：运营域（管租户）与部门资源；platform 域仅 cluster-admin 通配可达
+		{
+			Name:  "platform",
+			Scope: model.ClusterScope,
+		},
+		{
+			Name:  "departments",
 			Scope: model.ClusterScope,
 		},
 	}
@@ -159,5 +171,17 @@ func (r *Repositories) backfillAccountSplit() error {
 		return err
 	}
 
+	return nil
+}
+
+// dropLegacyUniqueIndexes 移除 weave 时代的全局唯一索引：
+// 账号×成员拆分与租户内种子化（每租户系统组/角色同名）要求 name 仅租户内唯一，
+// 唯一性改由服务层校验。幂等，新库无旧索引时无操作
+func (r *Repositories) dropLegacyUniqueIndexes() error {
+	for _, idx := range []string{"idx_groups_name", "idx_roles_name"} {
+		if err := r.db.Exec("DROP INDEX IF EXISTS " + idx).Error; err != nil {
+			return err
+		}
+	}
 	return nil
 }

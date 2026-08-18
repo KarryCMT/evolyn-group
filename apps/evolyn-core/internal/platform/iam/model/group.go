@@ -15,7 +15,7 @@ const (
 
 type Group struct {
 	ID        uint   `json:"id" gorm:"autoIncrement;primaryKey"`
-	Name      string `json:"name" gorm:"size:100;not null;unique"`
+	Name      string `json:"name" gorm:"size:100;not null;index"` // 租户内唯一，服务层保证（原全局唯一索引随迁移移除）
 	Kind      string `json:"kind" gorm:"size:100"`
 	Describe  string `json:"describe" gorm:"size:1024;"`
 	CreatorId uint   `json:"creatorId"`

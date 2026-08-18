@@ -22,6 +22,16 @@ const (
 	QuotaWorkflowRunsMonth = "workflow_runs_month" // 月度流程发起量
 )
 
+// IsValidPlan 套餐档位校验
+func IsValidPlan(plan string) bool {
+	switch plan {
+	case PlanFree, PlanTrial, PlanPro:
+		return true
+	default:
+		return false
+	}
+}
+
 // DefaultQuotas 各套餐默认配额；未知套餐按 free 兜底。
 // 配额检查挂创建/上传路径属 P1-7 原计划，本批只落模型与读取
 func DefaultQuotas(plan string) Quotas {

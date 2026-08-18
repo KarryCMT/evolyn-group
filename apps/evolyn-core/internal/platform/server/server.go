@@ -22,7 +22,9 @@ import (
 	"evolyn/internal/platform/iam/repository"
 	"evolyn/internal/platform/iam/service"
 	"evolyn/internal/platform/middleware"
+	tenantcontroller "evolyn/internal/platform/tenant/controller"
 	tenantrepository "evolyn/internal/platform/tenant/repository"
+	tenantservice "evolyn/internal/platform/tenant/service"
 	"evolyn/internal/utils/request"
 	"evolyn/internal/utils/set"
 	"evolyn/internal/version"
@@ -74,6 +76,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		return nil, err
 	}
 
+	tenantService := tenantservice.NewTenantService(tenantRepo, iamRepo)
 	accountService := service.NewAccountService(iamRepo.Account(), iamRepo.User(), tenantRepo)
 	userService := service.NewUserService(iamRepo.User())
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User())
@@ -85,11 +88,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	groupController := iamcontroller.NewGroupController(groupService)
 	authController := authcontroller.NewAuthController(accountService, jwtService, oauthManager)
 	rbacController := iamcontroller.NewRbacController(rbacService)
+	tenantController := tenantcontroller.NewTenantController(tenantService)
 
 	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController}
 
 	gin.SetMode(conf.Server.ENV)
 

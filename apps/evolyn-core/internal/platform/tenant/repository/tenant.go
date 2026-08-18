@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"evolyn/internal/infrastructure"
 	"evolyn/internal/platform/tenant/model"
@@ -22,6 +23,12 @@ type TenantRepository interface {
 	GetByCode(ctx context.Context, code string) (*model.Tenant, error)
 	SeedDefaultTenant() error
 	Migrate() error
+
+	// 运营面 CRUD（P3-1）：内部剥离租户上下文，仅限 /platform 域调用
+	List(ctx context.Context) ([]model.Tenant, error)
+	Create(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error)
+	Update(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error)
+	UpdateStatus(ctx context.Context, id uint, status string) error
 }
 
 // NewRepository 租户域仓储工厂（ADR-007 域模块化）
@@ -105,5 +112,51 @@ func (t *tenantRepository) SeedDefaultTenant() error {
 		}
 	}
 
+	return nil
+}
+
+// platformCtx 运营面专用：刻意剥离请求携带的租户上下文（tenants 表带
+// tenant_id 列，运营者自身会话的租户上下文会造成自我过滤，见 withContext 注释），
+// 并施加独立超时。仅限平台运营域（/platform/**）调用
+func platformCtx(parent context.Context) context.Context {
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	return ctx
+}
+
+// List 运营面租户列表（无租户过滤，软删行不返回）
+func (t *tenantRepository) List(ctx context.Context) ([]model.Tenant, error) {
+	tenants := make([]model.Tenant, 0)
+	if err := t.db.WithContext(platformCtx(ctx)).Order("id").Find(&tenants).Error; err != nil {
+		return nil, err
+	}
+	return tenants, nil
+}
+
+// Create 开通租户（运营面）：TenantID 列落默认值，OwnerAccountId 由服务层写入
+func (t *tenantRepository) Create(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error) {
+	if err := t.db.WithContext(platformCtx(ctx)).Create(tenant).Error; err != nil {
+		return nil, err
+	}
+	return tenant, nil
+}
+
+// Update 运营面更新（名称/套餐/配置/配额覆盖/归属账号）
+func (t *tenantRepository) Update(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error) {
+	if err := t.db.WithContext(platformCtx(ctx)).Model(&model.Tenant{}).Where("id = ?", tenant.ID).
+		Select("name", "plan", "owner_account_id", "config", "quotas").Updates(tenant).Error; err != nil {
+		return nil, err
+	}
+	return tenant, nil
+}
+
+// UpdateStatus 生命周期流转：deleted 额外触发软删（数据保留期内可查库恢复）
+func (t *tenantRepository) UpdateStatus(ctx context.Context, id uint, status string) error {
+	db := t.db.WithContext(platformCtx(ctx))
+	if err := db.Model(&model.Tenant{}).Where("id = ?", id).Update("status", status).Error; err != nil {
+		return err
+	}
+	if status == model.TenantDeleted {
+		return db.Delete(&model.Tenant{}, id).Error
+	}
 	return nil
 }
