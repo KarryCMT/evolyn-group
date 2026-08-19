@@ -75,6 +75,8 @@ func (r *Repositories) ensurePartialUniqueIndexes() error {
 		`CREATE UNIQUE INDEX IF NOT EXISTS uk_groups_tenant_name ON groups (tenant_id, name) WHERE deleted_at IS NULL`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uk_users_tenant_account ON users (tenant_id, account_id) WHERE deleted_at IS NULL`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uk_auth_identity ON auth_infos (auth_type, auth_id) WHERE deleted_at IS NULL`,
+		// 000007：phone 非空才参与唯一（未填账号落 '' 不互斥）
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_accounts_phone ON accounts (phone) WHERE phone <> '' AND deleted_at IS NULL`,
 	} {
 		if err := r.db.Exec(stmt).Error; err != nil {
 			return err

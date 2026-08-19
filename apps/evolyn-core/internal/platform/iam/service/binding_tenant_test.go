@@ -201,7 +201,7 @@ func tenantCtx(t *testing.T, tenantID uint) context.Context {
 
 func TestAddRoleCrossTenantRejected(t *testing.T) {
 	users, roles, _, _ := newBindingFixtures()
-	svc := NewUserService(users, &fakeAccountRepo{}, roles, nil, fakeQuota{}, fakeAudit{})
+	svc := NewUserService(passThroughTx{}, users, &fakeAccountRepo{}, roles, nil, fakeQuota{}, fakeAudit{})
 
 	// 租户 1 的成员 1 绑定租户 2 的角色 6：必须拒绝且不落关系表
 	err := svc.AddRole(tenantCtx(t, 1), "1", "6")
@@ -278,7 +278,7 @@ func TestGroupCreateDuplicateNameRejected(t *testing.T) {
 
 func TestAddMemberDuplicateRejected(t *testing.T) {
 	users, _, _, accounts := newBindingFixtures()
-	svc := NewUserService(users, accounts, nil, nil, fakeQuota{}, fakeAudit{})
+	svc := NewUserService(passThroughTx{}, users, accounts, nil, nil, fakeQuota{}, fakeAudit{})
 
 	// 账号 10 在租户 1 已有成员（成员 1）：拒绝重复加入
 	_, err := svc.AddMember(tenantCtx(t, 1), &AddMemberRequest{AccountID: 10})
@@ -289,7 +289,7 @@ func TestAddMemberDuplicateRejected(t *testing.T) {
 
 func TestAddMemberQuotaExceeded(t *testing.T) {
 	users, _, _, accounts := newBindingFixtures()
-	svc := NewUserService(users, accounts, nil, nil, fakeQuota{exceeded: true}, fakeAudit{})
+	svc := NewUserService(passThroughTx{}, users, accounts, nil, nil, fakeQuota{exceeded: true}, fakeAudit{})
 
 	_, err := svc.AddMember(tenantCtx(t, 1), &AddMemberRequest{AccountID: 30})
 	assert.Error(t, err)
@@ -299,7 +299,7 @@ func TestAddMemberQuotaExceeded(t *testing.T) {
 
 func TestAddMemberHappyPath(t *testing.T) {
 	users, _, _, accounts := newBindingFixtures()
-	svc := NewUserService(users, accounts, nil, nil, fakeQuota{}, fakeAudit{})
+	svc := NewUserService(passThroughTx{}, users, accounts, nil, nil, fakeQuota{}, fakeAudit{})
 
 	member, err := svc.AddMember(tenantCtx(t, 1), &AddMemberRequest{AccountID: 30, Nickname: "新同学"})
 	assert.NoError(t, err)
@@ -316,7 +316,7 @@ func TestAddMemberHappyPath(t *testing.T) {
 
 func TestAddMemberRequiresTenantContext(t *testing.T) {
 	users, _, _, accounts := newBindingFixtures()
-	svc := NewUserService(users, accounts, nil, nil, fakeQuota{}, fakeAudit{})
+	svc := NewUserService(passThroughTx{}, users, accounts, nil, nil, fakeQuota{}, fakeAudit{})
 
 	// 无租户上下文（如平台域误用）：直接拒绝
 	_, err := svc.AddMember(context.Background(), &AddMemberRequest{AccountID: 30})

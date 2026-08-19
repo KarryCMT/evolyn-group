@@ -177,8 +177,13 @@ func loadMigrations(fsys fs.FS) ([]*migrationFile, error) {
 	return files, nil
 }
 
+// dollarQuoteDelimiter 匹配 PostgreSQL 通用美元引用定界符（FIX-023）：
+// $tag$ 或空 tag 的 $$，tag 为字母/下划线开头的标识符（$func$、$body$ 等）。
+// 不匹配 $1 之类的参数占位符（后面不紧跟 $）
+var dollarQuoteDelimiter = regexp.MustCompile(`^\$([A-Za-z_][A-Za-z0-9_]*)?\$`)
+
 // SplitSQLStatements 把迁移脚本按顶层分号切分为可独立执行的语句：
-// 识别 '--' 行注释、块注释、单引号字符串（” 转义）与 $$ 美元引用，
+// 识别 '--' 行注释、块注释、单引号字符串（” 转义）与通用 $tag$ 美元引用，
 // 避免注释或字符串字面量中的分号被误判为语句边界
 func SplitSQLStatements(script string) []string {
 	var (
@@ -207,13 +212,13 @@ func SplitSQLStatements(script string) []string {
 			continue
 		}
 
-		// 块注释：吞到 */
+		// 块注释：吞到 */（未闭合到 EOF 则整体视为注释结束）
 		if c == '/' && i+1 < n && script[i+1] == '*' {
 			i += 2
 			for i+1 < n && !(script[i] == '*' && script[i+1] == '/') {
 				i++
 			}
-			i += 2
+			i = min(i+2, n)
 			current.WriteByte(' ')
 			continue
 		}
@@ -238,17 +243,22 @@ func SplitSQLStatements(script string) []string {
 			continue
 		}
 
-		// 美元引用字符串 $$...$$（函数体等）：原样吞入
-		if c == '$' && i+1 < n && script[i+1] == '$' {
-			current.WriteString("$$")
-			i += 2
-			for i+1 < n && !(script[i] == '$' && script[i+1] == '$') {
-				current.WriteByte(script[i])
-				i++
+		// 美元引用 $tag$...$tag$（函数体等，FIX-023）：记录开定界符并原样
+		// 吞入，仅遇到完全相同的结束定界符才退出——函数体内的分号与其他
+		// tag（如嵌套出现的 $other$）都不是语句边界
+		if c == '$' {
+			if open := dollarQuoteDelimiter.FindString(script[i:]); open != "" {
+				current.WriteString(open)
+				i += len(open)
+				for i < n && !strings.HasPrefix(script[i:], open) {
+					current.WriteByte(script[i])
+					i++
+				}
+				// 未闭合到 EOF 也补写闭合定界符，保持语句文本完整可辨
+				current.WriteString(open)
+				i = min(i+len(open), n)
+				continue
 			}
-			current.WriteString("$$")
-			i += 2
-			continue
 		}
 
 		// 顶层分号：语句边界

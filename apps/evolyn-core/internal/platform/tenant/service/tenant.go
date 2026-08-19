@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"evolyn/internal/contextx"
 	auditservice "evolyn/internal/platform/audit/service"
 	iammodel "evolyn/internal/platform/iam/model"
 	iamrepository "evolyn/internal/platform/iam/repository"
@@ -14,6 +15,21 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 )
+
+// TxManager 事务边界抽象（FIX-020）：具体实现在 infrastructure（ctx 传播
+// 事务 session），Service 只依赖最小接口，便于单测以快照/恢复模拟回滚
+type TxManager interface {
+	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error
+}
+
+// IAMRepositories 开通租户所需的 iam 仓储能力子集：接口化便于测试替身，
+// 生产侧由 *iamrepository.Repositories 天然满足
+type IAMRepositories interface {
+	Account() iamrepository.AccountRepository
+	User() iamrepository.UserRepository
+	RBAC() iamrepository.RBACRepository
+	Group() iamrepository.GroupRepository
+}
 
 // 租户内基线角色名（与默认租户种子、db.sql 口径一致）
 const (
@@ -28,18 +44,21 @@ const DefaultRetentionPeriod = 30 * 24 * time.Hour
 
 // tenantService 租户域服务：开通/查询/配置/生命周期流转（运营面）。
 // 依赖 iam 仓储完成「开通即建 owner 成员 + 租户内系统组/角色种子」；
-// 审计记录关键运营操作（FIX-013），配额服务在开建成员前校验（FIX-011）
+// 开通全流程经 TxManager 单事务提交（FIX-020）；审计记录关键运营操作
+// （FIX-013），配额服务在开建成员前校验（FIX-011）
 type tenantService struct {
+	tx         TxManager
 	tenantRepo tenantrepository.TenantRepository
-	iam        *iamrepository.Repositories
+	iam        IAMRepositories
 	quota      QuotaService
 	audit      auditservice.Recorder
 	retention  time.Duration
 }
 
 func NewTenantService(
+	tx TxManager,
 	tenantRepo tenantrepository.TenantRepository,
-	iam *iamrepository.Repositories,
+	iam IAMRepositories,
 	quota QuotaService,
 	audit auditservice.Recorder,
 	retention time.Duration,
@@ -48,6 +67,7 @@ func NewTenantService(
 		retention = DefaultRetentionPeriod
 	}
 	return &tenantService{
+		tx:         tx,
 		tenantRepo: tenantRepo,
 		iam:        iam,
 		quota:      quota,
@@ -88,14 +108,43 @@ func (r *OpenTenantRequest) Validate() error {
 	return nil
 }
 
-// Open 开通租户（P3-1）：租户 + owner 成员 + 租户内系统组/角色种子一步到位。
-// 全程使用剥离租户的 ctx：运营者会话自带的租户上下文会污染新租户的数据写入
-// 与按名查询（组/角色按租户过滤），此处以 Background 显式规避
+// Open 开通租户（P3-1，FIX-020 全事务）：租户 + owner 账号/成员 + 租户内
+// 系统组/角色种子一步到位。Account/Tenant/Owner Member/Role/Group/Binding
+// 等全部写操作共享同一数据库事务，任一步失败整体回滚，不留半初始化租户
 func (s *tenantService) Open(ctx context.Context, req *OpenTenantRequest) (*tenantmodel.Tenant, error) {
 	if err := req.Validate(); err != nil {
 		return nil, err
 	}
-	bctx := context.Background()
+
+	var tenant *tenantmodel.Tenant
+	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		var err error
+		tenant, err = s.openInTx(tctx, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	// 审计在事务提交成功后独立写入（FIX-020 决策：业务回滚不留「未发生的
+	// 开通」流水；审计 best-effort，落库失败仅告警不阻断已提交业务）
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "tenant", Action: "create", ResourceType: "tenant",
+			ResourceID: strconv.FormatUint(uint64(tenant.ID), 10),
+			TenantID:   tenant.ID,
+			After:      map[string]any{"code": tenant.Code, "name": tenant.Name, "plan": tenant.Plan},
+		})
+	}
+
+	return tenant, nil
+}
+
+// openInTx 事务内的开通主流程：调用方已开启事务，本方法内任一步失败由
+// 外层整体回滚。全程使用剥离租户的 ctx（contextx.DetachTenant 保留事务
+// session 与操作者/元数据）：运营者会话自带的租户上下文会污染新租户的
+// 数据写入与按名查询（组/角色按租户过滤）
+func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*tenantmodel.Tenant, error) {
+	bctx := contextx.DetachTenant(ctx)
 
 	if _, err := s.tenantRepo.GetByCode(bctx, req.Code); err == nil {
 		return nil, fmt.Errorf("tenant code %s already exists", req.Code)
@@ -154,35 +203,29 @@ func (s *tenantService) Open(ctx context.Context, req *OpenTenantRequest) (*tena
 		return nil, err
 	}
 
-	if err = s.seedTenantBaseline(bctx, tenant.ID); err != nil {
-		return nil, err
-	}
-
-	// owner 绑定租户管理员角色
-	tenantAdmin, err := s.iam.RBAC().GetRoleByName(bctx, TenantAdminRole)
+	// 基线种子返回本租户刚创建的角色：owner 绑定直接用内存对象，不再按名
+	// 回查——无租户过滤的 GetRoleByName 会按 id 升序命中其他租户的同名
+	// tenant-admin 角色，造成跨租户角色绑定污染（FIX-022 攻击面）
+	baselineRoles, err := s.seedTenantBaseline(bctx, tenant.ID)
 	if err != nil {
 		return nil, err
 	}
-	if err = s.iam.User().AddRole(bctx, tenantAdmin, member); err != nil {
-		return nil, err
-	}
-
-	// 审计：租户开通（平台级操作，显式落租户归属）
-	if s.audit != nil {
-		s.audit.Record(bctx, auditservice.Entry{
-			Module: "tenant", Action: "create", ResourceType: "tenant",
-			ResourceID: strconv.FormatUint(uint64(tenant.ID), 10),
-			TenantID:   tenant.ID,
-			After:      map[string]any{"code": tenant.Code, "name": tenant.Name, "plan": tenant.Plan, "ownerAccountId": ownerAccount.ID},
-		})
+	for i := range baselineRoles {
+		if baselineRoles[i].Name == TenantAdminRole {
+			if err = s.iam.User().AddRole(bctx, &baselineRoles[i], member); err != nil {
+				return nil, err
+			}
+			break
+		}
 	}
 
 	return tenant, nil
 }
 
 // seedTenantBaseline 租户内基线种子：系统组×3 + 基础角色×3 + 组角色绑定。
-// 显式写 TenantID（bctx 无租户上下文，避免落到列默认值）
-func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) error {
+// 显式写 TenantID（bctx 无租户上下文，避免落到列默认值）。
+// 返回本租户刚创建的角色切片（带 ID），供调用方直接绑定关系
+func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) ([]iammodel.Role, error) {
 	roles := []iammodel.Role{
 		{Name: TenantAdminRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},
@@ -201,7 +244,7 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 	for i := range roles {
 		roles[i].TenantID = tenantID
 		if _, err := s.iam.RBAC().Create(bctx, &roles[i]); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
@@ -214,7 +257,7 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 		groups[i].TenantID = tenantID
 	}
 	if err := s.iam.Group().CreateGroups(bctx, groups); err != nil {
-		return err
+		return nil, err
 	}
 
 	// 组-角色绑定（按名取回带 ID 的对象，bctx 无租户过滤不适用——
@@ -242,14 +285,14 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			}
 		}
 		if group == nil || role == nil {
-			return fmt.Errorf("baseline seed mismatch: %s/%s", b.groupName, b.roleName)
+			return nil, fmt.Errorf("baseline seed mismatch: %s/%s", b.groupName, b.roleName)
 		}
 		if err := s.iam.Group().AddRole(bctx, role, group); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return roles, nil
 }
 
 func (s *tenantService) List(ctx context.Context) ([]tenantmodel.Tenant, error) {

@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"evolyn/internal/contextx"
 	"evolyn/internal/infrastructure"
 	"evolyn/internal/platform/tenant/model"
 
@@ -62,9 +63,10 @@ func NewRepository(db *gorm.DB, rdb *infrastructure.RedisDB) TenantRepository {
 const tenantStatusCacheKey = "tenants:status"
 
 // withContext 以请求 ctx 打开新会话。FIX-014 后 tenants 表不再带 tenant_id
-// 列，GORM 租户 Callback 对本表查询不生效，运营面/登录前查询天然无自我过滤
+// 列，GORM 租户 Callback 对本表查询不生效，运营面/登录前查询天然无自我过滤。
+// ctx 携带事务 session 时加入外层事务（FIX-020：开通租户全流程单一事务）
 func (t *tenantRepository) withContext(ctx context.Context) *gorm.DB {
-	return t.db.WithContext(ctx)
+	return infrastructure.ResolveDB(ctx, t.db)
 }
 
 func (t *tenantRepository) GetByID(ctx context.Context, id uint) (*model.Tenant, error) {
@@ -160,11 +162,13 @@ func (t *tenantRepository) SeedDefaultTenant() error {
 	return nil
 }
 
-// platformCtx 运营面专用：刻意剥离请求携带的租户上下文（历史版本 tenants 表
+// platformCtx 运营面专用：剥离请求携带的租户上下文（历史版本 tenants 表
 // 曾带 tenant_id 列，运营者自身会话的租户上下文会造成自我过滤；FIX-014 后
-// 列已移除，保留剥离以明确「平台域不依赖租户上下文」的语义），并施加独立超时
+// 列已移除，保留剥离以明确「平台域不依赖租户上下文」的语义），并施加独立
+// 超时。经 DetachTenant 而非 Background 派生：保留 ctx 携带的事务 session
+// （FIX-020）与操作者/元数据，否则开通租户的事务会在本层断裂
 func platformCtx(parent context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(context.Background(), 10*time.Second)
+	return context.WithTimeout(contextx.DetachTenant(parent), 10*time.Second)
 }
 
 // invalidateStatusCache 状态缓存失效（状态/配置写路径调用）
@@ -177,7 +181,7 @@ func (t *tenantRepository) List(ctx context.Context) ([]model.Tenant, error) {
 	tenants := make([]model.Tenant, 0)
 	pctx, cancel := platformCtx(ctx)
 	defer cancel()
-	if err := t.db.WithContext(pctx).
+	if err := infrastructure.ResolveDB(pctx, t.db).
 		Where("status <> ?", model.TenantDeleted).
 		Order("id").Find(&tenants).Error; err != nil {
 		return nil, err
@@ -189,7 +193,7 @@ func (t *tenantRepository) List(ctx context.Context) ([]model.Tenant, error) {
 func (t *tenantRepository) Create(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error) {
 	pctx, cancel := platformCtx(ctx)
 	defer cancel()
-	if err := t.db.WithContext(pctx).Create(tenant).Error; err != nil {
+	if err := infrastructure.ResolveDB(pctx, t.db).Create(tenant).Error; err != nil {
 		return nil, err
 	}
 	t.invalidateStatusCache(tenant.ID)
@@ -200,7 +204,7 @@ func (t *tenantRepository) Create(ctx context.Context, tenant *model.Tenant) (*m
 func (t *tenantRepository) Update(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error) {
 	pctx, cancel := platformCtx(ctx)
 	defer cancel()
-	if err := t.db.WithContext(pctx).Model(&model.Tenant{}).Where("id = ?", tenant.ID).
+	if err := infrastructure.ResolveDB(pctx, t.db).Model(&model.Tenant{}).Where("id = ?", tenant.ID).
 		Select("name", "plan", "owner_account_id", "config", "quotas").Updates(tenant).Error; err != nil {
 		return nil, err
 	}
@@ -213,7 +217,7 @@ func (t *tenantRepository) Update(ctx context.Context, tenant *model.Tenant) (*m
 func (t *tenantRepository) UpdateStatus(ctx context.Context, id uint, status string, lifecycle *LifecycleTimes) error {
 	pctx, cancel := platformCtx(ctx)
 	defer cancel()
-	db := t.db.WithContext(pctx)
+	db := infrastructure.ResolveDB(pctx, t.db)
 
 	updates := map[string]interface{}{"status": status}
 	switch status {

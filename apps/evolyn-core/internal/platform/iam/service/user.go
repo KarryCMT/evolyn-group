@@ -16,10 +16,18 @@ import (
 	"gorm.io/gorm"
 )
 
+// TxManager 事务边界抽象（FIX-021）：具体实现在 infrastructure（ctx 传播
+// 事务 session），Service 只依赖最小接口，便于单测以快照/恢复模拟回滚
+type TxManager interface {
+	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error
+}
+
 // userService 成员服务（租户内语义）：登录身份相关见 AccountService（ADR-006）。
 // 依赖说明：RBAC/部门仓储用于关系绑定的同租户校验（FIX-006）；
-// 配额服务来自租户域（FIX-011，依赖方向 iam→tenant/service 单向无环）
+// 配额服务来自租户域（FIX-011，依赖方向 iam→tenant/service 单向无环）；
+// 成员创建与部门/角色绑定经 TxManager 同事务提交（FIX-021）
 type userService struct {
+	tx                   TxManager
 	userRepository       repository.UserRepository
 	accountRepository    repository.AccountRepository
 	rbacRepository       repository.RBACRepository
@@ -29,6 +37,7 @@ type userService struct {
 }
 
 func NewUserService(
+	tx TxManager,
 	userRepository repository.UserRepository,
 	accountRepository repository.AccountRepository,
 	rbacRepository repository.RBACRepository,
@@ -37,6 +46,7 @@ func NewUserService(
 	audit auditservice.Recorder,
 ) UserService {
 	return &userService{
+		tx:                   tx,
 		userRepository:       userRepository,
 		accountRepository:    accountRepository,
 		rbacRepository:       rbacRepository,
@@ -155,8 +165,9 @@ func (u *userService) DelRole(ctx context.Context, id, rid string) error {
 	return nil
 }
 
-// AddMember 拉已有账号进当前租户（FIX-010）：
-// 校验账号 → 重复成员 → 配额 → 创建成员 → 绑定部门/角色 → 审计
+// AddMember 拉已有账号进当前租户（FIX-010，FIX-021 全事务）：
+// 校验账号 → 重复成员 → 配额 → 创建成员 → 绑定部门/角色 整体单事务提交，
+// 部门/角色任一校验或写入失败时成员及已完成的绑定全部回滚，不留半绑成员
 func (u *userService) AddMember(ctx context.Context, req *AddMemberRequest) (*model.User, error) {
 	if req == nil || (req.AccountID == 0 && req.AccountName == "") {
 		return nil, fmt.Errorf("accountId or accountName is required")
@@ -168,23 +179,51 @@ func (u *userService) AddMember(ctx context.Context, req *AddMemberRequest) (*mo
 		return nil, fmt.Errorf("tenant context required")
 	}
 
+	var (
+		member  *model.User
+		account *model.Account
+	)
+	if err := u.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		var err error
+		member, account, err = u.addMemberInTx(tctx, tenantID, req)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	// 审计在事务提交成功后独立写入（FIX-021 决策：业务回滚不留流水，
+	// 审计 best-effort，落库失败仅告警不阻断已提交业务）
+	if u.audit != nil {
+		u.audit.Record(ctx, auditservice.Entry{
+			Module: "iam", Action: "create", ResourceType: "member",
+			ResourceID: strconv.FormatUint(uint64(member.ID), 10),
+			After:      map[string]any{"accountId": account.ID, "accountName": account.Name, "nickname": member.Nickname},
+		})
+	}
+
+	return member, nil
+}
+
+// addMemberInTx 事务内的拉人主流程：调用方已开启事务，任一步失败由外层
+// 整体回滚（成员、部门绑定、角色绑定不留部分成功状态）
+func (u *userService) addMemberInTx(ctx context.Context, tenantID uint, req *AddMemberRequest) (*model.User, *model.Account, error) {
 	// 1. 账号必须存在（登录身份是平台级，无租户过滤）
 	account, err := u.resolveAccount(ctx, req)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 2. 同租户重复成员拦截（FIX-004 服务层前置，数据库部分唯一索引兜底）
 	if existing, err := u.userRepository.GetByAccountAndTenant(ctx, account.ID, tenantID); err == nil && existing != nil {
-		return nil, fmt.Errorf("%w: account %s already a member of tenant %d", ErrDuplicateMember, account.Name, tenantID)
+		return nil, nil, fmt.Errorf("%w: account %s already a member of tenant %d", ErrDuplicateMember, account.Name, tenantID)
 	} else if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 3. 配额校验（FIX-011）
 	if u.quota != nil {
 		if err := u.quota.Check(ctx, tenantID, tenantmodel.QuotaMembers); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -200,33 +239,24 @@ func (u *userService) AddMember(ctx context.Context, req *AddMemberRequest) (*mo
 	member.TenantID = tenantID
 	member, err = u.userRepository.Create(ctx, member)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// 5. 部门绑定（同租户校验，FIX-006）
 	if len(req.DepartmentIDs) > 0 {
 		if err := u.bindMemberDepartments(ctx, member, req.DepartmentIDs); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
 	// 6. 角色绑定（同租户校验，FIX-006）
 	if len(req.RoleIDs) > 0 {
 		if err := u.bindMemberRoles(ctx, member, req.RoleIDs); err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
-	// 7. 审计（FIX-013）
-	if u.audit != nil {
-		u.audit.Record(ctx, auditservice.Entry{
-			Module: "iam", Action: "create", ResourceType: "member",
-			ResourceID: strconv.FormatUint(uint64(member.ID), 10),
-			After:      map[string]any{"accountId": account.ID, "accountName": account.Name, "nickname": nickname},
-		})
-	}
-
-	return member, nil
+	return member, account, nil
 }
 
 // bindMemberDepartments 逐个加载部门实体校验同租户后整体替换归属

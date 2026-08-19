@@ -22,9 +22,10 @@ func newRBACRepository(db *gorm.DB, rdb *infrastructure.RedisDB) RBACRepository 
 	}
 }
 
-// withContext 以请求 ctx 打开新会话，租户过滤由 GORM Callback 自动注入
+// withContext 以请求 ctx 打开新会话，租户过滤由 GORM Callback 自动注入；
+// ctx 携带事务 session 时加入外层事务（FIX-020/021）
 func (rbac *rbacRepository) withContext(ctx context.Context) *gorm.DB {
-	return rbac.db.WithContext(ctx)
+	return infrastructure.ResolveDB(ctx, rbac.db)
 }
 
 func (rbac *rbacRepository) List(ctx context.Context) ([]model.Role, error) {

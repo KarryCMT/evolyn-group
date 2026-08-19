@@ -1,4 +1,4 @@
-.PHONY: base build run test clean swagger fmt lint init install-swagger postgres redis exec-db ui
+.PHONY: base build run test test-integration vet clean swagger fmt lint init install-swagger postgres redis exec-db ui
 
 GIT_VERSION = $(shell git describe --tags 2>/dev/null)
 GIT_COMMIT = $(shell git rev-parse --short HEAD 2>/dev/null)
@@ -31,6 +31,14 @@ run: ## run server locally (needs config/app.yaml, postgres & redis)
 test: ## run unit test
 	go test -ldflags -s -v -coverprofile=cover.out $(PKGS)
 	go tool cover -func=cover.out -o coverage.txt
+
+test-integration: ## run all tests incl. PostgreSQL integration (SEC-TENANT/MIGRATE-INT, FIX-022/023)
+	@docker start mypostgres || docker run --name mypostgres -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
+	until docker exec mypostgres psql -U postgres; do echo "wait postgres start"; sleep 1; done
+	TEST_PG_DSN='postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable' go test ./...
+
+vet: ## go vet
+	go vet ./...
 
 clean: ## clean bin and go mod
 	@rm -rf bin/

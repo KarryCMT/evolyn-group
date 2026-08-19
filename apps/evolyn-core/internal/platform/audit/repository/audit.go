@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 
+	"evolyn/internal/infrastructure"
 	"evolyn/internal/platform/audit/model"
 
 	"gorm.io/gorm"
@@ -18,9 +19,10 @@ func NewRepository(db *gorm.DB) AuditRepository {
 }
 
 // Create 审计落库：显式不含租户 Callback 语义（audit_logs 的 tenant_id 由
-// 调用方填充，平台级操作为 0），普通 WithContext 即可
+// 调用方填充，平台级操作为 0）。取连接统一走 ResolveDB：审计通常在业务事务
+// 提交后独立写入（失败策略见 audit/service），若调用方仍在事务内则随事务提交
 func (r *auditRepository) Create(ctx context.Context, log *model.AuditLog) error {
-	return r.db.WithContext(ctx).Create(log).Error
+	return infrastructure.ResolveDB(ctx, r.db).Create(log).Error
 }
 
 func (r *auditRepository) List(ctx context.Context, tenantID uint, offset, limit int) ([]model.AuditLog, error) {

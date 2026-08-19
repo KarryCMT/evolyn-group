@@ -18,10 +18,10 @@ server:
 
 db:
   port: 5432
-  host: "172.17.12.114"
-  name: "firefly"
-  user: "ffdp"
-  password: "newff#c024"
+  host: "127.0.0.1"
+  name: "evolyn"
+  user: "postgres"
+  password: "postgres"
   migrate: false      # AutoMigrate 仅开发/测试（FIX-009）
   migrations: true    # 启动时应用 migrations/ 版本化 SQL
 

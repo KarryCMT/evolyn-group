@@ -23,9 +23,10 @@ func newAccountRepository(db *gorm.DB, rdb *infrastructure.RedisDB) AccountRepos
 }
 
 // withContext 以请求 ctx 打开新会话；accounts 为平台级表（无 tenant_id 列），
-// 租户 Callback 对其无副作用
+// 租户 Callback 对其无副作用。ctx 携带事务 session 时加入外层事务
+// （FIX-020：开通租户时新建 owner 账号须随全流程回滚）
 func (a *accountRepository) withContext(ctx context.Context) *gorm.DB {
-	return a.db.WithContext(ctx)
+	return infrastructure.ResolveDB(ctx, a.db)
 }
 
 func (a *accountRepository) GetByID(ctx context.Context, id uint) (*model.Account, error) {

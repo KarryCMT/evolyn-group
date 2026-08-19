@@ -40,11 +40,14 @@
 cmd/api/              入口，只做装配
 internal/
   config/             配置解析
-  contextx/           通用 context 键值存取（租户上下文/操作者/请求元数据）
+  contextx/           通用 context 键值存取（租户上下文/操作者/请求元数据、DetachTenant）
   model/              跨域共享内核（PlatformBaseModel / TenantBaseModel）
   metrics/            监控指标
   infrastructure/     postgres/redis/pgx 客户端、GORM 租户 Callback、
-                      SQL Migration 执行器（migrate.go）、生命周期
+                      SQL Migration 执行器（migrate.go）、统一事务
+                      （tx.go：TxManager/ResolveDB，ctx 传播事务 session）、
+                      生命周期
+  testsupport/        集成测试基础设施（TEST_PG_DSN 按需建库/迁移/清理）
   utils/              ratelimit/request/set/trace
   version/            版本信息（Makefile ldflags 注入，路径勿动）
   platform/
@@ -73,7 +76,10 @@ scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（
 ```bash
 make run            # 本地运行（需 postgres/redis 就绪，读 config/app.yaml）
 make build          # 构建到 bin/evolyn-core（注入版本 ldflags）
-make test           # 单测 + 覆盖率
+make test           # 单测 + 覆盖率（离线全绿，真库集测自动跳过）
+make test-integration  # 起本地 docker postgres 并以 TEST_PG_DSN 跑全部测试
+                    # （含 SEC-TENANT-*/MIGRATE-INT-* 真库集成用例）
+make vet            # go vet ./...
 make fmt            # gofmt -s 格式化
 make lint           # golangci-lint（需已安装）
 make swagger        # 重新生成 swagger 到 ./docs（gitignored，本地查阅用）
@@ -86,6 +92,10 @@ make redis          # 起本地 redis 容器
 - 域模块化：新资源归属既有域（iam/tenant/auth/audit）或按第 27 章 ADR-007 的结构新
   建域，域内遵循 controller → service → repository 小三层，同步补各层
   `interface.go` 与 `internal/platform/server/server.go` 装配。
+- 多步写流程必须走统一事务边界（整改 FIX-020/021）：Service 依赖 TxManager
+  接口（`WithinTransaction`），Repository 一律经 `infrastructure.ResolveDB`
+  取连接以加入 ctx 传播的事务；跨租户 Update/Delete 必须先加载再写，
+  禁止「租户过滤 0 行影响却返回成功」；审计在事务提交后独立写入（best-effort）。
 - 账号×成员拆分（ADR-006）是现行模型基线：登录身份（name/phone/password/
   OAuth 凭证）只挂 `accounts`；租户内身份（昵称/部门/分组/角色）挂 `users`。
   迁移期字段残留由启动幂等回填处理，新代码不要声明旧列。

@@ -5,9 +5,9 @@
 -- 快照库上重放迁移链应当零副作用：表/索引/约束使用与迁移一致的名字，
 -- 种子写入均带 ON CONFLICT DO NOTHING。
 -- 模型定版：ADR-006 账号×成员拆分 + ADR-007 域模块化 + 第一期整改 FIX-001~017
-CREATE DATABASE weave;
+CREATE DATABASE evolyn;
 
-\c weave;
+\c evolyn;
 
 -- 平台账号（登录身份，全局唯一；无 tenant_id——账号跨租户，ADR-006）。
 -- 先建账号再建租户：tenants.owner_account_id 外键依赖本表（FIX-016）
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     name varchar(100) NOT NULL UNIQUE,
     nickname varchar(100),
-    phone varchar(32) UNIQUE,
+    phone varchar(32),
     email varchar(256),
     password varchar(256),
     avatar varchar(256),
@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS accounts (
     updated_at timestamp with time zone,
     deleted_at timestamp with time zone
 );
+
+-- 手机号唯一性（000007）：非空才参与，未填账号落 '' 不互斥；
+-- 软删除友好，与迁移链 uk_accounts_phone 同名同构
+CREATE UNIQUE INDEX IF NOT EXISTS uk_accounts_phone
+    ON accounts (phone)
+    WHERE phone <> '' AND deleted_at IS NULL;
 
 INSERT INTO accounts (name, nickname, email, password, created_at) VALUES
     ('admin', 'admin', 'admin@weave.com', '$2a$10$5whQjJqSdL18PrEP.z/gZOubMKhFB38K0CvHWdnaQodb/H3yeG4J2', LOCALTIMESTAMP),

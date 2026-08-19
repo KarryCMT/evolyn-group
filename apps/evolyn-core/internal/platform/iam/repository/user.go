@@ -31,9 +31,10 @@ func newUserRepository(db *gorm.DB, rdb *infrastructure.RedisDB) UserRepository 
 }
 
 // withContext 以请求 ctx 打开新会话：GORM 租户 Callback 从
-// Statement.Context 读取租户并自动注入过滤/回填，租户对业务代码透明
+// Statement.Context 读取租户并自动注入过滤/回填，租户对业务代码透明。
+// ctx 携带事务 session 时加入外层事务（FIX-020/021 统一事务边界）
 func (u *userRepository) withContext(ctx context.Context) *gorm.DB {
-	return u.db.WithContext(ctx)
+	return infrastructure.ResolveDB(ctx, u.db)
 }
 
 func (u *userRepository) List(ctx context.Context) (model.Users, error) {
@@ -48,7 +49,7 @@ func (u *userRepository) List(ctx context.Context) (model.Users, error) {
 // 登录链路可能尚未注入租户上下文，此处显式按账号查全量成员关系
 func (u *userRepository) ListByAccount(ctx context.Context, accountID uint) (model.Users, error) {
 	users := make(model.Users, 0)
-	if err := u.db.WithContext(ctx).Preload(model.GroupAssociation).Preload("Roles").Where("account_id = ?", accountID).Order("id").Find(&users).Error; err != nil {
+	if err := u.withContext(ctx).Preload(model.GroupAssociation).Preload("Roles").Where("account_id = ?", accountID).Order("id").Find(&users).Error; err != nil {
 		return nil, err
 	}
 	return users, nil
@@ -57,7 +58,7 @@ func (u *userRepository) ListByAccount(ctx context.Context, accountID uint) (mod
 // GetByAccountAndTenant 精确定位账号在指定租户的成员（租户切换链路）
 func (u *userRepository) GetByAccountAndTenant(ctx context.Context, accountID, tenantID uint) (*model.User, error) {
 	user := new(model.User)
-	if err := u.db.WithContext(ctx).Preload(model.GroupAssociation).Preload(model.DepartmentAssociation).Preload("Roles").
+	if err := u.withContext(ctx).Preload(model.GroupAssociation).Preload(model.DepartmentAssociation).Preload("Roles").
 		Where("account_id = ? and tenant_id = ?", accountID, tenantID).First(user).Error; err != nil {
 		return nil, err
 	}
@@ -68,7 +69,7 @@ func (u *userRepository) GetByAccountAndTenant(ctx context.Context, accountID, t
 // 显式 Scope 而非依赖请求租户上下文（运营/定时任务可能无上下文）
 func (u *userRepository) CountByTenant(ctx context.Context, tenantID uint) (int64, error) {
 	var count int64
-	err := u.db.WithContext(ctx).Scopes(infrastructure.TenantScope(tenantID)).
+	err := u.withContext(ctx).Scopes(infrastructure.TenantScope(tenantID)).
 		Model(&model.User{}).Count(&count).Error
 	return count, err
 }

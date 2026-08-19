@@ -21,8 +21,10 @@ func newDepartmentRepository(db *gorm.DB, rdb *infrastructure.RedisDB) Departmen
 	}
 }
 
+// withContext 以请求 ctx 打开新会话，租户过滤由 GORM Callback 自动注入；
+// ctx 携带事务 session 时加入外层事务（FIX-021：成员创建与部门绑定同事务）
 func (d *departmentRepository) withContext(ctx context.Context) *gorm.DB {
-	return d.db.WithContext(ctx)
+	return infrastructure.ResolveDB(ctx, d.db)
 }
 
 func (d *departmentRepository) List(ctx context.Context) ([]model.Department, error) {

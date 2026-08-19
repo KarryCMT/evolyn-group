@@ -69,6 +69,11 @@ func (g *groupService) Update(ctx context.Context, id string, group *model.Group
 	if err != nil {
 		return nil, err
 	}
+	// 先加载再更新（FIX-022）：伪造他租分组 ID 时租户过滤使 Update 影响
+	// 0 行却返回成功，形成「假成功 + 假审计」
+	if _, err := g.groupRepository.GetGroupByID(ctx, uint(gid)); err != nil {
+		return nil, err
+	}
 	// 改名时校验租户内唯一（排除自身）
 	if err := g.ensureNameAvailable(ctx, group.Name, uint(gid)); err != nil {
 		return nil, err
@@ -89,6 +94,10 @@ func (g *groupService) Update(ctx context.Context, id string, group *model.Group
 func (g *groupService) Delete(ctx context.Context, id string) error {
 	gid, err := strconv.Atoi(id)
 	if err != nil {
+		return err
+	}
+	// 先加载再删除（FIX-022）：跨租户 ID 必须显式拒绝而非静默 0 行成功
+	if _, err := g.groupRepository.GetGroupByID(ctx, uint(gid)); err != nil {
 		return err
 	}
 

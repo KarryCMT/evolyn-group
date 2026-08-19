@@ -95,13 +95,15 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		return nil, err
 	}
 
-	// 域服务装配：审计/配额为跨域基础能力，先于业务服务构造
+	// 域服务装配：审计/配额/事务管理为跨域基础能力，先于业务服务构造
+	// （FIX-020/021：核心写路径经 TxManager 声明原子边界）
 	auditSvc := auditservice.NewService(auditRepo)
 	quotaSvc := tenantservice.NewQuotaService(tenantRepo, iamRepo.User())
+	txManager := infrastructure.NewTxManager(db)
 
-	tenantService := tenantservice.NewTenantService(tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention())
+	tenantService := tenantservice.NewTenantService(txManager, tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention())
 	accountService := service.NewAccountService(iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc)
-	userService := service.NewUserService(iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc)
+	userService := service.NewUserService(txManager, iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc)
 	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User(), auditSvc)
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User(), iamRepo.RBAC(), auditSvc)
 	jwtService := auth.NewJWTService(conf.Server.JWTSecret)

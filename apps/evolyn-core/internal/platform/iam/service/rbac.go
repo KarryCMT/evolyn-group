@@ -60,6 +60,11 @@ func (rbac *rbacService) Update(ctx context.Context, id string, role *model.Role
 	if err != nil {
 		return nil, err
 	}
+	// 先加载再更新（FIX-022）：伪造他租角色 ID 时 GORM 租户过滤使 Update
+	// 影响 0 行却返回成功，形成「假成功 + 假审计」；加载即被过滤拒绝
+	if _, err := rbac.rbacRepository.GetRoleByID(ctx, rid); err != nil {
+		return nil, err
+	}
 	// 改名时校验租户内唯一（排除自身）
 	if err := rbac.ensureNameAvailable(ctx, role.Name, uint(rid)); err != nil {
 		return nil, err
@@ -82,6 +87,10 @@ func (rbac *rbacService) Update(ctx context.Context, id string, role *model.Role
 func (rbac *rbacService) Delete(ctx context.Context, id string) error {
 	rid, err := strconv.Atoi(id)
 	if err != nil {
+		return err
+	}
+	// 先加载再删除（FIX-022）：跨租户 ID 必须显式拒绝而非静默 0 行成功
+	if _, err := rbac.rbacRepository.GetRoleByID(ctx, rid); err != nil {
 		return err
 	}
 

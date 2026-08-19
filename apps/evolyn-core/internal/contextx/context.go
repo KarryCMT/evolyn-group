@@ -21,6 +21,18 @@ func TenantIDFromContext(ctx context.Context) (uint, bool) {
 	return tenantID, ok
 }
 
+// DetachTenant 剥离租户上下文但保留其余键值（操作者/请求元数据/事务 session）。
+// 开通租户等平台级写入路径用它替代 context.Background()（FIX-020）：
+// 既避免运营者会话自带的租户上下文污染新租户数据，又让事务 session 继续
+// 向下传播——直接换 Background 会把 ctx 携带的事务切断
+func DetachTenant(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	// 以 nil 覆盖租户键：TenantIDFromContext 的类型断言随之失败即「无租户」
+	return context.WithValue(ctx, tenantIDKey{}, nil)
+}
+
 // Actor 请求操作者（ADR-006 账号×成员拆分）：账号为登录身份，成员为租户内身份。
 // 由 AuthenticationMiddleware 注入请求 context，业务审计等服务层从 ctx 读取
 type Actor struct {

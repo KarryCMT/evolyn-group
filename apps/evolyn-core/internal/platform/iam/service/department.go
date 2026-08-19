@@ -78,6 +78,11 @@ func (s *departmentService) Update(ctx context.Context, id string, dept *model.D
 	if err != nil {
 		return nil, err
 	}
+	// 先加载再更新（FIX-022）：伪造他租部门 ID 时租户过滤使 Update 影响
+	// 0 行却返回成功，形成「假成功 + 假审计」
+	if _, err := s.departmentRepo.GetByID(ctx, uint(did)); err != nil {
+		return nil, err
+	}
 	if dept.ParentId != nil {
 		if err := s.validateParent(ctx, *dept.ParentId, uint(did)); err != nil {
 			return nil, err
@@ -99,6 +104,10 @@ func (s *departmentService) Update(ctx context.Context, id string, dept *model.D
 func (s *departmentService) Delete(ctx context.Context, id string) error {
 	did, err := strconv.Atoi(id)
 	if err != nil {
+		return err
+	}
+	// 先加载再删除（FIX-022）：跨租户 ID 必须显式拒绝而非静默 0 行成功
+	if _, err := s.departmentRepo.GetByID(ctx, uint(did)); err != nil {
 		return err
 	}
 
