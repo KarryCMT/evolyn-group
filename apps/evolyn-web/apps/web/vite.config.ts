@@ -18,7 +18,17 @@ export default defineConfig({
     preprocessorOptions: {
       scss: {
         additionalData: `@use "~/styles/element/index.scss" as *;`,
-        api: 'modern-compiler',
+        // rolldown-vite 仅保留 modern Sass API，无需再声明 api: 'modern-compiler'
+      },
+    },
+  },
+
+  server: {
+    proxy: {
+      // 开发期将 /api 转发到本地 evolyn-core（默认 8080）；生产由网关同源托管
+      '/api': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
       },
     },
   },
