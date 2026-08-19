@@ -159,16 +159,25 @@ func (r *Repositories) Init() error {
 //  3. auth_infos.account_id 从旧 user_id 回填；
 //  4. 未设置 owner 的租户，owner 指向租内最小 ID 成员的账号。
 //
-// 旧列（users.name 等）不删除，代码不再声明即无业务影响；新库由 db.sql 保证干净
+// 旧列（users.name、auth_infos.user_id 等）不删除，代码不再声明即无业务影响；
+// 新库由 db.sql/迁移链保证干净——引用旧列的语句（第 1/3 步）先探测列存在再
+// 执行，新模型库直接跳过，否则 SQL 因 42703（列不存在）使启动必然失败
 func (r *Repositories) backfillAccountSplit() error {
-	// 同 ID 复制：避免 name/email 冲突重复导入
-	if err := r.db.Exec(`
-		INSERT INTO accounts (id, name, nickname, email, password, avatar, created_at, updated_at)
-		SELECT u.id, u.name, u.name, u.email, u.password, u.avatar, u.created_at, u.updated_at
-		FROM users u
-		WHERE NOT EXISTS (SELECT 1 FROM accounts a WHERE a.id = u.id OR a.name = u.name)
-	`).Error; err != nil {
+	// 第 1 步仅面向仍残留登录身份旧列的 weave 时代老库
+	hasUsersLegacyName, err := r.legacyColumnExists("users", "name")
+	if err != nil {
 		return err
+	}
+	if hasUsersLegacyName {
+		// 同 ID 复制：避免 name/email 冲突重复导入
+		if err := r.db.Exec(`
+			INSERT INTO accounts (id, name, nickname, email, password, avatar, created_at, updated_at)
+			SELECT u.id, u.name, u.name, u.email, u.password, u.avatar, u.created_at, u.updated_at
+			FROM users u
+			WHERE NOT EXISTS (SELECT 1 FROM accounts a WHERE a.id = u.id OR a.name = u.name)
+		`).Error; err != nil {
+			return err
+		}
 	}
 
 	if err := r.db.Exec(`
@@ -178,12 +187,19 @@ func (r *Repositories) backfillAccountSplit() error {
 		return err
 	}
 
-	if err := r.db.Exec(`
-		UPDATE auth_infos SET account_id = user_id
-		WHERE (account_id = 0 OR account_id IS NULL)
-		  AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = auth_infos.user_id)
-	`).Error; err != nil {
+	// 第 3 步依赖旧列 auth_infos.user_id，新模型库（仅 account_id）跳过
+	hasAuthInfosUserID, err := r.legacyColumnExists("auth_infos", "user_id")
+	if err != nil {
 		return err
+	}
+	if hasAuthInfosUserID {
+		if err := r.db.Exec(`
+			UPDATE auth_infos SET account_id = user_id
+			WHERE (account_id = 0 OR account_id IS NULL)
+			  AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = auth_infos.user_id)
+		`).Error; err != nil {
+			return err
+		}
 	}
 
 	// FIX-016：owner 为可空外键，NULL = 未设置；无成员的租户保持 NULL
@@ -199,6 +215,19 @@ func (r *Repositories) backfillAccountSplit() error {
 	}
 
 	return nil
+}
+
+// legacyColumnExists 探测历史旧列是否残留（backfillAccountSplit 的前置守卫）：
+// 查 information_schema 而非直接试跑 SQL，老库/新库两条路径都无副作用
+func (r *Repositories) legacyColumnExists(table, column string) (bool, error) {
+	var n int64
+	if err := r.db.Raw(`
+		SELECT COUNT(*) FROM information_schema.columns
+		WHERE table_schema = current_schema() AND table_name = ? AND column_name = ?
+	`, table, column).Scan(&n).Error; err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 // dropLegacyUniqueIndexes 移除 weave 时代的全局唯一索引：
