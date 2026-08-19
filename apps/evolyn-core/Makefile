@@ -1,4 +1,4 @@
-.PHONY: base build run test test-integration vet clean swagger fmt lint init install-swagger postgres redis exec-db ui
+.PHONY: base build run test test-integration vet clean swagger fmt lint init install-swagger postgres redis exec-db ui stop stop-postgres stop-redis stop-api
 
 GIT_VERSION = $(shell git describe --tags 2>/dev/null)
 GIT_COMMIT = $(shell git rev-parse --short HEAD 2>/dev/null)
@@ -25,6 +25,9 @@ PG_HOST ?= 127.0.0.1
 PG_PORT ?= 5432
 PG_PASSWORD ?= postgres
 TEST_PG_DSN ?= postgres://postgres:$(PG_PASSWORD)@$(PG_HOST):$(PG_PORT)/postgres?sslmode=disable
+
+# 本地 Redis：容器名固定 myredis（与 config/app.yaml 开发默认值配套）
+REDIS_CONTAINER ?= myredis
 
 base: clean test swagger fmt build ## 本地完整验收链：清理 → 单测 → swagger → 格式化 → 构建
 
@@ -82,7 +85,18 @@ exec-db: ## 进入业务库 evolyn 的 psql 交互终端
 	docker exec -it $(PG_CONTAINER) psql -d evolyn -U postgres
 
 redis: ## 启动本地 redis（密码与 config/app.yaml 开发默认值一致）
-	@docker start myredis || docker run --name myredis -d -p 6379:6379 redis --appendonly yes --requirepass 123456
+	@docker start $(REDIS_CONTAINER) 2>/dev/null || docker run --name $(REDIS_CONTAINER) -d -p 6379:6379 redis --appendonly yes --requirepass 123456
+
+stop: stop-api stop-postgres stop-redis ## 停止本地服务（API 进程 + postgres/redis 容器）
+
+stop-api: ## 停止后台运行的 evolyn-core API 进程（前台 make run 用 Ctrl+C 退出即可）
+	@pkill -f 'bin/$(BINARY)' 2>/dev/null && echo "evolyn-core api stopped" || echo "no running evolyn-core api process"
+
+stop-postgres: ## 停止本地 postgres 容器（仅 stop 不 rm，数据保留可再次 make postgres 复用）
+	@docker stop $(PG_CONTAINER) 2>/dev/null && echo "postgres container $(PG_CONTAINER) stopped" || echo "postgres container $(PG_CONTAINER) not running"
+
+stop-redis: ## 停止本地 redis 容器（仅 stop 不 rm，数据保留）
+	@docker stop $(REDIS_CONTAINER) 2>/dev/null && echo "redis container $(REDIS_CONTAINER) stopped" || echo "redis container $(REDIS_CONTAINER) not running"
 
 ui: ## 本地运行前端（相邻目录 evolyn-web）
 	cd ../evolyn-web && npm install && npm run dev
