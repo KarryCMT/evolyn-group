@@ -16,12 +16,17 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// 验证码场景白名单：一期限登录，注册/找回密码复用同一套发送与校验
+// 验证码场景白名单：登录与注册两场景（找回密码复用同一套发送与校验）
 const (
-	SceneLogin = "login"
+	SceneLogin    = "login"
+	SceneRegister = "register"
 )
 
-var validScenes = map[string]struct{}{SceneLogin: {}}
+var validScenes = map[string]struct{}{SceneLogin: {}, SceneRegister: {}}
+
+// DevFixedCode 开发/测试环境固定验证码（6 位，与随机码位数口径一致）；
+// 仅在 provider=dev 时经 Options.FixedCode 启用，生产通道不受影响
+const DevFixedCode = "666666"
 
 // 业务错误：调用方按错误语义映射 HTTP 状态码
 var (
@@ -61,10 +66,11 @@ type redisAPI interface {
 
 // Options 服务参数：零值回落内置默认（见 normalize）
 type Options struct {
-	CodeTTL  time.Duration // 验证码有效期（默认 5 分钟）
-	Cooldown time.Duration // 重发冷却（默认 60 秒）
-	MaxTries int           // 单码最大试错次数（默认 5，超限作废需重发）
-	DevEcho  bool          // 非生产联调：Send 返回后由调用方在响应中回显验证码
+	CodeTTL   time.Duration // 验证码有效期（默认 5 分钟）
+	Cooldown  time.Duration // 重发冷却（默认 60 秒）
+	MaxTries  int           // 单码最大试错次数（默认 5，超限作废需重发）
+	DevEcho   bool          // 非生产联调：Send 返回后由调用方在响应中回显验证码
+	FixedCode string        // 开发/测试固定验证码（如 666666）：非空时 Send 存储该码替代随机码，生产通道必须留空
 }
 
 func (o *Options) normalize() {
@@ -115,7 +121,7 @@ func (s *Service) Send(ctx context.Context, scene, phone string) (string, error)
 		return "", ErrCooldown
 	}
 
-	code, err := generateCode()
+	code, err := s.pickCode()
 	if err != nil {
 		return "", err
 	}
@@ -161,6 +167,15 @@ func (s *Service) Verify(ctx context.Context, scene, phone, code string) error {
 
 	s.rdb.Del(ctx, codeKey(scene, phone), triesKey(scene, phone))
 	return nil
+}
+
+// pickCode 选码：开发/测试配置了 FixedCode 时直接采用（跳过随机生成），
+// 否则走 6 位随机数字码
+func (s *Service) pickCode() (string, error) {
+	if s.opts.FixedCode != "" {
+		return s.opts.FixedCode, nil
+	}
+	return generateCode()
 }
 
 // generateCode 6 位数字验证码（保留前导零）

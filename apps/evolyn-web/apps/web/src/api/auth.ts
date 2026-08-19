@@ -1,10 +1,18 @@
 // 认证域接口：与后端 /api/v1/auth/* 一一对应
 // （见 evolyn-core internal/platform/auth/controller/auth.go）
 import { http } from './http'
-import type { JwtToken, LoginPayload, OpenTenantPayload, RegisterPayload, Tenant, TenantMembership } from '~/types'
+import type {
+  JwtToken,
+  LoginPayload,
+  OpenTenantPayload,
+  RegisterPayload,
+  RegisterResult,
+  Tenant,
+  TenantMembership,
+} from '~/types'
 
-/** 短信验证码场景：一期仅登录 */
-export type SmsScene = 'login'
+/** 短信验证码场景：login=登录 / register=注册 */
+export type SmsScene = 'login' | 'register'
 
 /** 发送短信验证码（60s 冷却/5min 有效由后端控制）；本地联调 devEcho 时回显验证码 */
 export function sendSmsCode(phone: string, scene: SmsScene): Promise<{ code?: string }> {
@@ -26,8 +34,9 @@ export function logout(): Promise<null> {
   return http.delete('/auth/token')
 }
 
-/** 注册平台账号（后端同时在默认租户建立成员身份） */
-export function register(payload: RegisterPayload): Promise<null> {
+/** 注册平台账号（手机号+验证码，验证码通过即注册并登录）：
+ *  免密注册——服务端生成随机登录名/密码；手机号已注册时等价短信登录（created=false） */
+export function register(payload: RegisterPayload): Promise<RegisterResult> {
   return http.post('/auth/user', payload)
 }
 

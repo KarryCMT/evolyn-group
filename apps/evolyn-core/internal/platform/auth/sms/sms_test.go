@@ -128,11 +128,65 @@ func TestSendAndVerifyHappyPath(t *testing.T) {
 func TestSendSceneAndPhoneValidation(t *testing.T) {
 	svc := newTestService(newFakeRedis(), &fakeSender{})
 
-	if _, err := svc.Send(context.Background(), "register", "13800001111"); !errors.Is(err, ErrScene) {
+	if _, err := svc.Send(context.Background(), "reset", "13800001111"); !errors.Is(err, ErrScene) {
 		t.Fatalf("unknown scene should be ErrScene, got %v", err)
 	}
 	if _, err := svc.Send(context.Background(), SceneLogin, "12345"); !errors.Is(err, ErrPhone) {
 		t.Fatalf("bad phone should be ErrPhone, got %v", err)
+	}
+}
+
+// TestRegisterSceneIsolatedFromLogin 注册场景可用，且验证码与 login 场景
+// 互不串用（scene 参与 Redis key）
+func TestRegisterSceneIsolatedFromLogin(t *testing.T) {
+	rdb, sender := newFakeRedis(), &fakeSender{}
+	svc := newTestService(rdb, sender)
+
+	loginCode, err := svc.Send(context.Background(), SceneLogin, "13800001111")
+	if err != nil {
+		t.Fatalf("send login code: %v", err)
+	}
+	registerCode, err := svc.Send(context.Background(), SceneRegister, "13800001111")
+	if err != nil {
+		t.Fatalf("send register code: %v", err)
+	}
+
+	// 注册码不能过 login 校验，登录码不能过 register 校验
+	if err := svc.Verify(context.Background(), SceneLogin, "13800001111", registerCode); !errors.Is(err, ErrCodeInvalid) {
+		t.Fatalf("register code should not pass login verify, got %v", err)
+	}
+	if err := svc.Verify(context.Background(), SceneRegister, "13800001111", loginCode); !errors.Is(err, ErrCodeInvalid) {
+		t.Fatalf("login code should not pass register verify, got %v", err)
+	}
+	// 各自场景内校验通过
+	if err := svc.Verify(context.Background(), SceneRegister, "13800001111", registerCode); err != nil {
+		t.Fatalf("verify register code: %v", err)
+	}
+	if err := svc.Verify(context.Background(), SceneLogin, "13800001111", loginCode); err != nil {
+		t.Fatalf("verify login code: %v", err)
+	}
+}
+
+// TestFixedCode 开发/测试固定验证码：配置后 Send 恒返回该码且 Verify 通过；
+// 未配置时维持 6 位随机码（前导零口径由正则覆盖）
+func TestFixedCode(t *testing.T) {
+	rdb := newFakeRedis()
+	svc := NewService(rdb, &fakeSender{}, Options{MaxTries: 3, FixedCode: DevFixedCode})
+
+	for range 2 {
+		code, err := svc.Send(context.Background(), SceneRegister, "13800001111")
+		if err != nil {
+			t.Fatalf("send: %v", err)
+		}
+		if code != DevFixedCode {
+			t.Fatalf("code = %q, want fixed %q", code, DevFixedCode)
+		}
+		// 冷却期内重发被拒，需先清冷却键再发第二次（fakeRedis 不含 TTL 语义）
+		delete(rdb.data, coolKey(SceneRegister, "13800001111"))
+	}
+
+	if err := svc.Verify(context.Background(), SceneRegister, "13800001111", DevFixedCode); err != nil {
+		t.Fatalf("verify fixed code: %v", err)
 	}
 }
 

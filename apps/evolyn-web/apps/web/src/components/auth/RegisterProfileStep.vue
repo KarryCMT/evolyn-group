@@ -1,30 +1,33 @@
 <script setup lang="ts">
 // 注册向导第 3 步「完善信息」：采集称呼、角色与了解渠道后进入产品。
 // 角色与渠道是「人」的画像，提交后由 PUT /accounts/me 落到账号 onboarding；
-// 昵称同步刷新当前成员的租户内称呼（后端事务内完成）
+// 昵称同步刷新当前成员的租户内称呼（后端事务内完成）。
+// 密码为选填：免密注册（短信验证码注册即登录）账号的补设置入口，
+// 填写即随「进入产品」首次设置（后端免旧密码），留空可后续再设
 import { reactive, useTemplateRef } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import { User } from '@element-plus/icons-vue'
+import { Lock, User } from '@element-plus/icons-vue'
 
 const props = defineProps<{
-  /** 昵称默认值：取第 1 步的登录名，降低输入成本 */
+  /** 昵称默认值：取第 1 步注册手机号的脱敏形式，降低输入成本 */
   defaultNickname?: string
   /** 提交中：按钮显示 loading 并防重复提交 */
   loading?: boolean
 }>()
 
 const emit = defineEmits<{
-  /** 进入产品：携带完善信息表单 */
-  submit: [profile: { nickname: string; role: string; channel: string }]
+  /** 进入产品：携带完善信息表单（password 选填，填写即首设密码） */
+  submit: [profile: { nickname: string; role: string; channel: string; password?: string }]
 }>()
 
 const formRef = useTemplateRef<FormInstance>('formRef')
 
-// 昵称默认带出登录名，可改
 const form = reactive({
   nickname: props.defaultNickname ?? '',
   role: '',
   channel: '',
+  password: '',
+  confirmPassword: '',
 })
 
 // 角色选项（单选）：值为运营分析用的稳定编码，展示用中文
@@ -50,6 +53,7 @@ const channelOptions = [
   { value: 'other', label: '其他' },
 ]
 
+// 密码选填：只在填写时校验（长度 + 两次一致）
 const rules: FormRules = {
   nickname: [
     { required: true, message: '请输入你的姓名', trigger: 'blur' },
@@ -57,6 +61,31 @@ const rules: FormRules = {
   ],
   role: [{ required: true, message: '请选择你的角色', trigger: 'change' }],
   channel: [{ required: true, message: '请选择了解渠道', trigger: 'change' }],
+  password: [
+    {
+      validator: (_rule, value: string, callback) => {
+        if (value && value.length < 6) {
+          callback(new Error('密码至少 6 位'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
+  confirmPassword: [
+    {
+      // 与首次输入的密码一致性校验（两者都填写时才比对）
+      validator: (_rule, value: string, callback) => {
+        if (form.password && value !== form.password) {
+          callback(new Error('两次输入的密码不一致'))
+        } else {
+          callback()
+        }
+      },
+      trigger: 'blur',
+    },
+  ],
 }
 
 async function handleSubmit() {
@@ -67,6 +96,7 @@ async function handleSubmit() {
     nickname: form.nickname.trim(),
     role: form.role,
     channel: form.channel,
+    password: form.password || undefined,
   })
 }
 </script>
@@ -114,6 +144,31 @@ async function handleSubmit() {
           :value="option.value"
         />
       </el-select>
+    </el-form-item>
+
+    <el-form-item prop="password" label="设置密码（选填）">
+      <el-input
+        v-model="form.password"
+        name="new-password"
+        type="password"
+        placeholder="不填则继续使用短信验证码登录"
+        autocomplete="new-password"
+        show-password
+        :prefix-icon="Lock"
+      />
+    </el-form-item>
+
+    <el-form-item v-if="form.password" prop="confirmPassword">
+      <el-input
+        v-model="form.confirmPassword"
+        name="confirm-password"
+        type="password"
+        placeholder="请再次输入密码"
+        autocomplete="new-password"
+        show-password
+        :prefix-icon="Lock"
+        @keyup.enter="handleSubmit"
+      />
     </el-form-item>
 
     <el-button

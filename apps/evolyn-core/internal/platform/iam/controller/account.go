@@ -98,13 +98,16 @@ func (a *AccountController) UpdateMe(c *gin.Context) {
 	httpx.ResponseSuccess(c, account)
 }
 
-// changePasswordRequest 密码修改
+// changePasswordRequest 密码修改/首次设置：短信免密注册账号（未设置过密码）
+// 首次设置时 oldPassword 可不传，其余情况必填
 type changePasswordRequest struct {
-	OldPassword string `json:"oldPassword" binding:"required"`
-	NewPassword string `json:"newPassword" binding:"required"`
+	OldPassword string `json:"oldPassword"`
+	NewPassword string `json:"newPassword" binding:"required,min=6"`
 }
 
 // @Summary 修改登录密码
+// @Description 修改登录密码；短信免密注册的账号（服务端随机密码）首次设置免旧密码，
+// 设置成功后恢复常规校验；newPassword 至少 6 位
 // @Accept json
 // @Produce json
 // @Tags 账号

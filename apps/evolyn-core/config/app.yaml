@@ -41,7 +41,7 @@ oauth:
     clientSecret: "" # set your client secret
 
 sms:
-  provider: "dev"      # 开发通道：仅日志不外发；生产接服务商后替换
+  provider: "dev"      # dev=开发通道（固定验证码 666666，仅日志不外发）；生产接服务商后替换，未支持的服务商启动即拦截
   codeTtlSeconds: 300  # 验证码有效期 5 分钟
   cooldownSeconds: 60  # 重发冷却 60 秒
   maxTries: 5          # 单码最大试错次数

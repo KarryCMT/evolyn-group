@@ -22,7 +22,11 @@ export function useAuth() {
 
   /** 登录：成功后持有 JWT；remember 控制令牌存储范围（持久/会话级） */
   async function login(payload: LoginPayload, remember = true) {
-    const jwt = await apiLogin(payload)
+    applyJwt(await apiLogin(payload), remember)
+  }
+
+  /** 直接持有已签发的 JWT（注册即登录等后端已返回令牌的场景），登录的底层复用 */
+  function applyJwt(jwt: { token: string }, remember = true) {
     rememberLogin = remember
     setToken(jwt.token, remember)
     token.value = jwt.token
@@ -50,5 +54,5 @@ export function useAuth() {
     return listTenants()
   }
 
-  return { token: readonly(token), isAuthenticated, login, logout, switchTenant, loadTenants }
+  return { token: readonly(token), isAuthenticated, login, applyJwt, logout, switchTenant, loadTenants }
 }

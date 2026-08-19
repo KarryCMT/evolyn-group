@@ -108,10 +108,14 @@ func (a *accountRepository) Update(ctx context.Context, account *model.Account) 
 	return account, nil
 }
 
-// UpdatePassword 直接写散列后的密码（服务层负责 bcrypt 与旧密码校验）
-func (a *accountRepository) UpdatePassword(ctx context.Context, id uint, hashed string) error {
+// UpdatePassword 直接写散列后的密码，并同步落「密码是否由用户设置」标记
+// （服务层负责 bcrypt 与旧密码校验；首设成功由服务层传 true）
+func (a *accountRepository) UpdatePassword(ctx context.Context, id uint, hashed string, initialized bool) error {
 	return a.withContext(ctx).Model(&model.Account{}).Where("id = ?", id).
-		Update("password", hashed).Error
+		Updates(map[string]interface{}{
+			"password":             hashed,
+			"password_initialized": initialized,
+		}).Error
 }
 
 func (a *accountRepository) AddAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error {

@@ -111,11 +111,18 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User(), auditSvc)
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User(), iamRepo.RBAC(), auditSvc)
 	jwtService := auth.NewJWTService(conf.Server.JWTSecret)
-	smsService := sms.NewService(rdb.Client, sms.NewDevSender(), sms.Options{
-		CodeTTL:  time.Duration(conf.SMS.CodeTTLSeconds) * time.Second,
-		Cooldown: time.Duration(conf.SMS.CooldownSeconds) * time.Second,
-		MaxTries: conf.SMS.MaxTries,
-		DevEcho:  conf.SMS.DevEcho,
+	// 短信通道按 provider 分派：dev（默认）走开发通道 + 固定验证码 666666，
+	// 便于本地/测试环境联调；真实服务商待接入，配置即启动拦截（fail-fast）
+	smsSender, smsFixedCode, err := buildSmsSender(conf.SMS.Provider)
+	if err != nil {
+		return nil, err
+	}
+	smsService := sms.NewService(rdb.Client, smsSender, sms.Options{
+		CodeTTL:   time.Duration(conf.SMS.CodeTTLSeconds) * time.Second,
+		Cooldown:  time.Duration(conf.SMS.CooldownSeconds) * time.Second,
+		MaxTries:  conf.SMS.MaxTries,
+		DevEcho:   conf.SMS.DevEcho,
+		FixedCode: smsFixedCode,
 	})
 	rbacService := service.NewRBACService(iamRepo.RBAC(), auditSvc)
 	oauthManager := oauth.NewOAuthManager(conf.OAuthConfig)
@@ -256,6 +263,12 @@ func (s *Server) initRouter() {
 		middleware.AuthorizationMiddleware(s.authorizer),
 	)
 
+	// 应用配置为公开引导端点（匿名可达，与 /healthz 同级定位）：直接挂
+	// api 组仅过全局链。不能进租户域 RBAC——RequestInfo 会把 /app/conf
+	// 解析为资源请求（resource=app），匿名用户仅持有 auth:create 规则，
+	// 未登录的登录/注册页将拿不到区号列表
+	controller.NewAppConfController().RegisterRoute(api)
+
 	controllers := make([]string, 0, len(s.controllers))
 	for _, router := range s.controllers {
 		// PlatformController 标记决定归属域（FIX-008：两个权限域不可串用）
@@ -277,6 +290,18 @@ func (s *Server) getRoutes() []string {
 		}
 	}
 	return paths.Slice()
+}
+
+// buildSmsSender 按配置分派短信通道与固定验证码：
+//   - dev（默认/空）：开发日志通道 + 固定码 666666（本地与测试环境联调用）
+//   - 其他值：真实服务商通道待接入，配置即启动拦截，避免静默走假通道
+func buildSmsSender(provider string) (sms.Sender, string, error) {
+	switch provider {
+	case "", "dev":
+		return sms.NewDevSender(), sms.DevFixedCode, nil
+	default:
+		return nil, "", fmt.Errorf("短信服务商 provider=%q 尚未支持（当前仅 dev），接入真实通道后实现 sms.Sender 并在此分派", provider)
+	}
 }
 
 type ServerStatus struct {

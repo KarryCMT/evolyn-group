@@ -7,3 +7,11 @@ import type { AccountProfilePayload } from '~/types'
 export function updateMyProfile(payload: AccountProfilePayload): Promise<null> {
   return http.put('/accounts/me', payload)
 }
+
+/** 修改登录密码：短信免密注册的账号首次设置可免旧密码（oldPassword 留空） */
+export function changeMyPassword(payload: {
+  oldPassword?: string
+  newPassword: string
+}): Promise<null> {
+  return http.put('/accounts/me/password', payload)
+}

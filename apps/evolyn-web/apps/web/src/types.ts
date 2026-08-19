@@ -30,12 +30,15 @@ export interface LoginPayload {
   tenantCode?: string
 }
 
-/** 注册请求（model.CreatedAccount）：创建账号并在默认租户建立成员关系 */
+/** 注册请求：手机号 + 短信验证码（scene=register），注册即登录不收集密码 */
 export interface RegisterPayload {
-  name: string
   phone: string
-  email?: string
-  password: string
+  smsCode: string
+}
+
+/** 注册结果：注册即登录直接返回会话令牌；created=false 表示手机号已注册（等价短信登录） */
+export interface RegisterResult extends JwtToken {
+  created: boolean
 }
 
 /** 账号的租户成员关系（service.TenantMembership） */

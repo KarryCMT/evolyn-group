@@ -1,10 +1,15 @@
 <script setup lang="ts">
-// 注册向导第 1 步：账号信息。只负责收集与校验，通过「下一步」上抛；
-// 须勾选服务条款与隐私政策后方可继续
-import { reactive, useTemplateRef } from 'vue'
+// 注册向导第 1 步「注册账号」：只收集手机号 + 短信验证码（设计稿口径），
+// 不收集用户名/密码——注册即登录，账号资料在后续步骤补全。「获取验证码」
+// 通过手机号校验后上抛父级发送并启动 60s 重发倒计时；提交校验通过后上抛，
+// 注册调用在父级
+import { onUnmounted, reactive, shallowRef, useTemplateRef } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
-import { Iphone, Lock, Message, User } from '@element-plus/icons-vue'
+import { Iphone } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+
+/** 重发倒计时秒数：与后端发送冷却窗口一致 */
+const RESEND_SECONDS = 60
 
 defineProps<{
   /** 提交中：按钮显示 loading 并防重复提交 */
@@ -12,67 +17,65 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  /** 校验通过后上抛账号信息，进入下一步 */
-  next: [payload: { name: string; phone: string; email?: string; password: string }]
+  /** 校验通过后上抛手机号 + 验证码，由父级发起注册（注册即登录） */
+  submit: [payload: { phone: string; smsCode: string }]
+  /** 请求发送注册短信验证码（先通过手机号校验） */
+  'send-code': [phone: string]
 }>()
 
 const formRef = useTemplateRef<FormInstance>('formRef')
 
 const form = reactive({
-  name: '',
   phone: '',
-  email: '',
-  password: '',
-  confirmPassword: '',
-  agreed: false,
+  smsCode: '',
 })
 
 const rules: FormRules = {
-  name: [
-    { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 3, max: 30, message: '长度需为 3 - 30 个字符', trigger: 'blur' },
-    { pattern: /^[a-zA-Z0-9_-]+$/, message: '仅支持字母、数字、下划线和连字符', trigger: 'blur' },
-  ],
   phone: [
     { required: true, message: '请输入手机号', trigger: 'blur' },
     { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' },
   ],
-  email: [{ type: 'email', message: '邮箱格式不正确', trigger: 'blur' }],
-  password: [
-    { required: true, message: '请设置密码', trigger: 'blur' },
-    { min: 6, max: 20, message: '长度需为 6 - 20 个字符', trigger: 'blur' },
-  ],
-  confirmPassword: [
-    { required: true, message: '请再次输入密码', trigger: 'blur' },
-    {
-      // 与首次输入的密码一致性校验
-      validator: (_rule, value: string, callback) => {
-        if (value !== form.password) {
-          callback(new Error('两次输入的密码不一致'))
-        } else {
-          callback()
-        }
-      },
-      trigger: 'blur',
-    },
+  smsCode: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    { pattern: /^\d{6}$/, message: '验证码为 6 位数字', trigger: 'blur' },
   ],
 }
 
-async function handleNext() {
+// 重发倒计时：发送即启动，到 0 自动恢复按钮
+const countdown = shallowRef(0)
+let timer: ReturnType<typeof setInterval> | undefined
+
+function startCountdown() {
+  countdown.value = RESEND_SECONDS
+  timer = setInterval(() => {
+    countdown.value -= 1
+    if (countdown.value <= 0) {
+      clearInterval(timer)
+      timer = undefined
+    }
+  }, 1000)
+}
+
+onUnmounted(() => {
+  if (timer !== undefined) clearInterval(timer)
+})
+
+async function handleSubmit() {
   const valid = await formRef.value?.validate().then(() => true, () => false)
   if (!valid) return
 
-  if (!form.agreed) {
-    ElMessage.warning('请先阅读并同意服务条款与隐私政策')
-    return
-  }
+  emit('submit', { phone: form.phone.trim(), smsCode: form.smsCode })
+}
 
-  emit('next', {
-    name: form.name.trim(),
-    phone: form.phone.trim(),
-    email: form.email.trim() || undefined,
-    password: form.password,
-  })
+function handleSendCode() {
+  // 仅校验手机号字段，通过后上抛发送请求并进入倒计时（频率由后端冷却兜底）
+  formRef.value
+    ?.validateField('phone')
+    .then(() => {
+      emit('send-code', form.phone.trim())
+      startCountdown()
+    })
+    .catch(() => {})
 }
 </script>
 
@@ -83,25 +86,13 @@ async function handleNext() {
     :model="form"
     :rules="rules"
     size="large"
-    label-position="top"
-    @submit.prevent="handleNext"
+    @submit.prevent="handleSubmit"
   >
-    <el-form-item prop="name">
-      <el-input
-        v-model="form.name"
-        name="name"
-        placeholder="请输入用户名"
-        autocomplete="username"
-        clearable
-        :prefix-icon="User"
-      />
-    </el-form-item>
-
     <el-form-item prop="phone">
       <el-input
         v-model="form.phone"
         name="phone"
-        placeholder="请输入手机号"
+        placeholder="你的手机号"
         autocomplete="tel"
         clearable
         :prefix-icon="Iphone"
@@ -110,79 +101,97 @@ async function handleNext() {
       </el-input>
     </el-form-item>
 
-    <el-form-item prop="email">
+    <el-form-item prop="smsCode">
       <el-input
-        v-model="form.email"
-        name="email"
-        placeholder="请输入邮箱（选填）"
-        autocomplete="email"
-        clearable
-        :prefix-icon="Message"
-      />
+        v-model="form.smsCode"
+        name="sms-code"
+        placeholder="收到的验证码"
+        autocomplete="one-time-code"
+        maxlength="6"
+        @keyup.enter="handleSubmit"
+      >
+        <!-- 获取验证码：输入框内右侧文字按钮（设计稿口径），倒计时中禁用 -->
+        <template #suffix>
+          <button
+            class="account-step__send"
+            type="button"
+            :disabled="countdown > 0 || loading"
+            @click="handleSendCode"
+          >
+            {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
+          </button>
+        </template>
+      </el-input>
     </el-form-item>
-
-    <el-form-item prop="password">
-      <el-input
-        v-model="form.password"
-        name="new-password"
-        type="password"
-        placeholder="设置密码（6 - 20 位）"
-        autocomplete="new-password"
-        show-password
-        :prefix-icon="Lock"
-      />
-    </el-form-item>
-
-    <el-form-item prop="confirmPassword">
-      <el-input
-        v-model="form.confirmPassword"
-        name="confirm-password"
-        type="password"
-        placeholder="请再次输入密码"
-        autocomplete="new-password"
-        show-password
-        :prefix-icon="Lock"
-        @keyup.enter="handleNext"
-      />
-    </el-form-item>
-
-    <el-checkbox v-model="form.agreed" class="account-step__agreement">
-      我已阅读并同意
-      <a class="account-step__link" @click.prevent="ElMessage.info('服务条款文档即将上线')">《服务条款》</a>
-      与
-      <a class="account-step__link" @click.prevent="ElMessage.info('隐私政策文档即将上线')">《隐私政策》</a>
-    </el-checkbox>
 
     <el-button
-      class="account-step__next"
+      class="account-step__register"
       type="primary"
       size="large"
       native-type="submit"
       :loading="loading"
     >
-      下一步
+      注册
     </el-button>
+
+    <!-- 协议口径（设计稿）：点击注册即视为同意，不做勾选框拦截 -->
+    <p class="account-step__agreement">
+      点击注册表明你已阅读并同意
+      <a class="account-step__link" @click.prevent="ElMessage.info('服务条款文档即将上线')">《服务条款》</a>
+      和
+      <a class="account-step__link" @click.prevent="ElMessage.info('隐私声明文档即将上线')">《隐私声明》</a>
+    </p>
+
+    <div class="account-step__help">
+      <a class="account-step__link" @click.prevent="ElMessage.info('如遇手机号无法注册，请联系客服处理')">手机号无法注册？点击此处</a>
+    </div>
   </el-form>
 </template>
 
 <style lang="scss" scoped>
+// 获取验证码：输入框内右侧无边框文字按钮，与后端冷却窗口联动禁用
+.account-step__send {
+  padding: 0;
+  font-size: var(--el-font-size-base);
+  color: var(--el-color-primary);
+  background: none;
+  border: none;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    color: var(--el-color-primary-light-3);
+  }
+
+  &:disabled {
+    color: var(--el-text-color-placeholder);
+    cursor: not-allowed;
+  }
+}
+
+.account-step__register {
+  width: 100%;
+}
+
+// 协议说明：主按钮下方居中的辅助文案（设计稿口径）
 .account-step__agreement {
-  margin: 4px 0 20px;
-  height: auto;
-  white-space: normal;
+  margin: 12px 0 0;
+  font-size: var(--el-font-size-small);
   line-height: 1.6;
-  align-items: flex-start;
+  text-align: center;
+  color: var(--el-text-color-secondary);
+}
+
+.account-step__help {
+  margin-top: 16px;
+  text-align: center;
 }
 
 .account-step__link {
   color: var(--el-color-primary);
+  cursor: pointer;
 
   &:hover {
     color: var(--el-color-primary-light-3);
   }
-}
-
-.account-step__next {
-  width: 100%;
 }
 </style>

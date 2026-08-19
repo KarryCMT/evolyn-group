@@ -19,6 +19,9 @@ type AccountService interface {
 	AuthByPhone(ctx context.Context, phone, tenantCode string) (*model.Account, *model.User, error)
 	// Register 注册：创建账号 + 默认租户成员
 	Register(ctx context.Context, account *model.Account) (*model.Account, *model.User, error)
+	// RegisterByPhone 短信免密注册：已注册手机号等价短信登录（created=false），
+	// 否则服务端生成随机登录名/密码建号（验证码由调用方经 sms 域校验）
+	RegisterByPhone(ctx context.Context, phone string) (*model.Account, *model.User, bool, error)
 	// CreateOAuthAccount OAuth 链路：复用或创建账号，返回默认成员
 	CreateOAuthAccount(ctx context.Context, account *model.Account) (*model.Account, *model.User, error)
 	// ListTenants 账号的成员关系列表（含 isOwner）

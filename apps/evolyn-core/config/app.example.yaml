@@ -41,3 +41,12 @@ oauth:
     authType: "github"
     clientId: ""
     clientSecret: ""
+
+sms:
+  # dev=开发通道（固定验证码 666666，仅日志不外发）；生产填写真实服务商标识，
+  # 未支持的服务商启动即拦截（接入新服务商：实现 sms.Sender 并在 server 装配处分派）
+  provider: "dev"
+  codeTtlSeconds: 300  # 验证码有效期（秒）
+  cooldownSeconds: 60  # 重发冷却（秒）
+  maxTries: 5          # 单码最大试错次数
+  devEcho: false       # 响应回显验证码（仅本地联调可开，生产必须 false）

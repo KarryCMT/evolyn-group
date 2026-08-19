@@ -53,20 +53,28 @@ internal/
   platform/
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
     controller/       Controller 注册契约（RegisterRoute/Name；
-                      PlatformController 标记平台运营域归属）
+                      PlatformController 标记平台运营域归属）与 AppConf
+                      应用配置控制器（GET /app/conf：区号列表/能力开关，
+                      公开引导端点直挂 api 组，不经租户域 RBAC）
     ginctx/           gin.Context 会话/上下文存取助手
     httpx/            统一响应封装
     middleware/       认证/租户/租户状态拦截/鉴权（平台与租户两条链）/
                       限流/CORS/日志/trace/监控
     auth/             认证域：JWT（claims 含 accountId/memberId/tenantId）、
                        OAuth（github/wechat）、短信验证码（sms/ 子包：Redis
-                       存码 + 冷却/试错上限，开发通道 devEcho 回显）、auth 控制器
-                       （含注册向导的自助开通租户 POST /auth/tenant：创建者即
-                       所有者并绑定 tenant-admin，编码服务端生成）
+                       存码 + 冷却/试错上限，场景 login/register；开发通道
+                       provider=dev 固定码 666666 + devEcho 回显，其他
+                       provider 启动拦截）、auth 控制器（POST /auth/user 为
+                       注册向导第 1 步「手机号+验证码」注册即登录：免密注册，
+                       服务端生成随机登录名/密码，已注册手机号等价短信登录；
+                       POST /auth/tenant 自助开通租户：创建者即所有者并绑定
+                       tenant-admin，编码服务端生成）
     iam/              身份域（域内 controller→service→repository 小三层）：
                        account 平台账号（PUT /accounts/me 自助资料含注册向导
                        「完善信息」的 onboarding JSONB 画像，昵称变更同事务同步
-                       当前成员昵称；迁移 000010/000011）/ user 租户成员 /
+                       当前成员昵称；PUT /accounts/me/password 密码修改——免密
+                       注册账号 password_initialized=false（迁移 000012）首设
+                       免旧密码；迁移 000010/000011）/ user 租户成员 /
                        group / rbac / department；authorization/ 自研 RBAC 鉴权
     tenant/           租户域（小三层）：租户 CRUD 与生命周期（注销保留期/
                       Purge Worker）、plan 套餐与配额、QuotaService 配额执行

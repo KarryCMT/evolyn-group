@@ -142,41 +142,61 @@ func (ac *AuthController) Logout(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// registerResult 注册结果：账号 + 默认租户成员
-type registerResult struct {
-	Account *model.Account `json:"account"`
-	Member  *model.User    `json:"member"`
+// registerBySmsRequest 注册请求（注册向导第 1 步「手机号+验证码」）：
+// 不收集用户名/密码，验证码 scene=register 通过即注册并登录
+type registerBySmsRequest struct {
+	Phone   string `json:"phone" binding:"required"`
+	SmsCode string `json:"smsCode" binding:"required"`
+}
+
+// registerTokenResult 注册结果：注册即登录，直接返回会话令牌；
+// created=false 表示手机号已注册（等价短信登录，向导重试幂等）
+type registerTokenResult struct {
+	Token    string `json:"token"`
+	Describe string `json:"describe"`
+	Created  bool   `json:"created"`
 }
 
 // @Summary 注册账号
-// @Description 创建平台账号及默认租户成员身份
+// @Description 手机号 + 短信验证码注册（注册向导第 1 步）：验证码通过即注册并登录，
+// 服务端生成随机登录名与随机密码（免密注册，后续可经 PUT /accounts/me/password 首次设置）；
+// 手机号已注册时等价短信登录直接放行（created=false），支持向导重试幂等
 // @Accept json
 // @Produce json
 // @Tags 认证
-// @Param account body model.CreatedAccount true "account info"
-// @Success 200 {object} httpx.Response{data=controller.registerResult}
+// @Param body body controller.registerBySmsRequest true "phone and sms code"
+// @Success 200 {object} httpx.Response{data=controller.registerTokenResult}
 // @Router /api/v1/auth/user [post]
 func (ac *AuthController) Register(c *gin.Context) {
-	createdAccount := new(model.CreatedAccount)
-	if err := c.BindJSON(createdAccount); err != nil {
+	req := new(registerBySmsRequest)
+	if err := c.BindJSON(req); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	account := createdAccount.GetAccount()
-	if err := ac.accountService.Validate(account); err != nil {
+	// 验证码校验先行（scene=register 与登录验证码隔离），失败即 401
+	if err := ac.smsService.Verify(c.Request.Context(), sms.SceneRegister, req.Phone, req.SmsCode); err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+
+	account, member, created, err := ac.accountService.RegisterByPhone(c.Request.Context(), req.Phone)
+	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	ac.accountService.Default(account)
-	account, member, err := ac.accountService.Register(c.Request.Context(), account)
+	token, err := ac.loginSession(c, account, member, false)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
 	}
 
-	httpx.ResponseSuccess(c, registerResult{Account: account, Member: member})
+	httpx.ResponseSuccess(c, registerTokenResult{
+		Token:    token,
+		Describe: "set token in Authorization Header, [Authorization: Bearer {token}]",
+		Created:  created,
+	})
 }
 
 // openTenantRequest 自助开通租户请求：名称必填；其余为注册向导采集的
@@ -224,7 +244,7 @@ func (ac *AuthController) OpenTenant(c *gin.Context) {
 	httpx.ResponseSuccess(c, tenant)
 }
 
-// smsSendRequest 发送验证码请求：scene 一期仅 login
+// smsSendRequest 发送验证码请求：scene 支持 login（登录）/ register（注册）
 type smsSendRequest struct {
 	Phone string `json:"phone" binding:"required"`
 	Scene string `json:"scene" binding:"required"`
@@ -236,8 +256,9 @@ type smsSendResult struct {
 }
 
 // @Summary 发送短信验证码
-// @Description 按场景发送 6 位短信验证码（一期场景 login）：默认 60 秒重发冷却、
-// 5 分钟有效期、单码最多试错 5 次后作废需重发；开发通道 devEcho=true 时响应回显验证码
+// @Description 按场景发送 6 位短信验证码（场景 login=登录 / register=注册）：默认 60 秒
+// 重发冷却、5 分钟有效期、单码最多试错 5 次后作废需重发；开发通道（provider=dev）固定
+// 验证码 666666，devEcho=true 时响应回显验证码（仅本地联调）
 // @Accept json
 // @Produce json
 // @Tags 认证

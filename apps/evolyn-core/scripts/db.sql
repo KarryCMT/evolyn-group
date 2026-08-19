@@ -1,5 +1,5 @@
 -- evolyn-core 冷启动初始化（终态快照）
--- 本文件 = migrations/ 000001..000008 全链执行后的等价状态，仅作
+-- 本文件 = migrations/ 000001..000012 全链执行后的等价状态，仅作
 -- make postgres 快速起库用；Schema 唯一事实来源是 migrations/（FIX-009），
 -- 结构变更必须同时提交 Migration，并同步维护本快照。
 -- 快照库上重放迁移链应当零副作用：表/索引/约束使用与迁移一致的名字，
@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     phone varchar(32),
     email varchar(256),
     password varchar(256),
+    password_initialized boolean DEFAULT true NOT NULL,
     avatar varchar(256),
     onboarding jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone,

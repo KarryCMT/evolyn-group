@@ -1,26 +1,34 @@
 <script setup lang="ts">
 // 注册向导：三步（注册账号 → 选择团队 → 完善信息）。
 // 提交编排要点：
-// - 幂等重试：先尝试用表单凭据登录，账号不存在才注册并登录——第 2 步失败重试
-//   不会因「账号已存在」而卡死
+// - 注册即登录：第 1 步「手机号+验证码」通过 POST /auth/user 验证码校验后
+//   直接返回会话令牌，前端 applyJwt 建立会话；手机号已注册时后端等价短信
+//   登录放行（created=false），重试天然幂等，无需「先登录试探」
 // - 创建团队：已是所有者则复用既有团队（重试场景），否则自助开通新租户并切换进入
 // - 加入团队：后端邀请码能力未上线，暂提示占位
-// - 完善信息：称呼/角色/了解渠道经 PUT /accounts/me 落账号画像，昵称同步成员称呼
+// - 完善信息：称呼/角色/了解渠道经 PUT /accounts/me 落账号画像，昵称同步成员称呼；
+//   密码为免密注册的补设置入口（选填，首设免旧密码）
 import { computed, shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { updateMyProfile } from '~/api/account'
-import { openMyTenant, register } from '~/api/auth'
+import { changeMyPassword, updateMyProfile } from '~/api/account'
+import { openMyTenant, register, sendSmsCode } from '~/api/auth'
 import { useAuth } from '~/composables'
-import type { RegisterPayload } from '~/types'
 
 const route = useRoute()
 const router = useRouter()
-const { login, loadTenants, switchTenant } = useAuth()
+const { applyJwt, loadTenants, switchTenant } = useAuth()
 
 const step = shallowRef(0)
-const accountDraft = shallowRef<RegisterPayload | null>(null)
+/** 已注册登录的手机号（第 3 步昵称默认带出脱敏手机号） */
+const registeredPhone = shallowRef('')
 const submitting = shallowRef(false)
+
+/** 手机号脱敏（138****1234）：第 3 步昵称默认值，与后端免密注册默认昵称同口径 */
+const maskedPhone = computed(() => {
+  const phone = registeredPhone.value
+  return phone.length === 11 ? `${phone.slice(0, 3)}****${phone.slice(7)}` : phone
+})
 
 // 卡片标题与副标题随步骤切换（第 3 步口径对齐设计稿）
 const titles = ['注册账号', '选择团队', '欢迎使用']
@@ -32,13 +40,49 @@ const subtitles = [
 const title = computed(() => titles[step.value])
 const subtitle = computed(() => subtitles[step.value])
 
-/** 第 1 步通过：暂存账号草稿，进入团队选择 */
-function handleAccountNext(payload: RegisterPayload) {
-  accountDraft.value = payload
-  step.value = 1
+/** 第 1 步「注册」：验证码通过即注册并登录，进入团队选择 */
+async function handleRegisterSubmit(payload: { phone: string; smsCode: string }) {
+  submitting.value = true
+  try {
+    const result = await register(payload)
+    applyJwt(result)
+    registeredPhone.value = payload.phone
+    if (!result.created) {
+      ElMessage.info('该手机号已注册，已为你直接登录')
+    }
+    step.value = 1
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '注册失败，请稍后重试')
+  } finally {
+    submitting.value = false
+  }
 }
 
-/** 第 2 步选择「创建团队」：注册/登录 → 开通（或复用）团队（含企业画像）→ 切换进入 */
+/** 发送注册验证码：本地联调（devEcho）时后端回显验证码，弹长时提示便于取码 */
+async function handleSendCode(phone: string) {
+  try {
+    const result = await sendSmsCode(phone, 'register')
+    if (result.code) {
+      ElMessage({
+        message: `【本地联调】验证码：${result.code}（5 分钟内有效）`,
+        type: 'info',
+        duration: 10000,
+        showClose: true,
+      })
+    } else {
+      ElMessage.success('验证码已发送，请注意查收短信')
+    }
+  } catch (err) {
+    // 冷却中给更友好的中文提示
+    if (err instanceof Error && err.message.includes('cooldown')) {
+      ElMessage.warning('发送太频繁，请稍后再试')
+    } else {
+      ElMessage.error(err instanceof Error ? err.message : '验证码发送失败')
+    }
+  }
+}
+
+/** 第 2 步选择「创建团队」：开通（或复用）团队（含企业画像）→ 切换进入 */
 async function handleTenantSubmit(choice: {
   mode: 'create' | 'join'
   tenantName?: string
@@ -51,16 +95,8 @@ async function handleTenantSubmit(choice: {
     return
   }
 
-  const account = accountDraft.value
-  if (!account) {
-    step.value = 0
-    return
-  }
-
   submitting.value = true
   try {
-    await ensureAccount(account)
-
     // 重试安全：已拥有团队则直接复用，避免重复开通；开通成功用返回的租户切换
     const tenants = await loadTenants()
     const owned = tenants.find(t => t.isOwner)
@@ -76,35 +112,30 @@ async function handleTenantSubmit(choice: {
     await switchTenant(target.tenantId)
     step.value = 2
   } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : '注册失败，请稍后重试')
+    ElMessage.error(err instanceof Error ? err.message : '开通团队失败，请稍后重试')
   } finally {
     submitting.value = false
   }
 }
 
-/** 第 2 步跳过：不建团队，注册并登录后直接完善信息（留在默认租户） */
-async function handleSkip() {
-  const account = accountDraft.value
-  if (!account) {
-    step.value = 0
-    return
-  }
-
-  submitting.value = true
-  try {
-    await ensureAccount(account)
-    step.value = 2
-  } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : '注册失败，请稍后重试')
-  } finally {
-    submitting.value = false
-  }
+/** 第 2 步跳过：不建团队，留在默认租户直接完善信息 */
+function handleSkip() {
+  step.value = 2
 }
 
-/** 第 3 步「进入产品」：完善信息落账号画像（昵称同步成员称呼）后进入平台 */
-async function handleProfileSubmit(profile: { nickname: string; role: string; channel: string }) {
+/** 第 3 步「进入产品」：完善信息落账号画像（昵称同步成员称呼）；
+ *  填写了密码则先首设密码（免密注册账号免旧密码），再进入平台 */
+async function handleProfileSubmit(profile: {
+  nickname: string
+  role: string
+  channel: string
+  password?: string
+}) {
   submitting.value = true
   try {
+    if (profile.password) {
+      await changeMyPassword({ newPassword: profile.password })
+    }
     await updateMyProfile({
       nickname: profile.nickname,
       onboarding: { role: profile.role, channel: profile.channel },
@@ -118,16 +149,6 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
     submitting.value = false
   }
 }
-
-/** 幂等保障：能登录说明账号已注册（重试场景），否则注册后再登录 */
-async function ensureAccount(account: RegisterPayload) {
-  try {
-    await login({ phone: account.phone, password: account.password })
-  } catch {
-    await register(account)
-    await login({ phone: account.phone, password: account.password })
-  }
-}
 </script>
 
 <template>
@@ -138,7 +159,12 @@ async function ensureAccount(account: RegisterPayload) {
       <el-step title="完善信息" />
     </el-steps>
 
-    <RegisterAccountStep v-if="step === 0" :loading="submitting" @next="handleAccountNext" />
+    <RegisterAccountStep
+      v-if="step === 0"
+      :loading="submitting"
+      @submit="handleRegisterSubmit"
+      @send-code="handleSendCode"
+    />
 
     <TenantChoiceStep
       v-else-if="step === 1"
@@ -150,7 +176,7 @@ async function ensureAccount(account: RegisterPayload) {
 
     <RegisterProfileStep
       v-else
-      :default-nickname="accountDraft?.name"
+      :default-nickname="maskedPhone"
       :loading="submitting"
       @submit="handleProfileSubmit"
     />

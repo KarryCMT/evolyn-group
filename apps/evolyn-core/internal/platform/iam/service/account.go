@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
+	"regexp"
 
 	"evolyn/internal/contextx"
 	tenantmodel "evolyn/internal/platform/tenant/model"
@@ -20,6 +22,9 @@ import (
 const (
 	MinPasswordLength = 6
 )
+
+// 手机号格式（与 sms 域同口径；iam 不反向依赖认证域，就地复制）
+var accountPhonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
 
 type accountService struct {
 	tx          TxManager
@@ -161,6 +166,109 @@ func (s *accountService) Register(ctx context.Context, account *model.Account) (
 	}
 
 	return account, member, nil
+}
+
+// RegisterByPhone 短信免密注册（注册向导第 1 步「手机号+验证码」）：
+// 验证码已由调用方经 sms 域校验（scene=register，即手机号持有证明）。
+// 手机号已注册则直接解析登录成员返回 created=false——与短信登录等价，
+// 注册向导后续步骤失败重试时不会因「账号已存在」卡死（幂等）；
+// 未注册则服务端生成随机登录名与随机密码（用户不可知，仅兜底满足
+// accounts.name/password 约束；PasswordInitialized=false 标记免密状态），
+// 账号 + 默认成员同事务提交（与 Register 同口径，防半注册孤儿）
+func (s *accountService) RegisterByPhone(ctx context.Context, phone string) (*model.Account, *model.User, bool, error) {
+	if !accountPhonePattern.MatchString(phone) {
+		return nil, nil, false, errors.New("invalid phone number")
+	}
+
+	if _, err := s.accountRepo.GetByPhone(ctx, phone); err == nil {
+		// 已注册：等价短信登录，直接返回登录身份
+		account, member, err := s.AuthByPhone(ctx, phone, "")
+		return account, member, false, err
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil, false, err
+	}
+
+	password, err := generateRandomSecret(16)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	hashed, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return nil, nil, false, err
+	}
+
+	// 显式取 false 指针：零值 bool 会被 GORM 的 default 标签省略、错走列默认 true
+	uninitialized := false
+	account := &model.Account{
+		Phone:               phone,
+		Nickname:            maskPhone(phone),
+		Password:            string(hashed),
+		PasswordInitialized: &uninitialized,
+	}
+
+	var member *model.User
+	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		name, err := s.uniqueLoginName(tctx)
+		if err != nil {
+			return err
+		}
+		account.Name = name
+
+		created, err := s.accountRepo.Create(tctx, account)
+		if err != nil {
+			return err
+		}
+		account = created
+
+		member, err = s.createDefaultMember(tctx, account)
+		return err
+	}); err != nil {
+		return nil, nil, false, err
+	}
+
+	return account, member, true, nil
+}
+
+// uniqueLoginName 生成未占用的随机登录名：u- 前缀 + 8 位 hex（4 字节
+// crypto/rand）。仅满足 name 唯一约束的机器标识，用户后续可经资料入口
+// 自定义；碰撞时查库重试，连续失败即上抛（事务回滚，重试注册安全）
+func (s *accountService) uniqueLoginName(ctx context.Context) (string, error) {
+	for i := 0; i < 3; i++ {
+		name, err := generateRandomSecret(4)
+		if err != nil {
+			return "", err
+		}
+		candidate := fmt.Sprintf("u-%s", name)
+		if _, err := s.accountRepo.GetByName(ctx, candidate); errors.Is(err, gorm.ErrRecordNotFound) {
+			return candidate, nil
+		} else if err != nil {
+			return "", err
+		}
+	}
+	return "", errors.New("failed to generate unique login name")
+}
+
+// maskPhone 手机号脱敏展示（如 138****1234）：免密注册账号的默认昵称
+func maskPhone(phone string) string {
+	if len(phone) != 11 {
+		return phone
+	}
+	return phone[:3] + "****" + phone[7:]
+}
+
+// passwordInitialized 读侧判定：nil 视同 true——历史账号与其他未显式
+// 落库的创建路径（OAuth 首登等）密码均为用户链路写入
+func passwordInitialized(account *model.Account) bool {
+	return account.PasswordInitialized == nil || *account.PasswordInitialized
+}
+
+// generateRandomSecret n 字节 crypto/rand 的 hex 串（2n 个字符）
+func generateRandomSecret(n int) (string, error) {
+	buf := make([]byte, n)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate random secret: %w", err)
+	}
+	return fmt.Sprintf("%x", buf), nil
 }
 
 // CreateOAuthAccount OAuth 登录链路：凭证已存在则复用账号并取默认成员；
@@ -391,7 +499,9 @@ func (s *accountService) UpdateProfile(ctx context.Context, account *model.Accou
 	return account, nil
 }
 
-// ChangePassword 账号自助：校验旧密码后重置
+// ChangePassword 账号自助：校验旧密码后重置。短信免密注册的账号
+// （PasswordInitialized=false，密码为服务端随机值）首次设置免旧密码，
+// 设置成功即置位，此后恢复常规旧密码校验
 func (s *accountService) ChangePassword(ctx context.Context, accountID uint, oldPassword, newPassword string) error {
 	if len(newPassword) < MinPasswordLength {
 		return fmt.Errorf("password length must great than %d", MinPasswordLength)
@@ -401,13 +511,15 @@ func (s *accountService) ChangePassword(ctx context.Context, accountID uint, old
 	if err != nil {
 		return err
 	}
-	if err := bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(oldPassword)); err != nil {
-		return fmt.Errorf("old password mismatch")
+	if passwordInitialized(account) {
+		if err := bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(oldPassword)); err != nil {
+			return fmt.Errorf("old password mismatch")
+		}
 	}
 
 	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
 	if err != nil {
 		return err
 	}
-	return s.accountRepo.UpdatePassword(ctx, accountID, string(hashed))
+	return s.accountRepo.UpdatePassword(ctx, accountID, string(hashed), true)
 }

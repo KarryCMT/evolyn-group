@@ -18,7 +18,13 @@ type Account struct {
 	Phone    string `json:"phone" gorm:"size:32;uniqueIndex"`          // 手机号，全局唯一；空值不参与唯一约束（PG 多 NULL 允许）
 	Email    string `json:"email" gorm:"size:256"`
 	Password string `json:"-" gorm:"size:256"`
-	Avatar   string `json:"avatar" gorm:"size:256"`
+	// 密码是否由用户本人设置（迁移 000012）：短信免密注册的账号存服务端
+	// 随机密码且此标记为 false，首次设置/修改密码免旧密码校验，置位后恢复
+	// 常规校验。用指针是 GORM 语义所需：非 nil 的 false 才会随 INSERT 显式
+	// 落库，零值 bool 会因 default 标签被省略、错走列默认 true；其余创建
+	// 路径留 nil，读侧视同 true（见 iam service）
+	PasswordInitialized *bool  `json:"passwordInitialized" gorm:"not null;default:true"`
+	Avatar              string `json:"avatar" gorm:"size:256"`
 	// 账号注册引导画像（注册向导第 3 步「完善信息」）：角色/了解渠道是
 	// 「人」的属性挂账号；租户级画像见 tenants.config 的 onboarding 段
 	Onboarding AccountOnboarding `json:"onboarding" gorm:"type:jsonb;not null;default:'{}'"`
@@ -76,23 +82,4 @@ type AuthInfo struct {
 
 func (*AuthInfo) TableName() string {
 	return "auth_infos"
-}
-
-// CreatedAccount 注册请求：创建账号并同时在默认租户建立成员关系（保持单租户默认体验）
-type CreatedAccount struct {
-	Name     string `json:"name"`
-	Phone    string `json:"phone"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
-	Avatar   string `json:"avatar"`
-}
-
-func (c *CreatedAccount) GetAccount() *Account {
-	return &Account{
-		Name:     c.Name,
-		Phone:    c.Phone,
-		Email:    c.Email,
-		Password: c.Password,
-		Avatar:   c.Avatar,
-	}
 }

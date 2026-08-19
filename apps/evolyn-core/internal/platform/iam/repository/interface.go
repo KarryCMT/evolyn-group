@@ -42,8 +42,8 @@ type AccountRepository interface {
 	Update(ctx context.Context, account *model.Account) (*model.Account, error)
 	AddAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
 	DelAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
-	// UpdatePassword 密码重置（已散列值，散列在服务层完成）
-	UpdatePassword(ctx context.Context, id uint, hashed string) error
+	// UpdatePassword 密码重置（已散列值，散列在服务层完成），同语句落 password_initialized
+	UpdatePassword(ctx context.Context, id uint, hashed string, initialized bool) error
 	Migrate() error
 }
 
