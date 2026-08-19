@@ -12,6 +12,9 @@ import (
 
 	"evolyn/internal/config"
 	"evolyn/internal/infrastructure"
+	// swagger spec 注册：swag init 生成的 docs 包经 init() 把接口定义
+	// 注册给 gin-swagger，不引入则 /swagger/doc.json 500（页面能开但无内容）
+	_ "evolyn/docs"
 	auditrepository "evolyn/internal/platform/audit/repository"
 	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/auth"
