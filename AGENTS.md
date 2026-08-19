@@ -59,10 +59,15 @@ internal/
     middleware/       认证/租户/租户状态拦截/鉴权（平台与租户两条链）/
                       限流/CORS/日志/trace/监控
     auth/             认证域：JWT（claims 含 accountId/memberId/tenantId）、
-                       OAuth（github/wechat）、auth 控制器
+                       OAuth（github/wechat）、短信验证码（sms/ 子包：Redis
+                       存码 + 冷却/试错上限，开发通道 devEcho 回显）、auth 控制器
+                       （含注册向导的自助开通租户 POST /auth/tenant：创建者即
+                       所有者并绑定 tenant-admin，编码服务端生成）
     iam/              身份域（域内 controller→service→repository 小三层）：
-                       account 平台账号 / user 租户成员 / group / rbac /
-                       department；authorization/ 自研 RBAC 鉴权
+                       account 平台账号（PUT /accounts/me 自助资料含注册向导
+                       「完善信息」的 onboarding JSONB 画像，昵称变更同事务同步
+                       当前成员昵称；迁移 000010/000011）/ user 租户成员 /
+                       group / rbac / department；authorization/ 自研 RBAC 鉴权
     tenant/           租户域（小三层）：租户 CRUD 与生命周期（注销保留期/
                       Purge Worker）、plan 套餐与配额、QuotaService 配额执行
     audit/            审计域：业务操作审计日志（Recorder，追加写流水）
@@ -135,9 +140,13 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
 - 文档站 `apps/docs/`（VitePress）。依赖版本走 `pnpm-workspace.yaml` 的
   `catalog:` 统一管理。
 - 主应用目录：`src/main.ts`（入口）；`src/router/index.ts`（**手动路由表**，
-  与 `src/pages/` 目录一一对应，新增页面在此登记）；`src/pages/`（页面）；
-  `src/composables/`（如 dark 暗色模式）；`src/styles/`（element 主题覆盖）。
-  布局与菜单组件（侧栏/顶栏）随首个前端业务批落地。
+  与 `src/pages/` 目录一一对应，新增页面在此登记；`meta.public` 标记公开页，
+  全局守卫拦截未登录访问）；`src/pages/`（页面，`auth/` 为登录/注册/找回密码）；
+  `src/api/`（HTTP 层：`http.ts` 统一 fetch 封装 + 按域拆分的接口模块，
+  对齐后端统一响应 `{code,msg,data}`）；`src/components/auth/`（认证域业务组件：
+  AuthLayout 骨架、登录/注册表单等）；`src/composables/`（auth 会话、dark 暗色）；
+  `src/styles/`（element 主题覆盖，默认 `el` 命名空间）。布局与菜单组件
+  （侧栏/顶栏）随后续前端业务批落地。
 
 常用命令（在 `apps/evolyn-web` 内执行，需 pnpm >= 10）：
 
@@ -151,6 +160,8 @@ pnpm -F @evolyn.do/web build        # 生产构建
 前端改动规则：
 
 - 使用 Composition API（`<script setup>`）+ TypeScript；`typecheck` 必须通过。
+- 样式统一引用 Element Plus 默认命名空间 CSS 变量（`--el-*`），不自定义 CSS
+  token；类名采用 BEM（块__元素--修饰符），优先组件内 scoped 样式。
 - 新增页面在 `src/pages/` 建文件并到 `src/router/index.ts` 登记（不用文件式
   自动路由）；布局/菜单组件落地后，菜单入口同步维护对应布局组件。
 - 数据表格统一采用 VisActor VTable 生态（见架构文档第 3 章），新列表页不要
@@ -162,7 +173,7 @@ pnpm -F @evolyn.do/web build        # 生产构建
 
 - 后端：`cd apps/evolyn-core && go test ./...`，必要时 `make lint`、`make run`。
 - 前端：`cd apps/evolyn-web && pnpm -F @evolyn.do/web typecheck && pnpm -F @evolyn.do/web build`；联调用 `deploy/docker-compose.yaml` 起依赖。
-- 跨端接口：字段名、错误码、鉴权头在 evolyn-core 控制器与前端调用侧两侧核对（前端 HTTP 层随首个业务批落地）。
+- 跨端接口：字段名、错误码、鉴权头在 evolyn-core 控制器与前端调用侧两侧核对（前端 HTTP 层已随登录批落地：`apps/web/src/api/`，开发期 Vite 将 `/api` 代理到本地 8080）。
 
 ## 文档约定
 
