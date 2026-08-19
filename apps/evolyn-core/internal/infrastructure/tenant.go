@@ -9,22 +9,17 @@ import (
 )
 
 // TenantScope 显式租户过滤 Scope，供绕过 context 的路径（脚本/后台任务）使用。
-// 常规请求路径由 RegisterTenantCallbacks 注册的 Callback 自动注入，Repository 禁止手写租户条件
+// 常规请求路径由 RegisterTenantCallbacks 注册的 Callback 自动注入，Repository 禁止手写租户条件。
+// 实现注意：GORM 的 Scope 在链式调用时立即执行，此刻 Statement.Schema 尚未解析，
+// 不能用 LookUpField 反射守卫——否则过滤条件被静默吞掉，查询退化为全表
+// （曾致配额统计数到全平台成员，任何租户开通被误杀）
 func TenantScope(tenantID uint) func(*gorm.DB) *gorm.DB {
 	return func(db *gorm.DB) *gorm.DB {
-		return applyTenantCondition(db, tenantID)
+		if tenantID == 0 {
+			return db
+		}
+		return db.Where(map[string]interface{}{"tenant_id": tenantID})
 	}
-}
-
-func applyTenantCondition(db *gorm.DB, tenantID uint) *gorm.DB {
-	if tenantID == 0 || db.Statement.Schema == nil {
-		return db
-	}
-	if db.Statement.Schema.LookUpField("TenantID") == nil {
-		return db
-	}
-	// 独立函数名便于在 SQL 日志中辨识租户过滤来源
-	return db.Where(map[string]interface{}{"tenant_id": tenantID})
 }
 
 // RegisterTenantCallbacks 注册租户 Callback（架构文档 26.3）：

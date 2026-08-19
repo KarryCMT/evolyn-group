@@ -6,11 +6,15 @@ import (
 	tenantmodel "evolyn/internal/platform/tenant/model"
 )
 
-// TenantService 租户域服务（运营面，P3-1）。调用链来自 /platform 域
-// 控制器；仓储层内部已剥离租户上下文，防止 tenants 表自我过滤
+// TenantService 租户域服务（P3-1）。运营面调用链来自 /platform 域控制器；
+// SelfOpen 供认证域注册向导自助开通。仓储层内部已剥离租户上下文，
+// 防止 tenants 表自我过滤
 type TenantService interface {
 	// Open 开通租户：租户 + owner 账号/成员 + 租户内系统组/角色种子
 	Open(ctx context.Context, req *OpenTenantRequest) (*tenantmodel.Tenant, error)
+	// SelfOpen 自助开通：owner 取自当前账号，编码服务端生成，套餐默认免费版；
+	// onboarding 为注册向导采集的企业画像（写入租户 Config，选填）
+	SelfOpen(ctx context.Context, ownerAccountID uint, name string, onboarding tenantmodel.OnboardingConfig) (*tenantmodel.Tenant, error)
 	List(ctx context.Context) ([]tenantmodel.Tenant, error)
 	Get(ctx context.Context, id string) (*tenantmodel.Tenant, error)
 	Update(ctx context.Context, id string, tenant *tenantmodel.Tenant) (*tenantmodel.Tenant, error)

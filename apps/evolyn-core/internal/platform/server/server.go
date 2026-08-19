@@ -20,6 +20,7 @@ import (
 	"evolyn/internal/platform/auth"
 	authcontroller "evolyn/internal/platform/auth/controller"
 	"evolyn/internal/platform/auth/oauth"
+	"evolyn/internal/platform/auth/sms"
 	"evolyn/internal/platform/controller"
 	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
@@ -105,11 +106,17 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	txManager := infrastructure.NewTxManager(db)
 
 	tenantService := tenantservice.NewTenantService(txManager, tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention())
-	accountService := service.NewAccountService(iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc)
+	accountService := service.NewAccountService(txManager, iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc)
 	userService := service.NewUserService(txManager, iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc)
 	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User(), auditSvc)
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User(), iamRepo.RBAC(), auditSvc)
 	jwtService := auth.NewJWTService(conf.Server.JWTSecret)
+	smsService := sms.NewService(rdb.Client, sms.NewDevSender(), sms.Options{
+		CodeTTL:  time.Duration(conf.SMS.CodeTTLSeconds) * time.Second,
+		Cooldown: time.Duration(conf.SMS.CooldownSeconds) * time.Second,
+		MaxTries: conf.SMS.MaxTries,
+		DevEcho:  conf.SMS.DevEcho,
+	})
 	rbacService := service.NewRBACService(iamRepo.RBAC(), auditSvc)
 	oauthManager := oauth.NewOAuthManager(conf.OAuthConfig)
 
@@ -117,7 +124,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	accountController := iamcontroller.NewAccountController(accountService)
 	departmentController := iamcontroller.NewDepartmentController(departmentService)
 	groupController := iamcontroller.NewGroupController(groupService)
-	authController := authcontroller.NewAuthController(accountService, jwtService, oauthManager)
+	authController := authcontroller.NewAuthController(accountService, jwtService, oauthManager, tenantService, smsService)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 

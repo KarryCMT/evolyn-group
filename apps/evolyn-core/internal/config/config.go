@@ -15,6 +15,18 @@ type Config struct {
 	Redis       RedisConfig            `yaml:"redis"`
 	Tenant      TenantRuntimeConfig    `yaml:"tenant"`
 	OAuthConfig map[string]OAuthConfig `yaml:"oauth"`
+	SMS         SMSConfig              `yaml:"sms"`
+}
+
+// SMSConfig 短信验证码运行参数：一期开发通道（provider=dev 仅打日志），
+// 生产接真实服务商时扩展 provider 与密钥字段
+type SMSConfig struct {
+	Provider        string `yaml:"provider"`        // 通道：dev（默认，日志不外发）
+	CodeTTLSeconds  int    `yaml:"codeTtlSeconds"`  // 验证码有效期秒（默认 300）
+	CooldownSeconds int    `yaml:"cooldownSeconds"` // 重发冷却秒（默认 60）
+	MaxTries        int    `yaml:"maxTries"`        // 单码最大试错次数（默认 5）
+	// DevEcho 响应中回显验证码：仅本地联调可开，生产必须关闭
+	DevEcho bool `yaml:"devEcho"`
 }
 
 type ServerConfig struct {

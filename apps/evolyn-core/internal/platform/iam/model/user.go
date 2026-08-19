@@ -64,12 +64,14 @@ func (u *UpdatedMember) GetMember() *User {
 }
 
 // AuthUser 登录请求：name 或 phone + password（账号级校验）；
+// 或 phone + smsCode（验证码登录，控制器先经 sms 域校验）；
 // OAuth 走 AuthType/AuthCode；TenantCode 可选——指定登录目标租户，
 // 不填则取该账号的第一个成员关系（默认租户体验）
 type AuthUser struct {
 	Name       string `json:"name"`
 	Phone      string `json:"phone"`
 	Password   string `json:"password"`
+	SmsCode    string `json:"smsCode"`
 	TenantCode string `json:"tenantCode"`
 	SetCookie  bool   `json:"setCookie"`
 	AuthType   string `json:"authType"`

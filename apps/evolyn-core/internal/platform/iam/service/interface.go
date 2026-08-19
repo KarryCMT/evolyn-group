@@ -15,6 +15,8 @@ import (
 type AccountService interface {
 	// Auth 账号密码校验并解析登录成员（TenantCode 可选指定目标租户）
 	Auth(ctx context.Context, auser *model.AuthUser) (*model.Account, *model.User, error)
+	// AuthByPhone 验证码登录：手机号定位账号并解析登录成员（验证码由调用方校验）
+	AuthByPhone(ctx context.Context, phone, tenantCode string) (*model.Account, *model.User, error)
 	// Register 注册：创建账号 + 默认租户成员
 	Register(ctx context.Context, account *model.Account) (*model.Account, *model.User, error)
 	// CreateOAuthAccount OAuth 链路：复用或创建账号，返回默认成员

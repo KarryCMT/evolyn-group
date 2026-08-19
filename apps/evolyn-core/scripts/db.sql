@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     email varchar(256),
     password varchar(256),
     avatar varchar(256),
+    onboarding jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     deleted_at timestamp with time zone
@@ -184,7 +185,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_roles_tenant_name
 
 INSERT INTO roles (name, scope, rules) VALUES
     ('cluster-admin', 'cluster', '[{"resource": "*", "operation": "*"}]'),
-    ('authenticated', 'cluster', '[{"resource": "users", "operation": "*"},{"resource": "auth", "operation": "*"}]'),
+    ('authenticated', 'cluster', '[{"resource": "users", "operation": "*"},{"resource": "auth", "operation": "*"},{"resource": "accounts", "operation": "*"}]'),
     ('unauthenticated', 'cluster', '[{"resource": "auth", "operation": "create"}]') ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS user_roles(
@@ -236,6 +237,7 @@ COMMENT ON COLUMN accounts.phone IS '手机号，非空时全局唯一（部分�
 COMMENT ON COLUMN accounts.email IS '邮箱';
 COMMENT ON COLUMN accounts.password IS '登录密码（bcrypt 摘要）；纯 OAuth 账号可为空';
 COMMENT ON COLUMN accounts.avatar IS '头像 URL';
+COMMENT ON COLUMN accounts.onboarding IS '账号注册引导画像：role 角色 / channel 了解渠道（注册向导第 3 步采集）';
 COMMENT ON COLUMN accounts.created_at IS '创建时间';
 COMMENT ON COLUMN accounts.updated_at IS '更新时间';
 COMMENT ON COLUMN accounts.deleted_at IS '软删除时间，NULL=未删除';

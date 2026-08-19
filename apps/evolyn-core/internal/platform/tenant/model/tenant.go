@@ -54,10 +54,11 @@ func (*Tenant) TableName() string {
 
 // TenantConfig 租户级配置（架构文档 26.5 config JSONB，对标简道云 tenant 域）
 type TenantConfig struct {
-	Watermark WatermarkConfig `json:"watermark"` // 水印
-	Theme     ThemeConfig     `json:"theme"`     // 品牌主题
-	Timezone  string          `json:"timezone"`  // IANA 时区，空串按服务端默认
-	Locale    string          `json:"locale"`    // 语言（zh_cn/en_us/...），空串按服务端默认
+	Watermark  WatermarkConfig  `json:"watermark"`  // 水印
+	Theme      ThemeConfig      `json:"theme"`      // 品牌主题
+	Timezone   string           `json:"timezone"`   // IANA 时区，空串按服务端默认
+	Locale     string           `json:"locale"`     // 语言（zh_cn/en_us/...），空串按服务端默认
+	Onboarding OnboardingConfig `json:"onboarding"` // 注册向导采集的企业画像（个性化模板/运营统计）
 }
 
 type WatermarkConfig struct {
@@ -68,6 +69,14 @@ type WatermarkConfig struct {
 
 type ThemeConfig struct {
 	AppNaviColor string `json:"appNaviColor"` // 应用导航栏配色：dark / light
+}
+
+// OnboardingConfig 注册向导第 2 步「创建团队」采集项（对齐截图口径）：
+// 仅作画像与模板推荐，不参与权限/配额判定
+type OnboardingConfig struct {
+	Demand          string   `json:"demand"`          // 你的需求（单选，选填）
+	Industry        string   `json:"industry"`        // 所属行业（单选）
+	ManagementNeeds []string `json:"managementNeeds"` // 企业内部管理需求（多选）
 }
 
 // 零值配置的合理默认：水印关、导航深色

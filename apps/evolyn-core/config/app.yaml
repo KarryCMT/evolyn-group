@@ -39,3 +39,10 @@ oauth:
   github:
     clientId: "85db232fde2c9320ece7" # set your client id
     clientSecret: "" # set your client secret
+
+sms:
+  provider: "dev"      # 开发通道：仅日志不外发；生产接服务商后替换
+  codeTtlSeconds: 300  # 验证码有效期 5 分钟
+  cooldownSeconds: 60  # 重发冷却 60 秒
+  maxTries: 5          # 单码最大试错次数
+  devEcho: true        # 响应回显验证码（仅本地联调，生产必须 false）

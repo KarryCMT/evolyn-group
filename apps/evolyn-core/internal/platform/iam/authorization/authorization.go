@@ -29,28 +29,26 @@ func (a *Authorizer) Authorize(ctx context.Context, user *model.User, ri *reques
 		return false, nil
 	}
 
-	if user.ID == 0 {
-		group, err := a.groupRepo.GetGroupByName(ctx, model.UnAuthenticatedGroup)
-		if err != nil {
-			return false, err
-		}
-		user.Groups = append(user.Groups, *group)
-	} else {
-		group, err := a.groupRepo.GetGroupByName(ctx, model.AuthenticatedGroup)
-		if err != nil {
-			return false, err
-		}
-		user.Groups = append(user.Groups, *group)
-	}
-
+	// 已认证用户先按 ID 重载完整成员关系（自身组/角色），再追加系统组——
+	// 顺序不可颠倒：GetUserByID 返回的新对象会覆盖 user.Groups，若先追加
+	// 系统组会被重载丢弃，导致无显式绑定的新成员（默认租户注册）鉴权恒假
 	var err error
 	if user.ID != 0 {
 		user, err = a.userRepo.GetUserByID(ctx, user.ID)
+		if err != nil {
+			return false, err
+		}
 	}
 
+	groupName := model.UnAuthenticatedGroup
+	if user.ID != 0 {
+		groupName = model.AuthenticatedGroup
+	}
+	group, err := a.groupRepo.GetGroupByName(ctx, groupName)
 	if err != nil {
 		return false, err
 	}
+	user.Groups = append(user.Groups, *group)
 
 	roles := make([]model.Role, 0)
 	roles = append(roles, user.Roles...)

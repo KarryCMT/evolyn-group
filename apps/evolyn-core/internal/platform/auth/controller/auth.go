@@ -2,17 +2,21 @@ package controller
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 
 	"evolyn/internal/platform/auth"
 	"evolyn/internal/platform/auth/oauth"
+	"evolyn/internal/platform/auth/sms"
 	platformcontroller "evolyn/internal/platform/controller"
 	"evolyn/internal/platform/ginctx"
 	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/service"
+	tenantmodel "evolyn/internal/platform/tenant/model"
+	tenantservice "evolyn/internal/platform/tenant/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -22,13 +26,17 @@ type AuthController struct {
 	accountService service.AccountService
 	jwtService     *auth.JWTService
 	oauthManger    *oauth.OAuthManager
+	tenantService  tenantservice.TenantService
+	smsService     *sms.Service
 }
 
-func NewAuthController(accountService service.AccountService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager) platformcontroller.Controller {
+func NewAuthController(accountService service.AccountService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service) platformcontroller.Controller {
 	return &AuthController{
 		accountService: accountService,
 		jwtService:     jwtService,
 		oauthManger:    oauthManager,
+		tenantService:  tenantService,
+		smsService:     smsService,
 	}
 }
 
@@ -71,7 +79,19 @@ func (ac *AuthController) Login(c *gin.Context) {
 		member  *model.User
 		err     error
 	)
-	if !oauth.IsEmptyAuthType(auser.AuthType) && auser.Name == "" && auser.Phone == "" {
+	switch {
+	case auser.SmsCode != "":
+		// 验证码登录：仅接受 phone + smsCode（免密），先校验验证码再解析账号
+		if auser.Phone == "" || auser.Password != "" || auser.Name != "" {
+			httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("sms login accepts phone and smsCode only"))
+			return
+		}
+		if err := ac.smsService.Verify(c.Request.Context(), sms.SceneLogin, auser.Phone, auser.SmsCode); err != nil {
+			httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+			return
+		}
+		account, member, err = ac.accountService.AuthByPhone(c.Request.Context(), auser.Phone, auser.TenantCode)
+	case !oauth.IsEmptyAuthType(auser.AuthType) && auser.Name == "" && auser.Phone == "":
 		provider, err := ac.oauthManger.GetAuthProvider(auser.AuthType)
 		if err != nil {
 			httpx.ResponseFailed(c, http.StatusBadRequest, err)
@@ -90,7 +110,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 		}
 
 		account, member, err = ac.accountService.CreateOAuthAccount(c.Request.Context(), userInfo.Account())
-	} else {
+	default:
 		account, member, err = ac.accountService.Auth(c.Request.Context(), auser)
 	}
 	if err != nil {
@@ -159,10 +179,104 @@ func (ac *AuthController) Register(c *gin.Context) {
 	httpx.ResponseSuccess(c, registerResult{Account: account, Member: member})
 }
 
+// openTenantRequest 自助开通租户请求：名称必填；其余为注册向导采集的
+// 企业画像（选填，写入租户 Config.onboarding 供个性化模板/运营统计）
+type openTenantRequest struct {
+	Name            string   `json:"name" binding:"required,min=2,max=50"`
+	Demand          string   `json:"demand"`          // 你的需求（单选）
+	Industry        string   `json:"industry"`        // 所属行业（单选）
+	ManagementNeeds []string `json:"managementNeeds"` // 企业内部管理需求（多选）
+}
+
+// @Summary 自助开通租户
+// @Description 注册向导「创建团队」：当前账号自助开通租户并成为所有者（绑定 tenant-admin 角色）；
+// 套餐默认免费版，编码由服务端随机生成；demand/industry/managementNeeds 为企业画像采集（选填）
+// @Accept json
+// @Produce json
+// @Tags 认证
+// @Security JWT
+// @Param body body controller.openTenantRequest true "tenant name and onboarding profile"
+// @Success 200 {object} httpx.Response{data=tenantmodel.Tenant}
+// @Router /api/v1/auth/tenant [post]
+func (ac *AuthController) OpenTenant(c *gin.Context) {
+	claims, ok := ac.sessionFrom(c)
+	if !ok {
+		return
+	}
+
+	req := new(openTenantRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	var tenant *tenantmodel.Tenant
+	tenant, err := ac.tenantService.SelfOpen(c.Request.Context(), claims.AccountID, req.Name, tenantmodel.OnboardingConfig{
+		Demand:          req.Demand,
+		Industry:        req.Industry,
+		ManagementNeeds: req.ManagementNeeds,
+	})
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	httpx.ResponseSuccess(c, tenant)
+}
+
+// smsSendRequest 发送验证码请求：scene 一期仅 login
+type smsSendRequest struct {
+	Phone string `json:"phone" binding:"required"`
+	Scene string `json:"scene" binding:"required"`
+}
+
+// smsSendResult 发送结果：仅本地联调（devEcho=true）时回显验证码
+type smsSendResult struct {
+	Code string `json:"code,omitempty"`
+}
+
+// @Summary 发送短信验证码
+// @Description 按场景发送 6 位短信验证码（一期场景 login）：默认 60 秒重发冷却、
+// 5 分钟有效期、单码最多试错 5 次后作废需重发；开发通道 devEcho=true 时响应回显验证码
+// @Accept json
+// @Produce json
+// @Tags 认证
+// @Param body body controller.smsSendRequest true "phone and scene"
+// @Success 200 {object} httpx.Response{data=controller.smsSendResult}
+// @Failure 429 {object} httpx.Response "发送冷却中"
+// @Router /api/v1/auth/sms/send [post]
+func (ac *AuthController) SendSmsCode(c *gin.Context) {
+	req := new(smsSendRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	code, err := ac.smsService.Send(c.Request.Context(), req.Scene, req.Phone)
+	if err != nil {
+		// 冷却中用 429，其余（场景/手机号非法）用 400
+		status := http.StatusBadRequest
+		if errors.Is(err, sms.ErrCooldown) {
+			status = http.StatusTooManyRequests
+		}
+		httpx.ResponseFailed(c, status, err)
+		return
+	}
+
+	result := smsSendResult{}
+	// devEcho 仅本地联调配置开启，生产环境恒为空
+	if ac.smsService.EchoEnabled() {
+		result.Code = code
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
 func (ac *AuthController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/auth/token", ac.Login)
 	api.DELETE("/auth/token", ac.Logout)
 	api.POST("/auth/user", ac.Register)
+	api.POST("/auth/tenant", ac.OpenTenant)
+	api.POST("/auth/sms/send", ac.SendSmsCode)
 	api.GET("/auth/tenants", ac.ListTenants)
 	api.POST("/auth/token/switch", ac.SwitchTenant)
 	api.GET("/auth/userinfo", ac.UserInfo)

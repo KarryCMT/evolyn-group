@@ -55,13 +55,15 @@ func (a *AccountController) GetMe(c *gin.Context) {
 
 // updateProfileRequest 资料更新（不含密码）
 type updateProfileRequest struct {
-	Nickname string `json:"nickname"`
-	Phone    string `json:"phone"`
-	Email    string `json:"email"`
-	Avatar   string `json:"avatar"`
+	Nickname   string                  `json:"nickname"`
+	Phone      string                  `json:"phone"`
+	Email      string                  `json:"email"`
+	Avatar     string                  `json:"avatar"`
+	Onboarding model.AccountOnboarding `json:"onboarding"` // 注册引导画像（角色/了解渠道），注册向导第 3 步提交
 }
 
 // @Summary 更新我的账号资料
+// @Description 自助更新账号资料；onboarding 为注册向导「完善信息」提交的角色与了解渠道画像，昵称非空时同步当前成员的租户内称呼
 // @Accept json
 // @Produce json
 // @Tags 账号
@@ -82,11 +84,12 @@ func (a *AccountController) UpdateMe(c *gin.Context) {
 	}
 
 	account, err := a.accountService.UpdateProfile(c.Request.Context(), &model.Account{
-		ID:       accountID,
-		Nickname: req.Nickname,
-		Phone:    req.Phone,
-		Email:    req.Email,
-		Avatar:   req.Avatar,
+		ID:         accountID,
+		Nickname:   req.Nickname,
+		Phone:      req.Phone,
+		Email:      req.Email,
+		Avatar:     req.Avatar,
+		Onboarding: req.Onboarding,
 	})
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)

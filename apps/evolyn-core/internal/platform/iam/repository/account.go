@@ -78,10 +78,31 @@ func (a *accountRepository) Create(ctx context.Context, account *model.Account) 
 	return account, nil
 }
 
-// Update 更新账号资料（昵称/邮箱/头像等），不含密码（密码走专用重置链路）
+// Update 更新账号资料（昵称/邮箱/头像/注册画像等），不含密码（密码走专用重置链路）。
+// 部分更新语义：只写非空字段——显式 Select 会让 GORM 强制落库零值，
+// 曾把请求未携带的 phone/email 清空（验证码登录随之 account not found）
 func (a *accountRepository) Update(ctx context.Context, account *model.Account) (*model.Account, error) {
+	cols := make([]string, 0, 5)
+	if account.Nickname != "" {
+		cols = append(cols, "nickname")
+	}
+	if account.Phone != "" {
+		cols = append(cols, "phone")
+	}
+	if account.Email != "" {
+		cols = append(cols, "email")
+	}
+	if account.Avatar != "" {
+		cols = append(cols, "avatar")
+	}
+	if account.Onboarding != (model.AccountOnboarding{}) {
+		cols = append(cols, "onboarding")
+	}
+	if len(cols) == 0 {
+		return account, nil
+	}
 	if err := a.withContext(ctx).Model(&model.Account{}).Where("id = ?", account.ID).
-		Select("nickname", "phone", "email", "avatar").Updates(account).Error; err != nil {
+		Select(cols).Updates(account).Error; err != nil {
 		return nil, err
 	}
 	return account, nil

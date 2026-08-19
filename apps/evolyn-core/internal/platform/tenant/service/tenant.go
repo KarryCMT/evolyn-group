@@ -2,8 +2,10 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"evolyn/internal/contextx"
@@ -89,6 +91,10 @@ type OpenTenantRequest struct {
 	OwnerPhone    string `json:"ownerPhone"`
 	OwnerEmail    string `json:"ownerEmail"`
 	OwnerPassword string `json:"ownerPassword"`
+
+	// Onboarding 注册向导企业画像：仅自助开通信道填写，平台运营开通不暴露
+	// （json:"-" 不出现在 API 契约，经 SelfOpen 内部传递）
+	Onboarding tenantmodel.OnboardingConfig `json:"-"`
 }
 
 // Validate 开通参数校验
@@ -139,6 +145,53 @@ func (s *tenantService) Open(ctx context.Context, req *OpenTenantRequest) (*tena
 	return tenant, nil
 }
 
+// SelfOpen 自助开通租户（注册向导「创建团队」）：创建者即所有者并绑定
+// tenant-admin 角色。编码由服务端随机生成（调用方不可指定，避免占用
+// 心仪编码），套餐留空走 Validate 默认免费版，后续可在租户设置中升级；
+// onboarding 为注册向导采集的企业画像，写入租户 Config（选填）
+func (s *tenantService) SelfOpen(ctx context.Context, ownerAccountID uint, name string, onboarding tenantmodel.OnboardingConfig) (*tenantmodel.Tenant, error) {
+	name = strings.TrimSpace(name)
+	if runeLen := len([]rune(name)); runeLen < 2 || runeLen > 50 {
+		return nil, fmt.Errorf("tenant name must be 2-50 characters")
+	}
+	if ownerAccountID == 0 {
+		return nil, fmt.Errorf("owner account is required")
+	}
+
+	// 随机编码撞唯一索引时自动换码重试；其余错误原样上抛
+	const attempts = 3
+	var (
+		tenant *tenantmodel.Tenant
+		err    error
+	)
+	for range attempts {
+		tenant, err = s.Open(ctx, &OpenTenantRequest{
+			Name:           name,
+			Code:           generateTenantCode(),
+			OwnerAccountID: ownerAccountID,
+			Onboarding:     onboarding,
+		})
+		if err == nil {
+			return tenant, nil
+		}
+		if !strings.Contains(err.Error(), "already exists") {
+			return nil, err
+		}
+	}
+	return nil, fmt.Errorf("failed to generate unique tenant code: %w", err)
+}
+
+// generateTenantCode 租户编码：t- 前缀 + 8 位随机 hex（16^32 空间），
+// 仅作登录识别用途，不承载业务语义
+func generateTenantCode() string {
+	buf := make([]byte, 4)
+	if _, err := rand.Read(buf); err != nil {
+		// crypto/rand 失败的极端场景：退回时间戳尾数，保留唯一性概率
+		return fmt.Sprintf("t-%x", time.Now().UnixNano())
+	}
+	return fmt.Sprintf("t-%x", buf)
+}
+
 // openInTx 事务内的开通主流程：调用方已开启事务，本方法内任一步失败由
 // 外层整体回滚。全程使用剥离租户的 ctx（contextx.DetachTenant 保留事务
 // session 与操作者/元数据）：运营者会话自带的租户上下文会污染新租户的
@@ -180,7 +233,12 @@ func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*
 		Plan:           req.Plan,
 		Status:         tenantmodel.TenantActive,
 		OwnerAccountId: &ownerAccount.ID,
-		Config:         tenantmodel.DefaultTenantConfig(),
+		Config: func() tenantmodel.TenantConfig {
+			// 默认配置为底、叠加注册向导采集的企业画像
+			config := tenantmodel.DefaultTenantConfig()
+			config.Onboarding = req.Onboarding
+			return config
+		}(),
 	}
 	tenant, err = s.tenantRepo.Create(bctx, tenant)
 	if err != nil {
@@ -236,6 +294,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},
 			{Resource: "auth", Operation: iammodel.AllOperation},
+			// 账号自助（/accounts/me 仅限本人资料/密码，无全局账号管理面）：
+			// 注册向导第 3 步「完善信息」依赖 update，存量租户由 000011 订正
+			{Resource: "accounts", Operation: iammodel.AllOperation},
 		}},
 		{Name: UnAuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "auth", Operation: "create"},

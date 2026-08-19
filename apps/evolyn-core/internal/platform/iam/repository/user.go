@@ -69,8 +69,8 @@ func (u *userRepository) GetByAccountAndTenant(ctx context.Context, accountID, t
 // 显式 Scope 而非依赖请求租户上下文（运营/定时任务可能无上下文）
 func (u *userRepository) CountByTenant(ctx context.Context, tenantID uint) (int64, error) {
 	var count int64
-	err := u.withContext(ctx).Scopes(infrastructure.TenantScope(tenantID)).
-		Model(&model.User{}).Count(&count).Error
+	err := u.withContext(ctx).Model(&model.User{}).
+		Scopes(infrastructure.TenantScope(tenantID)).Count(&count).Error
 	return count, err
 }
 
