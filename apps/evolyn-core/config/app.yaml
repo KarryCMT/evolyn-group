@@ -22,7 +22,12 @@ db:
   name: "firefly"
   user: "ffdp"
   password: "newff#c024"
-  migrate: true
+  migrate: false      # AutoMigrate 仅开发/测试（FIX-009）
+  migrations: true    # 启动时应用 migrations/ 版本化 SQL
+
+tenant:
+  retentionDays: 30
+  purgeIntervalSeconds: 3600
 
 redis:
   enable: true

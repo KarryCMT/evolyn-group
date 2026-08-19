@@ -8,13 +8,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// ptr 测试辅助：ParentId 为 *uint（NULL = 根，FIX-015）
+func ptr[V any](v V) *V { return &v }
+
 func TestBuildDepartmentTree(t *testing.T) {
 	depts := []model.Department{
-		{ID: 1, ParentId: 0, Name: "总部", Order: 1},
-		{ID: 2, ParentId: 1, Name: "研发部", Order: 2},
-		{ID: 3, ParentId: 1, Name: "销售部", Order: 1},
-		{ID: 4, ParentId: 2, Name: "后端组", Order: 1},
-		{ID: 5, ParentId: 99, Name: "孤儿节点", Order: 1}, // 父不存在 → 挂回根
+		{ID: 1, ParentId: nil, Name: "总部", Order: 1},           // NULL = 根
+		{ID: 2, ParentId: ptr(uint(1)), Name: "研发部", Order: 2},
+		{ID: 3, ParentId: ptr(uint(1)), Name: "销售部", Order: 1},
+		{ID: 4, ParentId: ptr(uint(2)), Name: "后端组", Order: 1},
+		{ID: 5, ParentId: ptr(uint(99)), Name: "孤儿节点", Order: 1}, // 父不存在 → 挂回根
 	}
 
 	tree := BuildDepartmentTree(depts)

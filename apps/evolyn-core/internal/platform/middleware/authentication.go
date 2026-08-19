@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"evolyn/internal/contextx"
 	"evolyn/internal/platform/ginctx"
 	"evolyn/internal/platform/httpx"
 	"fmt"
@@ -26,6 +27,11 @@ func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.U
 		claims, _ := jwtService.ParseToken(token)
 		if claims != nil {
 			ginctx.SetSession(c, claims)
+			// 操作者（账号+成员）随 ctx 下传，业务审计等服务层从 ctx 读取（FIX-013）
+			c.Request = c.Request.WithContext(contextx.NewActorContext(c.Request.Context(), contextx.Actor{
+				AccountID: claims.AccountID,
+				MemberID:  claims.MemberID,
+			}))
 			member, err := userRepo.GetUserByID(c.Request.Context(), claims.MemberID)
 			if err != nil {
 				httpx.ResponseFailed(c, http.StatusInternalServerError, fmt.Errorf("failed to get user"))

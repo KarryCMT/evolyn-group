@@ -23,7 +23,12 @@ db:
   name: "evolyn"
   user: "postgres"
   password: "postgres"
-  migrate: true
+  migrate: false       # GORM AutoMigrate（仅开发/测试实验，与 migrations 互斥）
+  migrations: true     # 版本化 SQL Migration（FIX-009，生产唯一 Schema 来源）
+
+tenant:
+  retentionDays: 30        # 租户注销后数据保留天数（FIX-012）
+  purgeIntervalSeconds: 3600  # 注销数据清理扫描周期（秒）
 
 redis:
   enable: true

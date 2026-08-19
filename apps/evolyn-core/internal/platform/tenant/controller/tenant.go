@@ -133,15 +133,21 @@ func (tc *TenantController) SetStatus(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
+// RegisterRoute 注册到平台运营组（FIX-008：装配层传入的即 /api/v1/platform，
+// 本控制器同时以 Platform() 标记自身归属平台域，不进入租户中间件链）
 func (tc *TenantController) RegisterRoute(api *gin.RouterGroup) {
-	platform := api.Group("/platform")
-	platform.GET("/tenants", tc.List)
-	platform.POST("/tenants", tc.Create)
-	platform.GET("/tenants/:id", tc.Get)
-	platform.PUT("/tenants/:id", tc.Update)
-	platform.PUT("/tenants/:id/status", tc.SetStatus)
+	api.GET("/tenants", tc.List)
+	api.POST("/tenants", tc.Create)
+	api.GET("/tenants/:id", tc.Get)
+	api.PUT("/tenants/:id", tc.Update)
+	api.PUT("/tenants/:id/status", tc.SetStatus)
 }
 
 func (tc *TenantController) Name() string {
 	return "PlatformTenant"
+}
+
+// Platform 平台运营域标记（FIX-008）
+func (tc *TenantController) Platform() bool {
+	return true
 }

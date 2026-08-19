@@ -27,7 +27,7 @@ type User struct {
 	Groups      []Group      `json:"groups" gorm:"many2many:user_groups;"`
 	Roles       []Role       `json:"roles" gorm:"many2many:user_roles;"`
 
-	kernel.BaseModel
+	kernel.TenantBaseModel
 }
 
 func (*User) TableName() string {

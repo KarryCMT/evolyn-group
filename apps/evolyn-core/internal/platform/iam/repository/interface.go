@@ -19,6 +19,9 @@ type UserRepository interface {
 	ListByAccount(ctx context.Context, accountID uint) (model.Users, error)
 	GetByAccountAndTenant(ctx context.Context, accountID, tenantID uint) (*model.User, error)
 	List(ctx context.Context) (model.Users, error)
+	// CountByTenant 指定租户的有效成员数（配额执行用，FIX-011）。
+	// 显式按租户计数：调用方（配额/运营路径）可能无租户上下文
+	CountByTenant(ctx context.Context, tenantID uint) (int64, error)
 	Create(ctx context.Context, member *model.User) (*model.User, error)
 	Update(ctx context.Context, member *model.User) (*model.User, error)
 	Delete(ctx context.Context, member *model.User) error

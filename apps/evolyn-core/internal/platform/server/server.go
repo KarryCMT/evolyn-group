@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"evolyn/internal/platform/httpx"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
@@ -16,7 +15,10 @@ import (
 	"evolyn/internal/platform/auth"
 	authcontroller "evolyn/internal/platform/auth/controller"
 	"evolyn/internal/platform/auth/oauth"
+	auditrepository "evolyn/internal/platform/audit/repository"
+	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/controller"
+	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
 	iamcontroller "evolyn/internal/platform/iam/controller"
 	"evolyn/internal/platform/iam/repository"
@@ -40,6 +42,11 @@ import (
 )
 
 func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
+	// FIX-009：两种 Schema 管理策略互斥，配错即拒绝启动
+	if conf.DB.Migrate && conf.DB.Migrations {
+		return nil, fmt.Errorf("db.migrate (AutoMigrate) and db.migrations (SQL migrations) are mutually exclusive")
+	}
+
 	rateLimitMiddleware, err := middleware.RateLimitMiddleware(conf.Server.LimitConfigs)
 	if err != nil {
 		return nil, err
@@ -55,11 +62,23 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		return nil, errors.Wrap(err, "redis client failed")
 	}
 
-	// 域仓储装配（ADR-007 域模块化）：tenant 先于 iam 迁移，
-	// 保证业务模型加 tenant_id 列时默认租户已就绪
+	// Schema 管理（FIX-009）：SQL Migration 是唯一生产路径；
+	// AutoMigrate 仅供开发/测试实验。种子/回填两条路径共享（幂等）
+	if conf.DB.Migrations {
+		if err := infrastructure.NewMigrator(db).Up(); err != nil {
+			return nil, errors.Wrap(err, "sql migrations failed")
+		}
+	}
+
+	// 域仓储装配（ADR-007 域模块化）：audit 无租户Callback 依赖先行；
+	// tenant 先于 iam AutoMigrate，保证业务模型加 tenant_id 列时默认租户已就绪
+	auditRepo := auditrepository.NewRepository(db)
 	tenantRepo := tenantrepository.NewRepository(db, rdb)
 	iamRepo := repository.NewRepositories(db, rdb)
 	if conf.DB.Migrate {
+		if err := auditRepo.Migrate(); err != nil {
+			return nil, err
+		}
 		if err := tenantRepo.Migrate(); err != nil {
 			return nil, err
 		}
@@ -76,13 +95,17 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		return nil, err
 	}
 
-	tenantService := tenantservice.NewTenantService(tenantRepo, iamRepo)
-	accountService := service.NewAccountService(iamRepo.Account(), iamRepo.User(), tenantRepo)
-	userService := service.NewUserService(iamRepo.User())
-	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User())
-	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User())
+	// 域服务装配：审计/配额为跨域基础能力，先于业务服务构造
+	auditSvc := auditservice.NewService(auditRepo)
+	quotaSvc := tenantservice.NewQuotaService(tenantRepo, iamRepo.User())
+
+	tenantService := tenantservice.NewTenantService(tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention())
+	accountService := service.NewAccountService(iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc)
+	userService := service.NewUserService(iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc)
+	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User(), auditSvc)
+	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User(), iamRepo.RBAC(), auditSvc)
 	jwtService := auth.NewJWTService(conf.Server.JWTSecret)
-	rbacService := service.NewRBACService(iamRepo.RBAC())
+	rbacService := service.NewRBACService(iamRepo.RBAC(), auditSvc)
 	oauthManager := oauth.NewOAuthManager(conf.OAuthConfig)
 
 	userController := iamcontroller.NewUserController(userService, departmentService)
@@ -98,9 +121,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 
 	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController}
 
+	// 注销数据清理任务（FIX-012）：随服务生命周期启停
+	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
+
 	gin.SetMode(conf.Server.ENV)
 
 	e := gin.New()
+	// 全局链路（FIX-008）：只保留与权限域无关的横切能力；
+	// 认证挂全局（平台/租户两域都需要会话解析，未认证请求照常放行至鉴权层）
 	e.Use(
 		gin.Recovery(),
 		rateLimitMiddleware,
@@ -109,18 +137,19 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		middleware.RequestInfoMiddleware(&request.RequestInfoFactory{APIPrefixes: set.NewString("api")}),
 		middleware.LogMiddleware(logger, "/"),
 		middleware.AuthenticationMiddleware(jwtService, iamRepo.User()),
-		middleware.TenantMiddleware(),
-		middleware.AuthorizationMiddleware(authorizer),
 		middleware.TraceMiddleware(),
 	)
 
 	return &Server{
-		engine:      e,
-		config:      conf,
-		logger:      logger,
-		db:          db,
-		rdb:         rdb,
-		controllers: controllers,
+		engine:        e,
+		config:        conf,
+		logger:        logger,
+		db:            db,
+		rdb:           rdb,
+		controllers:   controllers,
+		purgeWorker:   purgeWorker,
+		authorizer:    authorizer,
+		tenantRepo:    tenantRepo,
 	}, nil
 }
 
@@ -134,6 +163,9 @@ type Server struct {
 	rdb *infrastructure.RedisDB
 
 	controllers []controller.Controller
+	purgeWorker *tenantservice.PurgeWorker
+	authorizer  *authorization.Authorizer
+	tenantRepo  tenantrepository.TenantRepository
 }
 
 // graceful shutdown
@@ -141,6 +173,11 @@ func (s *Server) Run() error {
 	defer s.Close()
 
 	s.initRouter()
+
+	// 注销清理任务随服务启动，ctx 取消即退出（FIX-012）
+	workerCtx, workerCancel := context.WithCancel(context.Background())
+	defer workerCancel()
+	go s.purgeWorker.Run(workerCtx)
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Address, s.config.Server.Port)
 	s.logger.Infof("Start server on: %s", addr)
@@ -151,7 +188,7 @@ func (s *Server) Run() error {
 	}
 
 	go func() {
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			s.logger.Fatalf("Failed to start server, %v", err)
 		}
 	}()
@@ -175,6 +212,10 @@ func (s *Server) Close() {
 
 }
 
+// initRouter 注册业务路由（FIX-008 域隔离）：
+//
+//	/api/v1/platform/*  Authentication + PlatformAuthorization（无租户上下文）
+//	/api/v1/*           Authentication + Tenant + TenantStatus + Authorization
 func (s *Server) initRouter() {
 	root := s.engine
 
@@ -190,9 +231,27 @@ func (s *Server) initRouter() {
 	}
 
 	api := root.Group("/api/v1")
+
+	// 平台运营域：无 TenantMiddleware/TenantStatusMiddleware（FIX-008）
+	platform := api.Group("/platform")
+	platform.Use(middleware.PlatformAuthorizationMiddleware())
+
+	// 租户域：解析/注入租户 → 状态拦截（FIX-007）→ 资源级鉴权
+	tenantAPI := api.Group("")
+	tenantAPI.Use(
+		middleware.TenantMiddleware(),
+		middleware.TenantStatusMiddleware(s.tenantRepo),
+		middleware.AuthorizationMiddleware(s.authorizer),
+	)
+
 	controllers := make([]string, 0, len(s.controllers))
 	for _, router := range s.controllers {
-		router.RegisterRoute(api)
+		// PlatformController 标记决定归属域（FIX-008：两个权限域不可串用）
+		if pc, ok := router.(controller.PlatformController); ok && pc.Platform() {
+			router.RegisterRoute(platform)
+		} else {
+			router.RegisterRoute(tenantAPI)
+		}
 		controllers = append(controllers, router.Name())
 	}
 	logrus.Infof("server enabled controllers: %v", controllers)

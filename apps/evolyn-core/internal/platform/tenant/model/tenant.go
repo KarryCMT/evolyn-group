@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	kernel "evolyn/internal/model"
 )
@@ -32,13 +33,19 @@ type Tenant struct {
 	Plan   string `json:"plan" gorm:"size:32;not null;default:free"`     // 套餐，取值见 plan.go
 	Status string `json:"status" gorm:"size:16;not null;default:active"` // active/frozen/deleted
 
-	// OwnerAccountId 开通者账号（is_owner 语义锚点，ADR-006）；0 表示未设置
-	//（存量默认租户回填时写入 admin 成员对应账号）
-	OwnerAccountId uint         `json:"ownerAccountId" gorm:"index;not null;default:0"`
-	Config         TenantConfig `json:"config" gorm:"type:jsonb"` // 品牌/水印/时区/语言（26.5）
-	Quotas         Quotas       `json:"quotas" gorm:"type:jsonb"` // 套餐配额覆盖，空则用套餐默认值
+	// OwnerAccountId 开通者账号（is_owner 语义锚点，ADR-006）。
+	// FIX-016：NULL = 暂未设置 Owner（原 0 哨兵值废除），非空时数据库层
+	// 外键引用 accounts(id)，不再可能出现指向不存在账号的 Owner
+	OwnerAccountId *uint         `json:"ownerAccountId" gorm:"index"`
+	Config         TenantConfig  `json:"config" gorm:"type:jsonb"` // 品牌/水印/时区/语言（26.5）
+	Quotas         Quotas        `json:"quotas" gorm:"type:jsonb"` // 套餐配额覆盖，空则用套餐默认值
 
-	kernel.BaseModel
+	// 注销生命周期（FIX-012）：deleted 状态记录申请与保留截止，到期由 Purge Worker 清理
+	DeleteRequestedAt *time.Time `json:"deleteRequestedAt"` // 注销申请时间
+	RetentionUntil    *time.Time `json:"retentionUntil"`    // 数据保留截止时间
+	PurgedAt          *time.Time `json:"purgedAt"`          // 最终清理完成时间（墓碑标记）
+
+	kernel.PlatformBaseModel // 平台一级资源，无 tenant_id（FIX-014）
 }
 
 func (*Tenant) TableName() string {

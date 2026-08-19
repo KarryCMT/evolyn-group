@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"time"
 
+	auditservice "evolyn/internal/platform/audit/service"
 	iammodel "evolyn/internal/platform/iam/model"
 	iamrepository "evolyn/internal/platform/iam/repository"
 	tenantmodel "evolyn/internal/platform/tenant/model"
@@ -20,17 +22,37 @@ const (
 	UnAuthenticatedRole = "unauthenticated"
 )
 
+// DefaultRetentionPeriod 注销数据默认保留期（FIX-012）：保留期内可恢复，
+// 到期由 Purge Worker 物理清理。可用配置 tenant.retentionDays 覆盖
+const DefaultRetentionPeriod = 30 * 24 * time.Hour
+
 // tenantService 租户域服务：开通/查询/配置/生命周期流转（运营面）。
-// 依赖 iam 仓储完成「开通即建 owner 成员 + 租户内系统组/角色种子」
+// 依赖 iam 仓储完成「开通即建 owner 成员 + 租户内系统组/角色种子」；
+// 审计记录关键运营操作（FIX-013），配额服务在开建成员前校验（FIX-011）
 type tenantService struct {
 	tenantRepo tenantrepository.TenantRepository
 	iam        *iamrepository.Repositories
+	quota      QuotaService
+	audit      auditservice.Recorder
+	retention  time.Duration
 }
 
-func NewTenantService(tenantRepo tenantrepository.TenantRepository, iam *iamrepository.Repositories) TenantService {
+func NewTenantService(
+	tenantRepo tenantrepository.TenantRepository,
+	iam *iamrepository.Repositories,
+	quota QuotaService,
+	audit auditservice.Recorder,
+	retention time.Duration,
+) TenantService {
+	if retention <= 0 {
+		retention = DefaultRetentionPeriod
+	}
 	return &tenantService{
 		tenantRepo: tenantRepo,
 		iam:        iam,
+		quota:      quota,
+		audit:      audit,
+		retention:  retention,
 	}
 }
 
@@ -108,7 +130,7 @@ func (s *tenantService) Open(ctx context.Context, req *OpenTenantRequest) (*tena
 		Name:           req.Name,
 		Plan:           req.Plan,
 		Status:         tenantmodel.TenantActive,
-		OwnerAccountId: ownerAccount.ID,
+		OwnerAccountId: &ownerAccount.ID,
 		Config:         tenantmodel.DefaultTenantConfig(),
 	}
 	tenant, err = s.tenantRepo.Create(bctx, tenant)
@@ -116,7 +138,12 @@ func (s *tenantService) Open(ctx context.Context, req *OpenTenantRequest) (*tena
 		return nil, err
 	}
 
-	// owner 成员：显式指定租户归属
+	// owner 成员：先配额校验（FIX-011），再显式指定租户归属创建
+	if s.quota != nil {
+		if err = s.quota.Check(bctx, tenant.ID, tenantmodel.QuotaMembers); err != nil {
+			return nil, err
+		}
+	}
 	nickname := ownerAccount.Nickname
 	if nickname == "" {
 		nickname = ownerAccount.Name
@@ -138,6 +165,16 @@ func (s *tenantService) Open(ctx context.Context, req *OpenTenantRequest) (*tena
 	}
 	if err = s.iam.User().AddRole(bctx, tenantAdmin, member); err != nil {
 		return nil, err
+	}
+
+	// 审计：租户开通（平台级操作，显式落租户归属）
+	if s.audit != nil {
+		s.audit.Record(bctx, auditservice.Entry{
+			Module: "tenant", Action: "create", ResourceType: "tenant",
+			ResourceID: strconv.FormatUint(uint64(tenant.ID), 10),
+			TenantID:   tenant.ID,
+			After:      map[string]any{"code": tenant.Code, "name": tenant.Name, "plan": tenant.Plan, "ownerAccountId": ownerAccount.ID},
+		})
 	}
 
 	return tenant, nil
@@ -236,10 +273,21 @@ func (s *tenantService) Update(ctx context.Context, id string, tenant *tenantmod
 		return nil, fmt.Errorf("unknown plan: %s", tenant.Plan)
 	}
 	tenant.ID = uint(tid)
-	return s.tenantRepo.Update(ctx, tenant)
+	updated, err := s.tenantRepo.Update(ctx, tenant)
+	if err == nil && s.audit != nil {
+		// 套餐/配额变更属商业化敏感操作，优先记录（FIX-013）
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "tenant", Action: "update", ResourceType: "tenant",
+			ResourceID: id,
+			After:      map[string]any{"name": tenant.Name, "plan": tenant.Plan, "quotas": tenant.Quotas},
+		})
+	}
+	return updated, err
 }
 
-// SetStatus 生命周期流转：active/frozen/deleted（架构文档 26.2）
+// SetStatus 生命周期流转（FIX-007/012）：状态变更即时生效（请求链状态拦截
+// 依赖 UpdateStatus 同步失效缓存）；deleted 落注销申请与保留截止时间，
+// active 恢复时清空注销时间线
 func (s *tenantService) SetStatus(ctx context.Context, id string, status string) error {
 	switch status {
 	case tenantmodel.TenantActive, tenantmodel.TenantFrozen, tenantmodel.TenantDeleted:
@@ -251,5 +299,27 @@ func (s *tenantService) SetStatus(ctx context.Context, id string, status string)
 	if err != nil {
 		return err
 	}
-	return s.tenantRepo.UpdateStatus(ctx, uint(tid), status)
+
+	var lifecycle *tenantrepository.LifecycleTimes
+	if status == tenantmodel.TenantDeleted {
+		now := time.Now()
+		until := now.Add(s.retention)
+		lifecycle = &tenantrepository.LifecycleTimes{
+			DeleteRequestedAt: now,
+			RetentionUntil:    until,
+		}
+	}
+
+	if err := s.tenantRepo.UpdateStatus(ctx, uint(tid), status, lifecycle); err != nil {
+		return err
+	}
+
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "tenant", Action: "status", ResourceType: "tenant",
+			ResourceID: id,
+			After:      map[string]any{"status": status, "lifecycle": lifecycle},
+		})
+	}
+	return nil
 }

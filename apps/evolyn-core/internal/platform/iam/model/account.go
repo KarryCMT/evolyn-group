@@ -3,15 +3,8 @@ package model
 import (
 	"time"
 
-	"gorm.io/gorm"
+	kernel "evolyn/internal/model"
 )
-
-// AccountBase 平台账号公共字段：刻意不含 TenantID——账号是跨租户的登录身份（ADR-006）
-type AccountBase struct {
-	CreatedAt time.Time      `json:"createdAt"`
-	UpdatedAt time.Time      `json:"updatedAt"`
-	DeletedAt gorm.DeletedAt `json:"-"`
-}
 
 // Account 平台账号（登录身份）：登录名/手机号全局唯一，密码与第三方凭证挂账号。
 // 租户内身份见 User（成员）；一个账号可对应多个租户的成员关系
@@ -25,7 +18,7 @@ type Account struct {
 	Avatar    string     `json:"avatar" gorm:"size:256"`
 	AuthInfos []AuthInfo `json:"authInfos" gorm:"foreignKey:AccountId;references:ID"`
 
-	AccountBase
+	kernel.PlatformBaseModel // 平台一级资源，无租户归属（FIX-014）
 }
 
 func (*Account) TableName() string {
@@ -33,7 +26,8 @@ func (*Account) TableName() string {
 }
 
 // AuthInfo 第三方登录凭证，归属账号（原挂 user，ADR-006 迁移；
-// 存量 user_id 列由启动回填策略对齐 account_id，代码不再声明旧列）
+// 存量 user_id 列由启动回填策略对齐 account_id，代码不再声明旧列）。
+// (auth_type, auth_id) 租户无关唯一：部分唯一索引兜底（FIX-017）
 type AuthInfo struct {
 	ID           uint      `json:"id" gorm:"autoIncrement;primaryKey"`
 	AccountId    uint      `json:"accountId" gorm:"index;not null;default:0"` // 存量回填前为 0（来源 user_id）
@@ -44,7 +38,7 @@ type AuthInfo struct {
 	RefreshToken string    `json:"-" gorm:"size:256"`
 	Expiry       time.Time `json:"-"`
 
-	AccountBase // 平台级凭证，无租户归属
+	kernel.PlatformBaseModel // 平台级凭证，无租户归属
 }
 
 func (*AuthInfo) TableName() string {

@@ -12,8 +12,10 @@ import (
 )
 
 var (
-	// memberCreateField 成员创建仅写归属与展示字段（ADR-006：登录身份在账号侧）
-	memberCreateField = []string{"account_id", "nickname"}
+	// memberCreateField 成员创建仅写归属与展示字段（ADR-006：登录身份在账号侧）。
+	// tenant_id 必须在列：显式指定租户的创建路径（如租户开通建 owner 成员）
+	// 依赖本列写入，Create Select 过滤会丢弃 Callback 注入值之外的字段
+	memberCreateField = []string{"account_id", "nickname", "tenant_id"}
 )
 
 type userRepository struct {
@@ -60,6 +62,15 @@ func (u *userRepository) GetByAccountAndTenant(ctx context.Context, accountID, t
 		return nil, err
 	}
 	return user, nil
+}
+
+// CountByTenant 指定租户的有效成员数（软删行不计）：配额执行路径使用，
+// 显式 Scope 而非依赖请求租户上下文（运营/定时任务可能无上下文）
+func (u *userRepository) CountByTenant(ctx context.Context, tenantID uint) (int64, error) {
+	var count int64
+	err := u.db.WithContext(ctx).Scopes(infrastructure.TenantScope(tenantID)).
+		Model(&model.User{}).Count(&count).Error
+	return count, err
 }
 
 func (u *userRepository) Create(ctx context.Context, member *model.User) (*model.User, error) {

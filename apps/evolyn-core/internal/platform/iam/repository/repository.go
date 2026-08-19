@@ -52,14 +52,35 @@ func (r *Repositories) Department() DepartmentRepository {
 	return r.department
 }
 
-// Migrate iam 域表迁移：account/auth_infos → user → group → role/resource → department
+// Migrate iam 域表迁移：account/auth_infos → user → group → role/resource → department。
+// AutoMigrate 仅开发/测试路径（FIX-009）：GORM 标签表达不了 PG 部分唯一索引，
+// 此处用幂等 SQL 补齐，使开发库约束与 migrations 终态一致
+//（FIX-002/003/004/017；外键约束只在 migrations 路径落地）
 func (r *Repositories) Migrate() error {
 	for _, m := range []interface{ Migrate() error }{r.account, r.user, r.group, r.rbac, r.department} {
 		if err := m.Migrate(); err != nil {
 			return err
 		}
 	}
-	return r.dropLegacyUniqueIndexes()
+	if err := r.dropLegacyUniqueIndexes(); err != nil {
+		return err
+	}
+	return r.ensurePartialUniqueIndexes()
+}
+
+// ensurePartialUniqueIndexes 补齐软删除友好的租户内唯一索引（与迁移链同名同构）
+func (r *Repositories) ensurePartialUniqueIndexes() error {
+	for _, stmt := range []string{
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_roles_tenant_name ON roles (tenant_id, name) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_groups_tenant_name ON groups (tenant_id, name) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_users_tenant_account ON users (tenant_id, account_id) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_auth_identity ON auth_infos (auth_type, auth_id) WHERE deleted_at IS NULL`,
+	} {
+		if err := r.db.Exec(stmt).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Init iam 域种子与存量回填：账号拆分回填最先执行，再平台基础资源与系统分组。
@@ -163,12 +184,14 @@ func (r *Repositories) backfillAccountSplit() error {
 		return err
 	}
 
+	// FIX-016：owner 为可空外键，NULL = 未设置；无成员的租户保持 NULL
+	//（子查询无行时自然写 NULL，不再落 0 哨兵）
 	if err := r.db.Exec(`
-		UPDATE tenants t SET owner_account_id = COALESCE((
+		UPDATE tenants t SET owner_account_id = (
 			SELECT u.account_id FROM users u
 			WHERE u.tenant_id = t.id AND u.account_id > 0
-			ORDER BY u.id LIMIT 1), 0)
-		WHERE owner_account_id = 0
+			ORDER BY u.id LIMIT 1)
+		WHERE owner_account_id IS NULL
 	`).Error; err != nil {
 		return err
 	}

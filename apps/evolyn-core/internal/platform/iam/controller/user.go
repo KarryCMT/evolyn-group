@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -177,8 +178,39 @@ func (u *UserController) DelRole(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
+// @Summary Add member
+// @Description Add an existing account to current tenant (with quota check and optional department/role binding)
+// @Accept json
+// @Produce json
+// @Tags user
+// @Security JWT
+// @Param member body service.AddMemberRequest true "member to add"
+// @Success 200 {object} httpx.Response{data=model.User}
+// @Router /api/v1/members [post]
+func (u *UserController) AddMember(c *gin.Context) {
+	req := new(service.AddMemberRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	member, err := u.userService.AddMember(c.Request.Context(), req)
+	if err != nil {
+		// 参数/重复/配额类错误 400，跨租户绑定拒绝 403
+		status := http.StatusBadRequest
+		if errors.Is(err, service.ErrCrossTenantBinding) {
+			status = http.StatusForbidden
+		}
+		httpx.ResponseFailed(c, status, err)
+		return
+	}
+
+	httpx.ResponseSuccess(c, member)
+}
+
 func (u *UserController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/members", u.List)
+	api.POST("/members", u.AddMember)
 	api.GET("/members/:id", u.Get)
 	api.PUT("/members/:id", u.Update)
 	api.DELETE("/members/:id", u.Delete)

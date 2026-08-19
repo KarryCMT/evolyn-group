@@ -52,6 +52,18 @@ type UserService interface {
 	GetGroups(ctx context.Context, id string) ([]model.Group, error)
 	AddRole(ctx context.Context, id, rid string) error
 	DelRole(ctx context.Context, id, rid string) error
+	// AddMember 「Account 成为租户成员」入口（FIX-010）：校验账号/租户/配额/
+	// 重复成员后创建成员，并按需绑定部门与角色（同租户校验，FIX-006）
+	AddMember(ctx context.Context, req *AddMemberRequest) (*model.User, error)
+}
+
+// AddMemberRequest 拉人入租户请求：AccountID 与 AccountName 二选一
+type AddMemberRequest struct {
+	AccountID     uint   `json:"accountId"`
+	AccountName   string `json:"accountName"`
+	Nickname      string `json:"nickname"`
+	DepartmentIDs []uint `json:"departmentIds"`
+	RoleIDs       []uint `json:"roleIds"`
 }
 
 type GroupService interface {

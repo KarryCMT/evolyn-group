@@ -14,6 +14,7 @@ type TenantService interface {
 	List(ctx context.Context) ([]tenantmodel.Tenant, error)
 	Get(ctx context.Context, id string) (*tenantmodel.Tenant, error)
 	Update(ctx context.Context, id string, tenant *tenantmodel.Tenant) (*tenantmodel.Tenant, error)
-	// SetStatus 生命周期流转：active / frozen / deleted
+	// SetStatus 生命周期流转：active / frozen / deleted。
+	// deleted 记录注销申请与保留截止时间（FIX-012），到期由 Purge Worker 清理
 	SetStatus(ctx context.Context, id string, status string) error
 }

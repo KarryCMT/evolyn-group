@@ -5,10 +5,12 @@ import (
 	"errors"
 	"fmt"
 
-	"evolyn/internal/platform/iam/model"
-	"evolyn/internal/platform/iam/repository"
 	tenantmodel "evolyn/internal/platform/tenant/model"
 	tenantrepository "evolyn/internal/platform/tenant/repository"
+	tenantservice "evolyn/internal/platform/tenant/service"
+
+	"evolyn/internal/platform/iam/model"
+	"evolyn/internal/platform/iam/repository"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -22,15 +24,23 @@ type accountService struct {
 	accountRepo repository.AccountRepository
 	userRepo    repository.UserRepository
 	tenantRepo  tenantrepository.TenantRepository
+	quota       tenantservice.QuotaService
 }
 
 // NewAccountService 账号服务：登录身份校验与账号生命周期；
-// 依赖成员仓储（注册即建默认租户成员）与租户仓储（登录指定 TenantCode 时解析）
-func NewAccountService(accountRepo repository.AccountRepository, userRepo repository.UserRepository, tenantRepo tenantrepository.TenantRepository) AccountService {
+// 依赖成员仓储（注册即建默认租户成员）、租户仓储（登录指定 TenantCode 时解析）
+// 与配额服务（注册建默认成员前执行 members 配额校验，FIX-011）
+func NewAccountService(
+	accountRepo repository.AccountRepository,
+	userRepo repository.UserRepository,
+	tenantRepo tenantrepository.TenantRepository,
+	quota tenantservice.QuotaService,
+) AccountService {
 	return &accountService{
 		accountRepo: accountRepo,
 		userRepo:    userRepo,
 		tenantRepo:  tenantRepo,
+		quota:       quota,
 	}
 }
 
@@ -173,8 +183,14 @@ func (s *accountService) Default(account *model.Account) {
 }
 
 // createDefaultMember 注册/OAuth 首登后在默认租户建立成员关系；
-// 显式指定 TenantID，避免依赖列默认值
+// 显式指定 TenantID，避免依赖列默认值。建成员前执行 members 配额校验（FIX-011）
 func (s *accountService) createDefaultMember(ctx context.Context, account *model.Account) (*model.User, error) {
+	if s.quota != nil {
+		if err := s.quota.Check(ctx, tenantmodel.DefaultTenantID, tenantmodel.QuotaMembers); err != nil {
+			return nil, err
+		}
+	}
+
 	nickname := account.Nickname
 	if nickname == "" {
 		nickname = account.Name
@@ -222,7 +238,8 @@ func (s *accountService) ListTenants(ctx context.Context, accountID uint) ([]Ten
 		if t, ok := tenantByID[m.TenantID]; ok {
 			item.Code = t.Code
 			item.Name = t.Name
-			item.IsOwner = t.OwnerAccountId == accountID
+			// FIX-016：Owner 为可空引用，NULL = 暂无 Owner
+			item.IsOwner = t.OwnerAccountId != nil && *t.OwnerAccountId == accountID
 		}
 		result = append(result, item)
 	}

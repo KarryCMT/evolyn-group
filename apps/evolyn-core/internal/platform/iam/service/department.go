@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 
+	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/repository"
 )
@@ -18,12 +19,18 @@ type DepartmentNode struct {
 type departmentService struct {
 	departmentRepo repository.DepartmentRepository
 	userRepo       repository.UserRepository
+	audit          auditservice.Recorder
 }
 
-func NewDepartmentService(departmentRepo repository.DepartmentRepository, userRepo repository.UserRepository) DepartmentService {
+func NewDepartmentService(
+	departmentRepo repository.DepartmentRepository,
+	userRepo repository.UserRepository,
+	audit auditservice.Recorder,
+) DepartmentService {
 	return &departmentService{
 		departmentRepo: departmentRepo,
 		userRepo:       userRepo,
+		audit:          audit,
 	}
 }
 
@@ -39,32 +46,54 @@ func (s *departmentService) Tree(ctx context.Context) ([]*DepartmentNode, error)
 	return BuildDepartmentTree(depts), nil
 }
 
+// Create 创建部门（FIX-015）：父部门非空时必须存在且与子部门同租户
+// （ctx 租户过滤保证），并禁止自引用
 func (s *departmentService) Create(ctx context.Context, dept *model.Department) (*model.Department, error) {
 	if dept.Name == "" {
 		return nil, fmt.Errorf("department name is required")
 	}
-	// 父部门校验：ParentId 非零必须存在（且属当前租户，由租户过滤保证）
-	if dept.ParentId != 0 {
-		if _, err := s.departmentRepo.GetByID(ctx, dept.ParentId); err != nil {
-			return nil, fmt.Errorf("parent department %d not found", dept.ParentId)
+	if dept.ParentId != nil {
+		if err := s.validateParent(ctx, *dept.ParentId, 0); err != nil {
+			return nil, err
 		}
 	}
 	if dept.Status == "" {
 		dept.Status = model.DeptActive
 	}
-	return s.departmentRepo.Create(ctx, dept)
+
+	created, err := s.departmentRepo.Create(ctx, dept)
+	if err == nil && s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "iam", Action: "create", ResourceType: "department",
+			ResourceID: strconv.FormatUint(uint64(created.ID), 10),
+			After:      map[string]any{"name": created.Name, "parentId": created.ParentId},
+		})
+	}
+	return created, err
 }
 
+// Update 更新部门（FIX-015）：父部门须存在、同租户、非自身且不形成环
 func (s *departmentService) Update(ctx context.Context, id string, dept *model.Department) (*model.Department, error) {
 	did, err := strconv.Atoi(id)
 	if err != nil {
 		return nil, err
 	}
-	if dept.ParentId != 0 && dept.ParentId == uint(did) {
-		return nil, fmt.Errorf("department cannot be its own parent")
+	if dept.ParentId != nil {
+		if err := s.validateParent(ctx, *dept.ParentId, uint(did)); err != nil {
+			return nil, err
+		}
 	}
 	dept.ID = uint(did)
-	return s.departmentRepo.Update(ctx, dept)
+
+	updated, err := s.departmentRepo.Update(ctx, dept)
+	if err == nil && s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "iam", Action: "update", ResourceType: "department",
+			ResourceID: id,
+			After:      map[string]any{"name": dept.Name, "parentId": dept.ParentId},
+		})
+	}
+	return updated, err
 }
 
 func (s *departmentService) Delete(ctx context.Context, id string) error {
@@ -72,26 +101,84 @@ func (s *departmentService) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	return s.departmentRepo.Delete(ctx, uint(did))
+
+	if err := s.departmentRepo.Delete(ctx, uint(did)); err != nil {
+		return err
+	}
+
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "iam", Action: "delete", ResourceType: "department", ResourceID: id,
+		})
+	}
+	return nil
 }
 
-// SetMemberDepartments 整体替换成员的部门归属
+// SetMemberDepartments 整体替换成员的部门归属（FIX-006）：加载成员实体，
+// 与每个目标部门显式比对租户一致
 func (s *departmentService) SetMemberDepartments(ctx context.Context, memberID string, departmentIDs []uint) error {
 	mid, err := strconv.Atoi(memberID)
 	if err != nil {
 		return err
 	}
-	// 部门归属校验：目标部门必须存在（租户过滤内）
+	member, err := s.userRepo.GetUserByID(ctx, uint(mid))
+	if err != nil {
+		return err
+	}
+
+	// 目标部门必须存在且与成员同租户（租户过滤 + 显式比对双重防御）
 	for _, id := range departmentIDs {
-		if _, err := s.departmentRepo.GetByID(ctx, id); err != nil {
+		dept, err := s.departmentRepo.GetByID(ctx, id)
+		if err != nil {
 			return fmt.Errorf("department %d not found", id)
 		}
+		if err := ensureSameTenant(member.TenantID, dept.TenantID, "member", member.ID, "department", dept.ID); err != nil {
+			return err
+		}
 	}
-	return s.departmentRepo.SetMemberDepartments(ctx, &model.User{ID: uint(mid)}, departmentIDs)
+
+	if err := s.departmentRepo.SetMemberDepartments(ctx, member, departmentIDs); err != nil {
+		return err
+	}
+
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "iam", Action: "update", ResourceType: "member_department",
+			ResourceID: memberID,
+			After:      map[string]any{"departmentIds": departmentIDs},
+		})
+	}
+	return nil
 }
 
-// BuildDepartmentTree 平表组树：ParentId=0 为根；孤儿节点（父被软删）挂回根，
-// 保证不丢数据。纯函数便于单测
+// validateParent 父部门校验（FIX-015）：存在（租户过滤内，跨租户父表现为
+// 不存在）、非自身、沿父链向上无环。selfID=0 表示创建场景无自身可比
+func (s *departmentService) validateParent(ctx context.Context, parentID, selfID uint) error {
+	if parentID == selfID {
+		return fmt.Errorf("department cannot be its own parent")
+	}
+
+	// 环检测：从 parent 沿父链向上走，遇自身即成环；
+	// 上限迭代次数防脏数据导致的死循环
+	current := parentID
+	for i := 0; i < 1024; i++ {
+		dept, err := s.departmentRepo.GetByID(ctx, current)
+		if err != nil {
+			return fmt.Errorf("parent department %d not found", current)
+		}
+		if dept.ID == selfID {
+			return fmt.Errorf("department %d cannot be moved under its descendant %d", selfID, parentID)
+		}
+		if dept.ParentId == nil {
+			return nil // 到达根，无环
+		}
+		current = *dept.ParentId
+	}
+	return fmt.Errorf("department hierarchy too deep or cyclic at %d", parentID)
+}
+
+// BuildDepartmentTree 平表组树：ParentId=NULL 为根；孤儿节点（父被软删）
+// 挂回根，保证不丢数据。纯函数便于单测
 func BuildDepartmentTree(depts []model.Department) []*DepartmentNode {
 	nodes := make(map[uint]*DepartmentNode, len(depts))
 	for i := range depts {
@@ -100,12 +187,14 @@ func BuildDepartmentTree(depts []model.Department) []*DepartmentNode {
 
 	roots := make([]*DepartmentNode, 0)
 	for _, n := range nodes {
-		parent, ok := nodes[n.ParentId]
-		if ok && parent.ID != n.ID {
-			parent.Children = append(parent.Children, n)
-		} else {
-			roots = append(roots, n)
+		if n.ParentId != nil {
+			if parent, ok := nodes[*n.ParentId]; ok && parent.ID != n.ID {
+				parent.Children = append(parent.Children, n)
+				continue
+			}
 		}
+		// 父为 NULL（根）或父不存在（孤儿挂回根）
+		roots = append(roots, n)
 	}
 
 	// map 遍历乱序：按 Order/ID 稳定排序（与平表排序口径一致）

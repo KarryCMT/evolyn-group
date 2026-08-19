@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	kernel "evolyn/internal/model"
+
 	"evolyn/internal/utils/set"
 
 	"evolyn/internal/utils/request"
@@ -20,15 +22,17 @@ const (
 	ClusterScope Scope = "cluster"
 )
 
+// Role 租户内角色（Resource 是平台级目录，不挂租户）。
+// FIX-001：内嵌 TenantBaseModel，补齐 created_at/updated_at/deleted_at
+// 与 db.sql 对齐，删除统一为软删除（物理删除需显式 Unscoped）
 type Role struct {
 	ID        uint   `json:"id" gorm:"autoIncrement;primaryKey"`
-	Name      string `json:"name" gorm:"size:100;not null;index"` // 租户内唯一，服务层保证（原全局唯一索引随迁移移除）
+	Name      string `json:"name" gorm:"size:100;not null;index"` // 租户内唯一：服务层预检 + 部分唯一索引兜底（FIX-002）
 	Scope     Scope  `json:"scope" gorm:"size:100"`
 	Namespace string `json:"namespace"  gorm:"size:100"`
 	Rules     Rules  `json:"rules" gorm:"type:json"`
-	// TenantID 角色为租户内资源（Resource 是平台级目录，不挂租户）；
-	// 不嵌 BaseModel 以避免对本表的额外列变更
-	TenantID uint `json:"tenantId" gorm:"index;not null;default:1"`
+
+	kernel.TenantBaseModel
 }
 
 const (
