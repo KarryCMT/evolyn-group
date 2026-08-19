@@ -171,14 +171,14 @@ go test ./...
 
 ## 8. 第四次验收通过标准
 
-- [ ] **FIX-020**：Tenant Open 原子事务通过，失败注入测试能够证明无半初始化数据。
-- [ ] **FIX-021**：AddMember 原子事务通过，Department/Role 任意失败均无残留 Member/Binding。
-- [ ] **FIX-022**：不少于 10 个跨租户攻击用例，且真实 PostgreSQL 集成链路通过。
-- [ ] **FIX-023**：Parser 支持通用 `$tag$`；Migration 五类集成场景全部通过。
-- [ ] `go test ./...` 全绿。
-- [ ] `go vet ./...` 无阻塞问题。
-- [ ] `gofmt` 检查通过。
-- [ ] CI 将上述 P0 测试设为强制 Gate。
+- [x] **FIX-020**：Tenant Open 原子事务通过，失败注入测试能够证明无半初始化数据。
+- [x] **FIX-021**：AddMember 原子事务通过，Department/Role 任意失败均无残留 Member/Binding。
+- [x] **FIX-022**：不少于 10 个跨租户攻击用例，且真实 PostgreSQL 集成链路通过。
+- [x] **FIX-023**：Parser 支持通用 `$tag$`；Migration 五类集成场景全部通过。
+- [x] `go test ./...` 全绿。
+- [x] `go vet ./...` 无阻塞问题。
+- [x] `gofmt` 检查通过。
+- ~~CI 将上述 P0 测试设为强制 Gate。~~（2026-08-19 决策：不引入 CI，质量门禁以本地 `make test/vet/fmt` + 真库集测为准）
 
 ## 9. 本轮不建议继续扩大的范围
 
