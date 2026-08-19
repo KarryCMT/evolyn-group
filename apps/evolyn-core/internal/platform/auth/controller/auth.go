@@ -51,11 +51,11 @@ func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, m
 	return token, nil
 }
 
-// @Summary Login
-// @Description Account login (name/phone + password), tenant optional
+// @Summary 登录
+// @Description 账号登录（用户名/手机号 + 密码），租户可选
 // @Accept json
 // @Produce json
-// @Tags auth
+// @Tags 认证
 // @Param user body model.AuthUser true "auth info"
 // @Success 200 {object} httpx.Response{data=model.JWTToken}
 // @Router /api/v1/auth/token [post]
@@ -110,10 +110,10 @@ func (ac *AuthController) Login(c *gin.Context) {
 	})
 }
 
-// @Summary Logout
-// @Description Logout and clear cookies
+// @Summary 退出登录
+// @Description 退出登录并清除会话 Cookie
 // @Produce json
-// @Tags auth
+// @Tags 认证
 // @Success 200 {object} httpx.Response
 // @Router /api/v1/auth/token [delete]
 func (ac *AuthController) Logout(c *gin.Context) {
@@ -128,11 +128,11 @@ type registerResult struct {
 	Member  *model.User    `json:"member"`
 }
 
-// @Summary Register
-// @Description Create account and default-tenant membership
+// @Summary 注册账号
+// @Description 创建平台账号及默认租户成员身份
 // @Accept json
 // @Produce json
-// @Tags auth
+// @Tags 认证
 // @Param account body model.CreatedAccount true "account info"
 // @Success 200 {object} httpx.Response{data=controller.registerResult}
 // @Router /api/v1/auth/user [post]
@@ -183,10 +183,10 @@ func (ac *AuthController) sessionFrom(c *gin.Context) (*auth.CustomClaims, bool)
 	return claims, true
 }
 
-// @Summary My tenants
-// @Description List account tenant memberships (with owner flag)
+// @Summary 我的租户列表
+// @Description 查询账号加入的租户列表（含是否所有者标记）
 // @Produce json
-// @Tags auth
+// @Tags 认证
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=[]service.TenantMembership}
 // @Router /api/v1/auth/tenants [get]
@@ -210,11 +210,11 @@ type switchTenantRequest struct {
 	TenantID uint `json:"tenantId" binding:"required"`
 }
 
-// @Summary Switch tenant
-// @Description Switch current tenant membership and re-issue token
+// @Summary 切换租户
+// @Description 切换当前租户成员身份并重新签发令牌
 // @Accept json
 // @Produce json
-// @Tags auth
+// @Tags 认证
 // @Security JWT
 // @Param body body controller.switchTenantRequest true "tenant id"
 // @Success 200 {object} httpx.Response{data=model.JWTToken}
@@ -249,10 +249,10 @@ func (ac *AuthController) SwitchTenant(c *gin.Context) {
 	})
 }
 
-// @Summary User info (aggregated)
-// @Description Account profile + current membership + tenant config/plan/quotas
+// @Summary 当前用户信息（聚合）
+// @Description 平台账号资料 + 当前租户成员身份 + 租户配置/套餐/配额聚合
 // @Produce json
-// @Tags auth
+// @Tags 认证
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=service.UserInfoResult}
 // @Router /api/v1/auth/userinfo [get]
@@ -277,10 +277,10 @@ func (ac *AuthController) UserInfo(c *gin.Context) {
 	httpx.ResponseSuccess(c, info)
 }
 
-// @Summary My permissions
-// @Description Permission boolean set (resource:verb) derived from member roles
+// @Summary 我的权限集
+// @Description 由成员角色推导的权限布尔集合（resource:verb）
 // @Produce json
-// @Tags auth
+// @Tags 认证
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=map[string]bool}
 // @Router /api/v1/auth/permissions [get]

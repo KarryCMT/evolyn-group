@@ -22,9 +22,9 @@ func NewDepartmentController(departmentService service.DepartmentService) platfo
 	}
 }
 
-// @Summary List departments
+// @Summary 部门列表
 // @Produce json
-// @Tags department
+// @Tags 部门
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=[]model.Department}
 // @Router /api/v1/departments [get]
@@ -37,9 +37,9 @@ func (d *DepartmentController) List(c *gin.Context) {
 	httpx.ResponseSuccess(c, depts)
 }
 
-// @Summary Department tree
+// @Summary 部门树
 // @Produce json
-// @Tags department
+// @Tags 部门
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=[]service.DepartmentNode}
 // @Router /api/v1/departments/tree [get]
@@ -52,10 +52,10 @@ func (d *DepartmentController) Tree(c *gin.Context) {
 	httpx.ResponseSuccess(c, tree)
 }
 
-// @Summary Create department
+// @Summary 创建部门
 // @Accept json
 // @Produce json
-// @Tags department
+// @Tags 部门
 // @Security JWT
 // @Param dept body model.Department true "department info"
 // @Success 200 {object} httpx.Response{data=model.Department}
@@ -75,10 +75,10 @@ func (d *DepartmentController) Create(c *gin.Context) {
 	httpx.ResponseSuccess(c, dept)
 }
 
-// @Summary Update department
+// @Summary 更新部门
 // @Accept json
 // @Produce json
-// @Tags department
+// @Tags 部门
 // @Security JWT
 // @Param id path int true "department id"
 // @Param dept body model.Department true "department info"
@@ -99,9 +99,9 @@ func (d *DepartmentController) Update(c *gin.Context) {
 	httpx.ResponseSuccess(c, dept)
 }
 
-// @Summary Delete department
+// @Summary 删除部门
 // @Produce json
-// @Tags department
+// @Tags 部门
 // @Security JWT
 // @Param id path int true "department id"
 // @Success 200 {object} httpx.Response

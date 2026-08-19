@@ -25,10 +25,10 @@ func NewGroupController(groupService service.GroupService) platformcontroller.Co
 	}
 }
 
-// @Summary List group
-// @Description List group
+// @Summary 分组列表
+// @Description 查询分组列表
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=[]model.Group}
 // @Router /api/v1/groups [get]
@@ -43,10 +43,10 @@ func (g *GroupController) List(c *gin.Context) {
 	httpx.ResponseSuccess(c, groups)
 }
 
-// @Summary Get group
-// @Description Get group
+// @Summary 分组详情
+// @Description 查询单个分组详情
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Param id path int true "group id"
 // @Success 200 {object} httpx.Response{data=model.Group}
@@ -60,11 +60,11 @@ func (g *GroupController) Get(c *gin.Context) {
 	httpx.ResponseSuccess(c, group)
 }
 
-// @Summary Create group
-// @Description Create group and storage
+// @Summary 创建分组
+// @Description 创建分组及存储配置
 // @Accept json
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Param group body model.CreatedGroup true "group info"
 // @Success 200 {object} httpx.Response{data=model.Group}
@@ -95,11 +95,11 @@ func (g *GroupController) Create(c *gin.Context) {
 	httpx.ResponseSuccess(c, group)
 }
 
-// @Summary Update group
-// @Description Update group and storage
+// @Summary 更新分组
+// @Description 更新分组及存储配置
 // @Accept json
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Param group body model.UpdatedGroup true "group info"
 // @Param id   path      int  true  "group id"
@@ -132,10 +132,10 @@ func (g *GroupController) Update(c *gin.Context) {
 	httpx.ResponseSuccess(c, group)
 }
 
-// @Summary Delete group
-// @Description Delete group
+// @Summary 删除分组
+// @Description 删除分组
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Param id path int true "group id"
 // @Success 200 {object} httpx.Response
@@ -155,10 +155,10 @@ func (g *GroupController) Delete(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// @Summary Get users
-// @Description Get users
+// @Summary 分组成员列表
+// @Description 查询分组下的成员列表
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Param id path int true "group id"
 // @Success 200 {object} httpx.Response
@@ -173,10 +173,10 @@ func (g *GroupController) GetUsers(c *gin.Context) {
 	httpx.ResponseSuccess(c, users)
 }
 
-// @Summary Add user
-// @Description Add user to group
+// @Summary 添加分组成员
+// @Description 将成员加入分组
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Param id path int true "group id"
 // @Param user body model.User true "user info"
@@ -197,10 +197,10 @@ func (g *GroupController) AddUser(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// @Summary Delete user
-// @Description Delete user from group
+// @Summary 移除分组成员
+// @Description 将成员移出分组
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Param id path int true "group id"
 // @Param id    query     int  true  "member id"
@@ -223,10 +223,10 @@ func (g *GroupController) DelUser(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// @Summary Add role
-// @Description Add role to group
+// @Summary 分组绑定角色
+// @Description 为分组绑定角色
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Param id path int true "group id"
 // @Param rid path int true "role id"
@@ -241,10 +241,10 @@ func (g *GroupController) AddRole(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// @Summary Delete role
-// @Description delete role from group
+// @Summary 分组解绑角色
+// @Description 解除分组绑定的角色
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Param id path int true "group id"
 // @Param rid path int true "role id"

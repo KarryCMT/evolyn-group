@@ -23,10 +23,10 @@ func NewTenantController(tenantService tenantservice.TenantService) platformcont
 	}
 }
 
-// @Summary List tenants (platform)
-// @Description Platform-side tenant list
+// @Summary 租户列表（平台）
+// @Description 平台侧查询租户列表
 // @Produce json
-// @Tags platform
+// @Tags 平台管理
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=[]tenantmodel.Tenant}
 // @Router /api/v1/platform/tenants [get]
@@ -39,11 +39,11 @@ func (tc *TenantController) List(c *gin.Context) {
 	httpx.ResponseSuccess(c, tenants)
 }
 
-// @Summary Open tenant (platform)
-// @Description Open a tenant with owner membership and baseline roles/groups
+// @Summary 开通租户（平台）
+// @Description 开通租户并初始化所有者成员身份与基线角色/分组
 // @Accept json
 // @Produce json
-// @Tags platform
+// @Tags 平台管理
 // @Security JWT
 // @Param tenant body tenantservice.OpenTenantRequest true "open request"
 // @Success 200 {object} httpx.Response{data=tenantmodel.Tenant}
@@ -63,9 +63,9 @@ func (tc *TenantController) Create(c *gin.Context) {
 	httpx.ResponseSuccess(c, tenant)
 }
 
-// @Summary Get tenant (platform)
+// @Summary 租户详情（平台）
 // @Produce json
-// @Tags platform
+// @Tags 平台管理
 // @Security JWT
 // @Param id path int true "tenant id"
 // @Success 200 {object} httpx.Response{data=tenantmodel.Tenant}
@@ -79,11 +79,11 @@ func (tc *TenantController) Get(c *gin.Context) {
 	httpx.ResponseSuccess(c, tenant)
 }
 
-// @Summary Update tenant (platform)
-// @Description Update name/plan/config/quotas
+// @Summary 更新租户（平台）
+// @Description 更新租户名称/套餐/配置/配额
 // @Accept json
 // @Produce json
-// @Tags platform
+// @Tags 平台管理
 // @Security JWT
 // @Param id path int true "tenant id"
 // @Param tenant body tenantmodel.Tenant true "tenant fields"
@@ -109,11 +109,11 @@ type statusRequest struct {
 	Status string `json:"status" binding:"required"`
 }
 
-// @Summary Set tenant status (platform)
-// @Description Lifecycle transition: active / frozen / deleted
+// @Summary 变更租户状态（平台）
+// @Description 租户生命周期状态流转：启用 / 冻结 / 注销
 // @Accept json
 // @Produce json
-// @Tags platform
+// @Tags 平台管理
 // @Security JWT
 // @Param id path int true "tenant id"
 // @Param body body controller.statusRequest true "status"

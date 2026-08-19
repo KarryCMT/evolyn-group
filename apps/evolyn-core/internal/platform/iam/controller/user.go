@@ -30,10 +30,10 @@ func NewUserController(userService service.UserService, departmentService servic
 	}
 }
 
-// @Summary List members
-// @Description List tenant members (current tenant)
+// @Summary 成员列表
+// @Description 查询当前租户的成员列表
 // @Produce json
-// @Tags user
+// @Tags 成员
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=model.Users}
 // @Router /api/v1/members [get]
@@ -48,10 +48,10 @@ func (u *UserController) List(c *gin.Context) {
 	httpx.ResponseSuccess(c, users)
 }
 
-// @Summary Get member
-// @Description Get tenant member by id
+// @Summary 成员详情
+// @Description 按 ID 查询租户成员详情
 // @Produce json
-// @Tags user
+// @Tags 成员
 // @Security JWT
 // @Param id path int true "member id"
 // @Success 200 {object} httpx.Response{data=model.User}
@@ -65,11 +65,11 @@ func (u *UserController) Get(c *gin.Context) {
 	httpx.ResponseSuccess(c, user)
 }
 
-// @Summary Update member
-// @Description Update member profile (nickname, in-tenant)
+// @Summary 更新成员
+// @Description 更新成员的租户内资料（如昵称）
 // @Accept json
 // @Produce json
-// @Tags user
+// @Tags 成员
 // @Security JWT
 // @Param member body model.UpdatedMember true "member info"
 // @Param id   path      int  true  "member id"
@@ -100,10 +100,10 @@ func (u *UserController) Update(c *gin.Context) {
 	httpx.ResponseSuccess(c, user)
 }
 
-// @Summary Delete member
-// @Description Delete tenant member
+// @Summary 移除成员
+// @Description 将成员移出租户
 // @Produce json
-// @Tags user
+// @Tags 成员
 // @Security JWT
 // @Param id path int true "member id"
 // @Success 200 {object} httpx.Response
@@ -124,10 +124,10 @@ func (u *UserController) Delete(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// @Summary Get groups
-// @Description Get member groups
+// @Summary 成员所属分组
+// @Description 查询成员所属的分组列表
 // @Produce json
-// @Tags group
+// @Tags 分组
 // @Security JWT
 // @Param id path int true "member id"
 // @Success 200 {object} httpx.Response
@@ -142,10 +142,10 @@ func (u *UserController) GetGroups(c *gin.Context) {
 	httpx.ResponseSuccess(c, groups)
 }
 
-// @Summary Add role
-// @Description Add role to member
+// @Summary 成员绑定角色
+// @Description 为成员绑定角色
 // @Produce json
-// @Tags user
+// @Tags 成员
 // @Security JWT
 // @Param id path int true "member id"
 // @Param rid path int true "role id"
@@ -160,10 +160,10 @@ func (u *UserController) AddRole(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// @Summary Delete role
-// @Description delete role from member
+// @Summary 成员解绑角色
+// @Description 解除成员绑定的角色
 // @Produce json
-// @Tags user
+// @Tags 成员
 // @Security JWT
 // @Param id path int true "member id"
 // @Param rid path int true "role id"
@@ -178,11 +178,11 @@ func (u *UserController) DelRole(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// @Summary Add member
-// @Description Add an existing account to current tenant (with quota check and optional department/role binding)
+// @Summary 添加成员
+// @Description 将已有平台账号加入当前租户（含配额校验，可选绑定部门/角色）
 // @Accept json
 // @Produce json
-// @Tags user
+// @Tags 成员
 // @Security JWT
 // @Param member body service.AddMemberRequest true "member to add"
 // @Success 200 {object} httpx.Response{data=model.User}
@@ -229,11 +229,11 @@ type setDepartmentsRequest struct {
 	DepartmentIDs []uint `json:"departmentIds"`
 }
 
-// @Summary Set member departments
-// @Description Replace member department memberships (multi-department)
+// @Summary 设置成员部门
+// @Description 整体替换成员的部门归属（支持多部门）
 // @Accept json
 // @Produce json
-// @Tags user
+// @Tags 成员
 // @Security JWT
 // @Param id path int true "member id"
 // @Param body body controller.setDepartmentsRequest true "department ids"

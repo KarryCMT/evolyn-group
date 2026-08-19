@@ -33,9 +33,9 @@ func (a *AccountController) myAccount(c *gin.Context) (uint, bool) {
 	return claims.AccountID, true
 }
 
-// @Summary My account profile
+// @Summary 我的账号资料
 // @Produce json
-// @Tags account
+// @Tags 账号
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=model.Account}
 // @Router /api/v1/accounts/me [get]
@@ -61,10 +61,10 @@ type updateProfileRequest struct {
 	Avatar   string `json:"avatar"`
 }
 
-// @Summary Update my profile
+// @Summary 更新我的账号资料
 // @Accept json
 // @Produce json
-// @Tags account
+// @Tags 账号
 // @Security JWT
 // @Param profile body controller.updateProfileRequest true "profile"
 // @Success 200 {object} httpx.Response{data=model.Account}
@@ -101,10 +101,10 @@ type changePasswordRequest struct {
 	NewPassword string `json:"newPassword" binding:"required"`
 }
 
-// @Summary Change my password
+// @Summary 修改登录密码
 // @Accept json
 // @Produce json
-// @Tags account
+// @Tags 账号
 // @Security JWT
 // @Param body body controller.changePasswordRequest true "passwords"
 // @Success 200 {object} httpx.Response

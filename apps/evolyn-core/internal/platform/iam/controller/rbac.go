@@ -19,10 +19,10 @@ func NewRbacController(rbacService service.RBACService) platformcontroller.Contr
 	return &RBACController{rbacService: rbacService}
 }
 
-// @Summary List rbac role
-// @Description List rbac role
+// @Summary 角色列表
+// @Description 查询自定义角色列表
 // @Produce json
-// @Tags rbac
+// @Tags 角色权限
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=[]model.Role}
 // @Router /api/v1/roles [get]
@@ -36,11 +36,11 @@ func (rbac *RBACController) List(c *gin.Context) {
 	httpx.ResponseSuccess(c, roles)
 }
 
-// @Summary Create rbac role
-// @Description Create rbac role
+// @Summary 创建角色
+// @Description 创建自定义角色
 // @Accept json
 // @Produce json
-// @Tags rbac
+// @Tags 角色权限
 // @Security JWT
 // @Param role body model.Role true "rbac role info"
 // @Success 200 {object} httpx.Response
@@ -61,10 +61,10 @@ func (rbac *RBACController) Create(c *gin.Context) {
 	httpx.ResponseSuccess(c, role)
 }
 
-// @Summary Get role
-// @Description Get role
+// @Summary 角色详情
+// @Description 查询单个角色详情
 // @Produce json
-// @Tags rbac
+// @Tags 角色权限
 // @Security JWT
 // @Param id path int true "role id"
 // @Success 200 {object} httpx.Response{data=model.Role}
@@ -78,11 +78,11 @@ func (rbac *RBACController) Get(c *gin.Context) {
 	httpx.ResponseSuccess(c, role)
 }
 
-// @Summary Update rbac role
-// @Description Update rbac role
+// @Summary 更新角色
+// @Description 更新自定义角色
 // @Accept json
 // @Produce json
-// @Tags rbac
+// @Tags 角色权限
 // @Security JWT
 // @Param role body model.Role true "rbac role info"
 // @Success 200 {object} httpx.Response
@@ -105,10 +105,10 @@ func (rbac *RBACController) Update(c *gin.Context) {
 	httpx.ResponseSuccess(c, role)
 }
 
-// @Summary Delete role
-// @Description Delete role
+// @Summary 删除角色
+// @Description 删除角色
 // @Produce json
-// @Tags rbac
+// @Tags 角色权限
 // @Security JWT
 // @Param id path int true "role id"
 // @Success 200 {object} httpx.Response
@@ -122,10 +122,10 @@ func (rbac *RBACController) Delete(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// @Summary List resources
-// @Description List resources
+// @Summary 资源列表
+// @Description 查询可授权的资源列表
 // @Produce json
-// @Tags rbac
+// @Tags 角色权限
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=[]model.Resource}
 // @Router /api/v1/resources [get]
@@ -139,10 +139,10 @@ func (rbac *RBACController) ListResources(c *gin.Context) {
 	httpx.ResponseSuccess(c, data)
 }
 
-// @Summary List operations
-// @Description List operations
+// @Summary 操作列表
+// @Description 查询资源可配置的操作列表
 // @Produce json
-// @Tags rbac
+// @Tags 角色权限
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=[]model.Operation}
 // @Router /api/v1/operations [get]

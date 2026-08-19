@@ -18,9 +18,9 @@ var (
 	appConfig    = flag.String("config", "config/app.yaml", "application config path")
 )
 
-// @title           evolyn-core API
+// @title           evolyn-core 接口文档
 // @version         2.0
-// @description     evolyn low-code platform server api doc.
+// @description     evolyn 低代码平台后端接口文档。
 
 // @license.name  Apache 2.0
 // @license.url   http://www.apache.org/licenses/LICENSE-2.0.html

@@ -116,6 +116,11 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
   改 GORM Model 必须同时提交 up/down 迁移并同步 `scripts/db.sql` 快照；
   约束/索引名与迁移文件保持一致以保证快照库重放幂等。AutoMigrate 仅限
   开发/测试（`db.migrate`），禁止依赖其建生产 Schema。
+- swagger 注释一律中文：新增/修改接口时 `@Tags`（模块名）、`@Summary`、
+  `@Description` 等注释统一写中文，不得新写英文；模块 tag 沿用既有中文名
+  （首页/认证/账号/成员/部门/分组/角色权限/平台管理），新模块也起中文名。
+  改完执行 `make swagger` 重新生成文档；docs 包经 server.go 的 blank import
+  编译进二进制，联调需重启服务生效。
 - 提交前至少运行 `go test ./...`（或说明未运行原因），格式化使用 `make fmt`。
 
 ## evolyn-web 前端
