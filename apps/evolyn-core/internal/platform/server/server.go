@@ -20,6 +20,7 @@ import (
 	"evolyn/internal/platform/auth"
 	authcontroller "evolyn/internal/platform/auth/controller"
 	"evolyn/internal/platform/auth/oauth"
+	"evolyn/internal/platform/auth/pki"
 	"evolyn/internal/platform/auth/sms"
 	"evolyn/internal/platform/controller"
 	"evolyn/internal/platform/httpx"
@@ -127,11 +128,21 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	rbacService := service.NewRBACService(iamRepo.RBAC(), auditSvc)
 	oauthManager := oauth.NewOAuthManager(conf.OAuthConfig)
 
+	// 登录口令加密密钥对：私钥留服务端解密，公钥经 /app/conf 下发前端。
+	// 未配置私钥时启动随机生成（仅开发/测试），日志提醒生产必须显式配置
+	keypair, err := pki.Load(conf.PKI.PrivateKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "pki keypair init failed")
+	}
+	if conf.PKI.PrivateKey == "" {
+		logger.Warn("pki.privateKey 未配置，已随机生成临时 RSA 密钥对（重启轮换；生产与多实例部署必须显式配置同一密钥对）")
+	}
+
 	userController := iamcontroller.NewUserController(userService, departmentService)
-	accountController := iamcontroller.NewAccountController(accountService)
+	accountController := iamcontroller.NewAccountController(accountService, keypair)
 	departmentController := iamcontroller.NewDepartmentController(departmentService)
 	groupController := iamcontroller.NewGroupController(groupService)
-	authController := authcontroller.NewAuthController(accountService, jwtService, oauthManager, tenantService, smsService)
+	authController := authcontroller.NewAuthController(accountService, jwtService, oauthManager, tenantService, smsService, keypair)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 
@@ -169,6 +180,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		purgeWorker: purgeWorker,
 		authorizer:  authorizer,
 		tenantRepo:  tenantRepo,
+		pkiKeypair:  keypair,
 	}, nil
 }
 
@@ -185,6 +197,8 @@ type Server struct {
 	purgeWorker *tenantservice.PurgeWorker
 	authorizer  *authorization.Authorizer
 	tenantRepo  tenantrepository.TenantRepository
+	// 登录口令加密密钥对：登录/改密解密与 /app/conf 公钥下发共用
+	pkiKeypair *pki.Keypair
 }
 
 // graceful shutdown
@@ -267,7 +281,7 @@ func (s *Server) initRouter() {
 	// api 组仅过全局链。不能进租户域 RBAC——RequestInfo 会把 /app/conf
 	// 解析为资源请求（resource=app），匿名用户仅持有 auth:create 规则，
 	// 未登录的登录/注册页将拿不到区号列表
-	controller.NewAppConfController().RegisterRoute(api)
+	controller.NewAppConfController(s.pkiKeypair).RegisterRoute(api)
 
 	controllers := make([]string, 0, len(s.controllers))
 	for _, router := range s.controllers {

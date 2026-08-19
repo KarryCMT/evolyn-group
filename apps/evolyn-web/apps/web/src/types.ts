@@ -84,3 +84,33 @@ export interface AccountProfilePayload {
   nickname?: string
   onboarding?: AccountOnboarding
 }
+
+// ---------- 应用配置（GET /app/conf，形态对齐简道云 conf 接口） ----------
+
+/** 手机区号项：三语文案 + E.164 前缀值 */
+export interface CallingCode {
+  text: { zh_cn: string; en_us: string; zh_tw: string }
+  value: string
+}
+
+/** 区号分组（一期单组） */
+export interface CallingCodeGroup {
+  label: string
+  children: CallingCode[]
+}
+
+/** 登录口令加密公钥：密码字段以该公钥 RSA 加密后上送（jsencrypt PKCS#1 v1.5） */
+export interface PkiConf {
+  algorithm: string
+  keys: { public_key: string }
+}
+
+/** 应用配置：版本 / 区号列表 / 口令加密公钥 / 平台能力开关 */
+export interface AppConf {
+  version: string
+  calling_code_list: CallingCodeGroup[]
+  pki: PkiConf
+  tenant_register: boolean
+  platform_sms: boolean
+  register_persona: boolean
+}

@@ -8,6 +8,7 @@ import (
 
 	"evolyn/internal/platform/auth"
 	"evolyn/internal/platform/auth/oauth"
+	"evolyn/internal/platform/auth/pki"
 	"evolyn/internal/platform/auth/sms"
 	platformcontroller "evolyn/internal/platform/controller"
 	"evolyn/internal/platform/ginctx"
@@ -28,15 +29,18 @@ type AuthController struct {
 	oauthManger    *oauth.OAuthManager
 	tenantService  tenantservice.TenantService
 	smsService     *sms.Service
+	// 登录口令加密密钥对：密码登录分支先解密再走 bcrypt 校验
+	pkiKeypair *pki.Keypair
 }
 
-func NewAuthController(accountService service.AccountService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service) platformcontroller.Controller {
+func NewAuthController(accountService service.AccountService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair) platformcontroller.Controller {
 	return &AuthController{
 		accountService: accountService,
 		jwtService:     jwtService,
 		oauthManger:    oauthManager,
 		tenantService:  tenantService,
 		smsService:     smsService,
+		pkiKeypair:     pkiKeypair,
 	}
 }
 
@@ -60,7 +64,8 @@ func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, m
 }
 
 // @Summary 登录
-// @Description 账号登录（用户名/手机号 + 密码），租户可选
+// @Description 账号登录（用户名/手机号 + 密码），租户可选；password 需先经
+// GET /app/conf 下发的 RSA 公钥加密（pki 段）后上送，验证码登录（smsCode）不受影响
 // @Accept json
 // @Produce json
 // @Tags 认证
@@ -111,6 +116,15 @@ func (ac *AuthController) Login(c *gin.Context) {
 
 		account, member, err = ac.accountService.CreateOAuthAccount(c.Request.Context(), userInfo.Account())
 	default:
+		// 密码登录：password 为经 /app/conf 公钥 RSA 加密后的密文，
+		// 先解密再走服务层 bcrypt 校验；解密失败不区分原因（防探测）。
+		// 注意解密错误用独立变量名，避免 := 遮蔽外层 err 导致登录错误被吞
+		plain, decryptErr := ac.pkiKeypair.Decrypt(auser.Password)
+		if decryptErr != nil {
+			httpx.ResponseFailed(c, http.StatusBadRequest, decryptErr)
+			return
+		}
+		auser.Password = plain
 		account, member, err = ac.accountService.Auth(c.Request.Context(), auser)
 	}
 	if err != nil {

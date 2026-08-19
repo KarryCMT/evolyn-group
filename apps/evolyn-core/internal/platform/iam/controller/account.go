@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 
+	"evolyn/internal/platform/auth/pki"
 	platformcontroller "evolyn/internal/platform/controller"
 	"evolyn/internal/platform/ginctx"
 	"evolyn/internal/platform/httpx"
@@ -15,11 +16,14 @@ import (
 // AccountController 账号自助（/accounts/me，P3-2）：资料与密码
 type AccountController struct {
 	accountService service.AccountService
+	// 登录口令加密密钥对：改密请求的密码字段先解密再落库
+	pkiKeypair *pki.Keypair
 }
 
-func NewAccountController(accountService service.AccountService) platformcontroller.Controller {
+func NewAccountController(accountService service.AccountService, pkiKeypair *pki.Keypair) platformcontroller.Controller {
 	return &AccountController{
 		accountService: accountService,
+		pkiKeypair:     pkiKeypair,
 	}
 }
 
@@ -99,15 +103,17 @@ func (a *AccountController) UpdateMe(c *gin.Context) {
 }
 
 // changePasswordRequest 密码修改/首次设置：短信免密注册账号（未设置过密码）
-// 首次设置时 oldPassword 可不传，其余情况必填
+// 首次设置时 oldPassword 可不传，其余情况必填；两个密码字段均需经
+// GET /app/conf 下发的 RSA 公钥加密后上送
 type changePasswordRequest struct {
 	OldPassword string `json:"oldPassword"`
-	NewPassword string `json:"newPassword" binding:"required,min=6"`
+	NewPassword string `json:"newPassword" binding:"required"`
 }
 
 // @Summary 修改登录密码
-// @Description 修改登录密码；短信免密注册的账号（服务端随机密码）首次设置免旧密码，
-// 设置成功后恢复常规校验；newPassword 至少 6 位
+// @Description 修改登录密码；两个密码字段需先经 GET /app/conf 下发的 RSA 公钥加密
+// 后上送。短信免密注册的账号（服务端随机密码）首次设置免旧密码，设置成功后恢复
+// 常规校验；新密码至少 6 位
 // @Accept json
 // @Produce json
 // @Tags 账号
@@ -127,7 +133,22 @@ func (a *AccountController) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := a.accountService.ChangePassword(c.Request.Context(), accountID, req.OldPassword, req.NewPassword); err != nil {
+	// 密文先解密：oldPassword 可空（免密账号首设），newPassword 必有
+	if req.OldPassword != "" {
+		oldPlain, err := a.pkiKeypair.Decrypt(req.OldPassword)
+		if err != nil {
+			httpx.ResponseFailed(c, http.StatusBadRequest, err)
+			return
+		}
+		req.OldPassword = oldPlain
+	}
+	newPlain, err := a.pkiKeypair.Decrypt(req.NewPassword)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	if err := a.accountService.ChangePassword(c.Request.Context(), accountID, req.OldPassword, newPlain); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}

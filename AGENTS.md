@@ -64,9 +64,12 @@ internal/
                        OAuth（github/wechat）、短信验证码（sms/ 子包：Redis
                        存码 + 冷却/试错上限，场景 login/register；开发通道
                        provider=dev 固定码 666666 + devEcho 回显，其他
-                       provider 启动拦截）、auth 控制器（POST /auth/user 为
-                       注册向导第 1 步「手机号+验证码」注册即登录：免密注册，
-                       服务端生成随机登录名/密码，已注册手机号等价短信登录；
+                       provider 启动拦截）、登录口令加密（pki/ 子包：RSA
+                       密钥对，公钥经 /app/conf 下发前端 jsencrypt 加密、
+                       服务端私钥解密，私钥配置注入或开发态启动随机生成）、
+                       auth 控制器（POST /auth/user 为注册向导第 1 步
+                       「手机号+验证码」注册即登录：免密注册，服务端生成
+                       随机登录名/密码，已注册手机号等价短信登录；
                        POST /auth/tenant 自助开通租户：创建者即所有者并绑定
                        tenant-admin，编码服务端生成）
     iam/              身份域（域内 controller→service→repository 小三层）：

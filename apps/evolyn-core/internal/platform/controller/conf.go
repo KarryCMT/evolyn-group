@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"evolyn/internal/platform/auth/pki"
 	"evolyn/internal/platform/httpx"
 	"evolyn/internal/version"
 
@@ -27,12 +28,25 @@ type callingCodeGroup struct {
 	Children []callingCode `json:"children"`
 }
 
-// appConfResponse 应用配置：客户端（登录/注册页等）启动所需的区号列表与
-// 平台能力开关。字段命名对齐简道云 conf 接口形态，能力开关只下发已落地
-// 能力，随里程碑逐步扩展（captcha/pki 等未落地项不下发）
+// pkiKeys 公钥容器：结构对齐简道云 conf 的 pki.keys
+type pkiKeys struct {
+	PublicKey string `json:"public_key"`
+}
+
+// pkiConf 登录口令加密公钥下发：前端以该 RSA 公钥加密密码明文上送
+// （jsencrypt PKCS#1 v1.5），服务端持私钥解密
+type pkiConf struct {
+	Algorithm string  `json:"algorithm"`
+	Keys      pkiKeys `json:"keys"`
+}
+
+// appConfResponse 应用配置：客户端（登录/注册页等）启动所需的区号列表、
+// 口令加密公钥与平台能力开关。字段命名对齐简道云 conf 接口形态，
+// 能力开关只下发已落地能力，随里程碑逐步扩展（captcha 等未落地项不下发）
 type appConfResponse struct {
 	Version         string             `json:"version"`
 	CallingCodeList []callingCodeGroup `json:"calling_code_list"`
+	PKI             pkiConf            `json:"pki"`
 	// 能力开关（均为已落地能力）
 	TenantRegister  bool `json:"tenant_register"`  // 自助开通租户（注册向导「创建团队」）
 	PlatformSms     bool `json:"platform_sms"`     // 平台短信验证码通道（登录/注册）
@@ -50,14 +64,20 @@ var callingCodes = []callingCode{
 
 // AppConfController 应用配置（公开域，匿名可访问）：/app/conf 为非资源
 // 路径，经全局链（认证仅解析不强制）即可匿名到达
-type AppConfController struct{}
+type AppConfController struct {
+	keypair *pki.Keypair
+}
 
-// NewAppConfController 构造应用配置控制器（无外部依赖，数据为静态配置）
-func NewAppConfController() *AppConfController { return &AppConfController{} }
+// NewAppConfController 构造应用配置控制器：区号/能力开关为静态数据，
+// pki 公钥来自启动装配的密钥对
+func NewAppConfController(keypair *pki.Keypair) *AppConfController {
+	return &AppConfController{keypair: keypair}
+}
 
 // @Summary 应用配置
-// @Description 客户端启动配置（匿名可访问）：服务版本、手机区号列表（三语文案，
-// 形态对齐简道云 conf 接口）与平台能力开关（仅下发已落地能力，随里程碑扩展）
+// @Description 客户端启动配置（匿名可访问）：服务版本、手机区号列表（三语文案）、
+// 登录口令加密公钥（pki.algorithm=rsa，密码字段需以该公钥加密后上送）与平台
+// 能力开关（仅下发已落地能力，随里程碑扩展）；形态对齐简道云 conf 接口
 // @Produce json
 // @Tags 应用配置
 // @Success 200 {object} httpx.Response{data=controller.appConfResponse}
@@ -66,6 +86,7 @@ func (a *AppConfController) GetConf(c *gin.Context) {
 	httpx.ResponseSuccess(c, appConfResponse{
 		Version:         version.Get().Version,
 		CallingCodeList: []callingCodeGroup{{Label: "", Children: callingCodes}},
+		PKI:             pkiConf{Algorithm: a.keypair.Algorithm, Keys: pkiKeys{PublicKey: a.keypair.PublicKey}},
 		TenantRegister:  true,
 		PlatformSms:     true,
 		RegisterPersona: true,

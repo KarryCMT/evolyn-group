@@ -16,6 +16,7 @@ type Config struct {
 	Tenant      TenantRuntimeConfig    `yaml:"tenant"`
 	OAuthConfig map[string]OAuthConfig `yaml:"oauth"`
 	SMS         SMSConfig              `yaml:"sms"`
+	PKI         PKIConfig              `yaml:"pki"`
 }
 
 // SMSConfig 短信验证码运行参数：一期开发通道（provider=dev 仅打日志），
@@ -27,6 +28,14 @@ type SMSConfig struct {
 	MaxTries        int    `yaml:"maxTries"`        // 单码最大试错次数（默认 5）
 	// DevEcho 响应中回显验证码：仅本地联调可开，生产必须关闭
 	DevEcho bool `yaml:"devEcho"`
+}
+
+// PKIConfig 登录口令加密传输密钥：公钥经 GET /app/conf 下发前端，
+// 私钥仅服务端解密用。PrivateKey 为 PEM；留空时启动随机生成一把
+// （仅开发/测试，重启即轮换；生产与多实例部署必须显式配置同一密钥对）
+type PKIConfig struct {
+	Algorithm  string `yaml:"algorithm"`  // 一期固定 rsa
+	PrivateKey string `yaml:"privateKey"` // PEM 私钥（真实私钥不入库，经环境配置注入）
 }
 
 type ServerConfig struct {

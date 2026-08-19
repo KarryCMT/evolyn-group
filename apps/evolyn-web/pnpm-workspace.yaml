@@ -14,6 +14,7 @@ catalogs:
     '@element-plus/icons-vue': ^2.3.2
   utils:
     '@vueuse/core': ^13.6.0
+    'jsencrypt': ^3.3.2
   dev:
     'sass': ^1.99.0
     rimraf: ^6.1.0

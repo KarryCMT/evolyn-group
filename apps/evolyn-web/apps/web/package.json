@@ -21,7 +21,8 @@
     "@vueuse/core": "catalog:utils",
     "element-plus": "catalog:ui",
     "vue": "catalog:frontend",
-    "vue-router": "catalog:frontend"
+    "vue-router": "catalog:frontend",
+    "jsencrypt": "catalog:utils"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^5.1.0",

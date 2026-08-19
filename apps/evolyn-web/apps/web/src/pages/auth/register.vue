@@ -13,6 +13,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { changeMyPassword, updateMyProfile } from '~/api/account'
 import { openMyTenant, register, sendSmsCode } from '~/api/auth'
+import { encryptPassword } from '~/api/conf'
 import { useAuth } from '~/composables'
 
 const route = useRoute()
@@ -124,7 +125,7 @@ function handleSkip() {
 }
 
 /** 第 3 步「进入产品」：完善信息落账号画像（昵称同步成员称呼）；
- *  填写了密码则先首设密码（免密注册账号免旧密码），再进入平台 */
+ *  填写了密码则先首设密码（免密注册账号免旧密码，密文上送），再进入平台 */
 async function handleProfileSubmit(profile: {
   nickname: string
   role: string
@@ -134,7 +135,7 @@ async function handleProfileSubmit(profile: {
   submitting.value = true
   try {
     if (profile.password) {
-      await changeMyPassword({ newPassword: profile.password })
+      await changeMyPassword({ newPassword: await encryptPassword(profile.password) })
     }
     await updateMyProfile({
       nickname: profile.nickname,

@@ -5,6 +5,7 @@ import { shallowRef } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { sendSmsCode } from '~/api/auth'
+import { encryptPassword } from '~/api/conf'
 import { useAuth } from '~/composables'
 import type { TenantMembership } from '~/types'
 
@@ -22,11 +23,12 @@ const tenantDialogVisible = shallowRef(false)
 const memberships = shallowRef<TenantMembership[]>([])
 const switching = shallowRef(false)
 
-/** 密码登录：成功后进入租户选择或直接跳转；remember 决定令牌存储范围 */
+/** 密码登录：密码先经平台公钥 RSA 加密再上送；remember 决定令牌存储范围 */
 async function handlePasswordSubmit(payload: { phone: string; password: string; remember: boolean }) {
   loading.value = true
   try {
-    await login({ phone: payload.phone, password: payload.password }, payload.remember)
+    const password = await encryptPassword(payload.password)
+    await login({ phone: payload.phone, password }, payload.remember)
     await afterLogin()
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '登录失败，请稍后重试')

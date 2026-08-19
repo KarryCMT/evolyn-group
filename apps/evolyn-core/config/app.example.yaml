@@ -50,3 +50,10 @@ sms:
   cooldownSeconds: 60  # 重发冷却（秒）
   maxTries: 5          # 单码最大试错次数
   devEcho: false       # 响应回显验证码（仅本地联调可开，生产必须 false）
+
+pki:
+  # 登录密码加密传输：公钥经 GET /app/conf 下发前端（jsencrypt PKCS#1 v1.5），
+  # 私钥仅服务端解密。生产用 openssl genrsa 生成 2048 位密钥并配置同一把私钥
+  # （多实例必须共享）；留空则每次启动随机生成（仅开发/测试，重启即轮换）
+  algorithm: "rsa"
+  privateKey: ""
