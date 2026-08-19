@@ -17,6 +17,15 @@ LDFLAGS = -X evolyn/internal/version.gitVersion=$(GIT_VERSION) \
 PKGS = $(shell go list ./...)
 GOFILES = $(shell find . -name "*.go" -type f -not -path "./vendor/*")
 
+# 本地 PostgreSQL：默认复用已存在的 postgres 容器（postgres:14-alpine），
+# 5432 端口已有实例监听时直接复用，不再另起容器或拉新镜像
+PG_CONTAINER ?= postgres
+PG_IMAGE ?= postgres:14-alpine
+PG_HOST ?= 127.0.0.1
+PG_PORT ?= 5432
+PG_PASSWORD ?= postgres
+TEST_PG_DSN ?= postgres://postgres:$(PG_PASSWORD)@$(PG_HOST):$(PG_PORT)/postgres?sslmode=disable
+
 base: clean test swagger fmt build
 
 help: ## display the help
@@ -33,9 +42,14 @@ test: ## run unit test
 	go tool cover -func=cover.out -o coverage.txt
 
 test-integration: ## run all tests incl. PostgreSQL integration (SEC-TENANT/MIGRATE-INT, FIX-022/023)
-	@docker start mypostgres || docker run --name mypostgres -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
-	until docker exec mypostgres psql -U postgres; do echo "wait postgres start"; sleep 1; done
-	TEST_PG_DSN='postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable' go test ./...
+	@if nc -z $(PG_HOST) $(PG_PORT) 2>/dev/null; then \
+		echo "reusing postgres at $(PG_HOST):$(PG_PORT)"; \
+	else \
+		echo "starting local postgres container $(PG_CONTAINER) ($(PG_IMAGE))"; \
+		docker start $(PG_CONTAINER) 2>/dev/null || docker run --name $(PG_CONTAINER) -d -p $(PG_PORT):5432 -e POSTGRES_PASSWORD=$(PG_PASSWORD) $(PG_IMAGE); \
+		until nc -z $(PG_HOST) $(PG_PORT) 2>/dev/null; do echo "wait postgres start"; sleep 1; done; \
+	fi
+	TEST_PG_DSN='$(TEST_PG_DSN)' go test ./...
 
 vet: ## go vet
 	go vet ./...
@@ -60,12 +74,12 @@ install-swagger: ## install swagger from golang (>= v1.16 required for aliased e
 	go install github.com/swaggo/swag/cmd/swag@v1.16.4
 
 postgres: ## init local postgres and import scripts/db.sql
-	@docker start mypostgres || docker run --name mypostgres -d -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres
-	until docker exec mypostgres psql -U postgres; do echo "wait postgres start"; sleep 1; done
-	cat scripts/db.sql | docker exec -i mypostgres psql -U postgres
+	@docker start $(PG_CONTAINER) 2>/dev/null || docker run --name $(PG_CONTAINER) -d -p $(PG_PORT):5432 -e POSTGRES_PASSWORD=$(PG_PASSWORD) $(PG_IMAGE)
+	until nc -z $(PG_HOST) $(PG_PORT) 2>/dev/null; do echo "wait postgres start"; sleep 1; done
+	cat scripts/db.sql | docker exec -i $(PG_CONTAINER) psql -U postgres
 
 exec-db: ## exec to db container
-	docker exec -it mypostgres psql -d evolyn -U postgres
+	docker exec -it $(PG_CONTAINER) psql -d evolyn -U postgres
 
 redis: ## init local redis (password matches config/app.yaml dev default)
 	@docker start myredis || docker run --name myredis -d -p 6379:6379 redis --appendonly yes --requirepass 123456

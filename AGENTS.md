@@ -77,15 +77,23 @@ scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（
 make run            # 本地运行（需 postgres/redis 就绪，读 config/app.yaml）
 make build          # 构建到 bin/evolyn-core（注入版本 ldflags）
 make test           # 单测 + 覆盖率（离线全绿，真库集测自动跳过）
-make test-integration  # 起本地 docker postgres 并以 TEST_PG_DSN 跑全部测试
-                    # （含 SEC-TENANT-*/MIGRATE-INT-* 真库集成用例）
+make test-integration  # 复用本地 postgres（见下方「本地开发/测试数据库约定」）
+                    # 以 TEST_PG_DSN 跑全部测试（含 SEC-TENANT-*/MIGRATE-INT-* 真库集成用例）
 make vet            # go vet ./...
 make fmt            # gofmt -s 格式化
 make lint           # golangci-lint（需已安装）
 make swagger        # 重新生成 swagger 到 ./docs（gitignored，本地查阅用）
-make postgres       # 起本地 postgres 容器并导入 scripts/db.sql
+make postgres       # 复用本地 postgres 容器并导入 scripts/db.sql
 make redis          # 起本地 redis 容器
 ```
+
+本地开发/测试数据库约定（固定，勿改）：统一复用本机已存在的 `postgres`
+容器（`postgres:14-alpine`，`127.0.0.1:5432`，账号/密码 `postgres/postgres`）。
+Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
+默认已指向它，端口已有实例监听时直接复用，不要另建容器或拉其他镜像 tag。
+集成测试 DSN 连 `postgres` 库（testsupport 按需建/清临时测试库，零残留）；
+业务库 `evolyn` 由 `make postgres` 导入 `scripts/db.sql` 快照。该连接仅用于
+开发与测试，生产连接串经 `config/app.example.yaml` 复制填写，不入库。
 
 后端改动规则：
 
