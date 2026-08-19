@@ -26,22 +26,22 @@ PG_PORT ?= 5432
 PG_PASSWORD ?= postgres
 TEST_PG_DSN ?= postgres://postgres:$(PG_PASSWORD)@$(PG_HOST):$(PG_PORT)/postgres?sslmode=disable
 
-base: clean test swagger fmt build
+base: clean test swagger fmt build ## 本地完整验收链：清理 → 单测 → swagger → 格式化 → 构建
 
-help: ## display the help
+help: ## 显示所有可用目标及说明
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
-build: ## build server binary to bin/
+build: ## 构建服务二进制到 bin/（ldflags 注入版本信息）
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/api
 
-run: ## run server locally (needs config/app.yaml, postgres & redis)
+run: ## 本地运行服务（需 config/app.yaml，postgres/redis 就绪；启动时应用版本化迁移）
 	go run ./cmd/api
 
-test: ## run unit test
+test: ## 单元测试（含覆盖率，产物 cover.out/coverage.txt）
 	go test -ldflags -s -v -coverprofile=cover.out $(PKGS)
 	go tool cover -func=cover.out -o coverage.txt
 
-test-integration: ## run all tests incl. PostgreSQL integration (SEC-TENANT/MIGRATE-INT, FIX-022/023)
+test-integration: ## 全量测试（复用本地 postgres 跑集成用例 SEC-TENANT/MIGRATE-INT，FIX-022/023）
 	@if nc -z $(PG_HOST) $(PG_PORT) 2>/dev/null; then \
 		echo "reusing postgres at $(PG_HOST):$(PG_PORT)"; \
 	else \
@@ -51,38 +51,38 @@ test-integration: ## run all tests incl. PostgreSQL integration (SEC-TENANT/MIGR
 	fi
 	TEST_PG_DSN='$(TEST_PG_DSN)' go test ./...
 
-vet: ## go vet
+vet: ## go vet 静态检查
 	go vet ./...
 
-clean: ## clean bin and go mod
+clean: ## 清理 bin/ 并执行 go mod tidy
 	@rm -rf bin/
 	go mod tidy
 
-fmt: ## golang format
+fmt: ## gofmt -s 格式化全部 Go 文件
 	gofmt -s -w $(GOFILES)
 
-lint: ## golangci-lint (requires golangci-lint installed)
+lint: ## golangci-lint 检查（需已安装 golangci-lint）
 	golangci-lint run
 
-swagger: ## regenerate swagger docs into ./docs (gitignored, for local review only)
+swagger: ## 重新生成 swagger 文档到 ./docs（gitignored，仅本地查阅）
 	swag init -g cmd/api/main.go -o docs --parseInternal --parseDependency --parseDepth 3
 
-init: install-swagger postgres redis ## install all dependencies and init config
+init: install-swagger postgres redis ## 一键初始化本地依赖（swag 工具 + postgres + redis）
 	echo "init all"
 
-install-swagger: ## install swagger from golang (>= v1.16 required for aliased embedded models e.g. kernel.BaseModel)
+install-swagger: ## 安装 swag CLI（需 >= v1.16：支持别名内嵌 model，如 kernel.BaseModel）
 	go install github.com/swaggo/swag/cmd/swag@v1.16.4
 
-postgres: ## init local postgres and import scripts/db.sql
+postgres: ## 启动/复用本地 postgres 容器并导入 scripts/db.sql 终态快照
 	@docker start $(PG_CONTAINER) 2>/dev/null || docker run --name $(PG_CONTAINER) -d -p $(PG_PORT):5432 -e POSTGRES_PASSWORD=$(PG_PASSWORD) $(PG_IMAGE)
 	until nc -z $(PG_HOST) $(PG_PORT) 2>/dev/null; do echo "wait postgres start"; sleep 1; done
 	cat scripts/db.sql | docker exec -i $(PG_CONTAINER) psql -U postgres
 
-exec-db: ## exec to db container
+exec-db: ## 进入业务库 evolyn 的 psql 交互终端
 	docker exec -it $(PG_CONTAINER) psql -d evolyn -U postgres
 
-redis: ## init local redis (password matches config/app.yaml dev default)
+redis: ## 启动本地 redis（密码与 config/app.yaml 开发默认值一致）
 	@docker start myredis || docker run --name myredis -d -p 6379:6379 redis --appendonly yes --requirepass 123456
 
-ui: ## run frontend locally (sibling directory)
+ui: ## 本地运行前端（相邻目录 evolyn-web）
 	cd ../evolyn-web && npm install && npm run dev
