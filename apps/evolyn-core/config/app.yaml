@@ -12,7 +12,7 @@ server:
       burst: 50
       qps: 10
       cacheSize: 2048
-  jwtSecret: weaveserver
+  jwtSecret: evolyn-dev-secret
 
 
 

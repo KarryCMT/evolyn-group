@@ -31,8 +31,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_accounts_phone
     WHERE phone <> '' AND deleted_at IS NULL;
 
 INSERT INTO accounts (name, nickname, email, password, created_at) VALUES
-    ('admin', 'admin', 'admin@weave.com', '$2a$10$5whQjJqSdL18PrEP.z/gZOubMKhFB38K0CvHWdnaQodb/H3yeG4J2', LOCALTIMESTAMP),
-    ('demo', 'demo', 'admin@weave.com', '$2a$10$5whQjJqSdL18PrEP.z/gZOubMKhFB38K0CvHWdnaQodb/H3yeG4J2', LOCALTIMESTAMP)
+    ('admin', 'admin', 'admin@evolyn.com', '$2a$10$5whQjJqSdL18PrEP.z/gZOubMKhFB38K0CvHWdnaQodb/H3yeG4J2', LOCALTIMESTAMP),
+    ('demo', 'demo', 'admin@evolyn.com', '$2a$10$5whQjJqSdL18PrEP.z/gZOubMKhFB38K0CvHWdnaQodb/H3yeG4J2', LOCALTIMESTAMP)
     ON CONFLICT DO NOTHING;
 
 -- 租户（平台一级资源，无 tenant_id——FIX-014；owner 可空外键——FIX-016；
@@ -142,7 +142,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_groups_tenant_name
     WHERE deleted_at IS NULL;
 
 INSERT INTO groups (name, kind, describe, created_at) VALUES
-    ('root', 'system', 'weave system group', LOCALTIMESTAMP),
+    ('root', 'system', 'evolyn system group', LOCALTIMESTAMP),
     ('system:authenticated', 'system', 'system group contains all authenticated user', LOCALTIMESTAMP),
     ('system:unauthenticated', 'system', 'system group contains all unauthenticated user', LOCALTIMESTAMP)  ON CONFLICT DO NOTHING;
 

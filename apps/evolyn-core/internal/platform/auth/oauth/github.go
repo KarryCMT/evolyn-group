@@ -73,7 +73,7 @@ func (auth *GithubAuth) GetToken(code string) (*oauth2.Token, error) {
 
 }
 
-// https://github.com/login/oauth/authorize?client_id=85db232fde2c9320ece7&redirect_uri=http://localhost:8080/api/auth/github&scope=user&state=weave_state
+// https://github.com/login/oauth/authorize?client_id=85db232fde2c9320ece7&redirect_uri=http://localhost:8080/api/auth/github&scope=user&state=evolyn_state
 type GitHubUserInfo struct {
 	Login                   string      `json:"login"`
 	ID                      int         `json:"id"`
