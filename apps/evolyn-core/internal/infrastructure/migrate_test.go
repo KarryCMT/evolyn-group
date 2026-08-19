@@ -21,14 +21,17 @@ END
 $$ LANGUAGE plpgsql;
 `
 
+	// 注释内容剥离，可执行语句 3 条：DDL / DML / 函数定义
 	stmts := SplitSQLStatements(script)
-	assert.Len(t, stmts, 4)
+	assert.Len(t, stmts, 3)
 	assert.Contains(t, stmts[0], "CREATE TABLE a")
+	assert.NotContains(t, stmts[0], "注释里有分号") // 行注释剥离
+	// 字符串字面量中的分号与转义引号保持完整
 	assert.Contains(t, stmts[1], "'字符串里的;分号'")
 	assert.Contains(t, stmts[1], "转义''引号'';继续")
-	assert.Contains(t, stmts[2], "注释里有分号;不应切分")
-	assert.Contains(t, stmts[3], "$$") // 函数体保持完整
-	assert.Contains(t, stmts[3], "PERFORM 1;")
+	// 美元引用函数体整体保留（内部分号不切分）
+	assert.Contains(t, stmts[2], "$$")
+	assert.Contains(t, stmts[2], "PERFORM 1;")
 }
 
 func TestSplitSQLEmptyAndWhitespace(t *testing.T) {

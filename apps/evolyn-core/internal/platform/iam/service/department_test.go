@@ -13,7 +13,7 @@ func ptr[V any](v V) *V { return &v }
 
 func TestBuildDepartmentTree(t *testing.T) {
 	depts := []model.Department{
-		{ID: 1, ParentId: nil, Name: "总部", Order: 1},           // NULL = 根
+		{ID: 1, ParentId: nil, Name: "总部", Order: 1}, // NULL = 根
 		{ID: 2, ParentId: ptr(uint(1)), Name: "研发部", Order: 2},
 		{ID: 3, ParentId: ptr(uint(1)), Name: "销售部", Order: 1},
 		{ID: 4, ParentId: ptr(uint(2)), Name: "后端组", Order: 1},

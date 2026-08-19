@@ -36,9 +36,9 @@ type Tenant struct {
 	// OwnerAccountId 开通者账号（is_owner 语义锚点，ADR-006）。
 	// FIX-016：NULL = 暂未设置 Owner（原 0 哨兵值废除），非空时数据库层
 	// 外键引用 accounts(id)，不再可能出现指向不存在账号的 Owner
-	OwnerAccountId *uint         `json:"ownerAccountId" gorm:"index"`
-	Config         TenantConfig  `json:"config" gorm:"type:jsonb"` // 品牌/水印/时区/语言（26.5）
-	Quotas         Quotas        `json:"quotas" gorm:"type:jsonb"` // 套餐配额覆盖，空则用套餐默认值
+	OwnerAccountId *uint        `json:"ownerAccountId" gorm:"index"`
+	Config         TenantConfig `json:"config" gorm:"type:jsonb"` // 品牌/水印/时区/语言（26.5）
+	Quotas         Quotas       `json:"quotas" gorm:"type:jsonb"` // 套餐配额覆盖，空则用套餐默认值
 
 	// 注销生命周期（FIX-012）：deleted 状态记录申请与保留截止，到期由 Purge Worker 清理
 	DeleteRequestedAt *time.Time `json:"deleteRequestedAt"` // 注销申请时间

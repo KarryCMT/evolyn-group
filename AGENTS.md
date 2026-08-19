@@ -32,7 +32,7 @@
 
 - Go 1.25，Gin + GORM（Postgres）+ go-redis + swaggo。
 - 入口 `cmd/api/main.go`，默认配置 `config/app.yaml`（可用 `--config` 覆盖）。
-- 关键配置段：`server`（端口 8080、jwtSecret、rateLimits）、`db`（库名 `evolyn`，`migrate: true` 表示启动时 GORM 自动迁移）、`redis`、`oauth`。
+- 关键配置段：`server`（端口 8080、jwtSecret、rateLimits）、`db`（库名 `evolyn`；`migrations: true` 启动时应用版本化 SQL 迁移【生产路径】，`migrate: true` 为 GORM AutoMigrate【仅开发/测试】，两者互斥）、`tenant`（注销保留期/清理周期）、`redis`、`oauth`。
 
 目录职责（域模块化定版，ADR-007）：
 
@@ -40,25 +40,32 @@
 cmd/api/              入口，只做装配
 internal/
   config/             配置解析
-  contextx/           通用 context 键值存取（含租户上下文）
-  model/              跨域共享内核（BaseModel：TenantID + 时间三件套）
+  contextx/           通用 context 键值存取（租户上下文/操作者/请求元数据）
+  model/              跨域共享内核（PlatformBaseModel / TenantBaseModel）
   metrics/            监控指标
-  infrastructure/     postgres/redis/pgx 客户端、GORM 租户 Callback、生命周期
+  infrastructure/     postgres/redis/pgx 客户端、GORM 租户 Callback、
+                      SQL Migration 执行器（migrate.go）、生命周期
   utils/              ratelimit/request/set/trace
   version/            版本信息（Makefile ldflags 注入，路径勿动）
   platform/
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
-    controller/       Controller 注册契约（RegisterRoute/Name）与 index
+    controller/       Controller 注册契约（RegisterRoute/Name；
+                      PlatformController 标记平台运营域归属）
     ginctx/           gin.Context 会话/上下文存取助手
     httpx/            统一响应封装
-    middleware/       认证/租户/鉴权/限流/CORS/日志/trace/监控
+    middleware/       认证/租户/租户状态拦截/鉴权（平台与租户两条链）/
+                      限流/CORS/日志/trace/监控
     auth/             认证域：JWT（claims 含 accountId/memberId/tenantId）、
                        OAuth（github/wechat）、auth 控制器
     iam/              身份域（域内 controller→service→repository 小三层）：
                        account 平台账号 / user 租户成员 / group / rbac /
-                       department；authorization/ 自定义 RBAC 鉴权（后续接 Casbin）
-    tenant/           租户域（小三层）：租户 CRUD 与生命周期、plan 套餐与配额
-scripts/              db.sql（冷启动初始化）、cert.sh（本地证书）
+                       department；authorization/ 自研 RBAC 鉴权
+    tenant/           租户域（小三层）：租户 CRUD 与生命周期（注销保留期/
+                      Purge Worker）、plan 套餐与配额、QuotaService 配额执行
+    audit/            审计域：业务操作审计日志（Recorder，追加写流水）
+migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
+                      命名 NNNNNN_name.(up|down).sql，版本号只增不复用）
+scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（本地证书）
 ```
 
 常用命令（在 `apps/evolyn-core` 内执行）：
@@ -76,16 +83,21 @@ make redis          # 起本地 redis 容器
 
 后端改动规则：
 
-- 域模块化：新资源归属既有域（iam/tenant/auth）或按第 27 章 ADR-007 的结构新
+- 域模块化：新资源归属既有域（iam/tenant/auth/audit）或按第 27 章 ADR-007 的结构新
   建域，域内遵循 controller → service → repository 小三层，同步补各层
   `interface.go` 与 `internal/platform/server/server.go` 装配。
 - 账号×成员拆分（ADR-006）是现行模型基线：登录身份（name/phone/password/
   OAuth 凭证）只挂 `accounts`；租户内身份（昵称/部门/分组/角色）挂 `users`。
   迁移期字段残留由启动幂等回填处理，新代码不要声明旧列。
-- 运营域路由（`/api/v1/platform`）无租户上下文，查询 tenants 时注意避免租户
-  Callback 自我过滤（见 `internal/platform/tenant/repository/tenant.go` 注释）。
-- 数据库结构变更依赖 GORM migrate（model 定义），`scripts/db.sql` 仅作冷启动
-  初始化，两者保持一致。
+- 路由双域隔离（整改 FIX-008）：`/api/v1/platform/*` 只走
+  Authentication + PlatformAuthorization（无租户上下文），平台控制器实现
+  `Platform() bool` 标记；其余租户域路由走 Tenant → TenantStatus →
+  Authorization 链。关系绑定（角色/分组/部门）必须经 Service 层同租户校验，
+  不允许裸 ID 盲写关系表。
+- 数据库结构变更以 `migrations/` 版本化 SQL 为唯一事实来源（整改 FIX-009）：
+  改 GORM Model 必须同时提交 up/down 迁移并同步 `scripts/db.sql` 快照；
+  约束/索引名与迁移文件保持一致以保证快照库重放幂等。AutoMigrate 仅限
+  开发/测试（`db.migrate`），禁止依赖其建生产 Schema。
 - 提交前至少运行 `go test ./...`（或说明未运行原因），格式化使用 `make fmt`。
 
 ## evolyn-web 前端

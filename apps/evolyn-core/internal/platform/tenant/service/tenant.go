@@ -275,11 +275,12 @@ func (s *tenantService) Update(ctx context.Context, id string, tenant *tenantmod
 	tenant.ID = uint(tid)
 	updated, err := s.tenantRepo.Update(ctx, tenant)
 	if err == nil && s.audit != nil {
-		// 套餐/配额变更属商业化敏感操作，优先记录（FIX-013）
+		// 套餐/配额变更属商业化敏感操作，优先记录（FIX-013）；
+		// 平台域链路无租户上下文，显式落目标租户归属
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "tenant", Action: "update", ResourceType: "tenant",
-			ResourceID: id,
-			After:      map[string]any{"name": tenant.Name, "plan": tenant.Plan, "quotas": tenant.Quotas},
+			ResourceID: id, TenantID: uint(tid),
+			After: map[string]any{"name": tenant.Name, "plan": tenant.Plan, "quotas": tenant.Quotas},
 		})
 	}
 	return updated, err
@@ -317,8 +318,8 @@ func (s *tenantService) SetStatus(ctx context.Context, id string, status string)
 	if s.audit != nil {
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "tenant", Action: "status", ResourceType: "tenant",
-			ResourceID: id,
-			After:      map[string]any{"status": status, "lifecycle": lifecycle},
+			ResourceID: id, TenantID: uint(tid),
+			After: map[string]any{"status": status, "lifecycle": lifecycle},
 		})
 	}
 	return nil

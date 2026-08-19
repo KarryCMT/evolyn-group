@@ -483,3 +483,50 @@ Casbin Domain。不要为了技术选型而重写已经工作的权限体系。
 
 **整改原则**：第一期优先解决"数据不能错、租户不能串、状态必须生效、Schema
 必须可控"。在这些底座问题完成前，不建议提前扩展应用/表单等低代码业务模型。
+
+## 12. 评审结论记录（实施时追加）
+
+> 本章为整改实施时形成的评审结论，不回改前文；后续复评在本章续记。
+
+### 12.1 FIX-018：关系表 tenant_id 方案评审结论
+
+**结论：第一期不给 `department_users`、`user_groups`、`user_roles`、
+`group_roles` 四张关系表增加 `tenant_id` 列。**
+
+理由：
+
+-   跨租户写入已由 Service 层同租户校验拦截（加载两端实体并比对
+    TenantID，错误码 `CROSS_TENANT_BINDING_REJECTED`），并有跨租户
+    绑定单测覆盖；
+-   关系表行数最大（成员×角色等组合），加列回填与组合键改造的写放大
+    在一期收益不明确；
+-   租户注销的数据清理已由 Purge Worker 按租户维度清理关系行，
+    不依赖关系表自带 tenant_id。
+
+**复评触发条件**（满足任一即重新评审）：需要启用 PostgreSQL RLS；
+关系表出现绕过 Service 层的直接写入路径；审计需要按关系行归属租户
+直查。落地时同步评估组合外键 `(tenant_id, id)` 的实体表改造。
+
+### 12.2 FIX-019：自研 RBAC 与 Casbin 选型评审结论
+
+**结论：第一期继续使用自研 RBAC（Role/Resource/Rules +
+Authorizer + 两条鉴权中间件），不引入 Casbin。**
+
+对照第 7 章验收面逐项核验：
+
+-   租户隔离：组/角色按租户过滤（GORM Callback），成员身份按租户
+    签发 JWT；
+-   资源+操作授权、成员角色、用户组角色：现有 Rules 模型覆盖；
+-   平台域与租户域隔离：FIX-008 落地后由
+    PlatformAuthorizationMiddleware 与 TenantMiddleware 两条链路
+    分别承担，互不串用；
+-   默认拒绝：Authorizer 无规则命中即拒绝，未认证请求按
+    unauthenticated 角色收敛；
+-   跨租户防护：FIX-006 同租户校验；
+-   缓存失效：角色/分组变更路径已清 Redis 成员缓存，暂无独立策略
+    缓存，复杂度可控。
+
+**复评触发条件**：出现行级数据权限（按部门/分组过滤数据集）、
+权限继承/临时授权/显式拒绝语义、或规则数量增长导致 Authorize
+查询成为热点时，再评估引入 Casbin Domain 模型；届时 Authorizer
+为唯一替换点，中间件与调用方无感。

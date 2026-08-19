@@ -30,13 +30,13 @@ type ServerConfig struct {
 // migrations（版本化 SQL，生产唯一来源）与 migrate（GORM AutoMigrate，
 // 仅开发/测试）互斥，二者同开视为配置错误
 type DBConfig struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	Name     string `yaml:"name"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Migrate  bool   `yaml:"migrate"`    // AutoMigrate（开发/测试）
-	Migrations bool  `yaml:"migrations"` // 版本化 SQL Migration（生产）
+	Host       string `yaml:"host"`
+	Port       int    `yaml:"port"`
+	Name       string `yaml:"name"`
+	User       string `yaml:"user"`
+	Password   string `yaml:"password"`
+	Migrate    bool   `yaml:"migrate"`    // AutoMigrate（开发/测试）
+	Migrations bool   `yaml:"migrations"` // 版本化 SQL Migration（生产）
 }
 
 // TenantRuntimeConfig 租户域运行参数（FIX-012）：注销数据保留期与清理周期

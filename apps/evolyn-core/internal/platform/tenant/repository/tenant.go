@@ -249,10 +249,11 @@ func (t *tenantRepository) ListPurgeable(ctx context.Context, now time.Time) ([]
 }
 
 // PurgeTenantData 物理清理租户业务数据（FIX-012）：
-// 1. 关系表（user_roles/user_groups/group_roles/department_users）按租户
-//    维度的成员/分组/角色/部门硬删——这些表无 GORM 模型与软删语义；
-// 2. 租户内四张业务表硬删（Unscoped，注销清理即销毁，不保留软删行）；
-// 3. 租户行保留并落 purged_at 墓碑（code 唯一约束防止注销编码复用）。
+//  1. 关系表（user_roles/user_groups/group_roles/department_users）按租户
+//     维度的成员/分组/角色/部门硬删——这些表无 GORM 模型与软删语义；
+//  2. 租户内四张业务表硬删（Unscoped，注销清理即销毁，不保留软删行）；
+//  3. 租户行保留并落 purged_at 墓碑（code 唯一约束防止注销编码复用）。
+//
 // 整体一个事务：清理失败整体回滚，可重试
 func (t *tenantRepository) PurgeTenantData(ctx context.Context, tenantID uint) error {
 	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {

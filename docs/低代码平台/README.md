@@ -12,6 +12,7 @@
 ## 子文档
 
 - [企业级低代码平台技术架构设计.md](./企业级低代码平台技术架构设计.md)：唯一设计基线，阅读入口。
+- [第一期/第一期SaaS平台底座整改文档.md](./第一期/第一期SaaS平台底座整改文档.md)：第一期 SaaS 底座收口整改（FIX-001~019：租户内唯一约束、跨租户校验、租户状态拦截、平台/租户路由隔离、SQL Migration、成员闭环/配额/注销/审计、模型分层），含 FIX-018/019 评审结论（第 12 章）。
 - [M1-账号成员拆分与租户体系补齐-任务清单.md](./M1-账号成员拆分与租户体系补齐-任务清单.md)：M1 在办任务跟踪（对标简道云差距落地），完成项勾选推进。
 - [登录页公共配置-需求整理.md](./登录页公共配置-需求整理.md)：对标简道云 get_public_configuration 的登录页初始化配置需求归集（字段语义、采纳/暂缓/裁剪、响应模型意向），只含需求不含实现任务。
 
@@ -19,7 +20,7 @@
 
 | 规划目录 | 来源 | 说明 |
 | --- | --- | --- |
-| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，engine 随 M2 起） |
+| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，含 iam/tenant/auth/audit 四域、migrations/ 版本化 SQL，engine 随 M2 起） |
 | `apps/evolyn-web/` | 现有目录演进（不改名） | pnpm + Turborepo monorepo：`apps/web/` Vue3 + TypeScript 主应用（脚手架阶段）、`packages/` 共享库 |
 | `services/workflow/` | 新建 | Java + Spring Boot + Flowable 流程服务 |
 | `packages/openapi/` | 新建 | 全平台 API 契约唯一事实源 |

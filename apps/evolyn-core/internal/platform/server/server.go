@@ -12,11 +12,11 @@ import (
 
 	"evolyn/internal/config"
 	"evolyn/internal/infrastructure"
+	auditrepository "evolyn/internal/platform/audit/repository"
+	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/auth"
 	authcontroller "evolyn/internal/platform/auth/controller"
 	"evolyn/internal/platform/auth/oauth"
-	auditrepository "evolyn/internal/platform/audit/repository"
-	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/controller"
 	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
@@ -141,15 +141,15 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	)
 
 	return &Server{
-		engine:        e,
-		config:        conf,
-		logger:        logger,
-		db:            db,
-		rdb:           rdb,
-		controllers:   controllers,
-		purgeWorker:   purgeWorker,
-		authorizer:    authorizer,
-		tenantRepo:    tenantRepo,
+		engine:      e,
+		config:      conf,
+		logger:      logger,
+		db:          db,
+		rdb:         rdb,
+		controllers: controllers,
+		purgeWorker: purgeWorker,
+		authorizer:  authorizer,
+		tenantRepo:  tenantRepo,
 	}, nil
 }
 

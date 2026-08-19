@@ -37,9 +37,9 @@ func TestQuotaCheck(t *testing.T) {
 
 	cases := []struct {
 		name      string
-		quotas    tenantmodel.Quotas      // 覆盖值
-		count     int64                    // 当前用量
-		expectErr error                   // 期望错误（nil = 放行）
+		quotas    tenantmodel.Quotas // 覆盖值
+		count     int64              // 当前用量
+		expectErr error              // 期望错误（nil = 放行）
 	}{
 		{"under limit", nil, 4, nil},
 		{"at limit rejected", nil, 5, ErrQuotaExceeded},

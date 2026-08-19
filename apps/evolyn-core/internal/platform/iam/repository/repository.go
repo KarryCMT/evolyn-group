@@ -55,7 +55,7 @@ func (r *Repositories) Department() DepartmentRepository {
 // Migrate iam 域表迁移：account/auth_infos → user → group → role/resource → department。
 // AutoMigrate 仅开发/测试路径（FIX-009）：GORM 标签表达不了 PG 部分唯一索引，
 // 此处用幂等 SQL 补齐，使开发库约束与 migrations 终态一致
-//（FIX-002/003/004/017；外键约束只在 migrations 路径落地）
+// （FIX-002/003/004/017；外键约束只在 migrations 路径落地）
 func (r *Repositories) Migrate() error {
 	for _, m := range []interface{ Migrate() error }{r.account, r.user, r.group, r.rbac, r.department} {
 		if err := m.Migrate(); err != nil {

@@ -12,17 +12,17 @@ import (
 type AuditLog struct {
 	ID           uint      `json:"id" gorm:"autoIncrement;primaryKey"`
 	TenantID     uint      `json:"tenantId" gorm:"index;not null;default:0"` // 0 = 平台级操作（运营域）
-	AccountID    uint      `json:"accountId" gorm:"index;default:0"`        // 操作者账号（登录身份）
-	MemberID     uint      `json:"memberId" gorm:"index;default:0"`         // 操作者成员（租户内身份）
-	Module       string    `json:"module" gorm:"size:64;index;not null"`    // 业务域：tenant/iam/...
-	Action       string    `json:"action" gorm:"size:64;index;not null"`    // 动作：create/update/delete/bind/...
+	AccountID    uint      `json:"accountId" gorm:"index;default:0"`         // 操作者账号（登录身份）
+	MemberID     uint      `json:"memberId" gorm:"index;default:0"`          // 操作者成员（租户内身份）
+	Module       string    `json:"module" gorm:"size:64;index;not null"`     // 业务域：tenant/iam/...
+	Action       string    `json:"action" gorm:"size:64;index;not null"`     // 动作：create/update/delete/bind/...
 	ResourceType string    `json:"resourceType" gorm:"size:64;index;not null"`
 	ResourceID   string    `json:"resourceId" gorm:"size:128;index"`
 	RequestID    string    `json:"requestId" gorm:"size:64"`
 	IP           string    `json:"ip" gorm:"size:64"`
 	UserAgent    string    `json:"userAgent" gorm:"size:256"`
 	BeforeData   JSONText  `json:"beforeData" gorm:"type:jsonb"` // 变更前快照，可空
-	AfterData    JSONText  `json:"afterData" gorm:"type:jsonb"`   // 变更后快照，可空
+	AfterData    JSONText  `json:"afterData" gorm:"type:jsonb"`  // 变更后快照，可空
 	CreatedAt    time.Time `json:"createdAt"`
 }
 

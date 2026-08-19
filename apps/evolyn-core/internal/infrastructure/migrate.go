@@ -28,12 +28,12 @@ func NewMigrator(db *gorm.DB) *Migrator {
 
 // migrationFile 解析后的迁移文件（版本号 + 方向）
 type migrationFile struct {
-	version  int64
-	name     string
+	version   int64
+	name      string
 	direction string // up / down
-	path     string
-	content  string
-	checksum string
+	path      string
+	content   string
+	checksum  string
 }
 
 var migrationNamePattern = regexp.MustCompile(`^(\d{6})_([a-z0-9_]+)\.(up|down)\.sql$`)
@@ -145,12 +145,12 @@ func loadMigrations(fsys fs.FS) ([]*migrationFile, error) {
 
 		sum := sha256.Sum256(data)
 		files = append(files, &migrationFile{
-			version:  version,
-			name:     match[2],
+			version:   version,
+			name:      match[2],
 			direction: match[3],
-			path:     e.Name(),
-			content:  string(data),
-			checksum: hex.EncodeToString(sum[:]),
+			path:      e.Name(),
+			content:   string(data),
+			checksum:  hex.EncodeToString(sum[:]),
 		})
 	}
 
@@ -178,7 +178,7 @@ func loadMigrations(fsys fs.FS) ([]*migrationFile, error) {
 }
 
 // SplitSQLStatements 把迁移脚本按顶层分号切分为可独立执行的语句：
-// 识别 '--' 行注释、块注释、单引号字符串（'' 转义）与 $$ 美元引用，
+// 识别 '--' 行注释、块注释、单引号字符串（” 转义）与 $$ 美元引用，
 // 避免注释或字符串字面量中的分号被误判为语句边界
 func SplitSQLStatements(script string) []string {
 	var (
