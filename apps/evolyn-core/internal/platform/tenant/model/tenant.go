@@ -4,7 +4,6 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"time"
 
 	kernel "evolyn/internal/model"
 )
@@ -41,9 +40,9 @@ type Tenant struct {
 	Quotas         Quotas       `json:"quotas" gorm:"type:jsonb"` // 套餐配额覆盖，空则用套餐默认值
 
 	// 注销生命周期（FIX-012）：deleted 状态记录申请与保留截止，到期由 Purge Worker 清理
-	DeleteRequestedAt *time.Time `json:"deleteRequestedAt"` // 注销申请时间
-	RetentionUntil    *time.Time `json:"retentionUntil"`    // 数据保留截止时间
-	PurgedAt          *time.Time `json:"purgedAt"`          // 最终清理完成时间（墓碑标记）
+	DeleteRequestedAt *kernel.JSONTime `json:"deleteRequestedAt"` // 注销申请时间
+	RetentionUntil    *kernel.JSONTime `json:"retentionUntil"`    // 数据保留截止时间
+	PurgedAt          *kernel.JSONTime `json:"purgedAt"`          // 最终清理完成时间（墓碑标记）
 
 	kernel.PlatformBaseModel // 平台一级资源，无 tenant_id（FIX-014）
 }

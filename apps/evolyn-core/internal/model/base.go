@@ -1,8 +1,6 @@
 package model
 
 import (
-	"time"
-
 	"gorm.io/gorm"
 )
 
@@ -10,8 +8,8 @@ import (
 // 适用于不归属任何租户的表（tenants/accounts/auth_infos 等），
 // 刻意不含 TenantID，避免「租户属于哪个租户」的语义问题
 type PlatformBaseModel struct {
-	CreatedAt time.Time      `json:"createdAt"`
-	UpdatedAt time.Time      `json:"updatedAt"`
+	CreatedAt JSONTime       `json:"createdAt"`
+	UpdatedAt JSONTime       `json:"updatedAt"`
 	DeletedAt gorm.DeletedAt `json:"-"` // soft delete
 }
 

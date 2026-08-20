@@ -41,7 +41,9 @@ cmd/api/              入口，只做装配
 internal/
   config/             配置解析
   contextx/           通用 context 键值存取（租户上下文/操作者/请求元数据、DetachTenant）
-  model/              跨域共享内核（PlatformBaseModel / TenantBaseModel）
+  model/              跨域共享内核（PlatformBaseModel / TenantBaseModel；
+                      JSONTime 出网时间统一载体：API 时间字段一律用它，
+                      秒级「2006-01-02 15:04:05」东八区，GORM 经 Value/Scan 透明转换）
   metrics/            监控指标
   infrastructure/     postgres/redis/pgx 客户端、GORM 租户 Callback、
                       SQL Migration 执行器（migrate.go）、统一事务
