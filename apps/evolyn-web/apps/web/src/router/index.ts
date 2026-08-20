@@ -21,13 +21,13 @@ declare module 'vue-router' {
 router.beforeEach((to) => {
   const { isAuthenticated } = useAuth()
 
-  if (!to.meta.public && !isAuthenticated.value) {
-    return { name: 'login', query: { redirect: to.fullPath } }
-  }
+  // if (!to.meta.public && !isAuthenticated.value) {
+  //   return { name: 'login', query: { redirect: to.fullPath } }
+  // }
 
-  if (to.name === 'login' && isAuthenticated.value) {
-    return { path: '/' }
-  }
+  // if (to.name === 'login' && isAuthenticated.value) {
+  //   return { path: '/' }
+  // }
 })
 
 export default router

@@ -4,7 +4,8 @@
   min-height: 1px;
 
   .grid-stack-item-content {
-    overflow: visible;
+    // GridStack 默认给内容区纵向滚动，仪表盘卡片自身负责内容裁剪。
+    overflow: hidden !important;
   }
 
   &.grid-stack-static .grid-stack-item-content {
