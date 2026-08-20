@@ -17,6 +17,7 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@evolyn.do/ui": "workspace:*",
     "@element-plus/icons-vue": "catalog:ui",
     "@vueuse/core": "catalog:utils",
     "element-plus": "catalog:ui",

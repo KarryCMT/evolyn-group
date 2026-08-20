@@ -1,0 +1,13 @@
+@use 'gridstack/dist/gridstack.css';
+
+.evolyn-grid {
+  min-height: 1px;
+
+  .grid-stack-item-content {
+    overflow: visible;
+  }
+
+  &.grid-stack-static .grid-stack-item-content {
+    cursor: default;
+  }
+}
