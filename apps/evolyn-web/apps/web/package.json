@@ -24,6 +24,7 @@
     "@remixicon/vue": "catalog:ui",
     "vue": "catalog:frontend",
     "vue-router": "catalog:frontend",
+    "pinia": "catalog:frontend",
     "jsencrypt": "catalog:utils"
   },
   "devDependencies": {

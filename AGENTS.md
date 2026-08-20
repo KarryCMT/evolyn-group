@@ -170,7 +170,10 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
   全局守卫拦截未登录访问）；`src/pages/`（页面，`auth/` 为登录/注册/找回密码）；
   `src/api/`（HTTP 层：`http.ts` 统一 fetch 封装 + 按域拆分的接口模块，
   对齐后端统一响应 `{code,msg,data}`）；`src/components/auth/`（认证域业务组件：
-  AuthLayout 骨架、登录/注册表单等）；`src/composables/`（auth 会话、dark 暗色）；
+  AuthLayout 骨架、登录/注册表单等）；`src/stores/`（pinia 全局 store：`auth.ts`
+  会话 store 为 token/登录聚合信息唯一事实来源，pinia 在 main.ts 中先于 router
+  装配）；`src/composables/`（消费入口与局部状态：`auth.ts` 为 auth store 的
+  useAuth() 只读适配、dark 暗色）；
   `src/styles/`（element 主题覆盖，默认 `el` 命名空间）。布局与菜单组件
   （侧栏/顶栏）随后续前端业务批落地。
 
