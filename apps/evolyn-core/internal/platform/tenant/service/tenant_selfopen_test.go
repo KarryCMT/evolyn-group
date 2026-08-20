@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	iammodel "evolyn/internal/platform/iam/model"
 	tenantmodel "evolyn/internal/platform/tenant/model"
 )
 
@@ -51,6 +52,58 @@ func TestSelfOpenNameValidation(t *testing.T) {
 	// owner 账号缺失：名称合法也应拒绝
 	if _, err := svc.SelfOpen(ctx, 0, "evolyn团队", tenantmodel.OnboardingConfig{}); err == nil || !strings.Contains(err.Error(), "owner") {
 		t.Errorf("empty owner account should be rejected, got err=%v", err)
+	}
+
+	// SelfOpenInTx 与 SelfOpen 同一参数门禁（事务内组合通道同样先拒无效参数）
+	if _, err := svc.SelfOpenInTx(ctx, 1, "我", tenantmodel.OnboardingConfig{}); err == nil || !strings.Contains(err.Error(), "tenant name") {
+		t.Errorf("SelfOpenInTx should reject invalid name, got err=%v", err)
+	}
+	if _, err := svc.SelfOpenInTx(ctx, 0, "evolyn团队", tenantmodel.OnboardingConfig{}); err == nil || !strings.Contains(err.Error(), "owner") {
+		t.Errorf("SelfOpenInTx should reject empty owner, got err=%v", err)
+	}
+}
+
+// TestSelfOpenInTxOpensWithoutAudit 事务内自助开通：开通结果与 SelfOpen
+// 同构（免费版/企业画像/owner 成员继承账号昵称），但**不记审计**——审计
+// 由调用方（注册编排）在外层事务提交后补记，避免回滚留下假流水
+func TestSelfOpenInTxOpensWithoutAudit(t *testing.T) {
+	store, tenantRepo, iam, audit := newOpenFixtures()
+	// 预置 owner 账号：SelfOpenInTx 语义是「账号由调用方先行注册」，
+	// 昵称已由编排方先行落库（注册向导「怎么称呼你」）
+	owner := &iammodel.Account{ID: store.nextID(), Name: "u-abcd1234", Nickname: "张三"}
+	store.accounts[owner.ID] = owner
+	svc := newOpenService(store, openRollbackTx{store}, tenantRepo, iam, audit)
+
+	tenant, err := svc.SelfOpenInTx(context.Background(), owner.ID, " evolyn团队 ", tenantmodel.OnboardingConfig{Industry: "互联网/软件"})
+	if err != nil {
+		t.Fatalf("SelfOpenInTx should succeed, got: %v", err)
+	}
+
+	if tenant.Name != "evolyn团队" {
+		t.Errorf("tenant name should be trimmed, got %q", tenant.Name)
+	}
+	if tenant.Plan != tenantmodel.PlanFree {
+		t.Errorf("plan should default to free, got %q", tenant.Plan)
+	}
+	if tenant.Config.Onboarding.Industry != "互联网/软件" {
+		t.Errorf("onboarding profile should be written into tenant config, got %+v", tenant.Config.Onboarding)
+	}
+	if tenant.OwnerAccountId == nil || *tenant.OwnerAccountId != owner.ID {
+		t.Errorf("owner account should be %d, got %v", owner.ID, tenant.OwnerAccountId)
+	}
+	if audit.entries != 0 {
+		t.Errorf("SelfOpenInTx must not record audit (caller records after commit), got %d entries", audit.entries)
+	}
+	if len(store.users) != 1 {
+		t.Fatalf("owner member should be created, got %d members", len(store.users))
+	}
+	for _, member := range store.users {
+		if member.Nickname != "张三" {
+			t.Errorf("owner member should inherit account nickname, got %q", member.Nickname)
+		}
+		if member.TenantID != tenant.ID {
+			t.Errorf("owner member should belong to the new tenant %d, got %d", tenant.ID, member.TenantID)
+		}
 	}
 }
 

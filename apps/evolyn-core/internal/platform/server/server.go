@@ -21,6 +21,7 @@ import (
 	authcontroller "evolyn/internal/platform/auth/controller"
 	"evolyn/internal/platform/auth/oauth"
 	"evolyn/internal/platform/auth/pki"
+	authservice "evolyn/internal/platform/auth/service"
 	"evolyn/internal/platform/auth/sms"
 	"evolyn/internal/platform/controller"
 	"evolyn/internal/platform/httpx"
@@ -142,7 +143,10 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	accountController := iamcontroller.NewAccountController(accountService, keypair)
 	departmentController := iamcontroller.NewDepartmentController(departmentService)
 	groupController := iamcontroller.NewGroupController(groupService)
-	authController := authcontroller.NewAuthController(accountService, jwtService, oauthManager, tenantService, smsService, keypair)
+	// 注册编排服务（认证域）：注册向导最终提交「进入产品」的单事务落库
+	// （免密注册账号 + 账号画像 + 租户开通/复用 + owner 成员解析）
+	registrationService := authservice.NewRegistrationService(txManager, accountService, tenantService, auditSvc)
+	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 

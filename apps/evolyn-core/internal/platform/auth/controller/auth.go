@@ -9,6 +9,7 @@ import (
 	"evolyn/internal/platform/auth"
 	"evolyn/internal/platform/auth/oauth"
 	"evolyn/internal/platform/auth/pki"
+	authservice "evolyn/internal/platform/auth/service"
 	"evolyn/internal/platform/auth/sms"
 	platformcontroller "evolyn/internal/platform/controller"
 	"evolyn/internal/platform/ginctx"
@@ -25,22 +26,25 @@ import (
 // AuthController 会话域：登录/注册/登出（ADR-006 账号×成员模型）
 type AuthController struct {
 	accountService service.AccountService
-	jwtService     *auth.JWTService
-	oauthManger    *oauth.OAuthManager
-	tenantService  tenantservice.TenantService
-	smsService     *sms.Service
+	// registrationService 注册编排：向导最终提交的单事务落库（账号+画像+租户+owner）
+	registrationService authservice.RegistrationService
+	jwtService          *auth.JWTService
+	oauthManger         *oauth.OAuthManager
+	tenantService       tenantservice.TenantService
+	smsService          *sms.Service
 	// 登录口令加密密钥对：密码登录分支先解密再走 bcrypt 校验
 	pkiKeypair *pki.Keypair
 }
 
-func NewAuthController(accountService service.AccountService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair) platformcontroller.Controller {
+func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair) platformcontroller.Controller {
 	return &AuthController{
-		accountService: accountService,
-		jwtService:     jwtService,
-		oauthManger:    oauthManager,
-		tenantService:  tenantService,
-		smsService:     smsService,
-		pkiKeypair:     pkiKeypair,
+		accountService:      accountService,
+		registrationService: registrationService,
+		jwtService:          jwtService,
+		oauthManger:         oauthManager,
+		tenantService:       tenantService,
+		smsService:          smsService,
+		pkiKeypair:          pkiKeypair,
 	}
 }
 
@@ -156,14 +160,31 @@ func (ac *AuthController) Logout(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// registerBySmsRequest 注册请求（注册向导第 1 步「手机号+验证码」）：
-// 不收集用户名/密码，验证码 scene=register 通过即注册并登录
-type registerBySmsRequest struct {
-	Phone   string `json:"phone" binding:"required"`
-	SmsCode string `json:"smsCode" binding:"required"`
+// registerOnboarding 注册向导第 3 步采集的账号画像（「人」的属性挂账号）
+type registerOnboarding struct {
+	Role    string `json:"role"`    // 你的角色：ceo / manager / it / ...
+	Channel string `json:"channel"` // 了解渠道：xiaohongshu / zhihu / referral / ...
 }
 
-// registerTokenResult 注册结果：注册即登录，直接返回会话令牌；
+// registerTenantProfile 注册向导第 2 步采集的企业画像（写入租户 Config）
+type registerTenantProfile struct {
+	Name     string `json:"name" binding:"required"` // 企业名称
+	Demand   string `json:"demand"`                  // 你的需求（单选，选填）
+	Industry string `json:"industry"`                // 所属行业（单选，选填）
+}
+
+// registerRequest 注册向导最终提交请求（POST /auth/register）：三步纯前端
+// 采集的全量数据——手机号+验证码、企业画像、账号画像，点「进入产品」时
+// 一次性上送，此前向导各步不产生任何服务端写副作用
+type registerRequest struct {
+	Phone      string                `json:"phone" binding:"required"`
+	SmsCode    string                `json:"smsCode" binding:"required"`
+	Nickname   string                `json:"nickname"`                  // 怎么称呼你（空串保留脱敏手机号默认）
+	Onboarding registerOnboarding    `json:"onboarding"`                // 账号画像：角色/了解渠道
+	Tenant     registerTenantProfile `json:"tenant" binding:"required"` // 企业画像
+}
+
+// registerTokenResult 注册结果：注册完成即登录，返回绑定新租户的会话令牌；
 // created=false 表示手机号已注册（等价短信登录，向导重试幂等）
 type registerTokenResult struct {
 	Token    string `json:"token"`
@@ -171,36 +192,47 @@ type registerTokenResult struct {
 	Created  bool   `json:"created"`
 }
 
-// @Summary 注册账号
-// @Description 手机号 + 短信验证码注册（注册向导第 1 步）：验证码通过即注册并登录，
-// 服务端生成随机登录名与随机密码（免密注册，后续可经 PUT /accounts/me/password 首次设置）；
-// 手机号已注册时等价短信登录直接放行（created=false），支持向导重试幂等
+// @Summary 注册（注册向导最终提交）
+// @Description 「进入产品」时一次性提交向导三步采集的全量数据（手机号+验证码、
+// 企业画像、账号画像），服务端单事务完成：免密注册账号（已注册手机号等价
+// 短信登录，created=false）→ 落账号昵称/角色/渠道画像 → 自助开通租户并绑定
+// tenant-admin（名下已有自有租户则复用）→ 返回绑定新租户的会话令牌。
+// 注册全程不设密码：账号为免密状态，密码由用户后续在个人中心首次设置。
+// 验证码随本请求一次性校验，向导停留超有效期将返回 401 需重新获取
 // @Accept json
 // @Produce json
 // @Tags 认证
-// @Param body body controller.registerBySmsRequest true "phone and sms code"
+// @Param body body controller.registerRequest true "向导三步采集的全量数据"
 // @Success 200 {object} httpx.Response{data=controller.registerTokenResult}
-// @Router /api/v1/auth/user [post]
-func (ac *AuthController) Register(c *gin.Context) {
-	req := new(registerBySmsRequest)
+// @Failure 401 {object} httpx.Response "验证码错误或已过期"
+// @Router /api/v1/auth/register [post]
+func (ac *AuthController) RegisterComplete(c *gin.Context) {
+	req := new(registerRequest)
 	if err := c.BindJSON(req); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	// 验证码校验先行（scene=register 与登录验证码隔离），失败即 401
+	// 验证码校验先行（scene=register 与登录验证码隔离；一次性消费）
 	if err := ac.smsService.Verify(c.Request.Context(), sms.SceneRegister, req.Phone, req.SmsCode); err != nil {
 		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
 		return
 	}
 
-	account, member, created, err := ac.accountService.RegisterByPhone(c.Request.Context(), req.Phone)
+	result, err := ac.registrationService.Complete(c.Request.Context(), &authservice.RegistrationRequest{
+		Phone:            req.Phone,
+		Nickname:         req.Nickname,
+		Onboarding:       model.AccountOnboarding{Role: req.Onboarding.Role, Channel: req.Onboarding.Channel},
+		TenantName:       req.Tenant.Name,
+		TenantOnboarding: tenantmodel.OnboardingConfig{Demand: req.Tenant.Demand, Industry: req.Tenant.Industry},
+	})
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 
-	token, err := ac.loginSession(c, account, member, false)
+	// 注册即登录：令牌直接绑定新租户 owner 成员（免客户端再走切换）
+	token, err := ac.loginSession(c, result.Account, result.Member, false)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -209,7 +241,7 @@ func (ac *AuthController) Register(c *gin.Context) {
 	httpx.ResponseSuccess(c, registerTokenResult{
 		Token:    token,
 		Describe: "set token in Authorization Header, [Authorization: Bearer {token}]",
-		Created:  created,
+		Created:  result.Created,
 	})
 }
 
@@ -309,7 +341,7 @@ func (ac *AuthController) SendSmsCode(c *gin.Context) {
 func (ac *AuthController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/auth/token", ac.Login)
 	api.DELETE("/auth/token", ac.Logout)
-	api.POST("/auth/user", ac.Register)
+	api.POST("/auth/register", ac.RegisterComplete)
 	api.POST("/auth/tenant", ac.OpenTenant)
 	api.POST("/auth/sms/send", ac.SendSmsCode)
 	api.GET("/auth/tenants", ac.ListTenants)

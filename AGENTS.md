@@ -67,20 +67,28 @@ internal/
                        provider 启动拦截）、登录口令加密（pki/ 子包：RSA
                        密钥对，公钥经 /app/conf 下发前端 jsencrypt 加密、
                        服务端私钥解密，私钥配置注入或开发态启动随机生成）、
-                       auth 控制器（POST /auth/user 为注册向导第 1 步
-                       「手机号+验证码」注册即登录：免密注册，服务端生成
-                       随机登录名/密码，已注册手机号等价短信登录；
-                       POST /auth/tenant 自助开通租户：创建者即所有者并绑定
-                       tenant-admin，编码服务端生成）
+                       service/ 子包（注册编排 RegistrationService：单事务
+                       组合 iam 免密注册/账号画像与 tenant 事务内自助开通，
+                       复用既有租户保证重试幂等）、auth 控制器（POST
+                       /auth/register 为注册向导最终提交「进入产品」：三步
+                       纯前端采集的全量数据一次性上送，单事务完成免密注册
+                       账号（不设密码，后续个人中心首设）、落账号画像、
+                       自助开通租户并绑定 tenant-admin，签发绑定新租户的
+                       令牌；已注册手机号等价短信登录（created=false）；
+                       POST /auth/tenant 登录态自助开通租户：创建者即所有者
+                       并绑定 tenant-admin，编码服务端生成）
     iam/              身份域（域内 controller→service→repository 小三层）：
-                       account 平台账号（PUT /accounts/me 自助资料含注册向导
-                       「完善信息」的 onboarding JSONB 画像，昵称变更同事务同步
-                       当前成员昵称；PUT /accounts/me/password 密码修改——免密
-                       注册账号 password_initialized=false（迁移 000012）首设
-                       免旧密码；迁移 000010/000011）/ user 租户成员 /
+                       account 平台账号（PUT /accounts/me 自助资料（个人
+                       中心入口）含 onboarding JSONB 画像，昵称变更同事务
+                       同步当前成员昵称；PUT /accounts/me/password 密码
+                       修改——免密注册账号（注册向导不设密码）
+                       password_initialized=false（迁移 000012）首设免旧
+                       密码；迁移 000010/000011）/ user 租户成员 /
                        group / rbac / department；authorization/ 自研 RBAC 鉴权
     tenant/           租户域（小三层）：租户 CRUD 与生命周期（注销保留期/
-                      Purge Worker）、plan 套餐与配额、QuotaService 配额执行
+                      Purge Worker）、plan 套餐与配额、QuotaService 配额执行；
+                      SelfOpenInTx 供认证域注册编排在外层事务内组合开通
+                      （不记审计，由调用方提交后补记）
     audit/            审计域：业务操作审计日志（Recorder，追加写流水）
 migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
                       命名 NNNNNN_name.(up|down).sql，版本号只增不复用）
@@ -182,6 +190,7 @@ pnpm -F @evolyn.do/web build        # 生产构建
 
 ## 验证建议
 
+- 前端改动验证以 `pnpm -F @evolyn.do/web typecheck && build` 为准，后端以 `go test ./...` 为准；用户约定**无需用浏览器执行 E2E 走查**，联调由用户自行进行。
 - 后端：`cd apps/evolyn-core && go test ./...`，必要时 `make lint`、`make run`。
 - 前端：`cd apps/evolyn-web && pnpm -F @evolyn.do/web typecheck && pnpm -F @evolyn.do/web build`；联调用 `deploy/docker-compose.yaml` 起依赖。
 - 跨端接口：字段名、错误码、鉴权头在 evolyn-core 控制器与前端调用侧两侧核对（前端 HTTP 层已随登录批落地：`apps/web/src/api/`，开发期 Vite 将 `/api` 代理到本地 8080）。

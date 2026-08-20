@@ -145,29 +145,73 @@ func (s *tenantService) Open(ctx context.Context, req *OpenTenantRequest) (*tena
 	return tenant, nil
 }
 
-// SelfOpen 自助开通租户（注册向导「创建团队」）：创建者即所有者并绑定
-// tenant-admin 角色。编码由服务端随机生成（调用方不可指定，避免占用
-// 心仪编码），套餐留空走 Validate 默认免费版，后续可在租户设置中升级；
-// onboarding 为注册向导采集的企业画像，写入租户 Config（选填）
+// SelfOpen 自助开通租户（登录态「创建团队」，POST /auth/tenant）：创建者即
+// 所有者并绑定 tenant-admin 角色。独立事务提交，成功后记审计（与 Open 同口径）；
+// 需加入调用方外层事务的组合场景（注册向导最终提交）请改用 SelfOpenInTx
 func (s *tenantService) SelfOpen(ctx context.Context, ownerAccountID uint, name string, onboarding tenantmodel.OnboardingConfig) (*tenantmodel.Tenant, error) {
-	name = strings.TrimSpace(name)
-	if runeLen := len([]rune(name)); runeLen < 2 || runeLen > 50 {
-		return nil, fmt.Errorf("tenant name must be 2-50 characters")
-	}
-	if ownerAccountID == 0 {
-		return nil, fmt.Errorf("owner account is required")
+	if err := validateSelfOpen(ownerAccountID, name); err != nil {
+		return nil, err
 	}
 
-	// 随机编码撞唯一索引时自动换码重试；其余错误原样上抛
+	var tenant *tenantmodel.Tenant
+	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		var err error
+		tenant, err = s.selfOpenCore(tctx, ownerAccountID, name, onboarding)
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	// 审计在事务提交成功后独立写入（best-effort，FIX-020 决策）
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "tenant", Action: "create", ResourceType: "tenant",
+			ResourceID: strconv.FormatUint(uint64(tenant.ID), 10),
+			TenantID:   tenant.ID,
+			After:      map[string]any{"code": tenant.Code, "name": tenant.Name, "plan": tenant.Plan},
+		})
+	}
+	return tenant, nil
+}
+
+// SelfOpenInTx 事务内自助开通（注册向导最终提交的组合通道）：与 SelfOpen
+// 同一核心流程，但不另开事务、不记审计——仓储经 ResolveDB 自动加入调用方
+// ctx 携带的外层事务；若在此记审计会先于外层提交落库，外层回滚时留下
+// 「未发生的开通」假流水（FIX-020 口径），审计由调用方在提交成功后补记
+func (s *tenantService) SelfOpenInTx(ctx context.Context, ownerAccountID uint, name string, onboarding tenantmodel.OnboardingConfig) (*tenantmodel.Tenant, error) {
+	if err := validateSelfOpen(ownerAccountID, name); err != nil {
+		return nil, err
+	}
+	return s.selfOpenCore(ctx, ownerAccountID, name, onboarding)
+}
+
+// validateSelfOpen 自助开通参数门禁：名称 2-50 字符（去首尾空白）、
+// owner 账号必填——在进入事务前拒绝，避免无效请求占用事务连接
+func validateSelfOpen(ownerAccountID uint, name string) error {
+	name = strings.TrimSpace(name)
+	if runeLen := len([]rune(name)); runeLen < 2 || runeLen > 50 {
+		return fmt.Errorf("tenant name must be 2-50 characters")
+	}
+	if ownerAccountID == 0 {
+		return fmt.Errorf("owner account is required")
+	}
+	return nil
+}
+
+// selfOpenCore 自助开通核心流程（不含参数门禁/事务/审计）：随机编码撞
+// 唯一索引自动换码重试 + openInTx 建租户/owner 成员/基线种子。直接调用
+// openInTx（不经 Open 的 Validate），套餐显式取免费版默认
+func (s *tenantService) selfOpenCore(ctx context.Context, ownerAccountID uint, name string, onboarding tenantmodel.OnboardingConfig) (*tenantmodel.Tenant, error) {
 	const attempts = 3
 	var (
 		tenant *tenantmodel.Tenant
 		err    error
 	)
 	for range attempts {
-		tenant, err = s.Open(ctx, &OpenTenantRequest{
-			Name:           name,
+		tenant, err = s.openInTx(ctx, &OpenTenantRequest{
+			Name:           strings.TrimSpace(name),
 			Code:           generateTenantCode(),
+			Plan:           tenantmodel.PlanFree,
 			OwnerAccountID: ownerAccountID,
 			Onboarding:     onboarding,
 		})

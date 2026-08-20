@@ -5,7 +5,7 @@ import type {
   JwtToken,
   LoginPayload,
   OpenTenantPayload,
-  RegisterPayload,
+  RegisterCompletePayload,
   RegisterResult,
   Tenant,
   TenantMembership,
@@ -34,10 +34,12 @@ export function logout(): Promise<null> {
   return http.delete('/auth/token')
 }
 
-/** 注册平台账号（手机号+验证码，验证码通过即注册并登录）：
- *  免密注册——服务端生成随机登录名/密码；手机号已注册时等价短信登录（created=false） */
-export function register(payload: RegisterPayload): Promise<RegisterResult> {
-  return http.post('/auth/user', payload)
+/** 注册（注册向导最终提交「进入产品」）：三步采集的全量数据一次性上送，
+ *  服务端单事务完成免密注册账号（已注册手机号等价短信登录，created=false）、
+ *  落账号画像、开通租户并绑定 tenant-admin，返回绑定新租户的会话令牌。
+ *  验证码随本请求一次性校验，超有效期返回 401 需回第 1 步重新获取 */
+export function registerComplete(payload: RegisterCompletePayload): Promise<RegisterResult> {
+  return http.post('/auth/register', payload)
 }
 
 /** 自助开通租户：当前账号成为所有者并绑定 tenant-admin（注册向导「创建团队」），企业画像随请求写入租户配置 */

@@ -30,13 +30,26 @@ export interface LoginPayload {
   tenantCode?: string
 }
 
-/** 注册请求：手机号 + 短信验证码（scene=register），注册即登录不收集密码 */
-export interface RegisterPayload {
+/** 注册向导最终提交请求（POST /auth/register）：三步纯前端采集的全量数据，
+ *  「进入产品」时一次性上送，此前向导各步不产生任何服务端写副作用 */
+export interface RegisterCompletePayload {
   phone: string
+  /** 短信验证码（scene=register，随本请求一次性校验，5 分钟有效期） */
   smsCode: string
+  /** 怎么称呼你；空串保留后端默认昵称（脱敏手机号） */
+  nickname: string
+  /** 账号画像：角色/了解渠道（「人」的属性挂账号） */
+  onboarding: AccountOnboarding
+  /** 企业画像：注册向导第 2 步采集，随租户开通写入 Config */
+  tenant: {
+    name: string
+    demand?: string
+    industry?: string
+  }
 }
 
-/** 注册结果：注册即登录直接返回会话令牌；created=false 表示手机号已注册（等价短信登录） */
+/** 注册结果：单事务完成注册（账号+画像+租户+owner 绑定）后直接返回绑定
+ *  新租户的会话令牌；created=false 表示手机号已注册（等价短信登录） */
 export interface RegisterResult extends JwtToken {
   created: boolean
 }

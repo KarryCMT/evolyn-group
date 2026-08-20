@@ -1,8 +1,8 @@
 <script setup lang="ts">
 // 注册向导第 1 步「注册账号」：只收集手机号 + 短信验证码（设计稿口径），
-// 不收集用户名/密码——注册即登录，账号资料在后续步骤补全。「获取验证码」
-// 通过手机号校验后上抛父级发送并启动 60s 重发倒计时；提交校验通过后上抛，
-// 注册调用在父级
+// 不收集用户名/密码。「获取验证码」通过手机号校验后上抛父级发送并启动
+// 60s 重发倒计时；提交校验通过后上抛，父级仅暂存推进——注册动作合并到
+// 向导第 3 步「进入产品」的最终提交，验证码也在彼时一次性校验
 import { onUnmounted, reactive, shallowRef, useTemplateRef } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { Iphone } from '@element-plus/icons-vue'
@@ -11,13 +11,15 @@ import { ElMessage } from 'element-plus'
 /** 重发倒计时秒数：与后端发送冷却窗口一致 */
 const RESEND_SECONDS = 60
 
-defineProps<{
+const props = defineProps<{
   /** 提交中：按钮显示 loading 并防重复提交 */
   loading?: boolean
+  /** 回退场景带回的手机号（验证码过期退回本步时免重填） */
+  defaultPhone?: string
 }>()
 
 const emit = defineEmits<{
-  /** 校验通过后上抛手机号 + 验证码，由父级发起注册（注册即登录） */
+  /** 校验通过后上抛手机号 + 验证码，由父级暂存并推进（注册合并进最终提交） */
   submit: [payload: { phone: string; smsCode: string }]
   /** 请求发送注册短信验证码（先通过手机号校验） */
   'send-code': [phone: string]
@@ -26,7 +28,7 @@ const emit = defineEmits<{
 const formRef = useTemplateRef<FormInstance>('formRef')
 
 const form = reactive({
-  phone: '',
+  phone: props.defaultPhone ?? '',
   smsCode: '',
 })
 
