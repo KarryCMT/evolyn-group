@@ -21,6 +21,7 @@
     "@element-plus/icons-vue": "catalog:ui",
     "@vueuse/core": "catalog:utils",
     "element-plus": "catalog:ui",
+    "@remixicon/vue": "catalog:ui",
     "vue": "catalog:frontend",
     "vue-router": "catalog:frontend",
     "jsencrypt": "catalog:utils"

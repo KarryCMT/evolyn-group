@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ElAvatar, ElTooltip } from 'element-plus';
 import { ArrowLeft, Bell, Grid, QuestionFilled, SetUp, UserFilled } from '@element-plus/icons-vue';
+import { RiHomeGearFill,RiGridFill } from "@remixicon/vue";
 import { useRouter } from 'vue-router';
 
 defineOptions({ name: 'TopNavigation' });
@@ -30,10 +31,14 @@ function openWorkbenchEditor() {
 <template>
   <header class="top-navigation">
     <div class="top-navigation__brand">
-      <el-button v-if="backTo" text :icon="ArrowLeft" aria-label="返回工作台" @click="goBack" />
+      <el-icon v-if="backTo" size="16" aria-label="返回工作台" @click="goBack" >
+        <RiGridFill />
+      </el-icon>
       <template v-else>
         <el-button class="top-navigation__switcher" circle :icon="Grid" aria-label="切换产品" />
-        <span class="top-navigation__logo" aria-hidden="true">◆</span>
+        <span class="top-navigation__logo" aria-hidden="true">
+
+        </span>
       </template>
       <strong>{{ title }}</strong>
     </div>
@@ -41,14 +46,12 @@ function openWorkbenchEditor() {
     <nav class="top-navigation__actions" aria-label="工作台导航">
       <template v-if="!backTo">
         <el-tooltip content="自定义工作台" placement="bottom">
-          <el-button
+          <el-icon
             class="top-navigation__workbench-entry"
-            text
-            circle
-            :icon="SetUp"
-            aria-label="自定义工作台"
             @click="openWorkbenchEditor"
-          />
+          >
+            <RiHomeGearFill />
+          </el-icon>
         </el-tooltip>
         <el-button text>模板中心</el-button>
         <el-button text>通讯录</el-button>
@@ -73,11 +76,10 @@ function openWorkbenchEditor() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 48px;
+  height: 52px;
   padding: 0 16px;
   color: var(--el-text-color-primary);
-  background: var(--el-bg-color);
-  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: #f3f3f8;
 
   &__brand,
   &__actions {
@@ -95,6 +97,10 @@ function openWorkbenchEditor() {
     border-right: 1px solid var(--el-border-color-lighter);
     border-radius: 0;
     padding-right: 12px;
+    &:hover {
+      cursor: pointer;
+      color: var(--el-color-primary);
+    }
   }
 
   &__logo {

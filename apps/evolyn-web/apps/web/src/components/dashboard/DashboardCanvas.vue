@@ -36,7 +36,7 @@ const gridOptions = computed(() => ({
   max-width: 1680px;
   min-height: 0;
   overflow: hidden;
-  padding: 16px 40px 48px;
+  padding: 0px 40px 24px;
   margin: 0 auto;
 }
 
