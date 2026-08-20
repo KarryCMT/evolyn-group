@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { ElEmpty } from 'element-plus';
 import type { DashboardWidgetContent } from '~/types/dashboard';
 import DashboardWidgetFrame from '../DashboardWidgetFrame.vue';
 
@@ -9,10 +8,17 @@ defineProps<{ widget: DashboardWidgetContent }>();
 
 <template>
   <DashboardWidgetFrame title="未命名快捷入口">
-    <el-empty class="shortcut-widget" description="暂未设置快捷入口" :image-size="48" />
+    <div class="shortcut-widget">暂未设置快捷入口</div>
   </DashboardWidgetFrame>
 </template>
 
 <style scoped lang="scss">
-.shortcut-widget { height: 100%; padding: 0; }
+.shortcut-widget {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--el-text-color-secondary);
+  font-size: var(--el-font-size-small);
+}
 </style>

@@ -1,4 +1,5 @@
 import type { Component } from 'vue';
+import type { GridStackNode } from 'gridstack';
 import type { GridStackOptions } from 'gridstack/dist/vue';
 
 /**
@@ -30,5 +31,6 @@ export type EvolynGridOptions = Omit<GridStackOptions, 'children' | 'staticGrid'
 export interface EvolynGridEmits {
   (event: 'update:modelValue', value: EvolynGridItem[]): void;
   (event: 'layout-change', value: EvolynGridItem[]): void;
+  (event: 'dropped', previous: GridStackNode | undefined, current: GridStackNode): void;
   (event: 'ready'): void;
 }

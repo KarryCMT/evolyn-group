@@ -47,10 +47,6 @@ defineProps<{
     transition: width var(--el-transition-duration-fast);
   }
 
-  &:hover &__drag-handle {
-    width: var(--el-component-size-small);
-  }
-
   &__title {
     color: var(--el-text-color-primary);
     font-size: var(--el-font-size-base);

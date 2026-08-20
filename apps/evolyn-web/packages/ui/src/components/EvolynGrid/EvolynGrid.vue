@@ -2,20 +2,28 @@
 import type { GridStack as GridStackInstance } from 'gridstack';
 import { GridStack, type GridStackOptions } from 'gridstack/dist/vue';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-import type { EvolynGridComponents, EvolynGridEmits, EvolynGridItem, EvolynGridOptions } from './EvolynGrid.types';
+import type {
+  EvolynGridComponents,
+  EvolynGridEmits,
+  EvolynGridItem,
+  EvolynGridOptions,
+} from './EvolynGrid.types';
 import { mergeGridLayout, toGridStackWidgets } from './useEvolynGrid';
 
 defineOptions({ name: 'EvolynGrid' });
 
-const props = withDefaults(defineProps<{
-  modelValue: EvolynGridItem[];
-  options?: EvolynGridOptions;
-  components: EvolynGridComponents;
-  editable?: boolean;
-}>(), {
-  options: () => ({}),
-  editable: false,
-});
+const props = withDefaults(
+  defineProps<{
+    modelValue: EvolynGridItem[];
+    options?: EvolynGridOptions;
+    components: EvolynGridComponents;
+    editable?: boolean;
+  }>(),
+  {
+    options: () => ({}),
+    editable: false,
+  },
+);
 
 const emit = defineEmits<EvolynGridEmits>();
 
@@ -87,7 +95,7 @@ defineExpose({ getGrid });
     :options="gridOptions"
     :components="components"
     @change="(_event, items) => emitLayoutChange(items)"
-    @added="(_event, items) => emitLayoutChange(items)"
+    @dropped="(_event, previous, current) => emit('dropped', previous, current)"
     @removed="(_event, items) => emitLayoutChange(items)"
     @dragstop="() => emit('layout-change', modelValue)"
     @resizestop="() => emit('layout-change', modelValue)"

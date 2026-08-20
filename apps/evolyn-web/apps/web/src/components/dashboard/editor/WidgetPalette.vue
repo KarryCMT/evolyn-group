@@ -1,24 +1,174 @@
 <script setup lang="ts">
 import { ElScrollbar } from 'element-plus';
-import { CollectionTag, DataAnalysis, Document, Grid, Histogram, Promotion, Timer, UserFilled } from '@element-plus/icons-vue';
+import {
+  CollectionTag,
+  DataAnalysis,
+  Document,
+  Grid,
+  Histogram,
+  Promotion,
+  Timer,
+  UserFilled,
+} from '@element-plus/icons-vue';
+import { nextTick, onMounted } from 'vue';
+import { GridStack as GridStackCore } from 'gridstack';
 import type { Component } from 'vue';
-import type { DashboardWidgetType } from '~/types/dashboard';
+import type { DashboardWidgetPreset } from '~/types/dashboard';
 
 defineOptions({ name: 'WidgetPalette' });
-const emit = defineEmits<{ add: [type: DashboardWidgetType] }>();
+const emit = defineEmits<{
+  add: [preset: DashboardWidgetPreset];
+}>();
 
-const palette: Array<{ label: string; type: DashboardWidgetType; icon: Component }> = [
-  { label: '流程中心', type: 'todo', icon: Promotion },
-  { label: '我的应用', type: 'apps', icon: Grid },
-  { label: '快捷入口', type: 'shortcut', icon: Document },
-  { label: '图表看板', type: 'charts', icon: Histogram },
-  { label: '富文本', type: 'onboarding', icon: CollectionTag },
-  { label: '轮播图', type: 'onboarding', icon: DataAnalysis },
-  { label: '最近使用', type: 'favorites', icon: Timer },
-  { label: '我的收藏', type: 'favorites', icon: CollectionTag },
-  { label: '我的图表', type: 'charts', icon: Histogram },
-  { label: '问候语', type: 'greeting', icon: UserFilled },
+type PaletteItem = DashboardWidgetPreset & { icon: Component; label: string };
+
+const palette: PaletteItem[] = [
+  {
+    key: 'todo',
+    label: '流程中心',
+    title: '流程中心',
+    type: 'todo',
+    icon: Promotion,
+    w: 3,
+    h: 4,
+    minW: 3,
+    minH: 3,
+  },
+  {
+    key: 'apps',
+    label: '我的应用',
+    title: '我的应用',
+    type: 'apps',
+    icon: Grid,
+    w: 9,
+    h: 3,
+    minW: 4,
+    minH: 3,
+  },
+  {
+    key: 'shortcut',
+    label: '快捷入口',
+    title: '未命名快捷入口',
+    type: 'shortcut',
+    icon: Document,
+    w: 12,
+    h: 2,
+    minW: 3,
+    minH: 2,
+  },
+  {
+    key: 'charts',
+    label: '图表看板',
+    title: '图表看板',
+    type: 'charts',
+    icon: Histogram,
+    w: 9,
+    h: 2,
+    minW: 4,
+    minH: 2,
+  },
+  {
+    key: 'rich-text',
+    label: '富文本',
+    title: '富文本',
+    type: 'onboarding',
+    icon: CollectionTag,
+    w: 12,
+    h: 2,
+    minW: 4,
+    minH: 2,
+    config: { variant: 'rich-text' },
+  },
+  {
+    key: 'carousel',
+    label: '轮播图',
+    title: '轮播图',
+    type: 'onboarding',
+    icon: DataAnalysis,
+    w: 12,
+    h: 2,
+    minW: 4,
+    minH: 2,
+    config: { variant: 'carousel' },
+  },
+  {
+    key: 'recent',
+    label: '最近使用',
+    title: '最近使用',
+    type: 'favorites',
+    icon: Timer,
+    w: 9,
+    h: 2,
+    minW: 4,
+    minH: 2,
+    config: { variant: 'recent' },
+  },
+  {
+    key: 'favorites',
+    label: '我的收藏',
+    title: '我的收藏',
+    type: 'favorites',
+    icon: CollectionTag,
+    w: 9,
+    h: 2,
+    minW: 4,
+    minH: 2,
+  },
+  {
+    key: 'my-charts',
+    label: '我的图表',
+    title: '我的图表',
+    type: 'charts',
+    icon: Histogram,
+    w: 9,
+    h: 2,
+    minW: 4,
+    minH: 2,
+    config: { variant: 'my-charts' },
+  },
+  {
+    key: 'greeting',
+    label: '问候语',
+    title: '问候语',
+    type: 'greeting',
+    icon: UserFilled,
+    w: 3,
+    h: 1,
+    minW: 3,
+    minH: 1,
+  },
 ];
+
+async function setupDragSources() {
+  await nextTick();
+  const presets = palette.map(({ icon: _icon, ...preset }) => preset);
+  // 与官方 side-panel 示例一致：DOM 挂载后一次性注册来源元素及对应组件定义。
+  const widgets = presets.map((preset) => ({
+    id: `palette-${preset.key}`,
+    x: 0,
+    y: 0,
+    w: preset.w,
+    h: preset.h,
+    minW: preset.minW,
+    minH: preset.minH,
+    component: 'WorkbenchEditorWidgetHost',
+    props: {
+      widget: {
+        id: `palette-${preset.key}`,
+        type: preset.type,
+        title: preset.title,
+        config: preset.config,
+      },
+    },
+  }));
+  GridStackCore.setupDragIn(
+    '.widget-palette__drag-source',
+    { appendTo: 'body', helper: 'clone' },
+    widgets,
+  );
+}
+
+onMounted(setupDragSources);
 </script>
 
 <template>
@@ -26,9 +176,20 @@ const palette: Array<{ label: string; type: DashboardWidgetType; icon: Component
     <strong class="widget-palette__title">页面组件</strong>
     <el-scrollbar class="widget-palette__scrollbar">
       <div class="widget-palette__list">
-        <el-button v-for="item in palette" :key="item.label" class="widget-palette__item" text :icon="item.icon" @click="emit('add', item.type)">
-          {{ item.label }}
-        </el-button>
+        <div
+          v-for="item in palette"
+          :key="item.key"
+          class="widget-palette__item widget-palette__drag-source"
+          :data-widget-key="item.key"
+          role="button"
+          tabindex="0"
+          @click="emit('add', item)"
+          @keydown.enter="emit('add', item)"
+          @keydown.space.prevent="emit('add', item)"
+        >
+          <el-icon><component :is="item.icon" /></el-icon>
+          <span>{{ item.label }}</span>
+        </div>
       </div>
     </el-scrollbar>
   </aside>
@@ -47,9 +208,44 @@ const palette: Array<{ label: string; type: DashboardWidgetType; icon: Component
   background: var(--el-bg-color);
   border-right: 1px solid var(--el-border-color-lighter);
 
-  &__title { display: block; margin-bottom: 8px; font-size: var(--el-font-size-base); }
-  &__scrollbar { flex: 1; min-height: 0; }
-  &__list { display: flex; flex-direction: column; gap: 6px; }
-  &__item { justify-content: flex-start; width: 100%; margin: 0; color: var(--el-text-color-regular); background: var(--el-fill-color-light); }
+  &__title {
+    display: block;
+    margin-bottom: 8px;
+    font-size: var(--el-font-size-base);
+  }
+  &__scrollbar {
+    flex: 1;
+    min-height: 0;
+  }
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  &__item {
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    height: var(--el-component-size);
+    margin: 0;
+    padding: 0 15px;
+    cursor: grab;
+    color: var(--el-text-color-regular);
+    background: var(--el-fill-color-light);
+    border-radius: var(--el-border-radius-base);
+
+    &:hover,
+    &:focus-visible {
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
+      outline: none;
+    }
+
+    &:active {
+      cursor: grabbing;
+    }
+  }
 }
 </style>

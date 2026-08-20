@@ -3,21 +3,28 @@ import DashboardCanvas from '~/components/dashboard/DashboardCanvas.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { useDashboardWorkspace } from '~/composables/useDashboardWorkspace';
 
-const { isEditing, resetLayout, updateLayout, widgets } = useDashboardWorkspace();
+const { widgets } = useDashboardWorkspace();
 </script>
 
 <template>
   <div class="dashboard-page">
     <TopNavigation />
-    <DashboardCanvas
-      v-model:editable="isEditing"
-      :widgets="widgets"
-      @update:widgets="updateLayout"
-      @reset="resetLayout"
-    />
+    <DashboardCanvas :widgets="widgets" />
   </div>
 </template>
 
 <style scoped lang="scss">
-.dashboard-page { min-height: 100vh; background: var(--el-fill-color-light); }
+.dashboard-page {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  flex-direction: column;
+  background: var(--el-fill-color-light);
+
+  /* 成员端与设计器共享品牌主色，保证引导卡片和导航入口一致。 */
+  --el-color-primary: #00b8a9;
+  --el-color-primary-light-3: #4dcdc2;
+  --el-color-primary-light-7: #b2e9e4;
+  --el-color-primary-light-9: #e6f8f6;
+}
 </style>

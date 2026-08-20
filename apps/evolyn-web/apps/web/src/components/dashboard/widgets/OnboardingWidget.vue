@@ -1,22 +1,33 @@
 <script setup lang="ts">
-import { CircleCheck, DocumentAdd, User } from '@element-plus/icons-vue';
 import type { DashboardWidgetContent } from '~/types/dashboard';
+import bannerBackground from '~/assets/images/banner_bg.png';
+import exploreIcon from '~/assets/images/icon3.png';
+import inviteIcon from '~/assets/images/icon1.png';
+import learnIcon from '~/assets/images/icon4.png';
+import createIcon from '~/assets/images/icon2.png';
 
 defineOptions({ name: 'OnboardingWidget' });
 defineProps<{ widget: DashboardWidgetContent }>();
 
 const steps = [
-  { label: '了解产品', icon: CircleCheck },
-  { label: '探索应用', icon: DocumentAdd },
-  { label: '邀请成员', icon: User },
+  { label: '了解产品', icon: learnIcon },
+  { label: '探索应用', icon: exploreIcon },
+  { label: '创建流程/表单/仪表盘', icon: createIcon },
+  { label: '邀请成员', icon: inviteIcon },
 ];
 </script>
 
 <template>
-  <section class="onboarding-widget">
+  <section class="onboarding-widget" :style="{ backgroundImage: `url(${bannerBackground})` }">
     <span class="onboarding-widget__tag">新手引导</span>
     <div class="onboarding-widget__steps">
-      <el-button v-for="step in steps" :key="step.label" text :icon="step.icon">{{ step.label }}</el-button>
+      <div v-for="(step, index) in steps" :key="step.label" class="onboarding-widget__step">
+        <img class="onboarding-widget__icon" :src="step.icon" alt="" />
+        <div class="onboarding-widget__link">
+          <span>{{ index + 1 }}.</span>
+          <el-button text type="primary">{{ step.label }}</el-button>
+        </div>
+      </div>
     </div>
   </section>
 </template>
@@ -26,20 +37,23 @@ const steps = [
   position: relative;
   box-sizing: border-box;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  align-items: flex-end;
   width: 100%;
   height: 100%;
-  padding: 16px;
-  background: var(--el-color-primary-light-9);
-  border: 1px solid var(--el-color-primary-light-7);
+  padding: 16px 32px 20px;
+  background-color: var(--el-bg-color);
+  background-position: center bottom;
+  background-repeat: no-repeat;
+  background-size: 100% 62%;
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--el-border-radius-base);
+  box-shadow: var(--el-box-shadow-lighter);
 
   &__tag {
     position: absolute;
     top: 12px;
-    left: 16px;
-    padding: 4px 8px;
+    left: 20px;
+    padding: 4px 10px;
     color: var(--el-color-white);
     font-size: var(--el-font-size-small);
     background: var(--el-color-primary);
@@ -48,7 +62,53 @@ const steps = [
 
   &__steps {
     display: flex;
-    gap: 48px;
+    align-items: flex-end;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  &__step {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  &__icon {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+  }
+
+  &__link {
+    display: flex;
+    align-items: center;
+    color: var(--el-color-primary);
+    font-size: var(--el-font-size-base);
+
+    :deep(.el-button) {
+      height: auto;
+      padding: 0 4px;
+      font-size: inherit;
+      text-decoration: underline;
+    }
+  }
+}
+
+@media (max-width: 768px) {
+  .onboarding-widget {
+    align-items: center;
+    padding: 12px;
+
+    &__icon {
+      width: 40px;
+      height: 40px;
+    }
+    &__link {
+      font-size: var(--el-font-size-small);
+    }
   }
 }
 </style>

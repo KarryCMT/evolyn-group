@@ -1,21 +1,29 @@
 <script setup lang="ts">
-import { ElAvatar } from 'element-plus';
-import { ArrowLeft, Bell, Grid, QuestionFilled, UserFilled } from '@element-plus/icons-vue';
+import { ElAvatar, ElTooltip } from 'element-plus';
+import { ArrowLeft, Bell, Grid, QuestionFilled, SetUp, UserFilled } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 
 defineOptions({ name: 'TopNavigation' });
 
-const props = withDefaults(defineProps<{
-  title?: string;
-  backTo?: string;
-}>(), {
-  title: '工作台',
-  backTo: undefined,
-});
+const props = withDefaults(
+  defineProps<{
+    title?: string;
+    backTo?: string;
+  }>(),
+  {
+    title: '工作台',
+    backTo: undefined,
+  },
+);
 
 const router = useRouter();
 function goBack() {
   if (props.backTo) router.push(props.backTo);
+}
+
+/** 成员端只提供入口，卡片编排始终在独立设计页完成。 */
+function openWorkbenchEditor() {
+  router.push({ name: 'custom_workbench' });
 }
 </script>
 
@@ -32,6 +40,16 @@ function goBack() {
 
     <nav class="top-navigation__actions" aria-label="工作台导航">
       <template v-if="!backTo">
+        <el-tooltip content="自定义工作台" placement="bottom">
+          <el-button
+            class="top-navigation__workbench-entry"
+            text
+            circle
+            :icon="SetUp"
+            aria-label="自定义工作台"
+            @click="openWorkbenchEditor"
+          />
+        </el-tooltip>
         <el-button text>模板中心</el-button>
         <el-button text>通讯录</el-button>
       </template>
@@ -70,6 +88,13 @@ function goBack() {
 
   &__switcher {
     color: var(--el-text-color-primary);
+  }
+
+  &__workbench-entry {
+    margin-right: 4px;
+    border-right: 1px solid var(--el-border-color-lighter);
+    border-radius: 0;
+    padding-right: 12px;
   }
 
   &__logo {

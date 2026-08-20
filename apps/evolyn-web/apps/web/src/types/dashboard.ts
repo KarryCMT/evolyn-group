@@ -1,6 +1,25 @@
 import type { EvolynGridItem } from '@evolyn.do/ui';
 
-export type DashboardWidgetType = 'onboarding' | 'greeting' | 'shortcut' | 'todo' | 'favorites' | 'apps' | 'charts';
+export type DashboardWidgetType =
+  | 'onboarding'
+  | 'greeting'
+  | 'shortcut'
+  | 'todo'
+  | 'favorites'
+  | 'apps'
+  | 'charts';
+
+/** 设计器组件面板中的组件预设，包含拖入后所需的业务数据与初始尺寸。 */
+export interface DashboardWidgetPreset {
+  key: string;
+  type: DashboardWidgetType;
+  title: string;
+  w: number;
+  h: number;
+  minW: number;
+  minH: number;
+  config?: Record<string, unknown>;
+}
 
 /** 卡片内容所需的最小业务数据，不包含网格坐标。 */
 export interface DashboardWidgetContent {
