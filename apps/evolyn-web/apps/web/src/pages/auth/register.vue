@@ -33,11 +33,10 @@ const maskedPhone = computed(() => {
   return value.length === 11 ? `${value.slice(0, 3)}****${value.slice(7)}` : value
 })
 
-// 卡片标题与副标题随步骤切换；第 2 步无副标题（设计稿口径，卡片内
-// 说明文字已表达去向），第 3 步口径对齐设计稿
+// 标题随步骤切换；首步标题下直接放登录入口，与登录页的轻量表单层级保持一致。
 const titles = ['注册账号', '选择团队', '欢迎使用']
 const subtitles = [
-  '免费创建账号，开启你的低代码之旅',
+  '',
   '',
   '完善信息，即刻开启高效协同之旅',
 ]
@@ -124,13 +123,22 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
 </script>
 
 <template>
-  <AuthLayout :title="title" :subtitle="subtitle">
-    <!-- 步骤条仅圆形序号，不带步骤文案（设计稿口径） -->
-    <el-steps class="register-page__steps" :active="step" align-center>
-      <el-step />
-      <el-step />
-      <el-step />
-    </el-steps>
+  <AuthLayout class="register-page" :title="title" :subtitle="subtitle" variant="login">
+    <!-- 步骤条置于标题前：与双栏注册首屏的视觉顺序一致。 -->
+    <template #before-title>
+      <el-steps class="register-page__steps" :active="step" align-center>
+        <el-step />
+        <el-step />
+        <el-step />
+      </el-steps>
+    </template>
+
+    <template #after-title>
+      <span v-if="step === 0" class="register-page__login-tip">
+        已有账号？
+        <router-link to="/auth/login">直接登录</router-link>
+      </span>
+    </template>
 
     <RegisterAccountStep
       v-if="step === 0"
@@ -152,23 +160,58 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
       :loading="submitting"
       @submit="handleProfileSubmit"
     />
-
-    <template #footer>
-      <span class="register-page__login-tip">
-        已有账号？
-        <router-link to="/auth/login">直接登录</router-link>
-      </span>
-    </template>
   </AuthLayout>
 </template>
 
 <style lang="scss" scoped>
 .register-page__steps {
-  margin-bottom: 28px;
+  margin-bottom: 30px;
+}
+
+.register-page__login-tip {
+  display: block;
+  margin: -18px 0 30px;
+  font-size: var(--el-font-size-base);
+  color: var(--el-text-color-regular);
 }
 
 .register-page__login-tip a {
   font-weight: 500;
   color: var(--el-color-primary);
+}
+
+// 注册首步采用窄幅、左对齐的信息列，匹配双栏右侧表单的留白与阅读顺序。
+.register-page {
+  :deep(.auth-layout__card) {
+    width: min(288px, 100%);
+  }
+
+  :deep(.auth-layout__title) {
+    margin-bottom: 14px;
+    text-align: left;
+  }
+
+  :deep(.el-step__head.is-process) {
+    color: var(--el-color-primary);
+    border-color: var(--el-color-primary);
+  }
+
+  :deep(.el-step__head.is-process .el-step__icon) {
+    color: var(--el-color-white);
+    background-color: var(--el-color-primary);
+  }
+
+  :deep(.el-step__head.is-wait) {
+    color: var(--el-text-color-placeholder);
+    border-color: var(--el-fill-color-dark);
+  }
+
+  :deep(.el-step__head.is-wait .el-step__icon) {
+    background-color: var(--el-fill-color-dark);
+  }
+
+  :deep(.el-step__line-inner) {
+    border-color: var(--el-border-color-lighter);
+  }
 }
 </style>

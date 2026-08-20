@@ -17,7 +17,8 @@ const route = useRoute()
 const router = useRouter()
 const { login, loadTenants, switchTenant } = useAuth()
 
-const mode = shallowRef<LoginMode>('password')
+// 对齐主流登录页首屏：优先展示短信验证码，密码方式保留为可切换的备选。
+const mode = shallowRef<LoginMode>('sms')
 const loading = shallowRef(false)
 
 // 多租户选择弹窗
@@ -115,7 +116,7 @@ function goNext() {
 </script>
 
 <template>
-  <AuthLayout title="账号登录">
+  <AuthLayout title="账号登录" variant="login">
     <PasswordLoginForm v-if="mode === 'password'" :loading="loading" @submit="handlePasswordSubmit">
       <template #footer>
         <div class="login-page__switch-row">

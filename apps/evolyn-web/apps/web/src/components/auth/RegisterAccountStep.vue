@@ -126,6 +126,14 @@ function handleSendCode() {
       </el-input>
     </el-form-item>
 
+    <!-- 协议紧邻提交按钮上方：先阅读条款再提交，信息顺序与注册首屏一致。 -->
+    <p class="account-step__agreement">
+      点击注册表明你已阅读并同意
+      <a class="account-step__link" @click.prevent="ElMessage.info('服务条款文档即将上线')">《服务条款》</a>
+      和
+      <a class="account-step__link" @click.prevent="ElMessage.info('隐私声明文档即将上线')">《隐私声明》</a>
+    </p>
+
     <el-button
       class="account-step__register"
       type="primary"
@@ -135,14 +143,6 @@ function handleSendCode() {
     >
       注册
     </el-button>
-
-    <!-- 协议口径（设计稿）：点击注册即视为同意，不做勾选框拦截 -->
-    <p class="account-step__agreement">
-      点击注册表明你已阅读并同意
-      <a class="account-step__link" @click.prevent="ElMessage.info('服务条款文档即将上线')">《服务条款》</a>
-      和
-      <a class="account-step__link" @click.prevent="ElMessage.info('隐私声明文档即将上线')">《隐私声明》</a>
-    </p>
 
     <div class="account-step__help">
       <a class="account-step__link" @click.prevent="ElMessage.info('如遇手机号无法注册，请联系客服处理')">手机号无法注册？点击此处</a>
@@ -172,20 +172,21 @@ function handleSendCode() {
 
 .account-step__register {
   width: 100%;
+  height: 36px;
 }
 
-// 协议说明：主按钮下方居中的辅助文案（设计稿口径）
+// 协议说明位于主按钮上方，窄表单内左对齐显示。
 .account-step__agreement {
-  margin: 12px 0 0;
+  margin: 24px 0 12px;
   font-size: var(--el-font-size-small);
   line-height: 1.6;
-  text-align: center;
+  text-align: left;
   color: var(--el-text-color-secondary);
 }
 
 .account-step__help {
-  margin-top: 16px;
-  text-align: center;
+  margin-top: 12px;
+  text-align: left;
 }
 
 .account-step__link {
