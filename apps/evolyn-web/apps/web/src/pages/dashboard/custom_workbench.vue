@@ -22,7 +22,9 @@ function notify() {}
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background: var(--el-fill-color-light);
+
+  /* 页面整体背景：与工作台页面统一的设计浅灰底 */
+  background: #f3f3f8;
 }
 
 /* 设计器遵循工作台配置稿的浅色画布，避免继承成员端的深色偏好。 */

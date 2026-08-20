@@ -5,8 +5,9 @@
  */
 export default [
     {
+        // 根路径无独立页面：注册/登录完成后的默认去向统一重定向到工作台
         path: '/',
-        component: () => import('~/pages/index.vue'),
+        redirect: '/dashboard',
     },
     {
         path: '/auth/login',
