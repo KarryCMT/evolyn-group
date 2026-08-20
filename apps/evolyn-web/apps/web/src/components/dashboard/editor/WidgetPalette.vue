@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ElScrollbar } from 'element-plus';
 import { CollectionTag, DataAnalysis, Document, Grid, Histogram, Promotion, Timer, UserFilled } from '@element-plus/icons-vue';
 import type { Component } from 'vue';
 import type { DashboardWidgetType } from '~/types/dashboard';
@@ -23,11 +24,13 @@ const palette: Array<{ label: string; type: DashboardWidgetType; icon: Component
 <template>
   <aside class="widget-palette">
     <strong class="widget-palette__title">页面组件</strong>
-    <div class="widget-palette__list">
-      <el-button v-for="item in palette" :key="item.label" class="widget-palette__item" text :icon="item.icon" @click="emit('add', item.type)">
-        {{ item.label }}
-      </el-button>
-    </div>
+    <el-scrollbar class="widget-palette__scrollbar">
+      <div class="widget-palette__list">
+        <el-button v-for="item in palette" :key="item.label" class="widget-palette__item" text :icon="item.icon" @click="emit('add', item.type)">
+          {{ item.label }}
+        </el-button>
+      </div>
+    </el-scrollbar>
   </aside>
 </template>
 
@@ -35,12 +38,17 @@ const palette: Array<{ label: string; type: DashboardWidgetType; icon: Component
 .widget-palette {
   flex: 0 0 168px;
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 14px 12px;
+  overflow: hidden;
   color: var(--el-text-color-primary);
   background: var(--el-bg-color);
   border-right: 1px solid var(--el-border-color-lighter);
 
   &__title { display: block; margin-bottom: 8px; font-size: var(--el-font-size-base); }
+  &__scrollbar { flex: 1; min-height: 0; }
   &__list { display: flex; flex-direction: column; gap: 6px; }
   &__item { justify-content: flex-start; width: 100%; margin: 0; color: var(--el-text-color-regular); background: var(--el-fill-color-light); }
 }

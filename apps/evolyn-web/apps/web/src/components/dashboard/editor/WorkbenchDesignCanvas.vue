@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ElScrollbar } from 'element-plus';
 import { EvolynGrid, type EvolynGridItem } from '@evolyn.do/ui';
 import { computed, markRaw } from 'vue';
 import type { DashboardWidget, DashboardWidgetContent } from '~/types/dashboard';
@@ -38,8 +39,12 @@ function toWidgetContent(widget: DashboardWidget): DashboardWidgetContent {
 </script>
 
 <template>
-  <section class="workbench-design-canvas" :class="`workbench-design-canvas--${device}`">
-    <EvolynGrid :model-value="editorItems" :options="options" :components="components" editable @update:model-value="updateLayout" />
+  <section class="workbench-design-canvas">
+    <el-scrollbar class="workbench-design-canvas__scrollbar" always>
+      <div class="workbench-design-canvas__surface" :class="`workbench-design-canvas__surface--${device}`">
+        <EvolynGrid :model-value="editorItems" :options="options" :components="components" editable @update:model-value="updateLayout" />
+      </div>
+    </el-scrollbar>
   </section>
 </template>
 
@@ -48,12 +53,13 @@ function toWidgetContent(widget: DashboardWidget): DashboardWidgetContent {
   box-sizing: border-box;
   flex: 1;
   width: 100%;
-  min-height: calc(100vh - 92px);
-  padding: 12px;
-  overflow: auto;
+  min-height: 0;
+  overflow: hidden;
   background: var(--el-fill-color-light);
 
-  &--desktop { min-width: 0; }
-  &--mobile { min-width: 420px; max-width: 480px; margin: 0 auto; }
+  &__scrollbar { height: 100%; }
+  &__surface { box-sizing: border-box; min-height: 100%; padding: 12px; }
+  &__surface--desktop { min-width: 0; }
+  &__surface--mobile { min-width: 420px; max-width: 480px; margin: 0 auto; }
 }
 </style>

@@ -17,6 +17,7 @@ declare module 'vue' {
     DashboardWidgetHost: typeof import('./components/dashboard/DashboardWidgetHost.vue')['default']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElButton: typeof import('element-plus/es')['ElButton']
+    ElButtonGroup: typeof import('element-plus/es')['ElButtonGroup']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
     ElCheckTag: typeof import('element-plus/es')['ElCheckTag']
     ElConfigProvider: typeof import('element-plus/es')['ElConfigProvider']

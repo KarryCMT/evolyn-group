@@ -17,7 +17,13 @@ function notify() {}
 </template>
 
 <style scoped lang="scss">
-.custom-workbench-page { min-height: 100vh; background: var(--el-fill-color-light); }
+.custom-workbench-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--el-fill-color-light);
+}
 
 /* 设计器遵循工作台配置稿的浅色画布，避免继承成员端的深色偏好。 */
 .custom-workbench-page {

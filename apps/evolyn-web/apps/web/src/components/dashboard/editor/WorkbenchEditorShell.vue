@@ -47,5 +47,10 @@ function widget(type: DashboardWidgetType, title: string, x: number, y: number, 
 </template>
 
 <style scoped lang="scss">
-.workbench-editor-shell { display: flex; min-height: calc(100vh - 92px); overflow: hidden; }
+.workbench-editor-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
 </style>
