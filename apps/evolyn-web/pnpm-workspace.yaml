@@ -10,6 +10,7 @@ catalogs:
     vue-router: ^4.6.3
     '@element-plus/icons-vue': ^2.3.2
     '@visactor/vue-vtable': ^1.26.6
+    gridstack: ^13.2.0
   ui:
     element-plus: ^2.14.4
     '@element-plus/icons-vue': ^2.3.2

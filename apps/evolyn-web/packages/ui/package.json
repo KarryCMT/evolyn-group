@@ -40,6 +40,7 @@
     "@vitest/ui": "catalog:test",
     "@vue/test-utils": "catalog:test",
     "@visactor/vue-vtable": "catalog:frontend",
+    "gridstack":"catalog:frontend",
     "happy-dom": "catalog:test",
     "sass": "catalog:dev",
     "tsdown": "catalog:build",
