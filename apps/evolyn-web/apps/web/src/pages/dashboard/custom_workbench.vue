@@ -11,8 +11,10 @@ function notify() {}
 <template>
   <div class="custom-workbench-page">
     <TopNavigation title="自定义工作台" back-to="/dashboard" />
-    <WorkbenchEditorToolbar v-model:device="device" @page-style="notify" @preview="notify" @save="notify" />
-    <WorkbenchEditorShell :device="device" />
+    <div class="custom-dashboard-setting">
+      <WorkbenchEditorToolbar v-model:device="device" @page-style="notify" @preview="notify" @save="notify" />
+      <WorkbenchEditorShell :device="device" />
+    </div>
   </div>
 </template>
 
@@ -25,6 +27,10 @@ function notify() {}
 
   /* 页面整体背景：与工作台页面统一的设计浅灰底 */
   background: #f3f3f8;
+  .custom-dashboard-setting{
+    width: 100%;
+    height: 100%;
+  }
 }
 
 /* 设计器遵循工作台配置稿的浅色画布，避免继承成员端的深色偏好。 */

@@ -76,7 +76,7 @@ function openWorkbenchEditor() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: 52px;
+  min-height: 52px;
   padding: 0 16px;
   color: var(--el-text-color-primary);
   background: #f3f3f8;
