@@ -23,8 +23,9 @@ func TestResponse(t *testing.T) {
 			code: 400,
 			err:  errors.New("some err"),
 			resp: Response{
-				Code: 400,
-				Msg:  "some err",
+				Code:    400,
+				ErrCode: CodeValidation, // ADR-008：未分类 4xx 按状态给通用码
+				Msg:     "some err",
 			},
 		},
 		{
@@ -32,8 +33,9 @@ func TestResponse(t *testing.T) {
 			code: 401,
 			err:  errors.New("some err"),
 			resp: Response{
-				Code: 401,
-				Msg:  "some err",
+				Code:    401,
+				ErrCode: CodeUnauthorized,
+				Msg:     "some err",
 			},
 		},
 		// {
@@ -47,8 +49,9 @@ func TestResponse(t *testing.T) {
 			name: "with error",
 			err:  errors.New("some err"),
 			resp: Response{
-				Code: 500,
-				Msg:  "some err",
+				Code:    500,
+				ErrCode: CodeInternalServer, // 未知 5xx 脱敏（ADR-008）
+				Msg:     internalServerMsg,
 			},
 		},
 		{

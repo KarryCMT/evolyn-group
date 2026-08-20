@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"errors"
 	"net/http"
 
 	"evolyn/internal/platform/ginctx"
@@ -12,10 +11,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// 稳定错误码（FIX-007）：错误文本即对外错误码，前端据此区分冻结/注销
+// 稳定错误码（FIX-007，ADR-008 起承载于 BizError）：前端据此区分冻结/注销
 var (
-	ErrTenantFrozen  = errors.New("TENANT_FROZEN")
-	ErrTenantDisable = errors.New("TENANT_DISABLED")
+	ErrTenantFrozen  = httpx.NewBiz("TENANT_FROZEN", "租户已被冻结，请联系管理员", http.StatusForbidden)
+	ErrTenantDisable = httpx.NewBiz("TENANT_DISABLED", "租户已注销", http.StatusForbidden)
 )
 
 // TenantStatusMiddleware 租户状态请求级拦截（FIX-007，架构文档 26.2）：

@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"errors"
 	"net/http"
 	"strconv"
 
@@ -196,12 +195,8 @@ func (u *UserController) AddMember(c *gin.Context) {
 
 	member, err := u.userService.AddMember(c.Request.Context(), req)
 	if err != nil {
-		// 参数/重复/配额类错误 400，跨租户绑定拒绝 403
-		status := http.StatusBadRequest
-		if errors.Is(err, service.ErrCrossTenantBinding) {
-			status = http.StatusForbidden
-		}
-		httpx.ResponseFailed(c, status, err)
+		// 状态码/业务码由 BizError 自动映射（ADR-008）：重复 409/配额 403/跨租户 403
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 

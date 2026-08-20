@@ -2,7 +2,6 @@ package controller
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -75,6 +74,7 @@ func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, m
 // @Tags 认证
 // @Param user body model.AuthUser true "auth info"
 // @Success 200 {object} httpx.Response{data=model.JWTToken}
+// @Failure 401 {object} httpx.Response "UNAUTHORIZED·凭证错误（AUTH_SMS_INVALID/AUTH_CREDENTIALS_INVALID）"
 // @Router /api/v1/auth/token [post]
 func (ac *AuthController) Login(c *gin.Context) {
 	auser := new(model.AuthUser)
@@ -204,6 +204,8 @@ type registerTokenResult struct {
 // @Tags 认证
 // @Param body body controller.registerRequest true "向导三步采集的全量数据"
 // @Success 200 {object} httpx.Response{data=controller.registerTokenResult}
+// @Failure 401 {object} httpx.Response "AUTH_SMS_INVALID·验证码错误或已过期"
+// @Failure 409 {object} httpx.Response "AUTH_PHONE_DUPLICATED·手机号已注册"
 // @Failure 401 {object} httpx.Response "验证码错误或已过期"
 // @Router /api/v1/auth/register [post]
 func (ac *AuthController) RegisterComplete(c *gin.Context) {
@@ -310,6 +312,8 @@ type smsSendResult struct {
 // @Tags 认证
 // @Param body body controller.smsSendRequest true "phone and scene"
 // @Success 200 {object} httpx.Response{data=controller.smsSendResult}
+// @Failure 400 {object} httpx.Response "AUTH_PHONE_INVALID/AUTH_SMS_SCENE_INVALID·手机号或场景非法"
+// @Failure 429 {object} httpx.Response "AUTH_COOLDOWN·发送冷却中"
 // @Failure 429 {object} httpx.Response "发送冷却中"
 // @Router /api/v1/auth/sms/send [post]
 func (ac *AuthController) SendSmsCode(c *gin.Context) {
@@ -321,12 +325,8 @@ func (ac *AuthController) SendSmsCode(c *gin.Context) {
 
 	code, err := ac.smsService.Send(c.Request.Context(), req.Scene, req.Phone)
 	if err != nil {
-		// 冷却中用 429，其余（场景/手机号非法）用 400
-		status := http.StatusBadRequest
-		if errors.Is(err, sms.ErrCooldown) {
-			status = http.StatusTooManyRequests
-		}
-		httpx.ResponseFailed(c, status, err)
+		// 状态码/业务码由 BizError 自动映射（ADR-008）：冷却/试错 429，非法 400
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 

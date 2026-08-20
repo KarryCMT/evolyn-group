@@ -1,6 +1,6 @@
 // 统一 HTTP 客户端：基于原生 fetch 封装，零额外依赖
 // - 自动携带 Authorization: Bearer {token}
-// - 解析后端统一响应结构 { code, msg, data }，失败抛 ApiError（message 可直接展示）
+// - 解析后端统一响应结构 { code, errCode, msg, data }，失败抛 ApiError（message 可直接展示，errCode 供分支判断）
 // - 会话过期（携带 token 收到 401）时清理本地会话并回登录页
 import type { ApiResponse } from '~/types'
 
@@ -31,12 +31,13 @@ export function clearToken() {
   sessionStorage.removeItem(TOKEN_KEY)
 }
 
-/** 统一业务错误：携带 HTTP 状态码与后端业务码 */
+/** 统一业务错误：携带 HTTP 状态码与稳定业务码（ADR-008） */
 export class ApiError extends Error {
   constructor(
     message: string,
     readonly status: number,
-    readonly code?: number,
+    /** 稳定业务码，如 AUTH_COOLDOWN；按码分支优先用它而非 message 匹配 */
+    readonly errCode?: string,
   ) {
     super(message)
     this.name = 'ApiError'
@@ -100,7 +101,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
   }
 
   if (!res.ok) {
-    throw new ApiError(envelope?.msg || `请求失败（HTTP ${res.status}）`, res.status, envelope?.code)
+    throw new ApiError(envelope?.msg || `请求失败（HTTP ${res.status}）`, res.status, envelope?.errCode)
   }
 
   return (envelope?.data ?? null) as T

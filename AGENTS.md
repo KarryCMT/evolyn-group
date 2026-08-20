@@ -145,6 +145,11 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
   （首页/认证/账号/成员/部门/分组/角色权限/平台管理），新模块也起中文名。
   改完执行 `make swagger` 重新生成文档；docs 包经 server.go 的 blank import
   编译进二进制，联调需重启服务生效。
+- 业务错误必须走 `httpx.BizError`（ADR-008）：域服务用 `httpx.NewBiz`
+  定义稳定码常量（码表注释即文档）、`httpx.Wrap` 附加原始错误（只入日志）；
+  禁止裸 `errors.New` 的错误文本出网，禁止在 msg 携带内部数据（租户 ID/
+  SQL/用量数值）。前端按 `errCode` 分支（`src/api/errorCodes.ts` 对齐
+  维护），禁止 message 文本匹配；新接口 swagger `@Failure` 注明 errCode。
 - 提交前至少运行 `go test ./...`（或说明未运行原因），格式化使用 `make fmt`。
 
 ## evolyn-web 前端

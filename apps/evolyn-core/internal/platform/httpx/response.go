@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"reflect"
@@ -8,7 +9,9 @@ import (
 	"evolyn/internal/platform/ginctx"
 
 	"github.com/gin-gonic/gin"
+	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
+	"gorm.io/gorm"
 )
 
 // Cookie 名称（登录态）：token 为 JWT，loginUser 为前端展示用的用户信息
@@ -17,11 +20,16 @@ const (
 	CookieLoginUser = `loginUser`
 )
 
-// Response 统一响应结构
+// 未知服务端错误的对外兜底文案（ADR-008 脱敏原则：原始错误只进日志）
+const internalServerMsg = "服务器开小差了，请稍后重试"
+
+// Response 统一响应结构。errCode 为稳定业务码（ADR-008），
+// 成功与未分类错误之外必有值；code 保持 HTTP 状态码（兼容保留）
 type Response struct {
-	Code int         `json:"code"`
-	Msg  string      `json:"msg"`
-	Data interface{} `json:"data"`
+	Code    int         `json:"code"`
+	ErrCode string      `json:"errCode,omitempty"`
+	Msg     string      `json:"msg"`
+	Data    interface{} `json:"data"`
 }
 
 func NewResponse(c *gin.Context, code int, data interface{}, msg string) {
@@ -36,11 +44,40 @@ func ResponseSuccess(c *gin.Context, data interface{}) {
 	NewResponse(c, http.StatusOK, data, "success")
 }
 
-// ResponseFailed 401 时顺带清理登录 Cookie；err 非空时记录请求上下文日志
+// ResponseFailed 统一错误出口（ADR-008 自动映射）：
+//   - BizError：用其 HTTP/Code/Msg（调用方传入的 code 仅在 BizError.HTTP 为 0 时兜底）；
+//   - gorm.ErrRecordNotFound / redis.Nil：404 + NOT_FOUND；
+//   - 其他错误且状态码 >= 500：500 + INTERNAL_SERVER + 脱敏文案（原文只进日志）；
+//   - 其他错误且状态码为 4xx：保留调用方判定与原文（多为参数/会话类校验文案），
+//     errCode 按状态给通用码。
+//
+// 401 时顺带清理登录 Cookie；err 非空时记录请求上下文日志
 func ResponseFailed(c *gin.Context, code int, err error) {
 	if code == 0 {
 		code = http.StatusInternalServerError
 	}
+
+	var errCode, msg string
+	var biz *BizError
+	switch {
+	case errors.As(err, &biz):
+		if biz.HTTP != 0 {
+			code = biz.HTTP
+		}
+		errCode, msg = biz.Code, biz.Msg
+	case errors.Is(err, gorm.ErrRecordNotFound), errors.Is(err, redis.Nil):
+		code, errCode, msg = http.StatusNotFound, CodeNotFound, "记录不存在"
+	default:
+		if code >= http.StatusInternalServerError {
+			errCode, msg = CodeInternalServer, internalServerMsg
+		} else {
+			errCode = statusErrCode(code)
+			if err != nil {
+				msg = err.Error()
+			}
+		}
+	}
+
 	if code == http.StatusUnauthorized && c.Request != nil {
 		if val, err := c.Cookie(CookieTokenName); err == nil && val != "" {
 			c.SetCookie(CookieTokenName, "", -1, "/", "", true, true)
@@ -48,9 +85,7 @@ func ResponseFailed(c *gin.Context, code int, err error) {
 		}
 	}
 
-	var msg string
 	if err != nil {
-		msg = err.Error()
 		user := ginctx.GetUser(c)
 		var name string
 		if user != nil {
@@ -60,9 +95,25 @@ func ResponseFailed(c *gin.Context, code int, err error) {
 		if c.Request != nil {
 			url = c.Request.URL.String()
 		}
-		logrus.Warnf("url: %s, user: %s, error: %v", url, name, msg)
+		logrus.Warnf("url: %s, user: %s, code: %s, error: %v", url, name, errCode, err)
 	}
-	NewResponse(c, code, nil, msg)
+	c.JSON(code, Response{Code: code, ErrCode: errCode, Msg: msg, Data: nil})
+}
+
+// statusErrCode 4xx 未分类错误按状态给通用码
+func statusErrCode(code int) string {
+	switch code {
+	case http.StatusBadRequest:
+		return CodeValidation
+	case http.StatusUnauthorized:
+		return CodeUnauthorized
+	case http.StatusForbidden:
+		return CodeForbidden
+	case http.StatusTooManyRequests:
+		return CodeRateLimited
+	default:
+		return ""
+	}
 }
 
 // WrapFunc will wrap func(args ...interface{}) (interface{}, <error>) as a Gin HandlerFunc

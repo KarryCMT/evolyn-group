@@ -7,7 +7,10 @@ export type UserModule = (app: App) => void
 
 /** 后端统一响应结构（httpx.Response） */
 export interface ApiResponse<T = unknown> {
+  /** HTTP 状态码（兼容保留） */
   code: number
+  /** 稳定业务码（ADR-008），成功时缺省 */
+  errCode?: string
   msg: string
   data: T
 }

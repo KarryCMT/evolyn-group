@@ -9,8 +9,11 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net/http"
 	"regexp"
 	"time"
+
+	"evolyn/internal/platform/httpx"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/sirupsen/logrus"
@@ -28,13 +31,13 @@ var validScenes = map[string]struct{}{SceneLogin: {}, SceneRegister: {}}
 // 仅在 provider=dev 时经 Options.FixedCode 启用，生产通道不受影响
 const DevFixedCode = "666666"
 
-// 业务错误：调用方按错误语义映射 HTTP 状态码
+// 业务错误（ADR-008：BizError 稳定码，ResponseFailed 自动映射状态码/文案）
 var (
-	ErrScene        = errors.New("unsupported sms scene")
-	ErrPhone        = errors.New("invalid phone number")
-	ErrCooldown     = errors.New("send cooldown, please retry later")
-	ErrCodeInvalid  = errors.New("verification code invalid or expired")
-	ErrTooManyTries = errors.New("too many verification attempts, please resend")
+	ErrScene        = httpx.NewBiz("AUTH_SMS_SCENE_INVALID", "不支持的验证码场景", http.StatusBadRequest)
+	ErrPhone        = httpx.NewBiz("AUTH_PHONE_INVALID", "手机号格式不正确", http.StatusBadRequest)
+	ErrCooldown     = httpx.NewBiz("AUTH_COOLDOWN", "发送太频繁，请稍后再试", http.StatusTooManyRequests)
+	ErrCodeInvalid  = httpx.NewBiz("AUTH_SMS_INVALID", "验证码错误或已过期", http.StatusUnauthorized)
+	ErrTooManyTries = httpx.NewBiz("AUTH_SMS_TOO_MANY_TRIES", "尝试次数过多，请重新获取验证码", http.StatusTooManyRequests)
 )
 
 var phonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)

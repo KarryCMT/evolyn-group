@@ -13,6 +13,7 @@ import { ElMessage } from 'element-plus'
 import { registerComplete, sendSmsCode } from '~/api/auth'
 import { ApiError } from '~/api/http'
 import { useAuth } from '~/composables'
+import { ERROR_CODES } from '~/api/errorCodes'
 
 const route = useRoute()
 const router = useRouter()
@@ -66,7 +67,7 @@ async function handleSendCode(target: string) {
     }
   } catch (err) {
     // 冷却中给更友好的中文提示
-    if (err instanceof Error && err.message.includes('cooldown')) {
+    if (err instanceof ApiError && err.errCode === ERROR_CODES.AUTH_COOLDOWN) {
       ElMessage.warning('发送太频繁，请稍后再试')
     } else {
       ElMessage.error(err instanceof Error ? err.message : '验证码发送失败')

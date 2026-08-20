@@ -2,15 +2,17 @@ package service
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"net/http"
 
+	"evolyn/internal/platform/httpx"
 	tenantmodel "evolyn/internal/platform/tenant/model"
 )
 
-// ErrQuotaExceeded 配额超限稳定业务错误码（FIX-011）：错误文本即对外错误码，
+// ErrQuotaExceeded 配额超限稳定业务错误码（FIX-011，ADR-008 起承载于 BizError）：
+// 对外只见「配额已用尽」，用量/上限数值经 Wrap 只入日志（避免内部数据泄漏）；
 // 后续应用/表单/存储/流程次数配额复用同一错误
-var ErrQuotaExceeded = errors.New("QUOTA_EXCEEDED")
+var ErrQuotaExceeded = httpx.NewBiz("QUOTA_EXCEEDED", "配额已用尽，请升级套餐或联系管理员", http.StatusForbidden)
 
 // quota 依赖的最小仓储面（窄接口便于单测与解耦，Go 惯例）
 type (
@@ -53,7 +55,7 @@ func (s *quotaService) Check(ctx context.Context, tenantID uint, key string) err
 		return nil
 	}
 	if usage >= limit {
-		return fmt.Errorf("%w: tenant %d %s limit %d, used %d", ErrQuotaExceeded, tenantID, key, limit, usage)
+		return httpx.Wrap(ErrQuotaExceeded, fmt.Errorf("tenant %d %s limit %d, used %d", tenantID, key, limit, usage))
 	}
 	return nil
 }
