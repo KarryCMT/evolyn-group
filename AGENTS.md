@@ -184,6 +184,10 @@ pnpm -F @evolyn.do/web build        # 生产构建
 前端改动规则：
 
 - 使用 Composition API（`<script setup>`）+ TypeScript；`typecheck` 必须通过。
+- 代码统一以 Prettier 格式化（约束）：以 `apps/evolyn-web/prettier.config.mjs`
+  （复用 `@evolyn.do/prettier-config`）为准，改完前端代码在 `apps/evolyn-web`
+  内执行 `pnpm run lint:format`（等价于编辑器 Prettier - Code formatter 插件
+  保存格式化），不自定义其他格式化风格或手工对齐。
 - 样式统一引用 Element Plus 默认命名空间 CSS 变量（`--el-*`），不自定义 CSS
   token；类名采用 BEM（块__元素--修饰符），优先组件内 scoped 样式。
 - 新增页面在 `src/pages/` 建文件并到 `src/router/index.ts` 登记（不用文件式
