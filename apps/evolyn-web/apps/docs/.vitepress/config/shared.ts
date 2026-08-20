@@ -8,6 +8,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const shared = defineConfig({
   // 设置基础路径,用于GitHub Pages部署
   base: '/evolyn/',
+  vite: {
+    ssr: {
+      // gridstack@13 的 dist 内部是无扩展名的 ESM 相对导入，且未提供 exports 映射；
+      // SSR 构建时若将其外置给 Node 原生加载（VitePress 预渲染阶段），
+      // 会因 ESM 严格解析报 ERR_MODULE_NOT_FOUND，故强制打包进 server bundle
+      noExternal: ['gridstack'],
+    },
+  },
   // 启用最后更新时间
   lastUpdated: true,
   // 生成干净的 URL（去掉.html后缀）
