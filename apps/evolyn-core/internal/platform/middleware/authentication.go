@@ -14,6 +14,10 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// ErrStaleSession 会话租户归属过期（ADR-008 稳定码）：签发后成员被移动到
+// 其他租户，令牌中的 tenantId 与当前归属不一致，需重新登录
+var ErrStaleSession = httpx.NewBiz("AUTH_STALE_TENANT", "登录态已失效（租户归属变化），请重新登录", http.StatusUnauthorized)
+
 // AuthenticationMiddleware 会话认证：按 JWT claims 的 memberId 加载成员（ADR-006）。
 // 此时尚未经过 TenantMiddleware（租户上下文来自本处加载成员的归属），
 // ctx 无租户上下文，GetUserByID 按全局唯一 ID 查询
@@ -40,7 +44,7 @@ func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.U
 			}
 			// 会话签发后成员被移动到其他租户等异常：拒绝过期会话
 			if member.TenantID != claims.TenantID {
-				httpx.ResponseFailed(c, http.StatusUnauthorized, fmt.Errorf("stale session tenant"))
+				httpx.ResponseFailed(c, http.StatusUnauthorized, ErrStaleSession)
 				c.Abort()
 				return
 			}

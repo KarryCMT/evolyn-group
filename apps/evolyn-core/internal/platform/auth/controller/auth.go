@@ -205,8 +205,6 @@ type registerTokenResult struct {
 // @Param body body controller.registerRequest true "向导三步采集的全量数据"
 // @Success 200 {object} httpx.Response{data=controller.registerTokenResult}
 // @Failure 401 {object} httpx.Response "AUTH_SMS_INVALID·验证码错误或已过期"
-// @Failure 409 {object} httpx.Response "AUTH_PHONE_DUPLICATED·手机号已注册"
-// @Failure 401 {object} httpx.Response "验证码错误或已过期"
 // @Router /api/v1/auth/register [post]
 func (ac *AuthController) RegisterComplete(c *gin.Context) {
 	req := new(registerRequest)
@@ -265,6 +263,8 @@ type openTenantRequest struct {
 // @Security JWT
 // @Param body body controller.openTenantRequest true "tenant name and onboarding profile"
 // @Success 200 {object} httpx.Response{data=tenantmodel.Tenant}
+// @Failure 403 {object} httpx.Response "QUOTA_EXCEEDED·配额已用尽"
+// @Failure 409 {object} httpx.Response "TENANT_CODE_DUPLICATED·租户编码已存在"
 // @Router /api/v1/auth/tenant [post]
 func (ac *AuthController) OpenTenant(c *gin.Context) {
 	claims, ok := ac.sessionFrom(c)
@@ -313,8 +313,7 @@ type smsSendResult struct {
 // @Param body body controller.smsSendRequest true "phone and scene"
 // @Success 200 {object} httpx.Response{data=controller.smsSendResult}
 // @Failure 400 {object} httpx.Response "AUTH_PHONE_INVALID/AUTH_SMS_SCENE_INVALID·手机号或场景非法"
-// @Failure 429 {object} httpx.Response "AUTH_COOLDOWN·发送冷却中"
-// @Failure 429 {object} httpx.Response "发送冷却中"
+// @Failure 429 {object} httpx.Response "AUTH_COOLDOWN·发送冷却中/AUTH_SMS_TOO_MANY_TRIES·试错超限"
 // @Router /api/v1/auth/sms/send [post]
 func (ac *AuthController) SendSmsCode(c *gin.Context) {
 	req := new(smsSendRequest)
@@ -399,6 +398,7 @@ type switchTenantRequest struct {
 // @Security JWT
 // @Param body body controller.switchTenantRequest true "tenant id"
 // @Success 200 {object} httpx.Response{data=model.JWTToken}
+// @Failure 403 {object} httpx.Response "AUTH_NOT_MEMBER·账号不属于目标租户"
 // @Router /api/v1/auth/token/switch [post]
 func (ac *AuthController) SwitchTenant(c *gin.Context) {
 	claims, ok := ac.sessionFrom(c)

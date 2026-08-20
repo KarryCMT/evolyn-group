@@ -4,12 +4,14 @@ import (
 	"context"
 	"crypto/rand"
 	"fmt"
+	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"evolyn/internal/contextx"
 	auditservice "evolyn/internal/platform/audit/service"
+	"evolyn/internal/platform/httpx"
 	iammodel "evolyn/internal/platform/iam/model"
 	iamrepository "evolyn/internal/platform/iam/repository"
 	tenantmodel "evolyn/internal/platform/tenant/model"
@@ -43,6 +45,10 @@ const (
 // DefaultRetentionPeriod 注销数据默认保留期（FIX-012）：保留期内可恢复，
 // 到期由 Purge Worker 物理清理。可用配置 tenant.retentionDays 覆盖
 const DefaultRetentionPeriod = 30 * 24 * time.Hour
+
+// ErrCodeDuplicated 租户编码冲突（ADR-008：重复冲突 409）：
+// 指定编码开通时撞已有租户（含注销保留期内的墓碑），编码细节不出网
+var ErrCodeDuplicated = httpx.NewBiz("TENANT_CODE_DUPLICATED", "租户编码已存在", http.StatusConflict)
 
 // tenantService 租户域服务：开通/查询/配置/生命周期流转（运营面）。
 // 依赖 iam 仓储完成「开通即建 owner 成员 + 租户内系统组/角色种子」；
@@ -244,7 +250,7 @@ func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*
 	bctx := contextx.DetachTenant(ctx)
 
 	if _, err := s.tenantRepo.GetByCode(bctx, req.Code); err == nil {
-		return nil, fmt.Errorf("tenant code %s already exists", req.Code)
+		return nil, httpx.Wrap(ErrCodeDuplicated, fmt.Errorf("tenant code %s already exists", req.Code))
 	}
 
 	// owner 账号：复用或新建

@@ -47,7 +47,7 @@ func (tc *TenantController) List(c *gin.Context) {
 // @Security JWT
 // @Param tenant body tenantservice.OpenTenantRequest true "open request"
 // @Success 200 {object} httpx.Response{data=tenantmodel.Tenant}
-// @Failure 409 {object} httpx.Response "AUTH_TENANT_CODE_DUPLICATED·租户编码已存在"
+// @Failure 409 {object} httpx.Response "TENANT_CODE_DUPLICATED·租户编码已存在"
 // @Failure 403 {object} httpx.Response "QUOTA_EXCEEDED·配额已用尽"
 // @Router /api/v1/platform/tenants [post]
 func (tc *TenantController) Create(c *gin.Context) {

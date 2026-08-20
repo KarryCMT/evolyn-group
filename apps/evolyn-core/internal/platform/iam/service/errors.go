@@ -19,4 +19,16 @@ var (
 
 	// ErrDuplicateMember 同租户重复成员（FIX-004）：一个账号在一个租户仅一个有效成员
 	ErrDuplicateMember = httpx.NewBiz("DUPLICATE_MEMBER", "该账号已是本租户成员", http.StatusConflict)
+
+	// ErrCredentialsInvalid 密码登录凭证错误（ADR-008）：账号不存在与密码错误
+	// 统一文案，不泄露账号存在性；401
+	ErrCredentialsInvalid = httpx.NewBiz("AUTH_CREDENTIALS_INVALID", "账号或密码错误", http.StatusUnauthorized)
+
+	// ErrAccountNotFound 短信登录手机号未注册（ADR-008）：验证码已通过，
+	// 区别于凭证错误，可引导走注册；401
+	ErrAccountNotFound = httpx.NewBiz("AUTH_ACCOUNT_NOT_FOUND", "该手机号未注册", http.StatusUnauthorized)
+
+	// ErrNotMember 账号与目标租户无成员关系（ADR-008）：指定租户登录/切换租户；
+	// 账号名/租户编码等细节经 Wrap 只入日志；403
+	ErrNotMember = httpx.NewBiz("AUTH_NOT_MEMBER", "该账号不属于此租户", http.StatusForbidden)
 )

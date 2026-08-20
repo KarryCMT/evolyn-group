@@ -12,6 +12,9 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"net/http"
+
+	"evolyn/internal/platform/httpx"
 )
 
 // Keypair RSA 密钥对：Algorithm 固定 rsa；PublicKey 为 PEM（下发前端），
@@ -87,5 +90,6 @@ func (k *Keypair) Decrypt(cipherBase64 string) (string, error) {
 	return string(plaintext), nil
 }
 
-// ErrDecrypt 口令解密失败（统一语义：前端需加密上送并与 /app/conf 公钥匹配）
-var ErrDecrypt = errors.New("password ciphertext is invalid; encrypt with the public key from /app/conf")
+// ErrDecrypt 口令解密失败（统一语义：前端需加密上送并与 /app/conf 公钥匹配）。
+// ADR-008 稳定码：密文细节不出网，前端可提示刷新页面重取公钥
+var ErrDecrypt = httpx.NewBiz("AUTH_PASSWORD_DECRYPT_FAILED", "密码传输校验失败，请刷新页面后重试", http.StatusBadRequest)

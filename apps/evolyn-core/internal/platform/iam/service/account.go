@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"evolyn/internal/contextx"
+	"evolyn/internal/platform/httpx"
 	tenantmodel "evolyn/internal/platform/tenant/model"
 	tenantrepository "evolyn/internal/platform/tenant/repository"
 	tenantservice "evolyn/internal/platform/tenant/service"
@@ -70,13 +71,13 @@ func (s *accountService) Auth(ctx context.Context, auser *model.AuthUser) (*mode
 		account, err = s.accountRepo.GetByPhone(ctx, auser.Phone)
 	}
 	if err != nil {
-		// 账号不存在与密码错误统一文案：既不泄露 gorm 内部错误，
+		// 账号不存在与密码错误统一稳定码（ADR-008）：既不泄露 gorm 内部错误，
 		// 也不区分「账号是否存在」
-		return nil, nil, fmt.Errorf("invalid account or password")
+		return nil, nil, ErrCredentialsInvalid
 	}
 
 	if err := bcrypt.CompareHashAndPassword([]byte(account.Password), []byte(auser.Password)); err != nil {
-		return nil, nil, fmt.Errorf("invalid account or password")
+		return nil, nil, ErrCredentialsInvalid
 	}
 
 	member, err := s.resolveLoginMember(ctx, account, auser.TenantCode)
@@ -92,7 +93,8 @@ func (s *accountService) Auth(ctx context.Context, auser *model.AuthUser) (*mode
 func (s *accountService) AuthByPhone(ctx context.Context, phone, tenantCode string) (*model.Account, *model.User, error) {
 	account, err := s.accountRepo.GetByPhone(ctx, phone)
 	if err != nil {
-		return nil, nil, fmt.Errorf("account not found")
+		// 验证码已通过，未注册是独立语义（ADR-008）：可引导走注册
+		return nil, nil, ErrAccountNotFound
 	}
 
 	member, err := s.resolveLoginMember(ctx, account, tenantCode)
@@ -133,7 +135,7 @@ func (s *accountService) resolveLoginMember(ctx context.Context, account *model.
 			return &members[i], nil
 		}
 	}
-	return nil, fmt.Errorf("account %s is not a member of tenant %s", account.Name, tenantCode)
+	return nil, httpx.Wrap(ErrNotMember, fmt.Errorf("account %s is not a member of tenant %s", account.Name, tenantCode))
 }
 
 // Register 注册：创建账号 + 默认租户成员（保持单租户默认体验，ADR-006）
@@ -413,7 +415,8 @@ func (s *accountService) SwitchTenant(ctx context.Context, accountID, tenantID u
 	bctx := contextx.DetachTenant(ctx)
 	member, err := s.userRepo.GetByAccountAndTenant(bctx, accountID, tenantID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("account is not a member of tenant %d", tenantID)
+		// 与既有口径一致：成员关系缺失/查询失败均拒绝切换，细节经 Wrap 只入日志
+		return nil, nil, httpx.Wrap(ErrNotMember, err)
 	}
 
 	account, err := s.accountRepo.GetByID(ctx, accountID)

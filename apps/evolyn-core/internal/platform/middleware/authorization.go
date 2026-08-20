@@ -15,6 +15,14 @@ import (
 )
 
 // AuthorizationMiddleware 资源级鉴权；authorizer 由 server 显式注入（P0-4 拆单例）
+//
+// 鉴权拒绝的稳定码（ADR-008）：未登录 401/已登录无权限 403，
+// member ID/资源等细节只在上方鉴权日志与错误日志中出现，不出网
+var (
+	ErrAuthRequired = httpx.NewBiz(httpx.CodeUnauthorized, "请先登录", http.StatusUnauthorized)
+	ErrForbidden    = httpx.NewBiz(httpx.CodeForbidden, "没有执行该操作的权限", http.StatusForbidden)
+)
+
 func AuthorizationMiddleware(authorizer *authorization.Authorizer) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user := ginctx.GetUser(c)
@@ -43,9 +51,11 @@ func AuthorizationMiddleware(authorizer *authorization.Authorizer) gin.HandlerFu
 
 			if !ok {
 				if user.ID == 0 {
-					httpx.ResponseFailed(c, http.StatusUnauthorized, nil)
+					httpx.ResponseFailed(c, http.StatusUnauthorized, ErrAuthRequired)
 				} else {
-					httpx.ResponseFailed(c, http.StatusForbidden, fmt.Errorf("member [%d] is forbidden for resource %s in namespace %s", user.ID, resource, ri.Namespace))
+					// 被拒成员/资源细节经 Wrap 进日志，响应只见通用文案（ADR-008 脱敏）
+					httpx.ResponseFailed(c, http.StatusForbidden, httpx.Wrap(ErrForbidden,
+						fmt.Errorf("member [%d] is forbidden for resource %s in namespace %s", user.ID, resource, ri.Namespace)))
 				}
 				c.Abort()
 				return

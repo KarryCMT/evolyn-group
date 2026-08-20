@@ -19,12 +19,13 @@ func PlatformAuthorizationMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		member := ginctx.GetUser(c)
 		if member == nil {
-			httpx.ResponseFailed(c, http.StatusUnauthorized, nil)
+			// 复用鉴权域稳定码（ADR-008）：平台域与租户域拒绝语义一致
+			httpx.ResponseFailed(c, http.StatusUnauthorized, ErrAuthRequired)
 			c.Abort()
 			return
 		}
 		if !authorization.IsClusterAdmin(member) {
-			httpx.ResponseFailed(c, http.StatusForbidden, nil)
+			httpx.ResponseFailed(c, http.StatusForbidden, ErrForbidden)
 			c.Abort()
 			return
 		}
