@@ -1,34 +1,11 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { useAuth } from '~/composables'
-
+import routes from "./modules/index";
 // 手动维护的路由表：不使用 vite-ssg / unplugin-vue-router 的文件式自动路由，
 // 路由路径与 src/pages/ 目录结构一一对应，新增页面时在此登记
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    {
-      path: '/',
-      component: () => import('~/pages/index.vue'),
-    },
-    {
-      path: '/auth/login',
-      name: 'login',
-      component: () => import('~/pages/auth/login.vue'),
-      meta: { public: true },
-    },
-    {
-      path: '/auth/register',
-      name: 'register',
-      component: () => import('~/pages/auth/register.vue'),
-      meta: { public: true },
-    },
-    {
-      path: '/auth/forgot-password',
-      name: 'forgotPassword',
-      component: () => import('~/pages/auth/forgot-password.vue'),
-      meta: { public: true },
-    },
-  ],
+  routes,
 })
 
 // 路由元信息类型收窄：public 标记认证域公开页面
