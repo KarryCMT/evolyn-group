@@ -12,9 +12,9 @@ catalogs:
     '@element-plus/icons-vue': ^2.3.2
     '@visactor/vue-vtable': ^1.26.6
     gridstack: ^13.2.0
-    "@logicflow/core": ^2.2.5,
-    "@logicflow/extension": ^2.3.1,
-    "@logicflow/layout": ^2.1.5,
+    "@logicflow/core": ^2.2.5
+    "@logicflow/extension": ^2.3.1
+    "@logicflow/layout": ^2.1.5
     "@logicflow/vue-node-registry": ^1.2.5
   ui:
     element-plus: ^2.14.4
