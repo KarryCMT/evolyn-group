@@ -23,6 +23,7 @@ vi.mock('@visactor/vtable', () => ({
 
 // vi.mock 存在提升，被测组件需在 mock 声明之后导入
 import EvolynTable from '../EvolynTable.vue';
+import { createElementTheme } from '../theme';
 
 const columns = [{ field: 'name', title: '名称' }];
 
@@ -100,5 +101,18 @@ describe('EvolynTable', () => {
 
     expect(wrapper.emitted('click-cell')).toHaveLength(1);
     expect(wrapper.emitted('click-cell')?.[0]).toEqual([{ col: 1, row: 2 }]);
+  });
+
+  it('builds selection fills with alpha so overlay cannot cover cell content', () => {
+    // happy-dom 读不到 --el-* 变量，主题走 #409eff 兜底值
+    const theme = createElementTheme('light');
+    const selection = theme.selectionStyle ?? {};
+
+    // 选中填充画在内容之上的覆盖层，不透明色会把单元格文字整块盖住（历史缺陷），
+    // 锁定填充必须为 rgba 半透明
+    expect(selection.cellBgColor).toBe('rgba(64, 158, 255, 0.1)');
+    expect(selection.inlineRowBgColor).toBe('rgba(64, 158, 255, 0.1)');
+    // 描边为不透明主色，保证选中框可见
+    expect(selection.cellBorderColor).toBe('#409eff');
   });
 });

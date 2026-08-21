@@ -6,7 +6,6 @@ import type { TYPES } from '@visactor/vtable';
  */
 const EP_VAR_FALLBACKS = {
   primary: '#409eff',
-  primaryLight9: '#ecf5ff',
   textPrimary: '#303133',
   textRegular: '#606266',
   textSecondary: '#909399',
@@ -25,6 +24,35 @@ function cssVar(name: string, fallback: string): string {
 }
 
 /**
+ * 将颜色字符串转为带透明度的 rgba 表达式。
+ * 支持 #RGB/#RRGGBB/#RRGGBBAA 与 rgb()/rgba()，无法识别时原样返回（尽力而为）。
+ */
+function withAlpha(color: string, alpha: number): string {
+  const value = color.trim();
+  if (value.startsWith('#')) {
+    const hex = value.slice(1);
+    if (hex.length === 3 || hex.length === 4) {
+      const [r, g, b] = [...hex.slice(0, 3)].map((ch) => parseInt(ch + ch, 16));
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    if (hex.length === 6 || hex.length === 8) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+    return value;
+  }
+  const rgbMatch = /^rgba?\(([^)]+)\)$/.exec(value);
+  const parts = rgbMatch?.[1]?.split(',').map((part) => part.trim());
+  if (parts && parts.length >= 3 && !parts[0]?.endsWith('%')) {
+    const [r, g, b] = parts;
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return value;
+}
+
+/**
  * 构建跟随 Element Plus 主题的 VTable 主题。
  *
  * VTable 是 canvas 渲染，无法直接消费 --el-* CSS 变量，因此在运行时读取
@@ -37,7 +65,6 @@ export function createElementTheme(mode: 'light' | 'dark'): TYPES.ITableThemeDef
   void mode;
 
   const primary = cssVar('--el-color-primary', EP_VAR_FALLBACKS.primary);
-  const primaryLight9 = cssVar('--el-color-primary-light-9', EP_VAR_FALLBACKS.primaryLight9);
   const textPrimary = cssVar('--el-text-color-primary', EP_VAR_FALLBACKS.textPrimary);
   const textRegular = cssVar('--el-text-color-regular', EP_VAR_FALLBACKS.textRegular);
   const textSecondary = cssVar('--el-text-color-secondary', EP_VAR_FALLBACKS.textSecondary);
@@ -75,12 +102,15 @@ export function createElementTheme(mode: 'light' | 'dark'): TYPES.ITableThemeDef
       borderLineWidth: 1,
       cornerRadius: 0,
     },
-    // 选中态对齐 el-table：主色描边 + primary-light-9 行底色
+    // 选中态对齐 el-table：主色描边 + 主色淡色底。注意选中填充画在内容之上
+    // 的覆盖层（overlayGroup），不透明色会把单元格文字整块盖住，必须带透明度
+    // （VTable 默认主题同样采用 rgba 0.1 量级）
     selectionStyle: {
       cellBorderColor: primary,
       cellBorderLineWidth: 1,
-      cellBgColor: primaryLight9,
-      inlineRowBgColor: primaryLight9,
+      cellBgColor: withAlpha(primary, 0.1),
+      inlineRowBgColor: withAlpha(primary, 0.1),
+      inlineColumnBgColor: withAlpha(primary, 0.1),
     },
     // 滚动条用弱化文字色，视觉接近 EP 滚动条
     scrollStyle: {
