@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ElAvatar, ElTooltip } from 'element-plus';
-import { ArrowLeft, Bell, Grid, QuestionFilled, SetUp, UserFilled } from '@element-plus/icons-vue';
-import { RiHomeGearFill,RiGridFill } from "@remixicon/vue";
+// el-tooltip 等组件走模板标签按需解析注入样式，显式 import EP 组件会绕过
+// unplugin-vue-components 的样式注入导致组件无样式（详见 UserMenu.vue 注释）
+import { Bell, Grid, QuestionFilled } from '@element-plus/icons-vue';
+import { RiHomeGearFill, RiGridFill } from '@remixicon/vue';
 import { useRouter } from 'vue-router';
+import UserMenu from '~/components/navigation/UserMenu.vue';
 
 defineOptions({ name: 'TopNavigation' });
 
@@ -31,14 +33,12 @@ function openWorkbenchEditor() {
 <template>
   <header class="top-navigation">
     <div class="top-navigation__brand">
-      <el-icon v-if="backTo" size="16" aria-label="返回工作台" @click="goBack" >
+      <el-icon v-if="backTo" size="16" aria-label="返回工作台" @click="goBack">
         <RiGridFill />
       </el-icon>
       <template v-else>
         <el-button class="top-navigation__switcher" circle :icon="Grid" aria-label="切换产品" />
-        <span class="top-navigation__logo" aria-hidden="true">
-
-        </span>
+        <span class="top-navigation__logo" aria-hidden="true"> </span>
       </template>
       <strong>{{ title }}</strong>
     </div>
@@ -46,10 +46,7 @@ function openWorkbenchEditor() {
     <nav class="top-navigation__actions" aria-label="工作台导航">
       <template v-if="!backTo">
         <el-tooltip content="自定义工作台" placement="bottom">
-          <el-icon
-            class="top-navigation__workbench-entry"
-            @click="openWorkbenchEditor"
-          >
+          <el-icon class="top-navigation__workbench-entry" @click="openWorkbenchEditor">
             <RiHomeGearFill />
           </el-icon>
         </el-tooltip>
@@ -58,15 +55,8 @@ function openWorkbenchEditor() {
       </template>
       <el-button text circle :icon="Bell" aria-label="通知" />
       <el-button v-if="backTo" text circle :icon="QuestionFilled" aria-label="帮助" />
-      <el-dropdown>
-        <el-avatar :size="28" :icon="UserFilled" />
-        <template #dropdown>
-          <el-dropdown-menu>
-            <el-dropdown-item>个人中心</el-dropdown-item>
-            <el-dropdown-item>退出登录</el-dropdown-item>
-          </el-dropdown-menu>
-        </template>
-      </el-dropdown>
+      <!-- 用户头像下拉：信息区 + 菜单面板（简道云形态） -->
+      <UserMenu />
     </nav>
   </header>
 </template>
