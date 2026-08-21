@@ -2,7 +2,7 @@
 // el-tooltip 等组件走模板标签按需解析注入样式，显式 import EP 组件会绕过
 // unplugin-vue-components 的样式注入导致组件无样式（详见 UserMenu.vue 注释）
 import { Bell, Grid, QuestionFilled } from '@element-plus/icons-vue';
-import { RiHomeGearFill, RiGridFill } from '@remixicon/vue';
+import { RiArrowLeftLine, RiHomeGearFill } from '@remixicon/vue';
 import { useRouter } from 'vue-router';
 import UserMenu from '~/components/navigation/UserMenu.vue';
 
@@ -34,7 +34,7 @@ function openWorkbenchEditor() {
   <header class="top-navigation">
     <div class="top-navigation__brand">
       <el-icon v-if="backTo" size="16" aria-label="返回工作台" @click="goBack">
-        <RiGridFill />
+        <RiArrowLeftLine />
       </el-icon>
       <template v-else>
         <el-button class="top-navigation__switcher" circle :icon="Grid" aria-label="切换产品" />

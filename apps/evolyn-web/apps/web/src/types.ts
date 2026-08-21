@@ -169,6 +169,9 @@ export interface UserInfoResult {
 /** 账号自助资料更新（PUT /accounts/me）：昵称非空时后端同步当前成员的租户内称呼 */
 export interface AccountProfilePayload {
   nickname?: string;
+  phone?: string;
+  email?: string;
+  avatar?: string;
   onboarding?: AccountOnboarding;
 }
 
