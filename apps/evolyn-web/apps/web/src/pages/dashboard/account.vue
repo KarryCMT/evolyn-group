@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-import { ElMessage } from 'element-plus';
 import AccountBasicInfoPanel from '~/components/dashboard/account/AccountBasicInfoPanel.vue';
 import AccountSecurityPanel from '~/components/dashboard/account/AccountSecurityPanel.vue';
 import AccountSettingsSidebar from '~/components/dashboard/account/AccountSettingsSidebar.vue';
+import LoginLogDrawer from '~/components/dashboard/account/LoginLogDrawer.vue';
 import PasswordEditorDialog from '~/components/dashboard/account/PasswordEditorDialog.vue';
 import ProfileEditorDialog from '~/components/dashboard/account/ProfileEditorDialog.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
@@ -18,6 +18,7 @@ const { savingPassword, savingProfile, savePassword, saveProfile } = useAccountS
 const activeTab = ref<AccountSettingsTab>('basic');
 const profileDialogVisible = ref(false);
 const passwordDialogVisible = ref(false);
+const loginLogVisible = ref(false);
 
 async function handleProfileSubmit(payload: AccountProfileForm) {
   await saveProfile(payload);
@@ -29,9 +30,9 @@ async function handlePasswordSubmit(payload: AccountPasswordForm) {
   passwordDialogVisible.value = false;
 }
 
-// 登录日志尚无服务端查询接口，保留入口并给出明确反馈，避免误导为可用能力。
+// 登录日志查询接口待后端落地，抽屉内暂以演示数据展示（见 LoginLogDrawer）。
 function handleViewLoginLog() {
-  ElMessage.info('登录日志功能正在建设中');
+  loginLogVisible.value = true;
 }
 </script>
 
@@ -66,6 +67,11 @@ function handleViewLoginLog() {
       :password-initialized="userInfo?.account.passwordInitialized ?? true"
       :loading="savingPassword"
       @submit="handlePasswordSubmit"
+    />
+    <LoginLogDrawer
+      v-model="loginLogVisible"
+      :nickname="userInfo?.member.nickname || userInfo?.account.nickname || ''"
+      :avatar="userInfo?.account.avatar || ''"
     />
   </div>
 </template>
