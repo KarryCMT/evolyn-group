@@ -25,7 +25,11 @@
     "vue": "catalog:frontend",
     "vue-router": "catalog:frontend",
     "pinia": "catalog:frontend",
-    "jsencrypt": "catalog:utils"
+    "jsencrypt": "catalog:utils",
+    "@logicflow/core": "catalog:",
+    "@logicflow/extension": "catalog:",
+    "@logicflow/layout": "catalog:",
+    "@logicflow/vue-node-registry": "catalog:"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^5.1.0",
