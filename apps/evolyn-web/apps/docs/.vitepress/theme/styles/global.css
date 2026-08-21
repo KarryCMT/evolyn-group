@@ -10,16 +10,14 @@ body {
   font-feature-settings: 'tnum';
   background:
     linear-gradient(135deg, rgb(15 138 104 / 10%) 0 1px, transparent 1px 34%),
-    linear-gradient(90deg, rgb(217 145 43 / 8%) 0 1px, transparent 1px 28%),
-    var(--vp-c-bg);
+    linear-gradient(90deg, rgb(217 145 43 / 8%) 0 1px, transparent 1px 28%), var(--vp-c-bg);
   text-rendering: optimizelegibility;
 }
 
 .dark body {
   background:
     linear-gradient(135deg, rgb(98 213 172 / 8%) 0 1px, transparent 1px 34%),
-    linear-gradient(90deg, rgb(243 193 107 / 6%) 0 1px, transparent 1px 28%),
-    var(--vp-c-bg);
+    linear-gradient(90deg, rgb(243 193 107 / 6%) 0 1px, transparent 1px 28%), var(--vp-c-bg);
 }
 
 ::selection {
@@ -205,7 +203,11 @@ body {
 
 .VPFeature {
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--vp-c-bg-soft) 96%, transparent), var(--vp-c-bg-soft)),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--vp-c-bg-soft) 96%, transparent),
+      var(--vp-c-bg-soft)
+    ),
     var(--vp-c-bg-soft);
   border-color: var(--docs-surface-border);
   border-radius: 8px;
@@ -229,8 +231,7 @@ body {
 
 .VPFeature .icon {
   color: var(--vp-c-brand-1);
-  background:
-    linear-gradient(135deg, var(--vp-c-brand-soft), var(--docs-accent-soft));
+  background: linear-gradient(135deg, var(--vp-c-brand-soft), var(--docs-accent-soft));
   border: 1px solid color-mix(in srgb, var(--vp-c-brand-1) 22%, transparent);
   border-radius: 8px;
 }
@@ -260,15 +261,11 @@ body {
 }
 
 .Layout .VPDoc {
-  background:
-    linear-gradient(180deg, rgb(255 255 255 / 34%), transparent 320px),
-    transparent;
+  background: linear-gradient(180deg, rgb(255 255 255 / 34%), transparent 320px), transparent;
 }
 
 .dark .Layout .VPDoc {
-  background:
-    linear-gradient(180deg, rgb(98 213 172 / 4%), transparent 320px),
-    transparent;
+  background: linear-gradient(180deg, rgb(98 213 172 / 4%), transparent 320px), transparent;
 }
 
 .VPDoc .container {

@@ -1,27 +1,27 @@
 <script setup lang="ts">
 // 顶栏语言切换（占位）：i18n 方案落地前仅记录选择并提示，
 // 落地后在此接入 vue-i18n 的 locale 切换
-import { computed, shallowRef } from 'vue'
-import { ArrowDown } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { computed, shallowRef } from 'vue';
+import { ArrowDown } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 
 /** 本地语言偏好存储键 */
-const LOCALE_KEY = 'evolyn.locale'
+const LOCALE_KEY = 'evolyn.locale';
 
 const locales = [
   { value: 'zh-CN', label: '简体中文' },
   { value: 'en', label: 'English' },
-] as const
+] as const;
 
-const current = shallowRef(localStorage.getItem(LOCALE_KEY) ?? 'zh-CN')
+const current = shallowRef(localStorage.getItem(LOCALE_KEY) ?? 'zh-CN');
 const currentLabel = computed(
-  () => locales.find(locale => locale.value === current.value)?.label ?? '简体中文',
-)
+  () => locales.find((locale) => locale.value === current.value)?.label ?? '简体中文',
+);
 
 function handleChange(value: string | number | object) {
-  current.value = String(value)
-  localStorage.setItem(LOCALE_KEY, current.value)
-  ElMessage.info('多语言支持即将上线')
+  current.value = String(value);
+  localStorage.setItem(LOCALE_KEY, current.value);
+  ElMessage.info('多语言支持即将上线');
 }
 </script>
 

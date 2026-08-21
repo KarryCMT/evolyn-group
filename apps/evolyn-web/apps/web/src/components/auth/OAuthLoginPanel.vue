@@ -1,15 +1,15 @@
 <script setup lang="ts">
 // 第三方登录入口（GitHub / 微信）：后端 OAuth 能力已就绪，但授权页跳转
 // 需要下发 client_id 的配置接口；当前以提示占位，接入后改为跳转各提供方授权页
-import { ElMessage } from 'element-plus'
+import { ElMessage } from 'element-plus';
 
 const providers = [
   { key: 'github', label: 'GitHub' },
   { key: 'wechat', label: '微信' },
-] as const
+] as const;
 
 function handleSelect(label: string) {
-  ElMessage.info(`「${label}」登录待 OAuth 配置下发后开放`)
+  ElMessage.info(`「${label}」登录待 OAuth 配置下发后开放`);
 }
 </script>
 

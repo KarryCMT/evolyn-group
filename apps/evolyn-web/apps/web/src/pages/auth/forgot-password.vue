@@ -1,11 +1,11 @@
 <script setup lang="ts">
 // 忘记密码页（占位）：后端重置密码接口未开放，先提供说明与返回入口
-import { useRouter } from 'vue-router'
+import { useRouter } from 'vue-router';
 
-const router = useRouter()
+const router = useRouter();
 
 function goLogin() {
-  router.replace('/auth/login')
+  router.replace('/auth/login');
 }
 </script>
 
@@ -14,7 +14,7 @@ function goLogin() {
     <el-result class="forgot-page__result" icon="info" title="找回密码功能即将上线">
       <template #sub>
         <p class="forgot-page__tip">
-          上线前可联系团队管理员重置密码，<br>
+          上线前可联系团队管理员重置密码，<br />
           或先使用密码方式登录后在账号设置中修改。
         </p>
       </template>

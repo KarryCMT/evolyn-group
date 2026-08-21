@@ -2,32 +2,32 @@
 // 验证码登录表单：手机号 + 短信验证码 +「下次自动登录」。「获取验证码」通过
 // 手机号校验后上抛父级发送并启动 60s 重发倒计时；提交校验通过后上抛，
 // 登录调用在父级。remember 决定令牌存储范围（持久/会话级，见 composables/auth）
-import { onUnmounted, reactive, shallowRef, useTemplateRef } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
-import { Iphone } from '@element-plus/icons-vue'
+import { onUnmounted, reactive, shallowRef, useTemplateRef } from 'vue';
+import type { FormInstance, FormRules } from 'element-plus';
+import { Iphone } from '@element-plus/icons-vue';
 
 /** 重发倒计时秒数：与后端发送冷却窗口一致 */
-const RESEND_SECONDS = 60
+const RESEND_SECONDS = 60;
 
 defineProps<{
   /** 提交中：按钮显示 loading 并防重复提交 */
-  loading?: boolean
-}>()
+  loading?: boolean;
+}>();
 
 const emit = defineEmits<{
   /** 校验通过后上抛手机号 + 验证码 + 是否下次自动登录 */
-  submit: [payload: { phone: string; code: string; remember: boolean }]
+  submit: [payload: { phone: string; code: string; remember: boolean }];
   /** 请求发送短信验证码（先通过手机号校验） */
-  'send-code': [phone: string]
-}>()
+  'send-code': [phone: string];
+}>();
 
-const formRef = useTemplateRef<FormInstance>('formRef')
+const formRef = useTemplateRef<FormInstance>('formRef');
 
 const form = reactive({
   phone: '',
   code: '',
   remember: true,
-})
+});
 
 const rules: FormRules = {
   phone: [
@@ -38,32 +38,35 @@ const rules: FormRules = {
     { required: true, message: '请输入验证码', trigger: 'blur' },
     { pattern: /^\d{6}$/, message: '验证码为 6 位数字', trigger: 'blur' },
   ],
-}
+};
 
 // 重发倒计时：发送即启动，到 0 自动恢复按钮
-const countdown = shallowRef(0)
-let timer: ReturnType<typeof setInterval> | undefined
+const countdown = shallowRef(0);
+let timer: ReturnType<typeof setInterval> | undefined;
 
 function startCountdown() {
-  countdown.value = RESEND_SECONDS
+  countdown.value = RESEND_SECONDS;
   timer = setInterval(() => {
-    countdown.value -= 1
+    countdown.value -= 1;
     if (countdown.value <= 0) {
-      clearInterval(timer)
-      timer = undefined
+      clearInterval(timer);
+      timer = undefined;
     }
-  }, 1000)
+  }, 1000);
 }
 
 onUnmounted(() => {
-  if (timer !== undefined) clearInterval(timer)
-})
+  if (timer !== undefined) clearInterval(timer);
+});
 
 async function handleSubmit() {
-  const valid = await formRef.value?.validate().then(() => true, () => false)
-  if (!valid) return
+  const valid = await formRef.value?.validate().then(
+    () => true,
+    () => false,
+  );
+  if (!valid) return;
 
-  emit('submit', { phone: form.phone.trim(), code: form.code, remember: form.remember })
+  emit('submit', { phone: form.phone.trim(), code: form.code, remember: form.remember });
 }
 
 function handleSendCode() {
@@ -71,10 +74,10 @@ function handleSendCode() {
   formRef.value
     ?.validateField('phone')
     .then(() => {
-      emit('send-code', form.phone.trim())
-      startCountdown()
+      emit('send-code', form.phone.trim());
+      startCountdown();
     })
-    .catch(() => {})
+    .catch(() => {});
 }
 </script>
 

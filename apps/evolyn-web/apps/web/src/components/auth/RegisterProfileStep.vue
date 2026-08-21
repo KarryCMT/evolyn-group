@@ -3,29 +3,29 @@
 // 角色与渠道是「人」的画像，随向导最终提交（POST /auth/register）落到
 // 账号 onboarding；昵称同步 owner 成员的租户内称呼（后端事务内完成）。
 // 注册全程不设密码：账号为免密状态，密码由用户后续在个人中心自行首设
-import { reactive, useTemplateRef } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
-import { User } from '@element-plus/icons-vue'
+import { reactive, useTemplateRef } from 'vue';
+import type { FormInstance, FormRules } from 'element-plus';
+import { User } from '@element-plus/icons-vue';
 
 const props = defineProps<{
   /** 昵称默认值：取第 1 步注册手机号的脱敏形式，降低输入成本 */
-  defaultNickname?: string
+  defaultNickname?: string;
   /** 提交中：按钮显示 loading 并防重复提交 */
-  loading?: boolean
-}>()
+  loading?: boolean;
+}>();
 
 const emit = defineEmits<{
   /** 进入产品：携带完善信息表单，由父级汇总三步数据一次性提交 */
-  submit: [profile: { nickname: string; role: string; channel: string }]
-}>()
+  submit: [profile: { nickname: string; role: string; channel: string }];
+}>();
 
-const formRef = useTemplateRef<FormInstance>('formRef')
+const formRef = useTemplateRef<FormInstance>('formRef');
 
 const form = reactive({
   nickname: props.defaultNickname ?? '',
   role: '',
   channel: '',
-})
+});
 
 // 角色选项（单选）：值为运营分析用的稳定编码，展示用中文
 const roleOptions = [
@@ -35,7 +35,7 @@ const roleOptions = [
   { value: 'member', label: '普通成员' },
   { value: 'teacher', label: '老师' },
   { value: 'student', label: '学生' },
-]
+];
 
 // 了解渠道选项（单选）
 const channelOptions = [
@@ -48,7 +48,7 @@ const channelOptions = [
   { value: 'shortvideo', label: '短视频' },
   { value: 'wechat', label: '微信' },
   { value: 'other', label: '其他' },
-]
+];
 
 const rules: FormRules = {
   nickname: [
@@ -57,17 +57,20 @@ const rules: FormRules = {
   ],
   role: [{ required: true, message: '请选择你的角色', trigger: 'change' }],
   channel: [{ required: true, message: '请选择了解渠道', trigger: 'change' }],
-}
+};
 
 async function handleSubmit() {
-  const valid = await formRef.value?.validate().then(() => true, () => false)
-  if (!valid) return
+  const valid = await formRef.value?.validate().then(
+    () => true,
+    () => false,
+  );
+  if (!valid) return;
 
   emit('submit', {
     nickname: form.nickname.trim(),
     role: form.role,
     channel: form.channel,
-  })
+  });
 }
 </script>
 

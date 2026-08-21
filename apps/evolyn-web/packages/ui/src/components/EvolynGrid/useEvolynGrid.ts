@@ -13,7 +13,11 @@ export function mergeGridLayout(
   source: EvolynGridItem[],
   changed: Array<Partial<EvolynGridItem> & { id?: string }>,
 ): EvolynGridItem[] {
-  const changedById = new Map(changed.filter((item): item is typeof item & { id: string } => Boolean(item.id)).map(item => [item.id, item]));
+  const changedById = new Map(
+    changed
+      .filter((item): item is typeof item & { id: string } => Boolean(item.id))
+      .map((item) => [item.id, item]),
+  );
 
   return source.map((item) => {
     const next = changedById.get(item.id);

@@ -31,6 +31,6 @@ export const ERROR_CODES = {
   TENANT_FROZEN: 'TENANT_FROZEN',
   TENANT_DISABLED: 'TENANT_DISABLED',
   TENANT_CODE_DUPLICATED: 'TENANT_CODE_DUPLICATED',
-} as const
+} as const;
 
-export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES]
+export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];

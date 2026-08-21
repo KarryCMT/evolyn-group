@@ -4,17 +4,30 @@ const features = [
   { title: '表单引擎', desc: '拖拽搭建业务表单' },
   { title: '流程编排', desc: '可视化审批流' },
   { title: '数据报表', desc: '实时统计与分析' },
-]
+];
 </script>
 
 <template>
   <section class="brand-panel">
     <!-- 低代码平台示意插画：浏览器窗口 + 侧栏 + 图表，配色取 Element Plus 主题变量 -->
-    <svg class="brand-panel__art" viewBox="0 0 360 240" role="img" aria-label="evolyn 低代码平台示意插画">
+    <svg
+      class="brand-panel__art"
+      viewBox="0 0 360 240"
+      role="img"
+      aria-label="evolyn 低代码平台示意插画"
+    >
       <circle cx="56" cy="48" r="88" fill="var(--el-color-white)" fill-opacity="0.08" />
       <circle cx="314" cy="206" r="40" fill="var(--el-color-white)" fill-opacity="0.1" />
 
-      <rect x="64" y="44" width="232" height="152" rx="10" fill="var(--el-color-white)" fill-opacity="0.96" />
+      <rect
+        x="64"
+        y="44"
+        width="232"
+        height="152"
+        rx="10"
+        fill="var(--el-color-white)"
+        fill-opacity="0.96"
+      />
       <circle cx="82" cy="60" r="4" fill="var(--el-color-danger)" fill-opacity="0.55" />
       <circle cx="94" cy="60" r="4" fill="var(--el-color-warning)" fill-opacity="0.55" />
       <circle cx="106" cy="60" r="4" fill="var(--el-color-success)" fill-opacity="0.55" />
@@ -34,9 +47,24 @@ const features = [
       <rect x="228" y="136" width="48" height="8" rx="4" fill="var(--el-color-primary-light-7)" />
       <rect x="228" y="152" width="34" height="8" rx="4" fill="var(--el-color-primary-light-7)" />
 
-      <rect x="252" y="166" width="80" height="44" rx="8" fill="var(--el-color-white)" fill-opacity="0.95" />
+      <rect
+        x="252"
+        y="166"
+        width="80"
+        height="44"
+        rx="8"
+        fill="var(--el-color-white)"
+        fill-opacity="0.95"
+      />
       <circle cx="270" cy="188" r="11" fill="var(--el-color-success-light-7)" />
-      <path d="m265 188 3.5 3.5 7-7" fill="none" stroke="var(--el-color-success)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+      <path
+        d="m265 188 3.5 3.5 7-7"
+        fill="none"
+        stroke="var(--el-color-success)"
+        stroke-width="2.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
       <rect x="288" y="180" width="34" height="6" rx="3" fill="var(--el-color-primary-light-5)" />
       <rect x="288" y="192" width="24" height="6" rx="3" fill="var(--el-color-primary-light-7)" />
     </svg>

@@ -15,5 +15,8 @@ defineProps<{ widget: DashboardWidgetContent }>();
 </template>
 
 <style scoped lang="scss">
-.charts-widget { height: 100%; padding: 0; }
+.charts-widget {
+  height: 100%;
+  padding: 0;
+}
 </style>

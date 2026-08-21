@@ -1,117 +1,121 @@
 <script setup lang="ts">
 // 登录页：认证域薄壳视图，组合骨架与两种登录表单，负责提交分发与登录后去向；
 // 多租户账号在弹窗中选择进入的团队（单租户直接进入，与后端默认租户体验一致）
-import { shallowRef } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { sendSmsCode } from '~/api/auth'
-import { encryptPassword } from '~/api/conf'
-import { useAuth } from '~/composables'
-import type { TenantMembership } from '~/types'
-import { ApiError } from '~/api/http'
-import { ERROR_CODES } from '~/api/errorCodes'
+import { shallowRef } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import { ElMessage } from 'element-plus';
+import { sendSmsCode } from '~/api/auth';
+import { encryptPassword } from '~/api/conf';
+import { useAuth } from '~/composables';
+import type { TenantMembership } from '~/types';
+import { ApiError } from '~/api/http';
+import { ERROR_CODES } from '~/api/errorCodes';
 
-type LoginMode = 'password' | 'sms'
+type LoginMode = 'password' | 'sms';
 
-const route = useRoute()
-const router = useRouter()
-const { login, loadTenants, switchTenant } = useAuth()
+const route = useRoute();
+const router = useRouter();
+const { login, loadTenants, switchTenant } = useAuth();
 
 // 对齐主流登录页首屏：优先展示短信验证码，密码方式保留为可切换的备选。
-const mode = shallowRef<LoginMode>('sms')
-const loading = shallowRef(false)
+const mode = shallowRef<LoginMode>('sms');
+const loading = shallowRef(false);
 
 // 多租户选择弹窗
-const tenantDialogVisible = shallowRef(false)
-const memberships = shallowRef<TenantMembership[]>([])
-const switching = shallowRef(false)
+const tenantDialogVisible = shallowRef(false);
+const memberships = shallowRef<TenantMembership[]>([]);
+const switching = shallowRef(false);
 
 /** 密码登录：密码先经平台公钥 RSA 加密再上送；remember 决定令牌存储范围 */
-async function handlePasswordSubmit(payload: { phone: string; password: string; remember: boolean }) {
-  loading.value = true
+async function handlePasswordSubmit(payload: {
+  phone: string;
+  password: string;
+  remember: boolean;
+}) {
+  loading.value = true;
   try {
-    const password = await encryptPassword(payload.password)
-    await login({ phone: payload.phone, password }, payload.remember)
-    await afterLogin()
+    const password = await encryptPassword(payload.password);
+    await login({ phone: payload.phone, password }, payload.remember);
+    await afterLogin();
   } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : '登录失败，请稍后重试')
+    ElMessage.error(err instanceof Error ? err.message : '登录失败，请稍后重试');
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 /** 验证码登录：免密，走 phone + smsCode；remember 决定令牌存储范围 */
 async function handleSmsSubmit(payload: { phone: string; code: string; remember: boolean }) {
-  loading.value = true
+  loading.value = true;
   try {
-    await login({ phone: payload.phone, smsCode: payload.code }, payload.remember)
-    await afterLogin()
+    await login({ phone: payload.phone, smsCode: payload.code }, payload.remember);
+    await afterLogin();
   } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : '登录失败，请稍后重试')
+    ElMessage.error(err instanceof Error ? err.message : '登录失败，请稍后重试');
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 /** 发送短信验证码：本地联调（devEcho）时后端回显验证码，弹长时提示便于取码 */
 async function handleSendCode(phone: string) {
   try {
-    const result = await sendSmsCode(phone, 'login')
+    const result = await sendSmsCode(phone, 'login');
     if (result.code) {
       ElMessage({
         message: `【本地联调】验证码：${result.code}（5 分钟内有效）`,
         type: 'info',
         duration: 10000,
         showClose: true,
-      })
+      });
     } else {
-      ElMessage.success('验证码已发送，请注意查收短信')
+      ElMessage.success('验证码已发送，请注意查收短信');
     }
   } catch (err) {
     // 冷却中给更友好的中文提示
     if (err instanceof ApiError && err.errCode === ERROR_CODES.AUTH_COOLDOWN) {
-      ElMessage.warning('发送太频繁，请稍后再试')
+      ElMessage.warning('发送太频繁，请稍后再试');
     } else {
-      ElMessage.error(err instanceof Error ? err.message : '验证码发送失败')
+      ElMessage.error(err instanceof Error ? err.message : '验证码发送失败');
     }
   }
 }
 
 /** 登录成功后的去向：多租户弹窗选择，单租户/拉取失败直接进入 */
 async function afterLogin() {
-  let tenants: TenantMembership[] = []
+  let tenants: TenantMembership[] = [];
   try {
-    tenants = await loadTenants()
+    tenants = await loadTenants();
   } catch {
     // 拉取租户失败不阻断登录，走后端默认租户
   }
 
   if (tenants.length > 1) {
-    memberships.value = tenants
-    tenantDialogVisible.value = true
-    return
+    memberships.value = tenants;
+    tenantDialogVisible.value = true;
+    return;
   }
-  goNext()
+  goNext();
 }
 
 /** 选定租户：后端重新签发令牌后跳转 */
 async function handleChooseTenant(tenant: TenantMembership) {
-  switching.value = true
+  switching.value = true;
   try {
-    await switchTenant(tenant.tenantId)
-    tenantDialogVisible.value = false
-    goNext()
+    await switchTenant(tenant.tenantId);
+    tenantDialogVisible.value = false;
+    goNext();
   } catch (err) {
-    ElMessage.error(err instanceof Error ? err.message : '切换团队失败，请重试')
+    ElMessage.error(err instanceof Error ? err.message : '切换团队失败，请重试');
   } finally {
-    switching.value = false
+    switching.value = false;
   }
 }
 
 /** 优先回跳登录前想访问的页面 */
 function goNext() {
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
-  router.replace(redirect)
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/';
+  router.replace(redirect);
 }
 </script>
 
@@ -128,7 +132,9 @@ function goNext() {
     <SmsLoginForm v-else :loading="loading" @submit="handleSmsSubmit" @send-code="handleSendCode">
       <template #footer>
         <div class="login-page__switch-row">
-          <button class="login-page__switch" type="button" @click="mode = 'password'">密码登录</button>
+          <button class="login-page__switch" type="button" @click="mode = 'password'">
+            密码登录
+          </button>
         </div>
       </template>
     </SmsLoginForm>
@@ -144,7 +150,12 @@ function goNext() {
   </AuthLayout>
 
   <!-- 多租户选择：后端登录默认取第一个成员关系，多团队时显式选择进入哪个 -->
-  <el-dialog v-model="tenantDialogVisible" title="选择进入的团队" width="420px" :close-on-click-modal="false">
+  <el-dialog
+    v-model="tenantDialogVisible"
+    title="选择进入的团队"
+    width="420px"
+    :close-on-click-modal="false"
+  >
     <div class="login-page__tenant-list">
       <button
         v-for="membership in memberships"

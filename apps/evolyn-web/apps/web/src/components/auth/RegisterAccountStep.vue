@@ -3,34 +3,34 @@
 // 不收集用户名/密码。「获取验证码」通过手机号校验后上抛父级发送并启动
 // 60s 重发倒计时；提交校验通过后上抛，父级仅暂存推进——注册动作合并到
 // 向导第 3 步「进入产品」的最终提交，验证码也在彼时一次性校验
-import { onUnmounted, reactive, shallowRef, useTemplateRef } from 'vue'
-import type { FormInstance, FormRules } from 'element-plus'
-import { Iphone } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { onUnmounted, reactive, shallowRef, useTemplateRef } from 'vue';
+import type { FormInstance, FormRules } from 'element-plus';
+import { Iphone } from '@element-plus/icons-vue';
+import { ElMessage } from 'element-plus';
 
 /** 重发倒计时秒数：与后端发送冷却窗口一致 */
-const RESEND_SECONDS = 60
+const RESEND_SECONDS = 60;
 
 const props = defineProps<{
   /** 提交中：按钮显示 loading 并防重复提交 */
-  loading?: boolean
+  loading?: boolean;
   /** 回退场景带回的手机号（验证码过期退回本步时免重填） */
-  defaultPhone?: string
-}>()
+  defaultPhone?: string;
+}>();
 
 const emit = defineEmits<{
   /** 校验通过后上抛手机号 + 验证码，由父级暂存并推进（注册合并进最终提交） */
-  submit: [payload: { phone: string; smsCode: string }]
+  submit: [payload: { phone: string; smsCode: string }];
   /** 请求发送注册短信验证码（先通过手机号校验） */
-  'send-code': [phone: string]
-}>()
+  'send-code': [phone: string];
+}>();
 
-const formRef = useTemplateRef<FormInstance>('formRef')
+const formRef = useTemplateRef<FormInstance>('formRef');
 
 const form = reactive({
   phone: props.defaultPhone ?? '',
   smsCode: '',
-})
+});
 
 const rules: FormRules = {
   phone: [
@@ -41,32 +41,35 @@ const rules: FormRules = {
     { required: true, message: '请输入验证码', trigger: 'blur' },
     { pattern: /^\d{6}$/, message: '验证码为 6 位数字', trigger: 'blur' },
   ],
-}
+};
 
 // 重发倒计时：发送即启动，到 0 自动恢复按钮
-const countdown = shallowRef(0)
-let timer: ReturnType<typeof setInterval> | undefined
+const countdown = shallowRef(0);
+let timer: ReturnType<typeof setInterval> | undefined;
 
 function startCountdown() {
-  countdown.value = RESEND_SECONDS
+  countdown.value = RESEND_SECONDS;
   timer = setInterval(() => {
-    countdown.value -= 1
+    countdown.value -= 1;
     if (countdown.value <= 0) {
-      clearInterval(timer)
-      timer = undefined
+      clearInterval(timer);
+      timer = undefined;
     }
-  }, 1000)
+  }, 1000);
 }
 
 onUnmounted(() => {
-  if (timer !== undefined) clearInterval(timer)
-})
+  if (timer !== undefined) clearInterval(timer);
+});
 
 async function handleSubmit() {
-  const valid = await formRef.value?.validate().then(() => true, () => false)
-  if (!valid) return
+  const valid = await formRef.value?.validate().then(
+    () => true,
+    () => false,
+  );
+  if (!valid) return;
 
-  emit('submit', { phone: form.phone.trim(), smsCode: form.smsCode })
+  emit('submit', { phone: form.phone.trim(), smsCode: form.smsCode });
 }
 
 function handleSendCode() {
@@ -74,10 +77,10 @@ function handleSendCode() {
   formRef.value
     ?.validateField('phone')
     .then(() => {
-      emit('send-code', form.phone.trim())
-      startCountdown()
+      emit('send-code', form.phone.trim());
+      startCountdown();
     })
-    .catch(() => {})
+    .catch(() => {});
 }
 </script>
 
@@ -129,9 +132,13 @@ function handleSendCode() {
     <!-- 协议紧邻提交按钮上方：先阅读条款再提交，信息顺序与注册首屏一致。 -->
     <p class="account-step__agreement">
       点击注册表明你已阅读并同意
-      <a class="account-step__link" @click.prevent="ElMessage.info('服务条款文档即将上线')">《服务条款》</a>
+      <a class="account-step__link" @click.prevent="ElMessage.info('服务条款文档即将上线')"
+        >《服务条款》</a
+      >
       和
-      <a class="account-step__link" @click.prevent="ElMessage.info('隐私声明文档即将上线')">《隐私声明》</a>
+      <a class="account-step__link" @click.prevent="ElMessage.info('隐私声明文档即将上线')"
+        >《隐私声明》</a
+      >
     </p>
 
     <el-button
@@ -145,7 +152,11 @@ function handleSendCode() {
     </el-button>
 
     <div class="account-step__help">
-      <a class="account-step__link" @click.prevent="ElMessage.info('如遇手机号无法注册，请联系客服处理')">手机号无法注册？点击此处</a>
+      <a
+        class="account-step__link"
+        @click.prevent="ElMessage.info('如遇手机号无法注册，请联系客服处理')"
+        >手机号无法注册？点击此处</a
+      >
     </div>
   </el-form>
 </template>

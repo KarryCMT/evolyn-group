@@ -1,17 +1,17 @@
 <script setup lang="ts">
 // 认证页骨架：顶栏（Logo + 语言切换）+ 左侧品牌区 + 右侧表单卡片，
 // 登录/注册/找回密码页共用；卡片内容与底部引导由各页面通过插槽注入
-import loginBackground from '~/assets/images/login_bg.jpg'
-import brandLogo from '~/assets/images/logo.png'
+import loginBackground from '~/assets/images/login_bg.jpg';
+import brandLogo from '~/assets/images/logo.png';
 
 defineProps<{
   /** 卡片标题，如「欢迎来到 evolyn」 */
-  title: string
+  title: string;
   /** 卡片副标题（可选） */
-  subtitle?: string
+  subtitle?: string;
   /** 登录页使用无卡片的全屏双栏版式，其他认证页仍沿用默认骨架 */
-  variant?: 'default' | 'login'
-}>()
+  variant?: 'default' | 'login';
+}>();
 </script>
 
 <template>
@@ -22,7 +22,7 @@ defineProps<{
         class="auth-layout__logo-image"
         :src="brandLogo"
         alt="简道云"
-      >
+      />
       <div v-else class="auth-layout__logo">
         <span class="auth-layout__logo-mark">E</span>
         <span class="auth-layout__logo-name">evolyn</span>
