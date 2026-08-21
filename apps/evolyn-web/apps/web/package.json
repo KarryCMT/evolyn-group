@@ -29,8 +29,6 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "^5.1.0",
-    "@iconify-json/ep": "^1.2.2",
-    "@iconify-json/ri": "^1.2.5",
     "@types/node": "catalog:types",
     "@vitejs/plugin-vue": "catalog:build",
     "eslint": "catalog:lint",
