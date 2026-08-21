@@ -14,6 +14,8 @@ declare module 'vue' {
   export interface GlobalComponents {
     VButton: (typeof import('@evolyn.do/ui'))['VButton'];
     VDialog: (typeof import('@evolyn.do/ui'))['VDialog'];
+    EvolynGrid: (typeof import('@evolyn.do/ui'))['EvolynGrid'];
+    EvolynTable: (typeof import('@evolyn.do/ui'))['EvolynTable'];
   }
 }
 

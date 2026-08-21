@@ -1,9 +1,9 @@
 import type { App } from 'vue';
-import { EvolynGrid, VButton, VDialog } from './components';
+import { EvolynGrid, EvolynTable, VButton, VDialog } from './components';
 
 export { version } from './version';
 
-const components = [VButton, VDialog, EvolynGrid];
+const components = [VButton, VDialog, EvolynGrid, EvolynTable];
 
 function install(app: App) {
   components.forEach((component) => {

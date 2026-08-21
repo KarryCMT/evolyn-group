@@ -1,0 +1,8 @@
+.evolyn-table {
+  // VTable 的 canvas 挂载在容器内并以绝对定位铺满，relative 保证定位基准正确
+  position: relative;
+  width: 100%;
+  height: 100%;
+  // 容器尺寸抖动时防止画布溢出父级布局
+  overflow: hidden;
+}

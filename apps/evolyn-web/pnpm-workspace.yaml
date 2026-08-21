@@ -10,6 +10,7 @@ catalogs:
     vue-router: ^4.6.3
     pinia: ^4.0.3
     '@element-plus/icons-vue': ^2.3.2
+    '@visactor/vtable': ^1.26.6
     '@visactor/vue-vtable': ^1.26.6
     gridstack: ^13.2.0
     "@logicflow/core": ^2.2.5

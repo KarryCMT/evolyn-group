@@ -39,7 +39,6 @@
     "@vitejs/plugin-vue": "catalog:build",
     "@vitest/ui": "catalog:test",
     "@vue/test-utils": "catalog:test",
-    "@visactor/vue-vtable": "catalog:frontend",
     "happy-dom": "catalog:test",
     "sass": "catalog:dev",
     "tsdown": "catalog:build",
@@ -55,6 +54,7 @@
     "vue": "catalog:frontend"
   },
   "dependencies": {
+    "@visactor/vtable": "catalog:frontend",
     "gridstack": "catalog:frontend"
   }
 }
