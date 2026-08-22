@@ -1,5 +1,5 @@
 import type { Component } from 'vue';
-import type { DashboardWidgetType } from '~/types/dashboard';
+import type { DashboardWidgetContent, DashboardWidgetType } from '~/types/dashboard';
 import AppsWidget from './widgets/AppsWidget.vue';
 import ChartsWidget from './widgets/ChartsWidget.vue';
 import FavoritesWidget from './widgets/FavoritesWidget.vue';
@@ -18,3 +18,11 @@ export const dashboardWidgetRegistry: Record<DashboardWidgetType, Component> = {
   apps: AppsWidget,
   charts: ChartsWidget,
 };
+
+/** 仅需要区分成员端与设计器预览的业务卡片在此声明其额外 props。 */
+export function getDashboardWidgetComponentProps(
+  widget: DashboardWidgetContent,
+  editorMode = false,
+): Record<string, unknown> {
+  return ['apps', 'favorites', 'charts', 'greeting'].includes(widget.type) ? { editorMode } : {};
+}

@@ -1,16 +1,25 @@
 <script setup lang="ts">
 import { RiDeleteBinFill } from '@remixicon/vue';
+import { DashboardWidgetHost } from '@evolyn.do/dashboard';
 import type { DashboardWidgetContent } from '~/types/dashboard';
-import DashboardWidgetHost from '../DashboardWidgetHost.vue';
+import { dashboardWidgetRegistry, getDashboardWidgetComponentProps } from '../widget-registry';
 
 defineOptions({ name: 'WorkbenchEditorWidgetHost' });
 const props = defineProps<{ widget: DashboardWidgetContent }>();
 const emit = defineEmits<{ remove: [id: string] }>();
+
+function getEditorWidgetProps(widget: DashboardWidgetContent) {
+  return getDashboardWidgetComponentProps(widget, true);
+}
 </script>
 
 <template>
   <div class="workbench-editor-widget">
-    <DashboardWidgetHost :widget="widget" editor-mode />
+    <DashboardWidgetHost
+      :widget="widget"
+      :widget-registry="dashboardWidgetRegistry"
+      :get-component-props="getEditorWidgetProps"
+    />
     <div class="workbench-editor-widget__actions">
       <button
         class="workbench-editor-widget__delete"
@@ -65,7 +74,7 @@ const emit = defineEmits<{ remove: [id: string] }>();
       background: var(--el-color-danger-light-9);
     }
 
-    svg {
+    :deep(svg) {
       width: 18px;
       height: 18px;
     }

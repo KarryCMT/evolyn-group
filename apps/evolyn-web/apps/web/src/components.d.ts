@@ -17,7 +17,6 @@ declare module 'vue' {
     BrandPanel: typeof import('./components/auth/BrandPanel.vue')['default']
     ChartsWidget: typeof import('./components/dashboard/widgets/ChartsWidget.vue')['default']
     DashboardCanvas: typeof import('./components/dashboard/DashboardCanvas.vue')['default']
-    DashboardWidgetHost: typeof import('./components/dashboard/DashboardWidgetHost.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElButton: typeof import('element-plus/es')['ElButton']

@@ -1,14 +1,22 @@
 <script setup lang="ts">
-import { DashboardRenderer } from '@evolyn.do/dashboard';
+import { DashboardRenderer, DashboardWidgetHost } from '@evolyn.do/dashboard';
 import { markRaw } from 'vue';
-import type { DashboardSchema } from '~/types/dashboard';
-import DashboardWidgetHost from './DashboardWidgetHost.vue';
+import type { DashboardSchema, DashboardWidget } from '~/types/dashboard';
+import { dashboardWidgetRegistry, getDashboardWidgetComponentProps } from './widget-registry';
 
 const props = defineProps<{
   schema: DashboardSchema;
 }>();
 
 const components = { DashboardWidgetHost: markRaw(DashboardWidgetHost) };
+
+function getWidgetProps(widget: DashboardWidget) {
+  return {
+    widget,
+    widgetRegistry: dashboardWidgetRegistry,
+    getComponentProps: getDashboardWidgetComponentProps,
+  };
+}
 </script>
 
 <template>
@@ -16,5 +24,6 @@ const components = { DashboardWidgetHost: markRaw(DashboardWidgetHost) };
     :schema="schema"
     :components="components"
     widget-component="DashboardWidgetHost"
+    :get-widget-props="getWidgetProps"
   />
 </template>
