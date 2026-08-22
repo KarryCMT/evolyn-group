@@ -8,7 +8,9 @@ import {
   RiNotification3Fill,
   RiQuestionFill,
 } from '@remixicon/vue';
+import { shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
+import MessageCenterDrawer from '~/components/dashboard/messageCenter/MessageCenterDrawer.vue';
 import UserMenu from '~/components/navigation/UserMenu.vue';
 
 defineOptions({ name: 'TopNavigation' });
@@ -50,6 +52,8 @@ defineSlots<{
 }>();
 
 const router = useRouter();
+const messageCenterVisible = shallowRef(false);
+const unreadMessageCount = shallowRef(0);
 
 function goBack() {
   if (props.backTo) {
@@ -140,9 +144,14 @@ function notifyUnavailable() {}
             class="top-navigation__icon-button top-navigation__notice"
             type="button"
             aria-label="通知"
+            @click="messageCenterVisible = true"
           >
             <RiNotification3Fill />
-            <span class="top-navigation__notice-dot" aria-label="有未读通知" />
+            <span
+              v-if="unreadMessageCount"
+              class="top-navigation__notice-dot"
+              aria-label="有未读通知"
+            />
           </button>
           <button
             v-if="showHelp"
@@ -159,6 +168,10 @@ function notifyUnavailable() {}
       </slot>
     </div>
   </header>
+  <MessageCenterDrawer
+    v-model="messageCenterVisible"
+    @unread-change="unreadMessageCount = $event"
+  />
 </template>
 
 <style scoped lang="scss">

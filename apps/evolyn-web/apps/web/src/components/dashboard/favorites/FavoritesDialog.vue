@@ -111,7 +111,7 @@ const visible = defineModel<boolean>({ default: false });
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 72px;
+  height: 56px;
 }
 
 .favorites-dialog__heading,
@@ -121,20 +121,30 @@ const visible = defineModel<boolean>({ default: false });
 }
 
 .favorites-dialog__heading {
-  font-size: 24px;
+  font-size: 18px;
   font-weight: 650;
-  line-height: 1;
+  line-height: 26px;
 }
 
 .favorites-dialog__close.el-button {
   position: absolute;
-  top: 16px;
-  right: 24px;
-  width: 40px;
-  height: 40px;
+  top: 12px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
   padding: 0;
   color: var(--el-text-color-primary);
-  font-size: 28px;
+  font-size: 22px;
+  cursor: pointer;
+
+  &:hover {
+    color: var(--el-color-primary);
+    background: var(--el-fill-color-light);
+  }
+}
+
+.favorites-dialog__close.el-button .el-icon {
+  font-size: 22px;
 }
 
 .favorites-dialog__content {

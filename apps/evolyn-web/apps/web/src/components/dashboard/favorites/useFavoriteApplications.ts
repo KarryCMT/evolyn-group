@@ -1,9 +1,6 @@
 import type { FavoriteApplication } from './favoriteCatalog';
 import { computed, ref } from 'vue';
-import {
-  defaultFavoriteApplicationIds,
-  flattenFavoriteApplications,
-} from './favoriteCatalog';
+import { defaultFavoriteApplicationIds, flattenFavoriteApplications } from './favoriteCatalog';
 
 const allApplications = flattenFavoriteApplications();
 const applicationsById = new Map(

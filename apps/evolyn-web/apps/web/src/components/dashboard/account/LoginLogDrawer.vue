@@ -187,6 +187,7 @@ const tableOptions = { defaultRowHeight: ROW_HEIGHT };
 <template>
   <el-drawer
     :model-value="modelValue"
+    class="login-log-drawer-panel"
     title="登录日志"
     direction="btt"
     size="90vh"
@@ -263,5 +264,43 @@ const tableOptions = { defaultRowHeight: ROW_HEIGHT };
     justify-content: flex-end;
     padding-top: 14px;
   }
+}
+</style>
+
+<!-- 默认头部在 body 外层，抽屉传送时以独立类统一标题栏尺寸。 -->
+<style lang="scss">
+.login-log-drawer-panel .el-drawer__header {
+  height: 56px;
+  box-sizing: border-box;
+  align-items: center;
+  margin: 0;
+  padding: 0 16px 0 20px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.login-log-drawer-panel .el-drawer__title {
+  color: var(--el-text-color-primary);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 26px;
+}
+
+.login-log-drawer-panel .el-drawer__close-btn {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.login-log-drawer-panel .el-drawer__close-btn:hover {
+  color: var(--el-color-primary);
+  background: var(--el-fill-color-light);
+}
+
+.login-log-drawer-panel .el-drawer__close-btn .el-icon {
+  font-size: 22px;
 }
 </style>
