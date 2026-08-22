@@ -1,7 +1,11 @@
 <script setup lang="ts">
-import DashboardCanvas from '~/components/dashboard/DashboardCanvas.vue';
+import { DashboardRenderer } from '@evolyn.do/dashboard';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { useDashboardWorkspace } from '~/composables/useDashboardWorkspace';
+import {
+  dashboardWidgetRegistry,
+  getDashboardWidgetComponentProps,
+} from '~/components/dashboard/widget-registry';
 
 const { schema } = useDashboardWorkspace();
 </script>
@@ -9,7 +13,11 @@ const { schema } = useDashboardWorkspace();
 <template>
   <div class="dashboard-page">
     <TopNavigation />
-    <DashboardCanvas :schema="schema" />
+    <DashboardRenderer
+      :schema="schema"
+      :widget-registry="dashboardWidgetRegistry"
+      :get-component-props="getDashboardWidgetComponentProps"
+    />
   </div>
 </template>
 

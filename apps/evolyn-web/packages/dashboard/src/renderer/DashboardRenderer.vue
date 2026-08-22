@@ -1,25 +1,32 @@
 <script setup lang="ts" generic="TType extends string">
-import { EvolynGrid, type EvolynGridComponents, type EvolynGridOptions } from '@evolyn.do/ui';
+import { EvolynGrid, type EvolynGridOptions } from '@evolyn.do/ui';
 import { ElScrollbar } from 'element-plus';
-import { computed } from 'vue';
-import { createDashboardGridItems, type DashboardSchema, type DashboardWidget } from '../schema';
+import { computed, markRaw, type Component } from 'vue';
+import {
+  createDashboardGridItems,
+  toDashboardWidgetContent,
+  type DashboardSchema,
+  type DashboardWidget,
+  type DashboardWidgetContent,
+} from '../schema';
+import DashboardWidgetHost from './DashboardWidgetHost.vue';
 
 const props = withDefaults(
   defineProps<{
     schema: DashboardSchema<TType>;
-    components: EvolynGridComponents;
-    widgetComponent: string;
-    getWidgetProps?: (widget: DashboardWidget<TType>) => Record<string, unknown>;
+    widgetRegistry: Partial<Record<TType, Component>>;
+    getComponentProps?: (widget: DashboardWidgetContent<TType>) => Record<string, unknown>;
     options?: EvolynGridOptions;
   }>(),
   { options: () => ({}) },
 );
 
-/** schema 到 GridStack 运行时节点的转换留在包内，宿主仅注册业务组件。 */
+/** 成员端网格统一通过包内 Host 渲染，应用侧无需感知 GridStack 的组件注册方式。 */
+const components = { DashboardWidgetHost: markRaw(DashboardWidgetHost) };
 const gridItems = computed(() =>
   createDashboardGridItems(props.schema.widgets, {
-    component: props.widgetComponent,
-    createProps: props.getWidgetProps,
+    component: 'DashboardWidgetHost',
+    createProps: getWidgetProps,
   }),
 );
 const gridOptions = computed<EvolynGridOptions>(() => ({
@@ -30,6 +37,14 @@ const gridOptions = computed<EvolynGridOptions>(() => ({
   float: true,
   ...props.options,
 }));
+
+function getWidgetProps(widget: DashboardWidget<TType>) {
+  return {
+    widget: toDashboardWidgetContent(widget),
+    widgetRegistry: props.widgetRegistry,
+    getComponentProps: props.getComponentProps,
+  };
+}
 </script>
 
 <template>
