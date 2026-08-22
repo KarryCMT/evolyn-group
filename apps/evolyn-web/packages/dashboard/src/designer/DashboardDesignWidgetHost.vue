@@ -10,14 +10,24 @@ const props = defineProps<{
   widget: DashboardWidgetContent<TType>;
   widgetRegistry: Partial<Record<TType, Component>>;
   getComponentProps?: (widget: DashboardWidgetContent<TType>) => Record<string, unknown>;
+  selected?: boolean;
 }>();
 const emit = defineEmits<{
   remove: [id: string];
+  select: [id: string];
 }>();
 </script>
 
 <template>
-  <div class="dashboard-design-widget">
+  <div
+    class="dashboard-design-widget"
+    :class="{ 'dashboard-design-widget--selected': selected }"
+    role="button"
+    tabindex="0"
+    @click="emit('select', widget.id)"
+    @keydown.enter="emit('select', widget.id)"
+    @keydown.space.prevent="emit('select', widget.id)"
+  >
     <DashboardWidgetHost
       :widget="widget"
       :widget-registry="widgetRegistry"
@@ -51,6 +61,12 @@ const emit = defineEmits<{
     pointer-events: none;
     opacity: 0;
     transition: opacity var(--el-transition-duration-fast);
+  }
+
+  &--selected {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 2px;
+    border-radius: var(--el-border-radius-base);
   }
 
   &:hover &__actions,

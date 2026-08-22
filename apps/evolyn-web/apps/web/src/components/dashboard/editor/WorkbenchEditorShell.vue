@@ -8,16 +8,23 @@ import {
   type DashboardWidgetPreset,
 } from '~/types/dashboard';
 import { dashboardWidgetRegistry, getDashboardWidgetComponentProps } from '../widget-registry';
+import WidgetInspector from './WidgetInspector.vue';
 import WidgetPalette from './WidgetPalette.vue';
 
 defineOptions({ name: 'WorkbenchEditorShell' });
 
 const props = defineProps<{ device: 'desktop' | 'mobile' }>();
 
-const { schema, disabledPresetKeys, addWidget, removeWidget } = useDashboardEditor<
-  DashboardWidget,
-  DashboardWidget['type']
->({
+const {
+  schema,
+  selectedWidgetId,
+  selectedWidget,
+  disabledPresetKeys,
+  addWidget,
+  removeWidget,
+  selectWidget,
+  updateWidget,
+} = useDashboardEditor<DashboardWidget, DashboardWidget['type']>({
   initialSchema: createDefaultWorkbenchSchema(),
   isPresetRepeatable: isDashboardWidgetPresetRepeatable,
   getWidgetSize: (preset) => ({
@@ -56,8 +63,11 @@ function getEditorWidgetProps(widget: DashboardWidgetContent) {
       :get-component-props="getEditorWidgetProps"
       :preview="device"
       :disabled-preset-keys="disabledPresetKeys"
+      :selected-widget-id="selectedWidgetId"
       @remove="removeWidget"
+      @select="selectWidget"
     />
+    <WidgetInspector :widget="selectedWidget" @update="updateWidget" />
   </div>
 </template>
 

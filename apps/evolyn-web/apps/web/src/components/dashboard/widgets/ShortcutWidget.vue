@@ -1,14 +1,19 @@
 <script setup lang="ts">
 import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
+import { computed } from 'vue';
 import type { DashboardWidgetContent } from '~/types/dashboard';
 
 defineOptions({ name: 'ShortcutWidget' });
-defineProps<{ widget: DashboardWidgetContent }>();
+const props = defineProps<{ widget: DashboardWidgetContent }>();
+const placeholder = computed(() => {
+  const value = props.widget.config?.placeholder;
+  return typeof value === 'string' && value.trim() ? value : '暂未设置快捷入口';
+});
 </script>
 
 <template>
-  <DashboardWidgetFrame title="未命名快捷入口">
-    <div class="shortcut-widget">暂未设置快捷入口</div>
+  <DashboardWidgetFrame :title="widget.title">
+    <div class="shortcut-widget">{{ placeholder }}</div>
   </DashboardWidgetFrame>
 </template>
 

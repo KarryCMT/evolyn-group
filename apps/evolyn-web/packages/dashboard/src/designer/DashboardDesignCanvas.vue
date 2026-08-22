@@ -17,6 +17,7 @@ const props = withDefaults(
     modelValue: DashboardSchema<TType>;
     widgetRegistry: Partial<Record<TType, Component>>;
     getComponentProps?: (widget: DashboardWidgetContent<TType>) => Record<string, unknown>;
+    selectedWidgetId?: string | null;
     preview?: 'desktop' | 'mobile';
     disabledPresetKeys?: string[];
     dragSourceSelector?: string;
@@ -30,6 +31,7 @@ const props = withDefaults(
 const emit = defineEmits<{
   'update:modelValue': [value: DashboardSchema<TType>];
   remove: [id: string];
+  select: [id: string];
 }>();
 
 const grid = useTemplateRef<{ getGrid: () => GridStackInstance | null }>('grid');
@@ -71,7 +73,9 @@ function getWidgetProps(widget: DashboardWidget<TType>) {
     widget: toDashboardWidgetContent(widget),
     widgetRegistry: props.widgetRegistry,
     getComponentProps: props.getComponentProps,
+    selected: widget.id === props.selectedWidgetId,
     onRemove: () => emit('remove', widget.id),
+    onSelect: () => emit('select', widget.id),
   };
 }
 

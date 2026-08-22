@@ -14,7 +14,7 @@ const props = withDefaults(
 </script>
 
 <template>
-  <DashboardWidgetFrame title="我的图表">
+  <DashboardWidgetFrame :title="widget.title">
     <template v-if="!props.editorMode" #actions>
       <el-button text type="primary">添加</el-button>
     </template>

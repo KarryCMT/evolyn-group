@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { computed } from 'vue';
 import type { DashboardWidgetContent } from '~/types/dashboard';
 import bannerBackground from '~/assets/images/banner_bg.png';
 import exploreIcon from '~/assets/images/icon3.png';
@@ -7,7 +8,8 @@ import learnIcon from '~/assets/images/icon4.png';
 import createIcon from '~/assets/images/icon2.png';
 
 defineOptions({ name: 'OnboardingWidget' });
-defineProps<{ widget: DashboardWidgetContent }>();
+const props = defineProps<{ widget: DashboardWidgetContent }>();
+const variant = computed(() => props.widget.config?.variant ?? 'guide');
 
 const steps = [
   { label: '了解产品', icon: learnIcon },
@@ -19,8 +21,10 @@ const steps = [
 
 <template>
   <section class="onboarding-widget" :style="{ backgroundImage: `url(${bannerBackground})` }">
-    <span class="onboarding-widget__tag">新手引导</span>
-    <div class="onboarding-widget__steps">
+    <span class="onboarding-widget__tag">{{
+      variant === 'guide' ? props.widget.title : '自定义组件'
+    }}</span>
+    <div v-if="variant === 'guide'" class="onboarding-widget__steps">
       <div v-for="(step, index) in steps" :key="step.label" class="onboarding-widget__step">
         <img class="onboarding-widget__icon" :src="step.icon" alt="" />
         <div class="onboarding-widget__link">
@@ -28,6 +32,12 @@ const steps = [
           <span text type="primary">{{ step.label }}</span>
         </div>
       </div>
+    </div>
+    <div v-else class="onboarding-widget__custom">
+      <strong class="onboarding-widget__custom-title">{{
+        variant === 'carousel' ? '轮播图' : '富文本'
+      }}</strong>
+      <span class="onboarding-widget__custom-description">可在右侧设置面板继续配置展示内容</span>
     </div>
   </section>
 </template>
@@ -65,6 +75,24 @@ const steps = [
     align-items: flex-end;
     justify-content: space-between;
     width: 100%;
+  }
+
+  &__custom {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    min-height: 72px;
+    padding: 12px 16px;
+    color: var(--el-text-color-primary);
+    background: var(--el-fill-color-light);
+    border-radius: var(--el-border-radius-base);
+  }
+
+  &__custom-description {
+    color: var(--el-text-color-secondary);
+    font-size: var(--el-font-size-small);
   }
 
   &__step {

@@ -16,6 +16,9 @@ const props = withDefaults(
 );
 const favoritesVisible = shallowRef(false);
 const { favoriteApplications } = useFavoriteApplications();
+const isRecent = computed(
+  () => props.widget.config?.variant === 'recent' || props.widget.title === '最近使用',
+);
 
 // 卡片空间有限，优先展示前四个收藏，完整列表在「我的收藏」面板内查看。
 const visibleApplications = computed(() => favoriteApplications.value.slice(0, 4));
@@ -25,7 +28,7 @@ const visibleApplications = computed(() => favoriteApplications.value.slice(0, 4
   <DashboardWidgetFrame :title="widget.title">
     <template #actions>
       <el-button
-        v-if="!props.editorMode && props.widget.title !== '最近使用'"
+        v-if="!props.editorMode && !isRecent"
         text
         type="primary"
         @click="favoritesVisible = true"
@@ -33,7 +36,7 @@ const visibleApplications = computed(() => favoriteApplications.value.slice(0, 4
         添加
       </el-button>
     </template>
-    <div v-if="widget.title === '最近使用'" class="favorites-widget favorites-widget--recent">
+    <div v-if="isRecent" class="favorites-widget favorites-widget--recent">
       <el-button text class="favorites-widget__recent-item" :icon="DataAnalysis">
         合同统计看板
       </el-button>

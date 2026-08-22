@@ -27,7 +27,7 @@ const apps = [
 </script>
 
 <template>
-  <DashboardWidgetFrame title="我的应用">
+  <DashboardWidgetFrame :title="widget.title">
     <template v-if="!props.editorMode" #actions>
       <div class="apps-widget__actions">
         <el-input placeholder="请输入名称搜索" :prefix-icon="Search" />

@@ -1,4 +1,11 @@
-import { computed, ref, type ComputedRef, type Ref, type WritableComputedRef } from 'vue';
+import {
+  computed,
+  ref,
+  shallowRef,
+  type ComputedRef,
+  type Ref,
+  type WritableComputedRef,
+} from 'vue';
 import {
   isDashboardWidgetPresetInLayout,
   type DashboardSchema,
@@ -30,10 +37,20 @@ export interface UseDashboardEditorOptions<
 export interface DashboardEditor<TWidget extends DashboardWidget<string>> {
   schema: Ref<DashboardSchema<TWidget['type']>>;
   widgets: WritableComputedRef<TWidget[]>;
+  selectedWidgetId: Readonly<Ref<string | null>>;
+  selectedWidget: ComputedRef<TWidget | null>;
   disabledPresetKeys: ComputedRef<string[]>;
   addWidget: (preset: DashboardWidgetPreset<TWidget['type']>) => void;
   removeWidget: (id: string) => void;
+  selectWidget: (id: string) => void;
+  clearSelection: () => void;
+  updateWidget: (id: string, patch: DashboardWidgetPatch<TWidget['type']>) => void;
 }
+
+/** 业务配置只允许修改持久化内容，布局字段仍由设计器网格引擎统一维护。 */
+export type DashboardWidgetPatch<TType extends string> = Partial<
+  Pick<DashboardWidget<TType>, 'title' | 'config'>
+>;
 
 /**
  * 编辑器只管理当前布局及其增删规则；默认布局、业务组件和保存接口均由应用侧提供。
@@ -48,6 +65,10 @@ export function useDashboardEditor<TWidget extends DashboardWidget<TType>, TType
       schema.value = { ...schema.value, widgets: value };
     },
   });
+  const selectedWidgetId = shallowRef<string | null>(null);
+  const selectedWidget = computed<TWidget | null>(
+    () => widgets.value.find((widget) => widget.id === selectedWidgetId.value) ?? null,
+  );
   const disabledPresetKeys = computed(() =>
     widgets.value
       .filter(
@@ -67,19 +88,49 @@ export function useDashboardEditor<TWidget extends DashboardWidget<TType>, TType
 
     const size = options.getWidgetSize(preset);
     const position = findAvailablePosition(widgets.value, size, options.getColumnCount?.() ?? 12);
-    widgets.value = [...widgets.value, options.createWidget(preset, position)];
+    const widget = options.createWidget(preset, position);
+    widgets.value = [...widgets.value, widget];
+    selectedWidgetId.value = widget.id;
   }
 
   function removeWidget(id: string) {
     widgets.value = widgets.value.filter((widget) => widget.id !== id);
+    if (selectedWidgetId.value === id) clearSelection();
+  }
+
+  function selectWidget(id: string) {
+    selectedWidgetId.value = widgets.value.some((widget) => widget.id === id) ? id : null;
+  }
+
+  function clearSelection() {
+    selectedWidgetId.value = null;
+  }
+
+  function updateWidget(id: string, patch: DashboardWidgetPatch<TType>) {
+    widgets.value = widgets.value.map((widget) => {
+      if (widget.id !== id) return widget;
+
+      return {
+        ...widget,
+        ...patch,
+        ...(Object.hasOwn(patch, 'config')
+          ? { config: patch.config ? { ...patch.config } : undefined }
+          : {}),
+      } as TWidget;
+    });
   }
 
   return {
     schema: schema as Ref<DashboardSchema<TWidget['type']>>,
     widgets,
+    selectedWidgetId,
+    selectedWidget,
     disabledPresetKeys,
     addWidget,
     removeWidget,
+    selectWidget,
+    clearSelection,
+    updateWidget,
   };
 }
 

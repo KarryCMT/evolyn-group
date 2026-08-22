@@ -8,7 +8,7 @@ const entries = ['我发起的', '我处理的', '抄送我的', '发起流程',
 </script>
 
 <template>
-  <DashboardWidgetFrame title="我的待办">
+  <DashboardWidgetFrame :title="widget.title">
     <div class="todo-widget">
       <el-button v-for="entry in entries" :key="entry" text>{{ entry }}</el-button>
     </div>
