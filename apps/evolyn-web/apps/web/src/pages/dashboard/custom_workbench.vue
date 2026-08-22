@@ -1,11 +1,63 @@
 <script setup lang="ts">
-import { shallowRef } from 'vue';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { onMounted, onUnmounted, shallowRef } from 'vue';
+import { onBeforeRouteLeave } from 'vue-router';
+import { useDashboardPersistence } from '@evolyn.do/dashboard';
 import WorkbenchEditorShell from '~/components/dashboard/editor/WorkbenchEditorShell.vue';
 import WorkbenchEditorToolbar from '~/components/dashboard/editor/WorkbenchEditorToolbar.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
+import { createDefaultWorkbenchSchema } from '~/dashboard/defaultWorkbench';
+import { dashboardWorkspaceAdapter } from '~/composables/useDashboardWorkspace';
+import { isDashboardWidgetType } from '~/types/dashboard';
 
 const device = shallowRef<'desktop' | 'mobile'>('desktop');
-function notify() {}
+const { document, isDirty, isLoading, isSaving, issues, load, save } = useDashboardPersistence({
+  initialDocument: createDefaultWorkbenchSchema(),
+  adapter: dashboardWorkspaceAdapter,
+  isWidgetType: isDashboardWidgetType,
+});
+
+onMounted(async () => {
+  await load();
+  if (issues.value.length) ElMessage.warning(issues.value[0].message);
+  window.addEventListener('beforeunload', confirmBrowserLeave);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('beforeunload', confirmBrowserLeave);
+});
+
+/** 保存只提交 schema 文档，成员/租户/API 细节由 Web 侧适配器承担。 */
+async function saveWorkspace() {
+  try {
+    await save();
+    ElMessage.success('工作台已保存');
+  } catch {
+    ElMessage.error(issues.value[0]?.message ?? '工作台保存失败，请稍后重试。');
+  }
+}
+
+function confirmBrowserLeave(event: BeforeUnloadEvent) {
+  if (!isDirty.value) return;
+
+  event.preventDefault();
+  event.returnValue = '';
+}
+
+onBeforeRouteLeave(async () => {
+  if (!isDirty.value) return true;
+
+  try {
+    await ElMessageBox.confirm('当前修改尚未保存，确认离开后将丢失本次修改。', '未保存的修改', {
+      confirmButtonText: '放弃修改并离开',
+      cancelButtonText: '继续编辑',
+      type: 'warning',
+    });
+    return true;
+  } catch {
+    return false;
+  }
+});
 </script>
 
 <template>
@@ -14,11 +66,12 @@ function notify() {}
     <div class="custom-dashboard-setting">
       <WorkbenchEditorToolbar
         v-model:device="device"
-        @page-style="notify"
-        @preview="notify"
-        @save="notify"
+        :is-dirty="isDirty"
+        :is-saving="isSaving"
+        @save="saveWorkspace"
       />
-      <WorkbenchEditorShell :device="device" />
+      <div v-if="isLoading" class="custom-dashboard-setting__loading">正在加载工作台配置…</div>
+      <WorkbenchEditorShell v-else v-model="document" :device="device" />
     </div>
   </div>
 </template>
@@ -41,6 +94,15 @@ function notify() {}
     overflow: hidden;
     background: var(--el-bg-color);
     border-radius: 10px;
+
+    &__loading {
+      display: flex;
+      flex: 1;
+      align-items: center;
+      justify-content: center;
+      color: var(--el-text-color-secondary);
+      font-size: var(--el-font-size-small);
+    }
   }
 }
 

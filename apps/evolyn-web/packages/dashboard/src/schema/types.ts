@@ -38,6 +38,11 @@ export interface DashboardSchema<TType extends string = string> {
   widgets: DashboardWidget<TType>[];
 }
 
+/**
+ * 工作台持久化文档。当前 schema 已是稳定 JSON 根结构，保留该别名便于应用侧实现加载、保存适配器。
+ */
+export type DashboardDocument<TType extends string = string> = DashboardSchema<TType>;
+
 /** 设计器组件面板的组件预设。 */
 export interface DashboardWidgetPreset<TType extends string = string> {
   key: string;

@@ -4,4 +4,5 @@ export { default as DashboardDesignCanvas } from './designer/DashboardDesignCanv
 export { default as DashboardWidgetPalette } from './designer/DashboardWidgetPalette.vue';
 export { default as DashboardWidgetFrame } from './components/DashboardWidgetFrame.vue';
 export * from './composables/useDashboardEditor';
+export * from './composables/useDashboardPersistence';
 export * from './schema';

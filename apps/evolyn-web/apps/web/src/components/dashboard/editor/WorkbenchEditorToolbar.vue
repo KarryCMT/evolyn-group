@@ -4,7 +4,14 @@ import { Cellphone, Monitor, View } from '@element-plus/icons-vue';
 
 defineOptions({ name: 'WorkbenchEditorToolbar' });
 
-const props = defineProps<{ device: 'desktop' | 'mobile' }>();
+const props = withDefaults(
+  defineProps<{
+    device: 'desktop' | 'mobile';
+    isDirty?: boolean;
+    isSaving?: boolean;
+  }>(),
+  { isDirty: false, isSaving: false },
+);
 const emit = defineEmits<{
   'update:device': [value: 'desktop' | 'mobile'];
   pageStyle: [];
@@ -17,6 +24,7 @@ const emit = defineEmits<{
   <div class="workbench-editor-toolbar">
     <el-button text type="primary">如何自定义工作台？</el-button>
     <div class="workbench-editor-toolbar__actions">
+      <span v-if="isDirty" class="workbench-editor-toolbar__status">未保存</span>
       <el-button-group>
         <el-button
           :type="device === 'desktop' ? 'primary' : 'default'"
@@ -31,7 +39,9 @@ const emit = defineEmits<{
       </el-button-group>
       <el-button @click="emit('pageStyle')">页面样式</el-button>
       <el-button :icon="View" @click="emit('preview')">预览</el-button>
-      <el-button type="primary" @click="emit('save')">保存</el-button>
+      <el-button type="primary" :loading="isSaving" @click="emit('save')">
+        {{ isSaving ? '保存中' : '保存' }}
+      </el-button>
     </div>
   </div>
 </template>
@@ -50,6 +60,11 @@ const emit = defineEmits<{
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  &__status {
+    color: var(--el-color-warning);
+    font-size: var(--el-font-size-small);
   }
 }
 </style>

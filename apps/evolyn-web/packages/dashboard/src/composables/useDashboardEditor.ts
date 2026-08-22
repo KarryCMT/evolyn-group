@@ -44,6 +44,7 @@ export interface DashboardEditor<TWidget extends DashboardWidget<string>> {
   removeWidget: (id: string) => void;
   selectWidget: (id: string) => void;
   clearSelection: () => void;
+  replaceSchema: (schema: DashboardSchema<TWidget['type']>) => void;
   updateWidget: (id: string, patch: DashboardWidgetPatch<TWidget['type']>) => void;
 }
 
@@ -106,6 +107,12 @@ export function useDashboardEditor<TWidget extends DashboardWidget<TType>, TType
     selectedWidgetId.value = null;
   }
 
+  /** 外部加载了新的已保存文档时，替换编辑草稿并清理可能失效的选中项。 */
+  function replaceSchema(value: DashboardSchema<TType>) {
+    schema.value = cloneSchema(value);
+    clearSelection();
+  }
+
   function updateWidget(id: string, patch: DashboardWidgetPatch<TType>) {
     widgets.value = widgets.value.map((widget) => {
       if (widget.id !== id) return widget;
@@ -130,6 +137,7 @@ export function useDashboardEditor<TWidget extends DashboardWidget<TType>, TType
     removeWidget,
     selectWidget,
     clearSelection,
+    replaceSchema,
     updateWidget,
   };
 }

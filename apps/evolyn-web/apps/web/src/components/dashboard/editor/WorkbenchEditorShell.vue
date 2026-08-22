@@ -1,7 +1,9 @@
 <script setup lang="ts">
+import { watch } from 'vue';
 import { DashboardDesignCanvas, useDashboardEditor } from '@evolyn.do/dashboard';
 import { createDefaultWorkbenchSchema } from '~/dashboard/defaultWorkbench';
 import {
+  type DashboardSchema,
   isDashboardWidgetPresetRepeatable,
   type DashboardWidgetContent,
   type DashboardWidget,
@@ -13,7 +15,13 @@ import WidgetPalette from './WidgetPalette.vue';
 
 defineOptions({ name: 'WorkbenchEditorShell' });
 
-const props = defineProps<{ device: 'desktop' | 'mobile' }>();
+const props = defineProps<{
+  device: 'desktop' | 'mobile';
+  modelValue: DashboardSchema;
+}>();
+const emit = defineEmits<{
+  'update:modelValue': [value: DashboardSchema];
+}>();
 
 const {
   schema,
@@ -23,9 +31,10 @@ const {
   addWidget,
   removeWidget,
   selectWidget,
+  replaceSchema,
   updateWidget,
 } = useDashboardEditor<DashboardWidget, DashboardWidget['type']>({
-  initialSchema: createDefaultWorkbenchSchema(),
+  initialSchema: props.modelValue ?? createDefaultWorkbenchSchema(),
   isPresetRepeatable: isDashboardWidgetPresetRepeatable,
   getWidgetSize: (preset) => ({
     w: props.device === 'mobile' ? 1 : preset.w,
@@ -47,6 +56,17 @@ const {
     config: preset.config,
     presetKey: preset.key,
   }),
+});
+
+/** 画布内部保留编辑草稿，父页面持有加载、保存后的唯一文档来源。 */
+watch(
+  () => props.modelValue,
+  (value) => {
+    if (value !== schema.value) replaceSchema(value);
+  },
+);
+watch(schema, (value) => {
+  if (value !== props.modelValue) emit('update:modelValue', value);
 });
 
 function getEditorWidgetProps(widget: DashboardWidgetContent) {
