@@ -32,7 +32,7 @@ const favoritesVisible = shallowRef(false);
 
 /**
  * 菜单指令分发：已落地页面真实跳转；
- * 管理后台/版本购买/语言暂无对应页面，占位提示待后续里程碑落地。
+ * 版本购买和语言暂无对应页面，占位提示待后续里程碑落地。
  */
 function onCommand(command: string | number | object) {
   switch (command) {
@@ -41,6 +41,9 @@ function onCommand(command: string | number | object) {
       break;
     case 'settings':
       router.push({ name: 'account' });
+      break;
+    case 'admin':
+      router.push({ name: 'tenant' });
       break;
     case 'logout':
       void handleLogout();

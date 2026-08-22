@@ -78,6 +78,8 @@ declare module 'vue' {
     ShortcutWidget: typeof import('./components/dashboard/widgets/ShortcutWidget.vue')['default']
     SmsLoginForm: typeof import('./components/auth/SmsLoginForm.vue')['default']
     TenantChoiceStep: typeof import('./components/auth/TenantChoiceStep.vue')['default']
+    TenantManagementSidebar: typeof import('./components/tenant/TenantManagementSidebar.vue')['default']
+    TenantRouteTabs: typeof import('./components/tenant/TenantRouteTabs.vue')['default']
     TodoWidget: typeof import('./components/dashboard/widgets/TodoWidget.vue')['default']
     TopNavigation: typeof import('./components/navigation/TopNavigation.vue')['default']
     UserMenu: typeof import('./components/navigation/UserMenu.vue')['default']
