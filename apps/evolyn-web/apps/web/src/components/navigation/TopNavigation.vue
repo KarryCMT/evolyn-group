@@ -183,7 +183,7 @@ function notifyUnavailable() {}
   align-items: center;
   justify-content: space-between;
   color: #202938;
-  background: #f6f7fb;
+  background: #f3f3f8;
   font-size: 16px;
 
   &__brand,

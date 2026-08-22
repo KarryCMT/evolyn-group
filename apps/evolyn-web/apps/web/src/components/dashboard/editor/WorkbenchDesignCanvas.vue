@@ -141,7 +141,7 @@ watch(
   width: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--el-fill-color-light);
+  background: #f3f3f8;
 
   &__scrollbar {
     height: 100%;
