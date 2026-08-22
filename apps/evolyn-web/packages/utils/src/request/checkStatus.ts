@@ -1,8 +1,8 @@
+// 按 HTTP 状态码映射错误文案的可选工具：当前统一请求层以后端 envelope.msg 为权威文案
+//（见 index.ts 的 responseInterceptorsCatch），本函数未接入默认链路，保留供需要
+// 状态码级兜底文案的场景使用。
 import type { ErrorMessageMode } from '../types/axios';
 import { getRequestMessage } from './message';
-
-const { createMessage, createErrorModal } = getRequestMessage();
-const error = createMessage.error;
 
 export function checkStatus(
   status: number,
@@ -63,10 +63,12 @@ export function checkStatus(
   }
 
   if (errMessage) {
+    // 惰性获取注入的提示实现：避免模块加载早于应用注册拿到空实现
+    const { createMessage, createErrorModal } = getRequestMessage();
     if (errorMessageMode === 'modal') {
       createErrorModal({ title: t('sys.api.errorTip'), content: errMessage });
     } else if (errorMessageMode === 'message') {
-      error({ content: errMessage, key: `global_error_message_status_${status}` });
+      createMessage.error({ content: errMessage, key: `global_error_message_status_${status}` });
     }
   }
 }

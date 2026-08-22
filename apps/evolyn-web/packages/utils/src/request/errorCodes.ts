@@ -1,5 +1,6 @@
 // 稳定业务错误码表（与后端 ADR-008 对齐，逐步扩充）：
-// 消费方按 errCode 分支，禁止用 message 文本匹配（文案会随运营调整）
+// 消费方按 errCode 分支，禁止用 message 文本匹配（文案会随运营调整）。
+// 错误值即请求层抛出的 ApiError.errCode 的取值域。
 export const ERROR_CODES = {
   // 通用
   NOT_FOUND: 'NOT_FOUND',
@@ -34,3 +35,8 @@ export const ERROR_CODES = {
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
+
+/** errCode 是否为表中已知码（未知码按通用失败兜底） */
+export function isKnownErrorCode(errCode: string | undefined): errCode is ErrorCode {
+  return !!errCode && Object.values(ERROR_CODES).includes(errCode as ErrorCode);
+}

@@ -8,8 +8,8 @@ import { sendSmsCode } from '~/api/auth';
 import { encryptPassword } from '~/api/conf';
 import { useAuth } from '~/composables';
 import type { TenantMembership } from '~/types';
-import { ApiError } from '~/api/http';
-import { ERROR_CODES } from '~/api/errorCodes';
+import { ApiError } from '@evolyn.do/utils';
+import { ERROR_CODES } from '@evolyn.do/utils';
 
 type LoginMode = 'password' | 'sms';
 

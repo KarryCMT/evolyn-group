@@ -8,7 +8,7 @@ import {
   getUserInfo,
   listTenants,
 } from '~/api/auth';
-import { clearToken, getToken, setToken } from '~/api/http';
+import { getToken, removeToken, setToken } from '@evolyn.do/utils';
 
 // 会话域 store（pinia setup store）：token 单例状态 + 登录/登出/切换租户动作 +
 // 登录聚合信息（账号/成员/租户/配额，对齐简道云 login_user_info 引导形态），
@@ -75,7 +75,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await apiLogout();
     } finally {
-      clearToken();
+      removeToken();
       token.value = null;
       userInfo.value = null;
     }

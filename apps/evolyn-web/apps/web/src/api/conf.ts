@@ -2,7 +2,7 @@
 // 提供带缓存的单例获取（区号/能力开关/RSA 公钥每次页面加载只需拉一次）与
 // 密码加密助手（登录/改密的密码字段必须加密上送，明文不经过传输层）
 import { JSEncrypt } from 'jsencrypt';
-import { http } from './http';
+import { http } from '@evolyn.do/utils';
 import type { AppConf } from '~/types';
 
 /** 应用配置缓存：并发调用共享同一 Promise，失败后允许重试 */

@@ -11,8 +11,8 @@ import { ElMessage } from 'element-plus';
 import { computed, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { registerComplete, sendSmsCode } from '~/api/auth';
-import { ERROR_CODES } from '~/api/errorCodes';
-import { ApiError } from '~/api/http';
+import { ERROR_CODES } from '@evolyn.do/utils';
+import { ApiError } from '@evolyn.do/utils';
 import { useAuth } from '~/composables';
 
 const route = useRoute();

@@ -4,16 +4,7 @@ import type { App } from 'vue';
 export type UserModule = (app: App) => void;
 
 // ---------- 认证域 API 契约（与 evolyn-core internal/platform 对齐） ----------
-
-/** 后端统一响应结构（httpx.Response） */
-export interface ApiResponse<T = unknown> {
-  /** HTTP 状态码（兼容保留） */
-  code: number;
-  /** 稳定业务码（ADR-008），成功时缺省 */
-  errCode?: string;
-  msg: string;
-  data: T;
-}
+// 后端统一响应结构由 @evolyn.do/utils 的 Result 类型承载（请求层已统一解包）
 
 /** 登录成功签发的 JWT（model.JWTToken） */
 export interface JwtToken {

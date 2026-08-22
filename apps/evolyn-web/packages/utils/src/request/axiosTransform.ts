@@ -47,6 +47,7 @@ export abstract class AxiosTransform {
 
   /**
    * @description: 请求之后的拦截器错误处理
+   * （返回 rejected Promise 以接管错误归一，如统一抛 ApiError）
    */
-  responseInterceptorsCatch?: (axiosInstance: AxiosInstance, error: Error) => void;
+  responseInterceptorsCatch?: (axiosInstance: AxiosInstance, error: any) => any;
 }

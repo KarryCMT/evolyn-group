@@ -150,8 +150,9 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
 - 业务错误必须走 `httpx.BizError`（ADR-008）：域服务用 `httpx.NewBiz`
   定义稳定码常量（码表注释即文档）、`httpx.Wrap` 附加原始错误（只入日志）；
   禁止裸 `errors.New` 的错误文本出网，禁止在 msg 携带内部数据（租户 ID/
-  SQL/用量数值）。前端按 `errCode` 分支（`src/api/errorCodes.ts` 对齐
-  维护），禁止 message 文本匹配；新接口 swagger `@Failure` 注明 errCode。
+  SQL/用量数值）。前端按 `errCode` 分支（`packages/utils/src/request/errorCodes.ts`
+  对齐维护，经 `@evolyn.do/utils` 导入），禁止 message 文本匹配；新接口 swagger
+  `@Failure` 注明 errCode。
 - 提交前至少运行 `go test ./...`（或说明未运行原因），格式化使用 `make fmt`。
 
 ## evolyn-web 前端

@@ -10,7 +10,7 @@ import type {
 } from '~/types';
 // 认证域接口：与后端 /api/v1/auth/* 一一对应
 // （见 evolyn-core internal/platform/auth/controller/auth.go）
-import { http } from './http';
+import { http } from '@evolyn.do/utils';
 
 /** 短信验证码场景：login=登录 / register=注册 */
 export type SmsScene = 'login' | 'register';

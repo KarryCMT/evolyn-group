@@ -34,8 +34,11 @@ export interface RetryRequest {
   count: number;
   waitTime: number;
 }
+/** 后端统一响应结构（httpx.Response，ADR-008）：code 为 HTTP 状态码镜像 */
 export interface Result<T = any> {
   code: number;
+  /** 稳定业务码，失败时存在，成功缺省 */
+  errCode?: string;
   msg: string;
   data?: T;
 }

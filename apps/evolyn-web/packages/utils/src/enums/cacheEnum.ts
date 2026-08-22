@@ -1,5 +1,5 @@
-// token key
-export const TOKEN_KEY = 'TOKEN__';
+// token key（沿用应用既有键名，保证已登录会话平滑过渡）
+export const TOKEN_KEY = 'evolyn.token';
 
 export const LOCALE_KEY = 'LOCALE__';
 
