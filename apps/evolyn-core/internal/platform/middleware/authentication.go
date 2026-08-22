@@ -21,7 +21,9 @@ var ErrStaleSession = httpx.NewBiz("AUTH_STALE_TENANT", "登录态已失效（�
 // AuthenticationMiddleware 会话认证：按 JWT claims 的 memberId 加载成员（ADR-006）。
 // 此时尚未经过 TenantMiddleware（租户上下文来自本处加载成员的归属），
 // ctx 无租户上下文，GetUserByID 按全局唯一 ID 查询
-func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.UserRepository) gin.HandlerFunc {
+// AuthenticationMiddleware 会话认证。revoker 非空时校验令牌吊销状态
+// （P2-8：登出拉黑 jti 至自然过期；可传 nil 跳过，供无 Redis 场景/测试）
+func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.UserRepository, revoker *auth.TokenRevoker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, _ := getTokenFromAuthorizationHeader(c)
 		if token == "" {
@@ -30,6 +32,11 @@ func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.U
 
 		claims, _ := jwtService.ParseToken(token)
 		if claims != nil {
+			if revoker != nil && revoker.Revoked(c.Request.Context(), claims.ID) {
+				httpx.ResponseFailed(c, http.StatusUnauthorized, fmt.Errorf("token revoked"))
+				c.Abort()
+				return
+			}
 			ginctx.SetSession(c, claims)
 			// 操作者（账号+成员）随 ctx 下传，业务审计等服务层从 ctx 读取（FIX-013）
 			c.Request = c.Request.WithContext(contextx.NewActorContext(c.Request.Context(), contextx.Actor{

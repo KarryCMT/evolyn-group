@@ -11,6 +11,7 @@ import (
 	"math/big"
 	"net/http"
 	"regexp"
+	"strconv"
 	"time"
 
 	"evolyn/internal/platform/httpx"
@@ -19,13 +20,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// 验证码场景白名单：登录与注册两场景（找回密码复用同一套发送与校验）
+// 验证码场景白名单：登录/注册/找回密码重置（P1-3）
 const (
 	SceneLogin    = "login"
 	SceneRegister = "register"
+	SceneReset    = "reset"
 )
 
-var validScenes = map[string]struct{}{SceneLogin: {}, SceneRegister: {}}
+var validScenes = map[string]struct{}{SceneLogin: {}, SceneRegister: {}, SceneReset: {}}
 
 // DevFixedCode 开发/测试环境固定验证码（6 位，与随机码位数口径一致）；
 // 仅在 provider=dev 时经 Options.FixedCode 启用，生产通道不受影响
@@ -38,6 +40,7 @@ var (
 	ErrCooldown     = httpx.NewBiz("AUTH_COOLDOWN", "发送太频繁，请稍后再试", http.StatusTooManyRequests)
 	ErrCodeInvalid  = httpx.NewBiz("AUTH_SMS_INVALID", "验证码错误或已过期", http.StatusUnauthorized)
 	ErrTooManyTries = httpx.NewBiz("AUTH_SMS_TOO_MANY_TRIES", "尝试次数过多，请重新获取验证码", http.StatusTooManyRequests)
+	ErrDailyLimit   = httpx.NewBiz("AUTH_SMS_DAILY_LIMIT", "今日发送次数已达上限，请明天再试", http.StatusTooManyRequests)
 )
 
 var phonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
@@ -65,15 +68,40 @@ type redisAPI interface {
 	Del(ctx context.Context, keys ...string) *redis.IntCmd
 	Incr(ctx context.Context, key string) *redis.IntCmd
 	Expire(ctx context.Context, key string, ttl time.Duration) *redis.BoolCmd
+	// Eval 执行 Lua 脚本（验证码原子消费用，签名同 go-redis 原生）
+	Eval(ctx context.Context, script string, keys []string, args ...interface{}) *redis.Cmd
 }
+
+// verifyScript 原子「比较 → 消费/计数」（P1-4，消除 GET 后 DEL 的并发竞态：
+// 两个并发请求不可能同时读到同一正确验证码）。返回值约定：
+//
+//	 1  命中并删除（码与试错计数）
+//	 0  不匹配且未超限（试错计数已 +1）
+//	-1  无码（未发送或已过期/已消费）
+//	-2  试错超限（码与计数已清理，需重新发送）
+const verifyScript = `
+local stored = redis.call('GET', KEYS[1])
+if not stored then return -1 end
+if stored == ARGV[1] then
+  redis.call('DEL', KEYS[1], KEYS[2])
+  return 1
+end
+local tries = redis.call('INCR', KEYS[2])
+if tries == 1 then redis.call('EXPIRE', KEYS[2], ARGV[3]) end
+if tries >= tonumber(ARGV[2]) then
+  redis.call('DEL', KEYS[1], KEYS[2])
+  return -2
+end
+return 0`
 
 // Options 服务参数：零值回落内置默认（见 normalize）
 type Options struct {
-	CodeTTL   time.Duration // 验证码有效期（默认 5 分钟）
-	Cooldown  time.Duration // 重发冷却（默认 60 秒）
-	MaxTries  int           // 单码最大试错次数（默认 5，超限作废需重发）
-	DevEcho   bool          // 非生产联调：Send 返回后由调用方在响应中回显验证码
-	FixedCode string        // 开发/测试固定验证码（如 666666）：非空时 Send 存储该码替代随机码，生产通道必须留空
+	CodeTTL    time.Duration // 验证码有效期（默认 5 分钟）
+	Cooldown   time.Duration // 重发冷却（默认 60 秒）
+	MaxTries   int           // 单码最大试错次数（默认 5，超限作废需重发）
+	DailyLimit int           // 单手机号每日发送上限（默认 10，P2-7 防刷）
+	DevEcho    bool          // 非生产联调：Send 返回后由调用方在响应中回显验证码
+	FixedCode  string        // 开发/测试固定验证码（如 666666）：非空时 Send 存储该码替代随机码，生产通道必须留空
 }
 
 func (o *Options) normalize() {
@@ -85,6 +113,9 @@ func (o *Options) normalize() {
 	}
 	if o.MaxTries <= 0 {
 		o.MaxTries = 5
+	}
+	if o.DailyLimit <= 0 {
+		o.DailyLimit = 10
 	}
 }
 
@@ -106,14 +137,29 @@ func codeKey(scene, phone string) string  { return fmt.Sprintf("evolyn:sms:code:
 func coolKey(scene, phone string) string  { return fmt.Sprintf("evolyn:sms:cool:%s:%s", scene, phone) }
 func triesKey(scene, phone string) string { return fmt.Sprintf("evolyn:sms:tries:%s:%s", scene, phone) }
 
-// Send 发送验证码：场景/手机号校验 → 冷却闸（SetNX 原子占位）→ 生成 6 位
-// 数字码 → 覆盖写入并清零试错 → 走通道发送。冷却期内重复请求直接拒绝
+// dailyKey 单手机号日发送计数（跨场景合计，P2-7 防刷）
+func dailyKey(phone string) string {
+	return fmt.Sprintf("evolyn:sms:daily:%s:%s", phone, time.Now().Format("20060102"))
+}
+
+// Send 发送验证码：场景/手机号校验 → 日限额 → 冷却闸（SetNX 原子占位）→
+// 生成 6 位数字码 → 先走通道发送（失败回滚冷却键，无状态残留）→
+// 成功后落码并清零试错、累加日计数。冷却期内重复请求直接拒绝
 func (s *Service) Send(ctx context.Context, scene, phone string) (string, error) {
 	if _, ok := validScenes[scene]; !ok {
 		return "", ErrScene
 	}
 	if !phonePattern.MatchString(phone) {
 		return "", ErrPhone
+	}
+
+	// 日限额（P2-7）：已达上限直接拒绝，未达上限先不计数（发送成功才计数）
+	if sent, err := s.rdb.Get(ctx, dailyKey(phone)).Result(); err == nil {
+		if n, _ := strconv.ParseInt(sent, 10, 64); n >= int64(s.opts.DailyLimit) {
+			return "", ErrDailyLimit
+		}
+	} else if !errors.Is(err, redis.Nil) {
+		return "", fmt.Errorf("redis get daily: %w", err)
 	}
 
 	ok, err := s.rdb.SetNX(ctx, coolKey(scene, phone), 1, s.opts.Cooldown).Result()
@@ -129,47 +175,49 @@ func (s *Service) Send(ctx context.Context, scene, phone string) (string, error)
 		return "", err
 	}
 
+	// 先发送后落码（P2-6）：通道失败时回滚冷却占位，用户可立即重试，
+	// 也不会出现「已覆盖旧码但新码未送达」的中间态
+	if err := s.sender.Send(ctx, phone, code); err != nil {
+		s.rdb.Del(ctx, coolKey(scene, phone))
+		return "", fmt.Errorf("send sms: %w", err)
+	}
+
 	// 新码覆盖旧码并清零试错计数（旧码立即失效）
 	if _, err := s.rdb.Set(ctx, codeKey(scene, phone), code, s.opts.CodeTTL).Result(); err != nil {
 		return "", fmt.Errorf("redis set code: %w", err)
 	}
 	s.rdb.Del(ctx, triesKey(scene, phone))
 
-	if err := s.sender.Send(ctx, phone, code); err != nil {
-		return "", fmt.Errorf("send sms: %w", err)
+	// 发送成功后累加日计数，首次设置 25 小时过期（覆盖跨日边界余量）
+	if n, err := s.rdb.Incr(ctx, dailyKey(phone)).Result(); err == nil && n == 1 {
+		s.rdb.Expire(ctx, dailyKey(phone), 25*time.Hour)
 	}
+
 	return code, nil
 }
 
-// Verify 校验验证码（一次性）：命中即删除防重放；未命中累计试错，
-// 达上限作废当前码，需重新发送。冷却键不清理（发送节奏与校验解耦）
+// Verify 校验验证码（一次性）：Lua 原子完成「比较 → 删除/计数」（P1-4，
+// 消除先 GET 后 DEL 的并发竞态——并发请求不可能同时通过同一验证码）。
+// 未命中累计试错，达上限作废当前码需重发；冷却键不清理（发送节奏与校验解耦）
 func (s *Service) Verify(ctx context.Context, scene, phone, code string) error {
-	stored, err := s.rdb.Get(ctx, codeKey(scene, phone)).Result()
-	if errors.Is(err, redis.Nil) {
-		return ErrCodeInvalid
-	}
+	res, err := s.rdb.Eval(ctx, verifyScript,
+		[]string{codeKey(scene, phone), triesKey(scene, phone)},
+		code, s.opts.MaxTries, int(s.opts.CodeTTL.Seconds()),
+	).Int64()
 	if err != nil {
-		return fmt.Errorf("redis get code: %w", err)
+		return fmt.Errorf("redis eval verify: %w", err)
 	}
 
-	if stored != code {
-		tries, err := s.rdb.Incr(ctx, triesKey(scene, phone)).Result()
-		if err != nil {
-			return fmt.Errorf("redis incr tries: %w", err)
-		}
-		if tries == 1 {
-			// 试错计数与验证码同生命周期，避免残留计数误伤后续新码
-			s.rdb.Expire(ctx, triesKey(scene, phone), s.opts.CodeTTL)
-		}
-		if tries >= int64(s.opts.MaxTries) {
-			s.rdb.Del(ctx, codeKey(scene, phone), triesKey(scene, phone))
-			return ErrTooManyTries
-		}
+	switch res {
+	case 1:
+		return nil
+	case 0, -1: // 不匹配未超限 / 无码（未发送或已消费）
 		return ErrCodeInvalid
+	case -2:
+		return ErrTooManyTries
+	default:
+		return fmt.Errorf("unexpected verify result: %d", res)
 	}
-
-	s.rdb.Del(ctx, codeKey(scene, phone), triesKey(scene, phone))
-	return nil
 }
 
 // pickCode 选码：开发/测试配置了 FixedCode 时直接采用（跳过随机生成），

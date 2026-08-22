@@ -3,6 +3,7 @@ package sms
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"testing"
@@ -75,6 +76,47 @@ func (f *fakeRedis) Expire(_ context.Context, _ string, _ time.Duration) *redis.
 	return cmd
 }
 
+// Eval 仅实现验证码原子消费脚本（verifyScript）：按脚本语义用 Go 等价逻辑
+// 模拟原子性（真实原子性由 Redis 保证），未知脚本直接失败防误用
+func (f *fakeRedis) Eval(_ context.Context, script string, keys []string, args ...interface{}) *redis.Cmd {
+	cmd := redis.NewCmd(context.Background())
+	if script != verifyScript {
+		cmd.SetErr(fmt.Errorf("fakeRedis: unexpected script"))
+		return cmd
+	}
+
+	codeKey, triesKey := keys[0], keys[1]
+	code := toString(args[0])
+	maxTries, _ := strconv.ParseInt(toString(args[1]), 10, 64)
+
+	stored, ok := f.data[codeKey]
+	if !ok {
+		cmd.SetVal(int64(-1))
+		return cmd
+	}
+	if stored == code {
+		delete(f.data, codeKey)
+		delete(f.data, triesKey)
+		cmd.SetVal(int64(1))
+		return cmd
+	}
+
+	tries := int64(0)
+	if cur, ok := f.data[triesKey]; ok {
+		tries, _ = strconv.ParseInt(cur, 10, 64)
+	}
+	tries++
+	f.data[triesKey] = strconv.FormatInt(tries, 10)
+	if tries >= maxTries {
+		delete(f.data, codeKey)
+		delete(f.data, triesKey)
+		cmd.SetVal(int64(-2))
+		return cmd
+	}
+	cmd.SetVal(int64(0))
+	return cmd
+}
+
 func toString(v interface{}) string {
 	switch t := v.(type) {
 	case string:
@@ -128,8 +170,12 @@ func TestSendAndVerifyHappyPath(t *testing.T) {
 func TestSendSceneAndPhoneValidation(t *testing.T) {
 	svc := newTestService(newFakeRedis(), &fakeSender{})
 
-	if _, err := svc.Send(context.Background(), "reset", "13800001111"); !errors.Is(err, ErrScene) {
+	// reset 是合法场景（P1-3 密码找回），用真正未知的场景名断言拒绝
+	if _, err := svc.Send(context.Background(), "bogus", "13800001111"); !errors.Is(err, ErrScene) {
 		t.Fatalf("unknown scene should be ErrScene, got %v", err)
+	}
+	if _, err := svc.Send(context.Background(), SceneReset, "13800001111"); err != nil {
+		t.Fatalf("reset scene should be valid, got %v", err)
 	}
 	if _, err := svc.Send(context.Background(), SceneLogin, "12345"); !errors.Is(err, ErrPhone) {
 		t.Fatalf("bad phone should be ErrPhone, got %v", err)
@@ -231,5 +277,84 @@ func TestVerifyMissingCode(t *testing.T) {
 	svc := newTestService(newFakeRedis(), &fakeSender{})
 	if err := svc.Verify(context.Background(), SceneLogin, "13800001111", "123456"); !errors.Is(err, ErrCodeInvalid) {
 		t.Fatalf("missing code should be ErrCodeInvalid, got %v", err)
+	}
+}
+
+// failSender 模拟通道发送失败（P2-6 回滚路径）
+type failSender struct{}
+
+func (f *failSender) Send(_ context.Context, _, _ string) error {
+	return errors.New("provider down")
+}
+
+// TestVerifyAtomicConsume Lua 原子消费语义：命中即删（不可重放）、
+// 不匹配计数、超限作废（P1-4）
+func TestVerifyAtomicConsume(t *testing.T) {
+	rdb, sender := newFakeRedis(), &fakeSender{}
+	svc := NewService(rdb, sender, Options{MaxTries: 2, FixedCode: DevFixedCode})
+
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111"); err != nil {
+		t.Fatalf("send: %v", err)
+	}
+
+	// 错码两次 → 超限作废（MaxTries=2）
+	if err := svc.Verify(context.Background(), SceneLogin, "13800001111", "000000"); !errors.Is(err, ErrCodeInvalid) {
+		t.Fatalf("wrong code should be ErrCodeInvalid, got %v", err)
+	}
+	if err := svc.Verify(context.Background(), SceneLogin, "13800001111", "000000"); !errors.Is(err, ErrTooManyTries) {
+		t.Fatalf("second wrong code should be ErrTooManyTries, got %v", err)
+	}
+	// 超限后正确码也已作废
+	if err := svc.Verify(context.Background(), SceneLogin, "13800001111", DevFixedCode); !errors.Is(err, ErrCodeInvalid) {
+		t.Fatalf("code should be invalidated after too many tries, got %v", err)
+	}
+
+	// 命中即删：同码二次校验失败（一次性）
+	if _, err := svc.Send(context.Background(), SceneRegister, "13800001111"); err != nil {
+		t.Fatalf("send register: %v", err)
+	}
+	if err := svc.Verify(context.Background(), SceneRegister, "13800001111", DevFixedCode); err != nil {
+		t.Fatalf("correct code should pass, got %v", err)
+	}
+	if err := svc.Verify(context.Background(), SceneRegister, "13800001111", DevFixedCode); !errors.Is(err, ErrCodeInvalid) {
+		t.Fatalf("replayed code should fail, got %v", err)
+	}
+}
+
+// TestSendRollbackCooldownOnFailure 通道发送失败时回滚冷却占位，
+// 用户可立即重试（P2-6）
+func TestSendRollbackCooldownOnFailure(t *testing.T) {
+	rdb := newFakeRedis()
+	svc := NewService(rdb, &failSender{}, Options{FixedCode: DevFixedCode})
+
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111"); err == nil {
+		t.Fatal("send should fail with failSender")
+	}
+
+	// 冷却已回滚：立即重发不被 ErrCooldown 拒绝（仍会因通道失败报错）
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111"); errors.Is(err, ErrCooldown) {
+		t.Fatal("cooldown should be rolled back after send failure")
+	}
+}
+
+// TestSendDailyLimit 单手机号日限额：跨场景合计计数，超限拒绝（P2-7）
+func TestSendDailyLimit(t *testing.T) {
+	rdb, sender := newFakeRedis(), &fakeSender{}
+	svc := NewService(rdb, sender, Options{DailyLimit: 2, FixedCode: DevFixedCode})
+
+	phone := "13800002222"
+	// 用不同场景避开 60 秒冷却：日限额按手机号跨场景合计
+	for _, scene := range []string{SceneLogin, SceneRegister} {
+		if _, err := svc.Send(context.Background(), scene, phone); err != nil {
+			t.Fatalf("send %s: %v", scene, err)
+		}
+	}
+	// 第三条（未用过的场景，无冷却冲突）被日限额拒绝
+	if _, err := svc.Send(context.Background(), SceneReset, phone); !errors.Is(err, ErrDailyLimit) {
+		t.Fatalf("third send should be ErrDailyLimit, got %v", err)
+	}
+	// 其他手机号不受影响
+	if _, err := svc.Send(context.Background(), SceneRegister, "13800003333"); err != nil {
+		t.Fatalf("other phone should pass: %v", err)
 	}
 }

@@ -2,7 +2,6 @@ package auth
 
 import (
 	"fmt"
-	"strconv"
 	"time"
 
 	"evolyn/internal/platform/iam/model"
@@ -46,6 +45,11 @@ func (s *JWTService) CreateToken(account *model.Account, member *model.User) (st
 	if account == nil || member == nil {
 		return "", fmt.Errorf("empty account or member")
 	}
+	jti, err := NewJti()
+	if err != nil {
+		return "", err
+	}
+
 	now := time.Now()
 	token := jwt.NewWithClaims(
 		jwt.SigningMethodHS256,
@@ -57,7 +61,7 @@ func (s *JWTService) CreateToken(account *model.Account, member *model.User) (st
 			RegisteredClaims: jwt.RegisteredClaims{
 				ExpiresAt: jwt.NewNumericDate(now.Add(s.expireDuration)),
 				NotBefore: jwt.NewNumericDate(now.Add(-1000 * time.Second)),
-				ID:        strconv.Itoa(int(member.ID)),
+				ID:        jti, // 随机会话标识：吊销粒度为单次会话（P2-8）
 				Issuer:    s.issuer,
 			},
 		},

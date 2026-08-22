@@ -39,15 +39,26 @@ func NewRegistrationService(
 //  3. 租户：名下已有自有租户则复用（重试幂等，不重复占配额），否则经
 //     SelfOpenInTx 在本事务内开通（不开独立事务、不记审计）
 //  4. 成员：解析新租户 owner 成员，供控制器签发绑定新租户的令牌
+//
+// P1-1 注册语义：已注册手机号（created=false）仅恢复登录会话——
+// 不更新昵称/画像、不创建团队（向导新填的企业信息与画像被忽略），
+// 避免覆盖既有资料与账号/成员昵称漂移；「继续 onboarding」需求
+// 将来单独设计受控接口
 func (s *registrationService) Complete(ctx context.Context, req *RegistrationRequest) (*RegistrationResult, error) {
 	var (
 		result       *RegistrationResult
 		openedTenant *tenantmodel.Tenant // 仅记录本次新开通的租户（复用路径无业务变更，不审计）
 	)
 	err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
-		account, _, created, err := s.accounts.RegisterByPhone(tctx, req.Phone)
+		account, member, created, err := s.accounts.RegisterByPhone(tctx, req.Phone)
 		if err != nil {
 			return err
+		}
+
+		if !created {
+			// 已注册：恢复会话即止（RegisterByPhone 已按登录成员优选解析）
+			result = &RegistrationResult{Account: account, Member: member, Created: false}
+			return nil
 		}
 
 		// 昵称为空串保留注册默认值（脱敏手机号），不覆盖
@@ -68,7 +79,7 @@ func (s *registrationService) Complete(ctx context.Context, req *RegistrationReq
 		}
 
 		// 只读解析：取账号在新租户的成员身份（注册即绑定新租户，免 switch 一跳）
-		_, member, err := s.accounts.SwitchTenant(tctx, account.ID, tenant.ID)
+		_, member, err = s.accounts.SwitchTenant(tctx, account.ID, tenant.ID)
 		if err != nil {
 			return err
 		}

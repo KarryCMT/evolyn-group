@@ -8,6 +8,8 @@ import (
 
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/repository"
+	tenantmodel "evolyn/internal/platform/tenant/model"
+	tenantrepository "evolyn/internal/platform/tenant/repository"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -107,8 +109,18 @@ func (f *phoneUserRepo) Create(_ context.Context, member *model.User) (*model.Us
 	return member, nil
 }
 
+// phoneTenantRepo 空实现租户仓储：登录成员优选（P1-2）按租户概要判断
+// 自有/默认租户，查不到租户信息时优选逻辑回落第一个成员（桩数据无租户）
+type phoneTenantRepo struct {
+	tenantrepository.TenantRepository
+}
+
+func (f *phoneTenantRepo) GetByIDs(_ context.Context, _ []uint) ([]tenantmodel.Tenant, error) {
+	return nil, nil
+}
+
 func newPhoneSvc(accounts *phoneAccountRepo, users *phoneUserRepo) AccountService {
-	return NewAccountService(passThroughTx{}, accounts, users, nil, fakeQuota{})
+	return NewAccountService(passThroughTx{}, accounts, users, &phoneTenantRepo{}, fakeQuota{})
 }
 
 // ---- RegisterByPhone：新手机号免密建号 ----

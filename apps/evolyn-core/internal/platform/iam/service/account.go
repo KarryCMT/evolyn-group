@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 
 	"evolyn/internal/contextx"
@@ -123,7 +124,7 @@ func (s *accountService) resolveLoginMember(ctx context.Context, account *model.
 	}
 
 	if tenantCode == "" {
-		return &members[0], nil
+		return s.pickDefaultLoginMember(bctx, account, members)
 	}
 
 	tenant, err := s.tenantRepo.GetByCode(bctx, tenantCode)
@@ -136,6 +137,49 @@ func (s *accountService) resolveLoginMember(ctx context.Context, account *model.
 		}
 	}
 	return nil, httpx.Wrap(ErrNotMember, fmt.Errorf("account %s is not a member of tenant %s", account.Name, tenantCode))
+}
+
+// pickDefaultLoginMember 缺省登录成员优选（P1-2）：默认租户是平台内部的
+// 注册落脚点（非用户团队），不应作为登录首选。优先级：
+//  1. 自有租户（IsOwner）的成员——注册即建团的用户直奔自己的团队；
+//  2. 任一非默认租户的成员——被邀请进团队的用户进真实团队；
+//  3. 兜底默认租户成员（只有落脚点的账号）。
+//
+// 「最近活跃租户」体验待引入活跃记录后升级，当前以自有优先近似
+func (s *accountService) pickDefaultLoginMember(ctx context.Context, account *model.Account, members []model.User) (*model.User, error) {
+	tenantIDs := make([]uint, 0, len(members))
+	for _, m := range members {
+		tenantIDs = append(tenantIDs, m.TenantID)
+	}
+	tenants, err := s.tenantRepo.GetByIDs(ctx, tenantIDs)
+	if err != nil {
+		return nil, err
+	}
+	tenantByID := make(map[uint]*tenantmodel.Tenant, len(tenants))
+	for i := range tenants {
+		tenantByID[tenants[i].ID] = &tenants[i]
+	}
+
+	var nonDefault *model.User
+	for i := range members {
+		t, ok := tenantByID[members[i].TenantID]
+		if !ok {
+			continue
+		}
+		isDefault := t.Code == tenantmodel.DefaultTenantCode
+		// FIX-016：Owner 为可空引用，NULL = 暂无 Owner
+		isOwner := t.OwnerAccountId != nil && *t.OwnerAccountId == account.ID
+		if isOwner {
+			return &members[i], nil
+		}
+		if !isDefault && nonDefault == nil {
+			nonDefault = &members[i]
+		}
+	}
+	if nonDefault != nil {
+		return nonDefault, nil
+	}
+	return &members[0], nil
 }
 
 // Register 注册：创建账号 + 默认租户成员（保持单租户默认体验，ADR-006）
@@ -371,7 +415,9 @@ type TenantMembership struct {
 	IsOwner  bool   `json:"isOwner"`
 }
 
-// ListTenants 账号的全部成员关系及租户概要（含 owner 标记）。
+// ListTenants 账号的成员关系及租户概要（含 owner 标记），供团队选择列表。
+// 默认租户是平台内部注册落脚点（P1-2）：对外不作为可选团队返回——
+// 账号仅有默认租户时返回空列表（无团队可切换）。
 // 账号级跨租户查询：剥离请求携带的租户上下文，否则租户 Callback
 // 追加 "tenant_id = 当前租户" 会漏掉其他租户的成员关系
 func (s *accountService) ListTenants(ctx context.Context, accountID uint) ([]TenantMembership, error) {
@@ -396,13 +442,16 @@ func (s *accountService) ListTenants(ctx context.Context, accountID uint) ([]Ten
 
 	result := make([]TenantMembership, 0, len(members))
 	for _, m := range members {
-		item := TenantMembership{TenantID: m.TenantID, MemberID: m.ID}
-		if t, ok := tenantByID[m.TenantID]; ok {
-			item.Code = t.Code
-			item.Name = t.Name
-			// FIX-016：Owner 为可空引用，NULL = 暂无 Owner
-			item.IsOwner = t.OwnerAccountId != nil && *t.OwnerAccountId == accountID
+		t, ok := tenantByID[m.TenantID]
+		if !ok {
+			continue
 		}
+		if t.Code == tenantmodel.DefaultTenantCode {
+			continue // 默认租户不进团队选择列表
+		}
+		item := TenantMembership{TenantID: m.TenantID, MemberID: m.ID, Code: t.Code, Name: t.Name}
+		// FIX-016：Owner 为可空引用，NULL = 暂无 Owner
+		item.IsOwner = t.OwnerAccountId != nil && *t.OwnerAccountId == accountID
 		result = append(result, item)
 	}
 	return result, nil
@@ -500,6 +549,25 @@ func (s *accountService) UpdateProfile(ctx context.Context, account *model.Accou
 		return nil, err
 	}
 	return account, nil
+}
+
+// ResetPasswordByPhone 密码找回（P1-3）：凭手机号验证码（控制器已校验
+// scene=reset 的一次性验证码）重设密码并落「已由用户设置」标记
+func (s *accountService) ResetPasswordByPhone(ctx context.Context, phone, newPassword string) error {
+	if len(newPassword) < MinPasswordLength {
+		return httpx.NewBiz(httpx.CodeValidation, "密码长度至少 6 位", http.StatusBadRequest)
+	}
+
+	account, err := s.accountRepo.GetByPhone(ctx, phone)
+	if err != nil {
+		return httpx.Wrap(ErrAccountNotFound, err)
+	}
+
+	hashed, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	return s.accountRepo.UpdatePassword(ctx, account.ID, string(hashed), true)
 }
 
 // ChangePassword 账号自助：校验旧密码后重置。短信免密注册的账号

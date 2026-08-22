@@ -30,6 +30,8 @@ type AccountService interface {
 	SwitchTenant(ctx context.Context, accountID, tenantID uint) (*model.Account, *model.User, error)
 	// GetUserInfo 登录聚合信息（账号+成员+租户/套餐）
 	GetUserInfo(ctx context.Context, accountID uint, member *model.User) (*UserInfoResult, error)
+	// ResetPasswordByPhone 密码找回：凭 scene=reset 验证码重设（P1-3）
+	ResetPasswordByPhone(ctx context.Context, phone, newPassword string) error
 	// 账号自助（P3-2）
 	GetProfile(ctx context.Context, accountID uint) (*model.Account, error)
 	UpdateProfile(ctx context.Context, account *model.Account) (*model.Account, error)

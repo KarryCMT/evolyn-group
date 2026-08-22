@@ -31,10 +31,9 @@ type fakeAccounts struct {
 
 func (f *fakeAccounts) RegisterByPhone(_ context.Context, phone string) (*iammodel.Account, *iammodel.User, bool, error) {
 	f.account.Phone = phone
-	// 默认成员（默认租户落脚点）：TenantID 在内嵌 TenantBaseModel，赋值而非字面量
-	member := &iammodel.User{ID: 1}
-	member.TenantID = tenantmodel.DefaultTenantID
-	return f.account, member, f.created, nil
+	// 已注册路径返回登录优选成员（真实实现经 AuthByPhone→resolveLoginMember）；
+	// 新账号路径该成员随后被 SwitchTenant 的 owner 成员取代
+	return f.account, f.member, f.created, nil
 }
 
 func (f *fakeAccounts) UpdateProfile(_ context.Context, account *iammodel.Account) (*iammodel.Account, error) {
@@ -145,9 +144,9 @@ func TestCompleteNewPhone(t *testing.T) {
 	assert.Equal(t, uint(500), entry.TenantID)
 }
 
-// TestCompleteReusesOwnedTenant 已注册手机号重试（created=false）且名下已有
-// 自有租户：复用既有租户，不重复开通、不落审计
-func TestCompleteReusesOwnedTenant(t *testing.T) {
+// TestCompleteExistingAccountRestoresSession 已注册手机号再走注册（P1-1）：
+// 仅恢复登录会话——不更新昵称/画像、不创建团队、不切换租户、不落审计
+func TestCompleteExistingAccountRestoresSession(t *testing.T) {
 	svc, accounts, tenants, _, audit := newRegistrationFixtures()
 	accounts.created = false
 	accounts.memberships = []iamservice.TenantMembership{
@@ -160,25 +159,29 @@ func TestCompleteReusesOwnedTenant(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.False(t, result.Created)
-	assert.Empty(t, tenants.openedOwners, "已有自有租户不得重复开通")
-	assert.Equal(t, uint(300), accounts.switched[0], "复用既有租户解析成员")
-	assert.Empty(t, audit.entries, "复用路径无业务变更，不落审计")
+	assert.Same(t, accounts.member, result.Member, "已注册路径直接用登录优选成员")
+	assert.Empty(t, accounts.updated, "已注册不得覆盖昵称/画像")
+	assert.Empty(t, accounts.switched, "已注册不做租户切换解析")
+	assert.Empty(t, tenants.openedOwners, "已注册不得创建团队")
+	assert.Empty(t, audit.entries, "恢复会话无业务变更，不落审计")
 }
 
-// TestCompleteOpensTenantForAccountWithoutOwned 已注册但名下无自有租户
-// （如 OAuth 首登账号走注册向导补开团队）：正常开通
-func TestCompleteOpensTenantForAccountWithoutOwned(t *testing.T) {
+// TestCompleteExistingAccountWithoutOwnedTenantDoesNotOpen 已注册但名下
+// 无自有租户（如仅被邀请的成员再走注册页）：按 P1-1 不再借注册向导补开
+// 团队（「继续 onboarding/建团」将走受控接口），仅恢复会话
+func TestCompleteExistingAccountWithoutOwnedTenantDoesNotOpen(t *testing.T) {
 	svc, _, tenants, _, _ := newRegistrationFixtures()
 
 	_, err := svc.Complete(context.Background(), registrationReq())
 	require.NoError(t, err)
-	assert.Len(t, tenants.openedOwners, 1)
+	assert.Empty(t, tenants.openedOwners, "已注册账号不得经注册向导开通租户")
 }
 
-// TestCompleteTenantOpenFailFailsWhole 租户开通失败：错误整体上抛（真实
-// 链路下账号/画像随事务回滚，不留半注册数据），且不落审计
+// TestCompleteTenantOpenFailFailsWhole 新手机号注册时租户开通失败：错误
+// 整体上抛（真实链路下账号/画像随事务回滚，不留半注册数据），且不落审计
 func TestCompleteTenantOpenFailFailsWhole(t *testing.T) {
-	svc, _, tenants, tx, audit := newRegistrationFixtures()
+	svc, accounts, tenants, tx, audit := newRegistrationFixtures()
+	accounts.created = true
 	tenants.err = errors.New("db: insert tenants failed")
 
 	_, err := svc.Complete(context.Background(), registrationReq())
@@ -187,10 +190,11 @@ func TestCompleteTenantOpenFailFailsWhole(t *testing.T) {
 	assert.Empty(t, audit.entries, "失败路径不落审计")
 }
 
-// TestCompleteEmptyNicknameKeepsDefault 昵称空串：保留注册默认昵称
+// TestCompleteEmptyNicknameKeepsDefault 新账号昵称空串：保留注册默认昵称
 // （脱敏手机号），不用空值覆盖
 func TestCompleteEmptyNicknameKeepsDefault(t *testing.T) {
 	svc, accounts, _, _, _ := newRegistrationFixtures()
+	accounts.created = true
 	req := registrationReq()
 	req.Nickname = ""
 

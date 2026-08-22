@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
+	"time"
 
 	"evolyn/internal/platform/auth"
 	loginlogmodel "evolyn/internal/platform/auth/loginlog/model"
@@ -22,6 +24,7 @@ import (
 	tenantservice "evolyn/internal/platform/tenant/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 // AuthController 会话域：登录/注册/登出（ADR-006 账号×成员模型）
@@ -33,13 +36,15 @@ type AuthController struct {
 	oauthManger         *oauth.OAuthManager
 	tenantService       tenantservice.TenantService
 	smsService          *sms.Service
+	// 令牌吊销器：登出时拉黑 jti（P2-8）
+	revoker *auth.TokenRevoker
 	// 登录口令加密密钥对：密码登录分支先解密再走 bcrypt 校验
 	pkiKeypair *pki.Keypair
 	// 登录日志记录器：令牌签发成功后 best-effort 落一条会话建立流水
 	loginLog loginlogservice.Recorder
 }
 
-func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder) platformcontroller.Controller {
+func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder, revoker *auth.TokenRevoker) platformcontroller.Controller {
 	return &AuthController{
 		accountService:      accountService,
 		registrationService: registrationService,
@@ -49,6 +54,7 @@ func NewAuthController(accountService service.AccountService, registrationServic
 		smsService:          smsService,
 		pkiKeypair:          pkiKeypair,
 		loginLog:            loginLog,
+		revoker:             revoker,
 	}
 }
 
@@ -179,7 +185,27 @@ func (ac *AuthController) Login(c *gin.Context) {
 // @Tags 认证
 // @Success 200 {object} httpx.Response
 // @Router /api/v1/auth/token [delete]
+// bearerToken 取当前请求令牌：Authorization Header 优先，回落 Cookie
+func bearerToken(c *gin.Context) string {
+	if fields := strings.Fields(c.Request.Header.Get("Authorization")); len(fields) == 2 &&
+		strings.ToLower(fields[0]) == "bearer" && fields[1] != "" {
+		return fields[1]
+	}
+	token, _ := c.Cookie(httpx.CookieTokenName)
+	return token
+}
+
+// Logout 登出（P2-8）：清 Cookie 并吊销当前 Bearer 令牌（jti 拉黑至自然
+// 过期）——仅清 Cookie 无法让已签发/泄露的 token 失效
 func (ac *AuthController) Logout(c *gin.Context) {
+	if claims, _ := ac.jwtService.ParseToken(bearerToken(c)); claims != nil && claims.ExpiresAt != nil {
+		ttl := time.Until(claims.ExpiresAt.Time)
+		if err := ac.revoker.Revoke(c.Request.Context(), claims.ID, ttl); err != nil {
+			// 吊销失败不阻断登出（Cookie 已清），记录后继续
+			logrus.Warnf("revoke token on logout: %v", err)
+		}
+	}
+
 	c.SetCookie(httpx.CookieTokenName, "", -1, "/", "", true, true)
 	c.SetCookie(httpx.CookieLoginUser, "", -1, "/", "", true, false)
 	httpx.ResponseSuccess(c, nil)
@@ -202,11 +228,59 @@ type registerTenantProfile struct {
 // 采集的全量数据——手机号+验证码、企业画像、账号画像，点「进入产品」时
 // 一次性上送，此前向导各步不产生任何服务端写副作用
 type registerRequest struct {
-	Phone      string                `json:"phone" binding:"required"`
-	SmsCode    string                `json:"smsCode" binding:"required"`
-	Nickname   string                `json:"nickname"`                  // 怎么称呼你（空串保留脱敏手机号默认）
-	Onboarding registerOnboarding    `json:"onboarding"`                // 账号画像：角色/了解渠道
+	Phone      string                `json:"phone" binding:"required,len=11"` // 手机号（格式再经 sms 校验）
+	SmsCode    string                `json:"smsCode" binding:"required,len=6"`
+	Nickname   string                `json:"nickname" binding:"max=20"` // 怎么称呼你（空串保留脱敏手机号默认；2-20 由前端引导，后端兜底长度）
+	Onboarding registerOnboarding    `json:"onboarding"`                // 账号画像：角色/了解渠道（枚举白名单校验）
 	Tenant     registerTenantProfile `json:"tenant" binding:"required"` // 企业画像
+}
+
+// 注册画像枚举白名单（P2-5：与前端选项一一对应，防任意客户端写入
+// 超长/无效画像造成脏 JSONB；「其他」兜底项保证人工输入也能通过）
+var (
+	registerRoleEnums = map[string]struct{}{
+		"ceo": {}, "manager": {}, "it": {}, "member": {}, "teacher": {}, "student": {},
+	}
+	registerChannelEnums = map[string]struct{}{
+		"xiaohongshu": {}, "zhihu": {}, "referral": {}, "ai": {}, "search": {},
+		"toutiao": {}, "shortvideo": {}, "wechat": {}, "other": {},
+	}
+	registerDemandEnums = map[string]struct{}{
+		"低代码应用搭建": {}, "流程自动化": {}, "数据分析与报表": {}, "团队协作": {}, "其他": {},
+	}
+	registerIndustryEnums = map[string]struct{}{
+		"互联网/软件": {}, "制造业": {}, "零售/电商": {}, "教育": {}, "金融": {},
+		"医疗健康": {}, "建筑/房地产": {}, "专业服务": {}, "政府/事业单位": {}, "其他": {},
+	}
+)
+
+// validateRegisterEnums 画像枚举校验：选填字段空串放行，非空必须命中白名单
+func validateRegisterEnums(req *registerRequest) error {
+	invalid := httpx.NewBiz(httpx.CodeValidation, "注册画像包含无效选项", http.StatusBadRequest)
+	if req.Onboarding.Role != "" {
+		if _, ok := registerRoleEnums[req.Onboarding.Role]; !ok {
+			return invalid
+		}
+	}
+	if req.Onboarding.Channel != "" {
+		if _, ok := registerChannelEnums[req.Onboarding.Channel]; !ok {
+			return invalid
+		}
+	}
+	if req.Tenant.Name != "" && (len([]rune(req.Tenant.Name)) < 2 || len([]rune(req.Tenant.Name)) > 50) {
+		return httpx.NewBiz(httpx.CodeValidation, "企业名称需为 2 - 50 个字符", http.StatusBadRequest)
+	}
+	if req.Tenant.Demand != "" {
+		if _, ok := registerDemandEnums[req.Tenant.Demand]; !ok {
+			return invalid
+		}
+	}
+	if req.Tenant.Industry != "" {
+		if _, ok := registerIndustryEnums[req.Tenant.Industry]; !ok {
+			return invalid
+		}
+	}
+	return nil
 }
 
 // registerTokenResult 注册结果：注册完成即登录，返回绑定新租户的会话令牌；
@@ -234,6 +308,10 @@ type registerTokenResult struct {
 func (ac *AuthController) RegisterComplete(c *gin.Context) {
 	req := new(registerRequest)
 	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := validateRegisterEnums(req); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
@@ -365,10 +443,50 @@ func (ac *AuthController) SendSmsCode(c *gin.Context) {
 	httpx.ResponseSuccess(c, result)
 }
 
+// passwordResetRequest 密码找回请求：手机号 + reset 场景验证码 + 新密码
+type passwordResetRequest struct {
+	Phone       string `json:"phone" binding:"required,len=11"`
+	SmsCode     string `json:"smsCode" binding:"required,len=6"`
+	NewPassword string `json:"newPassword" binding:"required,min=6,max=64"`
+}
+
+// @Summary 重设密码（忘记密码）
+// @Description 凭「密码找回」场景（scene=reset）短信验证码一次性重设密码：
+// 验证码错误/过期返回 401；手机号未注册返回 404。重设成功后可用新密码登录
+// @Accept json
+// @Produce json
+// @Tags 认证
+// @Param body body controller.passwordResetRequest true "手机号/验证码/新密码"
+// @Success 200 {object} httpx.Response
+// @Failure 401 {object} httpx.Response "AUTH_SMS_INVALID·验证码错误或已过期"
+// @Failure 404 {object} httpx.Response "AUTH_ACCOUNT_NOT_FOUND·手机号未注册"
+// @Router /api/v1/auth/password/reset [post]
+func (ac *AuthController) ResetPassword(c *gin.Context) {
+	req := new(passwordResetRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	// 验证码一次性校验（scene=reset 与登录/注册隔离）
+	if err := ac.smsService.Verify(c.Request.Context(), sms.SceneReset, req.Phone, req.SmsCode); err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+
+	if err := ac.accountService.ResetPasswordByPhone(c.Request.Context(), req.Phone, req.NewPassword); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	httpx.ResponseSuccess(c, nil)
+}
+
 func (ac *AuthController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/auth/token", ac.Login)
 	api.DELETE("/auth/token", ac.Logout)
 	api.POST("/auth/register", ac.RegisterComplete)
+	api.POST("/auth/password/reset", ac.ResetPassword)
 	api.POST("/auth/tenant", ac.OpenTenant)
 	api.POST("/auth/sms/send", ac.SendSmsCode)
 	api.GET("/auth/tenants", ac.ListTenants)

@@ -137,6 +137,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User(), auditSvc)
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User(), iamRepo.RBAC(), auditSvc)
 	jwtService := auth.NewJWTService(conf.Server.JWTSecret)
+	// 令牌吊销器（P2-8）：登出拉黑 jti，登出前令牌固定 7 天有效的问题收口
+	tokenRevoker := auth.NewTokenRevoker(rdb.Client)
 	// 短信通道按 provider 分派：dev（默认）走开发通道 + 固定验证码 666666，
 	// 便于本地/测试环境联调；真实服务商待接入，配置即启动拦截（fail-fast）
 	smsSender, smsFixedCode, err := buildSmsSender(conf.SMS.Provider)
@@ -174,7 +176,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 注册编排服务（认证域）：注册向导最终提交「进入产品」的单事务落库
 	// （免密注册账号 + 账号画像 + 租户开通/复用 + owner 成员解析）
 	registrationService := authservice.NewRegistrationService(txManager, accountService, tenantService, auditSvc)
-	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc)
+	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc, tokenRevoker)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 	applicationController := applicationcontroller.NewApplicationController(applicationService)
@@ -199,7 +201,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		middleware.CORSMiddleware(),
 		middleware.RequestInfoMiddleware(&request.RequestInfoFactory{APIPrefixes: set.NewString("api")}),
 		middleware.LogMiddleware(logger, "/"),
-		middleware.AuthenticationMiddleware(jwtService, iamRepo.User()),
+		middleware.AuthenticationMiddleware(jwtService, iamRepo.User(), tokenRevoker),
 		middleware.TraceMiddleware(),
 	)
 
