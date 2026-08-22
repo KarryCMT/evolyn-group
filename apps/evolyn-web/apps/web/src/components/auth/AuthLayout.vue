@@ -150,14 +150,14 @@ defineProps<{
 
 // 简道云式登录：视觉区与表单区直接拼接，表单不再包裹在带阴影的卡片中。
 .auth-layout--login {
-  // 认证流程独立使用品牌青绿色，不影响工作台等业务界面的全局主题。
-  --el-color-primary: #00b3a8;
-  --el-color-primary-light-3: #4dcbc4;
-  --el-color-primary-light-5: #80d9d4;
-  --el-color-primary-light-7: #b3e8e4;
-  --el-color-primary-light-8: #ccf0ed;
-  --el-color-primary-light-9: #e5f8f6;
-  --el-color-primary-dark-2: #008f86;
+  // 认证流程沿用项目品牌蓝，与业务界面和弹层保持一致。
+  --el-color-primary: #1677ff;
+  --el-color-primary-light-3: #5ca0ff;
+  --el-color-primary-light-5: #8bbbff;
+  --el-color-primary-light-7: #b9d6ff;
+  --el-color-primary-light-8: #d0e4ff;
+  --el-color-primary-light-9: #e8f1ff;
+  --el-color-primary-dark-2: #125fcc;
 
   overflow: hidden;
   background-color: var(--el-bg-color);

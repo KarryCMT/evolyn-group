@@ -52,10 +52,10 @@ function notify() {}
   --el-border-color: #dcdfe6;
   --el-border-color-light: #e4e7ed;
   --el-border-color-lighter: #ebeef5;
-  --el-color-primary: #00b8a9;
-  --el-color-primary-light-3: #4dcdc2;
-  --el-color-primary-light-7: #b2e9e4;
-  --el-color-primary-light-9: #e6f8f6;
+  --el-color-primary: #1677ff;
+  --el-color-primary-light-3: #5ca0ff;
+  --el-color-primary-light-7: #b9d6ff;
+  --el-color-primary-light-9: #e8f1ff;
 }
 
 .custom-workbench-page :deep(.grid-stack > .grid-stack-item > .grid-stack-item-content) {

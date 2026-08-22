@@ -85,11 +85,11 @@ const visible = defineModel<boolean>({ default: false });
   background: #f6f7f9;
   box-shadow: none;
 
-  /* 弹层已传送至 body，显式继承工作台的品牌色。 */
-  --el-color-primary: #00b8a9;
-  --el-color-primary-light-3: #4dcdc2;
-  --el-color-primary-light-7: #b2e9e4;
-  --el-color-primary-light-9: #e6f8f6;
+  /* 弹层已传送至 body，显式继承项目品牌蓝。 */
+  --el-color-primary: #1677ff;
+  --el-color-primary-light-3: #5ca0ff;
+  --el-color-primary-light-7: #b9d6ff;
+  --el-color-primary-light-9: #e8f1ff;
 }
 
 .favorites-dialog .el-drawer__header {

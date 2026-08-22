@@ -102,7 +102,7 @@ const canvasTokens = computed(() => {
   const style = el ? getComputedStyle(el) : null;
   const read = (name: string, fallback: string) => style?.getPropertyValue(name).trim() || fallback;
   return {
-    primary: read('--el-color-primary', '#00b8a9'),
+    primary: read('--el-color-primary', '#1677ff'),
     textRegular: read('--el-text-color-regular', '#606266'),
   };
 });

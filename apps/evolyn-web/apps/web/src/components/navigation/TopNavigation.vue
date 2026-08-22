@@ -21,11 +21,14 @@ const props = withDefaults(
     backTo?: string;
     /** 是否展示成员工作台的默认快捷导航。 */
     showDefaultNavigation?: boolean;
+    /** 是否展示全局帮助入口；详情页可按页面需要隐藏。 */
+    showHelp?: boolean;
   }>(),
   {
     title: '工作台',
     backTo: undefined,
     showDefaultNavigation: true,
+    showHelp: true,
   },
 );
 
@@ -142,6 +145,7 @@ function notifyUnavailable() {}
             <span class="top-navigation__notice-dot" aria-label="有未读通知" />
           </button>
           <button
+            v-if="showHelp"
             class="top-navigation__icon-button"
             type="button"
             aria-label="帮助"
@@ -167,6 +171,7 @@ function notifyUnavailable() {}
   justify-content: space-between;
   color: #202938;
   background: #f6f7fb;
+  font-size: 16px;
 
   &__brand,
   &__actions,
@@ -188,9 +193,13 @@ function notifyUnavailable() {}
   }
 
   &__quick-nav,
-  &__global-actions,
   &__page-actions {
     gap: 6px;
+  }
+
+  /* 全局图标与用户头像之间保持统一的 12px 留白。 */
+  &__global-actions {
+    gap: 12px;
   }
 
   &__switcher,
@@ -221,15 +230,17 @@ function notifyUnavailable() {}
   }
 
   &__switcher {
-    width: 36px;
-    height: 36px;
+    box-sizing: border-box;
+    width: 32px;
+    height: 32px;
+    padding: 0 4px;
     border-radius: 10px;
     background: #ffffff;
     box-shadow: 0 2px 7px rgb(30 41 59 / 11%);
 
     svg {
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
     }
 
     &:hover {
@@ -241,13 +252,15 @@ function notifyUnavailable() {}
 
   &__back-button,
   &__icon-button {
-    width: 34px;
-    height: 34px;
+    box-sizing: border-box;
+    width: 32px;
+    height: 32px;
+    padding: 0 4px;
     border-radius: 8px;
 
     svg {
-      width: 22px;
-      height: 22px;
+      width: 24px;
+      height: 24px;
     }
   }
 
@@ -275,35 +288,35 @@ function notifyUnavailable() {}
     &--left {
       left: 0;
       top: 7px;
-      background: #61d7a0;
+      background: #8bbbff;
       transform: rotate(-27deg);
     }
 
     &--top {
       left: 10px;
       top: 0;
-      background: #1bc79a;
+      background: #5ca0ff;
       transform: rotate(18deg);
     }
 
     &--right {
       right: 0;
       top: 8px;
-      background: #0aae8a;
+      background: #1677ff;
       transform: rotate(70deg);
     }
 
     &--bottom {
       left: 11px;
       bottom: 0;
-      background: #38c990;
+      background: #408cff;
       transform: rotate(131deg);
     }
   }
 
   &__title {
     overflow: hidden;
-    font-size: 21px;
+    font-size: 16px;
     font-weight: 700;
     letter-spacing: 0.02em;
     line-height: 1;
@@ -312,17 +325,17 @@ function notifyUnavailable() {}
   }
 
   &__nav-button {
-    height: 34px;
+    height: 32px;
     gap: 6px;
     padding: 0 8px;
     border-radius: 8px;
-    font-size: 15px;
+    font-size: 16px;
     font-weight: 500;
     white-space: nowrap;
 
     svg {
-      width: 20px;
-      height: 20px;
+      width: 24px;
+      height: 24px;
     }
   }
 
@@ -363,7 +376,7 @@ function notifyUnavailable() {}
     }
 
     &__title {
-      font-size: 18px;
+      font-size: 16px;
     }
   }
 }

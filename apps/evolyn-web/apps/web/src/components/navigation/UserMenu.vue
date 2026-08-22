@@ -60,7 +60,7 @@ async function handleLogout() {
 <template>
   <el-dropdown placement="bottom-end" popper-class="user-menu-popper" @command="onCommand">
     <!-- 触发器：顶栏小头像 -->
-    <el-avatar class="user-menu__trigger" :size="28" :icon="UserFilled" />
+    <el-avatar class="user-menu__trigger" :size="24" :icon="UserFilled" />
     <template #dropdown>
       <div class="user-menu">
         <!-- 用户信息区：头像 + 昵称/「我创建的」标签 + 公司名 -->
@@ -117,6 +117,11 @@ async function handleLogout() {
 /* 触发器头像：el-avatar 默认无交互态，补指针提示 */
 .user-menu__trigger {
   cursor: pointer;
+  transition: box-shadow 0.18s ease;
+
+  &:hover {
+    box-shadow: 0 0 0 4px rgb(54 65 82 / 8%);
+  }
 }
 </style>
 

@@ -88,9 +88,7 @@ function confirm() {
   >
     <template #header>
       <header class="favorite-picker-dialog__header">
-        <h2 class="favorite-picker-dialog__heading">
-          添加应用
-        </h2>
+        <h2 class="favorite-picker-dialog__heading">添加应用</h2>
         <el-button
           text
           class="favorite-picker-dialog__close"
@@ -195,12 +193,8 @@ function confirm() {
 
     <template #footer>
       <div class="favorite-picker-dialog__footer">
-        <el-button size="large" @click="visible = false">
-          取消
-        </el-button>
-        <el-button type="primary" size="large" @click="confirm">
-          确定
-        </el-button>
+        <el-button size="large" @click="visible = false"> 取消 </el-button>
+        <el-button type="primary" size="large" @click="confirm"> 确定 </el-button>
       </div>
     </template>
   </el-dialog>
@@ -216,10 +210,10 @@ function confirm() {
   border-radius: 20px;
 
   /* 选择器位于 body 弹层树中，不能依赖工作台容器的主题变量。 */
-  --el-color-primary: #00b8a9;
-  --el-color-primary-light-3: #4dcdc2;
-  --el-color-primary-light-7: #b2e9e4;
-  --el-color-primary-light-9: #e6f8f6;
+  --el-color-primary: #1677ff;
+  --el-color-primary-light-3: #5ca0ff;
+  --el-color-primary-light-7: #b9d6ff;
+  --el-color-primary-light-9: #e8f1ff;
 }
 
 .favorite-picker-dialog .el-dialog__header {

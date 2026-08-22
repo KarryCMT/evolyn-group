@@ -24,9 +24,9 @@ const { widgets } = useDashboardWorkspace();
   background: #f3f3f8;
 
   /* 成员端与设计器共享品牌主色，保证引导卡片和导航入口一致。 */
-  --el-color-primary: #00b8a9;
-  --el-color-primary-light-3: #4dcdc2;
-  --el-color-primary-light-7: #b2e9e4;
-  --el-color-primary-light-9: #e6f8f6;
+  --el-color-primary: #1677ff;
+  --el-color-primary-light-3: #5ca0ff;
+  --el-color-primary-light-7: #b9d6ff;
+  --el-color-primary-light-9: #e8f1ff;
 }
 </style>

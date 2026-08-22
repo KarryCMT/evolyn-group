@@ -1,9 +1,16 @@
 // import dark theme
 @use 'element-plus/theme-chalk/src/dark/css-vars.scss' as *;
 
-// :root {
-//   --el-color-primary: red;
-// }
+:root {
+  /* 项目品牌蓝：显式补全 Element Plus 色阶，供弹层与独立页面统一继承。 */
+  --el-color-primary: #1677ff;
+  --el-color-primary-light-3: #5ca0ff;
+  --el-color-primary-light-5: #8bbbff;
+  --el-color-primary-light-7: #b9d6ff;
+  --el-color-primary-light-8: #d0e4ff;
+  --el-color-primary-light-9: #e8f1ff;
+  --el-color-primary-dark-2: #125fcc;
+}
 
 body {
   font-family:
@@ -30,7 +37,7 @@ code {
 }
 
 #nprogress .bar {
-  background: rgb(13, 148, 136);
+  background: #1677ff;
   opacity: 0.75;
   position: fixed;
   z-index: 1031;

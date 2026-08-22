@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AccountPasswordForm, AccountProfileForm, AccountSettingsTab } from '~/types/account';
 import { ref } from 'vue';
 import AccountBasicInfoPanel from '~/components/dashboard/account/AccountBasicInfoPanel.vue';
 import AccountSecurityPanel from '~/components/dashboard/account/AccountSecurityPanel.vue';
@@ -7,9 +8,8 @@ import LoginLogDrawer from '~/components/dashboard/account/LoginLogDrawer.vue';
 import PasswordEditorDialog from '~/components/dashboard/account/PasswordEditorDialog.vue';
 import ProfileEditorDialog from '~/components/dashboard/account/ProfileEditorDialog.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
-import { useAccountSettings } from '~/composables/useAccountSettings';
 import { useAuth } from '~/composables/auth';
-import type { AccountPasswordForm, AccountProfileForm, AccountSettingsTab } from '~/types/account';
+import { useAccountSettings } from '~/composables/useAccountSettings';
 
 defineOptions({ name: 'AccountPage' });
 
@@ -38,7 +38,8 @@ function handleViewLoginLog() {
 
 <template>
   <div class="account-page">
-    <TopNavigation title="个人设置" back-to="/dashboard" />
+    <!-- 个人设置遵循详情页顶栏：返回、标题、通知和用户菜单。 -->
+    <TopNavigation title="个人设置" back-to="/dashboard" :show-help="false" />
 
     <main class="account-page__main">
       <section class="account-page__card">
@@ -84,10 +85,10 @@ function handleViewLoginLog() {
   background: #f3f3f8;
 
   /* 与工作台、个人菜单共用的品牌色在本页局部生效。 */
-  --el-color-primary: #00b8a9;
-  --el-color-primary-light-3: #4dcdc2;
-  --el-color-primary-light-7: #b2e9e4;
-  --el-color-primary-light-9: #e6f8f6;
+  --el-color-primary: #1677ff;
+  --el-color-primary-light-3: #5ca0ff;
+  --el-color-primary-light-7: #b9d6ff;
+  --el-color-primary-light-9: #e8f1ff;
 
   &__main {
     display: flex;
