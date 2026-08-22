@@ -2,7 +2,10 @@ package controller
 
 import (
 	"net/http"
+	"strconv"
 
+	kernel "evolyn/internal/model"
+	loginlogservice "evolyn/internal/platform/auth/loginlog/service"
 	"evolyn/internal/platform/auth/pki"
 	platformcontroller "evolyn/internal/platform/controller"
 	"evolyn/internal/platform/ginctx"
@@ -18,12 +21,15 @@ type AccountController struct {
 	accountService service.AccountService
 	// 登录口令加密密钥对：改密请求的密码字段先解密再落库
 	pkiKeypair *pki.Keypair
+	// 登录日志查询（账号自查）：认证域 loginlog 服务的只读契约
+	loginLogQuery loginlogservice.QueryService
 }
 
-func NewAccountController(accountService service.AccountService, pkiKeypair *pki.Keypair) platformcontroller.Controller {
+func NewAccountController(accountService service.AccountService, pkiKeypair *pki.Keypair, loginLogQuery loginlogservice.QueryService) platformcontroller.Controller {
 	return &AccountController{
 		accountService: accountService,
 		pkiKeypair:     pkiKeypair,
+		loginLogQuery:  loginLogQuery,
 	}
 }
 
@@ -155,10 +161,79 @@ func (a *AccountController) ChangePassword(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
+// loginLogItem 登录日志展示项：字段与个人中心「账号设置-登录日志」抽屉
+// 一一对应；client/method 为稳定枚举，展示文案由前端映射
+type loginLogItem struct {
+	LoggedAt kernel.JSONTime `json:"loggedAt"` // 登录时间（JSONTime 秒级东八区）
+	IP       string          `json:"ip"`       // 来源 IP
+	Location string          `json:"location"` // IP 归属地（内网地址/未知等兜底文案）
+	Client   string          `json:"client"`   // web/wap/unknown
+	Method   string          `json:"method"`   // password/sms/oauth_*/register
+}
+
+// loginLogPage 登录日志分页结果
+type loginLogPage struct {
+	Items []loginLogItem `json:"items"`
+	Total int64          `json:"total"`
+}
+
+// queryInt 取整型查询参数，缺失/非法返回 0（由服务层规范化为默认值）
+func queryInt(c *gin.Context, name string) int {
+	v, _ := strconv.Atoi(c.Query(name))
+	return v
+}
+
+// @Summary 我的登录日志
+// @Description 分页查询当前账号的登录日志（仅本人，account 以会话为准）；
+// startDate/endDate 为 yyyy-MM-dd 闭区间，按东八区自然日过滤；client 枚举
+// web 电脑网页 / wap 手机网页 / unknown，method 枚举 password 密码 /
+// sms 短信验证码 / oauth_github、oauth_wechat 第三方 / register 注册即登录，
+// 两者的展示文案由前端映射
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param page query int false "页码，默认 1"
+// @Param pageSize query int false "每页条数，默认 20，上限 100"
+// @Param startDate query string false "开始日期 yyyy-MM-dd（闭区间）"
+// @Param endDate query string false "结束日期 yyyy-MM-dd（闭区间）"
+// @Success 200 {object} httpx.Response{data=controller.loginLogPage}
+// @Failure 400 {object} httpx.Response "日期参数格式非法"
+// @Router /api/v1/accounts/me/login-logs [get]
+func (a *AccountController) MyLoginLogs(c *gin.Context) {
+	accountID, ok := a.myAccount(c)
+	if !ok {
+		return
+	}
+
+	result, err := a.loginLogQuery.ListByAccount(c.Request.Context(), accountID, loginlogservice.PageQuery{
+		Page:      queryInt(c, "page"),
+		PageSize:  queryInt(c, "pageSize"),
+		StartDate: c.Query("startDate"),
+		EndDate:   c.Query("endDate"),
+	})
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	items := make([]loginLogItem, 0, len(result.Items))
+	for _, item := range result.Items {
+		items = append(items, loginLogItem{
+			LoggedAt: item.CreatedAt,
+			IP:       item.IP,
+			Location: item.Location,
+			Client:   item.Client,
+			Method:   item.Method,
+		})
+	}
+	httpx.ResponseSuccess(c, loginLogPage{Items: items, Total: result.Total})
+}
+
 func (a *AccountController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/accounts/me", a.GetMe)
 	api.PUT("/accounts/me", a.UpdateMe)
 	api.PUT("/accounts/me/password", a.ChangePassword)
+	api.GET("/accounts/me/login-logs", a.MyLoginLogs)
 }
 
 func (a *AccountController) Name() string {

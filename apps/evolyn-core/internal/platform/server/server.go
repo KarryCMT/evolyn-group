@@ -12,6 +12,7 @@ import (
 
 	"evolyn/internal/config"
 	"evolyn/internal/infrastructure"
+	"evolyn/internal/infrastructure/ipregion"
 	// swagger spec 注册：swag init 生成的 docs 包经 init() 把接口定义
 	// 注册给 gin-swagger，不引入则 /swagger/doc.json 500（页面能开但无内容）
 	_ "evolyn/docs"
@@ -19,6 +20,8 @@ import (
 	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/auth"
 	authcontroller "evolyn/internal/platform/auth/controller"
+	loginlogrepository "evolyn/internal/platform/auth/loginlog/repository"
+	loginlogservice "evolyn/internal/platform/auth/loginlog/service"
 	"evolyn/internal/platform/auth/oauth"
 	"evolyn/internal/platform/auth/pki"
 	authservice "evolyn/internal/platform/auth/service"
@@ -79,10 +82,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 域仓储装配（ADR-007 域模块化）：audit 无租户Callback 依赖先行；
 	// tenant 先于 iam AutoMigrate，保证业务模型加 tenant_id 列时默认租户已就绪
 	auditRepo := auditrepository.NewRepository(db)
+	loginLogRepo := loginlogrepository.NewRepository(db)
 	tenantRepo := tenantrepository.NewRepository(db, rdb)
 	iamRepo := repository.NewRepositories(db, rdb)
 	if conf.DB.Migrate {
 		if err := auditRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := loginLogRepo.Migrate(); err != nil {
 			return nil, err
 		}
 		if err := tenantRepo.Migrate(); err != nil {
@@ -106,6 +113,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	auditSvc := auditservice.NewService(auditRepo)
 	quotaSvc := tenantservice.NewQuotaService(tenantRepo, iamRepo.User())
 	txManager := infrastructure.NewTxManager(db)
+
+	// 登录日志域（认证域内，000013）：IP 归属地解析器数据内嵌随二进制，
+	// 装载失败仅可能为程序性损坏，fail-fast 拒绝启动
+	ipResolver, err := ipregion.New()
+	if err != nil {
+		return nil, errors.Wrap(err, "ip region resolver init failed")
+	}
+	loginLogSvc := loginlogservice.NewService(loginLogRepo, ipResolver)
 
 	tenantService := tenantservice.NewTenantService(txManager, tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention())
 	accountService := service.NewAccountService(txManager, iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc)
@@ -140,13 +155,13 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	}
 
 	userController := iamcontroller.NewUserController(userService, departmentService)
-	accountController := iamcontroller.NewAccountController(accountService, keypair)
+	accountController := iamcontroller.NewAccountController(accountService, keypair, loginLogSvc)
 	departmentController := iamcontroller.NewDepartmentController(departmentService)
 	groupController := iamcontroller.NewGroupController(groupService)
 	// 注册编排服务（认证域）：注册向导最终提交「进入产品」的单事务落库
 	// （免密注册账号 + 账号画像 + 租户开通/复用 + owner 成员解析）
 	registrationService := authservice.NewRegistrationService(txManager, accountService, tenantService, auditSvc)
-	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair)
+	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 

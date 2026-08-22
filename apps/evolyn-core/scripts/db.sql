@@ -229,6 +229,23 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_tenant ON audit_logs (tenant_id, id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_module_action ON audit_logs (module, action);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON audit_logs (resource_type, resource_id);
 
+-- 登录日志（000013）：会话建立事件流水，账号维度追加写；与 audit_logs 职责互斥
+CREATE TABLE IF NOT EXISTS login_logs (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    account_id BIGINT NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 0,
+    member_id BIGINT NOT NULL DEFAULT 0,
+    method varchar(32) NOT NULL,
+    client varchar(32) NOT NULL DEFAULT 'unknown',
+    ip varchar(64),
+    location varchar(128),
+    user_agent varchar(256),
+    request_id varchar(64),
+    created_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_logs_account ON login_logs (account_id, id);
+
 -- ============ 表/字段注释（000008，与迁移链一致） ============
 COMMENT ON TABLE accounts IS '平台账号（登录身份）：登录名/手机号/密码与第三方凭证挂账号；账号跨租户，无 tenant_id（ADR-006/FIX-014）';
 COMMENT ON COLUMN accounts.id IS '自增主键';
@@ -352,3 +369,16 @@ COMMENT ON COLUMN audit_logs.user_agent IS '客户端 User-Agent，可空';
 COMMENT ON COLUMN audit_logs.before_data IS '变更前数据快照 JSONB，可空';
 COMMENT ON COLUMN audit_logs.after_data IS '变更后数据快照 JSONB，可空';
 COMMENT ON COLUMN audit_logs.created_at IS '记录发生时间，默认当前时间';
+
+COMMENT ON TABLE login_logs IS '登录日志：会话建立事件流水（登录/注册即登录），账号维度自查（ADR-006 平台级）；与 audit_logs 职责互斥，登录不写业务审计';
+COMMENT ON COLUMN login_logs.id IS '自增主键';
+COMMENT ON COLUMN login_logs.account_id IS '登录的平台账号 ID（主查询维度）';
+COMMENT ON COLUMN login_logs.tenant_id IS '本次登录进入的租户 ID，0=无租户/平台场景';
+COMMENT ON COLUMN login_logs.member_id IS '本次登录绑定的租户成员 ID，0=未解析到成员';
+COMMENT ON COLUMN login_logs.method IS '登录方式：password 密码 / sms 短信验证码 / oauth_github、oauth_wechat 第三方 / register 注册即登录';
+COMMENT ON COLUMN login_logs.client IS '客户端形态（UA 解析）：web 电脑网页 / wap 手机网页 / unknown';
+COMMENT ON COLUMN login_logs.ip IS '客户端 IP，可空';
+COMMENT ON COLUMN login_logs.location IS 'IP 归属地（ip2region 离线库写时解析，如「广东省 深圳市」）；回环/私网为「内网地址」，解析失败为「未知」';
+COMMENT ON COLUMN login_logs.user_agent IS '客户端 User-Agent，可空';
+COMMENT ON COLUMN login_logs.request_id IS '链路追踪请求 ID，可空';
+COMMENT ON COLUMN login_logs.created_at IS '登录时间';

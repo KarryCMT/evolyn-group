@@ -6,6 +6,8 @@ import (
 	"net/http"
 
 	"evolyn/internal/platform/auth"
+	loginlogmodel "evolyn/internal/platform/auth/loginlog/model"
+	loginlogservice "evolyn/internal/platform/auth/loginlog/service"
 	"evolyn/internal/platform/auth/oauth"
 	"evolyn/internal/platform/auth/pki"
 	authservice "evolyn/internal/platform/auth/service"
@@ -33,9 +35,11 @@ type AuthController struct {
 	smsService          *sms.Service
 	// 登录口令加密密钥对：密码登录分支先解密再走 bcrypt 校验
 	pkiKeypair *pki.Keypair
+	// 登录日志记录器：令牌签发成功后 best-effort 落一条会话建立流水
+	loginLog loginlogservice.Recorder
 }
 
-func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair) platformcontroller.Controller {
+func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder) platformcontroller.Controller {
 	return &AuthController{
 		accountService:      accountService,
 		registrationService: registrationService,
@@ -44,7 +48,22 @@ func NewAuthController(accountService service.AccountService, registrationServic
 		tenantService:       tenantService,
 		smsService:          smsService,
 		pkiKeypair:          pkiKeypair,
+		loginLog:            loginLog,
 	}
+}
+
+// recordLogin 落一条登录日志：member 为本次会话绑定的成员（可空，如未选
+// 租户场景）；IP/UA 由服务层从请求元数据自动补全，写入失败只告警不影响登录
+func (ac *AuthController) recordLogin(c *gin.Context, account *model.Account, member *model.User, method string) {
+	if ac.loginLog == nil || account == nil {
+		return
+	}
+	entry := loginlogservice.Entry{AccountID: account.ID, Method: method}
+	if member != nil {
+		entry.TenantID = member.TenantID
+		entry.MemberID = member.ID
+	}
+	ac.loginLog.Record(c.Request.Context(), entry)
 }
 
 // loginSession 登录成功后的签发与 Cookie 写入：token 绑定「账号+成员+租户」
@@ -87,6 +106,8 @@ func (ac *AuthController) Login(c *gin.Context) {
 		account *model.Account
 		member  *model.User
 		err     error
+		// 登录方式随分支确定，登录成功后落登录日志（loginlog method 列）
+		method = loginlogmodel.MethodPassword
 	)
 	switch {
 	case auser.SmsCode != "":
@@ -99,6 +120,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 			httpx.ResponseFailed(c, http.StatusUnauthorized, err)
 			return
 		}
+		method = loginlogmodel.MethodSMS
 		account, member, err = ac.accountService.AuthByPhone(c.Request.Context(), auser.Phone, auser.TenantCode)
 	case !oauth.IsEmptyAuthType(auser.AuthType) && auser.Name == "" && auser.Phone == "":
 		provider, err := ac.oauthManger.GetAuthProvider(auser.AuthType)
@@ -118,6 +140,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 			return
 		}
 
+		method = loginlogmodel.MethodOAuth + auser.AuthType
 		account, member, err = ac.accountService.CreateOAuthAccount(c.Request.Context(), userInfo.Account())
 	default:
 		// 密码登录：password 为经 /app/conf 公钥 RSA 加密后的密文，
@@ -141,6 +164,8 @@ func (ac *AuthController) Login(c *gin.Context) {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
 	}
+
+	ac.recordLogin(c, account, member, method)
 
 	httpx.ResponseSuccess(c, model.JWTToken{
 		Token:    token,
@@ -237,6 +262,9 @@ func (ac *AuthController) RegisterComplete(c *gin.Context) {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
 	}
+
+	// 已注册手机号的幂等重放同样构成一次会话建立，落登录日志
+	ac.recordLogin(c, result.Account, result.Member, loginlogmodel.MethodRegister)
 
 	httpx.ResponseSuccess(c, registerTokenResult{
 		Token:    token,

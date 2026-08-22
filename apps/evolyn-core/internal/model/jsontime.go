@@ -31,6 +31,10 @@ var cstLocation = func() *time.Location {
 // Time 还原为标准 time.Time；业务侧比较/运算统一经本方法取值
 func (t JSONTime) Time() time.Time { return time.Time(t) }
 
+// CSTLocation 展示时区（东八区）访问入口：供日期类入参解析等需要与
+// JSONTime 出网口径对齐的场景复用，避免各域重复实现加载/回退逻辑
+func CSTLocation() *time.Location { return cstLocation }
+
 // IsZero 是否零值
 func (t JSONTime) IsZero() bool { return time.Time(t).IsZero() }
 

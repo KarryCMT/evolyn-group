@@ -48,6 +48,8 @@ internal/
   infrastructure/     postgres/redis/pgx 客户端、GORM 租户 Callback、
                       SQL Migration 执行器（migrate.go）、统一事务
                       （tx.go：TxManager/ResolveDB，ctx 传播事务 session）、
+                      ipregion（IP 归属地离线解析：内嵌 ip2region v4 xdb，
+                      登录日志「登录地」数据源，IPv6 暂回退「未知」）、
                       生命周期
   testsupport/        集成测试基础设施（TEST_PG_DSN 按需建库/迁移/清理）
   utils/              ratelimit/request/set/trace
@@ -78,7 +80,12 @@ internal/
                        自助开通租户并绑定 tenant-admin，签发绑定新租户的
                        令牌；已注册手机号等价短信登录（created=false）；
                        POST /auth/tenant 登录态自助开通租户：创建者即所有者
-                       并绑定 tenant-admin，编码服务端生成）
+                       并绑定 tenant-admin，编码服务端生成）、loginlog/ 子包
+                       （登录日志 000013：会话建立流水，账号维度平台级追加写
+                       ——登录/注册即登录各路径令牌签发后 best-effort 落库，
+                       登录地写时经 ipregion 离线解析；账号自查分页查询经
+                       iam 账号控制器 GET /accounts/me/login-logs 暴露，
+                       与 audit_logs（业务操作审计）职责互斥）
     iam/              身份域（域内 controller→service→repository 小三层）：
                        account 平台账号（PUT /accounts/me 自助资料（个人
                        中心入口）含 onboarding JSONB 画像，昵称变更同事务

@@ -8,6 +8,8 @@ import {
   Search,
 } from '@element-plus/icons-vue';
 import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
+import { shallowRef } from 'vue';
+import CreateApplicationDialog from '~/components/application/create/CreateApplicationDialog.vue';
 import type { DashboardWidgetContent } from '~/types/dashboard';
 
 defineOptions({ name: 'AppsWidget' });
@@ -24,6 +26,8 @@ const apps = [
   { label: 'IT项目管理', icon: Document, tone: 'primary' },
   { label: '任务管理', icon: DataAnalysis, tone: 'info' },
 ];
+// 弹窗只由「我的应用」入口控制；创建流程本身由应用领域组件承载，避免工作台耦合模板数据。
+const createApplicationVisible = shallowRef(false);
 </script>
 
 <template>
@@ -31,7 +35,9 @@ const apps = [
     <template v-if="!props.editorMode" #actions>
       <div class="apps-widget__actions">
         <el-input placeholder="请输入名称搜索" :prefix-icon="Search" />
-        <el-button type="primary" :icon="Plus">新建应用</el-button>
+        <el-button type="primary" :icon="Plus" @click="createApplicationVisible = true">
+          新建应用
+        </el-button>
       </div>
     </template>
     <div class="apps-widget">
@@ -43,6 +49,7 @@ const apps = [
       </el-button>
     </div>
   </DashboardWidgetFrame>
+  <CreateApplicationDialog v-model="createApplicationVisible" />
 </template>
 
 <style scoped lang="scss">
