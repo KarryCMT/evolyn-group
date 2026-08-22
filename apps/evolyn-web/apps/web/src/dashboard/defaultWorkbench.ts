@@ -1,4 +1,4 @@
-import type { DashboardWidget } from '~/types/dashboard';
+import type { DashboardSchema, DashboardWidget } from '~/types/dashboard';
 
 /**
  * 工作台首次进入时使用的成员端默认布局。
@@ -21,6 +21,14 @@ export function createDefaultWorkbenchWidgets(): DashboardWidget[] {
   return defaultWidgets.map((item) => ({ ...item }));
 }
 
+/** 成员端与设计器共享同一份纯 JSON schema，运行时组件由各自的适配层注入。 */
+export function createDefaultWorkbenchSchema(): DashboardSchema {
+  return {
+    version: 1,
+    widgets: createDefaultWorkbenchWidgets(),
+  };
+}
+
 function widget(
   type: DashboardWidget['type'],
   title: string,
@@ -38,7 +46,6 @@ function widget(
     y,
     w,
     h,
-    component: 'DashboardWidgetHost',
     ...constraints,
   };
 }

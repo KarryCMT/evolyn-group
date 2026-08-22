@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { DashboardWidgetContent } from '~/types/dashboard';
+import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
 import { DataAnalysis } from '@element-plus/icons-vue';
 import { computed, shallowRef } from 'vue';
-import DashboardWidgetFrame from '../DashboardWidgetFrame.vue';
+import type { DashboardWidgetContent } from '~/types/dashboard';
 import FavoritesWorkspaceDialog from '../favorites/FavoritesWorkspaceDialog.vue';
 import { useFavoriteApplications } from '../favorites/useFavoriteApplications';
 

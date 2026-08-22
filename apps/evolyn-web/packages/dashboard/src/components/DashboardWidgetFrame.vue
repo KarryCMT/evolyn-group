@@ -4,6 +4,11 @@ defineOptions({ name: 'DashboardWidgetFrame' });
 defineProps<{
   title: string;
 }>();
+
+defineSlots<{
+  default(): unknown;
+  actions?(): unknown;
+}>();
 </script>
 
 <template>
@@ -11,7 +16,7 @@ defineProps<{
     <header class="dashboard-widget__header">
       <span class="dashboard-widget__drag-handle" aria-label="拖动卡片">⠿</span>
       <strong class="dashboard-widget__title">{{ title }}</strong>
-      <div class="dashboard-widget__actions">
+      <div v-if="$slots.actions" class="dashboard-widget__actions">
         <slot name="actions" />
       </div>
     </header>

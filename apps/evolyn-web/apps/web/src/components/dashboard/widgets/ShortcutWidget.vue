@@ -1,6 +1,6 @@
 <script setup lang="ts">
+import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
 import type { DashboardWidgetContent } from '~/types/dashboard';
-import DashboardWidgetFrame from '../DashboardWidgetFrame.vue';
 
 defineOptions({ name: 'ShortcutWidget' });
 defineProps<{ widget: DashboardWidgetContent }>();

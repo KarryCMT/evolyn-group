@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ElEmpty } from 'element-plus';
+import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
 import type { DashboardWidgetContent } from '~/types/dashboard';
-import DashboardWidgetFrame from '../DashboardWidgetFrame.vue';
 
 defineOptions({ name: 'ChartsWidget' });
 const props = withDefaults(

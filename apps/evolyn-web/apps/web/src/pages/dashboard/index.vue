@@ -3,13 +3,13 @@ import DashboardCanvas from '~/components/dashboard/DashboardCanvas.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { useDashboardWorkspace } from '~/composables/useDashboardWorkspace';
 
-const { widgets } = useDashboardWorkspace();
+const { schema } = useDashboardWorkspace();
 </script>
 
 <template>
   <div class="dashboard-page">
     <TopNavigation />
-    <DashboardCanvas :widgets="widgets" />
+    <DashboardCanvas :schema="schema" />
   </div>
 </template>
 

@@ -1,4 +1,10 @@
-import type { EvolynGridItem } from '@evolyn.do/ui';
+import {
+  isDashboardWidgetPresetInLayout,
+  type DashboardSchema as BaseDashboardSchema,
+  type DashboardWidget as BaseDashboardWidget,
+  type DashboardWidgetContent as BaseDashboardWidgetContent,
+  type DashboardWidgetPreset as BaseDashboardWidgetPreset,
+} from '@evolyn.do/dashboard';
 
 export type DashboardWidgetType =
   | 'onboarding'
@@ -9,19 +15,23 @@ export type DashboardWidgetType =
   | 'apps'
   | 'charts';
 
-/** 设计器组件面板中的组件预设，包含拖入后所需的业务数据与初始尺寸。 */
-export interface DashboardWidgetPreset {
-  key: string;
-  type: DashboardWidgetType;
-  title: string;
-  w: number;
-  h: number;
-  minW: number;
-  minH: number;
-  maxW?: number;
-  maxH?: number;
-  config?: Record<string, unknown>;
+const dashboardWidgetTypes = new Set<DashboardWidgetType>([
+  'onboarding',
+  'greeting',
+  'shortcut',
+  'todo',
+  'favorites',
+  'apps',
+  'charts',
+]);
+
+/** 共享包只校验通用结构，业务应用在此收窄可渲染的卡片类型。 */
+export function isDashboardWidgetType(type: string): type is DashboardWidgetType {
+  return dashboardWidgetTypes.has(type as DashboardWidgetType);
 }
+
+/** 应用侧收窄共享 schema 的 type，保持业务组件注册的穷尽性校验。 */
+export type DashboardWidgetPreset = BaseDashboardWidgetPreset<DashboardWidgetType>;
 
 /** 快捷入口与图表看板可按需添加多个实例，其余页面组件在同一工作台中只能保留一个。 */
 const repeatableDashboardWidgetPresetKeys = new Set(['shortcut', 'charts']);
@@ -31,23 +41,13 @@ export function isDashboardWidgetPresetRepeatable(preset: Pick<DashboardWidgetPr
 }
 
 /** 卡片内容所需的最小业务数据，不包含网格坐标。 */
-export interface DashboardWidgetContent {
-  id: string;
-  type: DashboardWidgetType;
-  title: string;
-  config?: Record<string, unknown>;
-}
+export type DashboardWidgetContent = BaseDashboardWidgetContent<DashboardWidgetType>;
 
-/** 工作台持久化卡片：网格坐标由 EvolynGrid 管理，业务内容由 type/config 决定。 */
-export interface DashboardWidget extends EvolynGridItem, DashboardWidgetContent {
-  /** 来源组件面板的预设键，用于限制非重复组件只能添加一次。 */
-  presetKey?: string;
-}
+/** 工作台持久化卡片：只保存布局与业务配置，不包含 Vue 组件和运行时 props。 */
+export type DashboardWidget = BaseDashboardWidget<DashboardWidgetType>;
+
+/** 工作台的稳定根结构，后续接口直接保存该 JSON。 */
+export type DashboardSchema = BaseDashboardSchema<DashboardWidgetType>;
 
 /** 同类组件以业务类型和展示标题确定唯一性，避免配置项差异导致重复添加。 */
-export function isDashboardWidgetPresetInLayout(
-  preset: Pick<DashboardWidgetPreset, 'type' | 'title'>,
-  widgets: DashboardWidget[],
-) {
-  return widgets.some((widget) => widget.type === preset.type && widget.title === preset.title);
-}
+export { isDashboardWidgetPresetInLayout };

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ElScrollbar } from 'element-plus';
+import { DashboardWidgetPalette } from '@evolyn.do/dashboard';
 import {
   RiApps2Fill,
   RiBarChartBoxFill,
@@ -12,8 +12,6 @@ import {
   RiTimerFill,
   RiUserFill,
 } from '@remixicon/vue';
-import { computed, nextTick, onMounted } from 'vue';
-import { GridStack as GridStackCore } from 'gridstack';
 import type { Component } from 'vue';
 import type { DashboardWidgetPreset } from '~/types/dashboard';
 
@@ -21,7 +19,7 @@ defineOptions({ name: 'WidgetPalette' });
 const emit = defineEmits<{
   add: [preset: DashboardWidgetPreset];
 }>();
-const props = defineProps<{ disabledKeys: string[] }>();
+defineProps<{ disabledKeys: string[] }>();
 
 type PaletteItem = DashboardWidgetPreset & { icon: Component; label: string };
 
@@ -142,140 +140,26 @@ const palette: PaletteItem[] = [
     maxH: 1,
   },
 ];
-
-const disabledKeySet = computed(() => new Set(props.disabledKeys));
-
-function isDisabled(preset: DashboardWidgetPreset) {
-  return disabledKeySet.value.has(preset.key);
-}
-
-function addPreset(preset: DashboardWidgetPreset) {
-  if (isDisabled(preset)) return;
-  emit('add', preset);
-}
-
-async function setupDragSources() {
-  await nextTick();
-  const presets = palette.map(({ icon: _icon, ...preset }) => preset);
-  // 与官方 side-panel 示例一致：DOM 挂载后一次性注册来源元素及对应组件定义。
-  const widgets = presets.map((preset) => ({
-    id: `palette-${preset.key}`,
-    x: 0,
-    y: 0,
-    w: preset.w,
-    h: preset.h,
-    minW: preset.minW,
-    minH: preset.minH,
-    maxW: preset.maxW,
-    maxH: preset.maxH,
-    component: 'WorkbenchEditorWidgetHost',
-    props: {
-      widget: {
-        id: `palette-${preset.key}`,
-        type: preset.type,
-        title: preset.title,
-        config: preset.config,
-      },
-    },
-  }));
-  GridStackCore.setupDragIn(
-    '.widget-palette__drag-source',
-    { appendTo: 'body', helper: 'clone' },
-    widgets,
-  );
-}
-
-onMounted(setupDragSources);
 </script>
 
 <template>
-  <aside class="widget-palette">
-    <strong class="widget-palette__title">页面组件</strong>
-    <el-scrollbar class="widget-palette__scrollbar">
-      <div class="widget-palette__list">
-        <div
-          v-for="item in palette"
-          :key="item.key"
-          class="widget-palette__item widget-palette__drag-source"
-          :class="{ 'widget-palette__item--disabled': isDisabled(item) }"
-          :data-widget-key="item.key"
-          role="button"
-          :aria-disabled="isDisabled(item)"
-          :tabindex="isDisabled(item) ? -1 : 0"
-          @click="addPreset(item)"
-          @keydown.enter="addPreset(item)"
-          @keydown.space.prevent="addPreset(item)"
-        >
-          <component :is="item.icon" class="widget-palette__icon" aria-hidden="true" />
-          <span>{{ item.label }}</span>
-        </div>
-      </div>
-    </el-scrollbar>
-  </aside>
+  <DashboardWidgetPalette
+    :presets="palette"
+    :disabled-preset-keys="disabledKeys"
+    widget-component="WorkbenchEditorWidgetHost"
+    @add="emit('add', $event)"
+  >
+    <template #item="{ preset }">
+      <component :is="preset.icon" class="widget-palette__icon" aria-hidden="true" />
+      <span>{{ preset.label }}</span>
+    </template>
+  </DashboardWidgetPalette>
 </template>
 
 <style scoped lang="scss">
-.widget-palette {
-  flex: 0 0 168px;
-  box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  padding: 14px 12px;
-  overflow: hidden;
-  color: var(--el-text-color-primary);
-  background: var(--el-bg-color);
-  border-right: 1px solid var(--el-border-color-lighter);
-
-  &__title {
-    display: block;
-    margin-bottom: 8px;
-    font-size: var(--el-font-size-base);
-  }
-  &__scrollbar {
-    flex: 1;
-    min-height: 0;
-  }
-  &__list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-  &__item {
-    box-sizing: border-box;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    height: var(--el-component-size);
-    margin: 0;
-    padding: 0 15px;
-    cursor: grab;
-    color: var(--el-text-color-regular);
-    background: var(--el-fill-color-light);
-    border-radius: var(--el-border-radius-base);
-
-    &:hover,
-    &:focus-visible {
-      color: var(--el-color-primary);
-      background: var(--el-color-primary-light-9);
-      outline: none;
-    }
-
-    &:active {
-      cursor: grabbing;
-    }
-    &--disabled {
-      pointer-events: none;
-      cursor: not-allowed;
-      color: var(--el-text-color-disabled);
-      background: var(--el-fill-color-lighter);
-    }
-  }
-  &__icon {
-    flex: none;
-    width: 18px;
-    height: 18px;
-  }
+.widget-palette__icon {
+  flex: none;
+  width: 18px;
+  height: 18px;
 }
 </style>

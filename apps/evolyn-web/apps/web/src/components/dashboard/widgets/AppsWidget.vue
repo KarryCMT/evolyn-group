@@ -7,8 +7,8 @@ import {
   Plus,
   Search,
 } from '@element-plus/icons-vue';
+import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
 import type { DashboardWidgetContent } from '~/types/dashboard';
-import DashboardWidgetFrame from '../DashboardWidgetFrame.vue';
 
 defineOptions({ name: 'AppsWidget' });
 const props = withDefaults(

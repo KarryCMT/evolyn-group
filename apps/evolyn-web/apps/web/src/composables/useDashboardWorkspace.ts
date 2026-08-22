@@ -1,27 +1,21 @@
 import { ref } from 'vue';
-import { createDefaultWorkbenchWidgets } from '~/dashboard/defaultWorkbench';
-import type { DashboardWidget } from '~/types/dashboard';
+import { normalizeDashboardSchema } from '@evolyn.do/dashboard';
+import { createDefaultWorkbenchSchema } from '~/dashboard/defaultWorkbench';
+import { isDashboardWidgetType, type DashboardSchema } from '~/types/dashboard';
 
 /**
  * 当前先使用前端默认布局；接入接口后仅替换加载逻辑，不影响成员端渲染边界。
  */
 export function useDashboardWorkspace() {
-  const widgets = ref<DashboardWidget[]>(toGridItems(createDefaultWorkbenchWidgets()));
+  const schema = ref<DashboardSchema>(resolveDashboardSchema(createDefaultWorkbenchSchema()));
 
-  return { widgets };
+  return { schema };
 }
 
-/** 将持久化数据转换为动态组件输入，避免把整个布局对象递归塞进 props。 */
-function toGridItems(items: DashboardWidget[]): DashboardWidget[] {
-  return items.map((item) => ({
-    ...item,
-    props: {
-      widget: {
-        id: item.id,
-        type: item.type,
-        title: item.title,
-        config: item.config,
-      },
-    },
-  }));
+/** 接口接入后将服务端 JSON 传入此处；未知类型或损坏数据统一回退默认布局。 */
+function resolveDashboardSchema(input: unknown): DashboardSchema {
+  return (
+    normalizeDashboardSchema(input, { isWidgetType: isDashboardWidgetType }) ??
+    createDefaultWorkbenchSchema()
+  );
 }
