@@ -1,28 +1,31 @@
-<script setup lang="ts">
+<script setup lang="ts" generic="TType extends string">
 import { RiDeleteBinFill } from '@remixicon/vue';
-import { DashboardWidgetHost } from '@evolyn.do/dashboard';
-import type { DashboardWidgetContent } from '~/types/dashboard';
-import { dashboardWidgetRegistry, getDashboardWidgetComponentProps } from '../widget-registry';
+import type { Component } from 'vue';
+import type { DashboardWidgetContent } from '../schema';
+import DashboardWidgetHost from '../renderer/DashboardWidgetHost.vue';
 
-defineOptions({ name: 'WorkbenchEditorWidgetHost' });
-const props = defineProps<{ widget: DashboardWidgetContent }>();
-const emit = defineEmits<{ remove: [id: string] }>();
+defineOptions({ name: 'DashboardDesignWidgetHost' });
 
-function getEditorWidgetProps(widget: DashboardWidgetContent) {
-  return getDashboardWidgetComponentProps(widget, true);
-}
+const props = defineProps<{
+  widget: DashboardWidgetContent<TType>;
+  widgetRegistry: Partial<Record<TType, Component>>;
+  getComponentProps?: (widget: DashboardWidgetContent<TType>) => Record<string, unknown>;
+}>();
+const emit = defineEmits<{
+  remove: [id: string];
+}>();
 </script>
 
 <template>
-  <div class="workbench-editor-widget">
+  <div class="dashboard-design-widget">
     <DashboardWidgetHost
       :widget="widget"
-      :widget-registry="dashboardWidgetRegistry"
-      :get-component-props="getEditorWidgetProps"
+      :widget-registry="widgetRegistry"
+      :get-component-props="getComponentProps"
     />
-    <div class="workbench-editor-widget__actions">
+    <div class="dashboard-design-widget__actions">
       <button
-        class="workbench-editor-widget__delete"
+        class="dashboard-design-widget__delete"
         type="button"
         aria-label="删除卡片"
         @click.stop="emit('remove', widget.id)"
@@ -34,7 +37,7 @@ function getEditorWidgetProps(widget: DashboardWidgetContent) {
 </template>
 
 <style scoped lang="scss">
-.workbench-editor-widget {
+.dashboard-design-widget {
   position: relative;
   width: 100%;
   height: 100%;

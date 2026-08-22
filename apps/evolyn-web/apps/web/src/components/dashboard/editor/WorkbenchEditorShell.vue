@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { useDashboardEditor } from '@evolyn.do/dashboard';
+import { DashboardDesignCanvas, useDashboardEditor } from '@evolyn.do/dashboard';
 import { createDefaultWorkbenchSchema } from '~/dashboard/defaultWorkbench';
 import {
   isDashboardWidgetPresetRepeatable,
+  type DashboardWidgetContent,
   type DashboardWidget,
   type DashboardWidgetPreset,
 } from '~/types/dashboard';
+import { dashboardWidgetRegistry, getDashboardWidgetComponentProps } from '../widget-registry';
 import WidgetPalette from './WidgetPalette.vue';
-import WorkbenchDesignCanvas from './WorkbenchDesignCanvas.vue';
 
 defineOptions({ name: 'WorkbenchEditorShell' });
 
@@ -40,15 +41,21 @@ const { schema, disabledPresetKeys, addWidget, removeWidget } = useDashboardEdit
     presetKey: preset.key,
   }),
 });
+
+function getEditorWidgetProps(widget: DashboardWidgetContent) {
+  return getDashboardWidgetComponentProps(widget, true);
+}
 </script>
 
 <template>
   <div class="workbench-editor-shell">
     <WidgetPalette :disabled-keys="disabledPresetKeys" @add="addWidget" />
-    <WorkbenchDesignCanvas
+    <DashboardDesignCanvas
       v-model="schema"
-      :device="device"
-      :disabled-keys="disabledPresetKeys"
+      :widget-registry="dashboardWidgetRegistry"
+      :get-component-props="getEditorWidgetProps"
+      :preview="device"
+      :disabled-preset-keys="disabledPresetKeys"
       @remove="removeWidget"
     />
   </div>

@@ -12,10 +12,13 @@ const props = withDefaults(
   defineProps<{
     presets: TPreset[];
     disabledPresetKeys?: string[];
-    widgetComponent: string;
+    widgetComponent?: string;
     getWidgetProps?: (widget: DashboardWidgetContent<TType>) => Record<string, unknown>;
   }>(),
-  { disabledPresetKeys: () => [] },
+  {
+    disabledPresetKeys: () => [],
+    widgetComponent: 'DashboardDesignWidgetHost',
+  },
 );
 const emit = defineEmits<{
   add: [preset: TPreset];
@@ -34,7 +37,7 @@ function addPreset(preset: TPreset) {
 
 /**
  * 与 DashboardDesignCanvas 的默认 dragSourceSelector 对齐。
- * 业务应用只传预设与 Widget Host，GridStack 的拖放协议在包内维护。
+ * 业务应用通常只传预设，GridStack 的拖放协议和设计器 Widget Host 均在包内维护。
  */
 async function setupDragSources() {
   await nextTick();

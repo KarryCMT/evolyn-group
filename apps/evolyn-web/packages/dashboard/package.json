@@ -33,6 +33,7 @@
     "gridstack": "catalog:frontend"
   },
   "peerDependencies": {
+    "@remixicon/vue": "catalog:ui",
     "element-plus": "catalog:ui",
     "vue": "catalog:frontend"
   },

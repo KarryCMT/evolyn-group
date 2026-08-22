@@ -1,26 +1,22 @@
 <script setup lang="ts" generic="TType extends string">
-import {
-  EvolynGrid,
-  type EvolynGridComponents,
-  type EvolynGridItem,
-  type EvolynGridOptions,
-} from '@evolyn.do/ui';
+import { EvolynGrid, type EvolynGridItem, type EvolynGridOptions } from '@evolyn.do/ui';
 import type { GridStack as GridStackInstance, GridStackNode } from 'gridstack';
-import { computed, useTemplateRef } from 'vue';
+import { computed, markRaw, type Component, useTemplateRef } from 'vue';
 import {
   createDashboardGridItems,
   mergeDashboardWidgetLayout,
+  toDashboardWidgetContent,
   type DashboardSchema,
   type DashboardWidget,
   type DashboardWidgetContent,
 } from '../schema';
+import DashboardDesignWidgetHost from './DashboardDesignWidgetHost.vue';
 
 const props = withDefaults(
   defineProps<{
     modelValue: DashboardSchema<TType>;
-    components: EvolynGridComponents;
-    widgetComponent: string;
-    getWidgetProps: (widget: DashboardWidget<TType>) => Record<string, unknown>;
+    widgetRegistry: Partial<Record<TType, Component>>;
+    getComponentProps?: (widget: DashboardWidgetContent<TType>) => Record<string, unknown>;
     preview?: 'desktop' | 'mobile';
     disabledPresetKeys?: string[];
     dragSourceSelector?: string;
@@ -33,13 +29,15 @@ const props = withDefaults(
 );
 const emit = defineEmits<{
   'update:modelValue': [value: DashboardSchema<TType>];
+  remove: [id: string];
 }>();
 
 const grid = useTemplateRef<{ getGrid: () => GridStackInstance | null }>('grid');
+const components = { DashboardDesignWidgetHost: markRaw(DashboardDesignWidgetHost) };
 const editorItems = computed(() =>
   createDashboardGridItems(props.modelValue.widgets, {
-    component: props.widgetComponent,
-    createProps: props.getWidgetProps,
+    component: 'DashboardDesignWidgetHost',
+    createProps: getWidgetProps,
   }),
 );
 const gridOptions = computed<EvolynGridOptions>(() => ({
@@ -66,6 +64,15 @@ function updateLayout(items: EvolynGridItem[]) {
       return source ? [mergeDashboardWidgetLayout(source, item)] : [];
     }),
   );
+}
+
+function getWidgetProps(widget: DashboardWidget<TType>) {
+  return {
+    widget: toDashboardWidgetContent(widget),
+    widgetRegistry: props.widgetRegistry,
+    getComponentProps: props.getComponentProps,
+    onRemove: () => emit('remove', widget.id),
+  };
 }
 
 /** GridStack 为可重复拖入的同名节点追加序号，schema 中只记录原始预设键。 */

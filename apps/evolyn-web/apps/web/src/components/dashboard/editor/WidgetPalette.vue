@@ -146,7 +146,6 @@ const palette: PaletteItem[] = [
   <DashboardWidgetPalette
     :presets="palette"
     :disabled-preset-keys="disabledKeys"
-    widget-component="WorkbenchEditorWidgetHost"
     @add="emit('add', $event)"
   >
     <template #item="{ preset }">

@@ -81,9 +81,7 @@ declare module 'vue' {
     TopNavigation: typeof import('./components/navigation/TopNavigation.vue')['default']
     UserMenu: typeof import('./components/navigation/UserMenu.vue')['default']
     WidgetPalette: typeof import('./components/dashboard/editor/WidgetPalette.vue')['default']
-    WorkbenchDesignCanvas: typeof import('./components/dashboard/editor/WorkbenchDesignCanvas.vue')['default']
     WorkbenchEditorShell: typeof import('./components/dashboard/editor/WorkbenchEditorShell.vue')['default']
     WorkbenchEditorToolbar: typeof import('./components/dashboard/editor/WorkbenchEditorToolbar.vue')['default']
-    WorkbenchEditorWidgetHost: typeof import('./components/dashboard/editor/WorkbenchEditorWidgetHost.vue')['default']
   }
 }
