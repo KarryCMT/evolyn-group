@@ -138,6 +138,7 @@ const palette: PaletteItem[] = [
     h: 1,
     minW: 3,
     minH: 1,
+    maxH: 1,
   },
 ];
 
@@ -153,6 +154,8 @@ async function setupDragSources() {
     h: preset.h,
     minW: preset.minW,
     minH: preset.minH,
+    maxW: preset.maxW,
+    maxH: preset.maxH,
     component: 'WorkbenchEditorWidgetHost',
     props: {
       widget: {

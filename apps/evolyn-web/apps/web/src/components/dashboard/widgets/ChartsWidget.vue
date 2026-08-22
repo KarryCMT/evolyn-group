@@ -4,12 +4,20 @@ import type { DashboardWidgetContent } from '~/types/dashboard';
 import DashboardWidgetFrame from '../DashboardWidgetFrame.vue';
 
 defineOptions({ name: 'ChartsWidget' });
-defineProps<{ widget: DashboardWidgetContent }>();
+const props = withDefaults(
+  defineProps<{
+    widget: DashboardWidgetContent;
+    editorMode?: boolean;
+  }>(),
+  { editorMode: false },
+);
 </script>
 
 <template>
   <DashboardWidgetFrame title="我的图表">
-    <template #actions><el-button text type="primary">添加</el-button></template>
+    <template v-if="!props.editorMode" #actions>
+      <el-button text type="primary">添加</el-button>
+    </template>
     <el-empty class="charts-widget" description="暂无图表" :image-size="48" />
   </DashboardWidgetFrame>
 </template>

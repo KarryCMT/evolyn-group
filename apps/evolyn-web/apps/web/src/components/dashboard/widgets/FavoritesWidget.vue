@@ -7,7 +7,13 @@ import FavoritesWorkspaceDialog from '../favorites/FavoritesWorkspaceDialog.vue'
 import { useFavoriteApplications } from '../favorites/useFavoriteApplications';
 
 defineOptions({ name: 'FavoritesWidget' });
-const props = defineProps<{ widget: DashboardWidgetContent }>();
+const props = withDefaults(
+  defineProps<{
+    widget: DashboardWidgetContent;
+    editorMode?: boolean;
+  }>(),
+  { editorMode: false },
+);
 const favoritesVisible = shallowRef(false);
 const { favoriteApplications } = useFavoriteApplications();
 
@@ -19,7 +25,7 @@ const visibleApplications = computed(() => favoriteApplications.value.slice(0, 4
   <DashboardWidgetFrame :title="widget.title">
     <template #actions>
       <el-button
-        v-if="props.widget.title !== '最近使用'"
+        v-if="!props.editorMode && props.widget.title !== '最近使用'"
         text
         type="primary"
         @click="favoritesVisible = true"

@@ -21,17 +21,29 @@ const editorItems = computed<DashboardWidget[]>(() =>
   props.modelValue.map((item) => ({
     ...item,
     component: 'WorkbenchEditorWidgetHost',
-    props: { widget: toWidgetContent(item) },
+    props: { widget: toWidgetContent(item), onRemove: removeWidget },
   })),
 );
 const options = computed(() => ({
   column: props.device === 'desktop' ? 12 : 1,
   cellHeight: props.device === 'desktop' ? 72 : 92,
-  margin: 14,
+  // 相邻卡片的上下边距各 8px，视觉间距为 16px。
+  margin: '8px 14px',
   float: true,
   acceptWidgets: '.widget-palette__drag-source',
   draggable: { handle: '.dashboard-widget__drag-handle' },
+  // 右侧拖宽，右下角对角手柄同时调整宽高；仅悬停时显示操作入口。
+  resizable: { handles: 'e,se', autoHide: true },
 }));
+
+/** 编辑器宿主只上报操作，画布作为布局数据的唯一写入方。 */
+function removeWidget(id: string) {
+  emit(
+    'update:modelValue',
+    props.modelValue.filter((item) => item.id !== id),
+  );
+}
+
 function updateLayout(items: EvolynGridItem[]) {
   const current = new Map(props.modelValue.map((item) => [item.id, item]));
   emit(
@@ -91,6 +103,8 @@ function handleDropped(_previous: GridStackNode | undefined, current: GridStackN
       h: current.h ?? 1,
       minW: current.minW,
       minH: current.minH,
+      maxW: current.maxW,
+      maxH: current.maxH,
       component: 'WorkbenchEditorWidgetHost',
     });
   }
@@ -108,7 +122,10 @@ watch(
 
     await nextTick();
     const cellHeight = props.device === 'desktop' ? 72 : 92;
-    scrollbar.value?.setScrollTop(Math.max(0, added.y * (cellHeight + 14) - 14));
+    const verticalMargin = 8;
+    scrollbar.value?.setScrollTop(
+      Math.max(0, added.y * (cellHeight + verticalMargin) - verticalMargin),
+    );
   },
 );
 </script>
@@ -163,6 +180,53 @@ watch(
   /* 拖拽把手只在设计画布显示，成员端保持静态、干净的卡片外观。 */
   :deep(.dashboard-widget__drag-handle) {
     width: var(--el-component-size-small);
+  }
+
+  /* GridStack 的 east 手柄默认只有热区，补充双竖线作为可见的调宽提示。 */
+  :deep(.grid-stack-item > .ui-resizable-e) {
+    right: calc(var(--gs-item-margin-right) + 4px);
+    width: 14px;
+
+    &::before {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 4px;
+      height: 18px;
+      content: '';
+      border-right: 2px solid var(--el-text-color-secondary);
+      border-left: 2px solid var(--el-text-color-secondary);
+      border-radius: 1px;
+      opacity: 0.55;
+      transform: translate(-50%, -50%);
+    }
+  }
+
+  /* 右下角以三角形提示双向调整，保留 GridStack 的宽高拖拽能力。 */
+  :deep(.grid-stack-item > .ui-resizable-se) {
+    right: calc(var(--gs-item-margin-right) + 2px);
+    bottom: calc(var(--gs-item-margin-bottom) + 2px);
+    width: 24px;
+    height: 24px;
+    background: none;
+    transform: none;
+
+    &::before {
+      position: absolute;
+      right: 4px;
+      bottom: 4px;
+      width: 12px;
+      height: 12px;
+      content: '';
+      background: var(--el-text-color-secondary);
+      clip-path: polygon(100% 0, 100% 100%, 0 100%);
+      opacity: 0.5;
+    }
+  }
+
+  /* 单行问候语只允许横向调整，避免显示无效的右下角双向手柄。 */
+  :deep(.grid-stack-item[gs-max-h='1'] > .ui-resizable-se) {
+    display: none;
   }
 }
 </style>

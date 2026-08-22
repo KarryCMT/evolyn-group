@@ -11,7 +11,13 @@ import type { DashboardWidgetContent } from '~/types/dashboard';
 import DashboardWidgetFrame from '../DashboardWidgetFrame.vue';
 
 defineOptions({ name: 'AppsWidget' });
-defineProps<{ widget: DashboardWidgetContent }>();
+const props = withDefaults(
+  defineProps<{
+    widget: DashboardWidgetContent;
+    editorMode?: boolean;
+  }>(),
+  { editorMode: false },
+);
 const apps = [
   { label: '简道云示例应用', icon: CollectionTag, tone: 'success' },
   { label: '合同管理', icon: Files, tone: 'danger' },
@@ -22,7 +28,7 @@ const apps = [
 
 <template>
   <DashboardWidgetFrame title="我的应用">
-    <template #actions>
+    <template v-if="!props.editorMode" #actions>
       <div class="apps-widget__actions">
         <el-input placeholder="请输入名称搜索" :prefix-icon="Search" />
         <el-button type="primary" :icon="Plus">新建应用</el-button>

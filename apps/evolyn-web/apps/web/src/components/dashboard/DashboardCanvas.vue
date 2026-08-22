@@ -12,7 +12,8 @@ const components = { DashboardWidgetHost: markRaw(DashboardWidgetHost) };
 const gridOptions = computed(() => ({
   column: 12,
   cellHeight: 72,
-  margin: 12,
+  // 相邻卡片的上下边距各 8px，视觉间距为 16px。
+  margin: '8px 12px',
   float: true,
 }));
 </script>

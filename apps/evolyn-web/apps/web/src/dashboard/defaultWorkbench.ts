@@ -6,7 +6,8 @@ import type { DashboardWidget } from '~/types/dashboard';
  */
 const defaultWidgets: DashboardWidget[] = [
   widget('onboarding', '新手引导', 0, 0, 12, 2, { noResize: true }),
-  widget('greeting', '问候语', 0, 2, 3, 1, { minW: 3, minH: 1 }),
+  // 问候语为单行卡片，仅允许横向调整以保持头像和文案的固定高度。
+  widget('greeting', '问候语', 0, 2, 3, 1, { minW: 3, minH: 1, maxH: 1 }),
   widget('favorites', '最近使用', 3, 2, 9, 2, { minW: 4, minH: 2 }),
   widget('shortcut', '未命名快捷入口', 0, 4, 12, 2, { minH: 2 }),
   widget('todo', '流程中心', 0, 6, 3, 4, { minW: 3, minH: 3 }),
