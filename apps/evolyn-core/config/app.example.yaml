@@ -55,6 +55,8 @@ sms:
 pki:
   # 登录密码加密传输：公钥经 GET /app/conf 下发前端（jsencrypt PKCS#1 v1.5），
   # 私钥仅服务端解密。生产用 openssl genrsa 生成 2048 位密钥并配置同一把私钥
-  # （多实例必须共享）；留空则每次启动随机生成（仅开发/测试，重启即轮换）
+  # （多实例必须共享）；可直接配置 privateKey，或使用相对 app.yaml 的 privateKeyFile。
+  # 两者都留空则每次启动随机生成（仅开发/测试，重启即轮换）
   algorithm: "rsa"
   privateKey: ""
+  privateKeyFile: ""

@@ -49,5 +49,6 @@ sms:
   devEcho: true        # 响应回显验证码（仅本地联调，生产必须 false）
 
 pki:
-  algorithm: "rsa"     # 登录密码加密算法：公钥经 GET /app/conf 下发前端
-  privateKey: ""       # PEM 私钥；空 = 启动随机生成（仅开发，重启轮换；生产须显式配置）
+  algorithm: "rsa"                    # 登录密码加密算法：公钥经 GET /app/conf 下发前端
+  privateKey: ""                      # PEM 私钥；与 privateKeyFile 二选一；空 = 启动随机生成
+  privateKeyFile: "private_key.pem"   # PEM 私钥文件，相对 app.yaml 所在目录；公钥从私钥派生

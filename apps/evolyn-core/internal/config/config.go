@@ -1,7 +1,10 @@
 package config
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"evolyn/internal/utils/ratelimit"
@@ -32,11 +35,13 @@ type SMSConfig struct {
 }
 
 // PKIConfig 登录口令加密传输密钥：公钥经 GET /app/conf 下发前端，
-// 私钥仅服务端解密用。PrivateKey 为 PEM；留空时启动随机生成一把
-// （仅开发/测试，重启即轮换；生产与多实例部署必须显式配置同一密钥对）
+// 私钥仅服务端解密用。PrivateKey 为直接配置的 PEM，PrivateKeyFile 为 PEM 文件路径，
+// 两者只能配置其一；均留空时启动随机生成一把（仅开发/测试，重启即轮换）。
+// 生产与多实例部署必须显式配置同一密钥对。
 type PKIConfig struct {
-	Algorithm  string `yaml:"algorithm"`  // 一期固定 rsa
-	PrivateKey string `yaml:"privateKey"` // PEM 私钥（真实私钥不入库，经环境配置注入）
+	Algorithm      string `yaml:"algorithm"`      // 一期固定 rsa
+	PrivateKey     string `yaml:"privateKey"`     // PEM 私钥（真实私钥不入库，经环境配置注入）
+	PrivateKeyFile string `yaml:"privateKeyFile"` // PEM 私钥文件路径（相对配置文件所在目录）
 }
 
 type ServerConfig struct {
@@ -105,8 +110,26 @@ func Parse(appConfig string) (*Config, error) {
 	}
 	defer file.Close()
 
-	if err := yaml.NewDecoder(file).Decode(&config); err != nil {
+	if err := yaml.NewDecoder(file).Decode(config); err != nil {
 		return nil, err
+	}
+
+	if config.PKI.PrivateKey != "" && config.PKI.PrivateKeyFile != "" {
+		return nil, fmt.Errorf("pki.privateKey and pki.privateKeyFile cannot both be configured")
+	}
+	if config.PKI.PrivateKeyFile != "" {
+		privateKeyPath := config.PKI.PrivateKeyFile
+		if !filepath.IsAbs(privateKeyPath) {
+			privateKeyPath = filepath.Join(filepath.Dir(appConfig), privateKeyPath)
+		}
+		privateKey, err := os.ReadFile(privateKeyPath)
+		if err != nil {
+			return nil, fmt.Errorf("read pki private key file: %w", err)
+		}
+		if strings.TrimSpace(string(privateKey)) == "" {
+			return nil, fmt.Errorf("pki private key file is empty")
+		}
+		config.PKI.PrivateKey = string(privateKey)
 	}
 
 	return config, nil
