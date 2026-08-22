@@ -16,14 +16,20 @@ import (
 
 // ErrStaleSession 会话租户归属过期（ADR-008 稳定码）：签发后成员被移动到
 // 其他租户，令牌中的 tenantId 与当前归属不一致，需重新登录
-var ErrStaleSession = httpx.NewBiz("AUTH_STALE_TENANT", "登录态已失效（租户归属变化），请重新登录", http.StatusUnauthorized)
+var (
+	ErrStaleSession = httpx.NewBiz("AUTH_STALE_TENANT", "登录态已失效（租户归属变化），请重新登录", http.StatusUnauthorized)
+	// ErrSessionInvalidated 密码找回/修改后账号的 session_version 已推进，旧 JWT
+	// 不再可信，统一要求重新登录。
+	ErrSessionInvalidated = httpx.NewBiz("AUTH_SESSION_INVALIDATED", "密码已更新，请重新登录", http.StatusUnauthorized)
+	ErrTokenRevoked       = httpx.NewBiz("AUTH_TOKEN_REVOKED", "登录态已退出，请重新登录", http.StatusUnauthorized)
+)
 
 // AuthenticationMiddleware 会话认证：按 JWT claims 的 memberId 加载成员（ADR-006）。
 // 此时尚未经过 TenantMiddleware（租户上下文来自本处加载成员的归属），
 // ctx 无租户上下文，GetUserByID 按全局唯一 ID 查询
 // AuthenticationMiddleware 会话认证。revoker 非空时校验令牌吊销状态
 // （P2-8：登出拉黑 jti 至自然过期；可传 nil 跳过，供无 Redis 场景/测试）
-func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.UserRepository, revoker *auth.TokenRevoker) gin.HandlerFunc {
+func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.UserRepository, accountRepo repository.AccountRepository, revoker *auth.TokenRevoker) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, _ := getTokenFromAuthorizationHeader(c)
 		if token == "" {
@@ -33,7 +39,18 @@ func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.U
 		claims, _ := jwtService.ParseToken(token)
 		if claims != nil {
 			if revoker != nil && revoker.Revoked(c.Request.Context(), claims.ID) {
-				httpx.ResponseFailed(c, http.StatusUnauthorized, fmt.Errorf("token revoked"))
+				httpx.ResponseFailed(c, http.StatusUnauthorized, ErrTokenRevoked)
+				c.Abort()
+				return
+			}
+			account, err := accountRepo.GetByID(c.Request.Context(), claims.AccountID)
+			if err != nil {
+				httpx.ResponseFailed(c, http.StatusUnauthorized, ErrSessionInvalidated)
+				c.Abort()
+				return
+			}
+			if account.SessionVersion != claims.SessionVersion {
+				httpx.ResponseFailed(c, http.StatusUnauthorized, ErrSessionInvalidated)
 				c.Abort()
 				return
 			}
@@ -50,7 +67,7 @@ func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.U
 				return
 			}
 			// 会话签发后成员被移动到其他租户等异常：拒绝过期会话
-			if member.TenantID != claims.TenantID {
+			if member.AccountId != claims.AccountID || member.TenantID != claims.TenantID {
 				httpx.ResponseFailed(c, http.StatusUnauthorized, ErrStaleSession)
 				c.Abort()
 				return

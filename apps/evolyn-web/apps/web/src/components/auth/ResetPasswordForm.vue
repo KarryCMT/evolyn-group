@@ -1,35 +1,30 @@
 <script setup lang="ts">
-// 验证码登录表单：手机号 + 短信验证码 +「下次自动登录」。「获取验证码」通过
-// 手机号校验后上抛父级发送，父级成功后才启动 60s 重发倒计时；提交校验通过后上抛，
-// 登录调用在父级。remember 决定令牌存储范围（持久/会话级，见 composables/auth）
+// 找回密码表单：只负责手机号、验证码和两次新密码的采集校验；发送短信与重设请求
+// 分别通过事件交由路由页编排，保持认证接口调用和表单展示职责分离。
 import { reactive, useTemplateRef, watch } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import { RiSmartphoneFill } from '@remixicon/vue';
+import { RiLockPasswordFill, RiSmartphoneFill } from '@remixicon/vue';
 import { useSmsCountdown } from '~/composables/useSmsCountdown';
 
-/** 重发倒计时秒数：与后端发送冷却窗口一致 */
 const RESEND_SECONDS = 60;
 
 const props = defineProps<{
-  /** 提交中：按钮显示 loading 并防重复提交 */
   loading?: boolean;
-  /** 父级仅在短信发送成功后递增，用于启动重发倒计时 */
+  /** 父级仅在 reset 场景短信发送成功后递增，用于启动重发倒计时 */
   sentVersion?: number;
 }>();
 
 const emit = defineEmits<{
-  /** 校验通过后上抛手机号 + 验证码 + 是否下次自动登录 */
-  submit: [payload: { phone: string; code: string; remember: boolean }];
-  /** 请求发送短信验证码（先通过手机号校验） */
   'send-code': [phone: string];
+  submit: [payload: { phone: string; smsCode: string; newPassword: string }];
 }>();
 
 const formRef = useTemplateRef<FormInstance>('formRef');
-
 const form = reactive({
   phone: '',
-  code: '',
-  remember: true,
+  smsCode: '',
+  newPassword: '',
+  confirmPassword: '',
 });
 
 const rules: FormRules = {
@@ -37,15 +32,27 @@ const rules: FormRules = {
     { required: true, message: '请输入手机号', trigger: 'blur' },
     { pattern: /^1[3-9]\d{9}$/, message: '手机号格式不正确', trigger: 'blur' },
   ],
-  code: [
+  smsCode: [
     { required: true, message: '请输入验证码', trigger: 'blur' },
     { pattern: /^\d{6}$/, message: '验证码为 6 位数字', trigger: 'blur' },
+  ],
+  newPassword: [
+    { required: true, message: '请输入新密码', trigger: 'blur' },
+    { min: 6, max: 64, message: '密码长度为 6-64 位', trigger: 'blur' },
+  ],
+  confirmPassword: [
+    { required: true, message: '请再次输入新密码', trigger: 'blur' },
+    {
+      validator: (_rule, value: string, callback) => {
+        callback(value === form.newPassword ? undefined : new Error('两次输入的密码不一致'));
+      },
+      trigger: 'blur',
+    },
   ],
 };
 
 const { countdown, start: startCountdown } = useSmsCountdown(RESEND_SECONDS);
 
-// 父级异步发送成功后才启动倒计时；发送失败不改变 sentVersion，用户可立即重试。
 watch(
   () => props.sentVersion,
   (version, previous) => {
@@ -60,16 +67,17 @@ async function handleSubmit() {
   );
   if (!valid) return;
 
-  emit('submit', { phone: form.phone.trim(), code: form.code, remember: form.remember });
+  emit('submit', {
+    phone: form.phone.trim(),
+    smsCode: form.smsCode,
+    newPassword: form.newPassword,
+  });
 }
 
 function handleSendCode() {
-  // 仅校验手机号字段，通过后上抛发送请求；倒计时由父级成功响应驱动。
   formRef.value
     ?.validateField('phone')
-    .then(() => {
-      emit('send-code', form.phone.trim());
-    })
+    .then(() => emit('send-code', form.phone.trim()))
     .catch(() => {});
 }
 </script>
@@ -77,7 +85,7 @@ function handleSendCode() {
 <template>
   <el-form
     ref="formRef"
-    class="sms-login-form"
+    class="reset-password-form"
     :model="form"
     :rules="rules"
     size="large"
@@ -96,19 +104,17 @@ function handleSendCode() {
       </el-input>
     </el-form-item>
 
-    <el-form-item prop="code">
+    <el-form-item prop="smsCode">
       <el-input
-        v-model="form.code"
-        name="code"
+        v-model="form.smsCode"
+        name="sms-code"
         placeholder="收到的验证码"
         autocomplete="one-time-code"
         maxlength="6"
-        @keyup.enter="handleSubmit"
       >
-        <!-- 获取验证码：输入框内右侧文字按钮（设计稿口径），倒计时中禁用 -->
         <template #suffix>
           <button
-            class="sms-login-form__send"
+            class="reset-password-form__send"
             type="button"
             :disabled="countdown > 0 || loading"
             @click="handleSendCode"
@@ -119,33 +125,53 @@ function handleSendCode() {
       </el-input>
     </el-form-item>
 
-    <el-form-item class="sms-login-form__remember">
-      <el-checkbox v-model="form.remember">下次自动登录</el-checkbox>
+    <el-form-item prop="newPassword">
+      <el-input
+        v-model="form.newPassword"
+        name="new-password"
+        type="password"
+        placeholder="设置新密码（6-64 位）"
+        autocomplete="new-password"
+        show-password
+        :prefix-icon="RiLockPasswordFill"
+      />
+    </el-form-item>
+
+    <el-form-item prop="confirmPassword">
+      <el-input
+        v-model="form.confirmPassword"
+        name="confirm-password"
+        type="password"
+        placeholder="再次输入新密码"
+        autocomplete="new-password"
+        show-password
+        :prefix-icon="RiLockPasswordFill"
+        @keyup.enter="handleSubmit"
+      />
     </el-form-item>
 
     <el-button
-      class="sms-login-form__submit"
+      class="reset-password-form__submit"
       type="primary"
-      size="large"
       native-type="submit"
       :loading="loading"
     >
-      登录
+      重设密码
     </el-button>
 
-    <!-- 登录方式切换（如「密码登录」）由父级通过 footer 插槽注入 -->
-    <slot name="footer" />
+    <div class="reset-password-form__login">
+      想起密码了？<router-link to="/auth/login">返回登录</router-link>
+    </div>
   </el-form>
 </template>
 
 <style lang="scss" scoped>
-// 获取验证码：输入框内右侧无边框文字按钮，与后端冷却窗口联动禁用
-.sms-login-form__send {
-  padding: 0;
-  font-size: var(--el-font-size-base);
+.reset-password-form__send {
+  padding: 4px 0 4px 12px;
+  border: 0;
+  border-left: 1px solid var(--el-border-color);
+  background: transparent;
   color: var(--el-color-primary);
-  background: none;
-  border: none;
   cursor: pointer;
 
   &:hover:not(:disabled) {
@@ -158,12 +184,21 @@ function handleSendCode() {
   }
 }
 
-// 勾选行收紧下边距，贴近主按钮
-.sms-login-form__remember {
-  margin-bottom: 14px;
+.reset-password-form__submit {
+  width: 100%;
 }
 
-.sms-login-form__submit {
-  width: 100%;
+.reset-password-form__login {
+  margin-top: 16px;
+  text-align: center;
+  color: var(--el-text-color-regular);
+
+  a {
+    color: var(--el-color-primary);
+
+    &:hover {
+      color: var(--el-color-primary-light-3);
+    }
+  }
 }
 </style>

@@ -1,39 +1,61 @@
 <script setup lang="ts">
-// 忘记密码页（占位）：后端重置密码接口未开放，先提供说明与返回入口
+// 找回密码路由页：编排 reset 场景验证码发送、RSA 加密和后端重设接口；
+// 字段收集与本地校验留在 ResetPasswordForm，避免页面承担表单细节。
+import { shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
+import { ElMessage } from 'element-plus';
+import { resetPassword, sendSmsCode } from '~/api/auth';
+import { encryptPassword } from '~/api/conf';
+import ResetPasswordForm from '~/components/auth/ResetPasswordForm.vue';
 
 const router = useRouter();
+const submitting = shallowRef(false);
+const smsSentVersion = shallowRef(0);
 
-function goLogin() {
-  router.replace('/auth/login');
+async function handleSendCode(phone: string) {
+  try {
+    const result = await sendSmsCode(phone, 'reset');
+    if (result.code) {
+      ElMessage({
+        message: `【本地联调】验证码：${result.code}（5 分钟内有效）`,
+        type: 'info',
+        duration: 10000,
+        showClose: true,
+      });
+    } else {
+      ElMessage.success('验证码已发送，请注意查收短信');
+    }
+    smsSentVersion.value += 1;
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '验证码发送失败');
+  }
+}
+
+async function handleSubmit(payload: { phone: string; smsCode: string; newPassword: string }) {
+  submitting.value = true;
+  try {
+    await resetPassword({
+      phone: payload.phone,
+      smsCode: payload.smsCode,
+      newPassword: await encryptPassword(payload.newPassword),
+    });
+    ElMessage.success('密码已重设，请使用新密码登录');
+    await router.replace('/auth/login');
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '密码重设失败，请稍后重试');
+  } finally {
+    submitting.value = false;
+  }
 }
 </script>
 
 <template>
-  <AuthLayout title="找回密码" subtitle="验证身份后重置登录密码">
-    <el-result class="forgot-page__result" icon="info" title="找回密码功能即将上线">
-      <template #sub>
-        <p class="forgot-page__tip">
-          上线前可联系团队管理员重置密码，<br />
-          或先使用密码方式登录后在账号设置中修改。
-        </p>
-      </template>
-      <template #extra>
-        <el-button type="primary" size="large" @click="goLogin">返回登录</el-button>
-      </template>
-    </el-result>
+  <AuthLayout title="找回密码" subtitle="验证手机号后重设登录密码">
+    <ResetPasswordForm
+      :loading="submitting"
+      :sent-version="smsSentVersion"
+      @send-code="handleSendCode"
+      @submit="handleSubmit"
+    />
   </AuthLayout>
 </template>
-
-<style lang="scss" scoped>
-.forgot-page__result {
-  padding: 16px 0 8px;
-}
-
-.forgot-page__tip {
-  margin: 0;
-  font-size: var(--el-font-size-base);
-  line-height: 1.8;
-  color: var(--el-text-color-secondary);
-}
-</style>

@@ -108,14 +108,16 @@ func TestTokenTenantRoundtrip(t *testing.T) {
 	service := NewJWTService("test")
 
 	account, member := newSession()
+	account.SessionVersion = 3
 	token, err := service.CreateToken(account, member)
 	assert.Empty(t, err)
 
 	claims, err := service.ParseToken(token)
 	assert.Empty(t, err)
-	// 会话四元组完整往返：账号/成员/租户/登录名（ADR-006）
+	// 会话五元组完整往返：账号/成员/租户/会话版本/登录名（ADR-006）。
 	assert.Equal(t, uint(9), claims.AccountID)
 	assert.Equal(t, uint(7), claims.MemberID)
 	assert.Equal(t, uint(3), claims.TenantID)
+	assert.Equal(t, uint64(3), claims.SessionVersion)
 	assert.Equal(t, "someone", claims.Name)
 }

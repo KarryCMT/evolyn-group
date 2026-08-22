@@ -360,7 +360,8 @@ func (s *accountService) CreateOAuthAccount(ctx context.Context, account *model.
 		return old, member, nil
 	}
 
-	return old, &members[0], nil
+	member, err := s.pickDefaultLoginMember(contextx.DetachTenant(ctx), old, members)
+	return old, member, err
 }
 
 func (s *accountService) Validate(account *model.Account) error {

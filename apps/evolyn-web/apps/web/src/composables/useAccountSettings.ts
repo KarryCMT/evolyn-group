@@ -1,5 +1,5 @@
 import { ElMessage } from 'element-plus';
-import { ref } from 'vue';
+import { shallowRef } from 'vue';
 import { changeMyPassword, updateMyProfile } from '~/api/account';
 import { encryptPassword } from '~/api/conf';
 import { useAuth } from '~/composables/auth';
@@ -10,9 +10,9 @@ import type { AccountPasswordForm, AccountProfileForm } from '~/types/account';
  * 密码在此处完成 RSA 加密，避免页面组件接触接口细节。
  */
 export function useAccountSettings() {
-  const { loadUserInfo } = useAuth();
-  const savingProfile = ref(false);
-  const savingPassword = ref(false);
+  const { loadUserInfo, logout } = useAuth();
+  const savingProfile = shallowRef(false);
+  const savingPassword = shallowRef(false);
 
   async function saveProfile(payload: AccountProfileForm) {
     savingProfile.value = true;
@@ -33,8 +33,11 @@ export function useAccountSettings() {
         encryptPassword(payload.newPassword),
       ]);
       await changeMyPassword({ oldPassword, newPassword });
-      await loadUserInfo();
-      ElMessage.success('密码已更新');
+      // 后端递增账号会话版本，当前会话也会失效；立即清本地令牌并引导重新登录。
+      // 当前 token 已被后端拒绝，登出接口可能返回 401；store 的 finally 仍会
+      // 清理本地会话，这里吞掉该预期响应，保证后续提示和跳转能够执行。
+      await logout().catch(() => {});
+      ElMessage.success('密码已更新，请使用新密码重新登录');
     } finally {
       savingPassword.value = false;
     }

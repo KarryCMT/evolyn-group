@@ -12,6 +12,7 @@ certs/
 *.key
 *.crt
 *.csr
+*.pem
 
 # 本地运行配置与 swagger 生成产物
 apps/evolyn-core/config/app.local.yaml

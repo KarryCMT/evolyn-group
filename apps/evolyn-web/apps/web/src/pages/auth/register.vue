@@ -21,6 +21,8 @@ const { applyJwt, loadUserInfo } = useAuth();
 
 const step = shallowRef(0);
 const submitting = shallowRef(false);
+// 仅在短信接口成功后递增，子表单据此开始重发倒计时。
+const smsSentVersion = shallowRef(0);
 
 // 向导采集的全量数据：第 1/2 步暂存于此，第 3 步随「进入产品」汇总提交
 const phone = shallowRef('');
@@ -60,6 +62,7 @@ async function handleSendCode(target: string) {
     } else {
       ElMessage.success('验证码已发送，请注意查收短信');
     }
+    smsSentVersion.value += 1;
   } catch (err) {
     // 冷却中给更友好的中文提示
     if (err instanceof ApiError && err.errCode === ERROR_CODES.AUTH_COOLDOWN) {
@@ -144,6 +147,7 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
       v-if="step === 0"
       :loading="submitting"
       :default-phone="phone"
+      :sent-version="smsSentVersion"
       @submit="handleAccountSubmit"
       @send-code="handleSendCode"
     />

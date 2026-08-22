@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AccountPasswordForm, AccountProfileForm, AccountSettingsTab } from '~/types/account';
 import { shallowRef } from 'vue';
+import { useRouter } from 'vue-router';
 import AccountBasicInfoPanel from '~/components/dashboard/account/AccountBasicInfoPanel.vue';
 import AccountSecurityPanel from '~/components/dashboard/account/AccountSecurityPanel.vue';
 import AccountSettingsSidebar from '~/components/dashboard/account/AccountSettingsSidebar.vue';
@@ -15,6 +16,7 @@ defineOptions({ name: 'AccountPage' });
 
 const { userInfo } = useAuth();
 const { savingPassword, savingProfile, savePassword, saveProfile } = useAccountSettings();
+const router = useRouter();
 const activeTab = shallowRef<AccountSettingsTab>('basic');
 const profileDialogVisible = shallowRef(false);
 const passwordDialogVisible = shallowRef(false);
@@ -27,7 +29,7 @@ async function handleProfileSubmit(payload: AccountProfileForm) {
 
 async function handlePasswordSubmit(payload: AccountPasswordForm) {
   await savePassword(payload);
-  passwordDialogVisible.value = false;
+  await router.replace('/auth/login');
 }
 
 // 打开登录日志抽屉：抽屉打开时自动拉取最新流水（见 LoginLogDrawer）。

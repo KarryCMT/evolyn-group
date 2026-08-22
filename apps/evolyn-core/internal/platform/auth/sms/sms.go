@@ -6,12 +6,10 @@ package sms
 import (
 	"context"
 	"crypto/rand"
-	"errors"
 	"fmt"
 	"math/big"
 	"net/http"
 	"regexp"
-	"strconv"
 	"time"
 
 	"evolyn/internal/platform/httpx"
@@ -142,24 +140,69 @@ func dailyKey(phone string) string {
 	return fmt.Sprintf("evolyn:sms:daily:%s:%s", phone, time.Now().Format("20060102"))
 }
 
-// Send 发送验证码：场景/手机号校验 → 日限额 → 冷却闸（SetNX 原子占位）→
-// 生成 6 位数字码 → 先走通道发送（失败回滚冷却键，无状态残留）→
-// 成功后落码并清零试错、累加日计数。冷却期内重复请求直接拒绝
+// reserveDailyScript 原子预占当天的发送名额。预占发生在调用短信服务商前，
+// 从根源避免并发请求都通过旧的 GET 计数检查而突破日限额。
+// 返回值：1=预占成功，0=已达日上限。
+const reserveDailyScript = `
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+if current >= tonumber(ARGV[1]) then return 0 end
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end
+return 1`
+
+// releaseDailyScript 通道尚未真正发送时归还预占名额。发送已成功但 Redis
+// 落码失败时不归还，避免攻击者利用存储异常绕过真实短信成本限制。
+const releaseDailyScript = `
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+if current <= 1 then
+  redis.call('DEL', KEYS[1])
+  return 0
+end
+return redis.call('DECR', KEYS[1])`
+
+// secondsUntilTomorrow 返回当前自然日剩余秒数。计数跨场景共享，并在下一天
+// 零点自动过期，避免原 25 小时 TTL 让上限跨自然日延后恢复。
+func secondsUntilTomorrow(now time.Time) int64 {
+	nextDay := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+	seconds := int64(nextDay.Sub(now).Seconds())
+	if seconds < 1 {
+		return 1
+	}
+	return seconds
+}
+
+// reserveDaily 原子预占日额度，Redis 故障时明确失败，不允许在防刷状态未知时发送。
+func (s *Service) reserveDaily(ctx context.Context, phone string) error {
+	res, err := s.rdb.Eval(ctx, reserveDailyScript, []string{dailyKey(phone)}, s.opts.DailyLimit, secondsUntilTomorrow(time.Now())).Int64()
+	if err != nil {
+		return fmt.Errorf("redis reserve daily: %w", err)
+	}
+	if res == 0 {
+		return ErrDailyLimit
+	}
+	if res != 1 {
+		return fmt.Errorf("unexpected reserve daily result: %d", res)
+	}
+	return nil
+}
+
+// releaseDaily 仅用于短信通道调用失败等“没有产生实际发送”的分支；释放失败
+// 宁可保留该名额消耗，也不能放宽日限额。
+func (s *Service) releaseDaily(ctx context.Context, phone string) {
+	if _, err := s.rdb.Eval(ctx, releaseDailyScript, []string{dailyKey(phone)}).Int64(); err != nil {
+		logrus.Warnf("release sms daily quota: %v", err)
+	}
+}
+
+// Send 发送验证码：场景/手机号校验 → 冷却闸（SetNX 原子占位）→ 原子预占日限额 →
+// 生成 6 位数字码 → 走通道发送 → 落码。通道失败回滚冷却和日额度；通道已成功
+// 但落码失败时取消冷却并清理旧码，允许用户立即重试且不会误用上一次验证码。
 func (s *Service) Send(ctx context.Context, scene, phone string) (string, error) {
 	if _, ok := validScenes[scene]; !ok {
 		return "", ErrScene
 	}
 	if !phonePattern.MatchString(phone) {
 		return "", ErrPhone
-	}
-
-	// 日限额（P2-7）：已达上限直接拒绝，未达上限先不计数（发送成功才计数）
-	if sent, err := s.rdb.Get(ctx, dailyKey(phone)).Result(); err == nil {
-		if n, _ := strconv.ParseInt(sent, 10, 64); n >= int64(s.opts.DailyLimit) {
-			return "", ErrDailyLimit
-		}
-	} else if !errors.Is(err, redis.Nil) {
-		return "", fmt.Errorf("redis get daily: %w", err)
 	}
 
 	ok, err := s.rdb.SetNX(ctx, coolKey(scene, phone), 1, s.opts.Cooldown).Result()
@@ -169,9 +212,15 @@ func (s *Service) Send(ctx context.Context, scene, phone string) (string, error)
 	if !ok {
 		return "", ErrCooldown
 	}
+	if err := s.reserveDaily(ctx, phone); err != nil {
+		s.rdb.Del(ctx, coolKey(scene, phone))
+		return "", err
+	}
 
 	code, err := s.pickCode()
 	if err != nil {
+		s.rdb.Del(ctx, coolKey(scene, phone))
+		s.releaseDaily(ctx, phone)
 		return "", err
 	}
 
@@ -179,19 +228,18 @@ func (s *Service) Send(ctx context.Context, scene, phone string) (string, error)
 	// 也不会出现「已覆盖旧码但新码未送达」的中间态
 	if err := s.sender.Send(ctx, phone, code); err != nil {
 		s.rdb.Del(ctx, coolKey(scene, phone))
+		s.releaseDaily(ctx, phone)
 		return "", fmt.Errorf("send sms: %w", err)
 	}
 
 	// 新码覆盖旧码并清零试错计数（旧码立即失效）
 	if _, err := s.rdb.Set(ctx, codeKey(scene, phone), code, s.opts.CodeTTL).Result(); err != nil {
+		// 发送已发生但新码无法验证：清掉冷却及可能残留的旧码，让用户能立刻
+		// 重试；日额度保留为已消耗，真实短信成本不能被该异常绕过。
+		s.rdb.Del(ctx, coolKey(scene, phone), codeKey(scene, phone), triesKey(scene, phone))
 		return "", fmt.Errorf("redis set code: %w", err)
 	}
 	s.rdb.Del(ctx, triesKey(scene, phone))
-
-	// 发送成功后累加日计数，首次设置 25 小时过期（覆盖跨日边界余量）
-	if n, err := s.rdb.Incr(ctx, dailyKey(phone)).Result(); err == nil && n == 1 {
-		s.rdb.Expire(ctx, dailyKey(phone), 25*time.Hour)
-	}
 
 	return code, nil
 }

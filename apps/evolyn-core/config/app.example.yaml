@@ -49,6 +49,7 @@ sms:
   codeTtlSeconds: 300  # 验证码有效期（秒）
   cooldownSeconds: 60  # 重发冷却（秒）
   maxTries: 5          # 单码最大试错次数
+  dailyLimit: 10       # 单手机号自然日发送上限（跨登录/注册/找回场景合计）
   devEcho: false       # 响应回显验证码（仅本地联调可开，生产必须 false）
 
 pki:

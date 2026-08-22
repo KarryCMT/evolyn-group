@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // 注册向导第 1 步「注册账号」：只收集手机号 + 短信验证码（设计稿口径），
-// 不收集用户名/密码。「获取验证码」通过手机号校验后上抛父级发送并启动
-// 60s 重发倒计时；提交校验通过后上抛，父级仅暂存推进——注册动作合并到
+// 不收集用户名/密码。「获取验证码」通过手机号校验后上抛父级发送；仅在父级
+// 返回成功后启动 60s 重发倒计时。提交校验通过后上抛，父级仅暂存推进——注册动作合并到
 // 向导第 3 步「进入产品」的最终提交，验证码也在彼时一次性校验
-import { onUnmounted, reactive, shallowRef, useTemplateRef } from 'vue';
+import { reactive, useTemplateRef, watch } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
 import { Iphone } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
+import { useSmsCountdown } from '~/composables/useSmsCountdown';
 
 /** 重发倒计时秒数：与后端发送冷却窗口一致 */
 const RESEND_SECONDS = 60;
@@ -14,6 +15,8 @@ const RESEND_SECONDS = 60;
 const props = defineProps<{
   /** 提交中：按钮显示 loading 并防重复提交 */
   loading?: boolean;
+  /** 父级仅在短信发送成功后递增，用于启动重发倒计时 */
+  sentVersion?: number;
   /** 回退场景带回的手机号（验证码过期退回本步时免重填） */
   defaultPhone?: string;
 }>();
@@ -43,24 +46,15 @@ const rules: FormRules = {
   ],
 };
 
-// 重发倒计时：发送即启动，到 0 自动恢复按钮
-const countdown = shallowRef(0);
-let timer: ReturnType<typeof setInterval> | undefined;
+const { countdown, start: startCountdown } = useSmsCountdown(RESEND_SECONDS);
 
-function startCountdown() {
-  countdown.value = RESEND_SECONDS;
-  timer = setInterval(() => {
-    countdown.value -= 1;
-    if (countdown.value <= 0) {
-      clearInterval(timer);
-      timer = undefined;
-    }
-  }, 1000);
-}
-
-onUnmounted(() => {
-  if (timer !== undefined) clearInterval(timer);
-});
+// 发送失败时父级不会递增版本号，因此不会开始倒计时。
+watch(
+  () => props.sentVersion,
+  (version, previous) => {
+    if (version && version !== previous) startCountdown();
+  },
+);
 
 async function handleSubmit() {
   const valid = await formRef.value?.validate().then(
@@ -73,12 +67,11 @@ async function handleSubmit() {
 }
 
 function handleSendCode() {
-  // 仅校验手机号字段，通过后上抛发送请求并进入倒计时（频率由后端冷却兜底）
+  // 仅校验手机号字段，通过后上抛发送请求；倒计时由发送成功事件驱动。
   formRef.value
     ?.validateField('phone')
     .then(() => {
       emit('send-code', form.phone.trim());
-      startCountdown();
     })
     .catch(() => {});
 }

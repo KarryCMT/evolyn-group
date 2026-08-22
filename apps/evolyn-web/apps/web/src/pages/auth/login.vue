@@ -20,6 +20,8 @@ const { login, loadTenants, switchTenant } = useAuth();
 // 对齐主流登录页首屏：优先展示短信验证码，密码方式保留为可切换的备选。
 const mode = shallowRef<LoginMode>('sms');
 const loading = shallowRef(false);
+// 仅在短信接口成功后递增，作为子表单启动倒计时的确认信号。
+const smsSentVersion = shallowRef(0);
 
 // 多租户选择弹窗
 const tenantDialogVisible = shallowRef(false);
@@ -71,6 +73,7 @@ async function handleSendCode(phone: string) {
     } else {
       ElMessage.success('验证码已发送，请注意查收短信');
     }
+    smsSentVersion.value += 1;
   } catch (err) {
     // 冷却中给更友好的中文提示
     if (err instanceof ApiError && err.errCode === ERROR_CODES.AUTH_COOLDOWN) {
@@ -129,7 +132,13 @@ function goNext() {
       </template>
     </PasswordLoginForm>
 
-    <SmsLoginForm v-else :loading="loading" @submit="handleSmsSubmit" @send-code="handleSendCode">
+    <SmsLoginForm
+      v-else
+      :loading="loading"
+      :sent-version="smsSentVersion"
+      @submit="handleSmsSubmit"
+      @send-code="handleSendCode"
+    >
       <template #footer>
         <div class="login-page__switch-row">
           <button class="login-page__switch" type="button" @click="mode = 'password'">

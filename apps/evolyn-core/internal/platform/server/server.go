@@ -146,11 +146,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		return nil, err
 	}
 	smsService := sms.NewService(rdb.Client, smsSender, sms.Options{
-		CodeTTL:   time.Duration(conf.SMS.CodeTTLSeconds) * time.Second,
-		Cooldown:  time.Duration(conf.SMS.CooldownSeconds) * time.Second,
-		MaxTries:  conf.SMS.MaxTries,
-		DevEcho:   conf.SMS.DevEcho,
-		FixedCode: smsFixedCode,
+		CodeTTL:    time.Duration(conf.SMS.CodeTTLSeconds) * time.Second,
+		Cooldown:   time.Duration(conf.SMS.CooldownSeconds) * time.Second,
+		MaxTries:   conf.SMS.MaxTries,
+		DailyLimit: conf.SMS.DailyLimit,
+		DevEcho:    conf.SMS.DevEcho,
+		FixedCode:  smsFixedCode,
 	})
 	rbacService := service.NewRBACService(iamRepo.RBAC(), auditSvc)
 	// 应用域服务（M2-A）：空白应用创建/查询/更新/软删 + 配额占位；
@@ -201,7 +202,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		middleware.CORSMiddleware(),
 		middleware.RequestInfoMiddleware(&request.RequestInfoFactory{APIPrefixes: set.NewString("api")}),
 		middleware.LogMiddleware(logger, "/"),
-		middleware.AuthenticationMiddleware(jwtService, iamRepo.User(), tokenRevoker),
+		middleware.AuthenticationMiddleware(jwtService, iamRepo.User(), iamRepo.Account(), tokenRevoker),
 		middleware.TraceMiddleware(),
 	)
 

@@ -76,11 +76,37 @@ func (f *fakeRedis) Expire(_ context.Context, _ string, _ time.Duration) *redis.
 	return cmd
 }
 
-// Eval 仅实现验证码原子消费脚本（verifyScript）：按脚本语义用 Go 等价逻辑
-// 模拟原子性（真实原子性由 Redis 保证），未知脚本直接失败防误用
+// Eval 实现短信域使用的 Lua 脚本：按 Go 等价逻辑模拟原子语义；真实并发
+// 原子性由 Redis 保证。未知脚本直接失败，防止测试替身悄悄遗漏新脚本。
 func (f *fakeRedis) Eval(_ context.Context, script string, keys []string, args ...interface{}) *redis.Cmd {
 	cmd := redis.NewCmd(context.Background())
-	if script != verifyScript {
+	switch script {
+	case reserveDailyScript:
+		key := keys[0]
+		limit, _ := strconv.ParseInt(toString(args[0]), 10, 64)
+		current, _ := strconv.ParseInt(f.data[key], 10, 64)
+		if current >= limit {
+			cmd.SetVal(int64(0))
+			return cmd
+		}
+		f.data[key] = strconv.FormatInt(current+1, 10)
+		cmd.SetVal(int64(1))
+		return cmd
+	case releaseDailyScript:
+		key := keys[0]
+		current, _ := strconv.ParseInt(f.data[key], 10, 64)
+		if current <= 1 {
+			delete(f.data, key)
+			cmd.SetVal(int64(0))
+			return cmd
+		}
+		current--
+		f.data[key] = strconv.FormatInt(current, 10)
+		cmd.SetVal(current)
+		return cmd
+	case verifyScript:
+		// 继续执行下方验证码消费语义。
+	default:
 		cmd.SetErr(fmt.Errorf("fakeRedis: unexpected script"))
 		return cmd
 	}
@@ -179,6 +205,14 @@ func TestSendSceneAndPhoneValidation(t *testing.T) {
 	}
 	if _, err := svc.Send(context.Background(), SceneLogin, "12345"); !errors.Is(err, ErrPhone) {
 		t.Fatalf("bad phone should be ErrPhone, got %v", err)
+	}
+}
+
+func TestSecondsUntilTomorrow(t *testing.T) {
+	loc := time.FixedZone("UTC+8", 8*60*60)
+	now := time.Date(2026, 8, 23, 23, 59, 30, 0, loc)
+	if got := secondsUntilTomorrow(now); got != 30 {
+		t.Fatalf("seconds until tomorrow = %d, want 30", got)
 	}
 }
 

@@ -23,8 +23,11 @@ type Account struct {
 	// 常规校验。用指针是 GORM 语义所需：非 nil 的 false 才会随 INSERT 显式
 	// 落库，零值 bool 会因 default 标签被省略、错走列默认 true；其余创建
 	// 路径留 nil，读侧视同 true（见 iam service）
-	PasswordInitialized *bool  `json:"passwordInitialized" gorm:"not null;default:true"`
-	Avatar              string `json:"avatar" gorm:"size:256"`
+	PasswordInitialized *bool `json:"passwordInitialized" gorm:"not null;default:true"`
+	// SessionVersion 随密码变更递增，并写入 JWT。认证中间件据此拒绝旧会话，
+	// 使密码找回/修改能一次性失效该账号的全部已签发令牌。
+	SessionVersion uint64 `json:"-" gorm:"not null;default:0"`
+	Avatar         string `json:"avatar" gorm:"size:256"`
 	// 账号注册引导画像（注册向导第 3 步「完善信息」）：角色/了解渠道是
 	// 「人」的属性挂账号；租户级画像见 tenants.config 的 onboarding 段
 	Onboarding AccountOnboarding `json:"onboarding" gorm:"type:jsonb;not null;default:'{}'"`

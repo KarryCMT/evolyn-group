@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS accounts (
     email varchar(256),
     password varchar(256),
     password_initialized boolean DEFAULT true NOT NULL,
+    session_version BIGINT DEFAULT 0 NOT NULL,
     avatar varchar(256),
     onboarding jsonb DEFAULT '{}'::jsonb NOT NULL,
     created_at timestamp with time zone,
@@ -309,6 +310,8 @@ COMMENT ON COLUMN accounts.nickname IS '平台级展示昵称；租户内昵称�
 COMMENT ON COLUMN accounts.phone IS '手机号，非空时全局唯一（部分唯一索引 uk_accounts_phone，未填写落空串不参与唯一）';
 COMMENT ON COLUMN accounts.email IS '邮箱';
 COMMENT ON COLUMN accounts.password IS '登录密码（bcrypt 摘要）；纯 OAuth 账号可为空';
+COMMENT ON COLUMN accounts.password_initialized IS '密码是否由用户本人设置：短信免密注册为 false（存服务端随机密码），首次设置密码后置 true';
+COMMENT ON COLUMN accounts.session_version IS '账号会话版本：密码重设/修改成功时递增，JWT 版本不一致即失效';
 COMMENT ON COLUMN accounts.avatar IS '头像 URL';
 COMMENT ON COLUMN accounts.onboarding IS '账号注册引导画像：role 角色 / channel 了解渠道（注册向导第 3 步采集）';
 COMMENT ON COLUMN accounts.created_at IS '创建时间';

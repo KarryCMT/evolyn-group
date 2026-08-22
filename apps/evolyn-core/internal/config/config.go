@@ -26,6 +26,7 @@ type SMSConfig struct {
 	CodeTTLSeconds  int    `yaml:"codeTtlSeconds"`  // 验证码有效期秒（默认 300）
 	CooldownSeconds int    `yaml:"cooldownSeconds"` // 重发冷却秒（默认 60）
 	MaxTries        int    `yaml:"maxTries"`        // 单码最大试错次数（默认 5）
+	DailyLimit      int    `yaml:"dailyLimit"`      // 单手机号自然日发送上限（默认 10，跨场景合计）
 	// DevEcho 响应中回显验证码：仅本地联调可开，生产必须关闭
 	DevEcho bool `yaml:"devEcho"`
 }

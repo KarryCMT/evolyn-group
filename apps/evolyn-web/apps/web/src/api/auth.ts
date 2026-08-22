@@ -12,8 +12,8 @@ import type {
 // （见 evolyn-core internal/platform/auth/controller/auth.go）
 import { http } from '@evolyn.do/utils';
 
-/** 短信验证码场景：login=登录 / register=注册 */
-export type SmsScene = 'login' | 'register';
+/** 短信验证码场景：login=登录 / register=注册 / reset=找回密码 */
+export type SmsScene = 'login' | 'register' | 'reset';
 
 /** 发送短信验证码（60s 冷却/5min 有效由后端控制）；本地联调 devEcho 时回显验证码 */
 export function sendSmsCode(phone: string, scene: SmsScene): Promise<{ code?: string }> {
@@ -43,6 +43,15 @@ export function logout(): Promise<null> {
  */
 export function registerComplete(payload: RegisterCompletePayload): Promise<RegisterResult> {
   return http.post('/auth/register', payload);
+}
+
+/** 找回密码：验证码使用 reset 场景，新密码必须先由调用方经 RSA 公钥加密。 */
+export function resetPassword(payload: {
+  phone: string;
+  smsCode: string;
+  newPassword: string;
+}): Promise<null> {
+  return http.post('/auth/password/reset', payload);
 }
 
 /** 自助开通租户：当前账号成为所有者并绑定 tenant-admin（注册向导「创建团队」），企业画像随请求写入租户配置 */

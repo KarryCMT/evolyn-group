@@ -108,13 +108,15 @@ func (a *accountRepository) Update(ctx context.Context, account *model.Account) 
 	return account, nil
 }
 
-// UpdatePassword 直接写散列后的密码，并同步落「密码是否由用户设置」标记
-// （服务层负责 bcrypt 与旧密码校验；首设成功由服务层传 true）
+// UpdatePassword 直接写散列后的密码，并同步落「密码是否由用户设置」标记。
+// session_version 在同一条 UPDATE 内递增，避免密码更新成功但旧 JWT 未失效。
+// 服务层负责 bcrypt 与旧密码校验；首设成功由服务层传 true。
 func (a *accountRepository) UpdatePassword(ctx context.Context, id uint, hashed string, initialized bool) error {
 	return a.withContext(ctx).Model(&model.Account{}).Where("id = ?", id).
 		Updates(map[string]interface{}{
 			"password":             hashed,
 			"password_initialized": initialized,
+			"session_version":      gorm.Expr("session_version + 1"),
 		}).Error
 }
 

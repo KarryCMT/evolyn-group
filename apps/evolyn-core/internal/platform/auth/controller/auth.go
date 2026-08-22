@@ -198,11 +198,14 @@ func bearerToken(c *gin.Context) string {
 // Logout 登出（P2-8）：清 Cookie 并吊销当前 Bearer 令牌（jti 拉黑至自然
 // 过期）——仅清 Cookie 无法让已签发/泄露的 token 失效
 func (ac *AuthController) Logout(c *gin.Context) {
-	if claims, _ := ac.jwtService.ParseToken(bearerToken(c)); claims != nil && claims.ExpiresAt != nil {
-		ttl := time.Until(claims.ExpiresAt.Time)
-		if err := ac.revoker.Revoke(c.Request.Context(), claims.ID, ttl); err != nil {
-			// 吊销失败不阻断登出（Cookie 已清），记录后继续
-			logrus.Warnf("revoke token on logout: %v", err)
+	if ac.revoker != nil {
+		claims, _ := ac.jwtService.ParseToken(bearerToken(c))
+		if claims != nil && claims.ExpiresAt != nil {
+			ttl := time.Until(claims.ExpiresAt.Time)
+			if err := ac.revoker.Revoke(c.Request.Context(), claims.ID, ttl); err != nil {
+				// 吊销失败不阻断登出（Cookie 已清），记录后继续
+				logrus.Warnf("revoke token on logout: %v", err)
+			}
 		}
 	}
 
@@ -443,27 +446,35 @@ func (ac *AuthController) SendSmsCode(c *gin.Context) {
 	httpx.ResponseSuccess(c, result)
 }
 
-// passwordResetRequest 密码找回请求：手机号 + reset 场景验证码 + 新密码
+// passwordResetRequest 密码找回请求：手机号 + reset 场景验证码 + RSA 加密的新密码。
+// 密码字段与登录/个人中心改密共用 PKI 传输约定，控制器解密后才交服务层 bcrypt。
 type passwordResetRequest struct {
 	Phone       string `json:"phone" binding:"required,len=11"`
 	SmsCode     string `json:"smsCode" binding:"required,len=6"`
-	NewPassword string `json:"newPassword" binding:"required,min=6,max=64"`
+	NewPassword string `json:"newPassword" binding:"required"`
 }
 
 // @Summary 重设密码（忘记密码）
-// @Description 凭「密码找回」场景（scene=reset）短信验证码一次性重设密码：
-// 验证码错误/过期返回 401；手机号未注册返回 404。重设成功后可用新密码登录
+// @Description 凭「密码找回」场景（scene=reset）短信验证码一次性重设密码；
+// newPassword 需经 GET /app/conf 下发的 RSA 公钥加密。验证码错误/过期、手机号
+// 未注册均返回 401；重设成功会失效该账号全部既有会话，需用新密码重新登录
 // @Accept json
 // @Produce json
 // @Tags 认证
 // @Param body body controller.passwordResetRequest true "手机号/验证码/新密码"
 // @Success 200 {object} httpx.Response
 // @Failure 401 {object} httpx.Response "AUTH_SMS_INVALID·验证码错误或已过期"
-// @Failure 404 {object} httpx.Response "AUTH_ACCOUNT_NOT_FOUND·手机号未注册"
+// @Failure 401 {object} httpx.Response "AUTH_ACCOUNT_NOT_FOUND·手机号未注册"
 // @Router /api/v1/auth/password/reset [post]
 func (ac *AuthController) ResetPassword(c *gin.Context) {
 	req := new(passwordResetRequest)
 	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	// 先解密再消费验证码：浏览器公钥过期等传输错误不应浪费一次性验证码。
+	plain, err := ac.pkiKeypair.Decrypt(req.NewPassword)
+	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
@@ -474,7 +485,7 @@ func (ac *AuthController) ResetPassword(c *gin.Context) {
 		return
 	}
 
-	if err := ac.accountService.ResetPasswordByPhone(c.Request.Context(), req.Phone, req.NewPassword); err != nil {
+	if err := ac.accountService.ResetPasswordByPhone(c.Request.Context(), req.Phone, plain); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
