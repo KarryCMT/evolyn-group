@@ -4,7 +4,7 @@
 // 登录调用在父级。remember 决定令牌存储范围（持久/会话级，见 composables/auth）
 import { onUnmounted, reactive, shallowRef, useTemplateRef } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import { Iphone } from '@element-plus/icons-vue';
+import { RiSmartphoneFill } from '@remixicon/vue';
 
 /** 重发倒计时秒数：与后端发送冷却窗口一致 */
 const RESEND_SECONDS = 60;
@@ -97,7 +97,7 @@ function handleSendCode() {
         placeholder="你的手机号"
         autocomplete="tel"
         clearable
-        :prefix-icon="Iphone"
+        :prefix-icon="RiSmartphoneFill"
       >
         <template #prepend>+86</template>
       </el-input>

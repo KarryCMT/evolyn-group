@@ -63,8 +63,6 @@ function toggleSidebar() {
   --el-text-color-regular: #515968;
   --el-text-color-secondary: #8a94a6;
   --el-border-color-lighter: #ebedf2;
-  --el-color-primary: #14b8ae;
-  --el-color-primary-light-9: #e8f9f7;
 
   &__main {
     position: relative;

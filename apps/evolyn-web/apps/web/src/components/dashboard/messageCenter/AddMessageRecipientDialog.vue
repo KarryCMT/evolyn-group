@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ReminderRecipientInput } from './messageCenter.types';
-import { Close } from '@element-plus/icons-vue';
+import { RiCloseFill } from '@remixicon/vue';
 import { reactive, shallowRef, watch } from 'vue';
 
 defineOptions({ name: 'AddMessageRecipientDialog' });
@@ -53,7 +53,7 @@ async function submit() {
         <h2 :id="titleId" :class="titleClass">添加提醒对象</h2>
         <el-button
           class="add-message-recipient-dialog__close"
-          :icon="Close"
+          :icon="RiCloseFill"
           text
           circle
           aria-label="关闭添加提醒对象弹窗"
@@ -122,7 +122,8 @@ async function submit() {
 }
 
 .add-message-recipient-dialog__close.el-button:hover {
-  background: #e7f7f6;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
 }
 
 .add-message-recipient-dialog .el-dialog__body {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowDown } from '@element-plus/icons-vue';
+import { RiArrowDownSFill } from '@remixicon/vue';
 
 defineOptions({ name: 'MessageToolbar' });
 
@@ -23,7 +23,7 @@ function updateUnreadOnly(value: boolean | string | number) {
     <el-dropdown trigger="click">
       <button class="message-toolbar__filter" type="button">
         <span>全部</span>
-        <el-icon><ArrowDown /></el-icon>
+        <el-icon><RiArrowDownSFill /></el-icon>
       </button>
       <template #dropdown>
         <el-dropdown-menu>
@@ -64,7 +64,7 @@ function updateUnreadOnly(value: boolean | string | number) {
     line-height: 26px;
 
     &:hover {
-      color: #00aaa7;
+      color: var(--el-color-primary);
     }
 
     &:focus-visible {
@@ -87,7 +87,7 @@ function updateUnreadOnly(value: boolean | string | number) {
   }
 
   &__mark-read {
-    color: #00aaa7;
+    color: var(--el-color-primary);
     font-size: 16px;
   }
 }

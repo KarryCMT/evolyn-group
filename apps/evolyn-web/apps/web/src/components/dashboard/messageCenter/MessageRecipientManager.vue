@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ReminderRecipient } from './messageCenter.types';
-import { ArrowLeft, Plus } from '@element-plus/icons-vue';
+import { RiAddFill, RiArrowLeftSFill } from '@remixicon/vue';
 
 defineOptions({ name: 'MessageRecipientManager' });
 
@@ -19,11 +19,11 @@ const emit = defineEmits<{
   <section class="message-recipient-manager" aria-label="提醒对象管理">
     <div class="message-recipient-manager__toolbar">
       <button class="message-recipient-manager__back" type="button" @click="emit('back')">
-        <el-icon><ArrowLeft /></el-icon>
+        <el-icon><RiArrowLeftSFill /></el-icon>
         <span>返回</span>
       </button>
       <button class="message-recipient-manager__add" type="button" @click="emit('add')">
-        <el-icon><Plus /></el-icon>
+        <el-icon><RiAddFill /></el-icon>
         <span>添加提醒对象</span>
       </button>
     </div>
@@ -106,19 +106,19 @@ const emit = defineEmits<{
     font-size: 16px;
 
     &:hover {
-      border-color: #9edbd8;
-      color: #009f9c;
-      background: #f2fbfa;
+      border-color: var(--el-color-primary-light-5);
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
     }
   }
 
   &__add,
   &__remove {
-    color: #00aaa7;
+    color: var(--el-color-primary);
     font-size: 16px;
 
     &:hover {
-      color: #008f8d;
+      color: var(--el-color-primary-dark-2);
       text-decoration: underline;
     }
   }

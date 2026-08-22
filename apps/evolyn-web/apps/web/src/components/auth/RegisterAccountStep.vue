@@ -203,7 +203,7 @@ function handleSendCode() {
 .account-step__link {
   color: var(--el-color-primary);
   cursor: pointer;
-
+  font-size: 14px;
   &:hover {
     color: var(--el-color-primary-light-3);
   }

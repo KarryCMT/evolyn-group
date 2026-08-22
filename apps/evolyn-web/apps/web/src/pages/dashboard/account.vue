@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { AccountPasswordForm, AccountProfileForm, AccountSettingsTab } from '~/types/account';
-import { ref } from 'vue';
+import { shallowRef } from 'vue';
 import AccountBasicInfoPanel from '~/components/dashboard/account/AccountBasicInfoPanel.vue';
 import AccountSecurityPanel from '~/components/dashboard/account/AccountSecurityPanel.vue';
 import AccountSettingsSidebar from '~/components/dashboard/account/AccountSettingsSidebar.vue';
@@ -15,10 +15,10 @@ defineOptions({ name: 'AccountPage' });
 
 const { userInfo } = useAuth();
 const { savingPassword, savingProfile, savePassword, saveProfile } = useAccountSettings();
-const activeTab = ref<AccountSettingsTab>('basic');
-const profileDialogVisible = ref(false);
-const passwordDialogVisible = ref(false);
-const loginLogVisible = ref(false);
+const activeTab = shallowRef<AccountSettingsTab>('basic');
+const profileDialogVisible = shallowRef(false);
+const passwordDialogVisible = shallowRef(false);
+const loginLogVisible = shallowRef(false);
 
 async function handleProfileSubmit(payload: AccountProfileForm) {
   await saveProfile(payload);
@@ -80,20 +80,18 @@ function handleViewLoginLog() {
 <style scoped lang="scss">
 .account-page {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 720px;
   flex-direction: column;
+  overflow: auto;
   background: #f3f3f8;
-
-  /* 与工作台、个人菜单共用的品牌色在本页局部生效。 */
-  --el-color-primary: #1677ff;
-  --el-color-primary-light-3: #5ca0ff;
-  --el-color-primary-light-7: #b9d6ff;
-  --el-color-primary-light-9: #e8f1ff;
 
   &__main {
     display: flex;
+    min-height: 0;
+    flex: 1;
     justify-content: center;
-    padding: 0 24px 40px;
+    padding: 22px 24px 36px;
   }
 
   &__card {
@@ -115,6 +113,9 @@ function handleViewLoginLog() {
 
 @media (max-width: 640px) {
   .account-page {
+    height: auto;
+    min-height: 100vh;
+
     &__main {
       padding: 0 12px 24px;
     }

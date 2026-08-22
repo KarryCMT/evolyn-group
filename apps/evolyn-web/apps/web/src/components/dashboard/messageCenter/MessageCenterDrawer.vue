@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { ReminderRecipientInput } from './messageCenter.types';
-import { Close } from '@element-plus/icons-vue';
+import { RiCloseFill } from '@remixicon/vue';
 import { shallowRef, watch } from 'vue';
 import AddMessageRecipientDialog from './AddMessageRecipientDialog.vue';
 import MessageCenterSidebar from './MessageCenterSidebar.vue';
@@ -77,7 +77,7 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
           aria-label="关闭消息中心"
           @click="visible = false"
         >
-          <el-icon><Close /></el-icon>
+          <el-icon><RiCloseFill /></el-icon>
         </button>
       </header>
 
@@ -166,8 +166,8 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
       background-color 0.18s ease;
 
     &:hover {
-      color: #00aaa7;
-      background: #e7f7f6;
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
     }
 
     &:focus-visible {

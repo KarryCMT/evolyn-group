@@ -65,7 +65,7 @@ const configurableCategories = computed(() =>
     white-space: nowrap;
 
     &:hover {
-      color: #00aaa7;
+      color: var(--el-color-primary);
     }
 
     &:focus-visible {
@@ -75,7 +75,7 @@ const configurableCategories = computed(() =>
   }
 
   &__tab--active {
-    color: #00aaa7;
+    color: var(--el-color-primary);
 
     &::after {
       position: absolute;
@@ -83,7 +83,7 @@ const configurableCategories = computed(() =>
       bottom: -1px;
       left: 0;
       height: 3px;
-      background: #0eb5ae;
+      background: var(--el-color-primary);
       content: '';
     }
   }

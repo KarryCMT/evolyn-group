@@ -49,8 +49,8 @@ const emit = defineEmits<{
     transform 0.18s ease;
 
   &:hover {
-    border-color: #bce8e5;
-    box-shadow: 0 9px 22px rgb(0 129 125 / 10%);
+    border-color: var(--el-color-primary-light-7);
+    box-shadow: 0 9px 22px rgb(22 119 255 / 10%);
     transform: translateY(-1px);
   }
 

@@ -2,10 +2,12 @@
 // 第三方登录入口（GitHub / 微信）：后端 OAuth 能力已就绪，但授权页跳转
 // 需要下发 client_id 的配置接口；当前以提示占位，接入后改为跳转各提供方授权页
 import { ElMessage } from 'element-plus';
+import { RiGithubFill, RiWechatFill } from '@remixicon/vue';
 
 const providers = [
-  { key: 'github', label: 'GitHub' },
-  { key: 'wechat', label: '微信' },
+  // 品牌入口使用对应的 Fill 图标，方便用户快速识别登录方式。
+  { key: 'github', label: 'GitHub', icon: RiGithubFill },
+  { key: 'wechat', label: '微信', icon: RiWechatFill },
 ] as const;
 
 function handleSelect(label: string) {
@@ -21,6 +23,7 @@ function handleSelect(label: string) {
         v-for="provider in providers"
         :key="provider.key"
         class="oauth-login-panel__item"
+        :icon="provider.icon"
         plain
         size="large"
         @click="handleSelect(provider.label)"

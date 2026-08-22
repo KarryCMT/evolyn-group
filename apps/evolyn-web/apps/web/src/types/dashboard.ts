@@ -23,6 +23,13 @@ export interface DashboardWidgetPreset {
   config?: Record<string, unknown>;
 }
 
+/** 快捷入口与图表看板可按需添加多个实例，其余页面组件在同一工作台中只能保留一个。 */
+const repeatableDashboardWidgetPresetKeys = new Set(['shortcut', 'charts']);
+
+export function isDashboardWidgetPresetRepeatable(preset: Pick<DashboardWidgetPreset, 'key'>) {
+  return repeatableDashboardWidgetPresetKeys.has(preset.key);
+}
+
 /** 卡片内容所需的最小业务数据，不包含网格坐标。 */
 export interface DashboardWidgetContent {
   id: string;
@@ -32,4 +39,15 @@ export interface DashboardWidgetContent {
 }
 
 /** 工作台持久化卡片：网格坐标由 EvolynGrid 管理，业务内容由 type/config 决定。 */
-export interface DashboardWidget extends EvolynGridItem, DashboardWidgetContent {}
+export interface DashboardWidget extends EvolynGridItem, DashboardWidgetContent {
+  /** 来源组件面板的预设键，用于限制非重复组件只能添加一次。 */
+  presetKey?: string;
+}
+
+/** 同类组件以业务类型和展示标题确定唯一性，避免配置项差异导致重复添加。 */
+export function isDashboardWidgetPresetInLayout(
+  preset: Pick<DashboardWidgetPreset, 'type' | 'title'>,
+  widgets: DashboardWidget[],
+) {
+  return widgets.some((widget) => widget.type === preset.type && widget.title === preset.title);
+}

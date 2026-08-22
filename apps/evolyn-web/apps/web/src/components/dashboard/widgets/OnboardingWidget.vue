@@ -25,7 +25,7 @@ const steps = [
         <img class="onboarding-widget__icon" :src="step.icon" alt="" />
         <div class="onboarding-widget__link">
           <span>{{ index + 1 }}.</span>
-          <el-button text type="primary">{{ step.label }}</el-button>
+          <span text type="primary">{{ step.label }}</span>
         </div>
       </div>
     </div>

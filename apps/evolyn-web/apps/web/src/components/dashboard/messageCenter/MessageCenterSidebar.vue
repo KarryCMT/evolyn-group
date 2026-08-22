@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import type { MessageCategoryId, MessageCenterView } from './messageCenter.types';
 import {
-  Connection,
-  DataLine,
-  Document,
-  Files,
-  Message,
-  Setting,
-  TrendCharts,
-  UserFilled,
-} from '@element-plus/icons-vue';
+  RiApps2Fill,
+  RiBarChartBoxFill,
+  RiContactsBookFill,
+  RiFileTextFill,
+  RiLineChartFill,
+  RiLinksFill,
+  RiMailFill,
+  RiSettings3Fill,
+} from '@remixicon/vue';
 import { computed } from 'vue';
 import { messageCategories } from './messageCenter.constants';
 
@@ -34,14 +34,14 @@ const enterpriseCategories = computed(() =>
 );
 
 const categoryIcons = {
-  'data-reminder': DataLine,
-  'app-log': Files,
-  'document-activity': Document,
-  'usage-reminder': TrendCharts,
-  'contacts-management': UserFilled,
-  'open-platform': Connection,
-  'system-management': Setting,
-  'operation-notice': Message,
+  'data-reminder': RiBarChartBoxFill,
+  'app-log': RiApps2Fill,
+  'document-activity': RiFileTextFill,
+  'usage-reminder': RiLineChartFill,
+  'contacts-management': RiContactsBookFill,
+  'open-platform': RiLinksFill,
+  'system-management': RiSettings3Fill,
+  'operation-notice': RiMailFill,
 } as const;
 </script>
 
@@ -111,7 +111,7 @@ const categoryIcons = {
         type="button"
         @click="emit('openSettings')"
       >
-        <el-icon><Setting /></el-icon>
+        <el-icon><RiSettings3Fill /></el-icon>
         <span>通知设置</span>
       </button>
     </div>
@@ -162,8 +162,8 @@ const categoryIcons = {
       background-color 0.18s ease;
 
     &:hover {
-      background: #f2f8f8;
-      color: #079d9a;
+      background: var(--el-color-primary-light-9);
+      color: var(--el-color-primary);
     }
 
     &:focus-visible {
@@ -174,8 +174,13 @@ const categoryIcons = {
 
   &__category--active,
   &__settings--active {
-    color: #00aaa7;
-    background: #e7f7f6;
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+  }
+
+  // 分类按钮保持独立卡片感，避免相邻选中态视觉粘连。
+  &__category + &__category {
+    margin-top: 4px;
   }
 
   &__category-icon {
@@ -185,7 +190,7 @@ const categoryIcons = {
 
   &__category--active &__category-icon,
   &__settings--active .el-icon {
-    color: #12b8b3;
+    color: var(--el-color-primary);
   }
 
   &__unread-count {

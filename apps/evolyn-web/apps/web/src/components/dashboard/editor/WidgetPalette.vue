@@ -12,7 +12,7 @@ import {
   RiTimerFill,
   RiUserFill,
 } from '@remixicon/vue';
-import { nextTick, onMounted } from 'vue';
+import { computed, nextTick, onMounted } from 'vue';
 import { GridStack as GridStackCore } from 'gridstack';
 import type { Component } from 'vue';
 import type { DashboardWidgetPreset } from '~/types/dashboard';
@@ -21,6 +21,7 @@ defineOptions({ name: 'WidgetPalette' });
 const emit = defineEmits<{
   add: [preset: DashboardWidgetPreset];
 }>();
+const props = defineProps<{ disabledKeys: string[] }>();
 
 type PaletteItem = DashboardWidgetPreset & { icon: Component; label: string };
 
@@ -142,6 +143,17 @@ const palette: PaletteItem[] = [
   },
 ];
 
+const disabledKeySet = computed(() => new Set(props.disabledKeys));
+
+function isDisabled(preset: DashboardWidgetPreset) {
+  return disabledKeySet.value.has(preset.key);
+}
+
+function addPreset(preset: DashboardWidgetPreset) {
+  if (isDisabled(preset)) return;
+  emit('add', preset);
+}
+
 async function setupDragSources() {
   await nextTick();
   const presets = palette.map(({ icon: _icon, ...preset }) => preset);
@@ -185,12 +197,14 @@ onMounted(setupDragSources);
           v-for="item in palette"
           :key="item.key"
           class="widget-palette__item widget-palette__drag-source"
+          :class="{ 'widget-palette__item--disabled': isDisabled(item) }"
           :data-widget-key="item.key"
           role="button"
-          tabindex="0"
-          @click="emit('add', item)"
-          @keydown.enter="emit('add', item)"
-          @keydown.space.prevent="emit('add', item)"
+          :aria-disabled="isDisabled(item)"
+          :tabindex="isDisabled(item) ? -1 : 0"
+          @click="addPreset(item)"
+          @keydown.enter="addPreset(item)"
+          @keydown.space.prevent="addPreset(item)"
         >
           <component :is="item.icon" class="widget-palette__icon" aria-hidden="true" />
           <span>{{ item.label }}</span>
@@ -250,6 +264,12 @@ onMounted(setupDragSources);
 
     &:active {
       cursor: grabbing;
+    }
+    &--disabled {
+      pointer-events: none;
+      cursor: not-allowed;
+      color: var(--el-text-color-disabled);
+      background: var(--el-fill-color-lighter);
     }
   }
   &__icon {

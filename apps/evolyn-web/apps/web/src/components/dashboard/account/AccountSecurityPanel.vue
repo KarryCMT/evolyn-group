@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { InfoFilled, Link, WarningFilled } from '@element-plus/icons-vue';
 import type { DeepReadonly } from 'vue';
 import type { UserInfoResult } from '~/types';
+import { RiErrorWarningFill, RiInformationFill, RiLinksFill } from '@remixicon/vue';
 
 defineOptions({ name: 'AccountSecurityPanel' });
 
@@ -16,7 +16,7 @@ defineProps<{
       <div>
         <strong>登录二次验证</strong>
         <el-tooltip content="该策略需由后端安全服务启用后才可配置" placement="top">
-          <el-icon class="account-security__help"><InfoFilled /></el-icon>
+          <el-icon class="account-security__help"><RiInformationFill /></el-icon>
         </el-tooltip>
       </div>
       <el-switch disabled aria-label="登录二次验证暂未开放" />
@@ -25,7 +25,7 @@ defineProps<{
       <div>
         <strong>禁止同时登录</strong>
         <el-tooltip content="该策略需由后端会话服务启用后才可配置" placement="top">
-          <el-icon class="account-security__help"><InfoFilled /></el-icon>
+          <el-icon class="account-security__help"><RiInformationFill /></el-icon>
         </el-tooltip>
       </div>
       <el-switch disabled aria-label="禁止同时登录暂未开放" />
@@ -40,7 +40,7 @@ defineProps<{
             :key="authInfo.id"
             class="account-security__provider"
           >
-            <el-icon><Link /></el-icon>
+            <el-icon><RiLinksFill /></el-icon>
             <span>{{ authInfo.authType }}</span>
             <el-tag size="small" type="success" effect="plain">已绑定</el-tag>
           </div>
@@ -55,11 +55,13 @@ defineProps<{
     <el-divider />
 
     <div class="account-security__danger">
-      <strong
-        ><el-icon><WarningFilled /></el-icon>账号注销</strong
-      >
-      <span>注销及数据保留策略待平台能力开放后提供。</span>
-      <el-button link type="danger" disabled>注销</el-button>
+      <strong>
+        <el-icon><RiErrorWarningFill /></el-icon>
+        账号注销
+      </strong>
+      <span>
+        <el-button link type="danger">注销</el-button>
+      </span>
     </div>
   </section>
 </template>

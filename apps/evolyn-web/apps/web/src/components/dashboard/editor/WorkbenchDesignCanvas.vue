@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ElScrollbar } from 'element-plus';
 import { EvolynGrid, type EvolynGridItem } from '@evolyn.do/ui';
-import { computed, markRaw, nextTick, ref, watch } from 'vue';
+import { computed, markRaw, ref } from 'vue';
 import type { GridStack as GridStackInstance, GridStackNode } from 'gridstack';
 import type { DashboardWidget, DashboardWidgetContent } from '~/types/dashboard';
 import WorkbenchEditorWidgetHost from './WorkbenchEditorWidgetHost.vue';
@@ -9,13 +9,13 @@ import WorkbenchEditorWidgetHost from './WorkbenchEditorWidgetHost.vue';
 const props = defineProps<{
   modelValue: DashboardWidget[];
   device: 'desktop' | 'mobile';
+  disabledKeys: string[];
 }>();
 const emit = defineEmits<{
   'update:modelValue': [value: DashboardWidget[]];
 }>();
 
 const components = { WorkbenchEditorWidgetHost: markRaw(WorkbenchEditorWidgetHost) };
-const scrollbar = ref<{ setScrollTop: (scrollTop: number) => void }>();
 const grid = ref<{ getGrid: () => GridStackInstance | null }>();
 const editorItems = computed<DashboardWidget[]>(() =>
   props.modelValue.map((item) => ({
@@ -30,7 +30,10 @@ const options = computed(() => ({
   // 相邻卡片的上下边距各 8px，视觉间距为 16px。
   margin: '8px 14px',
   float: true,
-  acceptWidgets: '.widget-palette__drag-source',
+  acceptWidgets: (element: Element) =>
+    element instanceof HTMLElement &&
+    element.matches('.widget-palette__drag-source') &&
+    !props.disabledKeys.includes(element.dataset.widgetKey ?? ''),
   draggable: { handle: '.dashboard-widget__drag-handle' },
   // 右侧拖宽，右下角对角手柄同时调整宽高；仅悬停时显示操作入口。
   resizable: { handles: 'e,se', autoHide: true },
@@ -66,6 +69,11 @@ function updateLayout(items: EvolynGridItem[]) {
 
 function toWidgetContent(widget: DashboardWidget): DashboardWidgetContent {
   return { id: widget.id, type: widget.type, title: widget.title, config: widget.config };
+}
+
+/** GridStack 为可重复拖入的同名节点追加序号，持久化时仍需记录原始预设键。 */
+function getPaletteKey(widgetID: string) {
+  return widgetID.replace(/^palette-/, '').replace(/_\d+$/, '');
 }
 
 /** GridStack 释放后一次性读取引擎最终布局，保留其原生的碰撞避让结果。 */
@@ -106,33 +114,17 @@ function handleDropped(_previous: GridStackNode | undefined, current: GridStackN
       maxW: current.maxW,
       maxH: current.maxH,
       component: 'WorkbenchEditorWidgetHost',
+      presetKey: getPaletteKey(droppedId),
     });
   }
 
   emit('update:modelValue', next);
 }
-
-watch(
-  () => props.modelValue.length,
-  async (length, previousLength) => {
-    if (length <= previousLength) return;
-
-    const added = props.modelValue.at(-1);
-    if (!added) return;
-
-    await nextTick();
-    const cellHeight = props.device === 'desktop' ? 72 : 92;
-    const verticalMargin = 8;
-    scrollbar.value?.setScrollTop(
-      Math.max(0, added.y * (cellHeight + verticalMargin) - verticalMargin),
-    );
-  },
-);
 </script>
 
 <template>
   <section class="workbench-design-canvas">
-    <el-scrollbar ref="scrollbar" class="workbench-design-canvas__scrollbar" always>
+    <el-scrollbar class="workbench-design-canvas__scrollbar" always>
       <div
         class="workbench-design-canvas__surface"
         :class="`workbench-design-canvas__surface--${device}`"

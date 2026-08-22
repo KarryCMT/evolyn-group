@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { ElMessage } from 'element-plus';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import { createDefaultWorkbenchWidgets } from '~/dashboard/defaultWorkbench';
-import type { DashboardWidget, DashboardWidgetPreset } from '~/types/dashboard';
+import {
+  isDashboardWidgetPresetInLayout,
+  isDashboardWidgetPresetRepeatable,
+  type DashboardWidget,
+  type DashboardWidgetPreset,
+} from '~/types/dashboard';
 import WidgetPalette from './WidgetPalette.vue';
 import WorkbenchDesignCanvas from './WorkbenchDesignCanvas.vue';
 
@@ -11,8 +16,23 @@ defineOptions({ name: 'WorkbenchEditorShell' });
 const props = defineProps<{ device: 'desktop' | 'mobile' }>();
 
 const widgets = ref<DashboardWidget[]>(createDefaultWorkbenchWidgets());
+const disabledPaletteKeys = computed(() =>
+  widgets.value
+    .filter(
+      (widget): widget is DashboardWidget & { presetKey: string } =>
+        Boolean(widget.presetKey) && !isDashboardWidgetPresetRepeatable({ key: widget.presetKey! }),
+    )
+    .map((widget) => widget.presetKey),
+);
 
 function addWidget(preset: DashboardWidgetPreset) {
+  if (
+    !isDashboardWidgetPresetRepeatable(preset) &&
+    isDashboardWidgetPresetInLayout(preset, widgets.value)
+  ) {
+    return;
+  }
+
   const id = `${preset.key}-${Date.now()}`;
   const width = props.device === 'mobile' ? 1 : preset.w;
   const height = preset.h;
@@ -29,6 +49,7 @@ function addWidget(preset: DashboardWidgetPreset) {
     minH: preset.minH,
     component: 'WorkbenchEditorWidgetHost',
     config: preset.config,
+    presetKey: preset.key,
   });
 }
 
@@ -63,8 +84,12 @@ function notify(action: string) {
 
 <template>
   <div class="workbench-editor-shell">
-    <WidgetPalette @add="addWidget" />
-    <WorkbenchDesignCanvas v-model="widgets" :device="device" />
+    <WidgetPalette :disabled-keys="disabledPaletteKeys" @add="addWidget" />
+    <WorkbenchDesignCanvas
+      v-model="widgets"
+      :device="device"
+      :disabled-keys="disabledPaletteKeys"
+    />
   </div>
 </template>
 

@@ -7,13 +7,13 @@ import { useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import { UserFilled } from '@element-plus/icons-vue';
 import {
-  RiArrowRightSLine,
-  RiComputerLine,
-  RiGlobalLine,
-  RiLogoutBoxRLine,
-  RiSettings3Line,
-  RiStarLine,
-  RiVipDiamondLine,
+  RiArrowRightSFill,
+  RiComputerFill,
+  RiGlobalFill,
+  RiLogoutBoxFill,
+  RiSettings3Fill,
+  RiStarFill,
+  RiVipDiamondFill,
 } from '@remixicon/vue';
 import { useAuth } from '~/composables';
 import FavoritesWorkspaceDialog from '~/components/dashboard/favorites/FavoritesWorkspaceDialog.vue';
@@ -83,30 +83,30 @@ async function handleLogout() {
         <!-- 菜单列表：沿用 el-dropdown-item 保留 EP 的 command 派发与点击收起行为 -->
         <el-dropdown-menu class="user-menu__list">
           <el-dropdown-item command="favorites">
-            <el-icon class="user-menu__item-icon"><RiStarLine /></el-icon>
+            <el-icon class="user-menu__item-icon"><RiStarFill /></el-icon>
             <span>我的收藏</span>
           </el-dropdown-item>
           <el-dropdown-item command="settings">
-            <el-icon class="user-menu__item-icon"><RiSettings3Line /></el-icon>
+            <el-icon class="user-menu__item-icon"><RiSettings3Fill /></el-icon>
             <span>个人设置</span>
           </el-dropdown-item>
           <el-dropdown-item command="admin">
-            <el-icon class="user-menu__item-icon"><RiComputerLine /></el-icon>
+            <el-icon class="user-menu__item-icon"><RiComputerFill /></el-icon>
             <span>管理后台</span>
           </el-dropdown-item>
           <el-dropdown-item command="purchase">
-            <el-icon class="user-menu__item-icon"><RiVipDiamondLine /></el-icon>
+            <el-icon class="user-menu__item-icon"><RiVipDiamondFill /></el-icon>
             <span>版本购买</span>
           </el-dropdown-item>
           <el-dropdown-item command="language">
-            <el-icon class="user-menu__item-icon"><RiGlobalLine /></el-icon>
+            <el-icon class="user-menu__item-icon"><RiGlobalFill /></el-icon>
             <span>语言</span>
             <span class="user-menu__item-extra">简体中文</span>
-            <el-icon class="user-menu__item-arrow"><RiArrowRightSLine /></el-icon>
+            <el-icon class="user-menu__item-arrow"><RiArrowRightSFill /></el-icon>
           </el-dropdown-item>
           <!-- divided：借 EP 内置分隔线与常规菜单分区 -->
           <el-dropdown-item class="user-menu__item--danger" command="logout" divided>
-            <el-icon class="user-menu__item-icon"><RiLogoutBoxRLine /></el-icon>
+            <el-icon class="user-menu__item-icon"><RiLogoutBoxFill /></el-icon>
             <span>退出</span>
           </el-dropdown-item>
         </el-dropdown-menu>

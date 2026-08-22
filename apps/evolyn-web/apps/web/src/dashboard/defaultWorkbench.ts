@@ -7,13 +7,13 @@ import type { DashboardWidget } from '~/types/dashboard';
 const defaultWidgets: DashboardWidget[] = [
   widget('onboarding', '新手引导', 0, 0, 12, 2, { noResize: true }),
   // 问候语为单行卡片，仅允许横向调整以保持头像和文案的固定高度。
-  widget('greeting', '问候语', 0, 2, 3, 1, { minW: 3, minH: 1, maxH: 1 }),
-  widget('favorites', '最近使用', 3, 2, 9, 2, { minW: 4, minH: 2 }),
-  widget('shortcut', '未命名快捷入口', 0, 4, 12, 2, { minH: 2 }),
-  widget('todo', '流程中心', 0, 6, 3, 4, { minW: 3, minH: 3 }),
-  widget('favorites', '我的收藏', 3, 6, 9, 2, { minW: 4, minH: 2 }),
-  widget('apps', '我的应用', 3, 8, 9, 3, { minW: 4, minH: 3 }),
-  widget('charts', '我的图表', 3, 11, 9, 2, { minW: 4, minH: 2 }),
+  widget('greeting', '问候语', 0, 2, 3, 1, { minW: 3, minH: 1, maxH: 1, presetKey: 'greeting' }),
+  widget('favorites', '最近使用', 3, 2, 9, 2, { minW: 4, minH: 2, presetKey: 'recent' }),
+  widget('shortcut', '未命名快捷入口', 0, 4, 12, 2, { minH: 2, presetKey: 'shortcut' }),
+  widget('todo', '流程中心', 0, 6, 3, 4, { minW: 3, minH: 3, presetKey: 'todo' }),
+  widget('favorites', '我的收藏', 3, 6, 9, 2, { minW: 4, minH: 2, presetKey: 'favorites' }),
+  widget('apps', '我的应用', 3, 8, 9, 3, { minW: 4, minH: 3, presetKey: 'apps' }),
+  widget('charts', '我的图表', 3, 11, 9, 2, { minW: 4, minH: 2, presetKey: 'my-charts' }),
 ];
 
 /** 返回新对象，避免 GridStack 更新坐标时修改默认布局常量。 */

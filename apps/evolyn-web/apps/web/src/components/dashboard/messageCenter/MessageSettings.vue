@@ -95,16 +95,16 @@ const emit = defineEmits<{
 
   &__recipient-button {
     height: 38px;
-    border: 1px solid #00aaa7;
+    border: 1px solid var(--el-color-primary);
     padding: 0 14px;
-    color: #00aaa7;
+    color: var(--el-color-primary);
     background: #fff;
     border-radius: 8px;
     cursor: pointer;
     font-size: 16px;
 
     &:hover {
-      background: #e7f7f6;
+      background: var(--el-color-primary-light-9);
     }
 
     &:focus-visible {

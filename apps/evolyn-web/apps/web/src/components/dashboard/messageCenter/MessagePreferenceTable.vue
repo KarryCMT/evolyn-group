@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { MessageDeliveryChannel, MessagePreference } from './messageCenter.types';
-import { InfoFilled, UserFilled } from '@element-plus/icons-vue';
+import { RiInformationFill, RiUserFill } from '@remixicon/vue';
 
 defineOptions({ name: 'MessagePreferenceTable' });
 
@@ -58,7 +58,7 @@ function updateChannel(
               >
                 {{ channel.label }}
                 <el-tooltip v-if="channel.tooltip" :content="channel.tooltip" placement="top">
-                  <el-icon class="message-preference-table__hint"><InfoFilled /></el-icon>
+                  <el-icon class="message-preference-table__hint"><RiInformationFill /></el-icon>
                 </el-tooltip>
               </el-checkbox>
             </div>
@@ -71,7 +71,7 @@ function updateChannel(
                 type="button"
                 @click="emit('manageRecipients', preference.id)"
               >
-                <el-icon><UserFilled /></el-icon>
+                <el-icon><RiUserFill /></el-icon>
                 <span>{{ recipient }}</span>
               </button>
               <button
@@ -166,8 +166,8 @@ function updateChannel(
     }
 
     :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
-      border-color: #0eb5ae;
-      background: #0eb5ae;
+      border-color: var(--el-color-primary);
+      background: var(--el-color-primary);
     }
   }
 
@@ -202,8 +202,8 @@ function updateChannel(
     font-size: 15px;
 
     &:hover {
-      color: #008f8d;
-      background: #e6f7f5;
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
     }
 
     &:focus-visible {
@@ -213,12 +213,12 @@ function updateChannel(
   }
 
   &__recipient .el-icon {
-    color: #10b5ae;
+    color: var(--el-color-primary);
     font-size: 17px;
   }
 
   &__manage {
-    color: #00aaa7;
+    color: var(--el-color-primary);
     background: transparent;
   }
 

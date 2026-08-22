@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { UserFilled } from '@element-plus/icons-vue';
 import type { DeepReadonly } from 'vue';
 import type { UserInfoResult } from '~/types';
+import { RiUserFill } from '@remixicon/vue';
 
 defineOptions({ name: 'AccountBasicInfoPanel' });
 
@@ -34,7 +34,7 @@ const emit = defineEmits<{
         <dt>通讯录头像</dt>
         <dd>
           <el-avatar :size="36" :src="userInfo?.account.avatar">
-            <el-icon><UserFilled /></el-icon>
+            <el-icon><RiUserFill /></el-icon>
           </el-avatar>
           <el-button link type="primary" @click="emit('editProfile')">修改</el-button>
         </dd>

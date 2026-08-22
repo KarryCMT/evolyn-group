@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Document, Lock } from '@element-plus/icons-vue';
 import type { AccountSettingsTab } from '~/types/account';
+import { RiFileTextFill, RiLock2Fill } from '@remixicon/vue';
 
 defineOptions({ name: 'AccountSettingsSidebar' });
 
@@ -25,7 +25,7 @@ function selectTab(tab: AccountSettingsTab) {
       type="button"
       @click="selectTab('basic')"
     >
-      <el-icon><Document /></el-icon>
+      <el-icon><RiFileTextFill /></el-icon>
       <span>基本信息</span>
     </button>
     <button
@@ -34,7 +34,7 @@ function selectTab(tab: AccountSettingsTab) {
       type="button"
       @click="selectTab('security')"
     >
-      <el-icon><Lock /></el-icon>
+      <el-icon><RiLock2Fill /></el-icon>
       <span>账号安全</span>
     </button>
   </aside>
@@ -42,8 +42,11 @@ function selectTab(tab: AccountSettingsTab) {
 
 <style scoped lang="scss">
 .account-settings-sidebar {
+  display: flex;
   width: 164px;
   flex: 0 0 164px;
+  flex-direction: column;
+  gap: 4px;
   padding: 8px;
   border-right: 1px solid var(--el-border-color-lighter);
 
