@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, useTemplateRef, watch } from 'vue';
+import { computed, shallowRef, useTemplateRef, watch } from 'vue';
 import {
   EvolynTable,
   type EvolynTableColumn,
   type EvolynTableCustomRenderElement,
 } from '@evolyn.do/ui';
+import { listMyLoginLogs } from '~/api/account';
+import type { LoginLogClient, LoginLogItem } from '~/types';
 
 defineOptions({ name: 'LoginLogDrawer' });
 
@@ -23,72 +25,67 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean];
 }>();
 
-/** 单条登录日志；时间与后端 JSONTime 出网格式一致（秒级 yyyy-MM-dd HH:mm:ss） */
-interface LoginLogRecord {
-  loggedAt: string;
-  location: string;
-  platform: string;
-  ip: string;
-}
-
-// 登录日志查询接口后端尚未提供，先以「当前时间往前偏移」生成演示数据，
-// 保证筛选/分页交互真实可验；接口落地后将 records 替换为 API 拉取即可。
-function formatDateTime(date: Date): string {
-  const pad = (value: number) => String(value).padStart(2, '0');
-  return (
-    `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ` +
-    `${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`
-  );
-}
-
-/** 以「距现在 hoursAgo 小时」生成一条记录，地点/IP 取固定样本值 */
-function createRecord(hoursAgo: number, ip: string, platform = '电脑网页版'): LoginLogRecord {
-  return {
-    loggedAt: formatDateTime(new Date(Date.now() - hoursAgo * 3_600_000)),
-    location: '广东省 深圳市',
-    platform,
-    ip,
-  };
-}
-
-const records: LoginLogRecord[] = [
-  createRecord(2, '210.21.226.222'),
-  createRecord(9, '210.21.226.222'),
-  createRecord(26, '27.46.93.3'),
-  createRecord(41, '210.21.226.222'),
-  createRecord(60, '27.46.93.4'),
-  createRecord(84, '27.46.93.3', '手机 App'),
-  createRecord(108, '183.238.228.138'),
-  createRecord(130, '210.21.226.222'),
-  createRecord(156, '27.46.93.3'),
-  createRecord(180, '183.238.228.138', '手机 App'),
-  createRecord(204, '210.21.226.222'),
-  createRecord(252, '27.46.93.4'),
-  createRecord(300, '210.21.226.222'),
-];
+/** 登录平台展示文案：后端 client 枚举（UA 解析）在前端映射 */
+const CLIENT_LABELS: Record<LoginLogClient, string> = {
+  web: '电脑网页版',
+  wap: '手机网页版',
+  unknown: '未知',
+};
 
 const PAGE_SIZE = 6;
 
-const startDate = ref('');
-const endDate = ref('');
-const currentPage = ref(1);
+const startDate = shallowRef('');
+const endDate = shallowRef('');
+const currentPage = shallowRef(1);
+const records = shallowRef<LoginLogItem[]>([]);
+const total = shallowRef(0);
+const loading = shallowRef(false);
 
-// 起止日期均为闭区间；value-format 与日志时间同为字典序可比的 yyyy-mm-dd 前缀，直接比较字符串
-const filteredRecords = computed(() =>
-  records.filter((item) => {
-    if (startDate.value && item.loggedAt < `${startDate.value} 00:00:00`) return false;
-    if (endDate.value && item.loggedAt > `${endDate.value} 23:59:59`) return false;
-    return true;
-  }),
+/** 表格展示行：后端记录追加派生的「登录平台」文案列，其余字段直接透传 */
+const displayRecords = computed(() =>
+  records.value.map((item) => ({
+    ...item,
+    platform: CLIENT_LABELS[item.client] ?? '未知',
+  })),
 );
 
-const pagedRecords = computed(() =>
-  filteredRecords.value.slice((currentPage.value - 1) * PAGE_SIZE, currentPage.value * PAGE_SIZE),
+/** 拉取当前筛选/页码下的登录日志；失败由 HTTP 层统一提示，这里只复位加载态 */
+async function loadLogs() {
+  if (loading.value) return;
+  loading.value = true;
+  try {
+    const page = await listMyLoginLogs({
+      page: currentPage.value,
+      pageSize: PAGE_SIZE,
+      startDate: startDate.value || undefined,
+      endDate: endDate.value || undefined,
+    });
+    records.value = page.items;
+    total.value = page.total;
+  } finally {
+    loading.value = false;
+  }
+}
+
+// 抽屉打开即拉当前视图：用户可能刚完成一次新登录，需反映最新流水
+watch(
+  () => props.modelValue,
+  (open) => {
+    if (open) void loadLogs();
+  },
 );
 
-// 筛选条件变化后回到第一页，避免停留在已超出总页数的页码
+// 筛选变化回到第一页：已在第一页时直接拉取，否则由页码 watcher 触发，避免双请求
 watch([startDate, endDate], () => {
-  currentPage.value = 1;
+  if (currentPage.value === 1) {
+    void loadLogs();
+  } else {
+    currentPage.value = 1;
+  }
+});
+
+watch(currentPage, () => {
+  void loadLogs();
 });
 
 const drawerBody = useTemplateRef<HTMLElement>('drawerBody');
@@ -215,7 +212,7 @@ const tableOptions = { defaultRowHeight: ROW_HEIGHT };
       <EvolynTable
         class="login-log-drawer__table"
         :columns="columns"
-        :records="pagedRecords"
+        :records="displayRecords"
         :options="tableOptions"
       />
 
@@ -223,7 +220,7 @@ const tableOptions = { defaultRowHeight: ROW_HEIGHT };
         <el-pagination
           v-model:current-page="currentPage"
           :page-size="PAGE_SIZE"
-          :total="filteredRecords.length"
+          :total="total"
           layout="prev, pager, next"
         />
       </div>

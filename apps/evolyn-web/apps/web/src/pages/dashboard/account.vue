@@ -30,7 +30,7 @@ async function handlePasswordSubmit(payload: AccountPasswordForm) {
   passwordDialogVisible.value = false;
 }
 
-// 登录日志查询接口待后端落地，抽屉内暂以演示数据展示（见 LoginLogDrawer）。
+// 打开登录日志抽屉：抽屉打开时自动拉取最新流水（见 LoginLogDrawer）。
 function handleViewLoginLog() {
   loginLogVisible.value = true;
 }

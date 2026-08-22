@@ -1,7 +1,7 @@
 // 账号自助接口：与后端 /api/v1/accounts/me 一一对应
 // （见 evolyn-core internal/platform/iam/controller/account.go）
 import { http } from '@evolyn.do/utils';
-import type { AccountInfo, AccountProfilePayload } from '~/types';
+import type { AccountInfo, AccountProfilePayload, LoginLogPage, LoginLogQuery } from '~/types';
 
 /** 更新我的账号资料：昵称/邮箱/头像与注册引导画像（角色/了解渠道） */
 export function updateMyProfile(payload: AccountProfilePayload): Promise<AccountInfo> {
@@ -14,4 +14,15 @@ export function changeMyPassword(payload: {
   newPassword: string;
 }): Promise<null> {
   return http.put('/accounts/me/password', payload);
+}
+
+/** 我的登录日志分页查询（仅本人）：日期为 yyyy-MM-dd 闭区间，按东八区自然日过滤 */
+export function listMyLoginLogs(query: LoginLogQuery = {}): Promise<LoginLogPage> {
+  // 显式展开为字面量：LoginLogQuery 接口无索引签名，直传不满足 query 参数类型
+  return http.get('/accounts/me/login-logs', {
+    page: query.page,
+    pageSize: query.pageSize,
+    startDate: query.startDate,
+    endDate: query.endDate,
+  });
 }

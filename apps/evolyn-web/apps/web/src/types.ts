@@ -166,6 +166,37 @@ export interface AccountProfilePayload {
   onboarding?: AccountOnboarding;
 }
 
+// ---------- 登录日志（GET /accounts/me/login-logs，个人中心「账号设置-登录日志」） ----------
+
+/** 客户端形态（后端 UA 解析枚举），展示文案由前端映射 */
+export type LoginLogClient = 'web' | 'wap' | 'unknown';
+
+/** 单条登录日志（controller.loginLogItem）：会话建立流水，仅本人可见 */
+export interface LoginLogItem {
+  /** 登录时间：后端 JSONTime 秒级东八区 yyyy-MM-dd HH:mm:ss */
+  loggedAt: string;
+  ip: string;
+  /** IP 归属地：后端写时离线解析，内网/解析失败为「内网地址/未知」兜底文案 */
+  location: string;
+  client: LoginLogClient;
+  /** 登录方式：password 密码 / sms 短信验证码 / oauth_github、oauth_wechat 第三方 / register 注册即登录 */
+  method: string;
+}
+
+/** 登录日志分页结果（controller.loginLogPage） */
+export interface LoginLogPage {
+  items: LoginLogItem[];
+  total: number;
+}
+
+/** 登录日志查询参数：日期为 yyyy-MM-dd 闭区间（东八区自然日） */
+export interface LoginLogQuery {
+  page?: number;
+  pageSize?: number;
+  startDate?: string;
+  endDate?: string;
+}
+
 // ---------- 应用配置（GET /app/conf，形态对齐简道云 conf 接口） ----------
 
 /** 手机区号项：三语文案 + E.164 前缀值 */
