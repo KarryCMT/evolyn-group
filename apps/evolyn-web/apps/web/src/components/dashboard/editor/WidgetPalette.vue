@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { ElScrollbar } from 'element-plus';
 import {
-  CollectionTag,
-  DataAnalysis,
-  Document,
-  Grid,
-  Histogram,
-  Promotion,
-  Timer,
-  UserFilled,
-} from '@element-plus/icons-vue';
+  RiApps2Fill,
+  RiBarChartBoxFill,
+  RiArticleFill,
+  RiDashboardFill,
+  RiFileTextFill,
+  RiSendPlaneFill,
+  RiSlideshowFill,
+  RiStarFill,
+  RiTimerFill,
+  RiUserFill,
+} from '@remixicon/vue';
 import { nextTick, onMounted } from 'vue';
 import { GridStack as GridStackCore } from 'gridstack';
 import type { Component } from 'vue';
@@ -28,7 +30,7 @@ const palette: PaletteItem[] = [
     label: '流程中心',
     title: '流程中心',
     type: 'todo',
-    icon: Promotion,
+    icon: RiSendPlaneFill,
     w: 3,
     h: 4,
     minW: 3,
@@ -39,7 +41,7 @@ const palette: PaletteItem[] = [
     label: '我的应用',
     title: '我的应用',
     type: 'apps',
-    icon: Grid,
+    icon: RiApps2Fill,
     w: 9,
     h: 3,
     minW: 4,
@@ -50,7 +52,7 @@ const palette: PaletteItem[] = [
     label: '快捷入口',
     title: '未命名快捷入口',
     type: 'shortcut',
-    icon: Document,
+    icon: RiFileTextFill,
     w: 12,
     h: 2,
     minW: 3,
@@ -61,7 +63,7 @@ const palette: PaletteItem[] = [
     label: '图表看板',
     title: '图表看板',
     type: 'charts',
-    icon: Histogram,
+    icon: RiDashboardFill,
     w: 9,
     h: 2,
     minW: 4,
@@ -72,7 +74,7 @@ const palette: PaletteItem[] = [
     label: '富文本',
     title: '富文本',
     type: 'onboarding',
-    icon: CollectionTag,
+    icon: RiArticleFill,
     w: 12,
     h: 2,
     minW: 4,
@@ -84,7 +86,7 @@ const palette: PaletteItem[] = [
     label: '轮播图',
     title: '轮播图',
     type: 'onboarding',
-    icon: DataAnalysis,
+    icon: RiSlideshowFill,
     w: 12,
     h: 2,
     minW: 4,
@@ -96,7 +98,7 @@ const palette: PaletteItem[] = [
     label: '最近使用',
     title: '最近使用',
     type: 'favorites',
-    icon: Timer,
+    icon: RiTimerFill,
     w: 9,
     h: 2,
     minW: 4,
@@ -108,7 +110,7 @@ const palette: PaletteItem[] = [
     label: '我的收藏',
     title: '我的收藏',
     type: 'favorites',
-    icon: CollectionTag,
+    icon: RiStarFill,
     w: 9,
     h: 2,
     minW: 4,
@@ -119,7 +121,7 @@ const palette: PaletteItem[] = [
     label: '我的图表',
     title: '我的图表',
     type: 'charts',
-    icon: Histogram,
+    icon: RiBarChartBoxFill,
     w: 9,
     h: 2,
     minW: 4,
@@ -131,7 +133,7 @@ const palette: PaletteItem[] = [
     label: '问候语',
     title: '问候语',
     type: 'greeting',
-    icon: UserFilled,
+    icon: RiUserFill,
     w: 3,
     h: 1,
     minW: 3,
@@ -187,7 +189,7 @@ onMounted(setupDragSources);
           @keydown.enter="emit('add', item)"
           @keydown.space.prevent="emit('add', item)"
         >
-          <el-icon><component :is="item.icon" /></el-icon>
+          <component :is="item.icon" class="widget-palette__icon" aria-hidden="true" />
           <span>{{ item.label }}</span>
         </div>
       </div>
@@ -246,6 +248,11 @@ onMounted(setupDragSources);
     &:active {
       cursor: grabbing;
     }
+  }
+  &__icon {
+    flex: none;
+    width: 18px;
+    height: 18px;
   }
 }
 </style>

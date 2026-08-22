@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue';
+import { shallowRef } from 'vue';
 import WorkbenchEditorShell from '~/components/dashboard/editor/WorkbenchEditorShell.vue';
 import WorkbenchEditorToolbar from '~/components/dashboard/editor/WorkbenchEditorToolbar.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 
-const device = ref<'desktop' | 'mobile'>('desktop');
+const device = shallowRef<'desktop' | 'mobile'>('desktop');
 function notify() {}
 </script>
 
@@ -33,8 +33,14 @@ function notify() {}
   /* 页面整体背景：与工作台页面统一的设计浅灰底 */
   background: #f3f3f8;
   .custom-dashboard-setting {
-    width: 100%;
-    height: 100%;
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+    margin: 0 8px 8px;
+    overflow: hidden;
+    background: var(--el-bg-color);
+    border-radius: 10px;
   }
 }
 
