@@ -29,7 +29,7 @@ defineProps<{
   padding: 16px;
   overflow: hidden;
   background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
+  border: 0;
   border-radius: var(--el-border-radius-base);
   box-shadow: var(--el-box-shadow-lighter);
 

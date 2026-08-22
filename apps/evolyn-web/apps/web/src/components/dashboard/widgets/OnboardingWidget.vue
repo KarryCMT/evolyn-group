@@ -45,7 +45,7 @@ const steps = [
   background-position: center bottom;
   background-repeat: no-repeat;
   background-size: 100% 62%;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 0;
   border-radius: var(--el-border-radius-base);
   box-shadow: var(--el-box-shadow-lighter);
 

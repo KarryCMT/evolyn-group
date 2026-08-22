@@ -38,6 +38,16 @@ const gridOptions = computed(() => ({
   overflow: hidden;
   padding: 0px 40px 24px;
   margin: 0 auto;
+
+  /* 工作台卡片使用独立的浮层规格，避免继承 Element Plus 过于克制的默认圆角和阴影。 */
+  --el-border-radius-base: 10px;
+  --el-border-color-lighter: rgba(31, 35, 41, 0.06);
+  --el-box-shadow-lighter: 0 0 2px 0 rgba(19, 29, 46, 0.02), 0 1px 4px 0 rgba(19, 29, 46, 0.06);
+}
+
+.dashboard-canvas :deep(.evolyn-grid .grid-stack-item-content) {
+  /* 网格内容盒不能裁掉卡片向外扩散的阴影；卡片自身已负责内部内容裁剪。 */
+  overflow: visible !important;
 }
 
 @media (max-width: 768px) {

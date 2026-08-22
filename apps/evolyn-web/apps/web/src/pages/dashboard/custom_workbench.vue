@@ -51,14 +51,18 @@ function notify() {}
   --el-text-color-secondary: #909399;
   --el-border-color: #dcdfe6;
   --el-border-color-light: #e4e7ed;
-  --el-border-color-lighter: #ebeef5;
+  /* 与成员端工作台保持一致：卡片边界轻、圆角和投影可感知。 */
+  --el-border-radius-base: 10px;
+  --el-border-color-lighter: rgba(31, 35, 41, 0.06);
+  --el-box-shadow-lighter: 0 0 2px 0 rgba(19, 29, 46, 0.02), 0 1px 4px 0 rgba(19, 29, 46, 0.06);
   --el-color-primary: #1677ff;
   --el-color-primary-light-3: #5ca0ff;
   --el-color-primary-light-7: #b9d6ff;
   --el-color-primary-light-9: #e8f1ff;
 }
 
-.custom-workbench-page :deep(.grid-stack > .grid-stack-item > .grid-stack-item-content) {
-  overflow: hidden !important;
+.custom-workbench-page :deep(.evolyn-grid .grid-stack-item-content) {
+  /* 设计器预览使用和成员端相同的投影策略，防止 GridStack 裁剪阴影。 */
+  overflow: visible !important;
 }
 </style>

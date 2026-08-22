@@ -23,10 +23,11 @@ defineProps<{ widget: DashboardWidgetContent }>();
   align-items: center;
   height: 100%;
   padding: 0;
+  overflow: hidden;
   gap: 12px;
   color: var(--el-text-color-primary);
   background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
+  border: 0;
   border-radius: var(--el-border-radius-base);
   box-shadow: var(--el-box-shadow-lighter);
 
