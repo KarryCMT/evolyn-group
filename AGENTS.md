@@ -200,6 +200,8 @@ pnpm -F @evolyn.do/web build        # 生产构建
 - 所有可点击的图标、文字和原生 `button` 都必须提供清晰的鼠标悬停背景效果，并设置
   `cursor: pointer`；禁用态元素不适用此规则。
 - 图标优先使用 `@remixicon/vue` 提供的 Fill 类型图标，禁止使用 Line 类型图标。
+- 开发时优先从 `apps/evolyn-web/packages/` 查找可复用的模块、方法与 hooks；若没有合适实现，
+  先由用户决定是否新增实现，禁止自行造轮子。
 - 抽屉标题栏统一采用标准规格：桌面端高 `56px`、移动端高 `52px`，标题为 `18px/26px`，
   关闭按钮为 `32px`（图标 `22px`）；自定义 header 与 Element Plus 默认 header 均须遵守。
   抽屉内容若传送至 `body`，以组件唯一块类限定全局覆盖，禁止影响其他抽屉。
