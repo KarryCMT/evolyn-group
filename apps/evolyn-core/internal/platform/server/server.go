@@ -16,6 +16,9 @@ import (
 	// swagger spec 注册：swag init 生成的 docs 包经 init() 把接口定义
 	// 注册给 gin-swagger，不引入则 /swagger/doc.json 500（页面能开但无内容）
 	_ "evolyn/docs"
+	applicationcontroller "evolyn/internal/platform/application/controller"
+	applicationrepository "evolyn/internal/platform/application/repository"
+	applicationservice "evolyn/internal/platform/application/service"
 	auditrepository "evolyn/internal/platform/audit/repository"
 	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/auth"
@@ -85,6 +88,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	loginLogRepo := loginlogrepository.NewRepository(db)
 	tenantRepo := tenantrepository.NewRepository(db, rdb)
 	iamRepo := repository.NewRepositories(db, rdb)
+	// 应用域仓储先于配额服务装配：apps 计量面（CountBillableByTenant）随
+	// 应用域落地接入 QuotaService（M2-A）
+	applicationRepo := applicationrepository.NewRepository(db)
 	if conf.DB.Migrate {
 		if err := auditRepo.Migrate(); err != nil {
 			return nil, err
@@ -96,6 +102,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 			return nil, err
 		}
 		if err := iamRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := applicationRepo.Migrate(); err != nil {
 			return nil, err
 		}
 	}
@@ -111,7 +120,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 域服务装配：审计/配额/事务管理为跨域基础能力，先于业务服务构造
 	// （FIX-020/021：核心写路径经 TxManager 声明原子边界）
 	auditSvc := auditservice.NewService(auditRepo)
-	quotaSvc := tenantservice.NewQuotaService(tenantRepo, iamRepo.User())
+	quotaSvc := tenantservice.NewQuotaService(tenantRepo, tenantRepo, iamRepo.User(), applicationRepo)
 	txManager := infrastructure.NewTxManager(db)
 
 	// 登录日志域（认证域内，000013）：IP 归属地解析器数据内嵌随二进制，
@@ -142,6 +151,10 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		FixedCode: smsFixedCode,
 	})
 	rbacService := service.NewRBACService(iamRepo.RBAC(), auditSvc)
+	// 应用域服务（M2-A）：空白应用创建/查询/更新/软删 + 配额占位；
+	// 访问判定与鉴权中间件同源（按 ID 重载成员 + authenticated 系统组）
+	appAccess := applicationservice.NewRBACAccessEvaluator(iamRepo.User(), iamRepo.Group())
+	applicationService := applicationservice.NewApplicationService(txManager, applicationRepo, quotaSvc, auditSvc, appAccess)
 	oauthManager := oauth.NewOAuthManager(conf.OAuthConfig)
 
 	// 登录口令加密密钥对：私钥留服务端解密，公钥经 /app/conf 下发前端。
@@ -164,11 +177,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
+	applicationController := applicationcontroller.NewApplicationController(applicationService)
 
 	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController, applicationController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)

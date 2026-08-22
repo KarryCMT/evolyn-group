@@ -340,6 +340,8 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			{Resource: "groups", Operation: iammodel.AllOperation},
 			{Resource: "roles", Operation: iammodel.AllOperation},
 			{Resource: "departments", Operation: iammodel.AllOperation},
+			// 应用管理（M2-A）：租户管理员全量；存量租户由 000014 订正
+			{Resource: "applications", Operation: iammodel.AllOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},
@@ -347,6 +349,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 账号自助（/accounts/me 仅限本人资料/密码，无全局账号管理面）：
 			// 注册向导第 3 步「完善信息」依赖 update，存量租户由 000011 订正
 			{Resource: "accounts", Operation: iammodel.AllOperation},
+			// 应用只读（M2-A）：工作台「我的应用」对全体成员可见；创建/编辑/
+			// 删除由租户管理员按角色另授；存量租户由 000014 订正
+			{Resource: "applications", Operation: iammodel.ViewOperation},
 		}},
 		{Name: UnAuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "auth", Operation: "create"},

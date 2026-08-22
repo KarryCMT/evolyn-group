@@ -226,3 +226,75 @@ export interface AppConf {
   platform_sms: boolean;
   register_persona: boolean;
 }
+
+// ---------- 应用管理域 API 契约（M2-A，与 evolyn-core application 域对齐） ----------
+
+/** 应用稳定图标键（服务端枚举，与空白应用弹窗图标集一致） */
+export type ApplicationIcon = 'bookmark' | 'briefcase' | 'contacts' | 'chart' | 'check';
+
+/** 应用稳定颜色键（服务端枚举，渲染时映射主题色变量） */
+export type ApplicationColor = 'primary';
+
+/** 创建空白应用请求（POST /applications）：名称必填，图标/颜色可省略取服务端默认 */
+export interface CreateBlankApplicationPayload {
+  name: string;
+  icon?: ApplicationIcon;
+  color?: ApplicationColor;
+}
+
+/** 更新应用请求（PATCH /applications/:id）：白名单字段，指针语义（未传不改） */
+export interface UpdateApplicationPayload {
+  name?: string;
+  icon?: ApplicationIcon;
+  color?: ApplicationColor;
+  sortOrder?: number;
+  /** 仅 active↔archived 互转（承载归档/恢复） */
+  status?: 'active' | 'archived';
+}
+
+/** 应用来源摘要：type=blank 空白创建 / template 模板安装（M2-B） */
+export interface ApplicationSource {
+  type: 'blank' | 'template';
+  channel: 'self' | 'template_center' | 'admin' | 'api';
+}
+
+/** 当前成员的运行时能力（后端读取时派生，不落库） */
+export interface ApplicationCapabilities {
+  view: boolean;
+  edit: boolean;
+  delete: boolean;
+}
+
+/** 应用详情（创建/详情/列表条目共用，model.ApplicationDetail 字段子集） */
+export interface ApplicationItem {
+  id: number;
+  code: string;
+  name: string;
+  icon: ApplicationIcon;
+  color: ApplicationColor;
+  source: ApplicationSource;
+  status: 'active' | 'archived';
+  provisionStatus: 'ready' | 'pending' | 'running' | 'failed';
+  ownerMemberId: number;
+  creatorMemberId: number;
+  sortOrder: number;
+  capabilities: ApplicationCapabilities;
+  /** 后端 JSONTime 秒级东八区 yyyy-MM-dd HH:mm:ss */
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 应用列表游标分页结果：nextCursor 为空且 hasMore=false 即末页，游标只原样回传 */
+export interface ApplicationPage {
+  items: ApplicationItem[];
+  nextCursor: string;
+  hasMore: boolean;
+}
+
+/** 应用列表查询参数 */
+export interface ApplicationListQuery {
+  keyword?: string;
+  status?: 'active' | 'archived';
+  limit?: number;
+  cursor?: string;
+}

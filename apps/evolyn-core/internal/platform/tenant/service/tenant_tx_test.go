@@ -246,6 +246,14 @@ func (q openQuota) Usage(ctx context.Context, tenantID uint, key string) (int64,
 	return 0, nil
 }
 
+// CheckAndReserve 桩：透传错误/直接透传 fn（本测试不覆盖并发语义）
+func (q openQuota) CheckAndReserve(ctx context.Context, tenantID uint, key string, fn func(ctx context.Context) error) error {
+	if q.err != nil {
+		return q.err
+	}
+	return fn(ctx)
+}
+
 // newOpenFixtures 开通租户测试夹具：全空库起步，各桩带失败注入位
 func newOpenFixtures() (*openStore, *openTenantRepo, *openIAM, *openAudit) {
 	store := &openStore{

@@ -21,8 +21,12 @@ import {
 
 defineOptions({ name: 'CreateApplicationDialog' });
 
+defineProps<{
+  /** 空白应用异步创建处理：resolve true 关闭两级弹窗，false 保持开启（失败保留填写内容） */
+  submitBlank: (draft: BlankApplicationDraft) => Promise<boolean>;
+}>();
+
 const emit = defineEmits<{
-  createBlank: [draft: BlankApplicationDraft];
   selectStarter: [starter: Exclude<ApplicationStarter, { id: 'blank' }>];
   selectTemplate: [template: ApplicationTemplate];
   openTemplateCenter: [];
@@ -46,12 +50,13 @@ function selectStarter(starter: ApplicationStarter) {
 }
 
 // 关闭一级弹窗时一并收起二级表单，避免传送到 body 的子弹窗失去上下文。
+// 提交进行中由二级表单自身禁用关闭入口，此处不强制打断请求。
 watch(visible, (isVisible) => {
   if (!isVisible) blankApplicationVisible.value = false;
 });
 
-function submitBlankApplication(draft: BlankApplicationDraft) {
-  emit('createBlank', draft);
+// 二级表单异步提交成功后才关闭两级弹窗；失败由处理方提示并保留表单
+function handleBlankSuccess() {
   blankApplicationVisible.value = false;
   visible.value = false;
 }
@@ -171,7 +176,11 @@ function showNextTemplates() {
       </section>
     </div>
   </el-dialog>
-  <BlankApplicationDialog v-model="blankApplicationVisible" @submit="submitBlankApplication" />
+  <BlankApplicationDialog
+    v-model="blankApplicationVisible"
+    :submit="submitBlank"
+    @success="handleBlankSuccess"
+  />
 </template>
 
 <!-- 弹窗会传送至 body，样式须通过唯一块类限定。 -->

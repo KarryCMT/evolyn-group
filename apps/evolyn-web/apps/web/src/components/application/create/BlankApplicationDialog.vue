@@ -34,12 +34,19 @@ const iconOptions: ApplicationIconOption[] = [
   { value: 'check', label: '完成', icon: RiCheckboxCircleFill },
 ];
 
+const props = defineProps<{
+  /** 异步提交处理：resolve true 表示创建成功（父级随后关闭弹窗）；false 表示失败，保持弹窗开启以保留填写内容 */
+  submit: (draft: BlankApplicationDraft) => Promise<boolean>;
+}>();
+
 const emit = defineEmits<{
-  submit: [draft: BlankApplicationDraft];
+  /** 提交成功：由父级负责关闭弹窗（含上级「新建应用」弹窗） */
+  success: [draft: BlankApplicationDraft];
 }>();
 
 const visible = defineModel<boolean>({ default: false });
 const formRef = shallowRef<FormInstance>();
+const submitting = shallowRef(false);
 const form = reactive<BlankApplicationDraft>({
   name: '',
   icon: 'bookmark',
@@ -61,9 +68,17 @@ watch(visible, (isVisible) => {
 
 async function submit() {
   const valid = await formRef.value?.validate().catch(() => false);
-  if (!valid) return;
+  if (!valid || submitting.value) return;
 
-  emit('submit', { name: form.name.trim(), icon: form.icon });
+  submitting.value = true;
+  try {
+    // 等待创建请求完成才决定去留：失败时保持弹窗开启并保留填写内容，
+    // 错误提示由父级处理函数负责（按 errCode 分支）
+    const ok = await props.submit({ name: form.name.trim(), icon: form.icon });
+    if (ok) emit('success', { name: form.name.trim(), icon: form.icon });
+  } finally {
+    submitting.value = false;
+  }
 }
 </script>
 
@@ -75,6 +90,7 @@ async function submit() {
     top="18vh"
     :show-close="false"
     :close-on-click-modal="false"
+    :close-on-press-escape="!submitting"
     append-to-body
   >
     <template #header>
@@ -84,6 +100,7 @@ async function submit() {
           class="blank-application-dialog__close"
           type="button"
           aria-label="关闭创建空白应用"
+          :disabled="submitting"
           @click="visible = false"
         >
           <RiCloseFill />
@@ -131,8 +148,8 @@ async function submit() {
 
     <template #footer>
       <footer class="blank-application-dialog__footer">
-        <el-button @click="visible = false">取消</el-button>
-        <el-button type="primary" @click="submit">确定</el-button>
+        <el-button :disabled="submitting" @click="visible = false">取消</el-button>
+        <el-button type="primary" :loading="submitting" @click="submit">确定</el-button>
       </footer>
     </template>
   </el-dialog>
@@ -201,14 +218,19 @@ async function submit() {
   border-radius: var(--el-border-radius-base);
   font-size: 22px;
 
-  &:hover {
+  &:hover:not(:disabled) {
     color: var(--el-color-primary);
     background: var(--el-color-primary-light-9);
   }
 
-  &:focus-visible {
+  &:focus-visible:not(:disabled) {
     outline: 2px solid var(--el-color-primary);
     outline-offset: 2px;
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+    color: var(--el-text-color-placeholder);
   }
 }
 

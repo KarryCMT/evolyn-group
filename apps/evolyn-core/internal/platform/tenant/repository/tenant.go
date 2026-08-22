@@ -27,6 +27,10 @@ type LifecycleTimes struct {
 // TenantRepository 租户域数据访问；管理面 CRUD 随 P3 运营域接口补充
 type TenantRepository interface {
 	GetByID(ctx context.Context, id uint) (*model.Tenant, error)
+	// LockByID 事务内锁定租户行（SELECT ... FOR UPDATE）：配额并发校验
+	// （QuotaService.CheckAndReserve）串行化同租户并发创建用；
+	// ctx 未携带事务时锁随语句结束立即释放
+	LockByID(ctx context.Context, id uint) error
 	GetByIDs(ctx context.Context, ids []uint) ([]model.Tenant, error)
 	GetByCode(ctx context.Context, code string) (*model.Tenant, error)
 	// GetStatus 租户当前状态（FIX-007 请求级拦截用）：短缓存 + 变更失效，
@@ -75,6 +79,15 @@ func (t *tenantRepository) GetByID(ctx context.Context, id uint) (*model.Tenant,
 		return nil, err
 	}
 	return tenant, nil
+}
+
+// LockByID 事务内锁定租户行：SELECT id FROM tenants WHERE id=? FOR UPDATE。
+// tenants 表无 tenant_id 列，原生 SQL 不经租户 Callback（语义即全局按主键）；
+// 行不存在时不报错（租户存在性由请求链前置保证），锁在无事务 ctx 下即释放
+func (t *tenantRepository) LockByID(ctx context.Context, id uint) error {
+	var locked uint
+	return t.withContext(ctx).
+		Raw("SELECT id FROM tenants WHERE id = ? FOR UPDATE", id).Scan(&locked).Error
 }
 
 // GetByIDs 批量取租户（成员关系列表组装用）；ids 为空返回空集

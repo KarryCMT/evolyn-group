@@ -59,7 +59,7 @@ func newSecEnv(t *testing.T) *secEnv {
 	iamRepo := iamrepository.NewRepositories(db, rdb)
 	tenantRepo := tenantrepository.NewRepository(db, rdb)
 	auditSvc := auditservice.NewService(auditrepository.NewRepository(db))
-	quotaSvc := tenantservice.NewQuotaService(tenantRepo, iamRepo.User())
+	quotaSvc := tenantservice.NewQuotaService(tenantRepo, tenantRepo, iamRepo.User(), nil)
 	txManager := infrastructure.NewTxManager(db)
 
 	env := &secEnv{

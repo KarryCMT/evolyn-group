@@ -170,6 +170,14 @@ func (f fakeQuota) Usage(ctx context.Context, tenantID uint, key string) (int64,
 	return 0, nil
 }
 
+// CheckAndReserve 桩：直接透传 fn（单测不覆盖并发语义，真实链路见应用域集成测试）
+func (f fakeQuota) CheckAndReserve(ctx context.Context, tenantID uint, key string, fn func(ctx context.Context) error) error {
+	if f.exceeded {
+		return tenantservice.ErrQuotaExceeded
+	}
+	return fn(ctx)
+}
+
 // newBindingFixtures 双租户（1/2）测试夹具：成员 1 与角色 5 同属租户 1；
 // 成员 2、角色 6、分组 7 属租户 2
 func newBindingFixtures() (*fakeUserRepo, *fakeRBACRepo, *fakeGroupRepo, *fakeAccountRepo) {

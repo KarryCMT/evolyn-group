@@ -122,6 +122,11 @@ func (r *Repositories) Init() error {
 			Name:  "departments",
 			Scope: model.ClusterScope,
 		},
+		// 应用管理（M2-A）：工作台/应用域 API 的鉴权资源
+		{
+			Name:  "applications",
+			Scope: model.ClusterScope,
+		},
 	}
 
 	if err := r.rbac.CreateResources(ctx, resources, clause.OnConflict{DoNothing: true}); err != nil {
