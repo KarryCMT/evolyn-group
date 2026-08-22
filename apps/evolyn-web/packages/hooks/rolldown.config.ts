@@ -1,11 +1,15 @@
 import { defineConfig } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 
+// Vue / Element Plus 是运行时 peer 依赖；utils 是 workspace 依赖，
+// 均外置，避免把宿主或底层包实现打进 hooks 产物。
+const external = ['vue', 'element-plus', '@evolyn.do/utils'];
+
 export default defineConfig([
   {
     // Vue 是运行时 peer 依赖，外置可以避免把宿主项目的 Vue 打进 hooks 包。
     input: 'src/index.ts',
-    external: ['vue'],
+    external,
     tsconfig: './tsconfig.json',
     output: [
       {
@@ -29,7 +33,7 @@ export default defineConfig([
   {
     // 类型声明单独构建，避免 CommonJS 构建重复生成声明文件。
     input: 'src/index.ts',
-    external: ['vue'],
+    external,
     tsconfig: './tsconfig.json',
     output: {
       dir: 'dist/types',

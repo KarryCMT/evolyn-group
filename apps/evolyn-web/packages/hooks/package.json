@@ -24,7 +24,11 @@
     "typescript": "catalog:types",
     "vue": "catalog:frontend"
   },
+  "dependencies": {
+    "@evolyn.do/utils": "workspace:*"
+  },
   "peerDependencies": {
-    "vue": "catalog:frontend"
+    "vue": "catalog:frontend",
+    "element-plus": "catalog:ui"
   }
 }

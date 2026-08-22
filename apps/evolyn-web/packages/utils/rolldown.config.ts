@@ -1,10 +1,15 @@
 import { defineConfig } from 'rolldown';
 import { dts } from 'rolldown-plugin-dts';
 
+// 运行时依赖不打进产物（dependencies 已声明）；
+// dts 构建同样 external，避免 rolldown-plugin-dts 解析 axios 的 CJS 类型入口（index.d.cts）报 MISSING_EXPORT
+const external = ['axios', 'qs', 'lodash-es'];
+
 export default defineConfig([
   {
     // 使用 Rolldown 内置的 TypeScript 与 JSON 支持，避免继续维护旧插件链。
     input: 'src/index.ts',
+    external,
     tsconfig: './tsconfig.json',
     output: [
       {
@@ -28,6 +33,7 @@ export default defineConfig([
   {
     // 类型声明单独构建，避免 CommonJS 构建重复生成声明文件。
     input: 'src/index.ts',
+    external,
     tsconfig: './tsconfig.json',
     output: {
       dir: 'dist/types',
