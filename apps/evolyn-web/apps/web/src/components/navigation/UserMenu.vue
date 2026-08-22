@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
 // 只显式导入 ElMessage：API 无模板标签可按需解析，样式由 main.ts 全局引入；
 // el-dropdown / el-avatar 等组件必须走模板标签由 unplugin-vue-components 按需注入
@@ -16,6 +16,7 @@ import {
   RiVipDiamondLine,
 } from '@remixicon/vue';
 import { useAuth } from '~/composables';
+import FavoritesWorkspaceDialog from '~/components/dashboard/favorites/FavoritesWorkspaceDialog.vue';
 
 defineOptions({ name: 'UserMenu' });
 
@@ -27,13 +28,17 @@ const panelName = computed(() => displayName.value || '用户');
 
 // 公司名：超长由样式截断为省略号（对齐设计稿「重庆万柯互联网科技有限责任...」形态）
 const tenantName = computed(() => userInfo.value?.tenant.name ?? '');
+const favoritesVisible = shallowRef(false);
 
 /**
  * 菜单指令分发：已落地页面真实跳转；
- * 我的收藏/管理后台/版本购买/语言暂无对应页面，占位提示待后续里程碑落地
+ * 管理后台/版本购买/语言暂无对应页面，占位提示待后续里程碑落地。
  */
 function onCommand(command: string | number | object) {
   switch (command) {
+    case 'favorites':
+      favoritesVisible.value = true;
+      break;
     case 'settings':
       router.push({ name: 'account' });
       break;
@@ -105,6 +110,7 @@ async function handleLogout() {
       </div>
     </template>
   </el-dropdown>
+  <FavoritesWorkspaceDialog v-model="favoritesVisible" />
 </template>
 
 <style scoped lang="scss">

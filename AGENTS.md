@@ -196,6 +196,9 @@ pnpm -F @evolyn.do/web build        # 生产构建
   保存格式化），不自定义其他格式化风格或手工对齐。
 - 样式统一引用 Element Plus 默认命名空间 CSS 变量（`--el-*`），不自定义 CSS
   token；类名采用 BEM（块__元素--修饰符），优先组件内 scoped 样式。
+- 前端样式统一使用 SCSS 编写；新增或修改样式时不要引入 CSS、Less 等其他预处理器。
+- 所有可点击的图标、文字和原生 `button` 都必须提供清晰的鼠标悬停背景效果，并设置
+  `cursor: pointer`；禁用态元素不适用此规则。
 - 新增页面在 `src/pages/` 建文件并到 `src/router/index.ts` 登记（不用文件式
   自动路由）；布局/菜单组件落地后，菜单入口同步维护对应布局组件。
 - 数据表格统一采用 VisActor VTable 生态（见架构文档第 3 章），新列表页不要
