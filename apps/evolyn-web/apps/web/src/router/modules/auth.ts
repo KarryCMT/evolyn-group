@@ -29,4 +29,4 @@ const authRoutes: RouteRecordRaw[] = [
   },
 ];
 
-export default authRoutes
+export default authRoutes;

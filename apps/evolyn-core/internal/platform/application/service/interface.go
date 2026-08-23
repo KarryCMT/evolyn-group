@@ -21,6 +21,9 @@ type ApplicationService interface {
 	List(ctx context.Context, member *iammodel.User, query model.ListApplicationsQuery) (*model.ApplicationPage, error)
 	// Get 应用详情与运行时 capabilities
 	Get(ctx context.Context, member *iammodel.User, id uint) (*model.ApplicationDetail, error)
+	// GetByCode 按应用编码查详情（code 租户内唯一）：加载与权限复核
+	// 口径同 Get，供工作区等以 code 定位应用的入口使用
+	GetByCode(ctx context.Context, member *iammodel.User, code string) (*model.ApplicationDetail, error)
 	// Update 白名单字段更新（name/icon/color/sortOrder/status）；
 	// status 仅允许 active↔archived 互转承载归档/恢复（§5.4）
 	Update(ctx context.Context, member *iammodel.User, id uint, req *model.UpdateApplicationRequest) (*model.ApplicationDetail, error)

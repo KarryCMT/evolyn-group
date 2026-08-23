@@ -35,6 +35,14 @@ export function getApplication(id: number): Promise<ApplicationItem> {
 }
 
 /**
+ * 按编码查询应用详情（GET /applications/code/:code）：code 租户内唯一，
+ * 响应结构与按 ID 查询一致；工作区等以 code 定位应用的入口使用
+ */
+export function getApplicationByCode(code: string): Promise<ApplicationItem> {
+  return http.get(`/applications/code/${code}`);
+}
+
+/**
  * 更新应用（PATCH /applications/:id）：白名单字段 name/icon/color/sortOrder/status；
  * status 仅 active↔archived 互转（归档/恢复）
  */

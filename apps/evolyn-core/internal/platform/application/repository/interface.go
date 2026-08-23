@@ -29,6 +29,8 @@ type ApplicationRepository interface {
 	CreateInstallation(ctx context.Context, inst *model.Installation) error
 	// GetByID 按 ID 加载（ctx 携带租户时自动过滤，跨租户 ID 即 NotFound）
 	GetByID(ctx context.Context, id uint) (*model.Application, error)
+	// GetByCode 按应用编码加载（code 租户内唯一；租户过滤语义同 GetByID）
+	GetByCode(ctx context.Context, code string) (*model.Application, error)
 	// List 游标分页查询；返回当页数据与是否还有下一页（limit+1 探测）
 	List(ctx context.Context, params ListParams) ([]model.Application, bool, error)
 	// UpdateFields 白名单字段更新（先加载校验后调用，租户过滤随 ctx）

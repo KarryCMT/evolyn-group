@@ -43,6 +43,16 @@ func (r *applicationRepository) GetByID(ctx context.Context, id uint) (*model.Ap
 	return app, nil
 }
 
+// GetByCode 按应用编码加载：code 在租户内唯一（部分唯一索引），租户
+// 过滤仍由 GORM Callback 兜底——跨租户 code 与不存在同口径 NotFound
+func (r *applicationRepository) GetByCode(ctx context.Context, code string) (*model.Application, error) {
+	app := new(model.Application)
+	if err := r.withContext(ctx).Where("code = ?", code).First(app).Error; err != nil {
+		return nil, err
+	}
+	return app, nil
+}
+
 // List 游标分页：固定序 sort_order ASC, id DESC，游标行之后取 limit 条，
 // 多取一条探测 hasMore。keyword 命中 name（ILIKE），status 过滤可选
 func (r *applicationRepository) List(ctx context.Context, params ListParams) ([]model.Application, bool, error) {

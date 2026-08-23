@@ -71,6 +71,17 @@ func (f *fakeAppRepo) GetByID(ctx context.Context, id uint) (*model.Application,
 	return nil, gorm.ErrRecordNotFound
 }
 
+// GetByCode 按 code 遍历匹配（fake 无索引，语义与真实部分唯一索引一致）
+func (f *fakeAppRepo) GetByCode(ctx context.Context, code string) (*model.Application, error) {
+	for _, app := range f.apps {
+		if app.Code == code && !f.deleted[app.ID] {
+			clone := *app
+			return &clone, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
 func (f *fakeAppRepo) List(ctx context.Context, params repository.ListParams) ([]model.Application, bool, error) {
 	return nil, false, nil
 }
@@ -448,6 +459,36 @@ func TestGetInfraErrorNotNotFound(t *testing.T) {
 	_, err := svc.Get(alphaCtx(), alphaMember(), 1)
 	assert.False(t, errors.Is(err, apperrors.ErrNotFound), "基础设施错误不得映射为 APP_NOT_FOUND")
 	assert.EqualError(t, err, "connection refused")
+}
+
+// TestGetByCode 按 code 查详情：与按 ID 查询同口径（定位、权限复核、
+// 出网 capabilities）
+func TestGetByCode(t *testing.T) {
+	repo := newFakeAppRepo()
+	seed := newTestService(repo, fakeQuota{}, nil, fakeAccess{perms: fullPerms()})
+	created, err := seed.CreateBlank(alphaCtx(), alphaMember(), blankReq("应用"))
+	assert.NoError(t, err)
+
+	t.Run("code 命中返回与 ID 查询一致的详情", func(t *testing.T) {
+		svc := newTestService(repo, fakeQuota{}, nil, fakeAccess{perms: fullPerms()})
+		detail, err := svc.GetByCode(alphaCtx(), alphaMember(), created.Code)
+		assert.NoError(t, err)
+		assert.Equal(t, created.ID, detail.ID)
+		assert.Equal(t, created.Code, detail.Code)
+		assert.True(t, detail.Capabilities.View)
+	})
+
+	t.Run("code 不存在 NotFound", func(t *testing.T) {
+		svc := newTestService(repo, fakeQuota{}, nil, fakeAccess{perms: fullPerms()})
+		_, err := svc.GetByCode(alphaCtx(), alphaMember(), "app_notexist")
+		assert.True(t, errors.Is(err, apperrors.ErrNotFound))
+	})
+
+	t.Run("无 get 权限拒绝", func(t *testing.T) {
+		svc := newTestService(repo, fakeQuota{}, nil, fakeAccess{perms: map[string]bool{}})
+		_, err := svc.GetByCode(alphaCtx(), alphaMember(), created.Code)
+		assert.True(t, errors.Is(err, apperrors.ErrForbidden))
+	})
 }
 
 func TestCapabilitiesByPermission(t *testing.T) {

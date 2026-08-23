@@ -159,6 +159,15 @@ func TestSECAPP001CrossTenantAccess(t *testing.T) {
 	err = env.appSvc.Delete(appCtx(env.alpha.ID), env.alphaMember, created.ID)
 	assert.True(t, errors.Is(err, apperrors.ErrNotFound))
 
+	// 按 code 定位同受租户过滤：alpha 拿 beta 应用的 code 查 → NotFound；
+	// beta 本人按 code 查 → 命中同一行
+	_, err = env.appSvc.GetByCode(appCtx(env.alpha.ID), env.alphaMember, created.Code)
+	assert.True(t, errors.Is(err, apperrors.ErrNotFound))
+
+	byCode, err := env.appSvc.GetByCode(appCtx(env.beta.ID), env.betaMember, created.Code)
+	assert.NoError(t, err)
+	assert.Equal(t, created.ID, byCode.ID)
+
 	// beta 行仍在库（软删未发生）
 	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM applications WHERE id = ?", created.ID))
 }

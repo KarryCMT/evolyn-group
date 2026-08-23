@@ -35,88 +35,91 @@ const emit = defineEmits<{
     :class="{ 'application-workspace-sidebar--collapsed': props.collapsed }"
     aria-label="应用导航"
   >
-    <header class="application-workspace-sidebar__header">
-      <button
-        class="application-workspace-sidebar__back"
-        type="button"
-        aria-label="返回工作台"
-        @click="emit('back')"
-      >
-        <RiArrowLeftSLine />
-      </button>
-      <span class="application-workspace-sidebar__app-icon" aria-hidden="true">
-        <component :is="props.applicationIcon" />
-      </span>
-      <strong class="application-workspace-sidebar__app-name">{{ props.applicationName }}</strong>
-      <button
-        v-if="!props.collapsed"
-        class="application-workspace-sidebar__collapse"
-        type="button"
-        aria-label="收起侧边栏"
-        aria-expanded="true"
-        title="收起侧边栏"
-        @click="emit('toggleSidebar')"
-      >
-        <RiArrowLeftDoubleFill aria-hidden="true" />
-      </button>
-    </header>
+    <div class="application-workspace-sidebar__content" :aria-hidden="props.collapsed">
+      <header class="application-workspace-sidebar__header">
+        <button
+          class="application-workspace-sidebar__back"
+          type="button"
+          aria-label="返回工作台"
+          @click="emit('back')"
+        >
+          <RiArrowLeftSLine />
+        </button>
+        <span class="application-workspace-sidebar__app-icon" aria-hidden="true">
+          <component :is="props.applicationIcon" />
+        </span>
+        <strong class="application-workspace-sidebar__app-name">{{ props.applicationName }}</strong>
+        <button
+          v-if="!props.collapsed"
+          class="application-workspace-sidebar__collapse"
+          type="button"
+          aria-label="收起侧边栏"
+          aria-expanded="true"
+          title="收起侧边栏"
+          @click="emit('toggleSidebar')"
+        >
+          <RiArrowLeftDoubleFill aria-hidden="true" />
+        </button>
+      </header>
 
-    <nav class="application-workspace-sidebar__personal-nav" aria-label="个人应用入口">
-      <button
-        v-for="item in applicationPersonalNavigation"
-        :key="item.code"
-        class="application-workspace-sidebar__nav-item"
-        type="button"
-        :aria-label="item.label"
-      >
-        <component :is="item.icon" aria-hidden="true" />
-        <span>{{ item.label }}</span>
-      </button>
-    </nav>
+      <nav class="application-workspace-sidebar__personal-nav" aria-label="个人应用入口">
+        <button
+          v-for="item in applicationPersonalNavigation"
+          :key="item.code"
+          class="application-workspace-sidebar__nav-item"
+          type="button"
+          :aria-label="item.label"
+        >
+          <component :is="item.icon" aria-hidden="true" />
+          <span>{{ item.label }}</span>
+        </button>
+      </nav>
 
-    <div class="application-workspace-sidebar__asset-tools">
-      <label class="application-workspace-sidebar__search">
-        <RiSearch2Line aria-hidden="true" />
-        <input placeholder="输入名称来搜索" aria-label="搜索应用资产" />
-      </label>
-      <button
-        class="application-workspace-sidebar__create"
-        type="button"
-        aria-label="新建应用资产"
-        @click="emit('createAsset')"
-      >
-        <RiAddFill />
-      </button>
+      <div class="application-workspace-sidebar__asset-tools">
+        <label class="application-workspace-sidebar__search">
+          <RiSearch2Line aria-hidden="true" />
+          <input placeholder="输入名称来搜索" aria-label="搜索应用资产" />
+        </label>
+        <button
+          class="application-workspace-sidebar__create"
+          type="button"
+          aria-label="新建应用资产"
+          @click="emit('createAsset')"
+        >
+          <RiAddFill />
+        </button>
+      </div>
+
+      <nav class="application-workspace-sidebar__asset-nav" aria-label="应用资产">
+        <button
+          v-for="asset in props.assets"
+          :key="asset.code"
+          class="application-workspace-sidebar__asset-item"
+          :class="{
+            'application-workspace-sidebar__asset-item--active':
+              asset.code === props.activeAssetCode,
+          }"
+          type="button"
+          :aria-label="asset.label"
+          @click="emit('selectAsset', asset)"
+        >
+          <component :is="asset.icon" aria-hidden="true" />
+          <span>{{ asset.label }}</span>
+        </button>
+      </nav>
+
+      <footer class="application-workspace-sidebar__footer">
+        <button
+          class="application-workspace-sidebar__management"
+          type="button"
+          aria-label="应用后台"
+          @click="emit('openManagement')"
+        >
+          <RiSettings3Fill aria-hidden="true" />
+          <span>应用后台</span>
+        </button>
+      </footer>
     </div>
-
-    <nav class="application-workspace-sidebar__asset-nav" aria-label="应用资产">
-      <button
-        v-for="asset in props.assets"
-        :key="asset.code"
-        class="application-workspace-sidebar__asset-item"
-        :class="{
-          'application-workspace-sidebar__asset-item--active': asset.code === props.activeAssetCode,
-        }"
-        type="button"
-        :aria-label="asset.label"
-        @click="emit('selectAsset', asset)"
-      >
-        <component :is="asset.icon" aria-hidden="true" />
-        <span>{{ asset.label }}</span>
-      </button>
-    </nav>
-
-    <footer class="application-workspace-sidebar__footer">
-      <button
-        class="application-workspace-sidebar__management"
-        type="button"
-        aria-label="应用后台"
-        @click="emit('openManagement')"
-      >
-        <RiSettings3Fill aria-hidden="true" />
-        <span>应用后台</span>
-      </button>
-    </footer>
   </aside>
 </template>
 
@@ -132,9 +135,23 @@ const emit = defineEmits<{
   color: var(--el-color-white);
   background: var(--el-color-primary);
   transition:
-    width 0.2s ease,
-    min-width 0.2s ease,
-    padding 0.2s ease;
+    width 0.24s ease,
+    min-width 0.24s ease,
+    padding 0.24s ease;
+
+  &__content {
+    display: flex;
+    min-width: 252px;
+    flex: 1;
+    flex-direction: column;
+    opacity: 1;
+    visibility: visible;
+    transform: translateX(0);
+    transition:
+      opacity 0.16s ease 0.24s,
+      visibility 0s linear 0s,
+      transform 0.16s ease 0.24s;
+  }
 
   &__header,
   &__nav-item,
@@ -307,12 +324,15 @@ const emit = defineEmits<{
     min-width: 10px;
     padding: 0;
 
-    .application-workspace-sidebar__header,
-    .application-workspace-sidebar__personal-nav,
-    .application-workspace-sidebar__asset-tools,
-    .application-workspace-sidebar__asset-nav,
-    .application-workspace-sidebar__footer {
-      display: none;
+    .application-workspace-sidebar__content {
+      pointer-events: none;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(-8px);
+      transition:
+        opacity 0.12s ease,
+        visibility 0s linear 0.12s,
+        transform 0.12s ease;
     }
   }
 }

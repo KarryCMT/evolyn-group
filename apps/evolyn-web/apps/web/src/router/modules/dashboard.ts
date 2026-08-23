@@ -23,4 +23,4 @@ const dashboardRoutes: RouteRecordRaw[] = [
     meta: { public: false },
   },
 ];
-export default dashboardRoutes
+export default dashboardRoutes;

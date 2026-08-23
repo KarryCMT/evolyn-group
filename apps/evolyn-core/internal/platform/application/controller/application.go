@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	appmodel "evolyn/internal/platform/application/model"
 	"evolyn/internal/platform/application/service"
@@ -48,6 +49,16 @@ func idFromParam(c *gin.Context) (uint, bool) {
 		return 0, false
 	}
 	return uint(id), true
+}
+
+// codeFromParam 解析路径参数中的应用编码，去空格后为空即回 400（参数类文案）
+func codeFromParam(c *gin.Context) (string, bool) {
+	code := strings.TrimSpace(c.Param("code"))
+	if code == "" {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的应用编码：%s", c.Param("code")))
+		return "", false
+	}
+	return code, true
 }
 
 // @Summary 创建空白应用
@@ -127,6 +138,31 @@ func (a *ApplicationController) Get(c *gin.Context) {
 	httpx.ResponseSuccess(c, detail)
 }
 
+// @Summary 按编码查询应用详情
+// @Description 按应用编码（code，租户内唯一）查询应用详情，响应结构与按 ID 查询一致，含当前成员运行时能力（capabilities 读取时派生）；工作区等以 code 定位应用的入口使用
+// @Produce json
+// @Tags 应用管理
+// @Security JWT
+// @Param code path string true "应用编码（app_ 前缀）"
+// @Success 200 {object} httpx.Response{data=appmodel.ApplicationDetail}
+// @Failure 400 {object} httpx.Response "应用编码为空"
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
+// @Failure 404 {object} httpx.Response "errCode=APP_NOT_FOUND"
+// @Router /api/v1/applications/code/{code} [get]
+func (a *ApplicationController) GetByCode(c *gin.Context) {
+	code, ok := codeFromParam(c)
+	if !ok {
+		return
+	}
+
+	detail, err := a.appService.GetByCode(c.Request.Context(), ginctx.GetUser(c), code)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, detail)
+}
+
 // @Summary 更新应用
 // @Description 白名单字段更新：名称/图标/颜色/排序；status 仅允许 active↔archived 互转（承载归档与恢复）
 // @Accept json
@@ -186,6 +222,9 @@ func (a *ApplicationController) Delete(c *gin.Context) {
 func (a *ApplicationController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/applications", a.CreateBlank)
 	api.GET("/applications", a.List)
+	// 静态段 code 与参数段 :id 同层共存（gin radix tree 静态优先），
+	// code 路径不会被 :id 捕获
+	api.GET("/applications/code/:code", a.GetByCode)
 	api.GET("/applications/:id", a.Get)
 	api.PATCH("/applications/:id", a.Update)
 	api.DELETE("/applications/:id", a.Delete)

@@ -257,6 +257,21 @@ func (s *applicationService) Get(ctx context.Context, member *iammodel.User, id 
 	return s.detailFor(perms, app), nil
 }
 
+// GetByCode 按应用编码查详情：定位键换成租户内唯一的 code，加载与
+// 权限复核口径同 Get（verb=get），出网结构也一致
+func (s *applicationService) GetByCode(ctx context.Context, member *iammodel.User, code string) (*model.ApplicationDetail, error) {
+	app, err := s.loadByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	perms := s.access.Permissions(ctx, member)
+	if !perms["applications:get"] {
+		return nil, httpx.Wrap(apperrors.ErrForbidden,
+			fmt.Errorf("member %d cannot get application %s", memberID(member), code))
+	}
+	return s.detailFor(perms, app), nil
+}
+
 // ---- 更新与删除 ----
 
 // Update 白名单字段更新：先加载（租户过滤）再校验流转，最后按字段集写
@@ -428,6 +443,18 @@ func channelForSourceType(sourceType string) string {
 // 避免数据库故障被误报成「应用不存在」（如更新成功后重载失败的场景）
 func (s *applicationService) load(ctx context.Context, id uint) (*model.Application, error) {
 	app, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, httpx.Wrap(apperrors.ErrNotFound, err)
+		}
+		return nil, err
+	}
+	return app, nil
+}
+
+// loadByCode 按 code 加载应用：NotFound 包装与基础设施错误上抛口径同 load
+func (s *applicationService) loadByCode(ctx context.Context, code string) (*model.Application, error) {
+	app, err := s.repo.GetByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, httpx.Wrap(apperrors.ErrNotFound, err)
