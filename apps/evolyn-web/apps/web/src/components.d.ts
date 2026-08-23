@@ -16,6 +16,7 @@ declare module 'vue' {
     ApplicationEmptyState: typeof import('./components/application/runtime/ApplicationEmptyState.vue')['default']
     ApplicationStarterCard: typeof import('./components/application/create/ApplicationStarterCard.vue')['default']
     ApplicationTemplateCard: typeof import('./components/application/create/ApplicationTemplateCard.vue')['default']
+    AppSettingSidebar: typeof import('./components/app/AppSettingSidebar.vue')['default']
     AppsWidget: typeof import('./components/dashboard/widgets/AppsWidget.vue')['default']
     AuthLayout: typeof import('./components/auth/AuthLayout.vue')['default']
     BlankApplicationDialog: typeof import('./components/application/create/BlankApplicationDialog.vue')['default']

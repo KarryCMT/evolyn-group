@@ -46,8 +46,9 @@ function notifyAssetUnavailable(starter: ApplicationAssetStarter) {
   ElMessage.info(`${labels[starter.type]}能力将在后续版本接入`);
 }
 
-function notifyManagementUnavailable() {
-  ElMessage.info('应用后台正在建设中');
+/** 应用后台已具备基础壳，入口保留当前应用编码以维持同一应用上下文。 */
+function openApplicationManagement() {
+  void router.push({ name: 'app-setting-permissions', params: { appCode: appCode.value } });
 }
 </script>
 
@@ -104,7 +105,7 @@ function notifyManagementUnavailable() {
     <ApplicationEmptyState
       v-else
       @select-asset="notifyAssetUnavailable"
-      @open-management="notifyManagementUnavailable"
+      @open-management="openApplicationManagement"
     />
   </div>
 </template>
