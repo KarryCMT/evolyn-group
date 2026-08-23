@@ -37,13 +37,31 @@ function returnToDashboard() {
   void router.push({ name: 'dashboard' });
 }
 
-function notifyAssetUnavailable(starter: ApplicationAssetStarter) {
+/**
+ * 表单设计页当前尚未接入创建接口，先以 `new` 作为新建态路由标识进入设计器。
+ * 流程表单通过 query 标记其类型，以便设计器展示额外的流程设计入口；
+ * 后续创建 API 落地后，在成功回调中替换为服务端返回的真实 formId 和类型。
+ */
+function openAssetStarter(starter: ApplicationAssetStarter) {
+  if (starter.type === 'form' || starter.type === 'workflow-form') {
+    void router.push({
+      name: 'form-design',
+      params: { appCode: appCode.value, formId: 'new' },
+      query: starter.type === 'workflow-form' ? { type: 'workflow' } : undefined,
+    });
+    return;
+  }
+
   const labels: Record<ApplicationAssetStarter['type'], string> = {
     'workflow-form': '流程表单',
     form: '表单',
     dashboard: '仪表盘',
   };
   ElMessage.info(`${labels[starter.type]}能力将在后续版本接入`);
+}
+
+function showAssetGuide() {
+  ElMessage.info('表单和仪表盘能力将在后续版本接入');
 }
 
 /** 应用后台已具备基础壳，入口保留当前应用编码以维持同一应用上下文。 */
@@ -104,7 +122,8 @@ function openApplicationManagement() {
     <!-- 当前先完成应用维度的空态；表单运行时由后续 @evolyn.do/form 包承接。 -->
     <ApplicationEmptyState
       v-else
-      @select-asset="notifyAssetUnavailable"
+      @select-asset="openAssetStarter"
+      @learn-more="showAssetGuide"
       @open-management="openApplicationManagement"
     />
   </div>

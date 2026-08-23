@@ -7,6 +7,7 @@ defineOptions({ name: 'ApplicationEmptyState' });
 
 const emit = defineEmits<{
   selectAsset: [starter: ApplicationAssetStarter];
+  learnMore: [];
   openManagement: [];
 }>();
 </script>
@@ -21,7 +22,7 @@ const emit = defineEmits<{
         <button
           class="application-empty-state__learn-more"
           type="button"
-          @click="emit('selectAsset', applicationAssetStarters[1])"
+          @click="emit('learnMore')"
         >
           了解表单和仪表盘
         </button>
