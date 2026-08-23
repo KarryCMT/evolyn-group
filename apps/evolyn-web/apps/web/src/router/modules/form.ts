@@ -20,6 +20,13 @@ function extensionFeature(props: FormFeatureProps) {
   };
 }
 
+function publishFeature(props: FormFeatureProps) {
+  return {
+    component: () => import('~/pages/form/publish/feature-placeholder.vue'),
+    props,
+  };
+}
+
 /**
  * 表单路由集合
  */
@@ -125,18 +132,36 @@ const formRoutes: RouteRecordRaw[] = [
       {
         path: 'publish',
         name: 'form-publish',
-        ...workspaceFeature({
-          title: '表单发布',
-          description: '发布范围、填报入口与访问策略将在此统一配置。',
-        }),
+        component: () => import('~/pages/form/publish/index.vue'),
+        redirect: { name: 'form-publish-members' },
+        children: [
+          {
+            path: 'members',
+            name: 'form-publish-members',
+            component: () => import('~/pages/form/publish/members.vue'),
+          },
+          {
+            path: 'public',
+            name: 'form-publish-public',
+            ...publishFeature({
+              title: '公开发布',
+              description: '配置无需登录的填报入口、访问范围和安全策略。',
+            }),
+          },
+          {
+            path: 'views',
+            name: 'form-publish-views',
+            ...publishFeature({
+              title: '视图',
+              description: '管理成员可访问的数据视图与展示方式。',
+            }),
+          },
+        ],
       },
       {
         path: 'data',
         name: 'form-data',
-        ...workspaceFeature({
-          title: '数据管理',
-          description: '表单提交数据、筛选视图与批量操作将在此管理。',
-        }),
+        component: () => import('~/pages/form/data.vue'),
       },
     ],
   },
