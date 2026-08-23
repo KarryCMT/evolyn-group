@@ -1,20 +1,11 @@
 <script setup lang="ts">
-import {
-  RiArrowLeftFill,
-  RiEyeFill,
-  RiLightbulbFlashFill,
-  RiNotification3Fill,
-  RiQuestionFill,
-  RiSave3Fill,
-  RiShareForwardFill,
-} from '@remixicon/vue';
-import { FormDesigner, type FormFieldPreset } from '@evolyn.do/form';
+import { RiArrowLeftFill, RiNotification3Fill, RiQuestionFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import UserMenu from '~/components/navigation/UserMenu.vue';
 
-defineOptions({ name: 'FormDesignerPage' });
+defineOptions({ name: 'FormWorkspaceShell' });
 
 type FormRouteName =
   | 'form-design'
@@ -44,7 +35,9 @@ const appCode = computed(() => String(route.params.appCode ?? ''));
 const formId = computed(() => String(route.params.formId ?? ''));
 /** 新建流程表单暂以 query 表达类型；后续改为读取表单详情中的类型字段。 */
 const isWorkflowForm = computed(
-  () => route.query.type === 'workflow' || route.name === 'form-workflow-design',
+  () =>
+    route.query.type === 'workflow' ||
+    route.matched.some((record) => record.name === 'form-workflow-design'),
 );
 const navigationItems = computed<FormNavigationItem[]>(() => {
   if (!isWorkflowForm.value) return standardNavigationItems;
@@ -56,8 +49,10 @@ const navigationItems = computed<FormNavigationItem[]>(() => {
   ];
 });
 const activeNavigationName = computed<FormRouteName>(() => {
-  const currentName = navigationItems.value.find((item) => item.name === route.name)?.name;
-  return currentName ?? 'form-design';
+  const active = navigationItems.value.find((item) =>
+    route.matched.some((record) => record.name === item.name),
+  );
+  return active?.name ?? 'form-design';
 });
 
 function returnToApplication() {
@@ -76,42 +71,37 @@ function navigateTo(name: FormRouteName) {
   void router.push({
     name,
     params: { appCode: appCode.value, formId: formId.value },
-    query: isWorkflowForm.value ? { ...route.query, type: 'workflow' } : route.query,
+    query: route.query,
   });
 }
 
-/** 保存、预览和字段添加依赖后续设计器内核，本期保留明确的交互反馈。 */
 function notifyUnavailable(action: string) {
-  ElMessage.info(`${action}将在表单设计器接入后提供`);
-}
-
-function handleFieldSelect(field: FormFieldPreset) {
-  notifyUnavailable(`添加${field.title}`);
+  ElMessage.info(`${action}将在后续版本提供`);
 }
 </script>
 
 <template>
-  <div class="form-designer-page">
-    <header class="form-designer-page__header">
-      <div class="form-designer-page__identity">
+  <div class="form-workspace-shell">
+    <header class="form-workspace-shell__header">
+      <div class="form-workspace-shell__identity">
         <button
-          class="form-designer-page__icon-button form-designer-page__utility-button"
+          class="form-workspace-shell__icon-button form-workspace-shell__utility-button"
           type="button"
           aria-label="返回应用"
           @click="returnToApplication"
         >
           <RiArrowLeftFill />
         </button>
-        <strong class="form-designer-page__title">{{ formName }}</strong>
+        <strong class="form-workspace-shell__title">{{ formName }}</strong>
       </div>
 
-      <nav class="form-designer-page__navigation" aria-label="表单管理导航">
+      <nav class="form-workspace-shell__navigation" aria-label="表单管理导航">
         <button
           v-for="item in navigationItems"
           :key="item.name"
-          class="form-designer-page__navigation-item"
+          class="form-workspace-shell__navigation-item"
           :class="{
-            'form-designer-page__navigation-item--active': activeNavigationName === item.name,
+            'form-workspace-shell__navigation-item--active': activeNavigationName === item.name,
           }"
           type="button"
           :aria-current="activeNavigationName === item.name ? 'page' : undefined"
@@ -121,9 +111,9 @@ function handleFieldSelect(field: FormFieldPreset) {
         </button>
       </nav>
 
-      <div class="form-designer-page__global-actions">
+      <div class="form-workspace-shell__global-actions">
         <button
-          class="form-designer-page__icon-button form-designer-page__utility-button"
+          class="form-workspace-shell__icon-button form-workspace-shell__utility-button"
           type="button"
           aria-label="通知"
           @click="notifyUnavailable('通知中心')"
@@ -131,7 +121,7 @@ function handleFieldSelect(field: FormFieldPreset) {
           <RiNotification3Fill />
         </button>
         <button
-          class="form-designer-page__icon-button"
+          class="form-workspace-shell__icon-button"
           type="button"
           aria-label="帮助"
           @click="notifyUnavailable('帮助中心')"
@@ -142,59 +132,13 @@ function handleFieldSelect(field: FormFieldPreset) {
       </div>
     </header>
 
-    <section class="form-designer-page__surface" aria-label="表单设计工作台">
-      <div class="form-designer-page__toolbar" aria-label="表单设计操作">
-        <button
-          class="form-designer-page__guide-button"
-          type="button"
-          @click="notifyUnavailable('新手引导')"
-        >
-          <RiLightbulbFlashFill />
-          <span class="form-designer-page__guide-label">查看新手引导</span>
-        </button>
-        <div class="form-designer-page__toolbar-actions">
-          <button
-            class="form-designer-page__action-button form-designer-page__action-button--secondary"
-            type="button"
-            @click="notifyUnavailable('预览')"
-          >
-            <RiEyeFill />
-            <span class="form-designer-page__action-label">预览</span>
-          </button>
-          <button
-            class="form-designer-page__action-button form-designer-page__action-button--primary"
-            type="button"
-            @click="notifyUnavailable('保存')"
-          >
-            <RiSave3Fill />
-            <span class="form-designer-page__action-label">保存</span>
-          </button>
-          <button
-            class="form-designer-page__icon-button form-designer-page__share-button"
-            type="button"
-            aria-label="分享表单"
-            @click="notifyUnavailable('分享')"
-          >
-            <RiShareForwardFill />
-          </button>
-        </div>
-      </div>
-
-      <FormDesigner
-        class="form-designer-page__workspace"
-        @select-field="handleFieldSelect"
-        @open-recycle-bin="notifyUnavailable('字段回收站')"
-      >
-        <template #canvas>
-          <RouterView />
-        </template>
-      </FormDesigner>
-    </section>
+    <!-- 一级路由负责切换完整工作区，不能固定嵌入表单设计器的画布。 -->
+    <RouterView />
   </div>
 </template>
 
 <style scoped lang="scss">
-.form-designer-page {
+.form-workspace-shell {
   display: flex;
   width: 100%;
   min-width: 0;
@@ -206,15 +150,7 @@ function handleFieldSelect(field: FormFieldPreset) {
 
   &__header,
   &__identity,
-  &__global-actions,
-  &__toolbar,
-  &__toolbar-actions,
-  &__guide-button,
-  &__action-button,
-  &__field-group-heading,
-  &__field-item,
-  &__recycle-button,
-  &__inspector-tabs {
+  &__global-actions {
     display: flex;
     align-items: center;
   }
@@ -225,7 +161,6 @@ function handleFieldSelect(field: FormFieldPreset) {
     min-height: 52px;
     padding: 0 20px;
     justify-content: space-between;
-    background: transparent;
   }
 
   &__identity,
@@ -249,12 +184,7 @@ function handleFieldSelect(field: FormFieldPreset) {
   }
 
   &__icon-button,
-  &__action-button,
-  &__guide-button,
-  &__navigation-item,
-  &__field-item,
-  &__recycle-button,
-  &__inspector-tab {
+  &__navigation-item {
     border: 0;
     cursor: pointer;
 
@@ -335,117 +265,10 @@ function handleFieldSelect(field: FormFieldPreset) {
       }
     }
   }
-
-  &__toolbar {
-    height: 50px;
-    min-height: 50px;
-    padding: 0 16px 0 24px;
-    justify-content: space-between;
-    background: var(--el-bg-color);
-    border-bottom: 1px solid var(--el-border-color-lighter);
-  }
-
-  &__surface {
-    display: flex;
-    min-height: 0;
-    margin: 0 8px 8px;
-    overflow: hidden;
-    flex: 1;
-    flex-direction: column;
-    background: var(--el-bg-color);
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 14px;
-    box-shadow: var(--el-box-shadow-light);
-  }
-
-  &__guide-button,
-  &__action-button,
-  &__recycle-button {
-    justify-content: center;
-    gap: 7px;
-    font-size: 14px;
-    font-weight: 600;
-  }
-
-  &__guide-button {
-    height: 32px;
-    padding: 0 10px;
-    color: var(--el-text-color-regular);
-    background: transparent;
-    border-radius: var(--el-border-radius-base);
-    transition:
-      color 0.18s ease,
-      background-color 0.18s ease;
-
-    svg {
-      width: 18px;
-      height: 18px;
-      color: var(--el-color-primary);
-    }
-
-    &:hover {
-      color: var(--el-color-primary);
-      background: var(--el-color-primary-light-9);
-    }
-  }
-
-  &__toolbar-actions {
-    gap: 10px;
-  }
-
-  &__action-button {
-    min-width: 76px;
-    height: 32px;
-    padding: 0 12px;
-    border-radius: var(--el-border-radius-base);
-    transition:
-      color 0.18s ease,
-      background-color 0.18s ease,
-      border-color 0.18s ease;
-
-    svg {
-      width: 17px;
-      height: 17px;
-    }
-
-    &--secondary {
-      color: var(--el-color-primary);
-      background: var(--el-bg-color);
-      border: 1px solid var(--el-color-primary);
-
-      &:hover {
-        background: var(--el-color-primary-light-9);
-      }
-    }
-
-    &--primary {
-      color: var(--el-color-white);
-      background: var(--el-color-primary);
-
-      &:hover {
-        background: var(--el-color-primary-light-3);
-      }
-    }
-  }
-
-  &__share-button {
-    width: 32px;
-    height: 32px;
-    border: 1px solid var(--el-border-color);
-
-    &:hover {
-      border-color: var(--el-color-primary);
-    }
-  }
-
-  &__workspace {
-    min-height: 0;
-    flex: 1;
-  }
 }
 
 @media (max-width: 1120px) {
-  .form-designer-page {
+  .form-workspace-shell {
     &__identity,
     &__global-actions {
       min-width: 180px;
@@ -463,7 +286,7 @@ function handleFieldSelect(field: FormFieldPreset) {
 }
 
 @media (max-width: 900px) {
-  .form-designer-page {
+  .form-workspace-shell {
     &__header {
       padding: 0 12px;
     }
@@ -497,48 +320,6 @@ function handleFieldSelect(field: FormFieldPreset) {
         right: 12px;
         left: 12px;
       }
-    }
-  }
-}
-
-@media (max-width: 620px) {
-  .form-designer-page {
-    &__surface {
-      margin: 0 4px 4px;
-      border-radius: 10px;
-    }
-
-    &__identity {
-      min-width: 118px;
-    }
-
-    &__title {
-      font-size: 16px;
-    }
-
-    &__toolbar {
-      padding: 0 10px 0 12px;
-    }
-
-    &__guide-button {
-      padding: 0 4px;
-    }
-
-    &__guide-label {
-      display: none;
-    }
-
-    &__toolbar-actions {
-      gap: 6px;
-    }
-
-    &__action-button {
-      min-width: 34px;
-      padding: 0 8px;
-    }
-
-    &__action-label {
-      display: none;
     }
   }
 }
