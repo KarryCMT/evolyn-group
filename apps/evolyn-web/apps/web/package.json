@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@evolyn.do/dashboard": "workspace:*",
+    "@evolyn.do/form": "workspace:*",
     "@evolyn.do/hooks": "workspace:*",
     "@evolyn.do/ui": "workspace:*",
     "@evolyn.do/utils": "workspace:*",

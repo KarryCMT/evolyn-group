@@ -8,6 +8,7 @@ import '~/styles/index.scss';
 import '@evolyn.do/ui/style.css';
 // dashboard 包将 SFC 样式发布为独立入口，应用启动时加载以保证设计画布取得完整尺寸。
 import '@evolyn.do/dashboard/style.css';
+import '@evolyn.do/form/style.css';
 import 'element-plus/theme-chalk/src/message.scss';
 import 'element-plus/theme-chalk/src/message-box.scss';
 import 'element-plus/theme-chalk/src/overlay.scss'; // the modal class for message box
