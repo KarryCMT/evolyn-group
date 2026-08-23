@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 
 	"evolyn/internal/contextx"
+	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/httpx"
 	tenantmodel "evolyn/internal/platform/tenant/model"
 	tenantrepository "evolyn/internal/platform/tenant/repository"
@@ -17,16 +19,61 @@ import (
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/repository"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
 const (
-	MinPasswordLength = 6
+	// MinPasswordLength 新密码长度下限（上线前整改 P2：6 收紧为 8）
+	MinPasswordLength = 8
+	// MaxPasswordLength 新密码长度上限
+	MaxPasswordLength = 64
 )
 
 // 手机号格式（与 sms 域同口径；iam 不反向依赖认证域，就地复制）
 var accountPhonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
+
+// 新密码复杂度：至少一个字母与一个数字
+var (
+	hasLetterPattern = regexp.MustCompile(`[a-zA-Z]`)
+	hasDigitPattern  = regexp.MustCompile(`[0-9]`)
+)
+
+// weakPasswords 常见弱口令黑名单（比对前统一小写）：命中即拒绝。
+// 部署形态为离线内网，不接外部泄露密码库（HIBP 等需出网），以内置高频
+// 弱口令表兜底；命中黑名单的强规则漏网口令同样不可用
+var weakPasswords = map[string]struct{}{
+	"123456": {}, "12345678": {}, "123456789": {}, "1234567890": {},
+	"000000": {}, "111111": {}, "121212": {}, "123123": {}, "112233": {},
+	"654321": {}, "666666": {}, "888888": {}, "520520": {}, "987654321": {},
+	"abc123": {}, "abcd1234": {}, "abc123456": {}, "a123456": {}, "a12345678": {},
+	"qq123456": {}, "taobao1234": {}, "wang123456": {}, "wo123456": {}, "1qaz2wsx": {},
+	"qwe123": {}, "qwerty123": {}, "asdf1234": {}, "zxc123": {}, "abc111111": {},
+	"password": {}, "password1": {}, "passwd123": {}, "p@ssw0rd": {}, "passw0rd": {},
+	"admin123": {}, "admin888": {}, "administrator1": {}, "root123456": {}, "user123456": {},
+	"test123456": {}, "guest123456": {}, "letmein123": {}, "welcome123": {}, "iloveyou1": {},
+	"monkey123": {}, "dragon1234": {}, "master123456": {}, "sunshine1": {}, "super123456": {},
+}
+
+// validatePasswordStrength 新密码强度统一校验（上线前整改 P2）：8-64 位且
+// 同时包含字母与数字、非常见弱口令。注册（Validate）、修改（ChangePassword）
+// 与找回（ResetPasswordByPhone）三处共用同一口径；登录不校验强度，存量
+// 弱密码账号不受影响，改密时自然引导升级
+func validatePasswordStrength(password string) error {
+	length := len([]rune(password))
+	if length < MinPasswordLength || length > MaxPasswordLength {
+		return httpx.NewBiz(httpx.CodeValidation,
+			fmt.Sprintf("密码长度需为 %d-%d 位", MinPasswordLength, MaxPasswordLength), http.StatusBadRequest)
+	}
+	if !hasLetterPattern.MatchString(password) || !hasDigitPattern.MatchString(password) {
+		return httpx.NewBiz(httpx.CodeValidation, "密码需同时包含字母和数字", http.StatusBadRequest)
+	}
+	if _, weak := weakPasswords[strings.ToLower(password)]; weak {
+		return httpx.NewBiz(httpx.CodeValidation, "密码过于简单，请勿使用常见密码", http.StatusBadRequest)
+	}
+	return nil
+}
 
 type accountService struct {
 	tx          TxManager
@@ -34,6 +81,9 @@ type accountService struct {
 	userRepo    repository.UserRepository
 	tenantRepo  tenantrepository.TenantRepository
 	quota       tenantservice.QuotaService
+	// audit 业务审计记录器（换绑手机号等安全敏感操作落审计；nil 容忍，
+	// 测试/无审计场景静默跳过，对齐 user/rbac 服务先例）
+	audit auditservice.Recorder
 }
 
 // NewAccountService 账号服务：登录身份校验与账号生命周期；
@@ -45,6 +95,7 @@ func NewAccountService(
 	userRepo repository.UserRepository,
 	tenantRepo tenantrepository.TenantRepository,
 	quota tenantservice.QuotaService,
+	audit auditservice.Recorder,
 ) AccountService {
 	return &accountService{
 		tx:          tx,
@@ -52,6 +103,7 @@ func NewAccountService(
 		userRepo:    userRepo,
 		tenantRepo:  tenantRepo,
 		quota:       quota,
+		audit:       audit,
 	}
 }
 
@@ -371,8 +423,8 @@ func (s *accountService) Validate(account *model.Account) error {
 	if account.Name == "" {
 		return errors.New("account name is empty")
 	}
-	if len(account.Password) < MinPasswordLength {
-		return fmt.Errorf("password length must great than %d", MinPasswordLength)
+	if err := validatePasswordStrength(account.Password); err != nil {
+		return err
 	}
 	return nil
 }
@@ -523,9 +575,11 @@ func (s *accountService) GetProfile(ctx context.Context, accountID uint) (*model
 	return s.accountRepo.GetByID(ctx, accountID)
 }
 
-// UpdateProfile 账号自助：更新昵称/邮箱/头像/手机号与注册引导画像（onboarding）。
-// 昵称非空时同步刷新当前成员（users）昵称——注册向导第 3 步「怎么称呼你」
-// 语义是租户内称呼（ADR-006：账号是登录身份，成员是租户内身份），两表写走同一事务
+// UpdateProfile 账号自助：更新昵称/邮箱/头像与注册引导画像（onboarding）。
+// 手机号是登录与找回密码凭据，不再经此入口变更——走专用换绑流程
+// ChangePhone（旧/新手机号短信验证）。昵称非空时同步刷新当前成员
+// （users）昵称——注册向导第 3 步「怎么称呼你」语义是租户内称呼
+// （ADR-006：账号是登录身份，成员是租户内身份），两表写走同一事务
 func (s *accountService) UpdateProfile(ctx context.Context, account *model.Account) (*model.Account, error) {
 	if account == nil || account.ID == 0 {
 		return nil, fmt.Errorf("empty account")
@@ -555,8 +609,8 @@ func (s *accountService) UpdateProfile(ctx context.Context, account *model.Accou
 // ResetPasswordByPhone 密码找回（P1-3）：凭手机号验证码（控制器已校验
 // scene=reset 的一次性验证码）重设密码并落「已由用户设置」标记
 func (s *accountService) ResetPasswordByPhone(ctx context.Context, phone, newPassword string) error {
-	if len(newPassword) < MinPasswordLength {
-		return httpx.NewBiz(httpx.CodeValidation, "密码长度至少 6 位", http.StatusBadRequest)
+	if err := validatePasswordStrength(newPassword); err != nil {
+		return err
 	}
 
 	account, err := s.accountRepo.GetByPhone(ctx, phone)
@@ -575,8 +629,8 @@ func (s *accountService) ResetPasswordByPhone(ctx context.Context, phone, newPas
 // （PasswordInitialized=false，密码为服务端随机值）首次设置免旧密码，
 // 设置成功即置位，此后恢复常规旧密码校验
 func (s *accountService) ChangePassword(ctx context.Context, accountID uint, oldPassword, newPassword string) error {
-	if len(newPassword) < MinPasswordLength {
-		return fmt.Errorf("password length must great than %d", MinPasswordLength)
+	if err := validatePasswordStrength(newPassword); err != nil {
+		return err
 	}
 
 	account, err := s.accountRepo.GetByID(ctx, accountID)
@@ -594,4 +648,67 @@ func (s *accountService) ChangePassword(ctx context.Context, accountID uint, old
 		return err
 	}
 	return s.accountRepo.UpdatePassword(ctx, accountID, string(hashed), true)
+}
+
+// ensurePhoneAvailable 换绑前置校验：格式合法且未被其他账号占用。
+// 服务层预检给调用方友好业务码，数据库部分唯一索引（uk_accounts_phone）
+// 兜底并发竞态（详见 ChangePhone 的 23505 映射）
+func (s *accountService) ensurePhoneAvailable(ctx context.Context, phone string) error {
+	if !accountPhonePattern.MatchString(phone) {
+		return httpx.Wrap(ErrPhoneInvalid, fmt.Errorf("phone format invalid: %s", phone))
+	}
+	if _, err := s.accountRepo.GetByPhone(ctx, phone); err == nil {
+		return httpx.Wrap(ErrDuplicatePhone, fmt.Errorf("phone already bound: %s", phone))
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	return nil
+}
+
+// EnsurePhoneAvailable 换绑手机号可用性预检（供控制器在消费短信验证码前
+// 调用，避免用户在号码已被占用时白白消耗一次性验证码）
+func (s *accountService) EnsurePhoneAvailable(ctx context.Context, phone string) error {
+	return s.ensurePhoneAvailable(ctx, phone)
+}
+
+// ChangePhone 换绑手机号落库（上线前整改 P2）：旧/新手机号验证码已由
+// 控制器经 sms 域（scene=rebind）校验——旧码证明原身份持有、新码证明
+// 新号持有，此处只负责查重与写库。单条 UPDATE 仅写 phone 列（repo 部分
+// 更新语义）自身原子，无需显式事务；不递增 session_version：换绑经旧
+// 手机号持有证明是本人操作，不强制全端重新登录（与改密/重置密码的全
+// 会话失效口径不同）。审计在写库成功后 best-effort 记录（脱敏手机号，
+// 不落全号 PII）
+func (s *accountService) ChangePhone(ctx context.Context, accountID uint, newPhone string) (*model.Account, error) {
+	if err := s.ensurePhoneAvailable(ctx, newPhone); err != nil {
+		return nil, err
+	}
+
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	oldPhoneMasked := maskPhone(account.Phone)
+
+	updated, err := s.accountRepo.Update(ctx, &model.Account{ID: accountID, Phone: newPhone})
+	if err != nil {
+		// 预检与写库之间存在并发窗口：另一账号抢先绑定同一手机号时命中
+		// 部分唯一索引，映射为稳定业务码而不是让 23505 裸错误出网
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, httpx.Wrap(ErrDuplicatePhone, err)
+		}
+		return nil, err
+	}
+
+	// 换绑是安全敏感操作：无论新旧号码都只落脱敏形式，审计关注「谁在何时
+	// 换绑」而非号码本身
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "iam", Action: "change_phone", ResourceType: "account",
+			ResourceID: fmt.Sprintf("%d", accountID),
+			Before:     map[string]any{"phone": oldPhoneMasked},
+			After:      map[string]any{"phone": maskPhone(newPhone)},
+		})
+	}
+	return updated, nil
 }

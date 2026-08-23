@@ -31,4 +31,12 @@ var (
 	// ErrNotMember 账号与目标租户无成员关系（ADR-008）：指定租户登录/切换租户；
 	// 账号名/租户编码等细节经 Wrap 只入日志；403
 	ErrNotMember = httpx.NewBiz("AUTH_NOT_MEMBER", "该账号不属于此租户", http.StatusForbidden)
+
+	// ErrDuplicatePhone 手机号已被其他账号绑定（上线前整改 P2，换绑流程）：
+	// 手机号全局唯一（部分唯一索引 uk_accounts_phone 兜底）；409
+	ErrDuplicatePhone = httpx.NewBiz("DUPLICATE_PHONE", "该手机号已被其他账号绑定", http.StatusConflict)
+
+	// ErrPhoneInvalid 手机号格式非法（与 sms 域 AUTH_PHONE_INVALID 同码同文案：
+	// iam 不反向依赖认证域，就地复制口径）
+	ErrPhoneInvalid = httpx.NewBiz("AUTH_PHONE_INVALID", "手机号格式不正确", http.StatusBadRequest)
 )

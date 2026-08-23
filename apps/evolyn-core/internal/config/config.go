@@ -19,7 +19,45 @@ type Config struct {
 	Tenant      TenantRuntimeConfig    `yaml:"tenant"`
 	OAuthConfig map[string]OAuthConfig `yaml:"oauth"`
 	SMS         SMSConfig              `yaml:"sms"`
+	Auth        AuthConfig             `yaml:"auth"`
 	PKI         PKIConfig              `yaml:"pki"`
+}
+
+// AuthConfig 认证域运行参数（登录失败锁定与令牌吊销降级策略）。
+// 零值回落内置默认（见 normalize），生产可按风控口径调整
+type AuthConfig struct {
+	LoginMaxFails    int `yaml:"loginMaxFails"`    // 窗口内连续登录失败上限（默认 5，达到即锁定）
+	LoginLockMinutes int `yaml:"loginLockMinutes"` // 锁定时长分钟（默认 15；失败计窗口与锁定时长同值）
+	// RevokeFailClosed 令牌吊销检查的 Redis 异常降级策略：false（默认）= 放行，
+	// 可用性优先（吊销是增强能力）；true = 视为已吊销并拒绝请求，已泄露令牌
+	// 的立即失效优先，代价是 Redis 故障期间全部携带 jti 的请求 401
+	RevokeFailClosed bool `yaml:"revokeFailClosed"`
+	// LoginGuardSecret 登录失败计数标识散列的独立密钥：非空时 HMAC-SHA-256
+	// 防字典反查；留空回退无密钥 SHA-256（release 启动告警）。多实例必须
+	// 共享同一把；示例模板占位值（CHANGE_ME）在归一化时视为未配置
+	LoginGuardSecret string `yaml:"loginGuardSecret"`
+}
+
+// normalize 零值回落默认值：失败上限 5 次、锁定 15 分钟；
+// 占位密钥归一化为未配置——示例模板的 CHANGE_ME 被原样复制到生产时，
+// 若视为「已配置」会绕过 release 告警，而 HMAC 密钥实际公开可预测，
+// 防字典反查静默失效
+func (a *AuthConfig) normalize() {
+	if a.LoginMaxFails <= 0 {
+		a.LoginMaxFails = 5
+	}
+	if a.LoginLockMinutes <= 0 {
+		a.LoginLockMinutes = 15
+	}
+	if isPlaceholderSecret(a.LoginGuardSecret) {
+		a.LoginGuardSecret = ""
+	}
+}
+
+// isPlaceholderSecret 判定是否为示例模板占位值：本仓库约定为 CHANGE_ME
+// （忽略大小写与首尾空白），见 app.example.yaml
+func isPlaceholderSecret(secret string) bool {
+	return strings.EqualFold(strings.TrimSpace(secret), "CHANGE_ME")
 }
 
 // SMSConfig 短信验证码运行参数：一期开发通道（provider=dev 仅打日志），
@@ -30,6 +68,7 @@ type SMSConfig struct {
 	CooldownSeconds int    `yaml:"cooldownSeconds"` // 重发冷却秒（默认 60）
 	MaxTries        int    `yaml:"maxTries"`        // 单码最大试错次数（默认 5）
 	DailyLimit      int    `yaml:"dailyLimit"`      // 单手机号自然日发送上限（默认 10，跨场景合计）
+	IPDailyLimit    int    `yaml:"ipDailyLimit"`    // 单 IP 自然日发送上限（默认 30，跨手机号/场景合计；防轮换手机号刷短信成本）
 	// DevEcho 响应中回显验证码：仅本地联调可开，生产必须关闭
 	DevEcho bool `yaml:"devEcho"`
 }
@@ -51,6 +90,10 @@ type ServerConfig struct {
 	GracefulShutdownPeriod int                     `yaml:"gracefulShutdownPeriod"`
 	LimitConfigs           []ratelimit.LimitConfig `yaml:"rateLimits"`
 	JWTSecret              string                  `yaml:"jwtSecret"`
+	// AllowedOrigins CORS 允许携带凭证的来源白名单（精确匹配，含协议与端口）。
+	// release 环境空白名单拒绝启动（fail-fast）；debug 空白名单回落放行
+	// localhost/127.0.0.1 任意端口（本地联调）
+	AllowedOrigins []string `yaml:"allowedOrigins"`
 }
 
 // DBConfig 数据库连接与 Schema 管理策略（FIX-009）：
@@ -101,6 +144,17 @@ type OAuthConfig struct {
 	ClientSecret string `yaml:"clientSecret"`
 }
 
+// normalizeOrigins CORS 白名单归一化：去首尾空白并过滤空项
+func normalizeOrigins(origins []string) []string {
+	normalized := make([]string, 0, len(origins))
+	for _, origin := range origins {
+		if trimmed := strings.TrimSpace(origin); trimmed != "" {
+			normalized = append(normalized, trimmed)
+		}
+	}
+	return normalized
+}
+
 func Parse(appConfig string) (*Config, error) {
 	config := &Config{}
 
@@ -113,6 +167,11 @@ func Parse(appConfig string) (*Config, error) {
 	if err := yaml.NewDecoder(file).Decode(config); err != nil {
 		return nil, err
 	}
+	// 认证域运行参数零值回落默认（失败锁定阈值等）
+	config.Auth.normalize()
+	// CORS 白名单归一化：去首尾空白、丢弃空串项（形如 ["", " "] 的配置等价
+	// 于未配置，release 的空白名单 fail-fast 才不会被空项绕过）
+	config.Server.AllowedOrigins = normalizeOrigins(config.Server.AllowedOrigins)
 
 	if config.PKI.PrivateKey != "" && config.PKI.PrivateKeyFile != "" {
 		return nil, fmt.Errorf("pki.privateKey and pki.privateKeyFile cannot both be configured")

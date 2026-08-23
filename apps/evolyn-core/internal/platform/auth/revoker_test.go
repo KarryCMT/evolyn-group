@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -37,19 +38,21 @@ func (f *fakeRevokerRedis) Exists(_ context.Context, keys ...string) *redis.IntC
 }
 
 func TestTokenRevokerRevokeAndCheck(t *testing.T) {
-	revoker := NewTokenRevoker(&fakeRevokerRedis{data: map[string]string{}})
+	revoker := NewTokenRevoker(&fakeRevokerRedis{data: map[string]string{}}, false)
 
 	// 未吊销
-	if revoker.Revoked(context.Background(), "jti-1") {
-		t.Fatal("fresh jti should not be revoked")
+	revoked, err := revoker.Revoked(context.Background(), "jti-1")
+	if err != nil || revoked {
+		t.Fatalf("fresh jti should not be revoked (revoked=%v, err=%v)", revoked, err)
 	}
 
 	// 吊销后命中
 	if err := revoker.Revoke(context.Background(), "jti-1", time.Hour); err != nil {
 		t.Fatalf("revoke: %v", err)
 	}
-	if !revoker.Revoked(context.Background(), "jti-1") {
-		t.Fatal("revoked jti should be rejected")
+	revoked, err = revoker.Revoked(context.Background(), "jti-1")
+	if err != nil || !revoked {
+		t.Fatalf("revoked jti should be rejected (revoked=%v, err=%v)", revoked, err)
 	}
 
 	// 空值与已过期令牌：直接视为成功/未吊销
@@ -59,8 +62,9 @@ func TestTokenRevokerRevokeAndCheck(t *testing.T) {
 	if err := revoker.Revoke(context.Background(), "jti-2", -time.Minute); err != nil {
 		t.Fatalf("expired revoke should be no-op, got %v", err)
 	}
-	if revoker.Revoked(context.Background(), "jti-2") {
-		t.Fatal("expired jti should not be revoked")
+	revoked, err = revoker.Revoked(context.Background(), "jti-2")
+	if err != nil || revoked {
+		t.Fatalf("expired jti should not be revoked (revoked=%v, err=%v)", revoked, err)
 	}
 }
 
@@ -78,5 +82,46 @@ func TestNewJtiUniqueness(t *testing.T) {
 	}
 	if len(seen) != 100 {
 		t.Fatalf("jti collisions: %d unique of 100", len(seen))
+	}
+}
+
+// brokenRevokerRedis Redis 故障替身：所有命令返回错误
+type brokenRevokerRedis struct{}
+
+func (b *brokenRevokerRedis) SetNX(_ context.Context, _ string, _ interface{}, _ time.Duration) *redis.BoolCmd {
+	cmd := redis.NewBoolCmd(context.Background())
+	cmd.SetErr(errors.New("redis unavailable"))
+	return cmd
+}
+
+func (b *brokenRevokerRedis) Exists(_ context.Context, _ ...string) *redis.IntCmd {
+	cmd := redis.NewIntCmd(context.Background())
+	cmd.SetErr(errors.New("redis unavailable"))
+	return cmd
+}
+
+// TestTokenRevokerFailClosed Redis 异常时 Revoked 只报告原始状态（false+错误），
+// fail-open/fail-closed 的拒绝决策归调用方（认证中间件以可区分的 503 出网）
+func TestTokenRevokerFailClosed(t *testing.T) {
+	failOpen := NewTokenRevoker(&brokenRevokerRedis{}, false)
+	revoked, err := failOpen.Revoked(context.Background(), "jti-1")
+	if revoked || err == nil {
+		t.Fatalf("redis error should surface (revoked, err) = (%v, nil)", revoked)
+	}
+	if failOpen.FailClosed() {
+		t.Fatal("fail-open mode should report FailClosed=false")
+	}
+	if err := failOpen.Revoke(context.Background(), "jti-1", time.Hour); err == nil {
+		t.Fatal("revoke should surface redis error (caller decides degradation)")
+	}
+
+	failClosed := NewTokenRevoker(&brokenRevokerRedis{}, true)
+	// 读侧不再吞错误伪装「已吊销」：状态未知就是未知，由调用方映射 503
+	revoked, err = failClosed.Revoked(context.Background(), "jti-1")
+	if revoked || err == nil {
+		t.Fatalf("fail-closed should still surface raw state, got (%v, %v)", revoked, err)
+	}
+	if !failClosed.FailClosed() {
+		t.Fatal("fail-closed mode should report FailClosed=true")
 	}
 }

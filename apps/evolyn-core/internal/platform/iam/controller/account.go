@@ -1,6 +1,8 @@
 package controller
 
 import (
+	"context"
+	"fmt"
 	"net/http"
 	"strconv"
 
@@ -16,20 +18,33 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// AccountController 账号自助（/accounts/me，P3-2）：资料与密码
+// AccountController 账号自助（/accounts/me，P3-2）：资料、密码与手机号换绑
 type AccountController struct {
 	accountService service.AccountService
 	// 登录口令加密密钥对：改密请求的密码字段先解密再落库
 	pkiKeypair *pki.Keypair
 	// 登录日志查询（账号自查）：认证域 loginlog 服务的只读契约
 	loginLogQuery loginlogservice.QueryService
+	// smsVerifier 换绑手机号验证码校验（认证域 sms.Service 实现）：iam 不
+	// import 认证域（域依赖方向），以窄接口在装配层注入
+	smsVerifier PhoneCodeVerifier
 }
 
-func NewAccountController(accountService service.AccountService, pkiKeypair *pki.Keypair, loginLogQuery loginlogservice.QueryService) platformcontroller.Controller {
+// PhoneCodeVerifier 换绑流程所需的验证码校验能力（*sms.Service 天然满足）
+type PhoneCodeVerifier interface {
+	Verify(ctx context.Context, scene, phone, code string) error
+}
+
+// ScenePhoneRebind 换绑手机号验证码场景（与认证域 sms.SceneRebind 同值约定；
+// 换绑码的发送走 POST /auth/sms/send，该场景要求已登录）
+const ScenePhoneRebind = "rebind"
+
+func NewAccountController(accountService service.AccountService, pkiKeypair *pki.Keypair, loginLogQuery loginlogservice.QueryService, smsVerifier PhoneCodeVerifier) platformcontroller.Controller {
 	return &AccountController{
 		accountService: accountService,
 		pkiKeypair:     pkiKeypair,
 		loginLogQuery:  loginLogQuery,
+		smsVerifier:    smsVerifier,
 	}
 }
 
@@ -63,17 +78,18 @@ func (a *AccountController) GetMe(c *gin.Context) {
 	httpx.ResponseSuccess(c, account)
 }
 
-// updateProfileRequest 资料更新（不含密码）
+// updateProfileRequest 资料更新（不含密码与手机号：手机号是登录与找回
+// 密码凭据，须走专用换绑流程 PUT /accounts/me/phone）
 type updateProfileRequest struct {
 	Nickname   string                  `json:"nickname"`
-	Phone      string                  `json:"phone"`
 	Email      string                  `json:"email"`
 	Avatar     string                  `json:"avatar"`
 	Onboarding model.AccountOnboarding `json:"onboarding"` // 注册引导画像（角色/了解渠道），注册向导第 3 步提交
 }
 
 // @Summary 更新我的账号资料
-// @Description 自助更新账号资料；onboarding 为注册向导「完善信息」提交的角色与了解渠道画像，昵称非空时同步当前成员的租户内称呼
+// @Description 自助更新账号资料；onboarding 为注册向导「完善信息」提交的角色与了解渠道画像，
+// 昵称非空时同步当前成员的租户内称呼。手机号不在此入口变更（走 PUT /accounts/me/phone 换绑流程）
 // @Accept json
 // @Produce json
 // @Tags 账号
@@ -96,7 +112,6 @@ func (a *AccountController) UpdateMe(c *gin.Context) {
 	account, err := a.accountService.UpdateProfile(c.Request.Context(), &model.Account{
 		ID:         accountID,
 		Nickname:   req.Nickname,
-		Phone:      req.Phone,
 		Email:      req.Email,
 		Avatar:     req.Avatar,
 		Onboarding: req.Onboarding,
@@ -119,7 +134,7 @@ type changePasswordRequest struct {
 // @Summary 修改登录密码
 // @Description 修改登录密码；两个密码字段需先经 GET /app/conf 下发的 RSA 公钥加密
 // 后上送。短信免密注册的账号（服务端随机密码）首次设置免旧密码，设置成功后恢复
-// 常规校验；新密码至少 6 位
+// 常规校验；新密码需 8-64 位且同时包含字母和数字，常见弱口令被拒绝
 // @Accept json
 // @Produce json
 // @Tags 账号
@@ -159,6 +174,86 @@ func (a *AccountController) ChangePassword(c *gin.Context) {
 		return
 	}
 	httpx.ResponseSuccess(c, nil)
+}
+
+// changePhoneRequest 换绑手机号请求：oldSmsCode 为「当前手机号」收到的
+// rebind 场景验证码（账号已有手机号时必填）；newSmsCode 为「新手机号」
+// 收到的 rebind 场景验证码。两个码均经 POST /auth/sms/send（scene=rebind）
+// 发送：旧号用 purpose=old（接收号码必须为当前绑定号），新号用 purpose=new
+type changePhoneRequest struct {
+	OldSmsCode string `json:"oldSmsCode"`                         // 旧手机号验证码（无手机号账号首绑免传）
+	NewPhone   string `json:"newPhone" binding:"required,len=11"` // 新手机号
+	NewSmsCode string `json:"newSmsCode" binding:"required,len=6"`
+}
+
+// @Summary 换绑手机号
+// @Description 专用换绑流程（上线前整改 P2）：验证旧手机号验证码（原身份持有
+// 证明；OAuth 等无手机号账号首次绑定免验）→ 新手机号可用性预检 → 验证新
+// 手机号验证码（新号持有证明）→ 落库。验证码经 POST /auth/sms/send
+// （scene=rebind）分别发送到旧/新手机号，均为一次性消费；预检失败后继续
+// 失败的码已消耗需重发（60 秒冷却）。换绑不失效既有会话
+// @Accept json
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param body body controller.changePhoneRequest true "旧/新手机号验证码与新手机号"
+// @Success 200 {object} httpx.Response{data=model.Account}
+// @Failure 400 {object} httpx.Response "VALIDATION·缺少旧手机号验证码/AUTH_PHONE_INVALID·新手机号格式非法"
+// @Failure 401 {object} httpx.Response "AUTH_SMS_INVALID·验证码错误或已过期"
+// @Failure 409 {object} httpx.Response "DUPLICATE_PHONE·新手机号已被其他账号绑定"
+// @Router /api/v1/accounts/me/phone [put]
+func (a *AccountController) ChangeMyPhone(c *gin.Context) {
+	accountID, ok := a.myAccount(c)
+	if !ok {
+		return
+	}
+
+	req := new(changePhoneRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	ctx := c.Request.Context()
+	account, err := a.accountService.GetProfile(ctx, accountID)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
+		return
+	}
+
+	// 第一步：旧手机号验证码（原身份持有证明）。已有手机号的账号必验——
+	// 令牌被盗的攻击者无法收到旧手机号的验证码，恶意换绑被阻断；
+	// 无手机号账号（OAuth 首登）没有可验证的旧身份，首次绑定免验
+	if account.Phone != "" {
+		if req.OldSmsCode == "" {
+			httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("请先通过当前手机号获取验证码"))
+			return
+		}
+		if err := a.smsVerifier.Verify(ctx, ScenePhoneRebind, account.Phone, req.OldSmsCode); err != nil {
+			httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+			return
+		}
+	}
+
+	// 第二步：新号可用性预检（消费新号验证码之前，避免号码已占用时白白耗码）
+	if err := a.accountService.EnsurePhoneAvailable(ctx, req.NewPhone); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	// 第三步：新手机号验证码（新号持有证明），一次性消费
+	if err := a.smsVerifier.Verify(ctx, ScenePhoneRebind, req.NewPhone, req.NewSmsCode); err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+
+	// 第四步：落库（服务层二次查重 + 唯一索引兜底并发竞态）
+	updated, err := a.accountService.ChangePhone(ctx, accountID, req.NewPhone)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, updated)
 }
 
 // loginLogItem 登录日志展示项：字段与个人中心「账号设置-登录日志」抽屉
@@ -233,6 +328,7 @@ func (a *AccountController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/accounts/me", a.GetMe)
 	api.PUT("/accounts/me", a.UpdateMe)
 	api.PUT("/accounts/me/password", a.ChangePassword)
+	api.PUT("/accounts/me/phone", a.ChangeMyPhone)
 	api.GET("/accounts/me/login-logs", a.MyLoginLogs)
 }
 

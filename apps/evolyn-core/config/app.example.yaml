@@ -16,6 +16,10 @@ server:
       qps: 10
       cacheSize: 2048
   jwtSecret: "CHANGE_ME"  # 生产环境必须替换为随机长字符串
+  # CORS 来源白名单（精确匹配，含协议与端口）。生产必须显式配置实际站点域名，
+  # 空白名单在 release 环境会拒绝启动；debug 空白名单回落放行 localhost/127.0.0.1
+  allowedOrigins:
+    - "https://www.example.com"
 
 db:
   port: 5432
@@ -50,7 +54,21 @@ sms:
   cooldownSeconds: 60  # 重发冷却（秒）
   maxTries: 5          # 单码最大试错次数
   dailyLimit: 10       # 单手机号自然日发送上限（跨登录/注册/找回场景合计）
+  ipDailyLimit: 30     # 单 IP 自然日发送上限（跨手机号/场景合计，防轮换手机号刷短信）
   devEcho: false       # 响应回显验证码（仅本地联调可开，生产必须 false）
+
+auth:
+  loginMaxFails: 5        # 窗口内连续登录失败上限，达到即临时锁定
+  loginLockMinutes: 15    # 登录锁定时长（分钟）
+  # Redis 异常时令牌吊销检查的降级策略：false=放行（可用性优先，默认）；
+  # true=视为已吊销并拒绝请求（对已泄露令牌立即失效要求更高时开启，
+  # 代价是 Redis 故障期间全部携带 jti 的请求 401）
+  revokeFailClosed: false
+  # 登录失败计数标识散列的独立密钥：非空时 HMAC-SHA-256 防字典反查
+  # （Redis key 可能经监控/备份暴露，无密钥散列可被彩虹表还原手机号/
+  # 常见用户名）；留空回退无密钥 SHA-256 并在 release 启动时告警，
+  # 占位值 CHANGE_ME 同样视为未配置。多实例必须共享同一把
+  loginGuardSecret: ""
 
 pki:
   # 登录密码加密传输：公钥经 GET /app/conf 下发前端（jsencrypt PKCS#1 v1.5），

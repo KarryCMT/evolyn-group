@@ -36,6 +36,12 @@ type AccountService interface {
 	GetProfile(ctx context.Context, accountID uint) (*model.Account, error)
 	UpdateProfile(ctx context.Context, account *model.Account) (*model.Account, error)
 	ChangePassword(ctx context.Context, accountID uint, oldPassword, newPassword string) error
+	// EnsurePhoneAvailable 换绑手机号可用性预检（格式 + 未被占用）：
+	// 供控制器在消费一次性短信验证码前调用，避免号码已占用时白白耗码
+	EnsurePhoneAvailable(ctx context.Context, phone string) error
+	// ChangePhone 换绑手机号落库（上线前整改 P2）：旧/新手机号验证码由调用方
+	// 经 sms 域（scene=rebind）校验，本方法只负责查重（DB 唯一索引兜底）与写库
+	ChangePhone(ctx context.Context, accountID uint, newPhone string) (*model.Account, error)
 	Validate(*model.Account) error
 	Default(*model.Account)
 }

@@ -13,6 +13,11 @@ server:
       qps: 10
       cacheSize: 2048
   jwtSecret: evolyn-dev-secret
+  # CORS 来源白名单（精确匹配，含协议与端口）；debug 缺省回落放行 localhost/127.0.0.1，
+  # release 环境空白名单将拒绝启动
+  allowedOrigins:
+    - "http://localhost:5173"
+    - "http://127.0.0.1:5173"
 
 
 
@@ -46,7 +51,14 @@ sms:
   cooldownSeconds: 60  # 重发冷却 60 秒
   maxTries: 5          # 单码最大试错次数
   dailyLimit: 10       # 单手机号自然日发送上限（跨登录/注册/找回场景合计）
+  ipDailyLimit: 30     # 单 IP 自然日发送上限（跨手机号/场景合计，防轮换手机号刷短信）
   devEcho: true        # 响应回显验证码（仅本地联调，生产必须 false）
+
+auth:
+  loginMaxFails: 5        # 窗口内连续登录失败上限，达到即临时锁定
+  loginLockMinutes: 15    # 登录锁定时长（分钟）
+  revokeFailClosed: false # Redis 异常时令牌吊销检查降级策略：false=放行（可用性优先）；true=视为已吊销（泄露令牌立即失效优先）
+  loginGuardSecret: evolyn-dev-guard-secret  # 登录失败计数标识散列独立密钥（HMAC，防字典反查）；多实例共享同一把
 
 pki:
   algorithm: "rsa"                    # 登录密码加密算法：公钥经 GET /app/conf 下发前端

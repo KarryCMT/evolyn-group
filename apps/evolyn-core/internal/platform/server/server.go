@@ -132,13 +132,26 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	loginLogSvc := loginlogservice.NewService(loginLogRepo, ipResolver)
 
 	tenantService := tenantservice.NewTenantService(txManager, tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention())
-	accountService := service.NewAccountService(txManager, iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc)
+	// 账号服务注入审计：换绑手机号等安全敏感操作落业务审计（best-effort）
+	accountService := service.NewAccountService(txManager, iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc, auditSvc)
 	userService := service.NewUserService(txManager, iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc)
 	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User(), auditSvc)
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User(), iamRepo.RBAC(), auditSvc)
 	jwtService := auth.NewJWTService(conf.Server.JWTSecret)
-	// 令牌吊销器（P2-8）：登出拉黑 jti，登出前令牌固定 7 天有效的问题收口
-	tokenRevoker := auth.NewTokenRevoker(rdb.Client)
+	// 令牌吊销器（P2-8）：登出拉黑 jti，登出前令牌固定 7 天有效的问题收口。
+	// failClosed 来自 auth.revokeFailClosed：true 时 Redis 异常按「已吊销」
+	// 拒绝请求（已泄露令牌立即失效优先），默认 false 可用性优先
+	tokenRevoker := auth.NewTokenRevoker(rdb.Client, conf.Auth.RevokeFailClosed)
+	// 登录失败锁定（上线前整改 P2）：密码登录按登录名/手机号计连续失败；
+	// 独立密钥启用 HMAC 标识散列（防字典反查），未配置回退无密钥散列并告警
+	if conf.Auth.LoginGuardSecret == "" && gin.Mode() == gin.ReleaseMode {
+		logger.Warn("auth.loginGuardSecret 未配置：登录失败计数的标识散列回退无密钥 SHA-256（生产建议配置独立随机密钥，多实例共享同一把）")
+	}
+	loginGuard := auth.NewLoginGuard(rdb.Client, auth.LoginGuardOptions{
+		MaxFails:     conf.Auth.LoginMaxFails,
+		LockDuration: time.Duration(conf.Auth.LoginLockMinutes) * time.Minute,
+		Secret:       conf.Auth.LoginGuardSecret,
+	})
 	// 短信通道按 provider 分派：dev（默认）走开发通道 + 固定验证码 666666，
 	// 便于本地/测试环境联调；真实服务商待接入，配置即启动拦截（fail-fast）
 	smsSender, smsFixedCode, err := buildSmsSender(conf.SMS.Provider)
@@ -146,12 +159,13 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		return nil, err
 	}
 	smsService := sms.NewService(rdb.Client, smsSender, sms.Options{
-		CodeTTL:    time.Duration(conf.SMS.CodeTTLSeconds) * time.Second,
-		Cooldown:   time.Duration(conf.SMS.CooldownSeconds) * time.Second,
-		MaxTries:   conf.SMS.MaxTries,
-		DailyLimit: conf.SMS.DailyLimit,
-		DevEcho:    conf.SMS.DevEcho,
-		FixedCode:  smsFixedCode,
+		CodeTTL:      time.Duration(conf.SMS.CodeTTLSeconds) * time.Second,
+		Cooldown:     time.Duration(conf.SMS.CooldownSeconds) * time.Second,
+		MaxTries:     conf.SMS.MaxTries,
+		DailyLimit:   conf.SMS.DailyLimit,
+		IPDailyLimit: conf.SMS.IPDailyLimit,
+		DevEcho:      conf.SMS.DevEcho,
+		FixedCode:    smsFixedCode,
 	})
 	rbacService := service.NewRBACService(iamRepo.RBAC(), auditSvc)
 	// 应用域服务（M2-A）：空白应用创建/查询/更新/软删 + 配额占位；
@@ -171,13 +185,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	}
 
 	userController := iamcontroller.NewUserController(userService, departmentService)
-	accountController := iamcontroller.NewAccountController(accountService, keypair, loginLogSvc)
+	// 账号控制器注入换绑验证码校验器（认证域 sms.Service 实现窄接口）
+	accountController := iamcontroller.NewAccountController(accountService, keypair, loginLogSvc, smsService)
 	departmentController := iamcontroller.NewDepartmentController(departmentService)
 	groupController := iamcontroller.NewGroupController(groupService)
 	// 注册编排服务（认证域）：注册向导最终提交「进入产品」的单事务落库
 	// （免密注册账号 + 账号画像 + 租户开通/复用 + owner 成员解析）
 	registrationService := authservice.NewRegistrationService(txManager, accountService, tenantService, auditSvc)
-	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc, tokenRevoker)
+	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc, tokenRevoker, loginGuard)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 	applicationController := applicationcontroller.NewApplicationController(applicationService)
@@ -192,6 +207,19 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 
 	gin.SetMode(conf.Server.ENV)
 
+	// P1 整改：CORS 白名单。release 携带凭证跨域绝不放行任意 Origin，
+	// 空白名单视为配置错误拒绝启动（对齐 db.migrate/migrations 互斥校验口径；
+	// 空串项已在 config 解析时过滤，[""] 不会绕过该校验）；
+	// 仅 gin.DebugMode 空白名单回落放行本机回环地址（联调端口不固定），
+	// TestMode 等非 release 模式不享受宽松回落
+	if gin.Mode() == gin.ReleaseMode && len(conf.Server.AllowedOrigins) == 0 {
+		return nil, fmt.Errorf("server.allowedOrigins 未配置：release 环境必须显式配置 CORS 来源白名单")
+	}
+	corsDevLoose := gin.Mode() == gin.DebugMode && len(conf.Server.AllowedOrigins) == 0
+	if corsDevLoose {
+		logger.Warn("server.allowedOrigins 未配置，debug 环境回落放行 localhost/127.0.0.1 任意端口（release 环境必须显式配置）")
+	}
+
 	e := gin.New()
 	// 全局链路（FIX-008）：只保留与权限域无关的横切能力；
 	// 认证挂全局（平台/租户两域都需要会话解析，未认证请求照常放行至鉴权层）
@@ -199,7 +227,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		gin.Recovery(),
 		rateLimitMiddleware,
 		middleware.MonitorMiddleware(),
-		middleware.CORSMiddleware(),
+		middleware.CORSMiddleware(conf.Server.AllowedOrigins, corsDevLoose),
 		middleware.RequestInfoMiddleware(&request.RequestInfoFactory{APIPrefixes: set.NewString("api")}),
 		middleware.LogMiddleware(logger, "/"),
 		middleware.AuthenticationMiddleware(jwtService, iamRepo.User(), iamRepo.Account(), tokenRevoker),

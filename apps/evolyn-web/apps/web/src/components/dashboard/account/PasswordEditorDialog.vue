@@ -33,7 +33,13 @@ const rules = computed<FormRules<typeof form>>(() => ({
     : [],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, message: '密码至少 6 位', trigger: 'blur' },
+    { min: 8, max: 64, message: '密码长度为 8-64 位', trigger: 'blur' },
+    {
+      // 与后端口径一致（8-64 位且同时包含字母和数字，弱口令由后端黑名单拦截）
+      pattern: /^(?=.*[A-Za-z])(?=.*\d).{8,64}$/,
+      message: '密码需同时包含字母和数字',
+      trigger: 'blur',
+    },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },

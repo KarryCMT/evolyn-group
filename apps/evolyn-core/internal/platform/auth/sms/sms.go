@@ -18,14 +18,18 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// 验证码场景白名单：登录/注册/找回密码重置（P1-3）
+// 验证码场景白名单：登录/注册/找回密码重置/换绑手机号（P1-3）
 const (
 	SceneLogin    = "login"
 	SceneRegister = "register"
 	SceneReset    = "reset"
+	// SceneRebind 换绑手机号：旧手机号验证「原身份持有」、新手机号验证
+	// 「新号持有」，两个码同场景隔离于登录/注册（rebind 场景要求已登录，
+	// 由控制器把关，防匿名向任意号码滥发）
+	SceneRebind = "rebind"
 )
 
-var validScenes = map[string]struct{}{SceneLogin: {}, SceneRegister: {}, SceneReset: {}}
+var validScenes = map[string]struct{}{SceneLogin: {}, SceneRegister: {}, SceneReset: {}, SceneRebind: {}}
 
 // DevFixedCode 开发/测试环境固定验证码（6 位，与随机码位数口径一致）；
 // 仅在 provider=dev 时经 Options.FixedCode 启用，生产通道不受影响
@@ -39,6 +43,9 @@ var (
 	ErrCodeInvalid  = httpx.NewBiz("AUTH_SMS_INVALID", "验证码错误或已过期", http.StatusUnauthorized)
 	ErrTooManyTries = httpx.NewBiz("AUTH_SMS_TOO_MANY_TRIES", "尝试次数过多，请重新获取验证码", http.StatusTooManyRequests)
 	ErrDailyLimit   = httpx.NewBiz("AUTH_SMS_DAILY_LIMIT", "今日发送次数已达上限，请明天再试", http.StatusTooManyRequests)
+	// ErrIPLimit 单 IP 日限额（上线前整改 P2）：手机号日限额可被轮换手机号
+	// 绕过，IP 维度兜底短信成本风控
+	ErrIPLimit = httpx.NewBiz("AUTH_SMS_IP_LIMIT", "当前网络今日发送次数已达上限，请明天再试", http.StatusTooManyRequests)
 )
 
 var phonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
@@ -94,12 +101,13 @@ return 0`
 
 // Options 服务参数：零值回落内置默认（见 normalize）
 type Options struct {
-	CodeTTL    time.Duration // 验证码有效期（默认 5 分钟）
-	Cooldown   time.Duration // 重发冷却（默认 60 秒）
-	MaxTries   int           // 单码最大试错次数（默认 5，超限作废需重发）
-	DailyLimit int           // 单手机号每日发送上限（默认 10，P2-7 防刷）
-	DevEcho    bool          // 非生产联调：Send 返回后由调用方在响应中回显验证码
-	FixedCode  string        // 开发/测试固定验证码（如 666666）：非空时 Send 存储该码替代随机码，生产通道必须留空
+	CodeTTL      time.Duration // 验证码有效期（默认 5 分钟）
+	Cooldown     time.Duration // 重发冷却（默认 60 秒）
+	MaxTries     int           // 单码最大试错次数（默认 5，超限作废需重发）
+	DailyLimit   int           // 单手机号每日发送上限（默认 10，P2-7 防刷）
+	IPDailyLimit int           // 单 IP 每日发送上限（默认 30，跨手机号/场景合计；防轮换手机号绕过手机号限额）
+	DevEcho      bool          // 非生产联调：Send 返回后由调用方在响应中回显验证码
+	FixedCode    string        // 开发/测试固定验证码（如 666666）：非空时 Send 存储该码替代随机码，生产通道必须留空
 }
 
 func (o *Options) normalize() {
@@ -114,6 +122,9 @@ func (o *Options) normalize() {
 	}
 	if o.DailyLimit <= 0 {
 		o.DailyLimit = 10
+	}
+	if o.IPDailyLimit <= 0 {
+		o.IPDailyLimit = 30
 	}
 }
 
@@ -138,6 +149,16 @@ func triesKey(scene, phone string) string { return fmt.Sprintf("evolyn:sms:tries
 // dailyKey 单手机号日发送计数（跨场景合计，P2-7 防刷）
 func dailyKey(phone string) string {
 	return fmt.Sprintf("evolyn:sms:daily:%s:%s", phone, time.Now().Format("20060102"))
+}
+
+// ipDailyKey 单 IP 日发送计数（跨手机号/场景合计）：手机号日限额可被轮换
+// 手机号绕过，IP 维度兜底短信成本风控。ip 为空（理论不应发生，gin ClientIP
+// 恒有回落）时归入 unknown 桶，保持「无 IP 不放行」的保守口径
+func ipDailyKey(ip string) string {
+	if ip == "" {
+		ip = "unknown"
+	}
+	return fmt.Sprintf("evolyn:sms:ipdaily:%s:%s", ip, time.Now().Format("20060102"))
 }
 
 // reserveDailyScript 原子预占当天的发送名额。预占发生在调用短信服务商前，
@@ -171,33 +192,37 @@ func secondsUntilTomorrow(now time.Time) int64 {
 	return seconds
 }
 
-// reserveDaily 原子预占日额度，Redis 故障时明确失败，不允许在防刷状态未知时发送。
-func (s *Service) reserveDaily(ctx context.Context, phone string) error {
-	res, err := s.rdb.Eval(ctx, reserveDailyScript, []string{dailyKey(phone)}, s.opts.DailyLimit, secondsUntilTomorrow(time.Now())).Int64()
+// reserveDaily 原子预占日额度（手机号/IP 维度共用），Redis 故障时明确失败，
+// 不允许在防刷状态未知时发送。返回 (是否预占成功, error)
+func (s *Service) reserveDaily(ctx context.Context, key string, limit int) (bool, error) {
+	res, err := s.rdb.Eval(ctx, reserveDailyScript, []string{key}, limit, secondsUntilTomorrow(time.Now())).Int64()
 	if err != nil {
-		return fmt.Errorf("redis reserve daily: %w", err)
+		return false, fmt.Errorf("redis reserve daily: %w", err)
 	}
 	if res == 0 {
-		return ErrDailyLimit
+		return false, nil
 	}
 	if res != 1 {
-		return fmt.Errorf("unexpected reserve daily result: %d", res)
+		return false, fmt.Errorf("unexpected reserve daily result: %d", res)
 	}
-	return nil
+	return true, nil
 }
 
-// releaseDaily 仅用于短信通道调用失败等“没有产生实际发送”的分支；释放失败
-// 宁可保留该名额消耗，也不能放宽日限额。
-func (s *Service) releaseDaily(ctx context.Context, phone string) {
-	if _, err := s.rdb.Eval(ctx, releaseDailyScript, []string{dailyKey(phone)}).Int64(); err != nil {
+// releaseDaily 仅用于短信通道调用失败等“没有产生实际发送”的分支归还预占
+// 名额；释放失败宁可保留该名额消耗，也不能放宽日限额
+func (s *Service) releaseDaily(ctx context.Context, key string) {
+	if _, err := s.rdb.Eval(ctx, releaseDailyScript, []string{key}).Int64(); err != nil {
 		logrus.Warnf("release sms daily quota: %v", err)
 	}
 }
 
-// Send 发送验证码：场景/手机号校验 → 冷却闸（SetNX 原子占位）→ 原子预占日限额 →
-// 生成 6 位数字码 → 走通道发送 → 落码。通道失败回滚冷却和日额度；通道已成功
-// 但落码失败时取消冷却并清理旧码，允许用户立即重试且不会误用上一次验证码。
-func (s *Service) Send(ctx context.Context, scene, phone string) (string, error) {
+// Send 发送验证码：场景/手机号校验 → IP 日限额预占（成本风控第一道闸，
+// 被拒请求不占用单手机号的冷却与额度）→ 冷却闸（SetNX 原子占位）→ 原子
+// 预占手机号日限额 → 生成 6 位数字码 → 走通道发送 → 落码。
+// 未产生真实发送的分支回滚冷却并归还两维度日额度；通道已成功但落码失败时
+// 取消冷却并清理旧码，允许用户立即重试且不会误用上一次验证码（两维度日
+// 额度保留为已消耗，真实短信成本不能被存储异常绕过）
+func (s *Service) Send(ctx context.Context, scene, phone, ip string) (string, error) {
 	if _, ok := validScenes[scene]; !ok {
 		return "", ErrScene
 	}
@@ -205,22 +230,40 @@ func (s *Service) Send(ctx context.Context, scene, phone string) (string, error)
 		return "", ErrPhone
 	}
 
+	ipOK, err := s.reserveDaily(ctx, ipDailyKey(ip), s.opts.IPDailyLimit)
+	if err != nil {
+		return "", err
+	}
+	if !ipOK {
+		return "", ErrIPLimit
+	}
+
 	ok, err := s.rdb.SetNX(ctx, coolKey(scene, phone), 1, s.opts.Cooldown).Result()
 	if err != nil {
+		s.releaseDaily(ctx, ipDailyKey(ip))
 		return "", fmt.Errorf("redis setnx cooldown: %w", err)
 	}
 	if !ok {
+		s.releaseDaily(ctx, ipDailyKey(ip))
 		return "", ErrCooldown
 	}
-	if err := s.reserveDaily(ctx, phone); err != nil {
+	phoneOK, err := s.reserveDaily(ctx, dailyKey(phone), s.opts.DailyLimit)
+	if err != nil {
 		s.rdb.Del(ctx, coolKey(scene, phone))
+		s.releaseDaily(ctx, ipDailyKey(ip))
 		return "", err
+	}
+	if !phoneOK {
+		s.rdb.Del(ctx, coolKey(scene, phone))
+		s.releaseDaily(ctx, ipDailyKey(ip))
+		return "", ErrDailyLimit
 	}
 
 	code, err := s.pickCode()
 	if err != nil {
 		s.rdb.Del(ctx, coolKey(scene, phone))
-		s.releaseDaily(ctx, phone)
+		s.releaseDaily(ctx, dailyKey(phone))
+		s.releaseDaily(ctx, ipDailyKey(ip))
 		return "", err
 	}
 
@@ -228,14 +271,15 @@ func (s *Service) Send(ctx context.Context, scene, phone string) (string, error)
 	// 也不会出现「已覆盖旧码但新码未送达」的中间态
 	if err := s.sender.Send(ctx, phone, code); err != nil {
 		s.rdb.Del(ctx, coolKey(scene, phone))
-		s.releaseDaily(ctx, phone)
+		s.releaseDaily(ctx, dailyKey(phone))
+		s.releaseDaily(ctx, ipDailyKey(ip))
 		return "", fmt.Errorf("send sms: %w", err)
 	}
 
 	// 新码覆盖旧码并清零试错计数（旧码立即失效）
 	if _, err := s.rdb.Set(ctx, codeKey(scene, phone), code, s.opts.CodeTTL).Result(); err != nil {
 		// 发送已发生但新码无法验证：清掉冷却及可能残留的旧码，让用户能立刻
-		// 重试；日额度保留为已消耗，真实短信成本不能被该异常绕过。
+		// 重试；手机号与 IP 两维度日额度均保留为已消耗
 		s.rdb.Del(ctx, coolKey(scene, phone), codeKey(scene, phone), triesKey(scene, phone))
 		return "", fmt.Errorf("redis set code: %w", err)
 	}

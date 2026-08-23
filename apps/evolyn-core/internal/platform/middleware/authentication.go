@@ -12,6 +12,7 @@ import (
 	"evolyn/internal/platform/iam/repository"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 // ErrStaleSession 会话租户归属过期（ADR-008 稳定码）：签发后成员被移动到
@@ -22,6 +23,9 @@ var (
 	// 不再可信，统一要求重新登录。
 	ErrSessionInvalidated = httpx.NewBiz("AUTH_SESSION_INVALIDATED", "密码已更新，请重新登录", http.StatusUnauthorized)
 	ErrTokenRevoked       = httpx.NewBiz("AUTH_TOKEN_REVOKED", "登录态已退出，请重新登录", http.StatusUnauthorized)
+	// ErrRevokerUnavailable 吊销状态检查暂时不可用（fail-closed 模式下 Redis
+	// 故障）：503 与 401（确已吊销）严格区分，客户端不应据此清除登录态
+	ErrRevokerUnavailable = httpx.NewBiz("AUTH_REVOKE_CHECK_FAILED", "登录态校验暂时不可用，请稍后再试", http.StatusServiceUnavailable)
 )
 
 // AuthenticationMiddleware 会话认证：按 JWT claims 的 memberId 加载成员（ADR-006）。
@@ -38,10 +42,24 @@ func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.U
 
 		claims, _ := jwtService.ParseToken(token)
 		if claims != nil {
-			if revoker != nil && revoker.Revoked(c.Request.Context(), claims.ID) {
-				httpx.ResponseFailed(c, http.StatusUnauthorized, ErrTokenRevoked)
-				c.Abort()
-				return
+			if revoker != nil {
+				revoked, err := revoker.Revoked(c.Request.Context(), claims.ID)
+				if err != nil {
+					if revoker.FailClosed() {
+						// fail-closed：黑名单状态未知时拒绝请求，但用可区分的
+						// 503 稳定码——不能用「已吊销」401（会触发前端清除仍有效的
+						// 登录态，且 401 响应会顺带清 Cookie）
+						httpx.ResponseFailed(c, http.StatusServiceUnavailable, ErrRevokerUnavailable)
+						c.Abort()
+						return
+					}
+					// fail-open：Redis 抖动不阻断请求（吊销是增强能力）
+					logrus.Warnf("check token revocation (fail-open): %v", err)
+				} else if revoked {
+					httpx.ResponseFailed(c, http.StatusUnauthorized, ErrTokenRevoked)
+					c.Abort()
+					return
+				}
 			}
 			account, err := accountRepo.GetByID(c.Request.Context(), claims.AccountID)
 			if err != nil {

@@ -172,7 +172,7 @@ func TestSendAndVerifyHappyPath(t *testing.T) {
 	rdb, sender := newFakeRedis(), &fakeSender{}
 	svc := newTestService(rdb, sender)
 
-	code, err := svc.Send(context.Background(), SceneLogin, "13800001111")
+	code, err := svc.Send(context.Background(), SceneLogin, "13800001111", "127.0.0.1")
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -197,13 +197,13 @@ func TestSendSceneAndPhoneValidation(t *testing.T) {
 	svc := newTestService(newFakeRedis(), &fakeSender{})
 
 	// reset 是合法场景（P1-3 密码找回），用真正未知的场景名断言拒绝
-	if _, err := svc.Send(context.Background(), "bogus", "13800001111"); !errors.Is(err, ErrScene) {
+	if _, err := svc.Send(context.Background(), "bogus", "13800001111", "127.0.0.1"); !errors.Is(err, ErrScene) {
 		t.Fatalf("unknown scene should be ErrScene, got %v", err)
 	}
-	if _, err := svc.Send(context.Background(), SceneReset, "13800001111"); err != nil {
+	if _, err := svc.Send(context.Background(), SceneReset, "13800001111", "127.0.0.1"); err != nil {
 		t.Fatalf("reset scene should be valid, got %v", err)
 	}
-	if _, err := svc.Send(context.Background(), SceneLogin, "12345"); !errors.Is(err, ErrPhone) {
+	if _, err := svc.Send(context.Background(), SceneLogin, "12345", "127.0.0.1"); !errors.Is(err, ErrPhone) {
 		t.Fatalf("bad phone should be ErrPhone, got %v", err)
 	}
 }
@@ -222,11 +222,11 @@ func TestRegisterSceneIsolatedFromLogin(t *testing.T) {
 	rdb, sender := newFakeRedis(), &fakeSender{}
 	svc := newTestService(rdb, sender)
 
-	loginCode, err := svc.Send(context.Background(), SceneLogin, "13800001111")
+	loginCode, err := svc.Send(context.Background(), SceneLogin, "13800001111", "127.0.0.1")
 	if err != nil {
 		t.Fatalf("send login code: %v", err)
 	}
-	registerCode, err := svc.Send(context.Background(), SceneRegister, "13800001111")
+	registerCode, err := svc.Send(context.Background(), SceneRegister, "13800001111", "127.0.0.1")
 	if err != nil {
 		t.Fatalf("send register code: %v", err)
 	}
@@ -254,7 +254,7 @@ func TestFixedCode(t *testing.T) {
 	svc := NewService(rdb, &fakeSender{}, Options{MaxTries: 3, FixedCode: DevFixedCode})
 
 	for range 2 {
-		code, err := svc.Send(context.Background(), SceneRegister, "13800001111")
+		code, err := svc.Send(context.Background(), SceneRegister, "13800001111", "127.0.0.1")
 		if err != nil {
 			t.Fatalf("send: %v", err)
 		}
@@ -274,10 +274,10 @@ func TestSendCooldown(t *testing.T) {
 	rdb := newFakeRedis()
 	svc := newTestService(rdb, &fakeSender{})
 
-	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111"); err != nil {
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111", "127.0.0.1"); err != nil {
 		t.Fatalf("first send: %v", err)
 	}
-	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111"); !errors.Is(err, ErrCooldown) {
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111", "127.0.0.1"); !errors.Is(err, ErrCooldown) {
 		t.Fatalf("second send within cooldown should be ErrCooldown, got %v", err)
 	}
 }
@@ -286,7 +286,7 @@ func TestVerifyWrongCodeAttempts(t *testing.T) {
 	rdb := newFakeRedis()
 	svc := NewService(rdb, &fakeSender{}, Options{MaxTries: 3})
 
-	code, err := svc.Send(context.Background(), SceneLogin, "13800001111")
+	code, err := svc.Send(context.Background(), SceneLogin, "13800001111", "127.0.0.1")
 	if err != nil {
 		t.Fatalf("send: %v", err)
 	}
@@ -327,7 +327,7 @@ func TestVerifyAtomicConsume(t *testing.T) {
 	rdb, sender := newFakeRedis(), &fakeSender{}
 	svc := NewService(rdb, sender, Options{MaxTries: 2, FixedCode: DevFixedCode})
 
-	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111"); err != nil {
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111", "127.0.0.1"); err != nil {
 		t.Fatalf("send: %v", err)
 	}
 
@@ -344,7 +344,7 @@ func TestVerifyAtomicConsume(t *testing.T) {
 	}
 
 	// 命中即删：同码二次校验失败（一次性）
-	if _, err := svc.Send(context.Background(), SceneRegister, "13800001111"); err != nil {
+	if _, err := svc.Send(context.Background(), SceneRegister, "13800001111", "127.0.0.1"); err != nil {
 		t.Fatalf("send register: %v", err)
 	}
 	if err := svc.Verify(context.Background(), SceneRegister, "13800001111", DevFixedCode); err != nil {
@@ -361,12 +361,12 @@ func TestSendRollbackCooldownOnFailure(t *testing.T) {
 	rdb := newFakeRedis()
 	svc := NewService(rdb, &failSender{}, Options{FixedCode: DevFixedCode})
 
-	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111"); err == nil {
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111", "127.0.0.1"); err == nil {
 		t.Fatal("send should fail with failSender")
 	}
 
 	// 冷却已回滚：立即重发不被 ErrCooldown 拒绝（仍会因通道失败报错）
-	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111"); errors.Is(err, ErrCooldown) {
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111", "127.0.0.1"); errors.Is(err, ErrCooldown) {
 		t.Fatal("cooldown should be rolled back after send failure")
 	}
 }
@@ -379,16 +379,55 @@ func TestSendDailyLimit(t *testing.T) {
 	phone := "13800002222"
 	// 用不同场景避开 60 秒冷却：日限额按手机号跨场景合计
 	for _, scene := range []string{SceneLogin, SceneRegister} {
-		if _, err := svc.Send(context.Background(), scene, phone); err != nil {
+		if _, err := svc.Send(context.Background(), scene, phone, "127.0.0.1"); err != nil {
 			t.Fatalf("send %s: %v", scene, err)
 		}
 	}
 	// 第三条（未用过的场景，无冷却冲突）被日限额拒绝
-	if _, err := svc.Send(context.Background(), SceneReset, phone); !errors.Is(err, ErrDailyLimit) {
+	if _, err := svc.Send(context.Background(), SceneReset, phone, "127.0.0.1"); !errors.Is(err, ErrDailyLimit) {
 		t.Fatalf("third send should be ErrDailyLimit, got %v", err)
 	}
 	// 其他手机号不受影响
-	if _, err := svc.Send(context.Background(), SceneRegister, "13800003333"); err != nil {
+	if _, err := svc.Send(context.Background(), SceneRegister, "13800003333", "127.0.0.2"); err != nil {
 		t.Fatalf("other phone should pass: %v", err)
+	}
+}
+
+// TestSendIPDailyLimit 单 IP 日限额（上线前整改 P2）：跨手机号/场景合计，
+// 防轮换手机号绕过手机号维度限额；不同 IP 互不影响
+func TestSendIPDailyLimit(t *testing.T) {
+	rdb, sender := newFakeRedis(), &fakeSender{}
+	svc := NewService(rdb, sender, Options{IPDailyLimit: 2, FixedCode: DevFixedCode})
+
+	// 同 IP 轮换手机号：前两条放行，第三条被 IP 限额拒绝
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111", "1.1.1.1"); err != nil {
+		t.Fatalf("send 1: %v", err)
+	}
+	if _, err := svc.Send(context.Background(), SceneRegister, "13800002222", "1.1.1.1"); err != nil {
+		t.Fatalf("send 2: %v", err)
+	}
+	if _, err := svc.Send(context.Background(), SceneReset, "13800003333", "1.1.1.1"); !errors.Is(err, ErrIPLimit) {
+		t.Fatalf("third send from same ip should be ErrIPLimit, got %v", err)
+	}
+	// 其他 IP 不受影响
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800004444", "2.2.2.2"); err != nil {
+		t.Fatalf("other ip should pass: %v", err)
+	}
+}
+
+// TestSendCooldownReleasesIPQuota 冷却拒绝（未产生真实发送）归还 IP 预占
+// 名额，不重复计数
+func TestSendCooldownReleasesIPQuota(t *testing.T) {
+	rdb := newFakeRedis()
+	svc := NewService(rdb, &fakeSender{}, Options{FixedCode: DevFixedCode})
+
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111", "1.1.1.1"); err != nil {
+		t.Fatalf("first send: %v", err)
+	}
+	if _, err := svc.Send(context.Background(), SceneLogin, "13800001111", "1.1.1.1"); !errors.Is(err, ErrCooldown) {
+		t.Fatalf("second send within cooldown should be ErrCooldown, got %v", err)
+	}
+	if got := rdb.data[ipDailyKey("1.1.1.1")]; got != "1" {
+		t.Fatalf("ip quota counter = %q, want 1 (cooldown rejection releases reservation)", got)
 	}
 }

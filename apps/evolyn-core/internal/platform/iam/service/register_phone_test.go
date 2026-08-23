@@ -86,6 +86,21 @@ func (f *phoneAccountRepo) UpdatePassword(_ context.Context, id uint, hashed str
 	return nil
 }
 
+// Update 部分更新桩（换绑手机号用例）：只回放非空字段，与真实仓储口径一致
+func (f *phoneAccountRepo) Update(_ context.Context, account *model.Account) (*model.Account, error) {
+	cur, ok := f.accounts[account.ID]
+	if !ok {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if account.Phone != "" {
+		cur.Phone = account.Phone
+	}
+	if account.Nickname != "" {
+		cur.Nickname = account.Nickname
+	}
+	return cur, nil
+}
+
 type phoneUserRepo struct {
 	repository.UserRepository
 	members map[uint]*model.User
@@ -120,7 +135,7 @@ func (f *phoneTenantRepo) GetByIDs(_ context.Context, _ []uint) ([]tenantmodel.T
 }
 
 func newPhoneSvc(accounts *phoneAccountRepo, users *phoneUserRepo) AccountService {
-	return NewAccountService(passThroughTx{}, accounts, users, &phoneTenantRepo{}, fakeQuota{})
+	return NewAccountService(passThroughTx{}, accounts, users, &phoneTenantRepo{}, fakeQuota{}, nil)
 }
 
 // ---- RegisterByPhone：新手机号免密建号 ----

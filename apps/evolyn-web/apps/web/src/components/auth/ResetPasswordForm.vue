@@ -38,7 +38,13 @@ const rules: FormRules = {
   ],
   newPassword: [
     { required: true, message: '请输入新密码', trigger: 'blur' },
-    { min: 6, max: 64, message: '密码长度为 6-64 位', trigger: 'blur' },
+    { min: 8, max: 64, message: '密码长度为 8-64 位', trigger: 'blur' },
+    {
+      // 与后端口径一致（8-64 位且同时包含字母和数字，弱口令由后端黑名单拦截）
+      pattern: /^(?=.*[A-Za-z])(?=.*\d).{8,64}$/,
+      message: '密码需同时包含字母和数字',
+      trigger: 'blur',
+    },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入新密码', trigger: 'blur' },
@@ -130,7 +136,7 @@ function handleSendCode() {
         v-model="form.newPassword"
         name="new-password"
         type="password"
-        placeholder="设置新密码（6-64 位）"
+        placeholder="设置新密码（8-64 位，含字母和数字）"
         autocomplete="new-password"
         show-password
         :prefix-icon="RiLockPasswordFill"

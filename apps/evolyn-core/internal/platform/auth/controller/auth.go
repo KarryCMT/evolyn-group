@@ -2,6 +2,7 @@ package controller
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -20,6 +21,7 @@ import (
 	"evolyn/internal/platform/iam/authorization"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/service"
+	"evolyn/internal/platform/middleware"
 	tenantmodel "evolyn/internal/platform/tenant/model"
 	tenantservice "evolyn/internal/platform/tenant/service"
 
@@ -42,9 +44,12 @@ type AuthController struct {
 	pkiKeypair *pki.Keypair
 	// 登录日志记录器：令牌签发成功后 best-effort 落一条会话建立流水
 	loginLog loginlogservice.Recorder
+	// 登录失败锁定（上线前整改 P2）：密码分支以登录名/手机号为维度计
+	// 连续失败，达上限临时锁定，防在线爆破与撞库
+	loginGuard *auth.LoginGuard
 }
 
-func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder, revoker *auth.TokenRevoker) platformcontroller.Controller {
+func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder, revoker *auth.TokenRevoker, loginGuard *auth.LoginGuard) platformcontroller.Controller {
 	return &AuthController{
 		accountService:      accountService,
 		registrationService: registrationService,
@@ -55,8 +60,14 @@ func NewAuthController(accountService service.AccountService, registrationServic
 		pkiKeypair:          pkiKeypair,
 		loginLog:            loginLog,
 		revoker:             revoker,
+		loginGuard:          loginGuard,
 	}
 }
+
+// errLoginLocked 登录失败锁定（上线前整改 P2）：窗口内连续失败达上限，
+// 登录名/手机号被临时锁定。定义在控制器层——auth 包不可 import httpx
+// （ginctx→auth→httpx 循环依赖），LoginGuard 只暴露布尔锁定状态
+var errLoginLocked = httpx.NewBiz("AUTH_LOGIN_LOCKED", "失败次数过多，请稍后再试", http.StatusTooManyRequests)
 
 // recordLogin 落一条登录日志：member 为本次会话绑定的成员（可空，如未选
 // 租户场景）；IP/UA 由服务层从请求元数据自动补全，写入失败只告警不影响登录
@@ -93,13 +104,15 @@ func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, m
 
 // @Summary 登录
 // @Description 账号登录（用户名/手机号 + 密码），租户可选；password 需先经
-// GET /app/conf 下发的 RSA 公钥加密（pki 段）后上送，验证码登录（smsCode）不受影响
+// GET /app/conf 下发的 RSA 公钥加密（pki 段）后上送，验证码登录（smsCode）不受影响。
+// 密码登录连续失败达上限（默认 15 分钟内 5 次）将临时锁定该登录名/手机号
 // @Accept json
 // @Produce json
 // @Tags 认证
 // @Param user body model.AuthUser true "auth info"
 // @Success 200 {object} httpx.Response{data=model.JWTToken}
 // @Failure 401 {object} httpx.Response "UNAUTHORIZED·凭证错误（AUTH_SMS_INVALID/AUTH_CREDENTIALS_INVALID）"
+// @Failure 429 {object} httpx.Response "AUTH_LOGIN_LOCKED·失败次数过多已临时锁定"
 // @Router /api/v1/auth/token [post]
 func (ac *AuthController) Login(c *gin.Context) {
 	auser := new(model.AuthUser)
@@ -151,7 +164,17 @@ func (ac *AuthController) Login(c *gin.Context) {
 	default:
 		// 密码登录：password 为经 /app/conf 公钥 RSA 加密后的密文，
 		// 先解密再走服务层 bcrypt 校验；解密失败不区分原因（防探测）。
-		// 注意解密错误用独立变量名，避免 := 遮蔽外层 err 导致登录错误被吞
+		// 注意解密错误用独立变量名，避免 := 遮蔽外层 err 导致登录错误被吞。
+		// 失败锁定（上线前整改 P2）：以登录名/手机号为标识，凭证校验前
+		// 先查锁，凭证失败计一次，成功清零——不存在的账号同样计数，防枚举
+		ident := auser.Name
+		if ident == "" {
+			ident = auser.Phone
+		}
+		if ac.loginGuard != nil && ac.loginGuard.Locked(c.Request.Context(), ident) {
+			httpx.ResponseFailed(c, http.StatusTooManyRequests, errLoginLocked)
+			return
+		}
 		plain, decryptErr := ac.pkiKeypair.Decrypt(auser.Password)
 		if decryptErr != nil {
 			httpx.ResponseFailed(c, http.StatusBadRequest, decryptErr)
@@ -159,6 +182,13 @@ func (ac *AuthController) Login(c *gin.Context) {
 		}
 		auser.Password = plain
 		account, member, err = ac.accountService.Auth(c.Request.Context(), auser)
+		if ac.loginGuard != nil && ident != "" {
+			if errors.Is(err, service.ErrCredentialsInvalid) {
+				ac.loginGuard.RecordFailure(c.Request.Context(), ident)
+			} else if err == nil {
+				ac.loginGuard.Reset(c.Request.Context(), ident)
+			}
+		}
 	}
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
@@ -196,15 +226,23 @@ func bearerToken(c *gin.Context) string {
 }
 
 // Logout 登出（P2-8）：清 Cookie 并吊销当前 Bearer 令牌（jti 拉黑至自然
-// 过期）——仅清 Cookie 无法让已签发/泄露的 token 失效
+// 过期）——仅清 Cookie 无法让已签发/泄露的 token 失效。
+// failClosed 模式（auth.revokeFailClosed=true）下吊销写失败如实返回 503：
+// 黑名单没写成时令牌仍有效，静默清 Cookie 装作登出成功会误导用户；
+// 默认 fail-open 模式维持「告警不阻断」（可用性优先）
 func (ac *AuthController) Logout(c *gin.Context) {
 	if ac.revoker != nil {
 		claims, _ := ac.jwtService.ParseToken(bearerToken(c))
 		if claims != nil && claims.ExpiresAt != nil {
 			ttl := time.Until(claims.ExpiresAt.Time)
 			if err := ac.revoker.Revoke(c.Request.Context(), claims.ID, ttl); err != nil {
-				// 吊销失败不阻断登出（Cookie 已清），记录后继续
 				logrus.Warnf("revoke token on logout: %v", err)
+				if ac.revoker.FailClosed() {
+					// 吊销写失败如实报错（与读侧同码 AUTH_REVOKE_CHECK_FAILED）：
+					// 黑名单没写成时令牌仍有效，静默清 Cookie 装作登出成功会误导用户
+					httpx.ResponseFailed(c, http.StatusServiceUnavailable, middleware.ErrRevokerUnavailable)
+					return
+				}
 			}
 		}
 	}
@@ -214,28 +252,30 @@ func (ac *AuthController) Logout(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
-// registerOnboarding 注册向导第 3 步采集的账号画像（「人」的属性挂账号）
+// registerOnboarding 注册向导第 3 步采集的账号画像（「人」的属性挂账号）。
+// role/channel 与前端向导一致为必填（上线前整改 P2 统一契约）：防止非前端
+// 客户端绕过表单校验写入不完整画像
 type registerOnboarding struct {
-	Role    string `json:"role"`    // 你的角色：ceo / manager / it / ...
-	Channel string `json:"channel"` // 了解渠道：xiaohongshu / zhihu / referral / ...
+	Role    string `json:"role" binding:"required"`    // 你的角色：ceo / manager / it / ...
+	Channel string `json:"channel" binding:"required"` // 了解渠道：xiaohongshu / zhihu / referral / ...
 }
 
 // registerTenantProfile 注册向导第 2 步采集的企业画像（写入租户 Config）
 type registerTenantProfile struct {
-	Name     string `json:"name" binding:"required"` // 企业名称
-	Demand   string `json:"demand"`                  // 你的需求（单选，选填）
-	Industry string `json:"industry"`                // 所属行业（单选，选填）
+	Name     string `json:"name" binding:"required"`     // 企业名称
+	Demand   string `json:"demand"`                      // 你的需求（单选，选填）
+	Industry string `json:"industry" binding:"required"` // 所属行业（单选，与前端一致必填）
 }
 
 // registerRequest 注册向导最终提交请求（POST /auth/register）：三步纯前端
 // 采集的全量数据——手机号+验证码、企业画像、账号画像，点「进入产品」时
 // 一次性上送，此前向导各步不产生任何服务端写副作用
 type registerRequest struct {
-	Phone      string                `json:"phone" binding:"required,len=11"` // 手机号（格式再经 sms 校验）
-	SmsCode    string                `json:"smsCode" binding:"required,len=6"`
-	Nickname   string                `json:"nickname" binding:"max=20"` // 怎么称呼你（空串保留脱敏手机号默认；2-20 由前端引导，后端兜底长度）
-	Onboarding registerOnboarding    `json:"onboarding"`                // 账号画像：角色/了解渠道（枚举白名单校验）
-	Tenant     registerTenantProfile `json:"tenant" binding:"required"` // 企业画像
+	Phone      string                `json:"phone" binding:"required,len=11"`          // 手机号（格式再经 sms 校验）
+	SmsCode    string                `json:"smsCode" binding:"required,len=6"`         // 短信验证码
+	Nickname   string                `json:"nickname" binding:"required,min=2,max=20"` // 怎么称呼你（与前端表单一致 2-20 必填）
+	Onboarding registerOnboarding    `json:"onboarding" binding:"required"`            // 账号画像：角色/了解渠道（必填，枚举白名单校验）
+	Tenant     registerTenantProfile `json:"tenant" binding:"required"`                // 企业画像
 }
 
 // 注册画像枚举白名单（P2-5：与前端选项一一对应，防任意客户端写入
@@ -257,7 +297,8 @@ var (
 	}
 )
 
-// validateRegisterEnums 画像枚举校验：选填字段空串放行，非空必须命中白名单
+// validateRegisterEnums 画像枚举校验：非空字段必须命中白名单（role/channel/
+// industry 的必填性已由 binding 标签保证，此处只挡非法枚举值）
 func validateRegisterEnums(req *registerRequest) error {
 	invalid := httpx.NewBiz(httpx.CodeValidation, "注册画像包含无效选项", http.StatusBadRequest)
 	if req.Onboarding.Role != "" {
@@ -401,10 +442,22 @@ func (ac *AuthController) OpenTenant(c *gin.Context) {
 	httpx.ResponseSuccess(c, tenant)
 }
 
-// smsSendRequest 发送验证码请求：scene 支持 login（登录）/ register（注册）
+// rebind 场景用途（上线前复查 P3）：old=向「当前绑定手机号」发码（原身份
+// 验证，目标必须等于会话账号当前手机号）；new=向「新手机号」发码（新号
+// 持有验证，任意合法目标）。区分用途把「旧号码发」收窄到本人在用号码，
+// 缩小登录态被盗后的短信骚扰面
+const (
+	smsPurposeRebindOld = "old"
+	smsPurposeRebindNew = "new"
+)
+
+// smsSendRequest 发送验证码请求：scene 支持 login（登录）/ register（注册）/
+// reset（密码找回）/ rebind（换绑手机号，需已登录且携带 purpose=old/new）
 type smsSendRequest struct {
 	Phone string `json:"phone" binding:"required"`
 	Scene string `json:"scene" binding:"required"`
+	// Purpose rebind 场景专用用途：old=验证当前绑定号 / new=验证新号（其余场景忽略）
+	Purpose string `json:"purpose"`
 }
 
 // smsSendResult 发送结果：仅本地联调（devEcho=true）时回显验证码
@@ -413,16 +466,20 @@ type smsSendResult struct {
 }
 
 // @Summary 发送短信验证码
-// @Description 按场景发送 6 位短信验证码（场景 login=登录 / register=注册）：默认 60 秒
-// 重发冷却、5 分钟有效期、单码最多试错 5 次后作废需重发；开发通道（provider=dev）固定
-// 验证码 666666，devEcho=true 时响应回显验证码（仅本地联调）
+// @Description 按场景发送 6 位短信验证码（场景 login=登录 / register=注册 /
+// reset=密码找回 / rebind=换绑手机号）：rebind 需已登录并携带 purpose——
+// purpose=old 时接收号码必须为账号当前绑定手机号，purpose=new 为待换绑的
+// 新号码。默认 60 秒重发冷却、5 分钟有效期、单码最多试错 5 次后作废需重发；
+// 单手机号与单 IP 各有自然日发送上限（跨场景合计）。开发通道（provider=dev）
+// 固定验证码 666666，devEcho=true 时响应回显验证码（仅本地联调）
 // @Accept json
 // @Produce json
 // @Tags 认证
 // @Param body body controller.smsSendRequest true "phone and scene"
 // @Success 200 {object} httpx.Response{data=controller.smsSendResult}
-// @Failure 400 {object} httpx.Response "AUTH_PHONE_INVALID/AUTH_SMS_SCENE_INVALID·手机号或场景非法"
-// @Failure 429 {object} httpx.Response "AUTH_COOLDOWN·发送冷却中/AUTH_SMS_TOO_MANY_TRIES·试错超限"
+// @Failure 400 {object} httpx.Response "AUTH_PHONE_INVALID/AUTH_SMS_SCENE_INVALID·手机号或场景非法/VALIDATION·rebind 用途或接收号码不符合"
+// @Failure 401 {object} httpx.Response "UNAUTHORIZED·rebind 场景未登录"
+// @Failure 429 {object} httpx.Response "AUTH_COOLDOWN·发送冷却中/AUTH_SMS_TOO_MANY_TRIES·试错超限/AUTH_SMS_DAILY_LIMIT·单手机号达日上限/AUTH_SMS_IP_LIMIT·当前网络达日上限"
 // @Router /api/v1/auth/sms/send [post]
 func (ac *AuthController) SendSmsCode(c *gin.Context) {
 	req := new(smsSendRequest)
@@ -431,9 +488,40 @@ func (ac *AuthController) SendSmsCode(c *gin.Context) {
 		return
 	}
 
-	code, err := ac.smsService.Send(c.Request.Context(), req.Scene, req.Phone)
+	// rebind 换绑场景：必须已登录，且按用途收窄接收号码（复查 P3）
+	if req.Scene == sms.SceneRebind {
+		claims := ginctx.GetSession(c)
+		if claims == nil || claims.AccountID == 0 {
+			httpx.ResponseFailed(c, http.StatusUnauthorized, fmt.Errorf("rebind scene requires authentication"))
+			return
+		}
+		switch req.Purpose {
+		case smsPurposeRebindOld:
+			// 旧号码验证：接收号码必须是本账号当前绑定手机号——登录态被盗的
+			// 攻击者无法借 old 用途向任意第三方号码发骚扰短信
+			account, err := ac.accountService.GetProfile(c.Request.Context(), claims.AccountID)
+			if err != nil {
+				httpx.ResponseFailed(c, http.StatusInternalServerError, err)
+				return
+			}
+			if account.Phone == "" || account.Phone != req.Phone {
+				httpx.ResponseFailed(c, http.StatusBadRequest,
+					fmt.Errorf("验证当前手机号时，接收号码须为账号绑定的手机号"))
+				return
+			}
+		case smsPurposeRebindNew:
+			// 新号码验证：任意合法目标（格式与防刷限额由 sms 域把关）
+		default:
+			httpx.ResponseFailed(c, http.StatusBadRequest,
+				fmt.Errorf("rebind 场景需指定 purpose（old=验证当前手机号 / new=验证新手机号）"))
+			return
+		}
+	}
+
+	// 来源 IP 透传：单 IP 日限额维度（跨手机号合计，防轮换手机号刷短信成本）
+	code, err := ac.smsService.Send(c.Request.Context(), req.Scene, req.Phone, c.ClientIP())
 	if err != nil {
-		// 状态码/业务码由 BizError 自动映射（ADR-008）：冷却/试错 429，非法 400
+		// 状态码/业务码由 BizError 自动映射（ADR-008）：冷却/试错/日限额 429，非法 400
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
