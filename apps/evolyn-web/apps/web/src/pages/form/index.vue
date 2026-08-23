@@ -26,6 +26,7 @@ const router = useRouter();
 const formName = '未命名表单';
 const standardNavigationItems: FormNavigationItem[] = [
   { name: 'form-design', label: '表单设计' },
+  { name: 'form-workflow-design', label: '流程设计' },
   { name: 'form-extensions', label: '扩展功能' },
   { name: 'form-publish', label: '表单发布' },
   { name: 'form-data', label: '数据管理' },
@@ -33,21 +34,8 @@ const standardNavigationItems: FormNavigationItem[] = [
 
 const appCode = computed(() => String(route.params.appCode ?? ''));
 const formId = computed(() => String(route.params.formId ?? ''));
-/** 新建流程表单暂以 query 表达类型；后续改为读取表单详情中的类型字段。 */
-const isWorkflowForm = computed(
-  () =>
-    route.query.type === 'workflow' ||
-    route.matched.some((record) => record.name === 'form-workflow-design'),
-);
-const navigationItems = computed<FormNavigationItem[]>(() => {
-  if (!isWorkflowForm.value) return standardNavigationItems;
-
-  return [
-    standardNavigationItems[0],
-    { name: 'form-workflow-design', label: '流程设计' },
-    ...standardNavigationItems.slice(1),
-  ];
-});
+// 流程设计作为统一的一级工作区显示；后续由表单详情和权限控制其可访问性。
+const navigationItems = computed<FormNavigationItem[]>(() => standardNavigationItems);
 const activeNavigationName = computed<FormRouteName>(() => {
   const active = navigationItems.value.find((item) =>
     route.matched.some((record) => record.name === item.name),
