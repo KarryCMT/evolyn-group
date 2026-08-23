@@ -106,3 +106,21 @@ func TestEnsurePhoneAvailable(t *testing.T) {
 	assert.ErrorIs(t, svc.EnsurePhoneAvailable(context.Background(), "13800002222"), ErrDuplicatePhone)
 	assert.ErrorIs(t, svc.EnsurePhoneAvailable(context.Background(), "123"), ErrPhoneInvalid)
 }
+
+// TestPhoneRegistered 纯存在性查询（登录场景发码前校验）：
+// 已注册/未注册/不存在副作用
+func TestPhoneRegistered(t *testing.T) {
+	accounts := newPhoneAccountRepo(&model.Account{ID: 20, Name: "u-2", Phone: "13800002222"})
+	users := &phoneUserRepo{members: map[uint]*model.User{}}
+	svc := newPhoneSvc(accounts, users)
+
+	registered, err := svc.PhoneRegistered(context.Background(), "13800002222")
+	assert.NoError(t, err)
+	assert.True(t, registered)
+
+	registered, err = svc.PhoneRegistered(context.Background(), "13900000000")
+	assert.NoError(t, err)
+	assert.False(t, registered)
+	// 存在性探测不建成员、不动账号表（区别于 AuthByPhone 的孤儿自愈副作用）
+	assert.Empty(t, users.members)
+}

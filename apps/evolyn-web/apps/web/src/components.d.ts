@@ -73,6 +73,7 @@ declare module 'vue' {
     ProfileEditorDialog: typeof import('./components/dashboard/account/ProfileEditorDialog.vue')['default']
     RegisterAccountStep: typeof import('./components/auth/RegisterAccountStep.vue')['default']
     RegisterProfileStep: typeof import('./components/auth/RegisterProfileStep.vue')['default']
+    ResetPasswordForm: typeof import('./components/auth/ResetPasswordForm.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
     ShortcutWidget: typeof import('./components/dashboard/widgets/ShortcutWidget.vue')['default']

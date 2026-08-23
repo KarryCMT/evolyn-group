@@ -17,6 +17,9 @@ type AccountService interface {
 	Auth(ctx context.Context, auser *model.AuthUser) (*model.Account, *model.User, error)
 	// AuthByPhone 验证码登录：手机号定位账号并解析登录成员（验证码由调用方校验）
 	AuthByPhone(ctx context.Context, phone, tenantCode string) (*model.Account, *model.User, error)
+	// PhoneRegistered 手机号是否已注册（登录场景发码前校验：未注册不发短信，
+	// 不做成员解析等副作用，纯存在性查询）
+	PhoneRegistered(ctx context.Context, phone string) (bool, error)
 	// Register 注册：创建账号 + 默认租户成员
 	Register(ctx context.Context, account *model.Account) (*model.Account, *model.User, error)
 	// RegisterByPhone 短信免密注册：已注册手机号等价短信登录（created=false），

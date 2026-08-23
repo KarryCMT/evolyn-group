@@ -467,9 +467,10 @@ type smsSendResult struct {
 
 // @Summary 发送短信验证码
 // @Description 按场景发送 6 位短信验证码（场景 login=登录 / register=注册 /
-// reset=密码找回 / rebind=换绑手机号）：rebind 需已登录并携带 purpose——
-// purpose=old 时接收号码必须为账号当前绑定手机号，purpose=new 为待换绑的
-// 新号码。默认 60 秒重发冷却、5 分钟有效期、单码最多试错 5 次后作废需重发；
+// reset=密码找回 / rebind=换绑手机号）：login 场景仅向已注册手机号发送
+// （未注册返回 401 引导注册）；rebind 需已登录并携带 purpose——purpose=old
+// 时接收号码必须为账号当前绑定手机号，purpose=new 为待换绑的新号码。
+// 默认 60 秒重发冷却、5 分钟有效期、单码最多试错 5 次后作废需重发；
 // 单手机号与单 IP 各有自然日发送上限（跨场景合计）。开发通道（provider=dev）
 // 固定验证码 666666，devEcho=true 时响应回显验证码（仅本地联调）
 // @Accept json
@@ -478,7 +479,7 @@ type smsSendResult struct {
 // @Param body body controller.smsSendRequest true "phone and scene"
 // @Success 200 {object} httpx.Response{data=controller.smsSendResult}
 // @Failure 400 {object} httpx.Response "AUTH_PHONE_INVALID/AUTH_SMS_SCENE_INVALID·手机号或场景非法/VALIDATION·rebind 用途或接收号码不符合"
-// @Failure 401 {object} httpx.Response "UNAUTHORIZED·rebind 场景未登录"
+// @Failure 401 {object} httpx.Response "UNAUTHORIZED·rebind 场景未登录/AUTH_ACCOUNT_NOT_FOUND·手机号未注册（login 场景）"
 // @Failure 429 {object} httpx.Response "AUTH_COOLDOWN·发送冷却中/AUTH_SMS_TOO_MANY_TRIES·试错超限/AUTH_SMS_DAILY_LIMIT·单手机号达日上限/AUTH_SMS_IP_LIMIT·当前网络达日上限"
 // @Router /api/v1/auth/sms/send [post]
 func (ac *AuthController) SendSmsCode(c *gin.Context) {
@@ -514,6 +515,22 @@ func (ac *AuthController) SendSmsCode(c *gin.Context) {
 		default:
 			httpx.ResponseFailed(c, http.StatusBadRequest,
 				fmt.Errorf("rebind 场景需指定 purpose（old=验证当前手机号 / new=验证新手机号）"))
+			return
+		}
+	}
+
+	// 登录场景发送前校验账号存在（产品确认口径）：未注册手机号不消耗短信，
+	// 直接返回未注册稳定码，前端据此引导转注册。register/reset 场景不查——
+	// register 的未注册是正常路径（已注册号也需支持幂等重放）；该口径以
+	// 手机号注册状态可探测为已知代价，由通用 IP 限流与发码限额兜底
+	if req.Scene == sms.SceneLogin {
+		registered, err := ac.accountService.PhoneRegistered(c.Request.Context(), req.Phone)
+		if err != nil {
+			httpx.ResponseFailed(c, http.StatusInternalServerError, err)
+			return
+		}
+		if !registered {
+			httpx.ResponseFailed(c, http.StatusUnauthorized, service.ErrAccountNotFound)
 			return
 		}
 	}

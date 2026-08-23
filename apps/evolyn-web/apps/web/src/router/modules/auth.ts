@@ -1,7 +1,9 @@
+import type { RouteRecordRaw } from 'vue-router';
+
 /**
  * 注册登录路由集合
  */
-export default [
+const authRoutes: RouteRecordRaw[] = [
   {
     // 根路径无独立页面：注册/登录完成后的默认去向统一重定向到工作台
     path: '/',
@@ -26,3 +28,5 @@ export default [
     meta: { public: true },
   },
 ];
+
+export default authRoutes

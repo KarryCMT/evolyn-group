@@ -158,6 +158,18 @@ func (s *accountService) AuthByPhone(ctx context.Context, phone, tenantCode stri
 	return account, member, nil
 }
 
+// PhoneRegistered 手机号是否已注册：纯存在性查询（登录场景发码前校验用），
+// 刻意不走 AuthByPhone——后者含成员解析与孤儿自愈等副作用，不适合探测语义
+func (s *accountService) PhoneRegistered(ctx context.Context, phone string) (bool, error) {
+	if _, err := s.accountRepo.GetByPhone(ctx, phone); err == nil {
+		return true, nil
+	} else if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, nil
+	} else {
+		return false, err
+	}
+}
+
 // resolveLoginMember 登录成员解析：孤儿账号自愈补建默认成员；
 // TenantCode 非空时精确匹配该租户成员，缺省取第一个成员关系（默认租户体验）。
 // 全程剥离租户上下文（账号级跨租户查询）：登录请求可能携带其他账号的

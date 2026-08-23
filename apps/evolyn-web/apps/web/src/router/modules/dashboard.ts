@@ -1,7 +1,9 @@
+import type { RouteRecordRaw } from 'vue-router';
+
 /**
  * 工作台路由集合
  */
-export default [
+const dashboardRoutes: RouteRecordRaw[] = [
   {
     path: '/dashboard',
     name: 'dashboard',
@@ -21,3 +23,4 @@ export default [
     meta: { public: false },
   },
 ];
+export default dashboardRoutes
