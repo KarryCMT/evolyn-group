@@ -29,7 +29,9 @@
     "publish": "pnpm publish"
   },
   "dependencies": {
-    "@logicflow/core": "catalog:frontend"
+    "@logicflow/core": "catalog:frontend",
+    "@logicflow/vue-node-registry": "catalog:frontend",
+    "preact": "catalog:frontend"
   },
   "peerDependencies": {
     "@remixicon/vue": "catalog:ui",

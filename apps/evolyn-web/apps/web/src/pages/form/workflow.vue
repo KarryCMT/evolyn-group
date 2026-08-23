@@ -1,7 +1,5 @@
 <script setup lang="ts">
 import {
-  RiArrowGoBackFill,
-  RiArrowGoForwardFill,
   RiEyeFill,
   RiFullscreenFill,
   RiPlayFill,
@@ -43,15 +41,6 @@ function notifyUnavailable(action: string) {
 <template>
   <section class="form-workflow-page" aria-label="流程设计工作台">
     <div class="form-workflow-page__toolbar" aria-label="流程设计操作">
-      <div class="form-workflow-page__history-actions">
-        <button type="button" aria-label="撤销" @click="notifyUnavailable('撤销')">
-          <RiArrowGoBackFill />
-        </button>
-        <button type="button" aria-label="重做" @click="notifyUnavailable('重做')">
-          <RiArrowGoForwardFill />
-        </button>
-      </div>
-
       <div class="form-workflow-page__toolbar-actions">
         <span class="form-workflow-page__version"><i />流程版本（V1）</span>
         <button class="form-workflow-page__action-button" type="button" @click="notifyUnavailable('预览')">
@@ -104,7 +93,6 @@ function notifyUnavailable(action: string) {
   box-shadow: var(--el-box-shadow-light);
 
   &__toolbar,
-  &__history-actions,
   &__toolbar-actions,
   &__action-button,
   &__version {
@@ -116,16 +104,14 @@ function notifyUnavailable(action: string) {
     height: 50px;
     min-height: 50px;
     padding: 0 16px;
-    justify-content: space-between;
+    justify-content: flex-end;
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
-  &__history-actions,
   &__toolbar-actions {
     gap: 8px;
   }
 
-  &__history-actions button,
   &__icon-button,
   &__action-button {
     border: 0;
@@ -137,7 +123,6 @@ function notifyUnavailable(action: string) {
     }
   }
 
-  &__history-actions button,
   &__icon-button {
     display: inline-flex;
     width: 32px;
@@ -231,7 +216,6 @@ function notifyUnavailable(action: string) {
     }
 
     &__version,
-    &__history-actions,
     &__action-button span {
       display: none;
     }

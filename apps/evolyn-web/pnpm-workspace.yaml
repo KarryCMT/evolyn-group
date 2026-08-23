@@ -17,6 +17,7 @@ catalogs:
     '@logicflow/extension': ^2.3.1
     '@logicflow/layout': ^2.1.5
     '@logicflow/vue-node-registry': ^1.2.5
+    preact: ^10.29.8
   ui:
     element-plus: ^2.14.4
     '@element-plus/icons-vue': ^2.3.2
