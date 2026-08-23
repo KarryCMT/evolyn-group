@@ -114,7 +114,13 @@ const activeNavigationName = computed<FormRouteName>(() => {
 });
 
 function returnToApplication() {
-  void router.push({ name: 'App', params: { appCode: appCode.value } });
+  // 新建态暂未持久化表单资产；用查询参数承接「创建完成后进入应用工作区」的过渡体验。
+  // 表单运行时接口落地后，由返回的默认资产替代这段临时标识。
+  void router.push({
+    name: 'App',
+    params: { appCode: appCode.value },
+    query: formId.value === 'new' ? { workspace: 'form' } : undefined,
+  });
 }
 
 function navigateTo(name: FormRouteName) {

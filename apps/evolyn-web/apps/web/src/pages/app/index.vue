@@ -8,10 +8,16 @@ import {
   RiPieChart2Fill,
 } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
-import { computed, markRaw, type Component } from 'vue';
+import { computed, markRaw, shallowRef, type Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ApplicationEmptyState from '~/components/application/runtime/ApplicationEmptyState.vue';
 import type { ApplicationAssetStarter } from '~/components/application/runtime/applicationAssetCatalog';
+import ApplicationWorkspaceShell from '~/components/application/workspace/ApplicationWorkspaceShell.vue';
+import { applicationWorkspacePreviewAssets } from '~/components/application/workspace/applicationWorkspacePreview';
+import type {
+  ApplicationWorkspaceAsset,
+  ApplicationWorkspaceMode,
+} from '~/components/application/workspace/applicationWorkspace.types';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { useApplicationHome } from '~/composables/useApplicationHome';
 import type { ApplicationIcon } from '~/types';
@@ -32,6 +38,14 @@ const iconByKey: Record<ApplicationIcon, Component> = {
 };
 
 const applicationIcon = computed(() => iconByKey[application.value?.icon ?? 'bookmark']);
+const workspacePreviewEnabled = computed(() => route.query.workspace === 'form');
+const activeAssetCode = shallowRef(applicationWorkspacePreviewAssets[0].code);
+const workspaceMode = shallowRef<ApplicationWorkspaceMode>('fill');
+const activeWorkspaceAsset = computed(
+  () =>
+    applicationWorkspacePreviewAssets.find((asset) => asset.code === activeAssetCode.value) ??
+    applicationWorkspacePreviewAssets[0],
+);
 
 function returnToDashboard() {
   void router.push({ name: 'dashboard' });
@@ -42,13 +56,22 @@ function returnToDashboard() {
  * 流程表单通过 query 标记其类型，以便设计器展示额外的流程设计入口；
  * 后续创建 API 落地后，在成功回调中替换为服务端返回的真实 formId 和类型。
  */
+function startNewForm(workflow = false) {
+  void router.push({
+    name: 'form-design',
+    params: { appCode: appCode.value, formId: 'new' },
+    query: workflow ? { type: 'workflow' } : undefined,
+  });
+}
+
 function openAssetStarter(starter: ApplicationAssetStarter) {
-  if (starter.type === 'form' || starter.type === 'workflow-form') {
-    void router.push({
-      name: 'form-design',
-      params: { appCode: appCode.value, formId: 'new' },
-      query: starter.type === 'workflow-form' ? { type: 'workflow' } : undefined,
-    });
+  if (starter.type === 'form') {
+    startNewForm();
+    return;
+  }
+
+  if (starter.type === 'workflow-form') {
+    startNewForm(true);
     return;
   }
 
@@ -68,64 +91,86 @@ function showAssetGuide() {
 function openApplicationManagement() {
   void router.push({ name: 'app-setting-permissions', params: { appCode: appCode.value } });
 }
+
+function selectWorkspaceAsset(asset: ApplicationWorkspaceAsset) {
+  activeAssetCode.value = asset.code;
+  workspaceMode.value = 'fill';
+}
 </script>
 
 <template>
   <div class="application-home-page">
-    <TopNavigation :title="applicationName" :show-default-navigation="false" surface="surface">
-      <template #leading>
-        <button
-          class="application-home-page__back"
-          type="button"
-          aria-label="返回工作台"
-          @click="returnToDashboard"
-        >
-          <RiArrowLeftLine />
-        </button>
-      </template>
-      <template #title>
-        <span class="application-home-page__title">
-          <span class="application-home-page__icon" aria-hidden="true">
-            <component :is="applicationIcon" />
-          </span>
-          <strong>{{ applicationName }}</strong>
-        </span>
-      </template>
-    </TopNavigation>
-
-    <section v-if="status === 'loading'" v-loading="true" class="application-home-page__status" />
-
-    <el-result
-      v-else-if="status === 'not-found'"
-      class="application-home-page__result"
-      icon="warning"
-      title="应用不存在或已不可访问"
-      sub-title="请返回工作台后重新选择应用。"
-    >
-      <template #extra>
-        <el-button type="primary" @click="returnToDashboard">返回工作台</el-button>
-      </template>
-    </el-result>
-
-    <el-result
-      v-else-if="status === 'error'"
-      class="application-home-page__result"
-      icon="error"
-      title="加载应用失败"
-      :sub-title="errorMessage"
-    >
-      <template #extra>
-        <el-button type="primary" @click="reload()">重新加载</el-button>
-      </template>
-    </el-result>
-
-    <!-- 当前先完成应用维度的空态；表单运行时由后续 @evolyn.do/form 包承接。 -->
-    <ApplicationEmptyState
-      v-else
-      @select-asset="openAssetStarter"
-      @learn-more="showAssetGuide"
+    <!-- 表单创建接口未落地前，设计器回跳通过 workspace=form 呈现工作区壳。 -->
+    <ApplicationWorkspaceShell
+      v-if="workspacePreviewEnabled && status === 'ready'"
+      :application-name="applicationName"
+      :application-icon="application?.icon ?? 'bookmark'"
+      :assets="applicationWorkspacePreviewAssets"
+      :active-asset="activeWorkspaceAsset"
+      :mode="workspaceMode"
+      @back="returnToDashboard"
+      @create-asset="startNewForm()"
+      @select-asset="selectWorkspaceAsset"
       @open-management="openApplicationManagement"
+      @update-mode="workspaceMode = $event"
     />
+
+    <template v-else>
+      <TopNavigation :title="applicationName" :show-default-navigation="false" surface="surface">
+        <template #leading>
+          <button
+            class="application-home-page__back"
+            type="button"
+            aria-label="返回工作台"
+            @click="returnToDashboard"
+          >
+            <RiArrowLeftLine />
+          </button>
+        </template>
+        <template #title>
+          <span class="application-home-page__title">
+            <span class="application-home-page__icon" aria-hidden="true">
+              <component :is="applicationIcon" />
+            </span>
+            <strong>{{ applicationName }}</strong>
+          </span>
+        </template>
+      </TopNavigation>
+
+      <section v-if="status === 'loading'" v-loading="true" class="application-home-page__status" />
+
+      <el-result
+        v-else-if="status === 'not-found'"
+        class="application-home-page__result"
+        icon="warning"
+        title="应用不存在或已不可访问"
+        sub-title="请返回工作台后重新选择应用。"
+      >
+        <template #extra>
+          <el-button type="primary" @click="returnToDashboard">返回工作台</el-button>
+        </template>
+      </el-result>
+
+      <el-result
+        v-else-if="status === 'error'"
+        class="application-home-page__result"
+        icon="error"
+        title="加载应用失败"
+        :sub-title="errorMessage"
+      >
+        <template #extra>
+          <el-button type="primary" @click="reload()">重新加载</el-button>
+        </template>
+      </el-result>
+
+      <!-- 空应用维持独立引导；表单运行时由后续 @evolyn.do/form 包承接。 -->
+      <ApplicationEmptyState
+        v-else
+        @select-asset="openAssetStarter"
+        @learn-more="showAssetGuide"
+        @open-management="openApplicationManagement"
+      />
+    </template>
   </div>
 </template>
 
