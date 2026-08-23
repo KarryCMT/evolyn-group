@@ -5,7 +5,7 @@ import type { RouteRecordRaw } from 'vue-router';
  */
 const appRoutes: RouteRecordRaw[] = [
     {
-        path: '/app/:appId',
+        path: '/app/:appCode',
         name: 'App',
         component: () => import('~/pages/app/index.vue'),
         meta: { public: false },

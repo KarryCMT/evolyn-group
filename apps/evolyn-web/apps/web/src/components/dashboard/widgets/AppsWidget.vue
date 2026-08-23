@@ -12,6 +12,7 @@ import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
 import { ApiError, ERROR_CODES } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
 import { computed, markRaw, onMounted, ref, shallowRef, type Component } from 'vue';
+import { useRouter } from 'vue-router';
 import { createBlankApplication, listApplications } from '~/api/applications';
 import CreateApplicationDialog from '~/components/application/create/CreateApplicationDialog.vue';
 import type { BlankApplicationDraft } from '~/components/application/create/BlankApplicationDialog.vue';
@@ -26,6 +27,7 @@ const props = withDefaults(
   }>(),
   { editorMode: false },
 );
+const router = useRouter();
 
 // 图标键 → Remix Fill 图标（键值与后端服务端枚举一致，不存组件名）
 const iconByKey: Record<ApplicationIcon, Component> = {
@@ -80,6 +82,11 @@ async function handleCreateBlank(draft: BlankApplicationDraft): Promise<boolean>
   }
 }
 
+/** 打开应用首页：路由参数使用可公开引用的稳定应用编码，不暴露内部主键。 */
+function openApplication(app: ApplicationItem) {
+  void router.push({ name: 'App', params: { appCode: app.code } });
+}
+
 onMounted(() => {
   // 编辑模式下不发起业务请求，避免工作台编排时的无效调用
   if (!props.editorMode) void loadApps();
@@ -108,7 +115,13 @@ onMounted(() => {
         description="暂无应用，点击「新建应用」开始"
         :image-size="56"
       />
-      <el-button v-for="app in filteredApps" :key="app.id" class="apps-widget__item" text>
+      <el-button
+        v-for="app in filteredApps"
+        :key="app.id"
+        class="apps-widget__item"
+        text
+        @click="openApplication(app)"
+      >
         <span class="apps-widget__icon" :class="`apps-widget__icon--${app.color}`">
           <component :is="iconByKey[app.icon] ?? iconByKey.bookmark" />
         </span>
