@@ -2,8 +2,8 @@
   "private": true,
   "name": "evolyn-group",
   "scripts": {
-    "dev:web": "npm --prefix apps/evolyn-web run dev",
-    "dev:core": "cd apps/evolyn-core && make run",
+    "dev:web": "npm run stop:web && npm --prefix apps/evolyn-web run dev",
+    "dev:core": "npm run stop:core && cd apps/evolyn-core && make run",
     "build:web": "npm --prefix apps/evolyn-web run build",
     "test:core": "cd apps/evolyn-core && make test",
     "stop:web": "lsof -ti tcp:5173 | xargs kill",

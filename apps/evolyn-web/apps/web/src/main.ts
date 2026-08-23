@@ -10,6 +10,7 @@ import '@evolyn.do/ui/style.css';
 import '@evolyn.do/dashboard/style.css';
 import '@evolyn.do/data/style.css';
 import '@evolyn.do/form/style.css';
+import '@evolyn.do/workflow/style.css';
 import 'element-plus/theme-chalk/src/message.scss';
 import 'element-plus/theme-chalk/src/message-box.scss';
 import 'element-plus/theme-chalk/src/overlay.scss'; // the modal class for message box

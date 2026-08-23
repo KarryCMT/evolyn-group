@@ -23,6 +23,7 @@
     "@evolyn.do/hooks": "workspace:*",
     "@evolyn.do/ui": "workspace:*",
     "@evolyn.do/utils": "workspace:*",
+    "@evolyn.do/workflow": "workspace:*",
     "@element-plus/icons-vue": "catalog:ui",
     "@vueuse/core": "catalog:utils",
     "axios": "catalog:utils",
@@ -31,11 +32,7 @@
     "vue": "catalog:frontend",
     "vue-router": "catalog:frontend",
     "pinia": "catalog:frontend",
-    "jsencrypt": "catalog:utils",
-    "@logicflow/core": "catalog:frontend",
-    "@logicflow/extension": "catalog:frontend",
-    "@logicflow/layout": "catalog:frontend",
-    "@logicflow/vue-node-registry": "catalog:frontend"
+    "jsencrypt": "catalog:utils"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^5.1.0",

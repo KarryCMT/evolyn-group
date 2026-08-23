@@ -47,10 +47,7 @@ const formRoutes: RouteRecordRaw[] = [
       {
         path: 'workflow',
         name: 'form-workflow-design',
-        ...workspaceFeature({
-          title: '流程设计',
-          description: '流程图、节点与流转规则将在工作流引擎接入后在此配置。',
-        }),
+        component: () => import('~/pages/form/workflow.vue'),
       },
       {
         path: 'extensions',
