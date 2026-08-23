@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import {
+  RiArrowRightDoubleFill,
   RiDatabase2Fill,
   RiEditBoxFill,
   RiNotification3Fill,
@@ -14,10 +15,12 @@ defineOptions({ name: 'ApplicationWorkspaceHeader' });
 
 const props = defineProps<{
   mode: ApplicationWorkspaceMode;
+  sidebarCollapsed: boolean;
 }>();
 
 const emit = defineEmits<{
   updateMode: [mode: ApplicationWorkspaceMode];
+  toggleSidebar: [];
 }>();
 
 const messageCenterVisible = shallowRef(false);
@@ -33,6 +36,17 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
 <template>
   <header class="application-workspace-header">
     <nav class="application-workspace-header__modes" aria-label="当前资产操作模式">
+      <button
+        v-if="props.sidebarCollapsed"
+        class="application-workspace-header__sidebar-toggle"
+        type="button"
+        aria-label="展开侧边栏"
+        aria-expanded="false"
+        title="展开侧边栏"
+        @click="emit('toggleSidebar')"
+      >
+        <RiArrowRightDoubleFill aria-hidden="true" />
+      </button>
       <button
         v-for="item in modeItems"
         :key="item.mode"
@@ -92,7 +106,8 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
   }
 
   &__mode,
-  &__icon-button {
+  &__icon-button,
+  &__sidebar-toggle {
     display: inline-flex;
     border: 0;
     align-items: center;
@@ -127,6 +142,23 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
     &--active {
       color: var(--el-text-color-primary);
       font-weight: 650;
+    }
+  }
+
+  &__sidebar-toggle {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    font-size: 20px;
+
+    &:hover {
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--el-color-primary);
+      outline-offset: 2px;
     }
   }
 

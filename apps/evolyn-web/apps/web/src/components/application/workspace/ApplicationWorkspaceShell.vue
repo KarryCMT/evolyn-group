@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { shallowRef } from 'vue';
 import type { ApplicationIcon } from '~/types';
 import ApplicationContentPlaceholder from './ApplicationContentPlaceholder.vue';
 import ApplicationWorkspaceHeader from './ApplicationWorkspaceHeader.vue';
@@ -25,6 +26,13 @@ const emit = defineEmits<{
   openManagement: [];
   updateMode: [mode: ApplicationWorkspaceMode];
 }>();
+
+// 工作区统一持有侧栏展开状态，侧栏与内容头部通过显式 props / emits 保持同步。
+const sidebarCollapsed = shallowRef(false);
+
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value;
+}
 </script>
 
 <template>
@@ -34,13 +42,20 @@ const emit = defineEmits<{
       :application-icon="props.applicationIcon"
       :assets="props.assets"
       :active-asset-code="props.activeAsset.code"
+      :collapsed="sidebarCollapsed"
       @back="emit('back')"
       @create-asset="emit('createAsset')"
       @select-asset="emit('selectAsset', $event)"
       @open-management="emit('openManagement')"
+      @toggle-sidebar="toggleSidebar"
     />
     <section class="application-workspace-shell__surface">
-      <ApplicationWorkspaceHeader :mode="props.mode" @update-mode="emit('updateMode', $event)" />
+      <ApplicationWorkspaceHeader
+        :mode="props.mode"
+        :sidebar-collapsed="sidebarCollapsed"
+        @toggle-sidebar="toggleSidebar"
+        @update-mode="emit('updateMode', $event)"
+      />
       <ApplicationContentPlaceholder :asset="props.activeAsset" :mode="props.mode" />
     </section>
   </div>

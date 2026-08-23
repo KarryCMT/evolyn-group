@@ -1,5 +1,11 @@
 <script setup lang="ts">
-import { RiAddFill, RiArrowLeftSLine, RiSearch2Line, RiSettings3Fill } from '@remixicon/vue';
+import {
+  RiAddFill,
+  RiArrowLeftDoubleFill,
+  RiArrowLeftSLine,
+  RiSearch2Line,
+  RiSettings3Fill,
+} from '@remixicon/vue';
 import type { ApplicationIcon } from '~/types';
 import type { ApplicationWorkspaceAsset } from './applicationWorkspace.types';
 import { applicationPersonalNavigation } from './applicationWorkspacePreview';
@@ -11,6 +17,7 @@ const props = defineProps<{
   applicationIcon: ApplicationIcon;
   assets: ApplicationWorkspaceAsset[];
   activeAssetCode: string;
+  collapsed: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -18,11 +25,16 @@ const emit = defineEmits<{
   createAsset: [];
   selectAsset: [asset: ApplicationWorkspaceAsset];
   openManagement: [];
+  toggleSidebar: [];
 }>();
 </script>
 
 <template>
-  <aside class="application-workspace-sidebar" aria-label="应用导航">
+  <aside
+    class="application-workspace-sidebar"
+    :class="{ 'application-workspace-sidebar--collapsed': props.collapsed }"
+    aria-label="应用导航"
+  >
     <header class="application-workspace-sidebar__header">
       <button
         class="application-workspace-sidebar__back"
@@ -36,6 +48,17 @@ const emit = defineEmits<{
         <component :is="props.applicationIcon" />
       </span>
       <strong class="application-workspace-sidebar__app-name">{{ props.applicationName }}</strong>
+      <button
+        v-if="!props.collapsed"
+        class="application-workspace-sidebar__collapse"
+        type="button"
+        aria-label="收起侧边栏"
+        aria-expanded="true"
+        title="收起侧边栏"
+        @click="emit('toggleSidebar')"
+      >
+        <RiArrowLeftDoubleFill aria-hidden="true" />
+      </button>
     </header>
 
     <nav class="application-workspace-sidebar__personal-nav" aria-label="个人应用入口">
@@ -44,6 +67,7 @@ const emit = defineEmits<{
         :key="item.code"
         class="application-workspace-sidebar__nav-item"
         type="button"
+        :aria-label="item.label"
       >
         <component :is="item.icon" aria-hidden="true" />
         <span>{{ item.label }}</span>
@@ -74,6 +98,7 @@ const emit = defineEmits<{
           'application-workspace-sidebar__asset-item--active': asset.code === props.activeAssetCode,
         }"
         type="button"
+        :aria-label="asset.label"
         @click="emit('selectAsset', asset)"
       >
         <component :is="asset.icon" aria-hidden="true" />
@@ -85,10 +110,11 @@ const emit = defineEmits<{
       <button
         class="application-workspace-sidebar__management"
         type="button"
+        aria-label="应用后台"
         @click="emit('openManagement')"
       >
         <RiSettings3Fill aria-hidden="true" />
-        应用后台
+        <span>应用后台</span>
       </button>
     </footer>
   </aside>
@@ -98,13 +124,17 @@ const emit = defineEmits<{
 .application-workspace-sidebar {
   box-sizing: border-box;
   display: flex;
-  width: 300px;
-  min-width: 300px;
+  width: 280px;
+  min-width: 280px;
   padding: 14px 14px 18px;
   overflow: hidden;
   flex-direction: column;
   color: var(--el-color-white);
   background: var(--el-color-primary);
+  transition:
+    width 0.2s ease,
+    min-width 0.2s ease,
+    padding 0.2s ease;
 
   &__header,
   &__nav-item,
@@ -124,6 +154,7 @@ const emit = defineEmits<{
 
   &__back,
   &__create,
+  &__collapse,
   &__nav-item,
   &__asset-item,
   &__management {
@@ -134,7 +165,8 @@ const emit = defineEmits<{
   }
 
   &__back,
-  &__create {
+  &__create,
+  &__collapse {
     display: inline-flex;
     width: 32px;
     height: 32px;
@@ -175,6 +207,11 @@ const emit = defineEmits<{
     line-height: 24px;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  &__collapse {
+    margin-left: auto;
+    font-size: 20px;
   }
 
   &__personal-nav,
@@ -264,12 +301,31 @@ const emit = defineEmits<{
     width: 100%;
     justify-content: flex-start;
   }
+
+  &--collapsed {
+    width: 10px;
+    min-width: 10px;
+    padding: 0;
+
+    .application-workspace-sidebar__header,
+    .application-workspace-sidebar__personal-nav,
+    .application-workspace-sidebar__asset-tools,
+    .application-workspace-sidebar__asset-nav,
+    .application-workspace-sidebar__footer {
+      display: none;
+    }
+  }
 }
 
 @media (max-width: 900px) {
   .application-workspace-sidebar {
-    width: 248px;
-    min-width: 248px;
+    width: 280px;
+    min-width: 280px;
+
+    &--collapsed {
+      width: 10px;
+      min-width: 10px;
+    }
   }
 }
 </style>
