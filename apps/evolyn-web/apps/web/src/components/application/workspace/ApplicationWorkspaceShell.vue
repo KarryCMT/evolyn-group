@@ -6,6 +6,8 @@ import ApplicationWorkspaceHeader from './ApplicationWorkspaceHeader.vue';
 import ApplicationWorkspaceSidebar from './ApplicationWorkspaceSidebar.vue';
 import type {
   ApplicationWorkspaceAsset,
+  ApplicationWorkspaceAssetAction,
+  ApplicationWorkspaceCreateAssetType,
   ApplicationWorkspaceMode,
 } from './applicationWorkspace.types';
 
@@ -15,14 +17,23 @@ const props = defineProps<{
   applicationName: string;
   applicationIcon: ApplicationIcon;
   assets: ApplicationWorkspaceAsset[];
-  activeAsset: ApplicationWorkspaceAsset;
+  /** 当前选中资产；菜单为空（M2-菜单-1 常态）时为 null */
+  activeAsset: ApplicationWorkspaceAsset | null;
   mode: ApplicationWorkspaceMode;
+  /** 菜单数据源状态：loading 传递给侧栏渲染加载态 */
+  menuStatus: 'loading' | 'ready';
 }>();
 
 const emit = defineEmits<{
   back: [];
-  createAsset: [];
+  createAsset: [
+    payload: { parent?: ApplicationWorkspaceAsset; type: ApplicationWorkspaceCreateAssetType },
+  ];
+  assetGuide: [];
   selectAsset: [asset: ApplicationWorkspaceAsset];
+  assetAction: [
+    payload: { asset: ApplicationWorkspaceAsset; action: ApplicationWorkspaceAssetAction },
+  ];
   openManagement: [];
   updateMode: [mode: ApplicationWorkspaceMode];
 }>();
@@ -41,11 +52,14 @@ function toggleSidebar() {
       :application-name="props.applicationName"
       :application-icon="props.applicationIcon"
       :assets="props.assets"
-      :active-asset-code="props.activeAsset.code"
+      :active-asset-code="props.activeAsset?.code ?? ''"
       :collapsed="sidebarCollapsed"
+      :menu-status="props.menuStatus"
       @back="emit('back')"
-      @create-asset="emit('createAsset')"
+      @create-asset="emit('createAsset', $event)"
+      @asset-guide="emit('assetGuide')"
       @select-asset="emit('selectAsset', $event)"
+      @asset-action="emit('assetAction', $event)"
       @open-management="emit('openManagement')"
       @toggle-sidebar="toggleSidebar"
     />

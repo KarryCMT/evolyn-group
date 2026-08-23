@@ -1,6 +1,7 @@
 import type {
   ApplicationItem,
   ApplicationListQuery,
+  ApplicationMenu,
   ApplicationPage,
   CreateBlankApplicationPayload,
   UpdateApplicationPayload,
@@ -40,6 +41,15 @@ export function getApplication(id: number): Promise<ApplicationItem> {
  */
 export function getApplicationByCode(code: string): Promise<ApplicationItem> {
   return http.get(`/applications/code/${code}`);
+}
+
+/**
+ * 按编码读取应用菜单（GET /applications/code/:code/menu）：返回当前成员
+ * 可见的菜单树（rootEntryIds + entryMap）；资产域落地前菜单为空数组
+ * （空树是合法结果）；应用不存在抛 errCode=APP_NOT_FOUND
+ */
+export function getApplicationMenuByCode(code: string): Promise<ApplicationMenu> {
+  return http.get(`/applications/code/${code}/menu`);
 }
 
 /**

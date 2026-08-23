@@ -102,7 +102,7 @@ function toggleSidebar() {
 
     &:hover {
       color: var(--el-text-color-regular);
-      background: var(--el-fill-color-light);
+      // background: var(--el-fill-color-light);
     }
 
     &:focus-visible {
@@ -112,10 +112,12 @@ function toggleSidebar() {
   }
 
   &__content {
+    display: flex;
     min-width: 0;
+    min-height: 0;
     flex: 1;
     margin: 0 8px 8px 0;
-    overflow: auto;
+    overflow: hidden;
     border-radius: 10px;
     background: var(--el-bg-color);
   }
@@ -137,7 +139,7 @@ function toggleSidebar() {
 
 @media (max-width: 720px) {
   .application-setting-layout__main {
-    overflow-x: auto;
+    overflow-x: hidden;
   }
 }
 </style>

@@ -16,12 +16,14 @@
 - [M1-账号成员拆分与租户体系补齐-任务清单.md](./M1-账号成员拆分与租户体系补齐-任务清单.md)：M1 在办任务跟踪（对标简道云差距落地），完成项勾选推进。
 - [登录页公共配置-需求整理.md](./登录页公共配置-需求整理.md)：对标简道云 get_public_configuration 的登录页初始化配置需求归集（字段语义、采纳/暂缓/裁剪、响应模型意向），只含需求不含实现任务。
 - [应用管理/开发文档.md](./应用管理/开发文档.md)：应用领域后端开发设计，覆盖空白应用创建、模板安装、应用实例化、数据模型、接口、权限、事务与分阶段实施方案。
+- [应用管理/应用菜单接口功能设计方案.md](./应用管理/应用菜单接口功能设计方案.md)：应用菜单独立建模设计（M2-菜单：菜单节点表与 menu_revision 并发口令、只读菜单接口、可见性裁剪与后续管理接口规划）。
+- [前端功能模块现状.md](./前端功能模块现状.md)：前端静态页面、已完成接口对接与待对接能力的盘点基线和实施差距。
 
 ## 正式实现位置
 
 | 规划目录 | 来源 | 说明 |
 | --- | --- | --- |
-| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，含 iam/tenant/auth/audit/application 五域（application 为 M2-A 应用管理最小闭环：空白应用创建/列表/详情/更新/软删 + apps 配额），migrations/ 版本化 SQL，engine 随 M2 起） |
+| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，含 iam/tenant/auth/audit/application 五域（application 为 M2-A 应用管理最小闭环：空白应用创建/列表/详情/更新/软删 + apps 配额；M2-菜单-1 起含应用菜单只读接口），migrations/ 版本化 SQL，engine 随 M2 起） |
 | `apps/evolyn-web/` | 现有目录演进（不改名） | pnpm + Turborepo monorepo：`apps/web/` Vue3 + TypeScript 主应用（脚手架阶段）、`packages/` 共享库 |
 | `services/workflow/` | 新建 | Java + Spring Boot + Flowable 流程服务 |
 | `packages/openapi/` | 新建 | 全平台 API 契约唯一事实源 |

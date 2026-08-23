@@ -8,7 +8,8 @@ import type {
 defineOptions({ name: 'ApplicationContentPlaceholder' });
 
 const props = defineProps<{
-  asset: ApplicationWorkspaceAsset;
+  /** 当前选中资产；菜单为空（M2-菜单-1 常态）时为 null，渲染空态占位 */
+  asset: ApplicationWorkspaceAsset | null;
   mode: ApplicationWorkspaceMode;
 }>();
 
@@ -22,18 +23,27 @@ const modeLabels: Record<ApplicationWorkspaceMode, string> = {
 <template>
   <main
     class="application-content-placeholder"
-    :aria-label="`${props.asset.label}${modeLabels[props.mode]}`"
+    :aria-label="props.asset ? `${props.asset.label}${modeLabels[props.mode]}` : '应用内容区'"
   >
     <div class="application-content-placeholder__content">
-      <component
-        :is="props.asset.type === 'dashboard' ? RiLayoutGridFill : RiFileList3Fill"
-        class="application-content-placeholder__icon"
-        aria-hidden="true"
-      />
-      <h1 class="application-content-placeholder__title">{{ props.asset.label }}</h1>
-      <p class="application-content-placeholder__description">
-        {{ modeLabels[props.mode] }}已预留；表单渲染与设计能力将由后续独立包接入。
-      </p>
+      <template v-if="props.asset">
+        <component
+          :is="props.asset.type === 'dashboard' ? RiLayoutGridFill : RiFileList3Fill"
+          class="application-content-placeholder__icon"
+          aria-hidden="true"
+        />
+        <h1 class="application-content-placeholder__title">{{ props.asset.label }}</h1>
+        <p class="application-content-placeholder__description">
+          {{ modeLabels[props.mode] }}已预留；表单渲染与设计能力将由后续独立包接入。
+        </p>
+      </template>
+      <template v-else>
+        <RiLayoutGridFill class="application-content-placeholder__icon" aria-hidden="true" />
+        <h1 class="application-content-placeholder__title">暂无应用资产</h1>
+        <p class="application-content-placeholder__description">
+          通过左侧「新建应用资产」创建第一个表单或仪表盘后，将在此处打开。
+        </p>
+      </template>
     </div>
   </main>
 </template>

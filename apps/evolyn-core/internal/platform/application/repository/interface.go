@@ -43,3 +43,25 @@ type ApplicationRepository interface {
 	// Migrate 开发/测试 AutoMigrate 路径（FIX-009：生产只走 SQL 迁移）
 	Migrate() error
 }
+
+// MenuSnapshot 应用与菜单节点的同快照读取结果：menuRevision 与 entries
+// 来自单条 SQL 的同一语句快照（方案 §5.2：禁止 Read Committed 两读拼接，
+// 否则客户端可能取得「旧树 + 新修订号」在全量重排时漏检冲突）
+type MenuSnapshot struct {
+	ApplicationID   uint
+	ApplicationCode string
+	Status          string
+	ProvisionStatus string
+	MenuRevision    int64
+	Entries         []model.MenuEntry
+}
+
+// MenuRepository 应用菜单仓储（M2-菜单-1 只读骨架；分组管理/重排写路径
+// 随 M2-菜单-3 落地，资产域创建时的事务内节点维护随 M2-资产-1 落地）
+type MenuRepository interface {
+	// GetSnapshot 按租户与应用编码读取「应用元信息 + 未软删菜单节点」的
+	// 一致性快照；应用不存在/跨租户返回 gorm.ErrRecordNotFound
+	GetSnapshot(ctx context.Context, tenantID uint, code string) (*MenuSnapshot, error)
+	// Migrate 开发/测试 AutoMigrate 路径（生产只走 SQL 迁移）
+	Migrate() error
+}

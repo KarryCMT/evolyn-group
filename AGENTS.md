@@ -99,6 +99,13 @@ internal/
                       SelfOpenInTx 供认证域注册编排在外层事务内组合开通
                       （不记审计，由调用方提交后补记）
     audit/            审计域：业务操作审计日志（Recorder，追加写流水）
+    application/      应用管理域（M2，小三层，docs/低代码平台/应用管理/）：
+                      空白应用创建/列表/详情/更新/软删 + apps 配额（M2-A）；
+                      应用菜单只读接口 GET /applications/code/:code/menu
+                      （M2-菜单-1，迁移 000016：application_menu_entries
+                      节点表 + applications.menu_revision 菜单乐观并发口令，
+                      读取走单条 SQL 快照保证修订号与节点同快照；菜单写
+                      管理接口随 M2-菜单-3 落地）
 migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
                       命名 NNNNNN_name.(up|down).sql，版本号只增不复用）
 scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（本地证书）
@@ -206,6 +213,7 @@ pnpm -F @evolyn.do/web build        # 生产构建
 - 管理后台的选中态、操作态、状态标签和强调元素必须使用当前主题色相关变量
   （如 `--el-color-primary` 及其 `light-*` 色阶），禁止在后台页面局部硬编码品牌色或覆盖主题色变量。
 - 前端样式统一使用 SCSS 编写；新增或修改样式时不要引入 CSS、Less 等其他预处理器。
+- 页面存在列表滚动时，只允许列表内容区域滚动；页面标题、筛选/搜索栏、工具栏、分页等上下文操作保持固定。必须使用 Element Plus 的 `el-scrollbar` 实现列表滚动，禁止以页面容器或原生 `overflow: auto/scroll` 代替。
 - 所有可点击的图标、文字和原生 `button` 都必须提供清晰的鼠标悬停背景效果，并设置
   `cursor: pointer`；禁用态元素不适用此规则。
 - 图标优先使用 `@remixicon/vue` 提供的 Fill 类型图标，禁止使用 Line 类型图标。

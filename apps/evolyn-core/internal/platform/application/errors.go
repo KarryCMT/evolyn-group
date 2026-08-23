@@ -42,3 +42,30 @@ var (
 	// ErrProvisioning 实例化进行中（pending/running 不可编辑/删除/进设计器）
 	ErrProvisioning = httpx.NewBiz("APP_PROVISIONING", "应用正在初始化，请稍后重试", http.StatusConflict)
 )
+
+// 应用菜单稳定错误码（M2-菜单，方案 §9）：M2-菜单-1 只读骨架仅启用
+// ErrMenuInvalid（读取路径树完整性故障）；其余随 M2-菜单-3 分组/重排
+// 管理接口落地启用，先集中定义保证前后端错误码表一次对齐
+var (
+	// ErrMenuNotFound 菜单节点不存在或无权访问（管理接口路径参数定位节点）
+	ErrMenuNotFound = httpx.NewBiz("APP_MENU_NOT_FOUND", "菜单节点不存在或无权访问", http.StatusNotFound)
+
+	// ErrMenuParentInvalid 菜单父节点无效（跨应用/跨租户/非分组/不存在）
+	ErrMenuParentInvalid = httpx.NewBiz("APP_MENU_PARENT_INVALID", "菜单父节点无效", http.StatusBadRequest)
+
+	// ErrMenuTargetInvalid 菜单关联的应用资产无效（不存在/跨应用/已软删）
+	ErrMenuTargetInvalid = httpx.NewBiz("APP_MENU_TARGET_INVALID", "菜单关联的应用资产无效", http.StatusBadRequest)
+
+	// ErrMenuDepthExceeded 菜单层级超过当前限制（分组两层/总深度三层）
+	ErrMenuDepthExceeded = httpx.NewBiz("APP_MENU_DEPTH_EXCEEDED", "菜单层级超过当前限制", http.StatusBadRequest)
+
+	// ErrMenuOrderInvalid 重排请求无效（同级集合不一致/编码非法）
+	ErrMenuOrderInvalid = httpx.NewBiz("APP_MENU_ORDER_INVALID", "菜单排序请求无效", http.StatusBadRequest)
+
+	// ErrMenuVersionConflict 菜单修订号冲突（baseMenuRevision 不匹配），客户端刷新后重试
+	ErrMenuVersionConflict = httpx.NewBiz("APP_MENU_VERSION_CONFLICT", "应用菜单已更新，请刷新后重试", http.StatusConflict)
+
+	// ErrMenuInvalid 菜单树完整性故障（孤儿节点/父节点非分组/循环）：
+	// 服务端数据损坏而非客户端冲突，读取路径返回 500 而非 409
+	ErrMenuInvalid = httpx.NewBiz("APP_MENU_INVALID", "应用菜单数据异常，请联系管理员", http.StatusInternalServerError)
+)

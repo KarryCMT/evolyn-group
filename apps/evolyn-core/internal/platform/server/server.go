@@ -89,8 +89,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	tenantRepo := tenantrepository.NewRepository(db, rdb)
 	iamRepo := repository.NewRepositories(db, rdb)
 	// 应用域仓储先于配额服务装配：apps 计量面（CountBillableByTenant）随
-	// 应用域落地接入 QuotaService（M2-A）
+	// 应用域落地接入 QuotaService（M2-A）；菜单仓储随 M2-菜单-1 接入
 	applicationRepo := applicationrepository.NewRepository(db)
+	menuRepo := applicationrepository.NewMenuRepository(db)
 	if conf.DB.Migrate {
 		if err := auditRepo.Migrate(); err != nil {
 			return nil, err
@@ -105,6 +106,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 			return nil, err
 		}
 		if err := applicationRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := menuRepo.Migrate(); err != nil {
 			return nil, err
 		}
 	}
@@ -172,6 +176,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 访问判定与鉴权中间件同源（按 ID 重载成员 + authenticated 系统组）
 	appAccess := applicationservice.NewRBACAccessEvaluator(iamRepo.User(), iamRepo.Group())
 	applicationService := applicationservice.NewApplicationService(txManager, applicationRepo, quotaSvc, auditSvc, appAccess)
+	// 应用菜单服务（M2-菜单-1 只读）：访问判定复用应用域评估器，与鉴权
+	// 中间件同源；菜单写路径随 M2-菜单-3 落地
+	menuService := applicationservice.NewMenuService(menuRepo, appAccess)
 	oauthManager := oauth.NewOAuthManager(conf.OAuthConfig)
 
 	// 登录口令加密密钥对：私钥留服务端解密，公钥经 /app/conf 下发前端。
@@ -196,11 +203,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	rbacController := iamcontroller.NewRbacController(rbacService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 	applicationController := applicationcontroller.NewApplicationController(applicationService)
+	menuController := applicationcontroller.NewMenuController(menuService)
 
 	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController, applicationController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController, applicationController, menuController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)

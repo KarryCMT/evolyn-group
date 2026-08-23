@@ -30,3 +30,11 @@ type ApplicationService interface {
 	// Delete 软删（仅写 deleted_at；配额随计数口径自然释放）
 	Delete(ctx context.Context, member *iammodel.User, id uint) error
 }
+
+// ApplicationMenuService 应用菜单服务（M2-菜单-1 只读骨架）：读取当前
+// 成员可见的菜单快照；分组/重排写接口随 M2-菜单-3 扩展
+type ApplicationMenuService interface {
+	// GetMenu 按应用编码读取菜单（GET /applications/code/:code/menu）：
+	// 应用不存在/跨租户/无读取权限统一 APP_NOT_FOUND；空菜单为合法结果
+	GetMenu(ctx context.Context, member *iammodel.User, code string) (*model.MenuSnapshot, error)
+}

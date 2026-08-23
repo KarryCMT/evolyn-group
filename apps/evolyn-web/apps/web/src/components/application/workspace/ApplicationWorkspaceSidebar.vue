@@ -3,11 +3,22 @@ import {
   RiAddFill,
   RiArrowLeftDoubleFill,
   RiArrowLeftSLine,
+  RiBarChartBoxFill,
+  RiBookOpenFill,
+  RiFileAddFill,
+  RiFolderAddFill,
+  RiGitBranchFill,
   RiSearch2Line,
   RiSettings3Fill,
 } from '@remixicon/vue';
+import { computed } from 'vue';
 import type { ApplicationIcon } from '~/types';
-import type { ApplicationWorkspaceAsset } from './applicationWorkspace.types';
+import ApplicationWorkspaceAssetItem from './ApplicationWorkspaceAssetItem.vue';
+import type {
+  ApplicationWorkspaceAsset,
+  ApplicationWorkspaceAssetAction,
+  ApplicationWorkspaceCreateAssetType,
+} from './applicationWorkspace.types';
 import { applicationPersonalNavigation } from './applicationWorkspacePreview';
 
 defineOptions({ name: 'ApplicationWorkspaceSidebar' });
@@ -18,15 +29,37 @@ const props = defineProps<{
   assets: ApplicationWorkspaceAsset[];
   activeAssetCode: string;
   collapsed: boolean;
+  /** 菜单数据源状态：loading/error 由页面层拦截，这里只渲染加载与空态 */
+  menuStatus: 'loading' | 'ready';
 }>();
 
 const emit = defineEmits<{
   back: [];
-  createAsset: [];
+  createAsset: [
+    payload: { parent?: ApplicationWorkspaceAsset; type: ApplicationWorkspaceCreateAssetType },
+  ];
+  assetGuide: [];
   selectAsset: [asset: ApplicationWorkspaceAsset];
+  assetAction: [
+    payload: { asset: ApplicationWorkspaceAsset; action: ApplicationWorkspaceAssetAction },
+  ];
   openManagement: [];
   toggleSidebar: [];
 }>();
+
+/** 递归收集树内叶子资产（菜单首期树形简单，遍历成本可忽略） */
+function flattenLeaves(assets: ApplicationWorkspaceAsset[]): ApplicationWorkspaceAsset[] {
+  return assets.flatMap((asset) =>
+    asset.children?.length ? flattenLeaves(asset.children) : [asset],
+  );
+}
+
+const hasAssets = computed(() => flattenLeaves(props.assets).length > 0);
+
+function handleCreateAsset(command: string | number | object) {
+  if (typeof command !== 'string') return;
+  emit('createAsset', { type: command as ApplicationWorkspaceCreateAssetType });
+}
 </script>
 
 <template>
@@ -80,33 +113,73 @@ const emit = defineEmits<{
           <RiSearch2Line aria-hidden="true" />
           <input placeholder="输入名称来搜索" aria-label="搜索应用资产" />
         </label>
-        <button
-          class="application-workspace-sidebar__create"
-          type="button"
-          aria-label="新建应用资产"
-          @click="emit('createAsset')"
+        <el-dropdown
+          placement="right-start"
+          trigger="click"
+          popper-class="application-workspace-root-create-actions"
+          @command="handleCreateAsset"
         >
-          <RiAddFill />
-        </button>
+          <button
+            class="application-workspace-sidebar__create"
+            type="button"
+            aria-label="新建应用资产"
+          >
+            <RiAddFill aria-hidden="true" />
+          </button>
+          <template #dropdown>
+            <el-dropdown-menu class="application-workspace-root-create-actions__menu">
+              <el-dropdown-item command="workflow-form">
+                <RiGitBranchFill aria-hidden="true" />
+                <span>新建流程表单</span>
+              </el-dropdown-item>
+              <el-dropdown-item command="form">
+                <RiFileAddFill aria-hidden="true" />
+                <span>新建表单</span>
+              </el-dropdown-item>
+              <el-dropdown-item command="dashboard">
+                <RiBarChartBoxFill aria-hidden="true" />
+                <span>新建仪表盘</span>
+              </el-dropdown-item>
+              <el-dropdown-item command="folder" divided>
+                <RiFolderAddFill aria-hidden="true" />
+                <span>新建分组</span>
+              </el-dropdown-item>
+              <el-dropdown-item
+                class="application-workspace-root-create-actions__guide"
+                divided
+                @click="emit('assetGuide')"
+              >
+                <RiBookOpenFill aria-hidden="true" />
+                <span>了解表单和仪表盘</span>
+              </el-dropdown-item>
+            </el-dropdown-menu>
+          </template>
+        </el-dropdown>
       </div>
 
-      <nav class="application-workspace-sidebar__asset-nav" aria-label="应用资产">
-        <button
-          v-for="asset in props.assets"
-          :key="asset.code"
-          class="application-workspace-sidebar__asset-item"
-          :class="{
-            'application-workspace-sidebar__asset-item--active':
-              asset.code === props.activeAssetCode,
-          }"
-          type="button"
-          :aria-label="asset.label"
-          @click="emit('selectAsset', asset)"
-        >
-          <component :is="asset.icon" aria-hidden="true" />
-          <span>{{ asset.label }}</span>
-        </button>
-      </nav>
+      <!-- 资产树独立滚动，头部操作与底部应用后台始终保持可见。 -->
+      <el-scrollbar class="application-workspace-sidebar__asset-scrollbar">
+        <nav class="application-workspace-sidebar__asset-nav" aria-label="应用资产">
+          <p v-if="props.menuStatus === 'loading'" class="application-workspace-sidebar__menu-tip">
+            菜单加载中…
+          </p>
+          <p v-else-if="!hasAssets" class="application-workspace-sidebar__menu-tip">
+            暂无应用资产，点击 + 创建第一个资产
+          </p>
+          <template v-else>
+            <ApplicationWorkspaceAssetItem
+              v-for="asset in props.assets"
+              :key="asset.code"
+              :asset="asset"
+              :active-asset-code="props.activeAssetCode"
+              :depth="0"
+              @create-asset="emit('createAsset', $event)"
+              @select-asset="emit('selectAsset', $event)"
+              @asset-action="emit('assetAction', $event)"
+            />
+          </template>
+        </nav>
+      </el-scrollbar>
 
       <footer class="application-workspace-sidebar__footer">
         <button
@@ -141,6 +214,7 @@ const emit = defineEmits<{
 
   &__content {
     display: flex;
+    min-height: 0;
     min-width: 252px;
     flex: 1;
     flex-direction: column;
@@ -157,7 +231,6 @@ const emit = defineEmits<{
   &__nav-item,
   &__asset-tools,
   &__search,
-  &__asset-item,
   &__management {
     display: flex;
     min-width: 0;
@@ -173,7 +246,6 @@ const emit = defineEmits<{
   &__create,
   &__collapse,
   &__nav-item,
-  &__asset-item,
   &__management {
     border: 0;
     color: inherit;
@@ -202,6 +274,11 @@ const emit = defineEmits<{
       outline: 2px solid var(--el-color-white);
       outline-offset: 2px;
     }
+  }
+
+  /* Element Plus 下拉触发器会重置继承色，显式保证顶层创建入口为白色。 */
+  &__create {
+    color: var(--el-color-white);
   }
 
   &__app-icon {
@@ -243,7 +320,6 @@ const emit = defineEmits<{
   }
 
   &__nav-item,
-  &__asset-item,
   &__management {
     min-height: 42px;
     padding: 0 10px;
@@ -297,19 +373,29 @@ const emit = defineEmits<{
   }
 
   &__asset-nav {
-    margin-top: 12px;
     gap: 3px;
   }
 
-  &__asset-item {
-    &--active {
-      background: rgb(0 0 0 / 14%);
-      font-weight: 650;
+  &__asset-scrollbar {
+    min-height: 0;
+    flex: 1;
+    margin-top: 12px;
+
+    :deep(.el-scrollbar__wrap) {
+      overflow-x: hidden;
     }
+  }
+
+  &__menu-tip {
+    margin: 6px 10px;
+    color: rgb(255 255 255 / 72%);
+    font-size: 13px;
+    line-height: 20px;
   }
 
   &__footer {
     padding-top: 14px;
+    flex: 0 0 auto;
     margin-top: auto;
     border-top: 1px solid rgb(255 255 255 / 30%);
   }
@@ -347,5 +433,39 @@ const emit = defineEmits<{
       min-width: 10px;
     }
   }
+}
+</style>
+
+<!-- 顶层创建菜单传送至 body，使用唯一类名限定样式。 -->
+<style lang="scss">
+.application-workspace-root-create-actions.el-popper {
+  min-width: 232px;
+  border-color: var(--el-border-color-lighter);
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.application-workspace-root-create-actions__menu.el-dropdown-menu {
+  padding: 6px;
+  --el-dropdown-menuItem-hover-fill: var(--el-fill-color-light);
+  --el-dropdown-menuItem-hover-color: var(--el-text-color-primary);
+}
+
+.application-workspace-root-create-actions__menu .el-dropdown-menu__item {
+  height: 42px;
+  gap: 10px;
+  padding: 0 12px;
+  border-radius: 6px;
+  color: var(--el-text-color-primary);
+  font-size: 15px;
+
+  svg {
+    width: 19px;
+    height: 19px;
+    color: var(--el-text-color-secondary);
+  }
+}
+
+.application-workspace-root-create-actions__guide.el-dropdown-menu__item {
+  margin-top: 2px;
 }
 </style>

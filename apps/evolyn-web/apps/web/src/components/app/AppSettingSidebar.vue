@@ -25,35 +25,46 @@ function isActive(routeName: string) {
     :class="{ 'app-setting-sidebar--collapsed': props.collapsed }"
     aria-label="应用后台导航"
   >
-    <nav class="app-setting-sidebar__nav">
-      <section
-        v-for="group in appSettingNavigationGroups"
-        :key="group.label"
-        class="app-setting-sidebar__group"
-      >
-        <h2 class="app-setting-sidebar__group-title">{{ group.label }}</h2>
-        <RouterLink
-          v-for="item in group.items"
-          :key="item.key"
-          class="app-setting-sidebar__item"
-          :class="{ 'app-setting-sidebar__item--active': isActive(item.routeName) }"
-          :to="{ name: item.routeName, params: { appCode } }"
+    <!-- 侧栏菜单项较多时仅菜单区域滚动，避免使用浏览器原生滚动条。 -->
+    <el-scrollbar class="app-setting-sidebar__scrollbar">
+      <nav class="app-setting-sidebar__nav">
+        <section
+          v-for="group in appSettingNavigationGroups"
+          :key="group.label"
+          class="app-setting-sidebar__group"
         >
-          <component :is="item.icon" aria-hidden="true" />
-          <span>{{ item.label }}</span>
-        </RouterLink>
-      </section>
-    </nav>
+          <h2 class="app-setting-sidebar__group-title">{{ group.label }}</h2>
+          <RouterLink
+            v-for="item in group.items"
+            :key="item.key"
+            class="app-setting-sidebar__item"
+            :class="{ 'app-setting-sidebar__item--active': isActive(item.routeName) }"
+            :to="{ name: item.routeName, params: { appCode } }"
+          >
+            <component :is="item.icon" aria-hidden="true" />
+            <span>{{ item.label }}</span>
+          </RouterLink>
+        </section>
+      </nav>
+    </el-scrollbar>
   </aside>
 </template>
 
 <style scoped lang="scss">
 .app-setting-sidebar {
   box-sizing: border-box;
+  display: flex;
+  min-height: 0;
   width: 236px;
   flex: 0 0 236px;
   padding: 12px;
-  overflow-y: auto;
+  overflow: hidden;
+  flex-direction: column;
+
+  &__scrollbar {
+    min-height: 0;
+    flex: 1;
+  }
 
   &__nav,
   &__group {

@@ -46,6 +46,7 @@ type Application struct {
 	Status            string `json:"status" gorm:"size:16;not null;default:active"` // active / archived
 	ProvisionStatus   string `json:"provisionStatus" gorm:"size:16;not null;default:ready"`
 	DefinitionVersion int    `json:"definitionVersion" gorm:"not null;default:1"` // 应用定义版本，非乐观锁
+	MenuRevision      int64  `json:"menuRevision" gorm:"not null;default:1"`      // 菜单修订号：菜单写入乐观并发口令（000016），与发布演进独立
 	SortOrder         int64  `json:"sortOrder" gorm:"not null;default:0"`
 	Config            Config `json:"config" gorm:"type:jsonb;not null;default:'{}'"` // 小型应用级配置
 

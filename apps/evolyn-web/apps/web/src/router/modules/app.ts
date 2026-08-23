@@ -34,29 +34,17 @@ const appRoutes: RouteRecordRaw[] = [
       {
         path: 'permissions',
         name: 'app-setting-permissions',
-        ...settingFeature({
-          title: '表单/仪表盘权限',
-          description: '选择表单或仪表盘后，为成员配置查看、填写和管理权限。',
-          capabilities: ['表单与仪表盘选择', '成员及部门授权', '权限组启停与调整'],
-        }),
+        component: () => import('~/pages/app/setting/permissions.vue'),
       },
       {
         path: 'cross-app',
         name: 'app-setting-cross-app',
-        ...settingFeature({
-          title: '跨应用',
-          description: '管理当前应用与其他应用之间的数据访问和协作关系。',
-          capabilities: ['跨应用数据关联', '访问范围控制', '协作关系管理'],
-        }),
+        component: () => import('~/pages/app/cross-app.vue'),
       },
       {
         path: 'basic',
         name: 'app-setting-basic',
-        ...settingFeature({
-          title: '应用设置',
-          description: '维护应用名称、图标、访问策略与基础运行配置。',
-          capabilities: ['应用基本信息', '访问与分享设置', '应用归档与恢复'],
-        }),
+        component: () => import('~/pages/app/setting/basic.vue'),
       },
       {
         path: 'management-groups',

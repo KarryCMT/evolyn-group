@@ -1,7 +1,4 @@
 import {
-  RiBarChartBoxFill,
-  RiFileList3Fill,
-  RiFolder3Fill,
   RiLayoutGridFill,
   RiNotification3Fill,
   RiPlayCircleFill,
@@ -9,23 +6,13 @@ import {
   RiTaskFill,
 } from '@remixicon/vue';
 import { markRaw } from 'vue';
-import type { ApplicationWorkspaceAsset } from './applicationWorkspace.types';
 
 /**
- * 表单/仪表盘接口尚未落地时，用于串联「新建表单 → 返回应用」的临时导航样例。
- * 该文件是唯一的过渡数据出口；接入应用运行时接口后替换其数据源即可。
+ * 应用工作区侧栏的个人导航入口（我的待办/我发起的等）：不属于应用资产
+ * 树（应用菜单接口不返回，见应用菜单接口功能设计方案 §2「homeList 不随
+ * 菜单返回」），属于个人首页域，后续接入真实待办数据时替换。资产区
+ * 数据源已切换为应用菜单接口（useApplicationMenu）。
  */
-export const applicationWorkspacePreviewAssets: ApplicationWorkspaceAsset[] = [
-  { code: 'project-profile', label: '项目档案', icon: markRaw(RiFileList3Fill), type: 'form' },
-  {
-    code: 'project-progress',
-    label: '项目进度看板',
-    icon: markRaw(RiBarChartBoxFill),
-    type: 'dashboard',
-  },
-  { code: 'plan-management', label: '计划管理', icon: markRaw(RiFolder3Fill), type: 'folder' },
-];
-
 export const applicationPersonalNavigation = [
   { code: 'todo', label: '我的待办', icon: markRaw(RiNotification3Fill) },
   { code: 'started', label: '我发起的', icon: markRaw(RiPlayCircleFill) },

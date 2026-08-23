@@ -298,3 +298,49 @@ export interface ApplicationListQuery {
   limit?: number;
   cursor?: string;
 }
+
+// ---------- 应用菜单 API 契约（M2-菜单-1，与后端 MenuSnapshot 出网对齐） ----------
+
+/** 应用菜单节点类型：group 分组无资产引用，其余为可打开的资产节点 */
+export type ApplicationMenuEntryType = 'group' | 'form' | 'dashboard' | 'page';
+
+/** 菜单节点资产引用：id 为资产域稳定公开编码（非数据库自增主键） */
+export interface ApplicationMenuTarget {
+  type: Exclude<ApplicationMenuEntryType, 'group'>;
+  id: string;
+}
+
+/** 菜单节点运行时能力（后端按当前成员权限与应用状态读取时派生，不落库） */
+export interface ApplicationMenuCapabilities {
+  view: boolean;
+  manage: boolean;
+  move: boolean;
+  delete: boolean;
+  favorite: boolean;
+}
+
+/** 应用菜单节点（entryMap 的值；parentEntryId 为 null 即根节点） */
+export interface ApplicationMenuEntry {
+  entryId: string;
+  parentEntryId: string | null;
+  type: ApplicationMenuEntryType;
+  name: string;
+  /** 后端稳定图标键，可为 null；前端受控映射表转换为图标组件 */
+  icon: string | null;
+  color: string | null;
+  sortOrder: number;
+  target: ApplicationMenuTarget | null;
+  capabilities: ApplicationMenuCapabilities;
+}
+
+/** 应用菜单快照（GET /applications/code/:code/menu）：entryMap 仅含当前
+ * 成员可见节点，无可见后代的分组已被服务端裁剪；menuRevision 供后续
+ * 管理接口做乐观并发；空菜单（rootEntryIds 为空数组）是合法结果 */
+export interface ApplicationMenu {
+  applicationCode: string;
+  menuRevision: number;
+  rootEntryIds: string[];
+  entryMap: Record<string, ApplicationMenuEntry>;
+  /** 只表达已注册的后端能力，流程引擎未接入前 workflow 恒 false */
+  features: { workflow: boolean };
+}

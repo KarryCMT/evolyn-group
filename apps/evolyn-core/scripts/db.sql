@@ -262,6 +262,7 @@ CREATE TABLE IF NOT EXISTS applications (
     status varchar(16) NOT NULL DEFAULT 'active',
     provision_status varchar(16) NOT NULL DEFAULT 'ready',
     definition_version INTEGER NOT NULL DEFAULT 1,
+    menu_revision BIGINT NOT NULL DEFAULT 1,
     sort_order BIGINT NOT NULL DEFAULT 0,
     config JSONB NOT NULL DEFAULT '{}',
     created_at timestamp with time zone,
@@ -301,6 +302,48 @@ CREATE TABLE IF NOT EXISTS application_installations (
 
 CREATE INDEX IF NOT EXISTS idx_application_installations_tenant
     ON application_installations (tenant_id, id);
+
+-- 应用菜单节点（000016，M2-菜单）：分组/表单/仪表盘/页面统一为菜单节点；
+-- 分组无 target，非分组节点 target_type=entry_type 且引用资产；读取序
+-- sort_order ASC, code ASC（tiebreak 与出网 entryId 同源）
+CREATE TABLE IF NOT EXISTS application_menu_entries (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    application_id BIGINT NOT NULL REFERENCES applications(id),
+    code varchar(64) NOT NULL,
+    parent_entry_id BIGINT NULL REFERENCES application_menu_entries(id),
+    entry_type varchar(16) NOT NULL,
+    name varchar(128) NOT NULL,
+    icon varchar(32) NULL,
+    color varchar(32) NULL,
+    target_type varchar(16) NULL,
+    target_id BIGINT NULL,
+    sort_order BIGINT NOT NULL DEFAULT 0,
+    config JSONB NOT NULL DEFAULT '{}',
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone,
+    CONSTRAINT chk_application_menu_entry_type
+      CHECK (entry_type IN ('group', 'form', 'dashboard', 'page')),
+    CONSTRAINT chk_application_menu_target
+      CHECK (
+        (entry_type = 'group' AND target_type IS NULL AND target_id IS NULL)
+        OR
+        (entry_type <> 'group' AND target_type = entry_type AND target_id IS NOT NULL)
+      )
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_application_menu_entries_tenant_code
+    ON application_menu_entries (tenant_id, code)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_application_menu_entries_app_parent_sort
+    ON application_menu_entries (tenant_id, application_id, parent_entry_id, sort_order, code)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_application_menu_entries_app_target
+    ON application_menu_entries (tenant_id, application_id, target_type, target_id)
+    WHERE deleted_at IS NULL AND target_id IS NOT NULL;
 
 -- ============ 表/字段注释（000008，与迁移链一致） ============
 COMMENT ON TABLE accounts IS '平台账号（登录身份）：登录名/手机号/密码与第三方凭证挂账号；账号跨租户，无 tenant_id（ADR-006/FIX-014）';
@@ -454,6 +497,7 @@ COMMENT ON COLUMN applications.source_type IS '创建来源：blank 空白创建
 COMMENT ON COLUMN applications.status IS '可见业务状态：active 正常 / archived 归档；删除只写 deleted_at，不设 deleted 状态值';
 COMMENT ON COLUMN applications.provision_status IS '实例化进度（与 status 独立）：ready 就绪 / pending 待处理 / running 处理中 / failed 失败；M2-A 空白应用同步创建即 ready';
 COMMENT ON COLUMN applications.definition_version IS '应用定义版本（发布演进用），非数据库乐观锁';
+COMMENT ON COLUMN applications.menu_revision IS '菜单修订号（菜单结构乐观并发口令）：菜单写入在同事务内条件递增；与 definition_version（发布演进）独立，应用名称/图标/归档等非菜单更新不递增';
 COMMENT ON COLUMN applications.sort_order IS '列表排序值，小者在前，同值按 id 倒序';
 COMMENT ON COLUMN applications.config IS '小型应用级配置 JSONB；严禁混入表单/页面/流程大定义';
 COMMENT ON COLUMN applications.created_at IS '创建时间';
@@ -471,3 +515,21 @@ COMMENT ON COLUMN application_installations.channel IS '安装渠道：self 空�
 COMMENT ON COLUMN application_installations.blueprint_checksum IS '安装时实际使用的蓝图校验值，空白应用为 NULL（M2-B 启用）';
 COMMENT ON COLUMN application_installations.installed_by_member_id IS '发起安装的租户成员 ID';
 COMMENT ON COLUMN application_installations.installed_at IS '安装时间';
+
+COMMENT ON TABLE application_menu_entries IS '应用菜单节点（000016，M2-菜单）：分组/表单/仪表盘/页面的导航树（一资产一节点）；分组无 target，非分组节点 target_type=entry_type 且必须引用资产；租户/应用归属由服务层校验回填';
+COMMENT ON COLUMN application_menu_entries.id IS '自增主键';
+COMMENT ON COLUMN application_menu_entries.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN application_menu_entries.application_id IS '所属应用 ID（外键指向 applications），同应用约束由服务层在加载校验';
+COMMENT ON COLUMN application_menu_entries.code IS '服务端生成的节点编码（menu_ 前缀），租户内唯一（uk_application_menu_entries_tenant_code，软删行释放），出网即 entryId';
+COMMENT ON COLUMN application_menu_entries.parent_entry_id IS '父节点 ID，根节点为 NULL；父节点须同租户同应用且为 group（服务层校验，单列外键表达不了同应用约束）';
+COMMENT ON COLUMN application_menu_entries.entry_type IS '节点类型：group 分组 / form 表单 / dashboard 仪表盘 / page 页面';
+COMMENT ON COLUMN application_menu_entries.name IS '节点展示名';
+COMMENT ON COLUMN application_menu_entries.icon IS '稳定图标键（可空），不存前端组件名；前端受控映射表转换为图标组件';
+COMMENT ON COLUMN application_menu_entries.color IS '稳定颜色键（可空），不存 CSS 字面值';
+COMMENT ON COLUMN application_menu_entries.target_type IS '资产引用类型：group 为 NULL，非分组节点等于 entry_type（CHECK 约束）';
+COMMENT ON COLUMN application_menu_entries.target_id IS '资产域内部数字主键；出网时由资产查询投影为稳定公开编码，不直接暴露';
+COMMENT ON COLUMN application_menu_entries.sort_order IS '同父节点排序值，仅同父内有意义；新增 1024 间隔，服务端重排写连续间隔值，不信任客户端排序值';
+COMMENT ON COLUMN application_menu_entries.config IS '小型显示配置 JSONB（如页面打开方式）；严禁存放表单 Schema、流程定义、权限或前端组件名';
+COMMENT ON COLUMN application_menu_entries.created_at IS '创建时间';
+COMMENT ON COLUMN application_menu_entries.updated_at IS '更新时间';
+COMMENT ON COLUMN application_menu_entries.deleted_at IS '软删除时间，NULL=未删除；资产软删时同事务软删关联节点，应用软删后的节点由清理任务处理';
