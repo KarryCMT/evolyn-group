@@ -1,0 +1,142 @@
+<script setup lang="ts">
+import applicationTypeBackground from '~/assets/images/app-type-bg.png';
+import type { ApplicationAssetStarter } from './applicationAssetCatalog';
+
+defineOptions({ name: 'ApplicationAssetStarterCard' });
+
+const props = defineProps<{
+  starter: ApplicationAssetStarter;
+}>();
+
+const emit = defineEmits<{
+  select: [starter: ApplicationAssetStarter];
+}>();
+</script>
+
+<template>
+  <button
+    class="application-asset-starter-card"
+    type="button"
+    @click="emit('select', props.starter)"
+  >
+    <span
+      class="application-asset-starter-card__visual"
+      :class="`application-asset-starter-card__visual--${props.starter.imagePosition}`"
+    >
+      <span
+        class="application-asset-starter-card__illustration"
+        :class="`application-asset-starter-card__illustration--${props.starter.imagePosition}`"
+        :style="{ backgroundImage: `url(${applicationTypeBackground})` }"
+        aria-hidden="true"
+      />
+      <strong class="application-asset-starter-card__title">{{ props.starter.title }}</strong>
+    </span>
+    <span class="application-asset-starter-card__description">{{ props.starter.description }}</span>
+  </button>
+</template>
+
+<style scoped lang="scss">
+.application-asset-starter-card {
+  display: flex;
+  box-sizing: border-box;
+  width: 270px;
+  height: 300px;
+  padding: 14px 14px 16px;
+  flex: 0 0 270px;
+  flex-direction: column;
+  align-items: center;
+  color: var(--el-text-color-primary);
+  text-align: center;
+  cursor: pointer;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 12px;
+  box-shadow: var(--el-box-shadow-light);
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    transform 0.18s ease;
+
+  &:hover {
+    border-color: var(--el-color-primary-light-5);
+    box-shadow: var(--el-box-shadow-light);
+    transform: translateY(-2px);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--el-color-primary);
+    outline-offset: 3px;
+  }
+
+  &__visual {
+    display: flex;
+    width: 100%;
+    height: 190px;
+    flex: 0 0 190px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+
+    &--workflow-form {
+      background: #fff4e5;
+    }
+
+    &--form {
+      background: #eaf3ff;
+    }
+
+    &--dashboard {
+      background: #faedff;
+    }
+  }
+
+  &__illustration {
+    display: block;
+    width: 112px;
+    height: 136px;
+    margin-top: -6px;
+    flex: 0 0 auto;
+    background-repeat: no-repeat;
+    background-size: 112px 544px;
+
+    &--form {
+      background-position: 0 0;
+    }
+
+    &--workflow-form {
+      background-position: 0 -136px;
+    }
+
+    &--dashboard {
+      background-position: 0 -408px;
+    }
+  }
+
+  &__title {
+    margin-top: -7px;
+    font-size: 20px;
+    font-weight: 650;
+    line-height: 28px;
+  }
+
+  &__description {
+    display: -webkit-box;
+    max-width: 238px;
+    margin-top: 14px;
+    overflow: hidden;
+    color: var(--el-text-color-secondary);
+    font-size: 14px;
+    line-height: 22px;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+}
+
+@media (max-width: 820px) {
+  .application-asset-starter-card {
+    width: min(270px, 100%);
+    flex-basis: auto;
+  }
+}
+</style>

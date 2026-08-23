@@ -25,12 +25,15 @@ const props = withDefaults(
     showDefaultNavigation?: boolean;
     /** 是否展示全局帮助入口；详情页可按页面需要隐藏。 */
     showHelp?: boolean;
+    /** 顶栏承载页面内容时使用白色表面；工作台保持浅色画布。 */
+    surface?: 'canvas' | 'surface';
   }>(),
   {
     title: '工作台',
     backTo: undefined,
     showDefaultNavigation: true,
     showHelp: true,
+    surface: 'canvas',
   },
 );
 
@@ -71,7 +74,7 @@ function notifyUnavailable() {}
 </script>
 
 <template>
-  <header class="top-navigation">
+  <header class="top-navigation" :class="{ 'top-navigation--surface': surface === 'surface' }">
     <div class="top-navigation__brand">
       <slot name="leading" :back-to="backTo" :go-back="goBack">
         <button
@@ -185,6 +188,11 @@ function notifyUnavailable() {}
   color: #202938;
   background: #f3f3f8;
   font-size: 16px;
+
+  &--surface {
+    background: var(--el-bg-color);
+    border-bottom: 1px solid var(--el-border-color-lighter);
+  }
 
   &__brand,
   &__actions,

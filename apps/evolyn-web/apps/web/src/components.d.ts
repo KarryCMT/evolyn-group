@@ -12,6 +12,8 @@ declare module 'vue' {
     AccountSecurityPanel: typeof import('./components/dashboard/account/AccountSecurityPanel.vue')['default']
     AccountSettingsSidebar: typeof import('./components/dashboard/account/AccountSettingsSidebar.vue')['default']
     AddMessageRecipientDialog: typeof import('./components/dashboard/messageCenter/AddMessageRecipientDialog.vue')['default']
+    ApplicationAssetStarterCard: typeof import('./components/application/runtime/ApplicationAssetStarterCard.vue')['default']
+    ApplicationEmptyState: typeof import('./components/application/runtime/ApplicationEmptyState.vue')['default']
     ApplicationStarterCard: typeof import('./components/application/create/ApplicationStarterCard.vue')['default']
     ApplicationTemplateCard: typeof import('./components/application/create/ApplicationTemplateCard.vue')['default']
     AppsWidget: typeof import('./components/dashboard/widgets/AppsWidget.vue')['default']
