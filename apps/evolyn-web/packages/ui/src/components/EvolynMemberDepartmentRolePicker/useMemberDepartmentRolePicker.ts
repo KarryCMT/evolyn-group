@@ -15,6 +15,8 @@ interface UseMemberDepartmentRolePickerOptions {
   members: MaybeRefOrGetter<EvolynMemberDepartmentRolePickerMember[]>;
   selectableTypes: MaybeRefOrGetter<EvolynMemberDepartmentRolePickerItemType[]>;
   multiple: MaybeRefOrGetter<boolean>;
+  departmentMultiple: MaybeRefOrGetter<boolean | undefined>;
+  memberMultiple: MaybeRefOrGetter<boolean | undefined>;
   max: MaybeRefOrGetter<number | undefined>;
   selection: Ref<EvolynMemberDepartmentRolePickerSelection[]>;
 }
@@ -107,13 +109,37 @@ export function useMemberDepartmentRolePicker(options: UseMemberDepartmentRolePi
     const activeDepartment = findNode(toValue(options.departments), activeDepartmentId.value);
     return activeDepartment ? collectNodeIds(activeDepartment) : undefined;
   });
+  // 按部门预建成员索引，切换部门时不再扫描全部成员。
+  const membersByDepartmentId = computed(() => {
+    const index = new Map<string, EvolynMemberDepartmentRolePickerMember[]>();
+    for (const member of toValue(options.members)) {
+      for (const departmentId of member.departmentIds ?? []) {
+        const key = String(departmentId);
+        const bucket = index.get(key) ?? [];
+        bucket.push(member);
+        index.set(key, bucket);
+      }
+    }
+    return index;
+  });
   const visibleMembers = computed(() => {
     const departmentIds = activeDepartmentIds.value;
-    return toValue(options.members).filter((member) => {
-      const inActiveDepartment =
-        !departmentIds || member.departmentIds?.some((id) => departmentIds.has(String(id)));
-      return inActiveDepartment && matchesKeywords(member, searchTerms.value);
-    });
+    if (!departmentIds) {
+      return toValue(options.members).filter((member) =>
+        matchesKeywords(member, searchTerms.value),
+      );
+    }
+
+    // 成员可能属于多个部门，按成员 ID 去重后再执行关键词筛选。
+    const scopedMembers = new Map<string, EvolynMemberDepartmentRolePickerMember>();
+    for (const departmentId of departmentIds) {
+      for (const member of membersByDepartmentId.value.get(departmentId) ?? []) {
+        scopedMembers.set(String(member.id), member);
+      }
+    }
+    return [...scopedMembers.values()].filter((member) =>
+      matchesKeywords(member, searchTerms.value),
+    );
   });
 
   watch(
@@ -135,6 +161,38 @@ export function useMemberDepartmentRolePicker(options: UseMemberDepartmentRolePi
     return !isExisting && max !== undefined && options.selection.value.length >= max;
   }
 
+  /** 指定主体类型的单选配置优先，未配置时继续兼容原有的全局 multiple。 */
+  function isMultiple(type: EvolynMemberDepartmentRolePickerItemType) {
+    const departmentMultiple = toValue(options.departmentMultiple);
+    if (type === 'department' && departmentMultiple !== undefined) {
+      return departmentMultiple;
+    }
+    const memberMultiple = toValue(options.memberMultiple);
+    if (type === 'member' && memberMultiple !== undefined) {
+      return memberMultiple;
+    }
+    return toValue(options.multiple);
+  }
+
+  function hasTypeMultipleOverride(type: EvolynMemberDepartmentRolePickerItemType) {
+    return (
+      (type === 'department' && toValue(options.departmentMultiple) !== undefined) ||
+      (type === 'member' && toValue(options.memberMultiple) !== undefined)
+    );
+  }
+
+  function normalizeSelection(selections: EvolynMemberDepartmentRolePickerSelection[]) {
+    return selections.reduce<EvolynMemberDepartmentRolePickerSelection[]>((result, selection) => {
+      if (isMultiple(selection.type)) return [...result, selection];
+
+      // 类型级单选只替换同类主体；全局单选保留原行为，替换整个选择结果。
+      const retained = hasTypeMultipleOverride(selection.type)
+        ? result.filter((item) => item.type !== selection.type)
+        : [];
+      return [...retained, selection];
+    }, []);
+  }
+
   function toggle(item: PickerItem, type: EvolynMemberDepartmentRolePickerItemType) {
     if (isDisabled(item, type)) return;
 
@@ -147,8 +205,14 @@ export function useMemberDepartmentRolePicker(options: UseMemberDepartmentRolePi
     }
 
     const next = toSelection(item, type);
-    options.selection.value = toValue(options.multiple)
-      ? [...options.selection.value, next]
+    if (isMultiple(type)) {
+      options.selection.value = [...options.selection.value, next];
+      return;
+    }
+
+    // 部门/成员独立单选不会干扰其他主体类型；未使用独立配置时维持全局单选语义。
+    options.selection.value = hasTypeMultipleOverride(type)
+      ? [...options.selection.value.filter((selection) => selection.type !== type), next]
       : [next];
   }
 
@@ -179,8 +243,10 @@ export function useMemberDepartmentRolePicker(options: UseMemberDepartmentRolePi
     activeType,
     availableTypes,
     isDisabled,
+    isMultiple,
     isSelected,
     keyword,
+    normalizeSelection,
     remove,
     resetView,
     selectedKeys,

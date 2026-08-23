@@ -17,6 +17,7 @@ const props = defineProps<{
   activeId?: string | number;
   itemType: Exclude<EvolynMemberDepartmentRolePickerItemType, 'member'>;
   mode: 'filter' | 'select';
+  multiple: boolean;
   node: EvolynMemberDepartmentRolePickerTreeNode;
   selectedKeys: Set<string>;
   isDisabled: (node: EvolynMemberDepartmentRolePickerTreeNode) => boolean;
@@ -77,7 +78,7 @@ function selectNode() {
       <input
         v-if="mode === 'select'"
         class="evolyn-member-department-role-picker-tree-node__checkbox"
-        type="checkbox"
+        :type="multiple ? 'checkbox' : 'radio'"
         :aria-label="`选择${node.label}`"
         :checked="isSelected"
         :disabled="isDisabled(node)"
@@ -94,6 +95,7 @@ function selectNode() {
         :active-id="activeId"
         :item-type="itemType"
         :mode="mode"
+        :multiple="multiple"
         :node="child"
         :selected-keys="selectedKeys"
         :is-disabled="isDisabled"

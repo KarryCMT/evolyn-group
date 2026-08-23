@@ -55,6 +55,7 @@
   },
   "dependencies": {
     "@remixicon/vue": "catalog:ui",
+    "@tanstack/vue-virtual": "catalog:ui",
     "@visactor/vtable": "catalog:frontend",
     "gridstack": "catalog:frontend"
   }

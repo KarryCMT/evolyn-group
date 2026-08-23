@@ -77,6 +77,7 @@ catalogs:
   ui:
     '@element-plus/icons-vue': ^2.3.2
     '@remixicon/vue': 4.9.0
+    '@tanstack/vue-virtual': ^3.13.36
     element-plus: ^2.14.4
   utils:
     '@vueuse/core': ^13.6.0

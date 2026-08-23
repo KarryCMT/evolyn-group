@@ -16,7 +16,7 @@
 
   &__dialog {
     display: flex;
-    width: min(1080px, 100%);
+    width: min(750px, 100%);
     max-height: min(780px, calc(100vh - 44px));
     flex-direction: column;
     overflow: hidden;
@@ -163,7 +163,7 @@
     min-height: 0;
     flex: 1;
     padding: 16px 0 20px;
-    overflow: auto;
+    overflow: hidden;
   }
 
   &__tree,
@@ -193,9 +193,11 @@
 
   &__member-tree,
   &__member-list {
+    display: flex;
     min-height: 0;
     padding: 12px;
-    overflow: auto;
+    flex-direction: column;
+    overflow: hidden;
   }
 
   &__member-tree {
@@ -206,6 +208,7 @@
     width: 100%;
     min-height: 36px;
     padding: 0 12px;
+    flex: 0 0 auto;
     border-radius: var(--el-border-radius-base, 4px);
     color: var(--el-text-color-primary, #303133);
     background: transparent;
@@ -429,6 +432,41 @@
 
     &__children {
       padding-left: 26px;
+    }
+  }
+
+  &-virtual-tree,
+  &-virtual-members {
+    min-height: 0;
+    height: 100%;
+    overflow: auto;
+
+    &__content {
+      position: relative;
+      min-height: 100%;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    &__item {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      list-style: none;
+    }
+  }
+
+  &-virtual-tree {
+    &__item {
+      height: 40px;
+    }
+  }
+
+  &-virtual-members {
+    &__item {
+      height: 44px;
     }
   }
 

@@ -7,6 +7,7 @@ defineOptions({ name: 'EvolynMemberDepartmentRolePickerMembers' });
 const props = defineProps<{
   isDisabled: (member: EvolynMemberDepartmentRolePickerMember) => boolean;
   members: EvolynMemberDepartmentRolePickerMember[];
+  multiple: boolean;
   selectedKeys: Set<string>;
 }>();
 
@@ -48,7 +49,7 @@ function isSelected(member: EvolynMemberDepartmentRolePickerMember) {
       </button>
       <input
         class="evolyn-member-department-role-picker-members__checkbox"
-        type="checkbox"
+        :type="multiple ? 'checkbox' : 'radio'"
         :aria-label="`选择${member.label}`"
         :checked="isSelected(member)"
         :disabled="isDisabled(member)"

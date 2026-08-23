@@ -44,6 +44,16 @@ export interface EvolynMemberDepartmentRolePickerProps {
   selectableTypes?: EvolynMemberDepartmentRolePickerItemType[];
   /** 是否允许多选；关闭后每次选择会替换暂存结果。 */
   multiple?: boolean;
+  /**
+   * 部门是否允许多选。未传时继承 multiple；传 false 时仅限制部门之间互斥，
+   * 不会移除已选择的成员或角色。
+   */
+  departmentMultiple?: boolean;
+  /**
+   * 成员是否允许多选。未传时继承 multiple；传 false 时仅限制成员之间互斥，
+   * 不会移除已选择的部门或角色。
+   */
+  memberMultiple?: boolean;
   /** 最多可选数量；不传表示不限制。 */
   max?: number;
   /** 是否允许确认空选择。 */

@@ -1,15 +1,16 @@
 <script setup lang="ts">
 import { RiCloseLargeFill, RiSearchFill } from '@remixicon/vue';
 import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue';
-import PickerMembers from './PickerMembers.vue';
 import PickerSelectedItems from './PickerSelectedItems.vue';
-import PickerTreeNode from './PickerTreeNode.vue';
+import PickerVirtualMembers from './PickerVirtualMembers.vue';
+import PickerVirtualTree from './PickerVirtualTree.vue';
 import type {
   EvolynMemberDepartmentRolePickerEmits,
   EvolynMemberDepartmentRolePickerProps,
   EvolynMemberDepartmentRolePickerSelection,
 } from './EvolynMemberDepartmentRolePicker.types';
 import { useMemberDepartmentRolePicker } from './useMemberDepartmentRolePicker';
+import { useVirtualTree } from './useVirtualTree';
 
 defineOptions({ name: 'EvolynMemberDepartmentRolePicker' });
 
@@ -36,7 +37,9 @@ const {
   activeType,
   availableTypes,
   isDisabled,
+  isMultiple,
   keyword,
+  normalizeSelection,
   remove,
   resetView,
   selectedKeys,
@@ -50,14 +53,21 @@ const {
   members: () => props.members,
   selectableTypes: () => props.selectableTypes,
   multiple: () => props.multiple,
+  departmentMultiple: () => props.departmentMultiple,
+  memberMultiple: () => props.memberMultiple,
   max: () => props.max,
   selection: draftSelection,
 });
 
+// 树先拍平再交给虚拟列表，避免深层组织架构递归创建全部节点。
+const { rows: departmentVirtualRows, toggleExpanded: toggleDepartmentExpanded } =
+  useVirtualTree(visibleDepartments);
+const { rows: roleVirtualRows, toggleExpanded: toggleRoleExpanded } = useVirtualTree(visibleRoles);
+
 const canConfirm = computed(() => props.allowEmpty || draftSelection.value.length > 0);
 
 function resetDraft() {
-  draftSelection.value = [...modelValue.value];
+  draftSelection.value = normalizeSelection(modelValue.value);
   resetView();
 }
 
@@ -150,23 +160,27 @@ watch(modelValue, () => {
 
           <section class="evolyn-member-department-role-picker__panel" role="tabpanel">
             <template v-if="activeType === 'department' || activeType === 'role'">
-              <ul
-                v-if="(activeType === 'department' ? visibleDepartments : visibleRoles).length"
-                class="evolyn-member-department-role-picker__tree"
-              >
-                <PickerTreeNode
-                  v-for="node in activeType === 'department' ? visibleDepartments : visibleRoles"
-                  :key="node.id"
-                  :item-type="activeType === 'department' ? 'department' : 'role'"
-                  mode="select"
-                  :node="node"
-                  :selected-keys="selectedKeys"
-                  :is-disabled="
-                    (item) => isDisabled(item, activeType === 'department' ? 'department' : 'role')
-                  "
-                  @select="toggle($event, activeType === 'department' ? 'department' : 'role')"
-                />
-              </ul>
+              <PickerVirtualTree
+                v-if="
+                  activeType === 'department'
+                    ? departmentVirtualRows.length
+                    : roleVirtualRows.length
+                "
+                :item-type="activeType === 'department' ? 'department' : 'role'"
+                mode="select"
+                :multiple="isMultiple(activeType === 'department' ? 'department' : 'role')"
+                :rows="activeType === 'department' ? departmentVirtualRows : roleVirtualRows"
+                :selected-keys="selectedKeys"
+                :is-disabled="
+                  (item) => isDisabled(item, activeType === 'department' ? 'department' : 'role')
+                "
+                @select="toggle($event, activeType === 'department' ? 'department' : 'role')"
+                @toggle-expand="
+                  activeType === 'department'
+                    ? toggleDepartmentExpanded($event)
+                    : toggleRoleExpanded($event)
+                "
+              />
               <p v-else class="evolyn-member-department-role-picker__empty">
                 {{ props.emptyText }}
               </p>
@@ -185,24 +199,24 @@ watch(modelValue, () => {
                 >
                   全部成员
                 </button>
-                <ul class="evolyn-member-department-role-picker__tree">
-                  <PickerTreeNode
-                    v-for="node in visibleDepartments"
-                    :key="node.id"
-                    :active-id="activeDepartmentId"
-                    item-type="department"
-                    mode="filter"
-                    :node="node"
-                    :selected-keys="selectedKeys"
-                    :is-disabled="() => false"
-                    @select="activeDepartmentId = $event.id"
-                  />
-                </ul>
+                <PickerVirtualTree
+                  v-if="departmentVirtualRows.length"
+                  :active-id="activeDepartmentId"
+                  item-type="department"
+                  mode="filter"
+                  :multiple="true"
+                  :rows="departmentVirtualRows"
+                  :selected-keys="selectedKeys"
+                  :is-disabled="() => false"
+                  @select="activeDepartmentId = $event.id"
+                  @toggle-expand="toggleDepartmentExpanded"
+                />
               </aside>
               <div class="evolyn-member-department-role-picker__member-list">
-                <PickerMembers
+                <PickerVirtualMembers
                   v-if="visibleMembers.length"
                   :members="visibleMembers"
+                  :multiple="isMultiple('member')"
                   :selected-keys="selectedKeys"
                   :is-disabled="(member) => isDisabled(member, 'member')"
                   @select="toggle($event, 'member')"

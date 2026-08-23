@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  EvolynMemberDepartmentRolePicker,
+  type EvolynMemberDepartmentRolePickerMember,
+  type EvolynMemberDepartmentRolePickerSelection,
+  type EvolynMemberDepartmentRolePickerTreeNode,
+} from '@evolyn.do/ui';
 import { computed, shallowRef } from 'vue';
 import PermissionAssetList from '~/components/application/permissions/PermissionAssetList.vue';
 import PermissionGroupsPanel from '~/components/application/permissions/PermissionGroupsPanel.vue';
-import PermissionMemberPickerDialog from '~/components/application/permissions/PermissionMemberPickerDialog.vue';
 import type {
   AssetPermissionGroup,
-  CreatePermissionGroupPayload,
   PermissionAsset,
   PermissionSubject,
 } from '~/components/application/permissions/permission.types';
@@ -29,13 +33,27 @@ const assets = shallowRef<PermissionAsset[]>([
   { id: 'dashboard_customer', name: '客户信息分析', type: 'dashboard' },
 ]);
 
-const selectableSubjects: PermissionSubject[] = [
-  { id: 'department_sales', name: '销售部', type: 'department' },
-  { id: 'department_operation', name: '运营部', type: 'department' },
-  { id: 'role_sales_manager', name: '销售主管', type: 'role' },
-  { id: 'member_zhangsan', name: '张三', type: 'member' },
-  { id: 'member_lisi', name: '李四', type: 'member' },
-  { id: 'member_wangwu', name: '王五', type: 'member' },
+/** 选择器数据暂用本地演示结构；权限主体接口落地后替换为部门树、角色和成员接口响应。 */
+const pickerDepartments: EvolynMemberDepartmentRolePickerTreeNode[] = [
+  {
+    id: 'department_company',
+    label: '重庆万柯互联网科技有限责任公司',
+    children: [
+      { id: 'department_sales', label: '销售部' },
+      { id: 'department_operation', label: '运营部' },
+    ],
+  },
+];
+
+const pickerRoles: EvolynMemberDepartmentRolePickerTreeNode[] = [
+  { id: 'role_sales_manager', label: '销售主管' },
+  { id: 'role_sales_director', label: '销售总监' },
+];
+
+const pickerMembers: EvolynMemberDepartmentRolePickerMember[] = [
+  { id: 'member_zhangsan', label: '张三', departmentIds: ['department_sales'] },
+  { id: 'member_lisi', label: '李四', departmentIds: ['department_sales'] },
+  { id: 'member_wangwu', label: '王五', departmentIds: ['department_operation'] },
 ];
 
 const groupsByAssetId = shallowRef<Record<string, AssetPermissionGroup[]>>({
@@ -79,6 +97,7 @@ const selectedAssetId = shallowRef('form_order');
 const keyword = shallowRef('');
 const pickerVisible = shallowRef(false);
 const targetGroupId = shallowRef<string>();
+const pickerSelection = shallowRef<EvolynMemberDepartmentRolePickerSelection[]>([]);
 
 const selectedAsset = computed(() =>
   assets.value.find((asset) => asset.id === selectedAssetId.value),
@@ -92,19 +111,32 @@ function updateGroups(assetId: string, groups: AssetPermissionGroup[]) {
 
 function openGroupPicker() {
   targetGroupId.value = undefined;
+  pickerSelection.value = [];
   pickerVisible.value = true;
 }
 
 function openSubjectPicker(groupId: string) {
   targetGroupId.value = groupId;
+  const group = selectedGroups.value.find((item) => item.id === groupId);
+  pickerSelection.value = group?.subjects.map(toPickerSelection) ?? [];
   pickerVisible.value = true;
 }
 
-function createOrAppendSubjects(payload: CreatePermissionGroupPayload) {
+function toPickerSelection(subject: PermissionSubject): EvolynMemberDepartmentRolePickerSelection {
+  return { id: subject.id, label: subject.name, type: subject.type };
+}
+
+function toPermissionSubject(
+  selection: EvolynMemberDepartmentRolePickerSelection,
+): PermissionSubject {
+  return { id: String(selection.id), name: selection.label, type: selection.type };
+}
+
+function createOrUpdateSubjects(selections: EvolynMemberDepartmentRolePickerSelection[]) {
   const asset = selectedAsset.value;
   if (!asset) return;
 
-  const subjects = selectableSubjects.filter((subject) => payload.subjectIds.includes(subject.id));
+  const subjects = selections.map(toPermissionSubject);
   const groups = selectedGroups.value;
   if (targetGroupId.value) {
     updateGroups(
@@ -113,12 +145,8 @@ function createOrAppendSubjects(payload: CreatePermissionGroupPayload) {
         group.id === targetGroupId.value
           ? {
               ...group,
-              subjects: [
-                ...group.subjects,
-                ...subjects.filter(
-                  (subject) => !group.subjects.some((item) => item.id === subject.id),
-                ),
-              ],
+              // 选择器打开时已带入当前主体，确认结果即为该权限组的最终主体列表。
+              subjects,
             }
           : group,
       ),
@@ -127,12 +155,11 @@ function createOrAppendSubjects(payload: CreatePermissionGroupPayload) {
     return;
   }
 
-  const groupName = payload.groupName || defaultGroupName(asset.type);
   updateGroups(asset.id, [
     ...groups,
     {
       id: `group_preview_${Date.now()}`,
-      name: groupName,
+      name: defaultGroupName(asset.type),
       description: defaultGroupDescription(asset.type),
       enabled: true,
       subjects,
@@ -235,11 +262,14 @@ async function disableAll() {
       @remove-group="removeGroup"
       @update-group-enabled="updateGroupEnabled"
     />
-    <PermissionMemberPickerDialog
-      v-model="pickerVisible"
-      :subjects="selectableSubjects"
+    <EvolynMemberDepartmentRolePicker
+      v-model="pickerSelection"
+      v-model:open="pickerVisible"
+      :departments="pickerDepartments"
+      :roles="pickerRoles"
+      :members="pickerMembers"
       :title="pickerTitle"
-      @confirm="createOrAppendSubjects"
+      @confirm="createOrUpdateSubjects"
     />
   </section>
 </template>

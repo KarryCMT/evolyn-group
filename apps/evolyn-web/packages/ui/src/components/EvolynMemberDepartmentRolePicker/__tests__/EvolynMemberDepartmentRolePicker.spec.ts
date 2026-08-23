@@ -29,6 +29,13 @@ async function selectDepartment() {
   await nextTick();
 }
 
+async function selectItem(label: string) {
+  const input = getTeleportedElement<HTMLInputElement>(`input[aria-label="选择${label}"]`);
+  input.checked = true;
+  input.dispatchEvent(new Event('change', { bubbles: true }));
+  await nextTick();
+}
+
 describe('EvolynMemberDepartmentRolePicker', () => {
   it('only commits the draft selection after confirmation', async () => {
     const model = ref<EvolynMemberDepartmentRolePickerSelection[]>([]);
@@ -95,5 +102,91 @@ describe('EvolynMemberDepartmentRolePicker', () => {
     expect(wrapper.emitted('update:modelValue')).toBeUndefined();
     expect(wrapper.emitted('cancel')).toHaveLength(1);
     expect(wrapper.emitted('close')?.[0]).toEqual(['cancel']);
+  });
+
+  it('keeps only one department when departmentMultiple is false', async () => {
+    const wrapper = mount(EvolynMemberDepartmentRolePicker, {
+      props: { open: true, departments, departmentMultiple: false },
+      attachTo: document.body,
+    });
+
+    expect(getTeleportedElement<HTMLInputElement>('input[aria-label="选择研发部"]').type).toBe(
+      'radio',
+    );
+    await selectItem('研发部');
+    await selectItem('前端组');
+    getTeleportedElement<HTMLButtonElement>(
+      '.evolyn-member-department-role-picker__actions button:last-child',
+    ).click();
+
+    expect(wrapper.emitted('confirm')?.[0]).toEqual([
+      [{ id: 'web', label: '前端组', type: 'department' }],
+    ]);
+  });
+
+  it('keeps only one member when memberMultiple is false', async () => {
+    const wrapper = mount(EvolynMemberDepartmentRolePicker, {
+      props: {
+        open: true,
+        selectableTypes: ['member'],
+        memberMultiple: false,
+        members: [
+          { id: 'alice', label: '张三' },
+          { id: 'bob', label: '李四' },
+        ],
+      },
+      attachTo: document.body,
+    });
+
+    expect(getTeleportedElement<HTMLInputElement>('input[aria-label="选择张三"]').type).toBe(
+      'radio',
+    );
+    await selectItem('张三');
+    await selectItem('李四');
+    getTeleportedElement<HTMLButtonElement>(
+      '.evolyn-member-department-role-picker__actions button:last-child',
+    ).click();
+
+    expect(wrapper.emitted('confirm')?.[0]).toEqual([
+      [{ id: 'bob', label: '李四', type: 'member' }],
+    ]);
+  });
+
+  it('only renders the visible window for large trees and member lists', async () => {
+    const largeDepartments = Array.from({ length: 300 }, (_, index) => ({
+      id: `department-${index}`,
+      label: `部门 ${index}`,
+    }));
+    const largeMembers = Array.from({ length: 1000 }, (_, index) => ({
+      id: `member-${index}`,
+      label: `成员 ${index}`,
+    }));
+
+    mount(EvolynMemberDepartmentRolePicker, {
+      props: {
+        open: true,
+        departments: largeDepartments,
+        members: largeMembers,
+      },
+      attachTo: document.body,
+    });
+    await nextTick();
+
+    expect(
+      document.body.querySelectorAll('.evolyn-member-department-role-picker-virtual-tree__item')
+        .length,
+    ).toBeLessThan(largeDepartments.length);
+
+    const memberTab = [...document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
+      (tab) => tab.textContent?.trim() === '成员',
+    );
+    expect(memberTab).toBeDefined();
+    memberTab?.click();
+    await nextTick();
+
+    expect(
+      document.body.querySelectorAll('.evolyn-member-department-role-picker-virtual-members__item')
+        .length,
+    ).toBeLessThan(largeMembers.length);
   });
 });
