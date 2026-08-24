@@ -1,19 +1,66 @@
 <script setup lang="ts">
 import type { DeepReadonly } from 'vue';
 import type { UserInfoResult } from '~/types';
-import { RiUserFill } from '@remixicon/vue';
+import { RiCheckboxCircleFill, RiUserFill } from '@remixicon/vue';
+import { computed, nextTick, ref, watch } from 'vue';
+import type { InputInstance } from 'element-plus';
 
 defineOptions({ name: 'AccountBasicInfoPanel' });
 
-defineProps<{
-  userInfo: DeepReadonly<UserInfoResult> | null;
-}>();
-
 const emit = defineEmits<{
   editProfile: [];
+  updateContactName: [nickname: string, onSuccess: () => void];
   changePassword: [];
   viewLoginLog: [];
 }>();
+
+const props = defineProps<{
+  userInfo: DeepReadonly<UserInfoResult> | null;
+  savingContactName?: boolean;
+}>();
+
+const contactNameInputRef = ref<InputInstance>();
+const contactNameEditing = ref(false);
+const contactName = ref('');
+
+const displayedContactName = computed(
+  () => props.userInfo?.member.nickname || props.userInfo?.account.nickname || '未设置',
+);
+const contactNameError = computed(() => {
+  const name = contactName.value.trim();
+  if (!name) return '姓名不能为空';
+  if (name.length > 80) return '姓名不能超过80个字符';
+  return '';
+});
+
+// 外部资料刷新后，同步展示值；编辑中的输入保留用户尚未提交的内容。
+watch(
+  displayedContactName,
+  (name) => {
+    if (!contactNameEditing.value) contactName.value = name === '未设置' ? '' : name;
+  },
+  { immediate: true },
+);
+
+async function startContactNameEditing() {
+  contactName.value = displayedContactName.value === '未设置' ? '' : displayedContactName.value;
+  contactNameEditing.value = true;
+  await nextTick();
+  contactNameInputRef.value?.focus();
+  contactNameInputRef.value?.select();
+}
+
+function cancelContactNameEditing() {
+  contactNameEditing.value = false;
+  contactName.value = displayedContactName.value === '未设置' ? '' : displayedContactName.value;
+}
+
+function submitContactName() {
+  if (contactNameError.value || props.savingContactName) return;
+  emit('updateContactName', contactName.value.trim(), () => {
+    contactNameEditing.value = false;
+  });
+}
 </script>
 
 <template>
@@ -41,9 +88,41 @@ const emit = defineEmits<{
       </div>
       <div class="account-basic-info__row">
         <dt>通讯录姓名</dt>
-        <dd>
-          <span>{{ userInfo?.member.nickname || userInfo?.account.nickname || '未设置' }}</span>
-          <el-button link type="primary" @click="emit('editProfile')">修改</el-button>
+        <dd class="account-basic-info__contact-name">
+          <template v-if="contactNameEditing">
+            <div class="account-basic-info__contact-name-editor">
+              <div class="account-basic-info__contact-name-tips">
+                <span>
+                  <el-icon><RiCheckboxCircleFill /></el-icon>
+                  姓名不能为空
+                </span>
+                <span>
+                  <el-icon><RiCheckboxCircleFill /></el-icon>
+                  不能超过80个字符
+                </span>
+              </div>
+              <div class="account-basic-info__contact-name-actions">
+                <el-input
+                  ref="contactNameInputRef"
+                  v-model="contactName"
+                  maxlength="80"
+                  autocomplete="nickname"
+                  @keydown.enter.prevent="submitContactName"
+                  @keydown.esc.prevent="cancelContactNameEditing"
+                />
+                <el-button type="primary" :loading="savingContactName" @click="submitContactName">
+                  确定
+                </el-button>
+                <el-button :disabled="savingContactName" @click="cancelContactNameEditing"
+                  >取消</el-button
+                >
+              </div>
+            </div>
+          </template>
+          <template v-else>
+            <span>{{ displayedContactName }}</span>
+            <el-button link type="primary" @click="startContactNameEditing">修改</el-button>
+          </template>
         </dd>
       </div>
       <div class="account-basic-info__row">
@@ -123,6 +202,41 @@ const emit = defineEmits<{
     margin: 0;
     gap: 12px;
     color: var(--el-text-color-regular);
+  }
+
+  &__contact-name {
+    min-height: 54px;
+  }
+
+  &__contact-name-editor {
+    width: min(100%, 520px);
+    padding: 10px 0;
+  }
+
+  &__contact-name-tips {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 8px;
+    color: var(--el-color-success);
+    font-size: var(--el-font-size-small);
+  }
+
+  &__contact-name-tips span {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__contact-name-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  &__contact-name-actions :deep(.el-input) {
+    min-width: 0;
+    flex: 1;
   }
 
   &__identifier {

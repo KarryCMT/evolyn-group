@@ -27,6 +27,12 @@ async function handleProfileSubmit(payload: AccountProfileForm) {
   profileDialogVisible.value = false;
 }
 
+// 通讯录姓名使用与简道云一致的行内编辑；后端会在同一事务中同步账号与当前成员昵称。
+async function handleContactNameUpdate(nickname: string, onSuccess: () => void) {
+  await saveProfile({ nickname });
+  onSuccess();
+}
+
 async function handlePasswordSubmit(payload: AccountPasswordForm) {
   await savePassword(payload);
   await router.replace('/auth/login');
@@ -50,7 +56,9 @@ function handleViewLoginLog() {
           <AccountBasicInfoPanel
             v-if="activeTab === 'basic'"
             :user-info="userInfo"
+            :saving-contact-name="savingProfile"
             @edit-profile="profileDialogVisible = true"
+            @update-contact-name="handleContactNameUpdate"
             @change-password="passwordDialogVisible = true"
             @view-login-log="handleViewLoginLog"
           />
