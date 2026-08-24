@@ -1,10 +1,5 @@
 <script setup lang="ts">
-import {
-  RiEyeFill,
-  RiFullscreenFill,
-  RiPlayFill,
-  RiSave3Fill,
-} from '@remixicon/vue';
+import { RiEyeFill, RiFullscreenFill, RiPlayFill, RiSave3Fill } from '@remixicon/vue';
 import {
   WorkflowDesigner,
   createDefaultWorkflowDocument,
@@ -43,11 +38,19 @@ function notifyUnavailable(action: string) {
     <div class="form-workflow-page__toolbar" aria-label="流程设计操作">
       <div class="form-workflow-page__toolbar-actions">
         <span class="form-workflow-page__version"><i />流程版本（V1）</span>
-        <button class="form-workflow-page__action-button" type="button" @click="notifyUnavailable('预览')">
+        <button
+          class="form-workflow-page__action-button"
+          type="button"
+          @click="notifyUnavailable('预览')"
+        >
           <RiEyeFill />
           <span>预览</span>
         </button>
-        <button class="form-workflow-page__action-button" type="button" @click="notifyUnavailable('测试')">
+        <button
+          class="form-workflow-page__action-button"
+          type="button"
+          @click="notifyUnavailable('测试')"
+        >
           <RiPlayFill />
           <span>测试</span>
         </button>

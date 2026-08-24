@@ -1,6 +1,11 @@
 <script setup lang="ts">
 import { computed, shallowRef, watch } from 'vue';
-import { cloneWorkflowDocument, type WorkflowDocument, type WorkflowField, type WorkflowNode } from '../schema';
+import {
+  cloneWorkflowDocument,
+  type WorkflowDocument,
+  type WorkflowField,
+  type WorkflowNode,
+} from '../schema';
 import WorkflowCanvas from './WorkflowCanvas.vue';
 import WorkflowInspector from './WorkflowInspector.vue';
 
@@ -42,7 +47,10 @@ function updateNode(nodeId: string, patch: Partial<WorkflowNode>) {
   if (patch.position) target.position = { ...patch.position };
   if (patch.fieldPermissions) {
     target.fieldPermissions = Object.fromEntries(
-      Object.entries(patch.fieldPermissions).map(([fieldId, permission]) => [fieldId, { ...permission }]),
+      Object.entries(patch.fieldPermissions).map(([fieldId, permission]) => [
+        fieldId,
+        { ...permission },
+      ]),
     );
   }
   if (patch.config) target.config = { ...patch.config };

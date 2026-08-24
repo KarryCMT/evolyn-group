@@ -1,0 +1,67 @@
+<script setup lang="ts">
+import { ElMessage } from 'element-plus';
+import { shallowRef } from 'vue';
+import TenantOrdersFilterBar from '~/components/tenant/orders/TenantOrdersFilterBar.vue';
+import TenantOrdersTable from '~/components/tenant/orders/TenantOrdersTable.vue';
+import type { InvoiceStatusFilter, OrderStatusFilter } from '~/components/tenant/orders/types';
+
+defineOptions({ name: 'TenantOrdersPage' });
+
+const orderStatus = shallowRef<OrderStatusFilter>('all');
+const invoiceStatus = shallowRef<InvoiceStatusFilter>('all');
+const selectedAll = shallowRef(false);
+
+function viewInvoices() {
+  ElMessage.info('发票中心将在订单服务接入后开放');
+}
+
+function mergeInvoices() {
+  ElMessage.info('请先选择可开票订单，订单服务接入后即可合并开票');
+}
+</script>
+
+<template>
+  <section class="tenant-orders-page" aria-label="订单信息">
+    <TenantOrdersFilterBar
+      v-model:invoice-status="invoiceStatus"
+      v-model:order-status="orderStatus"
+      @merge-invoices="mergeInvoices"
+      @view-invoices="viewInvoices"
+    />
+    <div class="tenant-orders-page__table-scroll">
+      <el-scrollbar class="tenant-orders-page__scrollbar">
+        <TenantOrdersTable v-model:selected-all="selectedAll" />
+      </el-scrollbar>
+    </div>
+  </section>
+</template>
+
+<style scoped lang="scss">
+.tenant-orders-page {
+  display: flex;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  padding: 26px 32px 20px;
+  flex-direction: column;
+  gap: 20px;
+
+  &__table-scroll,
+  &__scrollbar {
+    min-height: 0;
+    flex: 1;
+  }
+
+  &__scrollbar :deep(.el-scrollbar__view) {
+    display: flex;
+    min-height: 100%;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 760px) {
+  .tenant-orders-page {
+    padding: 20px;
+  }
+}
+</style>

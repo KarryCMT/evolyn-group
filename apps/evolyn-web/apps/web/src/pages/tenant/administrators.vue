@@ -6,7 +6,7 @@ defineOptions({ name: 'TenantAdministratorsPage' });
 
 const tabs: TenantRouteTab[] = [
   { label: '系统', path: '/tenant/administrators/system' },
-  { label: '业务应用', path: '/tenant/administrators/apps' },
+  { label: '灵衍云', path: '/tenant/administrators/apps' },
 ];
 </script>
 
@@ -19,6 +19,7 @@ const tabs: TenantRouteTab[] = [
 
 <style scoped lang="scss">
 .tenant-administrators-page {
-  min-height: 100%;
+  height: 100%;
+  min-height: 0;
 }
 </style>

@@ -1,43 +1,40 @@
-import type {
-  PluginFunctionParameter,
-  PluginFunctionRequestField,
-} from '../api'
-import type { PluginDesignField, PluginDesignTemplateField } from '../types'
+import type { PluginFunctionParameter, PluginFunctionRequestField } from '../api';
+import type { PluginDesignField, PluginDesignTemplateField } from '../types';
 
-type PluginFunctionDesignField = PluginDesignField | PluginDesignTemplateField
+type PluginFunctionDesignField = PluginDesignField | PluginDesignTemplateField;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return !!value && typeof value === 'object' && !Array.isArray(value)
-}
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+};
 
 const getStringProperty = (field: PluginFunctionDesignField, key: string) => {
-  const value = (field as unknown as Record<string, unknown>)[key]
-  return typeof value === 'string' ? value : ''
-}
+  const value = (field as unknown as Record<string, unknown>)[key];
+  return typeof value === 'string' ? value : '';
+};
 
 /**
  * 生成函数参数字段配置，并递归转换子表单字段和下拉选项。
  * @param field 设计器请求参数字段。
  */
 const createFunctionFieldConf = (field: PluginFunctionDesignField): Record<string, unknown> => {
-  const fieldConf = isRecord(field.fieldConf) ? { ...field.fieldConf } : {}
-  const childFields = fieldConf.fields
+  const fieldConf = isRecord(field.fieldConf) ? { ...field.fieldConf } : {};
+  const childFields = fieldConf.fields;
   if (Array.isArray(childFields)) {
     fieldConf.fields = childFields
       .filter(isRecord)
       .map((childField, index) =>
         createFunctionParameterField(childField as unknown as PluginDesignTemplateField, index),
-      )
+      );
   }
-  const options = (field as PluginDesignField).options
+  const options = (field as PluginDesignField).options;
   if (Array.isArray(options)) {
     fieldConf.items = options.map((option) => ({
       text: option,
       value: option,
-    }))
+    }));
   }
-  return fieldConf
-}
+  return fieldConf;
+};
 
 /**
  * 将设计器字段转换为函数更新接口使用的新字段结构。
@@ -61,11 +58,11 @@ function createFunctionParameterField(
     isRequired: Boolean(field.isRequired),
     fieldConf: createFunctionFieldConf(field),
     sort: index,
-  }
+  };
   if (field.defaultValue !== undefined && field.defaultValue !== null) {
-    nextField.defaultValue = field.defaultValue
+    nextField.defaultValue = field.defaultValue;
   }
-  return nextField
+  return nextField;
 }
 
 /**
@@ -76,4 +73,4 @@ export const createPluginFunctionRequestParameter = (
   fields: PluginDesignField[],
 ): PluginFunctionParameter<PluginFunctionRequestField> => ({
   fields: fields.map(createFunctionParameterField),
-})
+});

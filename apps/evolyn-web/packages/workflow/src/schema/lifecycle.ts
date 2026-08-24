@@ -39,16 +39,23 @@ export function cloneWorkflowDocument(document: WorkflowDocument): WorkflowDocum
 export function normalizeWorkflowDocument(input: unknown): WorkflowDocument | null {
   if (!isRecord(input) || input.version !== WORKFLOW_SCHEMA_VERSION) return null;
   if (typeof input.title !== 'string' || !input.title.trim()) return null;
-  if (!Array.isArray(input.nodes) || !Array.isArray(input.edges) || !isRecord(input.settings)) return null;
+  if (!Array.isArray(input.nodes) || !Array.isArray(input.edges) || !isRecord(input.settings))
+    return null;
 
   const nodes = input.nodes.flatMap((node) => normalizeNode(node));
-  if (nodes.length !== input.nodes.length || new Set(nodes.map((node) => node.id)).size !== nodes.length) {
+  if (
+    nodes.length !== input.nodes.length ||
+    new Set(nodes.map((node) => node.id)).size !== nodes.length
+  ) {
     return null;
   }
 
   const nodeIds = new Set(nodes.map((node) => node.id));
   const edges = input.edges.flatMap((edge) => normalizeEdge(edge, nodeIds));
-  if (edges.length !== input.edges.length || new Set(edges.map((edge) => edge.id)).size !== edges.length) {
+  if (
+    edges.length !== input.edges.length ||
+    new Set(edges.map((edge) => edge.id)).size !== edges.length
+  ) {
     return null;
   }
 
@@ -99,7 +106,8 @@ function cloneFieldPermissions(
 
 function normalizeNode(value: unknown): WorkflowNode[] {
   if (!isRecord(value)) return [];
-  if (!isWorkflowNodeType(value.type) || typeof value.id !== 'string' || !value.id.trim()) return [];
+  if (!isWorkflowNodeType(value.type) || typeof value.id !== 'string' || !value.id.trim())
+    return [];
   if (typeof value.name !== 'string' || !value.name.trim() || !isRecord(value.position)) return [];
   if (!isFiniteNumber(value.position.x) || !isFiniteNumber(value.position.y)) return [];
   if (!isRecord(value.fieldPermissions) || !isRecord(value.config)) return [];
@@ -117,7 +125,8 @@ function normalizeNode(value: unknown): WorkflowNode[] {
       return [[fieldId, { ...permission }]];
     }),
   ) as Record<string, WorkflowFieldPermission>;
-  if (Object.keys(fieldPermissions).length !== Object.keys(value.fieldPermissions).length) return [];
+  if (Object.keys(fieldPermissions).length !== Object.keys(value.fieldPermissions).length)
+    return [];
 
   if (!isJsonValue(value.config)) return [];
   return [
@@ -143,9 +152,7 @@ function normalizeEdge(value: unknown, nodeIds: Set<string>): WorkflowEdge[] {
   ) {
     return [];
   }
-  return [
-    { id: value.id, sourceNodeId: value.sourceNodeId, targetNodeId: value.targetNodeId },
-  ];
+  return [{ id: value.id, sourceNodeId: value.sourceNodeId, targetNodeId: value.targetNodeId }];
 }
 
 function isWorkflowNodeType(value: unknown): value is WorkflowNodeType {
@@ -169,7 +176,8 @@ function isJsonValue(value: unknown, seen = new WeakSet<object>()): value is Wor
   seen.add(value);
   const valid = Array.isArray(value)
     ? value.every((item) => isJsonValue(item, seen))
-    : (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null) &&
+    : (Object.getPrototypeOf(value) === Object.prototype ||
+        Object.getPrototypeOf(value) === null) &&
       Object.values(value).every((item) => isJsonValue(item, seen));
   seen.delete(value);
   return valid;

@@ -56,9 +56,9 @@ function isActive(path: string, nestedPath?: string) {
 .tenant-management-sidebar {
   /* 固定宽度包含内边距，避免选中卡片被外层容器裁切并贴住内容区。 */
   box-sizing: border-box;
-  width: 236px;
-  flex: 0 0 236px;
-  padding: 12px;
+  width: 320px;
+  flex: 0 0 320px;
+  padding: 20px 16px;
   overflow-y: auto;
 
   &__nav,
@@ -68,32 +68,32 @@ function isActive(path: string, nestedPath?: string) {
   }
 
   &__group {
-    gap: 2px;
+    gap: 4px;
 
     &:not(:first-child) {
       /* 分组只保留识别间距，避免菜单总高度在常规桌面视口产生滚动。 */
-      margin-top: 10px;
+      margin-top: 14px;
     }
   }
 
   &__group-title {
     margin: 0;
-    padding: 0 8px;
+    padding: 0 6px;
     color: var(--el-text-color-secondary);
-    font-size: 12px;
+    font-size: 15px;
     font-weight: 500;
     line-height: 20px;
   }
 
   &__item {
     display: flex;
-    min-height: 36px;
+    min-height: 52px;
     align-items: center;
-    gap: 8px;
-    padding: 0 10px;
-    border-radius: 6px;
+    gap: 11px;
+    padding: 0 14px;
+    border-radius: 9px;
     color: var(--el-text-color-regular);
-    font-size: 14px;
+    font-size: 18px;
     text-decoration: none;
     cursor: pointer;
     transition:
@@ -102,8 +102,8 @@ function isActive(path: string, nestedPath?: string) {
       box-shadow 0.18s ease;
 
     svg {
-      width: 16px;
-      height: 16px;
+      width: 21px;
+      height: 21px;
       color: #98a2b3;
     }
 
@@ -129,10 +129,10 @@ function isActive(path: string, nestedPath?: string) {
   }
 
   &--collapsed {
-    width: 64px;
-    flex-basis: 64px;
+    width: 72px;
+    flex-basis: 72px;
     /* 收起后控制按钮位于图标栏顶部，菜单需避开这一独立控制区。 */
-    padding: 52px 8px 12px;
+    padding: 62px 10px 16px;
 
     .tenant-management-sidebar__group {
       gap: 4px;
@@ -150,8 +150,8 @@ function isActive(path: string, nestedPath?: string) {
     }
 
     .tenant-management-sidebar__item {
-      width: 48px;
-      min-height: 42px;
+      width: 52px;
+      min-height: 48px;
       justify-content: center;
       padding: 0;
       border-radius: 8px;
@@ -161,8 +161,8 @@ function isActive(path: string, nestedPath?: string) {
 
 @media (max-width: 900px) {
   .tenant-management-sidebar:not(.tenant-management-sidebar--collapsed) {
-    width: 200px;
-    flex-basis: 200px;
+    width: 240px;
+    flex-basis: 240px;
   }
 }
 </style>

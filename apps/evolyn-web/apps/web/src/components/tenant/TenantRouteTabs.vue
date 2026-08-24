@@ -32,7 +32,7 @@ defineProps<{
 <style scoped lang="scss">
 .tenant-route-tabs {
   display: flex;
-  min-height: 52px;
+  min-height: 64px;
   align-items: flex-end;
   padding: 0 22px;
   border-bottom: 1px solid var(--el-border-color-lighter);
@@ -41,7 +41,7 @@ defineProps<{
 
   &__item {
     display: inline-flex;
-    min-height: 52px;
+    min-height: 64px;
     align-items: center;
     padding: 0 16px;
     border-bottom: 2px solid transparent;

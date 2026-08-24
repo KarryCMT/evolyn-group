@@ -40,29 +40,20 @@ const tenantRoutes: RouteRecordRaw[] = [
       {
         path: 'orders',
         name: 'tenant-orders',
-        ...featurePage({
-          title: '订单信息',
-          description: '查看订单、续费状态与历史交易记录。',
-          capabilities: ['订单列表与详情', '续费与升级入口', '交易凭证下载'],
-        }),
+        component: () => import('~/pages/tenant/orders.vue'),
+        meta: { title: '订单信息' },
       },
       {
         path: 'organization',
         name: 'tenant-organization',
-        ...featurePage({
-          title: '内部组织',
-          description: '维护部门、成员与角色，组织结构的变更将同步影响成员权限。',
-          capabilities: ['部门树与部门成员', '成员邀请、筛选和导出', '角色分配与离职成员管理'],
-        }),
+        component: () => import('~/pages/tenant/organization.vue'),
+        meta: { title: '内部组织' },
       },
       {
         path: 'external-organization',
         name: 'tenant-external-organization',
-        ...featurePage({
-          title: '互联组织',
-          description: '管理与外部组织协作时的成员、范围与访问边界。',
-          capabilities: ['外部组织连接', '协作范围管理', '访问状态审计'],
-        }),
+        component: () => import('~/pages/tenant/external-organization.vue'),
+        meta: { title: '互联组织' },
       },
       {
         path: 'member-fields',
@@ -72,20 +63,14 @@ const tenantRoutes: RouteRecordRaw[] = [
           {
             path: 'fields',
             name: 'tenant-member-fields',
-            ...featurePage({
-              title: '成员字段设置',
-              description: '配置成员档案的系统字段、可见性和成员自助编辑权限。',
-              capabilities: ['字段可见与可编辑权限', '字段类型与校验规则', '成员资料变更记录'],
-            }),
+            component: () => import('~/components/tenant/memberFields/MemberFieldSettings.vue'),
+            meta: { title: '成员字段设置' },
           },
           {
             path: 'cards',
             name: 'tenant-member-cards',
-            ...featurePage({
-              title: '成员卡片展示',
-              description: '选择成员卡片中可展示的字段，并分别预览桌面端和移动端。',
-              capabilities: ['卡片字段排序', '桌面端与移动端预览', '成员信息脱敏策略'],
-            }),
+            component: () => import('~/components/tenant/memberFields/MemberCardDisplay.vue'),
+            meta: { title: '成员卡片展示' },
           },
         ],
       },
@@ -97,31 +82,22 @@ const tenantRoutes: RouteRecordRaw[] = [
           {
             path: 'system',
             name: 'tenant-system-administrators',
-            ...featurePage({
-              title: '系统管理员',
-              description: '管理全局系统权限，建议仅授予必要的可信成员。',
-              capabilities: ['管理员成员管理', '管理员角色范围', '授权与撤销审计'],
-            }),
+            component: () => import('~/pages/tenant/SystemAdministratorsPage.vue'),
+            meta: { title: '系统管理员' },
           },
           {
             path: 'apps',
             name: 'tenant-app-administrators',
-            ...featurePage({
-              title: '业务应用管理员',
-              description: '为业务应用分配精细化的管理范围。',
-              capabilities: ['应用管理员分组', '应用范围授权', '管理员操作记录'],
-            }),
+            component: () => import('~/pages/tenant/ApplicationAdministratorsPage.vue'),
+            meta: { title: '灵衍云管理员' },
           },
         ],
       },
       {
         path: 'permission-query',
         name: 'tenant-permission-query',
-        ...featurePage({
-          title: '权限查询',
-          description: '从成员、角色和应用维度追溯当前实际权限。',
-          capabilities: ['成员权限视图', '角色授权关系', '权限来源追溯'],
-        }),
+        component: () => import('~/pages/tenant/permission-query.vue'),
+        meta: { title: '权限查询' },
       },
       {
         path: 'enterprise-settings',

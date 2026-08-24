@@ -40,11 +40,7 @@ function updateName(name: string) {
   emit('updateNode', props.node.id, { name: name.trim() });
 }
 
-function updatePermission(
-  fieldId: string,
-  key: keyof WorkflowFieldPermission,
-  checked: boolean,
-) {
+function updatePermission(fieldId: string, key: keyof WorkflowFieldPermission, checked: boolean) {
   if (!props.node) return;
   const current = props.node.fieldPermissions[fieldId] ?? defaultPermission();
   emit('updateNode', props.node.id, {
@@ -126,28 +122,44 @@ function defaultPermission(): WorkflowFieldPermission {
           <span>简报</span>
         </div>
         <div class="workflow-inspector__permission-list">
-          <div v-for="field in filteredFields" :key="field.id" class="workflow-inspector__permission-row">
+          <div
+            v-for="field in filteredFields"
+            :key="field.id"
+            class="workflow-inspector__permission-row"
+          >
             <span class="workflow-inspector__field-label">{{ field.label }}</span>
             <input
               type="checkbox"
               :checked="node.fieldPermissions[field.id]?.visible ?? true"
               aria-label="字段可见"
-              @change="updatePermission(field.id, 'visible', ($event.target as HTMLInputElement).checked)"
+              @change="
+                updatePermission(field.id, 'visible', ($event.target as HTMLInputElement).checked)
+              "
             />
             <input
               type="checkbox"
               :checked="node.fieldPermissions[field.id]?.editable ?? true"
               aria-label="字段可编辑"
-              @change="updatePermission(field.id, 'editable', ($event.target as HTMLInputElement).checked)"
+              @change="
+                updatePermission(field.id, 'editable', ($event.target as HTMLInputElement).checked)
+              "
             />
             <input
               type="checkbox"
               :checked="node.fieldPermissions[field.id]?.confidential ?? false"
               aria-label="字段简报"
-              @change="updatePermission(field.id, 'confidential', ($event.target as HTMLInputElement).checked)"
+              @change="
+                updatePermission(
+                  field.id,
+                  'confidential',
+                  ($event.target as HTMLInputElement).checked,
+                )
+              "
             />
           </div>
-          <p v-if="!filteredFields.length" class="workflow-inspector__empty-fields">未找到匹配字段</p>
+          <p v-if="!filteredFields.length" class="workflow-inspector__empty-fields">
+            未找到匹配字段
+          </p>
         </div>
       </template>
       <div v-else class="workflow-inspector__empty-state">

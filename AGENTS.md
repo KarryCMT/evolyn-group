@@ -205,6 +205,7 @@ pnpm -F @evolyn.do/web build        # 生产构建
 前端改动规则：
 
 - 使用 Composition API（`<script setup>`）+ TypeScript；`typecheck` 必须通过。
+- 前端界面还原截图时，统一以 1080P（1920×1080）画布尺寸为基准进行还原。
 - 代码统一以 Prettier 格式化（约束）：以 `apps/evolyn-web/prettier.config.mjs`
   （复用 `@evolyn.do/prettier-config`）为准，改完前端代码在 `apps/evolyn-web`
   内执行 `pnpm run lint:format`（等价于编辑器 Prettier - Code formatter 插件
