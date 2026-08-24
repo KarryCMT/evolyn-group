@@ -31,7 +31,7 @@ export interface FavoriteApplication {
 export const favoriteApplicationCatalog: FavoriteApplication[] = [
   {
     id: 'sample-app',
-    label: '简道云示例应用',
+    label: '灵衍云示例应用',
     icon: Collection,
     tone: 'green',
     children: [
@@ -49,7 +49,7 @@ export const favoriteApplicationCatalog: FavoriteApplication[] = [
   { id: 'contract-management', label: '合同管理', icon: Files, tone: 'red' },
   { id: 'it-project-management', label: 'IT项目管理', icon: Memo, tone: 'blue' },
   { id: 'task-management', label: '任务管理', icon: Memo, tone: 'cyan' },
-  { id: 'advanced-guide', label: '简道云高级功能介绍', icon: Collection, tone: 'purple' },
+  { id: 'advanced-guide', label: '灵衍云高级功能介绍', icon: Collection, tone: 'purple' },
 ];
 
 /** 收藏顺序保留用户在面板中选择的顺序，便于在工作台呈现稳定的位置。 */

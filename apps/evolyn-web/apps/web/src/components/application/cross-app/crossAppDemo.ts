@@ -87,7 +87,7 @@ export const crossAppDemoApplications: CrossAppSourceApplication[] = [
   },
   {
     id: 'guide',
-    name: '简道云高级功能介绍',
+    name: '灵衍云高级功能介绍',
     tone: 'info',
     groups: [
       {

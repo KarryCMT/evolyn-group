@@ -96,7 +96,7 @@ export function createElementTheme(mode: 'light' | 'dark'): TYPES.ITableThemeDef
       // 悬停高亮对齐 el-table 的 --el-table-row-hover-bg-color（取 fill-color-light）
       hover: { cellBgColor: fillLight },
     },
-    // 外框与单元格共用 lighter 边框线，形成简道云式的浅网格
+    // 外框与单元格共用 lighter 边框线，形成灵衍云式的浅网格
     frameStyle: {
       borderColor: borderLighter,
       borderLineWidth: 1,

@@ -39,7 +39,7 @@ export const initialMessageRecords: MessageRecord[] = [
     id: 'message-app-log-4',
     categoryId: 'app-log',
     createdAt: '2026-08-14 23:21',
-    content: '李同学 创建了应用「简道云高级功能介绍」',
+    content: '李同学 创建了应用「灵衍云高级功能介绍」',
     read: true,
   },
   {

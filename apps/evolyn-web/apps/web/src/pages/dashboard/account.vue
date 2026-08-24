@@ -27,7 +27,7 @@ async function handleProfileSubmit(payload: AccountProfileForm) {
   profileDialogVisible.value = false;
 }
 
-// 通讯录姓名使用与简道云一致的行内编辑；后端会在同一事务中同步账号与当前成员昵称。
+// 通讯录姓名使用与灵衍云一致的行内编辑；后端会在同一事务中同步账号与当前成员昵称。
 async function handleContactNameUpdate(nickname: string, onSuccess: () => void) {
   await saveProfile({ nickname });
   onSuccess();

@@ -12,7 +12,7 @@ export type MessageCategoryId =
 /** 抽屉内在收件箱、通知设置与提醒对象管理之间切换。 */
 export type MessageCenterView = 'inbox' | 'settings' | 'recipient-management';
 
-/** 左侧分类：group 用于渲染「简道云 / 企业消息」分区标题。 */
+/** 左侧分类：group 用于渲染「灵衍云 / 企业消息」分区标题。 */
 export interface MessageCategory {
   id: MessageCategoryId;
   label: string;

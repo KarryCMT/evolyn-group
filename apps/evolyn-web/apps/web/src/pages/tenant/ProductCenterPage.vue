@@ -15,7 +15,7 @@ defineOptions({ name: 'ProductCenterPage' });
 // 后续接入产品中心接口时，只需以接口数据替换此展示模型，卡片的交互契约无需改变。
 const product = {
   memberCount: 1,
-  name: '简道云',
+  name: '灵衍云',
   versionName: '试用版',
 };
 

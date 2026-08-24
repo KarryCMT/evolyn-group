@@ -70,7 +70,7 @@ export function switchTenant(tenantId: number): Promise<JwtToken> {
 }
 
 /**
- * 登录聚合信息（对齐简道云 login_user_info）：账号资料 + 当前成员身份 +
+ * 登录聚合信息（对齐灵衍云 login_user_info）：账号资料 + 当前成员身份 +
  *  租户配置/套餐/生效配额，登录或注册完成后拉取，作为主框架引导数据源
  */
 export function getUserInfo(): Promise<UserInfoResult> {

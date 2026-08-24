@@ -19,7 +19,7 @@ const pushItems = shallowRef<DataPushItem[]>([
   {
     id: 'data_push_demo_001',
     name: '未命名数据推送',
-    serverAddress: 'https://www.jiandaoyun.com/',
+    serverAddress: 'https://www.lingyanyun.com/',
     formName: '订单管理',
     events: '有新数据提交时，有数据被修改时，有数据被删除时，有数据被恢复时',
     remark: '',
@@ -63,7 +63,7 @@ function savePush(name: string) {
     {
       id: `data_push_${Date.now()}`,
       name,
-      serverAddress: 'https://www.jiandaoyun.com/',
+      serverAddress: 'https://www.lingyanyun.com/',
       formName: selectedFormName.value,
       events: '有新数据提交时，有数据被修改时，有数据被删除时，有数据被恢复时',
       remark: '',

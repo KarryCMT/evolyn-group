@@ -58,7 +58,7 @@ function selectScope(scope: string | number | boolean | undefined) {
       <ElSwitch
         class="product-center-card__switch"
         :model-value="props.enabled"
-        aria-label="启用简道云"
+        aria-label="启用灵衍云"
         @update:model-value="updateEnabled"
       />
     </header>
@@ -82,7 +82,7 @@ function selectScope(scope: string | number | boolean | undefined) {
           class="product-center-card__scope-group"
           :model-value="props.scope"
           :disabled="!props.enabled"
-          aria-label="简道云可用范围"
+          aria-label="灵衍云可用范围"
           @update:model-value="selectScope"
         >
           <ElRadio value="all">
@@ -102,7 +102,7 @@ function selectScope(scope: string | number | boolean | undefined) {
         v-if="props.scope === 'partial'"
         class="product-center-card__selection-field"
         type="button"
-        aria-label="编辑可使用简道云的成员和部门"
+        aria-label="编辑可使用灵衍云的成员和部门"
         @click="emit('editMemberScope')"
       >
         <span

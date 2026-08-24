@@ -73,7 +73,7 @@ function normalizeColumn(column: EvolynTableColumn): ColumnDefine {
 const normalizedColumns = computed<ColumnDefine[]>(() => props.columns.map(normalizeColumn));
 
 const tableOptions = computed<ListTableConstructorOptions>(() => ({
-  // 平台默认值：列宽自适应撑满容器；空态文案对齐简道云。可被 options 逃生舱覆盖
+  // 平台默认值：列宽自适应撑满容器；空态文案对齐灵衍云。可被 options 逃生舱覆盖
   widthMode: 'adaptive',
   emptyTip: { text: props.emptyText },
   ...props.options,

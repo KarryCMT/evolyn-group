@@ -11,7 +11,7 @@ import {
 import { getToken, removeToken, setToken } from '@evolyn.do/utils';
 
 // 会话域 store（pinia setup store）：token 单例状态 + 登录/登出/切换租户动作 +
-// 登录聚合信息（账号/成员/租户/配额，对齐简道云 login_user_info 引导形态），
+// 登录聚合信息（账号/成员/租户/配额，对齐灵衍云 login_user_info 引导形态），
 // 路由守卫、登录页与后续业务布局共用；消费方统一走 composables/auth.ts 的
 // useAuth() 只读适配入口，不直接引本 store，避免绕过只读约束直写状态
 export const useAuthStore = defineStore('auth', () => {

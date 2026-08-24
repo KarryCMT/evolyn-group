@@ -290,7 +290,7 @@ export const useFormDesignTemplates = ({
       };
     }
     const template = getAuthTemplate(authMethod);
-    // 身份验证按简道云提交结构保存：type + conf_template.fields。
+    // 身份验证按灵衍云提交结构保存：type + conf_template.fields。
     const authentication: PluginDesignAuthentication = {
       type: getTemplateAuthType(authMethod),
       conf_template: createAuthSectionFromTemplate(template?.conf_template),

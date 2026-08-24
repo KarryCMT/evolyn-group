@@ -48,7 +48,7 @@ const categoryIcons = {
 <template>
   <aside class="message-center-sidebar" aria-label="消息分类">
     <div class="message-center-sidebar__group">
-      <p class="message-center-sidebar__group-label">简道云</p>
+      <p class="message-center-sidebar__group-label">灵衍云</p>
       <button
         v-for="category in productCategories"
         :key="category.id"

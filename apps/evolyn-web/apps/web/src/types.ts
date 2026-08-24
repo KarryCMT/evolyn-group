@@ -90,7 +90,7 @@ export interface AccountOnboarding {
   channel?: string;
 }
 
-// ---------- 登录聚合信息（GET /auth/userinfo，对齐简道云 login_user_info 引导形态） ----------
+// ---------- 登录聚合信息（GET /auth/userinfo，对齐灵衍云 login_user_info 引导形态） ----------
 
 /** 平台账号（model.Account 前端用到的字段子集）：登录身份，「人」的属性挂账号 */
 export interface AccountInfo {
@@ -197,7 +197,7 @@ export interface LoginLogQuery {
   endDate?: string;
 }
 
-// ---------- 应用配置（GET /app/conf，形态对齐简道云 conf 接口） ----------
+// ---------- 应用配置（GET /app/conf，形态对齐灵衍云 conf 接口） ----------
 
 /** 手机区号项：三语文案 + E.164 前缀值 */
 export interface CallingCode {

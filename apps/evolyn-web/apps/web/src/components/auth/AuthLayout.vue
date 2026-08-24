@@ -21,7 +21,7 @@ defineProps<{
         v-if="variant === 'login'"
         class="auth-layout__logo-image"
         :src="brandLogo"
-        alt="简道云"
+        alt="灵衍云"
       />
       <div v-else class="auth-layout__logo">
         <span class="auth-layout__logo-mark">E</span>
@@ -148,7 +148,7 @@ defineProps<{
   color: var(--el-text-color-regular);
 }
 
-// 简道云式登录：视觉区与表单区直接拼接，表单不再包裹在带阴影的卡片中。
+// 灵衍云式登录：视觉区与表单区直接拼接，表单不再包裹在带阴影的卡片中。
 .auth-layout--login {
   // 认证流程沿用项目品牌蓝，与业务界面和弹层保持一致。
   --el-color-primary: #1677ff;

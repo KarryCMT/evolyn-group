@@ -35,7 +35,7 @@ import type { EditionFeatureGroup, EditionQuotaCard } from '~/components/tenant/
 
 defineOptions({ name: 'TenantEditionPage' });
 
-// 接口接入前使用和简道云试用版一致的展示数据；后续仅需替换该数据源。
+// 接口接入前使用和灵衍云试用版一致的展示数据；后续仅需替换该数据源。
 const quotaCards: EditionQuotaCard[] = [
   {
     icon: RiUser3Fill,
