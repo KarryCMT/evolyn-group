@@ -127,6 +127,11 @@ func (r *Repositories) Init() error {
 			Name:  "applications",
 			Scope: model.ClusterScope,
 		},
+		// 文件上传会话与私有下载地址（RustFS 对象仅由文件域签发访问）
+		{
+			Name:  "files",
+			Scope: model.ClusterScope,
+		},
 	}
 
 	if err := r.rbac.CreateResources(ctx, resources, clause.OnConflict{DoNothing: true}); err != nil {

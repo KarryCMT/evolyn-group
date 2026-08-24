@@ -21,6 +21,7 @@ type Config struct {
 	SMS         SMSConfig              `yaml:"sms"`
 	Auth        AuthConfig             `yaml:"auth"`
 	PKI         PKIConfig              `yaml:"pki"`
+	Storage     StorageConfig          `yaml:"storage"`
 }
 
 // AuthConfig 认证域运行参数（登录失败锁定与令牌吊销降级策略）。
@@ -138,6 +139,56 @@ type RedisConfig struct {
 	Password string `yaml:"password"`
 }
 
+// StorageConfig 是 RustFS 的 S3 兼容连接配置。Endpoint 供服务端执行
+// Stat/Delete 等数据面操作；ExternalEndpoint 专供预签名 URL，必须是浏览器
+// 实际可访问的地址。密钥只允许经未提交的环境配置注入。
+type StorageConfig struct {
+	Enabled                      bool   `yaml:"enabled"`
+	Endpoint                     string `yaml:"endpoint"`
+	ExternalEndpoint             string `yaml:"externalEndpoint"`
+	AccessKey                    string `yaml:"accessKey"`
+	SecretKey                    string `yaml:"secretKey"`
+	UseSSL                       bool   `yaml:"useSSL"`
+	Bucket                       string `yaml:"bucket"`
+	Prefix                       string `yaml:"prefix"`
+	PresignTTLSeconds            int    `yaml:"presignTtlSeconds"`
+	MaxUploadBytes               int64  `yaml:"maxUploadBytes"`
+	UploadCleanupIntervalSeconds int    `yaml:"uploadCleanupIntervalSeconds"`
+}
+
+// PresignTTL 预签名有效期缺省 15 分钟，避免客户端拿到长期对象写权限。
+func (s StorageConfig) PresignTTL() time.Duration {
+	if s.PresignTTLSeconds <= 0 {
+		return 15 * time.Minute
+	}
+	return time.Duration(s.PresignTTLSeconds) * time.Second
+}
+
+// UploadCleanupInterval 上传会话清理的扫描周期，零值回落 5 分钟。
+func (s StorageConfig) UploadCleanupInterval() time.Duration {
+	if s.UploadCleanupIntervalSeconds <= 0 {
+		return 5 * time.Minute
+	}
+	return time.Duration(s.UploadCleanupIntervalSeconds) * time.Second
+}
+
+func (s *StorageConfig) normalize() error {
+	s.Endpoint = strings.TrimSpace(s.Endpoint)
+	s.ExternalEndpoint = strings.TrimSpace(s.ExternalEndpoint)
+	s.Bucket = strings.TrimSpace(s.Bucket)
+	s.Prefix = strings.Trim(strings.TrimSpace(s.Prefix), "/")
+	if !s.Enabled {
+		return nil
+	}
+	if s.Endpoint == "" || s.AccessKey == "" || s.SecretKey == "" || s.Bucket == "" {
+		return fmt.Errorf("storage 启用时 endpoint/accessKey/secretKey/bucket 均不能为空")
+	}
+	if s.MaxUploadBytes <= 0 {
+		return fmt.Errorf("storage 启用时 maxUploadBytes 必须大于 0")
+	}
+	return nil
+}
+
 type OAuthConfig struct {
 	AuthType     string `yaml:"authType"`
 	ClientId     string `yaml:"clientId"`
@@ -172,6 +223,9 @@ func Parse(appConfig string) (*Config, error) {
 	// CORS 白名单归一化：去首尾空白、丢弃空串项（形如 ["", " "] 的配置等价
 	// 于未配置，release 的空白名单 fail-fast 才不会被空项绕过）
 	config.Server.AllowedOrigins = normalizeOrigins(config.Server.AllowedOrigins)
+	if err := config.Storage.normalize(); err != nil {
+		return nil, err
+	}
 
 	if config.PKI.PrivateKey != "" && config.PKI.PrivateKeyFile != "" {
 		return nil, fmt.Errorf("pki.privateKey and pki.privateKeyFile cannot both be configured")

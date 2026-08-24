@@ -40,6 +40,22 @@ redis:
   host: "localhost"
   password: "CHANGE_ME"
 
+# RustFS 使用标准 S3 API。Endpoint 是 Go 服务可访问的内部地址；
+# externalEndpoint 是浏览器实际访问的公开地址，预签名 URL 会以它为准。
+# 真实 AK/SK 仅写 app.local.yaml 或环境注入配置，绝不提交。
+storage:
+  enabled: false
+  endpoint: "127.0.0.1:9000"
+  externalEndpoint: "http://127.0.0.1:9000"
+  accessKey: ""
+  secretKey: ""
+  useSSL: false
+  bucket: "evolyn"
+  prefix: "evolyn"
+  presignTtlSeconds: 900
+  maxUploadBytes: 1073741824
+  uploadCleanupIntervalSeconds: 300
+
 oauth:
   github:
     authType: "github"

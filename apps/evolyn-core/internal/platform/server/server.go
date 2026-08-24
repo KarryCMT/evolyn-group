@@ -13,6 +13,7 @@ import (
 	"evolyn/internal/config"
 	"evolyn/internal/infrastructure"
 	"evolyn/internal/infrastructure/ipregion"
+	"evolyn/internal/infrastructure/objectstore"
 	// swagger spec 注册：swag init 生成的 docs 包经 init() 把接口定义
 	// 注册给 gin-swagger，不引入则 /swagger/doc.json 500（页面能开但无内容）
 	_ "evolyn/docs"
@@ -30,6 +31,9 @@ import (
 	authservice "evolyn/internal/platform/auth/service"
 	"evolyn/internal/platform/auth/sms"
 	"evolyn/internal/platform/controller"
+	filecontroller "evolyn/internal/platform/file/controller"
+	filerepository "evolyn/internal/platform/file/repository"
+	fileservice "evolyn/internal/platform/file/service"
 	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
 	iamcontroller "evolyn/internal/platform/iam/controller"
@@ -92,6 +96,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 应用域落地接入 QuotaService（M2-A）；菜单仓储随 M2-菜单-1 接入
 	applicationRepo := applicationrepository.NewRepository(db)
 	menuRepo := applicationrepository.NewMenuRepository(db)
+	fileRepo := filerepository.NewRepository(db)
 	if conf.DB.Migrate {
 		if err := auditRepo.Migrate(); err != nil {
 			return nil, err
@@ -111,6 +116,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		if err := menuRepo.Migrate(); err != nil {
 			return nil, err
 		}
+		if err := fileRepo.Migrate(); err != nil {
+			return nil, err
+		}
 	}
 
 	// 种子：默认租户最先（单租户/存量数据归属兜底），再 iam 资源与系统分组
@@ -124,7 +132,11 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 域服务装配：审计/配额/事务管理为跨域基础能力，先于业务服务构造
 	// （FIX-020/021：核心写路径经 TxManager 声明原子边界）
 	auditSvc := auditservice.NewService(auditRepo)
-	quotaSvc := tenantservice.NewQuotaService(tenantRepo, tenantRepo, iamRepo.User(), applicationRepo)
+	quotaSvc := tenantservice.NewQuotaService(tenantRepo, tenantRepo, iamRepo.User(), applicationRepo, fileRepo)
+	storageQuotaSvc, ok := quotaSvc.(tenantservice.StorageQuotaService)
+	if !ok {
+		return nil, fmt.Errorf("storage quota service not configured")
+	}
 	txManager := infrastructure.NewTxManager(db)
 
 	// 登录日志域（认证域内，000013）：IP 归属地解析器数据内嵌随二进制，
@@ -179,6 +191,15 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 应用菜单服务（M2-菜单-1 只读）：访问判定复用应用域评估器，与鉴权
 	// 中间件同源；菜单写路径随 M2-菜单-3 落地
 	menuService := applicationservice.NewMenuService(menuRepo, appAccess)
+	var storageStore objectstore.Store
+	if conf.Storage.Enabled {
+		storageStore, err = objectstore.NewRustFS(conf.Storage)
+		if err != nil {
+			return nil, errors.Wrap(err, "rustfs client init failed")
+		}
+	}
+	fileService := fileservice.NewFileService(txManager, fileRepo, storageQuotaSvc, auditSvc, storageStore, conf.Storage)
+	fileCleanupWorker := fileservice.NewUploadCleanupWorker(fileService, conf.Storage.UploadCleanupInterval(), logger)
 	oauthManager := oauth.NewOAuthManager(conf.OAuthConfig)
 
 	// 登录口令加密密钥对：私钥留服务端解密，公钥经 /app/conf 下发前端。
@@ -204,11 +225,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 	applicationController := applicationcontroller.NewApplicationController(applicationService)
 	menuController := applicationcontroller.NewMenuController(menuService)
+	fileController := filecontroller.NewFileController(fileService)
 
 	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController, applicationController, menuController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController, applicationController, menuController, fileController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
@@ -243,16 +265,17 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	)
 
 	return &Server{
-		engine:      e,
-		config:      conf,
-		logger:      logger,
-		db:          db,
-		rdb:         rdb,
-		controllers: controllers,
-		purgeWorker: purgeWorker,
-		authorizer:  authorizer,
-		tenantRepo:  tenantRepo,
-		pkiKeypair:  keypair,
+		engine:            e,
+		config:            conf,
+		logger:            logger,
+		db:                db,
+		rdb:               rdb,
+		controllers:       controllers,
+		purgeWorker:       purgeWorker,
+		fileCleanupWorker: fileCleanupWorker,
+		authorizer:        authorizer,
+		tenantRepo:        tenantRepo,
+		pkiKeypair:        keypair,
 	}, nil
 }
 
@@ -265,10 +288,11 @@ type Server struct {
 	db  *gorm.DB
 	rdb *infrastructure.RedisDB
 
-	controllers []controller.Controller
-	purgeWorker *tenantservice.PurgeWorker
-	authorizer  *authorization.Authorizer
-	tenantRepo  tenantrepository.TenantRepository
+	controllers       []controller.Controller
+	purgeWorker       *tenantservice.PurgeWorker
+	fileCleanupWorker *fileservice.UploadCleanupWorker
+	authorizer        *authorization.Authorizer
+	tenantRepo        tenantrepository.TenantRepository
 	// 登录口令加密密钥对：登录/改密解密与 /app/conf 公钥下发共用
 	pkiKeypair *pki.Keypair
 }
@@ -283,6 +307,7 @@ func (s *Server) Run() error {
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
 	go s.purgeWorker.Run(workerCtx)
+	go s.fileCleanupWorker.Run(workerCtx)
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Address, s.config.Server.Port)
 	s.logger.Infof("Start server on: %s", addr)

@@ -37,6 +37,15 @@ type fakeAppCounter struct {
 	count int64
 }
 
+// fakeStorageCounter 文件域存储字节数计量桩。
+type fakeStorageCounter struct {
+	bytes int64
+}
+
+func (f fakeStorageCounter) CountStorageBytes(ctx context.Context, tenantID uint) (int64, error) {
+	return f.bytes, nil
+}
+
 func (f fakeAppCounter) CountBillableByTenant(ctx context.Context, tenantID uint) (int64, error) {
 	return f.count, nil
 }
@@ -144,4 +153,30 @@ func TestQuotaCheckAndReserve(t *testing.T) {
 		})
 		assert.Error(t, err)
 	})
+}
+
+func TestStorageQuotaReservation(t *testing.T) {
+	const gib = int64(1024 * 1024 * 1024)
+	tenant := &tenantmodel.Tenant{ID: 1, Plan: tenantmodel.PlanFree} // free=1 GiB
+	locker := &fakeLocker{}
+	quota := NewQuotaService(fakeTenantReader{tenant}, locker, nil, nil, fakeStorageCounter{bytes: gib - 1024})
+	storageQuota, ok := quota.(StorageQuotaService)
+	if assert.True(t, ok) {
+		calls := 0
+		assert.NoError(t, storageQuota.CheckAndReserveStorage(context.Background(), 1, 1024, func(context.Context) error {
+			calls++
+			return nil
+		}))
+		assert.Equal(t, 1, calls)
+		assert.Equal(t, []uint{1}, locker.locked)
+	}
+
+	quota = NewQuotaService(fakeTenantReader{tenant}, &fakeLocker{}, nil, nil, fakeStorageCounter{bytes: gib - 1024})
+	storageQuota = quota.(StorageQuotaService)
+	calls := 0
+	assert.True(t, errors.Is(storageQuota.CheckAndReserveStorage(context.Background(), 1, 1025, func(context.Context) error {
+		calls++
+		return nil
+	}), ErrQuotaExceeded))
+	assert.Zero(t, calls)
 }

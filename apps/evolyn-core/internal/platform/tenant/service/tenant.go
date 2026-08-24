@@ -342,6 +342,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			{Resource: "departments", Operation: iammodel.AllOperation},
 			// 应用管理（M2-A）：租户管理员全量；存量租户由 000014 订正
 			{Resource: "applications", Operation: iammodel.AllOperation},
+			// 文件管理：私有对象的签名、确认与删除均由租户管理员全量管理；
+			// 存量租户由 000017 补齐。
+			{Resource: "files", Operation: iammodel.AllOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},
@@ -352,6 +355,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 应用只读（M2-A）：工作台「我的应用」对全体成员可见；创建/编辑/
 			// 删除由租户管理员按角色另授；存量租户由 000014 订正
 			{Resource: "applications", Operation: iammodel.ViewOperation},
+			// 成员可创建并读取自己的文件；文件服务还会复核 creator_id，避免
+			// 仅凭通用资源 view 读取同租户其他成员的未绑定文件。
+			{Resource: "files", Operation: iammodel.EditOperation},
 		}},
 		{Name: UnAuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "auth", Operation: "create"},

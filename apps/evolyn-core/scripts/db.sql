@@ -187,7 +187,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_roles_tenant_name
 
 INSERT INTO roles (name, scope, rules) VALUES
     ('cluster-admin', 'cluster', '[{"resource": "*", "operation": "*"}]'),
-    ('authenticated', 'cluster', '[{"resource": "users", "operation": "*"},{"resource": "auth", "operation": "*"},{"resource": "accounts", "operation": "*"},{"resource": "applications", "operation": "view"}]'),
+    ('authenticated', 'cluster', '[{"resource": "users", "operation": "*"},{"resource": "auth", "operation": "*"},{"resource": "accounts", "operation": "*"},{"resource": "applications", "operation": "view"},{"resource": "files", "operation": "edit"}]'),
     ('unauthenticated', 'cluster', '[{"resource": "auth", "operation": "create"}]') ON CONFLICT DO NOTHING;
 
 CREATE TABLE IF NOT EXISTS user_roles(
@@ -344,6 +344,42 @@ CREATE INDEX IF NOT EXISTS idx_application_menu_entries_app_parent_sort
 CREATE INDEX IF NOT EXISTS idx_application_menu_entries_app_target
     ON application_menu_entries (tenant_id, application_id, target_type, target_id)
     WHERE deleted_at IS NULL AND target_id IS NOT NULL;
+
+-- RustFS 文件元数据（000017）：对象字节存于私有 bucket，数据库只保存
+-- 租户归属、配额预留与访问控制所需字段。
+CREATE TABLE IF NOT EXISTS files (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    code varchar(64) NOT NULL,
+    bucket varchar(128) NOT NULL,
+    object_key varchar(768) NOT NULL,
+    original_name varchar(255) NOT NULL,
+    content_type varchar(255) NOT NULL,
+    declared_size BIGINT NOT NULL,
+    actual_size BIGINT NOT NULL DEFAULT 0,
+    sha256 varchar(64) NULL,
+    state varchar(16) NOT NULL,
+    expires_at timestamp with time zone NULL,
+    creator_id BIGINT NOT NULL,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone,
+    CONSTRAINT chk_files_state CHECK (state IN ('uploading', 'ready')),
+    CONSTRAINT chk_files_declared_size CHECK (declared_size > 0),
+    CONSTRAINT chk_files_actual_size CHECK (actual_size >= 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_files_tenant_code
+    ON files (tenant_id, code)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_files_tenant_state
+    ON files (tenant_id, state)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_files_uploading_expiry
+    ON files (expires_at)
+    WHERE deleted_at IS NULL AND state = 'uploading';
 
 -- ============ 表/字段注释（000008，与迁移链一致） ============
 COMMENT ON TABLE accounts IS '平台账号（登录身份）：登录名/手机号/密码与第三方凭证挂账号；账号跨租户，无 tenant_id（ADR-006/FIX-014）';

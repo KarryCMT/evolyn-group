@@ -33,6 +33,11 @@ type (
 	applicationCounter interface {
 		CountBillableByTenant(ctx context.Context, tenantID uint) (int64, error)
 	}
+	// storageCounter 存储用量字节数（上传会话预留 + 已确认对象）；由文件域
+	// 仓储实现。计量单位为字节，但套餐配置仍保持 storage_gb 的 GB 语义。
+	storageCounter interface {
+		CountStorageBytes(ctx context.Context, tenantID uint) (int64, error)
+	}
 )
 
 // QuotaService 配额执行服务（FIX-011）：统一入口校验「当前用量是否仍在上限内」。
@@ -51,23 +56,34 @@ type QuotaService interface {
 	CheckAndReserve(ctx context.Context, tenantID uint, key string, fn func(ctx context.Context) error) error
 }
 
+// StorageQuotaService 是文件域使用的附加配额能力。它与 QuotaService 分开，
+// 以免既有业务服务的测试桩被无关方法强制扩展。
+type StorageQuotaService interface {
+	CheckAndReserveStorage(ctx context.Context, tenantID uint, bytes int64, fn func(ctx context.Context) error) error
+}
+
 type quotaService struct {
 	tenants tenantReader
 	locker  tenantLocker
 	members memberCounter
 	apps    applicationCounter
+	storage storageCounter
 }
 
 // NewQuotaService 构造配额服务。locker/apps 为应用域落地后的扩展依赖
 // （locker 由租户仓储自身实现），未接入时传 nil：apps 键不可用、
 // CheckAndReserve 拒绝执行
-func NewQuotaService(tenants tenantReader, locker tenantLocker, members memberCounter, apps applicationCounter) QuotaService {
-	return &quotaService{
+func NewQuotaService(tenants tenantReader, locker tenantLocker, members memberCounter, apps applicationCounter, storages ...storageCounter) QuotaService {
+	svc := &quotaService{
 		tenants: tenants,
 		locker:  locker,
 		members: members,
 		apps:    apps,
 	}
+	if len(storages) > 0 {
+		svc.storage = storages[0]
+	}
+	return svc
 }
 
 func (s *quotaService) Check(ctx context.Context, tenantID uint, key string) error {
@@ -106,6 +122,26 @@ func (s *quotaService) CheckAndReserve(ctx context.Context, tenantID uint, key s
 	return fn(ctx)
 }
 
+func (s *quotaService) CheckAndReserveStorage(ctx context.Context, tenantID uint, bytes int64, fn func(ctx context.Context) error) error {
+	if bytes <= 0 {
+		return fmt.Errorf("storage reservation bytes must be positive")
+	}
+	if s.locker == nil || s.storage == nil {
+		return fmt.Errorf("storage quota counter not configured")
+	}
+	if err := s.locker.LockByID(ctx, tenantID); err != nil {
+		return err
+	}
+	limit, usage, err := s.storageLimitAndUsage(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	if limit >= 0 && (usage > limit || bytes > limit-usage) {
+		return httpx.Wrap(ErrQuotaExceeded, fmt.Errorf("tenant %d storage limit=%d used=%d requested=%d", tenantID, limit, usage, bytes))
+	}
+	return fn(ctx)
+}
+
 // limitAndUsage 取生效上限与当前用量。租户上下文可能不存在（运营/后台路径），
 // 租户读取走仓储默认行为
 func (s *quotaService) limitAndUsage(ctx context.Context, tenantID uint, key string) (int64, int64, error) {
@@ -137,4 +173,28 @@ func (s *quotaService) limitAndUsage(ctx context.Context, tenantID uint, key str
 	// 缺省回落 0（禁用）：无套餐默认的键不允许新增，显式配置才放开
 	limit := tenant.Quotas.Get(tenant.Plan, key, 0)
 	return limit, usage, nil
+}
+
+// storageLimitAndUsage 将 storage_gb 的配置转换为字节上限；-1 仍表示不限量。
+func (s *quotaService) storageLimitAndUsage(ctx context.Context, tenantID uint) (int64, int64, error) {
+	if s.storage == nil {
+		return 0, 0, fmt.Errorf("quota counter not configured: %s", tenantmodel.QuotaStorageGB)
+	}
+	usage, err := s.storage.CountStorageBytes(ctx, tenantID)
+	if err != nil {
+		return 0, 0, err
+	}
+	tenant, err := s.tenants.GetByID(ctx, tenantID)
+	if err != nil {
+		return 0, 0, err
+	}
+	limitGB := tenant.Quotas.Get(tenant.Plan, tenantmodel.QuotaStorageGB, 0)
+	if limitGB < 0 {
+		return -1, usage, nil
+	}
+	const gib = int64(1024 * 1024 * 1024)
+	if limitGB > (int64(^uint64(0)>>1) / gib) {
+		return 0, 0, fmt.Errorf("storage quota overflow: %d GB", limitGB)
+	}
+	return limitGB * gib, usage, nil
 }
