@@ -49,11 +49,7 @@ const appRoutes: RouteRecordRaw[] = [
       {
         path: 'management-groups',
         name: 'app-setting-management-groups',
-        ...settingFeature({
-          title: '应用管理组',
-          description: '将应用管理职责分配给指定成员或部门。',
-          capabilities: ['管理组成员维护', '管理范围配置', '管理操作审计'],
-        }),
+        component: () => import('~/pages/app/setting/management-groups.vue'),
       },
       {
         path: 'aggregate-tables',
@@ -94,11 +90,7 @@ const appRoutes: RouteRecordRaw[] = [
       {
         path: 'data-push',
         name: 'app-setting-data-push',
-        ...settingFeature({
-          title: '数据推送',
-          description: '将应用数据按规则安全推送到外部目标。',
-          capabilities: ['推送目标维护', '推送规则配置', '发送结果追踪'],
-        }),
+        component: () => import('~/pages/app/setting/data-push.vue'),
       },
       {
         path: 'process-analysis',
