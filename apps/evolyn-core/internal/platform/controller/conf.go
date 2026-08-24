@@ -8,7 +8,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// callingCodeText 区号文案（多语言）：键名与结构对齐简道云 conf 接口，
+// callingCodeText 区号文案（多语言）：键名与结构对齐灵衍云 conf 接口，
 // 便于前端对照消费
 type callingCodeText struct {
 	ZhCn string `json:"zh_cn"`
@@ -28,7 +28,7 @@ type callingCodeGroup struct {
 	Children []callingCode `json:"children"`
 }
 
-// pkiKeys 公钥容器：结构对齐简道云 conf 的 pki.keys
+// pkiKeys 公钥容器：结构对齐灵衍云 conf 的 pki.keys
 type pkiKeys struct {
 	PublicKey string `json:"public_key"`
 }
@@ -41,7 +41,7 @@ type pkiConf struct {
 }
 
 // appConfResponse 应用配置：客户端（登录/注册页等）启动所需的区号列表、
-// 口令加密公钥与平台能力开关。字段命名对齐简道云 conf 接口形态，
+// 口令加密公钥与平台能力开关。字段命名对齐灵衍云 conf 接口形态，
 // 能力开关只下发已落地能力，随里程碑逐步扩展（captcha 等未落地项不下发）
 type appConfResponse struct {
 	Version         string             `json:"version"`
@@ -77,7 +77,7 @@ func NewAppConfController(keypair *pki.Keypair) *AppConfController {
 // @Summary 应用配置
 // @Description 客户端启动配置（匿名可访问）：服务版本、手机区号列表（三语文案）、
 // 登录口令加密公钥（pki.algorithm=rsa，密码字段需以该公钥加密后上送）与平台
-// 能力开关（仅下发已落地能力，随里程碑扩展）；形态对齐简道云 conf 接口
+// 能力开关（仅下发已落地能力，随里程碑扩展）；形态对齐灵衍云 conf 接口
 // @Produce json
 // @Tags 应用配置
 // @Success 200 {object} httpx.Response{data=controller.appConfResponse}

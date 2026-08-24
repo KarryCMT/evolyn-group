@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-// 套餐档位（架构文档 26.6；对标简道云 vip.level 形态，键值可扩展）
+// 套餐档位（架构文档 26.6；对标灵衍云 vip.level 形态，键值可扩展）
 const (
 	PlanFree  = "free"  // 免费版
 	PlanTrial = "trial" // 试用版
@@ -40,7 +40,7 @@ func DefaultQuotas(plan string) Quotas {
 		return Quotas{
 			QuotaApps:              10,
 			QuotaForms:             50,
-			QuotaMembers:           30, // 对齐简道云试用版 users:30
+			QuotaMembers:           30, // 对齐灵衍云试用版 users:30
 			QuotaStorageGB:         5,
 			QuotaWorkflowRunsMonth: 10000,
 		}

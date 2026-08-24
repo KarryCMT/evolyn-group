@@ -4,7 +4,7 @@
 
 ## 项目总览
 
-本仓库是企业级低代码平台（对标简道云形态）的单仓工程，由 Kubernetes 管理平台 weave 二次演进而来。整体架构与演进路线见 `docs/低代码平台/企业级低代码平台技术架构设计.md`（M0–M7 里程碑；当前处于 M1 后段：账号×成员拆分与租户体系补齐的后端全链路已落地，见第 26/27 章与 ADR-006/007）。
+本仓库是企业级低代码平台（对标灵衍云形态）的单仓工程，由 Kubernetes 管理平台 weave 二次演进而来。整体架构与演进路线见 `docs/低代码平台/企业级低代码平台技术架构设计.md`（M0–M7 里程碑；当前处于 M1 后段：账号×成员拆分与租户体系补齐的后端全链路已落地，见第 26/27 章与 ADR-006/007）。
 
 - `apps/evolyn-core/`: Go 1.25 + Gin 后端，模块名保持 `evolyn`。当前承载认证（JWT + OAuth）、平台账号/租户成员、部门、分组、自定义 RBAC、租户与套餐配额；低代码引擎（Schema/Query/Permission 等）按里程碑逐步落地。
 - `apps/evolyn-web/`: pnpm + Turborepo 前端 monorepo（Vue 3.5 + TypeScript）。主应用在 `apps/web/`（脚手架阶段），共享库在 `packages/`，文档站在 `apps/docs/`。
@@ -16,6 +16,7 @@
 
 ## 通用约束
 
+- 项目内不得出现“简道云”或 `jiandaoyun` 文案、示例名称、域名或注释；涉及品牌展示、产品名称、示例数据及说明时，统一使用“灵衍云”及对应 `lingyanyun` 域名。
 - 不要跨子项目混装依赖。前端统一用 pnpm（`apps/evolyn-web` 为 workspace，`pnpm-lock.yaml` 为准，Node >= 22）；Go 命令在 `apps/evolyn-core` 内执行（根 `go.work` 已纳入）。
 - 不要提交或手改生成/构建产物：`node_modules/`、`dist/`、`.turbo/`、`bin/`、`cover.out`、`coverage.txt`、swagger 生成的 `apps/evolyn-core/docs/`、`components.d.ts`。
 - 证书与私钥不入库（`.gitignore` 已拦截 `certs/`、`*.key` 等）；本地证书用 `apps/evolyn-core/scripts/cert.sh` 生成。

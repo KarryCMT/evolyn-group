@@ -471,7 +471,7 @@ func (s *accountService) createDefaultMember(ctx context.Context, account *model
 	return s.userRepo.Create(ctx, member)
 }
 
-// TenantMembership 账号的租户成员关系（对齐简道云 owned_tenant_list 形态）
+// TenantMembership 账号的租户成员关系（对齐灵衍云 owned_tenant_list 形态）
 type TenantMembership struct {
 	TenantID uint   `json:"tenantId"`
 	Code     string `json:"code"`
@@ -541,7 +541,7 @@ func (s *accountService) SwitchTenant(ctx context.Context, accountID, tenantID u
 	return account, member, nil
 }
 
-// UserInfoResult 登录聚合信息（对齐简道云 get_login_user 引导形态）：
+// UserInfoResult 登录聚合信息（对齐灵衍云 get_login_user 引导形态）：
 // 账号资料 + 当前成员身份 + 当前租户（配置/套餐/生效配额）
 type UserInfoResult struct {
 	Account         *model.Account      `json:"account"`

@@ -12,7 +12,7 @@ func TestDefaultQuotas(t *testing.T) {
 	assert.Equal(t, int64(3), free[QuotaApps])
 
 	trial := DefaultQuotas(PlanTrial)
-	assert.Equal(t, int64(30), trial[QuotaMembers]) // 对齐简道云试用版
+	assert.Equal(t, int64(30), trial[QuotaMembers]) // 对齐灵衍云试用版
 
 	pro := DefaultQuotas(PlanPro)
 	assert.Equal(t, int64(-1), pro[QuotaStorageGB]) // pro 不限量

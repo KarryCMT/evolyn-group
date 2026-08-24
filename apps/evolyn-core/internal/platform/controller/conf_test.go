@@ -13,7 +13,7 @@ import (
 )
 
 // TestAppConfRoute 应用配置端点：匿名可访问，返回统一响应封装，
-// 区号列表含简道云 conf 口径的三语文案与值，pki 段下发 RSA 公钥
+// 区号列表含灵衍云 conf 口径的三语文案与值，pki 段下发 RSA 公钥
 func TestAppConfRoute(t *testing.T) {
 	keypair, err := pki.Load("")
 	require.NoError(t, err)

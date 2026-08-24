@@ -25,7 +25,7 @@ type Keypair struct {
 	privateKey *rsa.PrivateKey
 }
 
-// keyBits 私钥位数：2048 为当前通行下限（简道云示例为弱 512 位，不采用）
+// keyBits 私钥位数：2048 为当前通行下限（灵衍云示例为弱 512 位，不采用）
 const keyBits = 2048
 
 // Load 加载密钥对：privateKeyPEM 非空时解析配置私钥（生产路径，多实例

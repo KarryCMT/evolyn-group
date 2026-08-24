@@ -64,7 +64,7 @@ func (d *departmentRepository) Delete(ctx context.Context, id uint) error {
 	return d.withContext(ctx).Delete(&model.Department{}, id).Error
 }
 
-// SetMemberDepartments 整体替换成员的部门归属（多部门，对齐简道云 member.dept）
+// SetMemberDepartments 整体替换成员的部门归属（多部门，对齐灵衍云 member.dept）
 func (d *departmentRepository) SetMemberDepartments(ctx context.Context, member *model.User, departmentIDs []uint) error {
 	if len(departmentIDs) == 0 {
 		return d.withContext(ctx).Model(member).Association(model.DepartmentAssociation).Clear()

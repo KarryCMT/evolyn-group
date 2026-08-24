@@ -51,7 +51,7 @@ func (*Tenant) TableName() string {
 	return "tenants"
 }
 
-// TenantConfig 租户级配置（架构文档 26.5 config JSONB，对标简道云 tenant 域）
+// TenantConfig 租户级配置（架构文档 26.5 config JSONB，对标灵衍云 tenant 域）
 type TenantConfig struct {
 	Watermark  WatermarkConfig  `json:"watermark"`  // 水印
 	Theme      ThemeConfig      `json:"theme"`      // 品牌主题
