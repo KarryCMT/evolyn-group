@@ -1,7 +1,7 @@
 ##
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/corp/common/get_public_configuration
+https://www.lingyanyun.com/portal/corp/common/get_public_configuration
 
 <!-- 响应参数 -->
 {
@@ -60,7 +60,7 @@ https://www.jiandaoyun.com/portal/corp/common/get_public_configuration
   "product_center": true,
   "tenant_register": true,
   "corp_coop": true,
-  "customize_better_version": "https://www.jiandaoyun.com/f/5a1fd19603f8b9264c1f96df",
+  "customize_better_version": "https://www.lingyanyun.com/f/5a1fd19603f8b9264c1f96df",
   "howxm_project_id": "2f2ef255-4629-4d86-9da4-5ed9e35be64d",
   "member_auto_sync": true,
   "support": true,
@@ -69,7 +69,7 @@ https://www.jiandaoyun.com/portal/corp/common/get_public_configuration
   "coin": true,
   "register_persona": true,
   "help_docs": {
-    "coin": "https://hc.jiandaoyun.com/doc/12598"
+    "coin": "https://hc.lingyanyun.com/doc/12598"
   },
   "links": {
     "purchase_coin": ""
@@ -80,7 +80,7 @@ https://www.jiandaoyun.com/portal/corp/common/get_public_configuration
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/authn/otp/generate_captcha?_=1787027864635
+https://www.lingyanyun.com/portal/authn/otp/generate_captcha?_=1787027864635
 
 <!-- 响应参数 -->
 {
@@ -90,7 +90,7 @@ https://www.jiandaoyun.com/portal/authn/otp/generate_captcha?_=1787027864635
 
 
 ```
-https://www.jiandaoyun.com/portal/authn/otp/send_sms
+https://www.lingyanyun.com/portal/authn/otp/send_sms
 
 <!-- 请求参数 -->
 {
@@ -105,7 +105,7 @@ https://www.jiandaoyun.com/portal/authn/otp/send_sms
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/signin
+https://www.lingyanyun.com/portal/signin
 
 <!-- 请求参数 -->
 {
@@ -129,10 +129,10 @@ https://www.jiandaoyun.com/portal/signin
   "suite": {
     "_id": 1,
     "type": 1,
-    "name": "简道云",
-    "pc_uri": "https://www.jiandaoyun.com/dashboard",
-    "mobile_uri": "https://www.jiandaoyun.com/dashboard",
-    "management_uri": "https://www.jiandaoyun.com/profile",
+    "name": "灵衍云",
+    "pc_uri": "https://www.lingyanyun.com/dashboard",
+    "mobile_uri": "https://www.lingyanyun.com/dashboard",
+    "management_uri": "https://www.lingyanyun.com/profile",
     "icon_uri": "https://g.jdycdn.com/shared/images/logo/jdy_logo.png"
   }
 }
@@ -140,7 +140,7 @@ https://www.jiandaoyun.com/portal/signin
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/corp/v2/login_user_info
+https://www.lingyanyun.com/corp/v2/login_user_info
 
 <!-- 请求参数 -->
 {
@@ -447,11 +447,11 @@ https://www.jiandaoyun.com/corp/v2/login_user_info
   "auth_suite_id": 1,
   "suite_modules": [
     {
-      "name": "简道云",
+      "name": "灵衍云",
       "key": "dashboard",
-      "url": "https://www.jiandaoyun.com/dashboard",
-      "mobileUrl": "https://www.jiandaoyun.com/dashboard",
-      "managementUrl": "https://www.jiandaoyun.com/profile",
+      "url": "https://www.lingyanyun.com/dashboard",
+      "mobileUrl": "https://www.lingyanyun.com/dashboard",
+      "managementUrl": "https://www.lingyanyun.com/profile",
       "icon_url": "https://g.jdycdn.com/shared/images/logo/jdy_logo.png",
       "suiteId": 1,
       "enable": true,
@@ -459,10 +459,10 @@ https://www.jiandaoyun.com/corp/v2/login_user_info
       "plan_name": "试用版",
       "is_beta": false,
       "description": "支持低成本快速搭建企业级管理应用，通过功能组合，灵活实现从数据采集、流转到处理、分析的全场景覆盖。",
-      "help_doc": "https://hc.jiandaoyun.com/doc/12534",
+      "help_doc": "https://hc.lingyanyun.com/doc/12534",
       "vip_url": "/portal/tenant/6a7f3132e6a0aba27cdb3d2b/admin?_from=1#/vip",
       "guide_img": "https://g.jdycdn.com/shared/images/guide/jdy_guide.png",
-      "guide_description": "简道云支持低成本快速搭建企业级管理应用，通过功能组合，灵活实现从数据采集、流转到处理、分析的全场景覆盖。"
+      "guide_description": "灵衍云支持低成本快速搭建企业级管理应用，通过功能组合，灵活实现从数据采集、流转到处理、分析的全场景覆盖。"
     }
   ],
   "navigation_modules": [
@@ -470,8 +470,8 @@ https://www.jiandaoyun.com/corp/v2/login_user_info
       "key": "dashboard",
       "suiteId": 1,
       "name": "工作台",
-      "url": "https://www.jiandaoyun.com/dashboard",
-      "mobileUrl": "https://www.jiandaoyun.com/dashboard",
+      "url": "https://www.lingyanyun.com/dashboard",
+      "mobileUrl": "https://www.lingyanyun.com/dashboard",
       "pc_icon_url": "https://g.jdycdn.com/shared/images/logo/jdy_nav_icon.png",
       "pc_icon_bg": "linear-gradient(146deg,rgba(59,173,74,.12) 14.15%,rgba(59,173,74,.1) 50.08%,rgba(59,173,74,.12) 93.63%)",
       "mobile_visible": true,
@@ -481,7 +481,7 @@ https://www.jiandaoyun.com/corp/v2/login_user_info
     {
       "key": "kms",
       "name": "知识库",
-      "url": "https://kms.jiandaoyun.com",
+      "url": "https://kms.lingyanyun.com",
       "pc_icon_url": "https://g.jdycdn.com/shared/images/logo/kms_nav_icon.png",
       "pc_icon_bg": "radial-gradient(111.23% 111.23% at 8.33% 7.08%,rgba(250,133,30,.18) 0,rgba(250,133,30,.1) 50%,rgba(250,133,30,.16) 100%)",
       "mobile_visible": true,
@@ -491,7 +491,7 @@ https://www.jiandaoyun.com/corp/v2/login_user_info
     {
       "key": "open_platform",
       "name": "开放平台",
-      "url": "https://www.jiandaoyun.com/open",
+      "url": "https://www.lingyanyun.com/open",
       "pc_icon_url": "https://g.jdycdn.com/shared/images/logo/open_nav_icon.png",
       "pc_icon_bg": "radial-gradient(111.23% 111.23% at 8.33% 7.08%,rgba(81,105,224,.17) 0,rgba(81,105,224,.1) 50%,rgba(81,105,224,.15) 100%)",
       "mobile_visible": false,
@@ -500,11 +500,11 @@ https://www.jiandaoyun.com/corp/v2/login_user_info
   ],
   "modules": [
     {
-      "name": "简道云",
+      "name": "灵衍云",
       "key": "dashboard",
-      "url": "https://www.jiandaoyun.com/dashboard",
-      "mobileUrl": "https://www.jiandaoyun.com/dashboard",
-      "managementUrl": "https://www.jiandaoyun.com/profile",
+      "url": "https://www.lingyanyun.com/dashboard",
+      "mobileUrl": "https://www.lingyanyun.com/dashboard",
+      "managementUrl": "https://www.lingyanyun.com/profile",
       "icon_url": "https://g.jdycdn.com/shared/images/logo/jdy_logo.png",
       "suiteId": 1,
       "enable": true,
@@ -515,14 +515,14 @@ https://www.jiandaoyun.com/corp/v2/login_user_info
     {
       "name": "知识库",
       "key": "kms",
-      "url": "https://kms.jiandaoyun.com",
+      "url": "https://kms.lingyanyun.com",
       "enable": true,
       "is_beta": false
     },
     {
       "name": "开放平台",
       "key": "open_platform",
-      "url": "https://www.jiandaoyun.com/open",
+      "url": "https://www.lingyanyun.com/open",
       "enable": true,
       "is_beta": false
     }
@@ -533,7 +533,7 @@ https://www.jiandaoyun.com/corp/v2/login_user_info
 ```
 
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/authn/get_login_user
+https://www.lingyanyun.com/portal/authn/get_login_user
 
 <!-- 请求参数 -->
 {
@@ -856,11 +856,11 @@ https://www.jiandaoyun.com/portal/authn/get_login_user
   "auth_suite_id": 1,
   "suite_modules": [
     {
-      "name": "简道云",
+      "name": "灵衍云",
       "key": "dashboard",
-      "url": "https://www.jiandaoyun.com/dashboard",
-      "mobileUrl": "https://www.jiandaoyun.com/dashboard",
-      "managementUrl": "https://www.jiandaoyun.com/profile",
+      "url": "https://www.lingyanyun.com/dashboard",
+      "mobileUrl": "https://www.lingyanyun.com/dashboard",
+      "managementUrl": "https://www.lingyanyun.com/profile",
       "icon_url": "https://g.jdycdn.com/shared/images/logo/jdy_logo.png",
       "suiteId": 1,
       "enable": true,
@@ -868,10 +868,10 @@ https://www.jiandaoyun.com/portal/authn/get_login_user
       "plan_name": "试用版",
       "is_beta": false,
       "description": "支持低成本快速搭建企业级管理应用，通过功能组合，灵活实现从数据采集、流转到处理、分析的全场景覆盖。",
-      "help_doc": "https://hc.jiandaoyun.com/doc/12534",
+      "help_doc": "https://hc.lingyanyun.com/doc/12534",
       "vip_url": "/portal/tenant/6a7f3132e6a0aba27cdb3d2b/admin?_from=1#/vip",
       "guide_img": "https://g.jdycdn.com/shared/images/guide/jdy_guide.png",
-      "guide_description": "简道云支持低成本快速搭建企业级管理应用，通过功能组合，灵活实现从数据采集、流转到处理、分析的全场景覆盖。"
+      "guide_description": "灵衍云支持低成本快速搭建企业级管理应用，通过功能组合，灵活实现从数据采集、流转到处理、分析的全场景覆盖。"
     }
   ],
   "navigation_modules": [
@@ -879,8 +879,8 @@ https://www.jiandaoyun.com/portal/authn/get_login_user
       "key": "dashboard",
       "suiteId": 1,
       "name": "工作台",
-      "url": "https://www.jiandaoyun.com/dashboard",
-      "mobileUrl": "https://www.jiandaoyun.com/dashboard",
+      "url": "https://www.lingyanyun.com/dashboard",
+      "mobileUrl": "https://www.lingyanyun.com/dashboard",
       "pc_icon_url": "https://g.jdycdn.com/shared/images/logo/jdy_nav_icon.png",
       "pc_icon_bg": "linear-gradient(146deg,rgba(59,173,74,.12) 14.15%,rgba(59,173,74,.1) 50.08%,rgba(59,173,74,.12) 93.63%)",
       "mobile_visible": true,
@@ -890,7 +890,7 @@ https://www.jiandaoyun.com/portal/authn/get_login_user
     {
       "key": "kms",
       "name": "知识库",
-      "url": "https://kms.jiandaoyun.com",
+      "url": "https://kms.lingyanyun.com",
       "pc_icon_url": "https://g.jdycdn.com/shared/images/logo/kms_nav_icon.png",
       "pc_icon_bg": "radial-gradient(111.23% 111.23% at 8.33% 7.08%,rgba(250,133,30,.18) 0,rgba(250,133,30,.1) 50%,rgba(250,133,30,.16) 100%)",
       "mobile_visible": true,
@@ -900,7 +900,7 @@ https://www.jiandaoyun.com/portal/authn/get_login_user
     {
       "key": "open_platform",
       "name": "开放平台",
-      "url": "https://www.jiandaoyun.com/open",
+      "url": "https://www.lingyanyun.com/open",
       "pc_icon_url": "https://g.jdycdn.com/shared/images/logo/open_nav_icon.png",
       "pc_icon_bg": "radial-gradient(111.23% 111.23% at 8.33% 7.08%,rgba(81,105,224,.17) 0,rgba(81,105,224,.1) 50%,rgba(81,105,224,.15) 100%)",
       "mobile_visible": false,
@@ -909,11 +909,11 @@ https://www.jiandaoyun.com/portal/authn/get_login_user
   ],
   "modules": [
     {
-      "name": "简道云",
+      "name": "灵衍云",
       "key": "dashboard",
-      "url": "https://www.jiandaoyun.com/dashboard",
-      "mobileUrl": "https://www.jiandaoyun.com/dashboard",
-      "managementUrl": "https://www.jiandaoyun.com/profile",
+      "url": "https://www.lingyanyun.com/dashboard",
+      "mobileUrl": "https://www.lingyanyun.com/dashboard",
+      "managementUrl": "https://www.lingyanyun.com/profile",
       "icon_url": "https://g.jdycdn.com/shared/images/logo/jdy_logo.png",
       "suiteId": 1,
       "enable": true,
@@ -924,7 +924,7 @@ https://www.jiandaoyun.com/portal/authn/get_login_user
     {
       "name": "知识库",
       "key": "kms",
-      "url": "https://kms.jiandaoyun.com",
+      "url": "https://kms.lingyanyun.com",
       "enable": true,
       "plan_level": "103/free",
       "is_beta": false
@@ -932,7 +932,7 @@ https://www.jiandaoyun.com/portal/authn/get_login_user
     {
       "name": "开放平台",
       "key": "open_platform",
-      "url": "https://www.jiandaoyun.com/open",
+      "url": "https://www.lingyanyun.com/open",
       "enable": true,
       "plan_level": "106/free",
       "is_beta": false
@@ -944,7 +944,7 @@ https://www.jiandaoyun.com/portal/authn/get_login_user
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/tenant/6a7f3132e6a0aba27cdb3d2b/authz/get_permissions
+https://www.lingyanyun.com/portal/tenant/6a7f3132e6a0aba27cdb3d2b/authz/get_permissions
 <!-- 请求参数 -->
 
 <!-- 响应参数 -->
@@ -962,7 +962,7 @@ https://www.jiandaoyun.com/portal/tenant/6a7f3132e6a0aba27cdb3d2b/authz/get_perm
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/i18n/get_locale_list
+https://www.lingyanyun.com/portal/i18n/get_locale_list
 <!-- 请求参数 -->
 
 <!-- 响应参数 -->
@@ -985,7 +985,7 @@ https://www.jiandaoyun.com/portal/i18n/get_locale_list
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/v1/message_center/get_has_unread
+https://www.lingyanyun.com/portal/v1/message_center/get_has_unread
 <!-- 请求参数 -->
 {
   "types": [
@@ -1029,7 +1029,7 @@ or
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/v1/message_center/notice/get
+https://www.lingyanyun.com/portal/v1/message_center/notice/get
 <!-- 请求参数 -->
 
 <!-- 响应参数 -->
@@ -1039,7 +1039,7 @@ https://www.jiandaoyun.com/portal/v1/message_center/notice/get
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/v1/message_center/get_unread_tenant_list
+https://www.lingyanyun.com/portal/v1/message_center/get_unread_tenant_list
 <!-- 请求参数 -->
 
 <!-- 响应参数 -->
@@ -1058,14 +1058,14 @@ https://www.jiandaoyun.com/portal/v1/message_center/get_unread_tenant_list
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/v1/message_center/suite/unread/list
+https://www.lingyanyun.com/portal/v1/message_center/suite/unread/list
 <!-- 请求参数 -->
 
 <!-- 响应参数 -->
 [
   {
     "suite_id": 1,
-    "suite_name": "简道云",
+    "suite_name": "灵衍云",
     "has_unread": true
   }
 ]
@@ -1075,7 +1075,7 @@ https://www.jiandaoyun.com/portal/v1/message_center/suite/unread/list
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/v1/message_center/menu/get
+https://www.lingyanyun.com/portal/v1/message_center/menu/get
 <!-- 请求参数 -->
 {
   "suite_id": 1
@@ -1213,7 +1213,7 @@ https://www.jiandaoyun.com/portal/v1/message_center/menu/get
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/portal/v1/message_center/list
+https://www.lingyanyun.com/portal/v1/message_center/list
 <!-- 请求参数 -->
 {
   "skip": 0,
@@ -1230,7 +1230,7 @@ https://www.jiandaoyun.com/portal/v1/message_center/list
 
 ```
 <!-- 接口 -->
-https://www.jiandaoyun.com/dashboard/apps
+https://www.lingyanyun.com/dashboard/apps
 <!-- 请求参数 -->
 {
 }
@@ -1239,7 +1239,7 @@ https://www.jiandaoyun.com/dashboard/apps
     "apps": [
         {
             "_id": "6a7f31d6b33d6fcbadea4fee",
-            "name": "简道云示例应用",
+            "name": "灵衍云示例应用",
             "owner": "6a7f3132e6a0aba27cdb3d2b",
             "color": 3,
             "icon": 1,
@@ -1327,7 +1327,7 @@ https://www.jiandaoyun.com/dashboard/apps
         },
         {
             "_id": "6a7f3263a18a1c2c198420eb",
-            "name": "简道云高级功能介绍",
+            "name": "灵衍云高级功能介绍",
             "owner": "6a7f3132e6a0aba27cdb3d2b",
             "color": 6,
             "icon": 6,
@@ -1358,7 +1358,7 @@ https://www.jiandaoyun.com/dashboard/apps
 ```
 
 <!-- 接口 -->
-https://www.jiandaoyun.com/dashboard/preferences
+https://www.lingyanyun.com/dashboard/preferences
 <!-- 请求参数 -->
 {
 }
@@ -1522,7 +1522,7 @@ https://www.jiandaoyun.com/dashboard/preferences
     "apps": [
         {
             "_id": "6a7f31d6b33d6fcbadea4fee",
-            "name": "简道云示例应用",
+            "name": "灵衍云示例应用",
             "owner": "6a7f3132e6a0aba27cdb3d2b",
             "color": 3,
             "icon": 1,
@@ -1610,7 +1610,7 @@ https://www.jiandaoyun.com/dashboard/preferences
         },
         {
             "_id": "6a7f3263a18a1c2c198420eb",
-            "name": "简道云高级功能介绍",
+            "name": "灵衍云高级功能介绍",
             "owner": "6a7f3132e6a0aba27cdb3d2b",
             "color": 6,
             "icon": 6,

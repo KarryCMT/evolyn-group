@@ -16,7 +16,7 @@
 
 ## 通用约束
 
-- 项目内不得出现“简道云”或 `jiandaoyun` 文案、示例名称、域名或注释；涉及品牌展示、产品名称、示例数据及说明时，统一使用“灵衍云”及对应 `lingyanyun` 域名。
+- 项目内不得出现竞品品牌文案、示例名称、域名或注释；涉及品牌展示、产品名称、示例数据及说明时，统一使用“灵衍云”及对应 `lingyanyun` 域名。
 - 不要跨子项目混装依赖。前端统一用 pnpm（`apps/evolyn-web` 为 workspace，`pnpm-lock.yaml` 为准，Node >= 22）；Go 命令在 `apps/evolyn-core` 内执行（根 `go.work` 已纳入）。
 - 不要提交或手改生成/构建产物：`node_modules/`、`dist/`、`.turbo/`、`bin/`、`cover.out`、`coverage.txt`、swagger 生成的 `apps/evolyn-core/docs/`、`components.d.ts`。
 - 证书与私钥不入库（`.gitignore` 已拦截 `certs/`、`*.key` 等）；本地证书用 `apps/evolyn-core/scripts/cert.sh` 生成。
