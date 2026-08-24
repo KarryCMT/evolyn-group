@@ -11,9 +11,10 @@ export const shared = defineConfig({
   vite: {
     ssr: {
       // gridstack@13 的 dist 内部是无扩展名的 ESM 相对导入，且未提供 exports 映射；
-      // SSR 构建时若将其外置给 Node 原生加载（VitePress 预渲染阶段），
-      // 会因 ESM 严格解析报 ERR_MODULE_NOT_FOUND，故强制打包进 server bundle
-      noExternal: ['gridstack'],
+      // VTable 与其 @visactor/* 依赖同时声明了 CommonJS main 和 ESM module，Node 原生
+      // SSR 加载会选用 CommonJS 入口，导致 ListTable 具名导入或无扩展名 ESM 相对导入失败。
+      // 因此二者整条依赖链都需由 Vite 打入 server bundle 并转换后再执行预渲染。
+      noExternal: ['gridstack', /^@visactor\//],
     },
   },
   // 启用最后更新时间

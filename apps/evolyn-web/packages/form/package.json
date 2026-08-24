@@ -31,7 +31,9 @@
   "peerDependencies": {
     "@remixicon/vue": "catalog:ui",
     "element-plus": "catalog:ui",
-    "vue": "catalog:frontend"
+    "vue": "catalog:frontend",
+    "monaco-editor": "catalog:frontend",
+    "vuedraggable": "catalog:frontend"
   },
   "devDependencies": {
     "@evolyn.do/typescript-config": "workspace:*",

@@ -3,13 +3,12 @@ import {
   EvolynGrid,
   EvolynMemberDepartmentRolePicker,
   EvolynTable,
-  VButton,
-  VDialog,
+  EvolynButton,
 } from './components';
 
 export { version } from './version';
 
-const components = [VButton, VDialog, EvolynGrid, EvolynMemberDepartmentRolePicker, EvolynTable];
+const components = [EvolynButton, EvolynGrid, EvolynMemberDepartmentRolePicker, EvolynTable];
 
 function install(app: App) {
   components.forEach((component) => {

@@ -41,6 +41,8 @@ catalogs:
     pinia: ^4.0.3
     preact: ^10.29.8
     vue: ^3.5.22
+    vuedraggable: ^4.1.0
+    monaco-editor: ^0.34.1
     vue-router: ^4.6.3
   lint:
     '@commitlint/cli': ^21.0.0
