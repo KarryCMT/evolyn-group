@@ -22,29 +22,20 @@ const tenantRoutes: RouteRecordRaw[] = [
       {
         path: 'product-center',
         name: 'tenant-product-center',
-        ...featurePage({
-          title: '产品中心',
-          description: '管理租户已开通的产品、模块与可用能力。',
-          capabilities: ['产品与模块开通状态', '模块可见范围与成员授权入口', '产品使用概览'],
-        }),
+        component: () => import('~/pages/tenant/ProductCenterPage.vue'),
+        meta: { title: '产品中心' },
       },
       {
         path: 'edition',
         name: 'tenant-edition',
-        ...featurePage({
-          title: '版本信息',
-          description: '集中查看当前套餐、配额与版本权益。',
-          capabilities: ['套餐权益展示', '用量与配额预警', '版本升级指引'],
-        }),
+        component: () => import('~/pages/tenant/edition.vue'),
+        meta: { title: '版本信息' },
       },
       {
         path: 'profile',
         name: 'tenant-profile',
-        ...featurePage({
-          title: '企业信息',
-          description: '维护企业主体资料和管理员可见的基础信息。',
-          capabilities: ['企业资料维护', '企业标识与联系人', '变更记录'],
-        }),
+        component: () => import('~/pages/tenant/profile.vue'),
+        meta: { title: '企业信息' },
       },
       {
         path: 'orders',

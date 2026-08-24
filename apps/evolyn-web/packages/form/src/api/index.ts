@@ -568,7 +568,6 @@ export function uploadFile(
   });
 }
 
-
 // 更新插件函数
 export function pluginFunctionUpdate(data: PluginFunctionUpdateType) {
   return request({
@@ -587,8 +586,4 @@ export function getPluginTriggerList(params: PlatformFunctionListType) {
   });
 }
 
-export type PluginAgentInstallRequestOptions = Omit<
-  AxiosRequestConfig,
-  'url' | 'data' | 'method'
->;
-
+export type PluginAgentInstallRequestOptions = Omit<AxiosRequestConfig, 'url' | 'data' | 'method'>;
