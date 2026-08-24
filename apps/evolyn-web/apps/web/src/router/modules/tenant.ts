@@ -6,6 +6,7 @@ function featurePage(props: TenantFeaturePageProps) {
   return {
     component: () => import('~/pages/tenant/feature.vue'),
     props,
+    meta: { title: props.title },
   };
 }
 
@@ -15,7 +16,7 @@ const tenantRoutes: RouteRecordRaw[] = [
     path: '/tenant',
     name: 'tenant',
     component: () => import('~/pages/tenant/index.vue'),
-    meta: { public: false },
+    meta: { public: false, title: '企业管理' },
     redirect: { name: 'tenant-organization' },
     children: [
       {

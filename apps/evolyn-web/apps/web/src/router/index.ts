@@ -13,6 +13,8 @@ declare module 'vue-router' {
   interface RouteMeta {
     /** 公开页面：无需登录即可访问（登录/注册/找回密码） */
     public?: boolean;
+    /** 浏览器标签标题；未声明时回退至产品名 */
+    title?: string;
   }
 }
 
@@ -21,19 +23,24 @@ declare module 'vue-router' {
 router.beforeEach((to) => {
   const { isAuthenticated, userInfo, loadUserInfo } = useAuth();
 
-  if (!to.meta.public && !isAuthenticated.value) {
-    return { name: 'login', query: { redirect: to.fullPath } };
-  }
+  // if (!to.meta.public && !isAuthenticated.value) {
+  //   return { name: 'login', query: { redirect: to.fullPath } };
+  // }
 
-  if (to.name === 'login' && isAuthenticated.value) {
-    return { path: '/' };
-  }
+  // if (to.name === 'login' && isAuthenticated.value) {
+  //   return { path: '/' };
+  // }
 
-  // 聚合信息是内存态，刷新页面即丢失：已登录访问受保护页时兜底重拉
-  // （不阻塞导航，页面消费方对空值自行降级）
-  if (!to.meta.public && isAuthenticated.value && !userInfo.value) {
-    void loadUserInfo();
-  }
+  // // 聚合信息是内存态，刷新页面即丢失：已登录访问受保护页时兜底重拉
+  // // （不阻塞导航，页面消费方对空值自行降级）
+  // if (!to.meta.public && isAuthenticated.value && !userInfo.value) {
+  //   void loadUserInfo();
+  // }
+});
+
+// 仅在导航确认后更新标题，避免重定向或中断导航提前改变浏览器标签。
+router.afterEach((to) => {
+  document.title = to.meta.title || 'evolyn';
 });
 
 export default router;

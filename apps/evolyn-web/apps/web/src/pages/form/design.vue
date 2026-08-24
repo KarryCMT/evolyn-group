@@ -1,18 +1,172 @@
 <script setup lang="ts">
-import { RiEyeFill, RiLightbulbFlashFill, RiSave3Fill, RiShareForwardFill } from '@remixicon/vue';
-import { FormDesigner, type FormFieldPreset } from '@evolyn.do/form';
+import {
+  RiCalendarScheduleFill,
+  RiCheckboxMultipleFill,
+  RiEyeFill,
+  RiHashtag,
+  RiLightbulbFlashFill,
+  RiOrganizationChart,
+  RiSave3Fill,
+  RiShareForwardFill,
+  RiTableFill,
+  RiText,
+  RiUser3Fill,
+} from '@remixicon/vue';
+import {
+  cloneFormDesign,
+  FormDesignPalette,
+  FormDesignPropertyPanel,
+  FormFieldCanvas,
+  type FormDesignDragField,
+  type FormDesignField,
+  type FormDesignPaletteItem,
+  type FormDesignTemplateField,
+  useFormDesignFactory,
+  useFormFieldActions,
+} from '@evolyn.do/form';
 import { ElMessage } from 'element-plus';
+import { computed, ref } from 'vue';
 
 defineOptions({ name: 'FormDesignPage' });
 
-/** 保存、预览和字段添加依赖后续设计器内核，本期保留明确的交互反馈。 */
+/** 保存、预览等服务端能力尚未接入，本期保留明确的交互反馈。 */
 function notifyUnavailable(action: string) {
   ElMessage.info(`${action}将在表单设计器接入后提供`);
 }
 
-function handleFieldSelect(field: FormFieldPreset) {
-  notifyUnavailable(`添加${field.title}`);
-}
+// 页面直接维护新字段模型，不再通过 FormDocument 或设计器适配层转换。
+const fields = ref<FormDesignField[]>([]);
+const selectedFieldKey = ref('');
+const selectedSubformChildFieldKey = ref('');
+const { createField, createSubformChildField } = useFormDesignFactory();
+
+const paletteFields: FormDesignPaletteItem[] = [
+  { label: '单行文本', widgetName: 'input', dataType: 'String', icon: RiText },
+  { label: '数字', widgetName: 'number', dataType: 'Number', icon: RiHashtag },
+  { label: '日期时间', widgetName: 'datetime', dataType: 'Date', icon: RiCalendarScheduleFill },
+  { label: '下拉框', widgetName: 'selectGroup', dataType: 'Object', icon: RiCheckboxMultipleFill },
+  { label: '成员选择', widgetName: 'userGroup', dataType: 'Object', icon: RiUser3Fill },
+  { label: '部门选择', widgetName: 'deptGroup', dataType: 'Object', icon: RiOrganizationChart },
+  { label: '子表单', widgetName: 'subforms', dataType: '', icon: RiTableFill },
+];
+
+const widgetNameTextMap = computed<Record<string, string>>(() =>
+  Object.fromEntries(paletteFields.map((item) => [item.widgetName, item.label])),
+);
+const activeFields = computed(() => fields.value);
+const selectedField = computed(() =>
+  fields.value.find((field) => field.fieldKey === selectedFieldKey.value),
+);
+const selectedWidgetNameLabel = computed(() => {
+  const field = selectedField.value;
+  return field ? widgetNameTextMap.value[field.widgetName] || field.widgetName : '';
+});
+
+const {
+  addDragField: addRootDragField,
+  addField: addRootField,
+  addOption,
+  copyField: copyRootField,
+  removeField: removeRootField,
+  removeOption,
+  selectField: selectRootField,
+  updateFieldDefaultValue,
+  updateOption,
+  updateSelectedFieldDefaultValue,
+} = useFormFieldActions({
+  activeFields,
+  createField,
+  selectedField,
+  selectedFieldKey,
+  widgetNameTextMap,
+});
+
+const addField = (source: FormDesignPaletteItem) => {
+  selectedSubformChildFieldKey.value = '';
+  addRootField(source);
+};
+
+const addDragField = (value: FormDesignDragField) => {
+  selectedSubformChildFieldKey.value = '';
+  addRootDragField(value);
+};
+
+const copyField = (field: FormDesignField) => {
+  selectedSubformChildFieldKey.value = '';
+  copyRootField(field);
+};
+
+const removeField = (fieldKey: string) => {
+  selectedSubformChildFieldKey.value = '';
+  removeRootField(fieldKey);
+};
+
+const selectField = (fieldKey: string) => {
+  selectedSubformChildFieldKey.value = '';
+  selectRootField(fieldKey);
+};
+
+const updateSelectedFieldKey = (fieldKey: string) => {
+  if (!selectedField.value) return;
+  selectedField.value.fieldKey = fieldKey;
+  selectedFieldKey.value = fieldKey;
+};
+
+const getSubformChildFields = (field?: FormDesignField, ensureFields = false) => {
+  if (ensureFields && field) {
+    field.fieldConf ??= {};
+    if (!Array.isArray(field.fieldConf.fields)) field.fieldConf.fields = [];
+  }
+  const childFields = field?.fieldConf?.fields;
+  return Array.isArray(childFields) ? (childFields as FormDesignTemplateField[]) : [];
+};
+
+let subformChildFieldSeed = 0;
+const createSubformChildFieldKey = () => `_widget_${Date.now()}${subformChildFieldSeed++}`;
+
+const selectSubformChildField = (value: { parentKey: string; childKey: string }) => {
+  selectedFieldKey.value = value.parentKey;
+  selectedSubformChildFieldKey.value = value.childKey;
+};
+
+const copySubformChildField = (value: { parentKey: string; childKey: string }) => {
+  const childFields = getSubformChildFields(
+    fields.value.find((field) => field.fieldKey === value.parentKey),
+  );
+  const index = childFields.findIndex((field) => field.fieldKey === value.childKey);
+  if (index === -1) return;
+  const nextField = {
+    ...cloneFormDesign(childFields[index]),
+    id: null,
+    fieldKey: createSubformChildFieldKey(),
+    fieldLabel: `${childFields[index].fieldLabel} copy`,
+  };
+  childFields.splice(index + 1, 0, nextField);
+  selectSubformChildField({ parentKey: value.parentKey, childKey: nextField.fieldKey });
+};
+
+const removeSubformChildField = (value: { parentKey: string; childKey: string }) => {
+  const childFields = getSubformChildFields(
+    fields.value.find((field) => field.fieldKey === value.parentKey),
+  );
+  const index = childFields.findIndex((field) => field.fieldKey === value.childKey);
+  if (index === -1) return;
+  childFields.splice(index, 1);
+  selectedFieldKey.value = value.parentKey;
+  selectedSubformChildFieldKey.value =
+    childFields[index]?.fieldKey || childFields[index - 1]?.fieldKey || '';
+};
+
+const addSubformDragField = (value: FormDesignDragField & { parentKey: string }) => {
+  const childFields = getSubformChildFields(
+    fields.value.find((field) => field.fieldKey === value.parentKey),
+    true,
+  );
+  const field = createSubformChildField(value.widgetName, value.dataType);
+  if (!field) return;
+  childFields.splice(value.index >= 0 ? value.index : childFields.length, 0, field);
+  selectSubformChildField({ parentKey: value.parentKey, childKey: field.fieldKey });
+};
 </script>
 
 <template>
@@ -54,15 +208,34 @@ function handleFieldSelect(field: FormFieldPreset) {
       </div>
     </div>
 
-    <FormDesigner
-      class="form-design-page__workspace"
-      @select-field="handleFieldSelect"
-      @open-recycle-bin="notifyUnavailable('字段回收站')"
-    >
-      <template #canvas>
-        <section class="form-design-page__canvas-placeholder" aria-label="待接入的表单设计器" />
-      </template>
-    </FormDesigner>
+    <div class="form-design-page__workspace">
+      <FormDesignPalette :fields="paletteFields" @add-field="addField" />
+      <FormFieldCanvas
+        :fields="fields"
+        :selected-field-key="selectedFieldKey"
+        :selected-subform-child-field-key="selectedSubformChildFieldKey"
+        @select-field="selectField"
+        @select-subform-child="selectSubformChildField"
+        @copy-field="copyField"
+        @copy-subform-child="copySubformChildField"
+        @remove-field="removeField"
+        @remove-subform-child="removeSubformChildField"
+        @add-drag-field="addDragField"
+        @add-subform-drag-field="addSubformDragField"
+        @update-field-default-value="updateFieldDefaultValue"
+      />
+      <FormDesignPropertyPanel
+        :field="selectedField"
+        :widget-name-label="selectedWidgetNameLabel"
+        :selected-subform-child-field-key="selectedSubformChildFieldKey"
+        @add-option="addOption"
+        @remove-option="removeOption"
+        @update-default-value="updateSelectedFieldDefaultValue"
+        @update-field-key="updateSelectedFieldKey"
+        @update-option="updateOption"
+        @update-subform-child-selection="selectedSubformChildFieldKey = $event"
+      />
+    </div>
   </section>
 </template>
 
@@ -200,8 +373,10 @@ function handleFieldSelect(field: FormFieldPreset) {
   }
 
   &__workspace {
+    display: flex;
     min-height: 0;
     flex: 1;
+    overflow: hidden;
   }
 
   &__canvas-placeholder {

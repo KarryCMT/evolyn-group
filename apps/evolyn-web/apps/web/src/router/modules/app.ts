@@ -11,6 +11,7 @@ function settingFeature(props: AppSettingFeatureProps) {
   return {
     component: () => import('~/pages/app/setting-feature.vue'),
     props,
+    meta: { title: props.title },
   };
 }
 
@@ -22,34 +23,38 @@ const appRoutes: RouteRecordRaw[] = [
     path: '/app/:appCode',
     name: 'App',
     component: () => import('~/pages/app/index.vue'),
-    meta: { public: false },
+    meta: { public: false, title: '应用' },
   },
   {
     path: '/app/:appCode/setting',
     name: 'app-setting',
     component: () => import('~/pages/app/setting.vue'),
-    meta: { public: false },
+    meta: { public: false, title: '应用后台' },
     redirect: { name: 'app-setting-permissions' },
     children: [
       {
         path: 'permissions',
         name: 'app-setting-permissions',
         component: () => import('~/pages/app/setting/permissions.vue'),
+        meta: { title: '权限设置' },
       },
       {
         path: 'cross-app',
         name: 'app-setting-cross-app',
         component: () => import('~/pages/app/cross-app.vue'),
+        meta: { title: '跨应用' },
       },
       {
         path: 'basic',
         name: 'app-setting-basic',
         component: () => import('~/pages/app/setting/basic.vue'),
+        meta: { title: '基础设置' },
       },
       {
         path: 'management-groups',
         name: 'app-setting-management-groups',
         component: () => import('~/pages/app/setting/management-groups.vue'),
+        meta: { title: '管理组' },
       },
       {
         path: 'aggregate-tables',
@@ -91,6 +96,7 @@ const appRoutes: RouteRecordRaw[] = [
         path: 'data-push',
         name: 'app-setting-data-push',
         component: () => import('~/pages/app/setting/data-push.vue'),
+        meta: { title: '数据推送' },
       },
       {
         path: 'process-analysis',

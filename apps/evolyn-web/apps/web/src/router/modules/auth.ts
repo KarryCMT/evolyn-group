@@ -13,19 +13,19 @@ const authRoutes: RouteRecordRaw[] = [
     path: '/auth/login',
     name: 'login',
     component: () => import('~/pages/auth/login.vue'),
-    meta: { public: true },
+    meta: { public: true, title: '账号登录' },
   },
   {
     path: '/auth/register',
     name: 'register',
     component: () => import('~/pages/auth/register.vue'),
-    meta: { public: true },
+    meta: { public: true, title: '注册账号' },
   },
   {
     path: '/auth/forgot-password',
     name: 'forgotPassword',
     component: () => import('~/pages/auth/forgot-password.vue'),
-    meta: { public: true },
+    meta: { public: true, title: '找回密码' },
   },
 ];
 

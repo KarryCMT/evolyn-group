@@ -25,7 +25,7 @@
   "scripts": {
     "dev": "turbo run dev",
     "dev:docs": "pnpm -F @evolyn.do/docs run dev",
-    "dev:play": "pnpm -F @evolyn.do/playground run dev",
+    "dev:web": "pnpm -F @evolyn.do/web run dev",
     "build": "turbo run build",
     "build:docs": "pnpm -F @evolyn.do/docs run build",
     "build:gulp": "gulp -f build/gulpfile.ts",

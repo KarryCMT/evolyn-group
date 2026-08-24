@@ -8,7 +8,7 @@ import {
   RiPieChart2Fill,
 } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
-import { computed, markRaw, shallowRef, type Component } from 'vue';
+import { computed, markRaw, shallowRef, watch, type Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import ApplicationEmptyState from '~/components/application/runtime/ApplicationEmptyState.vue';
 import type { ApplicationAssetStarter } from '~/components/application/runtime/applicationAssetCatalog';
@@ -30,6 +30,16 @@ const route = useRoute();
 const router = useRouter();
 const appCode = computed(() => String(route.params.appCode ?? ''));
 const { application, applicationName, errorMessage, reload, status } = useApplicationHome(appCode);
+
+// 应用详情异步加载完成后，以业务名称覆盖路由的通用「应用」标题。
+watch(
+  [applicationName, () => route.name],
+  ([title, routeName]) => {
+    if (routeName === 'App') document.title = title;
+  },
+  { immediate: true },
+);
+
 // 工作区侧栏资产树：来自应用菜单接口（M2-菜单-2），替换硬编码预览数据
 const {
   assets: menuAssets,

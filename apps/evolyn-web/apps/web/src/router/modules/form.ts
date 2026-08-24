@@ -10,6 +10,7 @@ function workspaceFeature(props: FormFeatureProps) {
   return {
     component: () => import('~/pages/form/workspace-placeholder.vue'),
     props,
+    meta: { title: props.title },
   };
 }
 
@@ -17,6 +18,7 @@ function extensionFeature(props: FormFeatureProps) {
   return {
     component: () => import('~/pages/form/extensions/feature-placeholder.vue'),
     props,
+    meta: { title: props.title },
   };
 }
 
@@ -24,6 +26,7 @@ function publishFeature(props: FormFeatureProps) {
   return {
     component: () => import('~/pages/form/publish/feature-placeholder.vue'),
     props,
+    meta: { title: props.title },
   };
 }
 
@@ -35,7 +38,7 @@ const formRoutes: RouteRecordRaw[] = [
     path: '/app/:appCode/form/:formId',
     name: 'form',
     component: () => import('~/pages/form/index.vue'),
-    meta: { public: false },
+    meta: { public: false, title: '表单' },
     // 一级工作区各自拥有布局；仅“表单设计”页加载三栏设计器。
     redirect: { name: 'form-design' },
     children: [
@@ -43,22 +46,26 @@ const formRoutes: RouteRecordRaw[] = [
         path: 'design',
         name: 'form-design',
         component: () => import('~/pages/form/design.vue'),
+        meta: { title: '表单设计' },
       },
       {
         path: 'workflow',
         name: 'form-workflow-design',
         component: () => import('~/pages/form/workflow.vue'),
+        meta: { title: '流程设计' },
       },
       {
         path: 'extensions',
         name: 'form-extensions',
         component: () => import('~/pages/form/extensions/index.vue'),
+        meta: { title: '扩展功能' },
         redirect: { name: 'form-extension-collaboration' },
         children: [
           {
             path: 'data-collaboration',
             name: 'form-extension-collaboration',
             component: () => import('~/pages/form/extensions/data-collaboration.vue'),
+            meta: { title: '数据协作' },
           },
           {
             path: 'data-details',
@@ -130,12 +137,14 @@ const formRoutes: RouteRecordRaw[] = [
         path: 'publish',
         name: 'form-publish',
         component: () => import('~/pages/form/publish/index.vue'),
+        meta: { title: '表单发布' },
         redirect: { name: 'form-publish-members' },
         children: [
           {
             path: 'members',
             name: 'form-publish-members',
             component: () => import('~/pages/form/publish/members.vue'),
+            meta: { title: '成员管理' },
           },
           {
             path: 'public',
@@ -159,6 +168,7 @@ const formRoutes: RouteRecordRaw[] = [
         path: 'data',
         name: 'form-data',
         component: () => import('~/pages/form/data.vue'),
+        meta: { title: '数据管理' },
       },
     ],
   },

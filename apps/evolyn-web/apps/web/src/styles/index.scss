@@ -3,13 +3,188 @@
 
 :root {
   /* 项目品牌蓝：显式补全 Element Plus 色阶，供弹层与独立页面统一继承。 */
+  /* 主题色 */
   --el-color-primary: #1677ff;
-  --el-color-primary-light-3: #5ca0ff;
-  --el-color-primary-light-5: #8bbbff;
-  --el-color-primary-light-7: #b9d6ff;
-  --el-color-primary-light-8: #d0e4ff;
-  --el-color-primary-light-9: #e8f1ff;
-  --el-color-primary-dark-2: #125fcc;
+  /* 成功色 */
+  --el-color-success: #52c41a;
+  /* 警告色 */
+  --el-color-warning: #fa8c16;
+  /* 危险色 */
+  --el-color-danger: #ff4d4f;
+  --el-color-error: var(--el-color-danger);
+  --el-color-info: #90939b;
+  --el-text-color-primary: #1b2129;
+  --el-text-color-regular: #5f6267;
+  --el-text-color-secondary: #90939b;
+  --el-border-color: #dbdfe5;
+  --el-border-color-light: #e3e7ec;
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #f5f5f5;
+  --el-bg-color-overlay: #ffffff;
+  --el-border-radius-sm: 3px;
+  --el-border-radius-small: 2px;
+  --el-border-radius-medium: 8px;
+  --el-border-radius-round: 20px;
+  --el-border-radius-circle: 100%;
+  --el-fill-color-light: #f6f7fa;
+  --el-table-header-text-color: var(--el-text-color-regular);
+  --el-table-text-color: var(--el-text-color-primary);
+  --el-table-border-color: var(--el-border-color);
+  --el-border-color-hover: var(--el-text-color-placeholder);
+  --el-box-shadow: 0 0 6px rgba(0, 0, 0, 12%);
+  --gp-color-primary-light-1: #e6f4ff;
+
+  --gp-color-primary-light-2: #bae0ff;
+
+  /* 主题色禁用 */
+  --gp-color-primary-light-3: #91caff;
+
+  --gp-color-primary-light-4: #69b1ff;
+
+  /* 主题色悬浮 */
+  --gp-color-primary-light-5: #4096ff;
+
+  --gp-color-primary-light-6: #1677ff;
+
+  /* 主题色点击 */
+  --gp-color-primary-light-7: #0958d9;
+
+  --gp-color-primary-light-8: #003eb3;
+
+  --gp-color-primary-light-9: #002c8c;
+
+  --gp-color-primary-light-10: #001d66;
+
+  /* 危险色/错误色 悬浮 */
+  --gp-color-danger-light-4: #ff7875;
+  /* 危险色/错误色 点击 */
+  --gp-color-danger-light-6: #cf1322;
+  /* 危险色/错误色 禁用 */
+  --gp-color-danger-light-3: #ffa39e;
+
+  /* 成功色 悬浮 */
+  --gp-color-success-light-4: #73d13d;
+  /* 成功色 点击 */
+  --gp-color-success-light-6: #389e0d;
+  /* 成功色 禁用 */
+  --gp-color-success-light-3: #b7eb8f;
+
+  /* 警告色 悬浮 */
+  --gp-color-warning-light-4: #ffa940;
+  /* 警告色 点击 */
+  --gp-color-warning-light-6: #d46b08;
+  /* 警告色 禁用 */
+  --gp-color-warning-light-3: #ffd591;
+
+  /* 基础阴影投影 */
+  --gp-space-xs: 4px;
+  /* 超小间距 */
+  --gp-space-sm: 6px;
+  /* 小间距 */
+  --gp-space-md: 8px;
+  /* 中等间距 */
+  --gp-space-lg: 12px;
+  /* 大间距 */
+  --gp-space-xl: 16px;
+  /* 超大间距 */
+  --gp-space-2xl: 20px;
+  /* 超级加大间距 */
+  --gp-space-3xl: 24px;
+  /* 3xL超级加大间距 */
+  --gp-space-4xl: 32px;
+  /* 4XL超级加大间距 */
+  --gp-space-5xl: 40px;
+  /* 5XL超级加大间距 */
+  --gp-space-6xl: 48px;
+  /* 6XL超级加大间距 */
+  --gp-radius-xs: 2px;
+  /* 微型圆角 (附件框，标签) */
+  --gp-radius-sm: 4px;
+  /* 小圆角 (按钮，输入框，背景框，提示框，通知，气泡确认框，弹出框，文字提示) */
+  --gp-radius-md: 6px;
+  /* 标准圆角 (颜色选择器) */
+  --gp-radius-lg: 12px;
+  /* 大圆角 (弹窗) */
+  --gp-radius-circle: 50%;
+  /* 圆形 (头像/图标) */
+  --gp-text-xs: 12px;
+  /* 12px 辅助文字/注释 */
+  --gp-text-sm: var(--el-font-size-base);
+  /* 14px 正文/表单 */
+  --gp-text-md: 16px;
+  /* 16px 基准字号 */
+  --gp-text-lg: 18px;
+  /* 18px 小标题 */
+  --gp-text-xl: 20px;
+  /* 20px 标题 */
+  --gp-icon-size-xs: 14px;
+  /* icon大小 */
+  --gp-icon-size-sm: 16px;
+  /* icon大小 */
+  --gp-bg-color: var(--el-bg-color);
+  /* 背景白色颜色 */
+  --gp-bg-color-page: var(--el-bg-color-page);
+  /* 常用页面背景色 */
+  --gp-bg-color-page-normal: #f1f2f3;
+  /* 背景灰色颜色 */
+  --gp-color-white: var(--el-color-white);
+  /* 白色颜色 */
+  --gp-color-black: var(--el-color-black);
+  /* 黑色颜色 */
+  --gp-color-primary: var(--el-color-primary);
+  /* 主题颜色 */
+  --gp-color-success: var(--el-color-success);
+  /* 成功颜色 */
+  --gp-color-info: var(--el-color-info);
+  /* 默认颜色 */
+  --gp-color-warning: var(--el-color-warning);
+  /* 警告颜色 */
+  --gp-color-error: var(--el-color-error);
+  /* 错误颜色 */
+  --gp-fill-color-xs: var(--el-fill-color);
+  /* 填充颜色 */
+  --gp-fill-color-sm: var(--el-fill-color-light);
+  /* 填充颜色 */
+  --gp-fill-color-md: var(--el-fill-color-lighter);
+  /* 填充颜色 */
+  --gp-fill-color-lg: var(--el-fill-color-extra-light);
+  /* 填充颜色 */
+  --gp-box-shadow-xs: var(--el-box-shadow);
+  /* 投影 */
+  --gp-box-shadow-sm: var(--el-box-shadow-light);
+  /* 投影 */
+  --gp-box-shadow-md: var(--el-box-shadow-lighter);
+  /* 投影 */
+  --gp-text-color-primary: var(--el-text-color-primary);
+  /* 主要文字 */
+  --gp-text-color-regular: var(--el-text-color-regular);
+  /* 常规文字 */
+  --gp-text-color-secondary: var(--el-text-color-secondary);
+  /* 次要文字 */
+  --gp-text-color-placeholder: #a9abb3;
+  /* 占位文字 */
+  --gp-text-color-disabled: #c0c4cb;
+  /* 禁用文字 */
+  --gp-border-color-xs: #dbdfe5;
+  /* 一级常规边框，分割线 */
+  --gp-border-color-sm: #e3e7ec;
+  /* 二级淡色边框、分割线，边框禁用色 */
+  --gp-border-color-md: #eaeef4;
+  /* 三级边框 */
+  --gp-border: var(--el-border-width) var(--el-border-style) var(--el-border-color);
+  /* 边框 */
+  --gp-border-color-hover: var(--gp-text-color-disabled);
+  /* 边框hover */
+  --gp-disabled-bg-color: var(--gp-fill-color-sm);
+  /* 背景禁用颜色 */
+  --gp-disabled-text-color: var(--gp-text-color-placeholder);
+  /* 文字禁用颜色 */
+  --gp-disabled-border-color: var(--gp-border-color-sm);
+  /* 边框禁用颜色 */
+  --gp-overlay-xs: var(--el-overlay-color);
+  /* 黑色遮挡层颜色 */
+  --gp-overlay-sm: var(--el-overlay-color-light);
+  --gp-overlay-md: var(--el-overlay-color-lighter);
 }
 
 body {
