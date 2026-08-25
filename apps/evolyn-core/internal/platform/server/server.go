@@ -28,6 +28,9 @@ import (
 	loginlogservice "evolyn/internal/platform/auth/loginlog/service"
 	"evolyn/internal/platform/auth/oauth"
 	"evolyn/internal/platform/auth/pki"
+	securitycontroller "evolyn/internal/platform/auth/security/controller"
+	securityrepository "evolyn/internal/platform/auth/security/repository"
+	securityservice "evolyn/internal/platform/auth/security/service"
 	authservice "evolyn/internal/platform/auth/service"
 	"evolyn/internal/platform/auth/sms"
 	"evolyn/internal/platform/controller"
@@ -215,6 +218,16 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	userController := iamcontroller.NewUserController(userService, departmentService)
 	// 账号控制器注入换绑验证码校验器（认证域 sms.Service 实现窄接口）
 	accountController := iamcontroller.NewAccountController(accountService, keypair, loginLogSvc, smsService)
+
+	// 账号安全子域（ADR-009）：会话/因子/恢复码/开关仓储 + 只读骨架服务
+	securitySvc := securityservice.NewSecurityService(
+		securityrepository.NewSettingsRepository(db),
+		securityrepository.NewFactorRepository(db),
+		securityrepository.NewRecoveryRepository(db),
+		securityrepository.NewSessionRepository(db),
+		securityrepository.NewEventRepository(db),
+	)
+	securityController := securitycontroller.NewSecurityController(securitySvc)
 	departmentController := iamcontroller.NewDepartmentController(departmentService)
 	groupController := iamcontroller.NewGroupController(groupService)
 	// 注册编排服务（认证域）：注册向导最终提交「进入产品」的单事务落库
@@ -230,7 +243,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController, applicationController, menuController, fileController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController, applicationController, menuController, fileController, securityController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
