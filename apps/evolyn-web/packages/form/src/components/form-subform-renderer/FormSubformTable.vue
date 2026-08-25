@@ -161,9 +161,9 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
       padding: 0;
       font-size: var(--gp-text-xs);
       font-weight: 500;
-      color: var(--gp-text-color-primary);
+      color: var(--el-text-color-primary);
       text-align: left;
-      background-color: var(--gp-fill-color-sm);
+      background-color: var(--el-fill-color-light);
     }
 
     tr:last-child td {
@@ -191,7 +191,7 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
 
   &__row-actions {
     white-space: nowrap;
-    background-color: var(--gp-bg-color);
+    background-color: var(--el-bg-color);
 
     button {
       display: inline-flex;
@@ -200,13 +200,13 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
       width: var(--gp-space-3xl);
       height: var(--gp-space-3xl);
       padding: 0;
-      color: var(--gp-text-color-secondary);
+      color: var(--el-text-color-secondary);
       cursor: pointer;
       background: transparent;
       border: 0;
 
       &:hover {
-        color: var(--gp-color-primary);
+        color: var(--el-color-primary);
       }
     }
   }
@@ -220,7 +220,7 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
     height: var(--gp-space-5xl);
     padding: 0 var(--gp-space-lg);
     font-size: var(--gp-text-xs);
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
     cursor: pointer;
     background: transparent;
     border: 0;
@@ -229,7 +229,7 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
   &__empty {
     height: var(--gp-space-6xl) !important;
     font-size: var(--gp-text-xs);
-    color: var(--gp-text-color-secondary);
+    color: var(--el-text-color-secondary);
     text-align: center;
   }
 }

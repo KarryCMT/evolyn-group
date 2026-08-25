@@ -136,7 +136,7 @@ const selectedChildFieldKey = computed({
   width: 280px;
   padding: var(--gp-space-3xl);
   overflow: auto;
-  background-color: var(--gp-fill-color-sm);
+  background-color: var(--el-fill-color-light);
   // border-top: 1px solid var(--gp-border-color-xs);
   // border-right: 1px solid var(--gp-border-color-xs);
   // border-bottom: 1px solid var(--gp-border-color-xs);
@@ -145,7 +145,7 @@ const selectedChildFieldKey = computed({
   h3 {
     margin: 0 0 var(--gp-space-2xl);
     font-size: var(--gp-text-md);
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
   }
 
   &__label {
@@ -153,7 +153,7 @@ const selectedChildFieldKey = computed({
     margin: var(--gp-space-xl) 0 var(--gp-space-sm);
     font-size: var(--gp-text-xs);
     font-weight: 600;
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
 
     &--help {
       display: inline-flex;
@@ -164,7 +164,7 @@ const selectedChildFieldKey = computed({
 
   &__help-icon {
     font-size: var(--gp-icon-size-xs);
-    color: var(--gp-text-color-secondary);
+    color: var(--el-text-color-secondary);
     cursor: help;
   }
 
@@ -172,7 +172,7 @@ const selectedChildFieldKey = computed({
     width: 220px;
     font-size: var(--gp-text-xs);
     line-height: 1.5;
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
   }
 
   &__empty {
@@ -182,7 +182,7 @@ const selectedChildFieldKey = computed({
     height: 100%;
     min-height: 320px;
     font-size: var(--gp-text-xs);
-    color: var(--gp-text-color-secondary);
+    color: var(--el-text-color-secondary);
   }
 
   &__option {
@@ -192,7 +192,7 @@ const selectedChildFieldKey = computed({
 
     button {
       width: 28px;
-      color: var(--gp-text-color-secondary);
+      color: var(--el-text-color-secondary);
       cursor: pointer;
       background: transparent;
       border: 0;

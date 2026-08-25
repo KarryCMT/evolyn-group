@@ -158,8 +158,8 @@ const showDefaultValue = computed(() => Boolean(widgetNameLabelMap.value[props.f
 .form-subform-child-property {
   h3 {
     margin: 0 0 var(--gp-space-lg);
-    font-size: var(--gp-text-sm);
-    color: var(--gp-text-color-primary);
+    font-size: var(--el-font-size-base);
+    color: var(--el-text-color-primary);
   }
 
   &__label {
@@ -167,7 +167,7 @@ const showDefaultValue = computed(() => Boolean(widgetNameLabelMap.value[props.f
     margin: var(--gp-space-lg) 0 var(--gp-space-xs);
     font-size: var(--gp-text-xs);
     font-weight: 600;
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
   }
 
   &__switches,
@@ -187,7 +187,7 @@ const showDefaultValue = computed(() => Boolean(widgetNameLabelMap.value[props.f
 
     button {
       width: var(--gp-space-3xl);
-      color: var(--gp-text-color-secondary);
+      color: var(--el-text-color-secondary);
       cursor: pointer;
       background: transparent;
       border: 0;

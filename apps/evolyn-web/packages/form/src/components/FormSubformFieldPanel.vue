@@ -233,7 +233,7 @@ const ensureSelectedField = () => {
     justify-content: space-between;
     font-size: var(--gp-text-xs);
     font-weight: 600;
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
   }
 
   &__palette {
@@ -246,14 +246,14 @@ const ensureSelectedField = () => {
       gap: var(--gp-space-sm);
       align-items: center;
       padding: var(--gp-space-sm) var(--gp-space-md);
-      color: var(--gp-text-color-primary);
+      color: var(--el-text-color-primary);
       cursor: pointer;
       background-color: transparent;
       border: 0;
       border-radius: var(--gp-radius-sm);
 
       &:hover {
-        background-color: var(--gp-fill-color-sm);
+        background-color: var(--el-fill-color-light);
       }
     }
   }
@@ -274,16 +274,16 @@ const ensureSelectedField = () => {
 
     &.is-active {
       background-color: var(--gp-color-primary-light-1);
-      border-color: var(--gp-color-primary);
+      border-color: var(--el-color-primary);
     }
 
     &--ghost {
-      background-color: var(--gp-fill-color-sm);
+      background-color: var(--el-fill-color-light);
       opacity: 0.5;
     }
 
     &--chosen {
-      box-shadow: var(--gp-box-shadow-xs);
+      box-shadow: var(--el-box-shadow);
     }
 
     button {
@@ -292,19 +292,19 @@ const ensureSelectedField = () => {
       justify-content: center;
       width: var(--gp-space-3xl);
       height: var(--gp-space-3xl);
-      color: var(--gp-text-color-secondary);
+      color: var(--el-text-color-secondary);
       cursor: pointer;
       background-color: transparent;
       border: 0;
 
       &:hover {
-        color: var(--gp-text-color-primary);
+        color: var(--el-text-color-primary);
       }
     }
   }
 
   &__drag {
-    color: var(--gp-text-color-secondary);
+    color: var(--el-text-color-secondary);
     cursor: grab;
   }
 
@@ -312,13 +312,13 @@ const ensureSelectedField = () => {
     flex: 1;
     min-width: 0;
     font-size: var(--gp-text-xs);
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
   }
 
   &__empty {
     padding: var(--gp-space-xl) 0;
     font-size: var(--gp-text-xs);
-    color: var(--gp-text-color-secondary);
+    color: var(--el-text-color-secondary);
     text-align: center;
   }
 }

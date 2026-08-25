@@ -208,7 +208,7 @@ const removeField = (fieldKey: string) => {
     display: inline-flex;
     width: max-content;
     min-width: 100%;
-    background-color: var(--gp-bg-color);
+    background-color: var(--el-bg-color);
     border: 1px solid var(--gp-border-color-sm);
     border-radius: var(--gp-radius-sm);
 
@@ -243,7 +243,7 @@ const removeField = (fieldKey: string) => {
       padding: 0;
       margin: 0;
       color: transparent;
-      background-color: var(--gp-fill-color-lg);
+      background-color: var(--el-fill-color-extra-light);
       border: 1px dashed var(--gp-border-color-sm);
       border-radius: 0;
       box-shadow: none;
@@ -272,16 +272,16 @@ const removeField = (fieldKey: string) => {
       z-index: 3;
       pointer-events: none;
       content: '';
-      border: 1px dashed var(--gp-color-primary);
+      border: 1px dashed var(--el-color-primary);
     }
 
     &--ghost {
-      background-color: var(--gp-fill-color-sm);
+      background-color: var(--el-fill-color-light);
       opacity: 0.5;
     }
 
     &--chosen {
-      box-shadow: var(--gp-box-shadow-xs);
+      box-shadow: var(--el-box-shadow);
     }
   }
 
@@ -297,11 +297,11 @@ const removeField = (fieldKey: string) => {
     justify-content: center;
     min-height: var(--gp-space-6xl);
     font-size: var(--gp-text-xs);
-    color: var(--gp-text-color-regular);
+    color: var(--el-text-color-regular);
 
     &--header {
       min-height: var(--gp-space-4xl);
-      background-color: var(--gp-fill-color-sm);
+      background-color: var(--el-fill-color-light);
       border-bottom: 1px solid var(--gp-border-color-sm);
     }
   }
@@ -314,12 +314,12 @@ const removeField = (fieldKey: string) => {
     padding: var(--gp-space-xs) var(--gp-space-sm);
     font-size: var(--gp-text-xs);
     font-weight: 600;
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
     border-right: 1px solid var(--gp-border-color-sm);
 
     &--header {
       min-height: var(--gp-space-4xl);
-      background-color: var(--gp-fill-color-sm);
+      background-color: var(--el-fill-color-light);
       border-bottom: 1px solid var(--gp-border-color-sm);
     }
 
@@ -361,9 +361,9 @@ const removeField = (fieldKey: string) => {
     z-index: 2;
     display: flex;
     overflow: hidden;
-    background-color: var(--gp-bg-color);
+    background-color: var(--el-bg-color);
     border-radius: var(--gp-radius-sm);
-    box-shadow: var(--gp-box-shadow-xs);
+    box-shadow: var(--el-box-shadow);
 
     button {
       display: inline-flex;
@@ -371,7 +371,7 @@ const removeField = (fieldKey: string) => {
       justify-content: center;
       width: 24px;
       height: 24px;
-      color: var(--gp-text-color-secondary);
+      color: var(--el-text-color-secondary);
       cursor: pointer;
       background-color: transparent;
       border: 0;
@@ -381,8 +381,8 @@ const removeField = (fieldKey: string) => {
       }
 
       &:hover {
-        color: var(--gp-text-color-primary);
-        background-color: var(--gp-fill-color-sm);
+        color: var(--el-text-color-primary);
+        background-color: var(--el-fill-color-light);
       }
     }
   }
@@ -396,7 +396,7 @@ const removeField = (fieldKey: string) => {
     min-height: calc(var(--gp-space-6xl) + var(--gp-space-4xl));
     padding: 0 var(--gp-space-lg);
     font-size: var(--gp-text-xs);
-    color: var(--gp-text-color-secondary);
+    color: var(--el-text-color-secondary);
   }
 }
 </style>

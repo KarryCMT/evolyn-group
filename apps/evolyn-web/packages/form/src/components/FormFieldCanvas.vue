@@ -213,7 +213,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
       margin: 0 0 var(--gp-space-lg);
       color: transparent;
       background-color: transparent;
-      border: 1px dashed var(--gp-color-primary);
+      border: 1px dashed var(--el-color-primary);
       border-radius: var(--gp-radius-sm);
       box-shadow: none;
       opacity: 1;
@@ -235,7 +235,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     justify-content: center;
     min-height: 0;
     font-size: var(--gp-text-xs);
-    color: var(--gp-text-color-secondary);
+    color: var(--el-text-color-secondary);
     pointer-events: none;
   }
 
@@ -244,7 +244,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     width: 280px;
     height: 150px;
     margin-bottom: var(--gp-space-lg);
-    background-color: var(--gp-fill-color-md);
+    background-color: var(--el-fill-color-lighter);
     border: 1px solid var(--gp-border-color-xs);
     border-radius: var(--gp-radius-md);
   }
@@ -255,8 +255,8 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     left: 58px;
     width: 168px;
     height: 36px;
-    background-color: var(--gp-bg-color);
-    border: 1px solid var(--gp-color-primary);
+    background-color: var(--el-bg-color);
+    border: 1px solid var(--el-color-primary);
     border-radius: var(--gp-radius-sm);
   }
 
@@ -265,7 +265,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     left: 72px;
     width: 110px;
     height: 16px;
-    background-color: var(--gp-fill-color-sm);
+    background-color: var(--el-fill-color-light);
     border-radius: var(--gp-radius-sm);
 
     &.is-active {
@@ -294,7 +294,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     }
 
     &:hover {
-      background-color: var(--gp-fill-color-sm);
+      background-color: var(--el-fill-color-light);
     }
 
     &.is-active {
@@ -316,13 +316,13 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     }
 
     &--ghost {
-      background-color: var(--gp-fill-color-sm);
-      border-color: var(--gp-color-primary);
+      background-color: var(--el-fill-color-light);
+      border-color: var(--el-color-primary);
       opacity: 1;
     }
 
     &--chosen {
-      box-shadow: var(--gp-box-shadow-xs);
+      box-shadow: var(--el-box-shadow);
     }
   }
 
@@ -336,7 +336,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     margin-bottom: var(--gp-space-xs);
     font-size: var(--gp-text-xs);
     font-weight: 600;
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
   }
 
   &__field-label {
@@ -346,7 +346,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
 
   &__field-required {
     margin-left: var(--gp-space-xs);
-    color: var(--gp-color-error);
+    color: var(--el-color-error);
   }
 
   &__control {
@@ -365,9 +365,9 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     display: flex;
     overflow: hidden;
     pointer-events: none;
-    background-color: var(--gp-bg-color);
+    background-color: var(--el-bg-color);
     border-radius: var(--gp-radius-sm);
-    box-shadow: var(--gp-box-shadow-xs);
+    box-shadow: var(--el-box-shadow);
     opacity: 0;
     transition: opacity 0.16s ease;
 
@@ -377,7 +377,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
       justify-content: center;
       width: 24px;
       height: 24px;
-      color: var(--gp-text-color-secondary);
+      color: var(--el-text-color-secondary);
       cursor: pointer;
       background-color: transparent;
       border: 0;
@@ -387,8 +387,8 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
       }
 
       &:hover {
-        color: var(--gp-text-color-primary);
-        background-color: var(--gp-fill-color-sm);
+        color: var(--el-text-color-primary);
+        background-color: var(--el-fill-color-light);
       }
     }
   }

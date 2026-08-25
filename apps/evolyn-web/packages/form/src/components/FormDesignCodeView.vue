@@ -186,13 +186,13 @@ defineExpose({
     width: 24px;
     height: 32px;
     padding: 0;
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
     cursor: pointer;
-    background-color: var(--gp-bg-color);
+    background-color: var(--el-bg-color);
     border: 1px solid var(--gp-border-color-xs);
     border-right: 0;
     border-radius: var(--gp-radius-sm) 0 0 var(--gp-radius-sm);
-    box-shadow: var(--gp-box-shadow-xs);
+    box-shadow: var(--el-box-shadow);
 
     .el-icon {
       font-size: var(--gp-icon-size-sm);
@@ -203,7 +203,7 @@ defineExpose({
     width: 100%;
     height: 100%;
     overflow: hidden;
-    background-color: var(--gp-bg-color);
+    background-color: var(--el-bg-color);
     border-left: 1px solid var(--gp-border-color-xs);
   }
 
@@ -213,7 +213,7 @@ defineExpose({
     height: 100%;
     padding: 0 var(--gp-space-xl) 0 var(--gp-space-xl);
     overflow: auto;
-    background-color: var(--gp-fill-color-sm);
+    background-color: var(--el-fill-color-light);
     opacity: 1;
     transition:
       opacity 0.16s ease,
@@ -224,7 +224,7 @@ defineExpose({
     margin-bottom: var(--gp-space-lg);
     font-size: var(--gp-text-xs);
     font-weight: 600;
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
   }
 
   &__schema-row {
@@ -232,7 +232,7 @@ defineExpose({
     justify-content: space-between;
     margin-bottom: var(--gp-space-sm);
     font-size: var(--gp-text-xs);
-    color: var(--gp-text-color-primary);
+    color: var(--el-text-color-primary);
 
     &.is-child {
       padding-left: calc(var(--plugin-design-response-level) * var(--gp-space-lg));
@@ -240,7 +240,7 @@ defineExpose({
 
     em {
       font-style: normal;
-      color: var(--gp-text-color-secondary);
+      color: var(--el-text-color-secondary);
     }
   }
 }

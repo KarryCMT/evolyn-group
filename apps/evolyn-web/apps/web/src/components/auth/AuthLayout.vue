@@ -126,7 +126,7 @@ defineProps<{
 .auth-layout__login-brand-name {
   font-size: var(--gp-text-xl);
   font-weight: 600;
-  color: var(--gp-text-color-primary);
+  color: var(--el-text-color-primary);
   white-space: nowrap;
 }
 

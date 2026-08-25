@@ -646,7 +646,7 @@ defineExpose({
       height: 100%;
       min-height: 0;
       overflow: auto;
-      background-color: var(--gp-fill-color-sm);
+      background-color: var(--el-fill-color-light);
     }
 
     &__panel {

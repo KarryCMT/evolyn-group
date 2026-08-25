@@ -977,14 +977,14 @@ const handleSaveTest = () => {
   padding-right: var(--gp-space-2xl);
   padding-bottom: var(--gp-space-2xl);
   padding-left: var(--gp-space-2xl);
-  background-color: var(--gp-fill-color-sm);
+  background-color: var(--el-fill-color-light);
 
   &__workspace {
     display: flex;
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    background-color: var(--gp-bg-color);
+    background-color: var(--el-bg-color);
     border-radius: var(--gp-radius-md);
   }
 
@@ -993,7 +993,7 @@ const handleSaveTest = () => {
     min-width: 0;
     min-height: 0;
     overflow: hidden;
-    background-color: var(--gp-bg-color);
+    background-color: var(--el-bg-color);
     border-radius: var(--gp-radius-md) var(--gp-radius-md) var(--gp-radius-md) var(--gp-radius-md);
 
     // 身份验证和返回参数没有控件面板与画布组件，由内容容器补齐完整边框。
