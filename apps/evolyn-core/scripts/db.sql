@@ -569,3 +569,92 @@ COMMENT ON COLUMN application_menu_entries.config IS '小型显示配置 JSONB�
 COMMENT ON COLUMN application_menu_entries.created_at IS '创建时间';
 COMMENT ON COLUMN application_menu_entries.updated_at IS '更新时间';
 COMMENT ON COLUMN application_menu_entries.deleted_at IS '软删除时间，NULL=未删除；资产软删时同事务软删关联节点，应用软删后的节点由清理任务处理';
+
+-- 000019: 账号会话体系与 MFA 数据层（ADR-009），平台级表
+CREATE TABLE IF NOT EXISTS account_security_settings (
+    account_id BIGINT PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    single_session_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    updated_at timestamp with time zone
+);
+
+CREATE TABLE IF NOT EXISTS account_mfa_factors (
+    id BIGSERIAL PRIMARY KEY,
+    account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    type varchar(16) NOT NULL,
+    secret_ciphertext varchar(1024) NOT NULL,
+    key_version INT NOT NULL DEFAULT 1,
+    verified_at timestamp with time zone,
+    last_used_counter BIGINT NOT NULL DEFAULT 0,
+    disabled_at timestamp with time zone,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    CONSTRAINT chk_account_mfa_factors_type CHECK (type IN ('totp')),
+    CONSTRAINT chk_account_mfa_factors_key_version CHECK (key_version >= 1),
+    CONSTRAINT chk_account_mfa_factors_last_used_counter CHECK (last_used_counter >= 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_account_mfa_factors_active
+    ON account_mfa_factors (account_id, type)
+    WHERE disabled_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_account_mfa_factors_account
+    ON account_mfa_factors (account_id);
+
+CREATE TABLE IF NOT EXISTS account_mfa_recovery_codes (
+    id BIGSERIAL PRIMARY KEY,
+    account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    code_digest varchar(128) NOT NULL,
+    used_at timestamp with time zone,
+    created_at timestamp with time zone
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_mfa_recovery_codes_available
+    ON account_mfa_recovery_codes (account_id)
+    WHERE used_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS account_sessions (
+    id BIGSERIAL PRIMARY KEY,
+    sid varchar(64) NOT NULL,
+    account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    token_version BIGINT NOT NULL DEFAULT 1,
+    auth_method varchar(16) NOT NULL,
+    mfa_method varchar(16),
+    created_at timestamp with time zone,
+    last_seen_at timestamp with time zone,
+    expires_at timestamp with time zone NOT NULL,
+    revoked_at timestamp with time zone,
+    revoke_reason varchar(32),
+    ip varchar(45),
+    location varchar(128),
+    user_agent varchar(512),
+    CONSTRAINT chk_account_sessions_auth_method CHECK (auth_method IN ('password', 'sms', 'oauth', 'register')),
+    CONSTRAINT chk_account_sessions_mfa_method CHECK (mfa_method IS NULL OR mfa_method IN ('totp', 'recovery')),
+    CONSTRAINT chk_account_sessions_revoke_reason CHECK (revoke_reason IS NULL OR revoke_reason IN ('logout', 'replaced', 'password_changed', 'phone_changed', 'mfa_changed', 'admin_revoked')),
+    CONSTRAINT chk_account_sessions_token_version CHECK (token_version >= 1)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_account_sessions_sid
+    ON account_sessions (sid);
+
+CREATE INDEX IF NOT EXISTS idx_account_sessions_account_active
+    ON account_sessions (account_id)
+    WHERE revoked_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_account_sessions_expires
+    ON account_sessions (expires_at)
+    WHERE revoked_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS account_security_events (
+    id BIGSERIAL PRIMARY KEY,
+    account_id BIGINT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    event_type varchar(32) NOT NULL,
+    session_id varchar(64),
+    request_id varchar(64),
+    ip varchar(45),
+    metadata JSONB NOT NULL DEFAULT '{}',
+    created_at timestamp with time zone
+);
+
+CREATE INDEX IF NOT EXISTS idx_account_security_events_account
+    ON account_security_events (account_id, created_at);
