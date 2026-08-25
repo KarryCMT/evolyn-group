@@ -155,7 +155,7 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
   不允许裸 ID 盲写关系表。
 - 数据库结构变更以 `migrations/` 版本化 SQL 为唯一事实来源（整改 FIX-009）：
   改 GORM Model 必须同时提交 up/down 迁移并同步 `scripts/db.sql` 快照；
-  约束/索引名与迁移文件保持一致以保证快照库重放幂等。AutoMigrate 仅限
+  新增数据库表及新增字段必须在迁移 SQL 中添加中文注释；约束/索引名与迁移文件保持一致以保证快照库重放幂等。AutoMigrate 仅限
   开发/测试（`db.migrate`），禁止依赖其建生产 Schema。
 - swagger 注释一律中文：新增/修改接口时 `@Tags`（模块名）、`@Summary`、
   `@Description` 等注释统一写中文，不得新写英文；模块 tag 沿用既有中文名
