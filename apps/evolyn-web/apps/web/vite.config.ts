@@ -24,6 +24,8 @@ export default defineConfig({
   },
 
   server: {
+    // 前端开发服务器统一使用 11000 端口，避免占用 Vite 默认端口。
+    port: 11000,
     proxy: {
       // 开发期将 /api 转发到本地 evolyn-core（默认 8080）；生产由网关同源托管
       '/api': {
