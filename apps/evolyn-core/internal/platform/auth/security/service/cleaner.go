@@ -38,6 +38,11 @@ func NewSessionCleanupWorker(sessions repository.SessionRepository, interval tim
 
 // Run 随服务启动，ctx 取消即退出（与租户注销清理/文件清理同模式）
 func (w *SessionCleanupWorker) Run(ctx context.Context) {
+	if w == nil || w.sessions == nil {
+		// 防御性退出：装配遗漏不应让服务在后台 goroutine 中 panic；正常路径由
+		// server.New 显式创建 worker，见 server.go。
+		return
+	}
 	ticker := time.NewTicker(w.interval)
 	defer ticker.Stop()
 	for {

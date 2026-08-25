@@ -242,6 +242,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 账号安全子域（ADR-009）：会话/因子/恢复码/开关仓储 + 服务装配
 	securitySettingsRepo := securityrepository.NewSettingsRepository(db)
 	securitySessionRepo := securityrepository.NewSessionRepository(db)
+	// 会话清理 Worker 与会话仓储同处装配，避免 Server.Run 启动空指针任务。
+	sessionCleanupWorker := securityservice.NewSessionCleanupWorker(securitySessionRepo, 0, logger)
 	sessionService := securityservice.NewSessionService(txManager, securitySettingsRepo, securitySessionRepo)
 	securitySvc := securityservice.NewSecurityService(
 		txManager,
@@ -315,18 +317,19 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	)
 
 	return &Server{
-		engine:            e,
-		config:            conf,
-		logger:            logger,
-		db:                db,
-		rdb:               rdb,
-		controllers:       controllers,
-		fileController:    fileController,
-		purgeWorker:       purgeWorker,
-		fileCleanupWorker: fileCleanupWorker,
-		authorizer:        authorizer,
-		tenantRepo:        tenantRepo,
-		pkiKeypair:        keypair,
+		engine:               e,
+		config:               conf,
+		logger:               logger,
+		db:                   db,
+		rdb:                  rdb,
+		controllers:          controllers,
+		fileController:       fileController,
+		purgeWorker:          purgeWorker,
+		fileCleanupWorker:    fileCleanupWorker,
+		sessionCleanupWorker: sessionCleanupWorker,
+		authorizer:           authorizer,
+		tenantRepo:           tenantRepo,
+		pkiKeypair:           keypair,
 	}, nil
 }
 
