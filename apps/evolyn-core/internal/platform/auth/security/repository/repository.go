@@ -6,17 +6,27 @@ import (
 	"context"
 	"time"
 
+	"evolyn/internal/infrastructure"
 	"evolyn/internal/platform/auth/security/model"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
+// resolve 经 ResolveDB 取连接：外层 TxManager 事务自动传播（FIX-020/021），
+// 单会话登录「锁账号行 → 撤销他人 → 建新会话」依赖此口径保证原子性
+func resolve(ctx context.Context, db *gorm.DB) *gorm.DB {
+	return infrastructure.ResolveDB(ctx, db)
+}
+
 // SettingsRepository 安全开关读写
 type SettingsRepository interface {
 	// Get 缺行返回全关闭零值（不报错），开关语义默认关闭
 	Get(ctx context.Context, accountID uint) (*model.SecuritySettings, error)
 	Upsert(ctx context.Context, settings *model.SecuritySettings) error
+	// LockAccountRow 事务内锁账号行：单会话登录的并发控制锚点——
+	// 两个并发登录串行化，最终只留下后提交者的会话
+	LockAccountRow(ctx context.Context, accountID uint) error
 }
 
 type settingsRepository struct{ db *gorm.DB }
@@ -27,7 +37,7 @@ func NewSettingsRepository(db *gorm.DB) SettingsRepository {
 
 func (r *settingsRepository) Get(ctx context.Context, accountID uint) (*model.SecuritySettings, error) {
 	settings := &model.SecuritySettings{AccountID: accountID}
-	if err := r.db.WithContext(ctx).First(settings, "account_id = ?", accountID).Error; err != nil {
+	if err := resolve(ctx, r.db).First(settings, "account_id = ?", accountID).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return settings, nil // 缺省即全关
 		}
@@ -36,8 +46,13 @@ func (r *settingsRepository) Get(ctx context.Context, accountID uint) (*model.Se
 	return settings, nil
 }
 
+func (r *settingsRepository) LockAccountRow(ctx context.Context, accountID uint) error {
+	var id uint
+	return resolve(ctx, r.db).Raw("SELECT id FROM accounts WHERE id = ? FOR UPDATE", accountID).Scan(&id).Error
+}
+
 func (r *settingsRepository) Upsert(ctx context.Context, settings *model.SecuritySettings) error {
-	return r.db.WithContext(ctx).Clauses(clause.OnConflict{
+	return resolve(ctx, r.db).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "account_id"}},
 		DoUpdates: clause.AssignmentColumns([]string{"mfa_enabled", "single_session_enabled", "updated_at"}),
 	}).Create(settings).Error
@@ -59,7 +74,7 @@ func NewFactorRepository(db *gorm.DB) FactorRepository {
 }
 
 func (r *factorRepository) Create(ctx context.Context, factor *model.MFAFactor) (*model.MFAFactor, error) {
-	if err := r.db.WithContext(ctx).Create(factor).Error; err != nil {
+	if err := resolve(ctx, r.db).Create(factor).Error; err != nil {
 		return nil, err
 	}
 	return factor, nil
@@ -67,7 +82,7 @@ func (r *factorRepository) Create(ctx context.Context, factor *model.MFAFactor) 
 
 func (r *factorRepository) GetActive(ctx context.Context, accountID uint, factorType string) (*model.MFAFactor, error) {
 	factor := new(model.MFAFactor)
-	if err := r.db.WithContext(ctx).
+	if err := resolve(ctx, r.db).
 		Where("account_id = ? AND type = ? AND disabled_at IS NULL", accountID, factorType).
 		First(factor).Error; err != nil {
 		return nil, err
@@ -76,12 +91,12 @@ func (r *factorRepository) GetActive(ctx context.Context, accountID uint, factor
 }
 
 func (r *factorRepository) UpdateCounter(ctx context.Context, id uint, counter int64) error {
-	return r.db.WithContext(ctx).Model(&model.MFAFactor{}).Where("id = ?", id).
+	return resolve(ctx, r.db).Model(&model.MFAFactor{}).Where("id = ?", id).
 		Update("last_used_counter", counter).Error
 }
 
 func (r *factorRepository) Disable(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Model(&model.MFAFactor{}).Where("id = ?", id).
+	return resolve(ctx, r.db).Model(&model.MFAFactor{}).Where("id = ?", id).
 		Update("disabled_at", time.Now()).Error
 }
 
@@ -101,7 +116,7 @@ func NewRecoveryRepository(db *gorm.DB) RecoveryRepository {
 }
 
 func (r *recoveryRepository) Replace(ctx context.Context, accountID uint, digests []string) error {
-	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return resolve(ctx, r.db).Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("account_id = ?", accountID).Delete(&model.RecoveryCode{}).Error; err != nil {
 			return err
 		}
@@ -118,7 +133,7 @@ func (r *recoveryRepository) Replace(ctx context.Context, accountID uint, digest
 
 func (r *recoveryRepository) ListAvailable(ctx context.Context, accountID uint) ([]model.RecoveryCode, error) {
 	codes := make([]model.RecoveryCode, 0)
-	if err := r.db.WithContext(ctx).
+	if err := resolve(ctx, r.db).
 		Where("account_id = ? AND used_at IS NULL", accountID).
 		Order("id").Find(&codes).Error; err != nil {
 		return nil, err
@@ -127,7 +142,7 @@ func (r *recoveryRepository) ListAvailable(ctx context.Context, accountID uint) 
 }
 
 func (r *recoveryRepository) Consume(ctx context.Context, id uint) (bool, error) {
-	res := r.db.WithContext(ctx).Model(&model.RecoveryCode{}).
+	res := resolve(ctx, r.db).Model(&model.RecoveryCode{}).
 		Where("id = ? AND used_at IS NULL", id).
 		Update("used_at", time.Now())
 	if res.Error != nil {
@@ -158,7 +173,7 @@ func NewSessionRepository(db *gorm.DB) SessionRepository {
 }
 
 func (r *sessionRepository) Create(ctx context.Context, session *model.AccountSession) (*model.AccountSession, error) {
-	if err := r.db.WithContext(ctx).Create(session).Error; err != nil {
+	if err := resolve(ctx, r.db).Create(session).Error; err != nil {
 		return nil, err
 	}
 	return session, nil
@@ -166,14 +181,14 @@ func (r *sessionRepository) Create(ctx context.Context, session *model.AccountSe
 
 func (r *sessionRepository) GetBySID(ctx context.Context, sid string) (*model.AccountSession, error) {
 	session := new(model.AccountSession)
-	if err := r.db.WithContext(ctx).Where("sid = ?", sid).First(session).Error; err != nil {
+	if err := resolve(ctx, r.db).Where("sid = ?", sid).First(session).Error; err != nil {
 		return nil, err
 	}
 	return session, nil
 }
 
 func (r *sessionRepository) TouchLastSeen(ctx context.Context, sid string) error {
-	return r.db.WithContext(ctx).Model(&model.AccountSession{}).Where("sid = ?", sid).
+	return resolve(ctx, r.db).Model(&model.AccountSession{}).Where("sid = ?", sid).
 		Update("last_seen_at", time.Now()).Error
 }
 
@@ -182,7 +197,7 @@ func (r *sessionRepository) BumpVersion(ctx context.Context, sid string) (int64,
 	if err != nil {
 		return 0, err
 	}
-	if err := r.db.WithContext(ctx).Model(&model.AccountSession{}).Where("id = ?", session.ID).
+	if err := resolve(ctx, r.db).Model(&model.AccountSession{}).Where("id = ?", session.ID).
 		Update("token_version", session.TokenVersion+1).Error; err != nil {
 		return 0, err
 	}
@@ -190,13 +205,13 @@ func (r *sessionRepository) BumpVersion(ctx context.Context, sid string) (int64,
 }
 
 func (r *sessionRepository) Revoke(ctx context.Context, sid, reason string) error {
-	return r.db.WithContext(ctx).Model(&model.AccountSession{}).
+	return resolve(ctx, r.db).Model(&model.AccountSession{}).
 		Where("sid = ? AND revoked_at IS NULL", sid).
 		Updates(map[string]interface{}{"revoked_at": time.Now(), "revoke_reason": reason}).Error
 }
 
 func (r *sessionRepository) RevokeOthers(ctx context.Context, accountID uint, exceptSID, reason string) (int64, error) {
-	res := r.db.WithContext(ctx).Model(&model.AccountSession{}).
+	res := resolve(ctx, r.db).Model(&model.AccountSession{}).
 		Where("account_id = ? AND sid <> ? AND revoked_at IS NULL", accountID, exceptSID).
 		Updates(map[string]interface{}{"revoked_at": time.Now(), "revoke_reason": reason})
 	if res.Error != nil {
@@ -207,7 +222,7 @@ func (r *sessionRepository) RevokeOthers(ctx context.Context, accountID uint, ex
 
 func (r *sessionRepository) ListActiveByAccount(ctx context.Context, accountID uint) ([]model.AccountSession, error) {
 	sessions := make([]model.AccountSession, 0)
-	if err := r.db.WithContext(ctx).
+	if err := resolve(ctx, r.db).
 		Where("account_id = ? AND revoked_at IS NULL", accountID).
 		Order("last_seen_at DESC").Find(&sessions).Error; err != nil {
 		return nil, err
@@ -216,7 +231,7 @@ func (r *sessionRepository) ListActiveByAccount(ctx context.Context, accountID u
 }
 
 func (r *sessionRepository) DeleteExpiredBefore(ctx context.Context, before time.Time) (int64, error) {
-	res := r.db.WithContext(ctx).
+	res := resolve(ctx, r.db).
 		Where("expires_at < ? OR (revoked_at IS NOT NULL AND revoked_at < ?)", before, before).
 		Delete(&model.AccountSession{})
 	if res.Error != nil {
@@ -237,5 +252,5 @@ func NewEventRepository(db *gorm.DB) EventRepository {
 }
 
 func (r *eventRepository) Append(ctx context.Context, event *model.SecurityEvent) error {
-	return r.db.WithContext(ctx).Create(event).Error
+	return resolve(ctx, r.db).Create(event).Error
 }

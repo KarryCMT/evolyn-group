@@ -219,12 +219,15 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 账号控制器注入换绑验证码校验器（认证域 sms.Service 实现窄接口）
 	accountController := iamcontroller.NewAccountController(accountService, keypair, loginLogSvc, smsService)
 
-	// 账号安全子域（ADR-009）：会话/因子/恢复码/开关仓储 + 只读骨架服务
+	// 账号安全子域（ADR-009）：会话/因子/恢复码/开关仓储 + 服务装配
+	securitySettingsRepo := securityrepository.NewSettingsRepository(db)
+	securitySessionRepo := securityrepository.NewSessionRepository(db)
+	sessionService := securityservice.NewSessionService(txManager, securitySettingsRepo, securitySessionRepo)
 	securitySvc := securityservice.NewSecurityService(
-		securityrepository.NewSettingsRepository(db),
+		securitySettingsRepo,
 		securityrepository.NewFactorRepository(db),
 		securityrepository.NewRecoveryRepository(db),
-		securityrepository.NewSessionRepository(db),
+		securitySessionRepo,
 		securityrepository.NewEventRepository(db),
 	)
 	securityController := securitycontroller.NewSecurityController(securitySvc)
@@ -233,7 +236,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 注册编排服务（认证域）：注册向导最终提交「进入产品」的单事务落库
 	// （免密注册账号 + 账号画像 + 租户开通/复用 + owner 成员解析）
 	registrationService := authservice.NewRegistrationService(txManager, accountService, tenantService, auditSvc)
-	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc, tokenRevoker, loginGuard)
+	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc, tokenRevoker, sessionService, loginGuard)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 	applicationController := applicationcontroller.NewApplicationController(applicationService)
@@ -273,7 +276,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		middleware.CORSMiddleware(conf.Server.AllowedOrigins, corsDevLoose),
 		middleware.RequestInfoMiddleware(&request.RequestInfoFactory{APIPrefixes: set.NewString("api")}),
 		middleware.LogMiddleware(logger, "/"),
-		middleware.AuthenticationMiddleware(jwtService, iamRepo.User(), iamRepo.Account(), tokenRevoker),
+		middleware.AuthenticationMiddleware(jwtService, iamRepo.User(), iamRepo.Account(), tokenRevoker, sessionService),
 		middleware.TraceMiddleware(),
 	)
 
@@ -306,8 +309,10 @@ type Server struct {
 	fileController    *filecontroller.FileController
 	purgeWorker       *tenantservice.PurgeWorker
 	fileCleanupWorker *fileservice.UploadCleanupWorker
-	authorizer        *authorization.Authorizer
-	tenantRepo        tenantrepository.TenantRepository
+	// 会话清理任务（ADR-009 SEC-3-4）：删除过期/超保留期的历史设备会话
+	sessionCleanupWorker *securityservice.SessionCleanupWorker
+	authorizer           *authorization.Authorizer
+	tenantRepo           tenantrepository.TenantRepository
 	// 登录口令加密密钥对：登录/改密解密与 /app/conf 公钥下发共用
 	pkiKeypair *pki.Keypair
 }
@@ -323,6 +328,7 @@ func (s *Server) Run() error {
 	defer workerCancel()
 	go s.purgeWorker.Run(workerCtx)
 	go s.fileCleanupWorker.Run(workerCtx)
+	go s.sessionCleanupWorker.Run(workerCtx)
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Address, s.config.Server.Port)
 	s.logger.Infof("Start server on: %s", addr)

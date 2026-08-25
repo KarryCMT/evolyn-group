@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	secmodel "evolyn/internal/platform/auth/security/model"
+
 	"evolyn/internal/platform/iam/model"
 
 	"github.com/stretchr/testify/assert"
@@ -45,7 +47,7 @@ func TestCreateToken(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			token, err := service.CreateToken(tc.account, tc.member)
+			token, err := service.CreateToken(tc.account, tc.member, nil)
 			if tc.expectedErr {
 				assert.Error(t, err)
 			} else {
@@ -88,7 +90,7 @@ func TestParseToken(t *testing.T) {
 
 			if tc.token == "" {
 				account, member := newSession()
-				token, err := service.CreateToken(account, member)
+				token, err := service.CreateToken(account, member, nil)
 				assert.Empty(t, err)
 				tc.token = token
 			}
@@ -109,7 +111,7 @@ func TestTokenTenantRoundtrip(t *testing.T) {
 
 	account, member := newSession()
 	account.SessionVersion = 3
-	token, err := service.CreateToken(account, member)
+	token, err := service.CreateToken(account, member, &secmodel.AccountSession{SID: "abc123", TokenVersion: 3})
 	assert.Empty(t, err)
 
 	claims, err := service.ParseToken(token)
@@ -120,4 +122,7 @@ func TestTokenTenantRoundtrip(t *testing.T) {
 	assert.Equal(t, uint(3), claims.TenantID)
 	assert.Equal(t, uint64(3), claims.SessionVersion)
 	assert.Equal(t, "someone", claims.Name)
+	// 设备会话维度（ADR-009）：sid 与令牌版本完整往返
+	assert.Equal(t, "abc123", claims.SID)
+	assert.Equal(t, int64(3), claims.SessionTokenVersion)
 }

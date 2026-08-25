@@ -13,6 +13,8 @@ import (
 	loginlogservice "evolyn/internal/platform/auth/loginlog/service"
 	"evolyn/internal/platform/auth/oauth"
 	"evolyn/internal/platform/auth/pki"
+	secmodel "evolyn/internal/platform/auth/security/model"
+	securityservice "evolyn/internal/platform/auth/security/service"
 	authservice "evolyn/internal/platform/auth/service"
 	"evolyn/internal/platform/auth/sms"
 	platformcontroller "evolyn/internal/platform/controller"
@@ -38,8 +40,10 @@ type AuthController struct {
 	oauthManger         *oauth.OAuthManager
 	tenantService       tenantservice.TenantService
 	smsService          *sms.Service
-	// 令牌吊销器：登出时拉黑 jti（P2-8）
+	// 令牌吊销器：登出时拉黑 jti（P2-8，存量无 sid 令牌兼容）
 	revoker *auth.TokenRevoker
+	// 设备会话服务（ADR-009）：登录链路统一签发/校验/撤销 account_sessions
+	sessions securityservice.SessionService
 	// 登录口令加密密钥对：密码登录分支先解密再走 bcrypt 校验
 	pkiKeypair *pki.Keypair
 	// 登录日志记录器：令牌签发成功后 best-effort 落一条会话建立流水
@@ -49,7 +53,7 @@ type AuthController struct {
 	loginGuard *auth.LoginGuard
 }
 
-func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder, revoker *auth.TokenRevoker, loginGuard *auth.LoginGuard) platformcontroller.Controller {
+func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder, revoker *auth.TokenRevoker, sessions securityservice.SessionService, loginGuard *auth.LoginGuard) platformcontroller.Controller {
 	return &AuthController{
 		accountService:      accountService,
 		registrationService: registrationService,
@@ -83,9 +87,29 @@ func (ac *AuthController) recordLogin(c *gin.Context, account *model.Account, me
 	ac.loginLog.Record(c.Request.Context(), entry)
 }
 
-// loginSession 登录成功后的签发与 Cookie 写入：token 绑定「账号+成员+租户」
-func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, member *model.User, setCookie bool) (string, error) {
-	token, err := ac.jwtService.CreateToken(account, member)
+// loginSession 登录成功后的签发与 Cookie 写入：token 绑定
+// 「账号+成员+租户+设备会话（sid）」（ADR-009）。authMethod 声明第一步
+// 通过的证据类别（password/sms/oauth/register），落入会话流水
+func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, member *model.User, setCookie bool, authMethod string) (string, error) {
+	var session *secmodel.AccountSession
+	if ac.sessions != nil {
+		ua := ""
+		if c.Request != nil {
+			ua = c.Request.UserAgent()
+		}
+		var err error
+		session, err = ac.sessions.Issue(c.Request.Context(), securityservice.IssueRequest{
+			AccountID:  account.ID,
+			AuthMethod: authMethod,
+			IP:         c.ClientIP(),
+			UserAgent:  ua,
+		})
+		if err != nil {
+			return "", err
+		}
+	}
+
+	token, err := ac.jwtService.CreateToken(account, member, session)
 	if err != nil {
 		return "", err
 	}
@@ -195,7 +219,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := ac.loginSession(c, account, member, auser.SetCookie)
+	token, err := ac.loginSession(c, account, member, auser.SetCookie, method)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -231,18 +255,22 @@ func bearerToken(c *gin.Context) string {
 // 黑名单没写成时令牌仍有效，静默清 Cookie 装作登出成功会误导用户；
 // 默认 fail-open 模式维持「告警不阻断」（可用性优先）
 func (ac *AuthController) Logout(c *gin.Context) {
-	if ac.revoker != nil {
-		claims, _ := ac.jwtService.ParseToken(bearerToken(c))
-		if claims != nil && claims.ExpiresAt != nil {
-			ttl := time.Until(claims.ExpiresAt.Time)
-			if err := ac.revoker.Revoke(c.Request.Context(), claims.ID, ttl); err != nil {
-				logrus.Warnf("revoke token on logout: %v", err)
-				if ac.revoker.FailClosed() {
-					// 吊销写失败如实报错（与读侧同码 AUTH_REVOKE_CHECK_FAILED）：
-					// 黑名单没写成时令牌仍有效，静默清 Cookie 装作登出成功会误导用户
-					httpx.ResponseFailed(c, http.StatusServiceUnavailable, middleware.ErrRevokerUnavailable)
-					return
-				}
+	claims, _ := ac.jwtService.ParseToken(bearerToken(c))
+
+	// 会话化登出（ADR-009）：撤销设备会话；存量无 sid 令牌回退 jti 黑名单
+	if ac.sessions != nil && claims != nil && claims.SID != "" {
+		if err := ac.sessions.Revoke(c.Request.Context(), claims.SID, secmodel.RevokeLogout); err != nil {
+			logrus.Warnf("revoke session on logout: %v", err)
+		}
+	} else if ac.revoker != nil && claims != nil && claims.ExpiresAt != nil {
+		ttl := time.Until(claims.ExpiresAt.Time)
+		if err := ac.revoker.Revoke(c.Request.Context(), claims.ID, ttl); err != nil {
+			logrus.Warnf("revoke token on logout: %v", err)
+			if ac.revoker.FailClosed() {
+				// 吊销写失败如实报错（与读侧同码 AUTH_REVOKE_CHECK_FAILED）：
+				// 黑名单没写成时令牌仍有效，静默清 Cookie 装作登出成功会误导用户
+				httpx.ResponseFailed(c, http.StatusServiceUnavailable, middleware.ErrRevokerUnavailable)
+				return
 			}
 		}
 	}
@@ -379,7 +407,7 @@ func (ac *AuthController) RegisterComplete(c *gin.Context) {
 	}
 
 	// 注册即登录：令牌直接绑定新租户 owner 成员（免客户端再走切换）
-	token, err := ac.loginSession(c, result.Account, result.Member, false)
+	token, err := ac.loginSession(c, result.Account, result.Member, false, secmodel.AuthMethodRegister)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -680,7 +708,18 @@ func (ac *AuthController) SwitchTenant(c *gin.Context) {
 		return
 	}
 
-	token, err := ac.loginSession(c, account, member, false)
+	// 会话化重签（ADR-009）：复用 sid 递增 token_version——租户切换是同一次
+	// 设备会话内换发令牌，不算新登录；存量无 sid 令牌回退为新签会话
+	var session *secmodel.AccountSession
+	if ac.sessions != nil && claims.SID != "" {
+		session, err = ac.sessions.SwitchBump(c.Request.Context(), claims.SID)
+		if err != nil {
+			httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+			return
+		}
+	}
+
+	token, err := ac.jwtService.CreateToken(account, member, session)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return

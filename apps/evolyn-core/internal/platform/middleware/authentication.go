@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"evolyn/internal/platform/auth"
+	securityservice "evolyn/internal/platform/auth/security/service"
 	"evolyn/internal/platform/iam/repository"
 
 	"github.com/gin-gonic/gin"
@@ -32,8 +33,10 @@ var (
 // 此时尚未经过 TenantMiddleware（租户上下文来自本处加载成员的归属），
 // ctx 无租户上下文，GetUserByID 按全局唯一 ID 查询
 // AuthenticationMiddleware 会话认证。revoker 非空时校验令牌吊销状态
-// （P2-8：登出拉黑 jti 至自然过期；可传 nil 跳过，供无 Redis 场景/测试）
-func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.UserRepository, accountRepo repository.AccountRepository, revoker *auth.TokenRevoker) gin.HandlerFunc {
+// （P2-8：登出拉黑 jti 至自然过期；可传 nil 跳过，供无 Redis 场景/测试）。
+// sessionSvc 非空时校验设备会话（ADR-009：sid 未撤销且 token_version 一致，
+// 被挤出返回 AUTH_SESSION_REPLACED）；存量无 sid 令牌跳过会话校验（兼容期）
+func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.UserRepository, accountRepo repository.AccountRepository, revoker *auth.TokenRevoker, sessionSvc securityservice.SessionService) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, _ := getTokenFromAuthorizationHeader(c)
 		if token == "" {
@@ -57,6 +60,13 @@ func AuthenticationMiddleware(jwtService *auth.JWTService, userRepo repository.U
 					logrus.Warnf("check token revocation (fail-open): %v", err)
 				} else if revoked {
 					httpx.ResponseFailed(c, http.StatusUnauthorized, ErrTokenRevoked)
+					c.Abort()
+					return
+				}
+			}
+			if sessionSvc != nil && claims.SID != "" {
+				if err := sessionSvc.Validate(c.Request.Context(), claims.SID, claims.SessionTokenVersion); err != nil {
+					httpx.ResponseFailed(c, http.StatusUnauthorized, err)
 					c.Abort()
 					return
 				}
