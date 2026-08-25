@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 认证页骨架：顶栏（Logo + 语言切换）+ 左侧品牌区 + 右侧表单卡片，
 // 登录/注册/找回密码页共用；卡片内容与底部引导由各页面通过插槽注入
-import loginBackground from '~/assets/images/login_bg.jpg';
+import loginBackground from '~/assets/images/login_bg_1.png';
 import brandLogo from '~/assets/images/logo.png';
 
 defineProps<{
