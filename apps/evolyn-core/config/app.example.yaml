@@ -94,3 +94,12 @@ pki:
   algorithm: 'rsa'
   privateKey: ''
   privateKeyFile: ''
+
+# 账号安全：TOTP 密钥只通过未提交的部署配置或密钥管理系统注入。新绑定使用
+# currentKeyVersion；保留旧版本直到所有对应因子完成重加密/停用。release 环境
+# 启用 MFA 前必须填入真实随机 32 字节 hex 密钥，示例值不可用于生产。
+security:
+  totp:
+    currentKeyVersion: 1
+    masterKeys:
+      1: 'CHANGE_ME'

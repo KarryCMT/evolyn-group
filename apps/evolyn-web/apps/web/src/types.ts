@@ -6,11 +6,20 @@ export type UserModule = (app: App) => void;
 // ---------- 认证域 API 契约（与 evolyn-core internal/platform 对齐） ----------
 // 后端统一响应结构由 @evolyn.do/utils 的 Result 类型承载（请求层已统一解包）
 
-/** 登录成功签发的 JWT（model.JWTToken） */
+/** 登录完成后签发的 JWT。 */
 export interface JwtToken {
   token: string;
   describe: string;
 }
+
+/** 登录第一步结果：启用 MFA 时不返回令牌，只给出五分钟一次性 challenge。 */
+export interface LoginMfaChallenge {
+  mfaRequired: true;
+  mfaChallenge: string;
+  token?: never;
+}
+
+export type LoginResult = JwtToken | LoginMfaChallenge;
 
 /** 登录请求（model.AuthUser）：name/phone + 密码，或 phone + smsCode（验证码登录） */
 export interface LoginPayload {

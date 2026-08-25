@@ -18,6 +18,8 @@ type SecurityService interface {
 	ListSessions(ctx context.Context, accountID uint) ([]model.AccountSession, error)
 	// RevokeSession 本人踢出指定会话（校验归属），记安全流水（best-effort）
 	RevokeSession(ctx context.Context, accountID uint, sid string) error
+	// UpdateSingleSession 更新「禁止同时登录」开关；开启时保留当前会话并撤销其他设备。
+	UpdateSingleSession(ctx context.Context, accountID uint, currentSID string, enabled bool) error
 }
 
 // SecurityOverview GET /accounts/me/security 响应体

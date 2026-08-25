@@ -1,4 +1,10 @@
-import type { LoginPayload, TenantMembership, UserInfoResult } from '~/types';
+import type {
+  JwtToken,
+  LoginPayload,
+  LoginResult,
+  TenantMembership,
+  UserInfoResult,
+} from '~/types';
 import { defineStore } from 'pinia';
 import { computed, shallowRef } from 'vue';
 import {
@@ -7,6 +13,7 @@ import {
   switchTenant as apiSwitchTenant,
   getUserInfo,
   listTenants,
+  verifyMfaLogin,
 } from '~/api/auth';
 import { getToken, removeToken, setToken } from '@evolyn.do/utils';
 
@@ -42,9 +49,28 @@ export const useAuthStore = defineStore('auth', () => {
   });
 
   /** 登录：成功后持有 JWT 并拉取登录聚合信息；remember 控制令牌存储范围（持久/会话级） */
-  async function login(payload: LoginPayload, remember = true) {
-    applyJwt(await apiLogin(payload), remember);
+  async function login(payload: LoginPayload, remember = true): Promise<LoginResult> {
+    const result = await apiLogin(payload);
+    if ('mfaRequired' in result && result.mfaRequired) {
+      rememberLogin = remember;
+      return result;
+    }
+    const jwt = result as JwtToken;
+    applyJwt(jwt, remember);
     await loadUserInfo();
+    return jwt;
+  }
+
+  /** 完成登录第二步：仅服务端验证 challenge 成功后才写入本地会话状态。 */
+  async function completeMfaLogin(payload: {
+    mfaChallenge: string;
+    method: 'totp' | 'recovery';
+    code: string;
+  }): Promise<JwtToken> {
+    const jwt = await verifyMfaLogin(payload);
+    applyJwt(jwt, rememberLogin);
+    await loadUserInfo();
+    return jwt;
   }
 
   /**
@@ -104,6 +130,7 @@ export const useAuthStore = defineStore('auth', () => {
     displayName,
     isTenantOwner,
     login,
+    completeMfaLogin,
     applyJwt,
     loadUserInfo,
     logout,

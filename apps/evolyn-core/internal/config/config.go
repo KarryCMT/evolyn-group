@@ -21,6 +21,7 @@ type Config struct {
 	SMS         SMSConfig              `yaml:"sms"`
 	Auth        AuthConfig             `yaml:"auth"`
 	PKI         PKIConfig              `yaml:"pki"`
+	Security    SecurityConfig         `yaml:"security"`
 	Storage     StorageConfig          `yaml:"storage"`
 }
 
@@ -82,6 +83,39 @@ type PKIConfig struct {
 	Algorithm      string `yaml:"algorithm"`      // 一期固定 rsa
 	PrivateKey     string `yaml:"privateKey"`     // PEM 私钥（真实私钥不入库，经环境配置注入）
 	PrivateKeyFile string `yaml:"privateKeyFile"` // PEM 私钥文件路径（相对配置文件所在目录）
+}
+
+// SecurityConfig 是账号安全域的运行配置。TOTP 主密钥只允许由部署配置注入，
+// 禁止写入数据库或提交到仓库。
+type SecurityConfig struct {
+	TOTP TOTPConfig `yaml:"totp"`
+}
+
+// TOTPConfig 支持多个在用主密钥：新因子用 CurrentKeyVersion 加密，历史因子
+// 按自身 key_version 解密，从而使轮换不影响既有用户。
+type TOTPConfig struct {
+	CurrentKeyVersion int            `yaml:"currentKeyVersion"`
+	MasterKeys        map[int]string `yaml:"masterKeys"`
+}
+
+// Validate 仅在启用 TOTP 能力时调用。配置必须包含当前版本，且每一版本均为
+// 正整数，具体密钥格式由 totp.NewKeyring 校验。
+func (t TOTPConfig) Validate() error {
+	if t.CurrentKeyVersion <= 0 {
+		return fmt.Errorf("security.totp.currentKeyVersion 必须大于 0")
+	}
+	if len(t.MasterKeys) == 0 {
+		return fmt.Errorf("security.totp.masterKeys 不能为空")
+	}
+	if _, ok := t.MasterKeys[t.CurrentKeyVersion]; !ok {
+		return fmt.Errorf("security.totp.masterKeys 缺少当前密钥版本 %d", t.CurrentKeyVersion)
+	}
+	for version, key := range t.MasterKeys {
+		if version <= 0 || strings.TrimSpace(key) == "" {
+			return fmt.Errorf("security.totp.masterKeys 包含无效密钥版本")
+		}
+	}
+	return nil
 }
 
 type ServerConfig struct {

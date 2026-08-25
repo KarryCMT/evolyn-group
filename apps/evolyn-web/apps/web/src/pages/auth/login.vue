@@ -4,10 +4,11 @@
 import { shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
+import MfaVerifyDialog from '~/components/auth/MfaVerifyDialog.vue';
 import { sendSmsCode } from '~/api/auth';
 import { encryptPassword } from '~/api/conf';
 import { useAuth } from '~/composables';
-import type { TenantMembership } from '~/types';
+import type { LoginMfaChallenge, TenantMembership } from '~/types';
 import { ApiError } from '@evolyn.do/utils';
 import { ERROR_CODES } from '@evolyn.do/utils';
 
@@ -15,7 +16,7 @@ type LoginMode = 'password' | 'sms';
 
 const route = useRoute();
 const router = useRouter();
-const { login, loadTenants, switchTenant } = useAuth();
+const { login, completeMfaLogin, loadTenants, switchTenant } = useAuth();
 
 // 对齐主流登录页首屏：优先展示短信验证码，密码方式保留为可切换的备选。
 const mode = shallowRef<LoginMode>('sms');
@@ -27,6 +28,8 @@ const smsSentVersion = shallowRef(0);
 const tenantDialogVisible = shallowRef(false);
 const memberships = shallowRef<TenantMembership[]>([]);
 const switching = shallowRef(false);
+const mfaChallenge = shallowRef<LoginMfaChallenge | null>(null);
+const mfaDialogVisible = shallowRef(false);
 
 /** 密码登录：密码先经平台公钥 RSA 加密再上送；remember 决定令牌存储范围 */
 async function handlePasswordSubmit(payload: {
@@ -37,7 +40,12 @@ async function handlePasswordSubmit(payload: {
   loading.value = true;
   try {
     const password = await encryptPassword(payload.password);
-    await login({ phone: payload.phone, password }, payload.remember);
+    const result = await login({ phone: payload.phone, password }, payload.remember);
+    if ('mfaRequired' in result && result.mfaRequired) {
+      mfaChallenge.value = result;
+      mfaDialogVisible.value = true;
+      return;
+    }
     await afterLogin();
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '登录失败，请稍后重试');
@@ -50,10 +58,30 @@ async function handlePasswordSubmit(payload: {
 async function handleSmsSubmit(payload: { phone: string; code: string; remember: boolean }) {
   loading.value = true;
   try {
-    await login({ phone: payload.phone, smsCode: payload.code }, payload.remember);
+    const result = await login({ phone: payload.phone, smsCode: payload.code }, payload.remember);
+    if ('mfaRequired' in result && result.mfaRequired) {
+      mfaChallenge.value = result;
+      mfaDialogVisible.value = true;
+      return;
+    }
     await afterLogin();
   } catch (err) {
     ElMessage.error(err instanceof Error ? err.message : '登录失败，请稍后重试');
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function handleMfaVerify(payload: { method: 'totp' | 'recovery'; code: string }) {
+  if (!mfaChallenge.value) return;
+  loading.value = true;
+  try {
+    await completeMfaLogin({ ...payload, mfaChallenge: mfaChallenge.value.mfaChallenge });
+    mfaDialogVisible.value = false;
+    mfaChallenge.value = null;
+    await afterLogin();
+  } catch (err) {
+    ElMessage.error(err instanceof Error ? err.message : '验证失败，请重试');
   } finally {
     loading.value = false;
   }
@@ -180,6 +208,7 @@ function goNext() {
       </button>
     </div>
   </el-dialog>
+  <MfaVerifyDialog v-model="mfaDialogVisible" :loading="loading" @submit="handleMfaVerify" />
 </template>
 
 <style lang="scss" scoped>

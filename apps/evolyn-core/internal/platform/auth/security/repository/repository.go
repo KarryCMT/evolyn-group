@@ -63,7 +63,9 @@ type FactorRepository interface {
 	Create(ctx context.Context, factor *model.MFAFactor) (*model.MFAFactor, error)
 	// GetActive 同类型至多一个活跃因子（部分唯一索引保证）
 	GetActive(ctx context.Context, accountID uint, factorType string) (*model.MFAFactor, error)
-	UpdateCounter(ctx context.Context, id uint, counter int64) error
+	// ConsumeCounter 以条件更新原子提交验证码计数器；若已有并发请求消费了
+	// 相同或更晚的时间步，返回 false，从存储层杜绝 TOTP 重放。
+	ConsumeCounter(ctx context.Context, id uint, counter int64) (bool, error)
 	Disable(ctx context.Context, id uint) error
 }
 
@@ -90,9 +92,14 @@ func (r *factorRepository) GetActive(ctx context.Context, accountID uint, factor
 	return factor, nil
 }
 
-func (r *factorRepository) UpdateCounter(ctx context.Context, id uint, counter int64) error {
-	return resolve(ctx, r.db).Model(&model.MFAFactor{}).Where("id = ?", id).
-		Update("last_used_counter", counter).Error
+func (r *factorRepository) ConsumeCounter(ctx context.Context, id uint, counter int64) (bool, error) {
+	res := resolve(ctx, r.db).Model(&model.MFAFactor{}).
+		Where("id = ? AND last_used_counter < ? AND disabled_at IS NULL", id, counter).
+		Update("last_used_counter", counter)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected == 1, nil
 }
 
 func (r *factorRepository) Disable(ctx context.Context, id uint) error {

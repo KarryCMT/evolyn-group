@@ -44,6 +44,8 @@ type AuthController struct {
 	revoker *auth.TokenRevoker
 	// 设备会话服务（ADR-009）：登录链路统一签发/校验/撤销 account_sessions
 	sessions securityservice.SessionService
+	// MFA 服务：启用后，登录第一步只创建短时 challenge，验证成功才签发会话。
+	mfa securityservice.MFAService
 	// 登录口令加密密钥对：密码登录分支先解密再走 bcrypt 校验
 	pkiKeypair *pki.Keypair
 	// 登录日志记录器：令牌签发成功后 best-effort 落一条会话建立流水
@@ -53,7 +55,7 @@ type AuthController struct {
 	loginGuard *auth.LoginGuard
 }
 
-func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder, revoker *auth.TokenRevoker, sessions securityservice.SessionService, loginGuard *auth.LoginGuard) platformcontroller.Controller {
+func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder, revoker *auth.TokenRevoker, sessions securityservice.SessionService, mfa securityservice.MFAService, loginGuard *auth.LoginGuard) platformcontroller.Controller {
 	return &AuthController{
 		accountService:      accountService,
 		registrationService: registrationService,
@@ -64,6 +66,7 @@ func NewAuthController(accountService service.AccountService, registrationServic
 		pkiKeypair:          pkiKeypair,
 		loginLog:            loginLog,
 		revoker:             revoker,
+		mfa:                 mfa,
 		loginGuard:          loginGuard,
 	}
 }
@@ -90,7 +93,7 @@ func (ac *AuthController) recordLogin(c *gin.Context, account *model.Account, me
 // loginSession 登录成功后的签发与 Cookie 写入：token 绑定
 // 「账号+成员+租户+设备会话（sid）」（ADR-009）。authMethod 声明第一步
 // 通过的证据类别（password/sms/oauth/register），落入会话流水
-func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, member *model.User, setCookie bool, authMethod string) (string, error) {
+func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, member *model.User, setCookie bool, authMethod, mfaMethod string) (string, error) {
 	var session *secmodel.AccountSession
 	if ac.sessions != nil {
 		ua := ""
@@ -101,6 +104,7 @@ func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, m
 		session, err = ac.sessions.Issue(c.Request.Context(), securityservice.IssueRequest{
 			AccountID:  account.ID,
 			AuthMethod: authMethod,
+			MFAMethod:  mfaMethod,
 			IP:         c.ClientIP(),
 			UserAgent:  ua,
 		})
@@ -124,6 +128,15 @@ func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, m
 	}
 
 	return token, nil
+}
+
+// loginResult 同时覆盖普通登录与 MFA 第一阶段；普通登录仍返回 token，兼容
+// 既有调用方，启用 MFA 时仅返回 mfaRequired/mfaChallenge，绝不提前签发 JWT。
+type loginResult struct {
+	Token        string `json:"token,omitempty"`
+	Describe     string `json:"describe,omitempty"`
+	MFARequired  bool   `json:"mfaRequired"`
+	MFAChallenge string `json:"mfaChallenge,omitempty"`
 }
 
 // @Summary 登录
@@ -219,7 +232,34 @@ func (ac *AuthController) Login(c *gin.Context) {
 		return
 	}
 
-	token, err := ac.loginSession(c, account, member, auser.SetCookie, method)
+	// Session.auth_method 是受数据库约束的证据类别；OAuth 登录日志可细分到
+	// provider，但设备会话统一记录 oauth，避免写入 oauthgithub 等非法值。
+	sessionMethod := secmodel.AuthMethodPassword
+	if auser.SmsCode != "" {
+		sessionMethod = secmodel.AuthMethodSMS
+	} else if !oauth.IsEmptyAuthType(auser.AuthType) {
+		sessionMethod = secmodel.AuthMethodOAuth
+	}
+	if ac.mfa != nil {
+		enabled, mfaErr := ac.mfa.Enabled(c.Request.Context(), account.ID)
+		if mfaErr != nil {
+			httpx.ResponseFailed(c, http.StatusInternalServerError, mfaErr)
+			return
+		}
+		if enabled {
+			challenge, challengeErr := ac.mfa.CreateLoginChallenge(c.Request.Context(), securityservice.LoginChallengeInput{
+				AccountID: account.ID, TenantID: member.TenantID, AuthMethod: sessionMethod, SetCookie: auser.SetCookie,
+			})
+			if challengeErr != nil {
+				httpx.ResponseFailed(c, http.StatusServiceUnavailable, challengeErr)
+				return
+			}
+			httpx.ResponseSuccess(c, loginResult{MFARequired: true, MFAChallenge: challenge})
+			return
+		}
+	}
+
+	token, err := ac.loginSession(c, account, member, auser.SetCookie, sessionMethod, "")
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -227,10 +267,57 @@ func (ac *AuthController) Login(c *gin.Context) {
 
 	ac.recordLogin(c, account, member, method)
 
-	httpx.ResponseSuccess(c, model.JWTToken{
+	httpx.ResponseSuccess(c, loginResult{
 		Token:    token,
 		Describe: "set token in Authorization Header, [Authorization: Bearer {token}]",
 	})
+}
+
+type mfaVerifyRequest struct {
+	MFAChallenge string `json:"mfaChallenge" binding:"required"`
+	Method       string `json:"method" binding:"required,oneof=totp recovery"`
+	Code         string `json:"code" binding:"required"`
+}
+
+// @Summary 完成登录二次验证
+// @Description 消费五分钟一次性 MFA challenge，校验 TOTP 或恢复码后创建设备会话并签发 JWT
+// @Accept json
+// @Produce json
+// @Tags 认证
+// @Param body body controller.mfaVerifyRequest true "MFA 验证信息"
+// @Success 200 {object} httpx.Response{data=controller.loginResult}
+// @Failure 401 {object} httpx.Response "AUTH_MFA_INVALID/AUTH_MFA_CHALLENGE_EXPIRED·验证信息错误或已过期"
+// @Failure 429 {object} httpx.Response "AUTH_MFA_CHALLENGE_TRIES_EXCEEDED·尝试次数过多"
+// @Router /api/v1/auth/mfa/verify [post]
+func (ac *AuthController) VerifyMFA(c *gin.Context) {
+	if ac.mfa == nil {
+		httpx.ResponseFailed(c, http.StatusServiceUnavailable, securityservice.ErrMFAUnavailable)
+		return
+	}
+	req := new(mfaVerifyRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	challenge, mfaMethod, err := ac.mfa.ConsumeLoginChallenge(c.Request.Context(), req.MFAChallenge, req.Method, req.Code)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+	// 第二步完成后重新解析账号与成员关系；challenge 只存 ID，避免短时缓存
+	// 携带画像，并确保成员被禁用/移除后不能用旧 challenge 换取会话。
+	account, member, err := ac.accountService.SwitchTenant(c.Request.Context(), challenge.AccountID, challenge.TenantID)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+	token, err := ac.loginSession(c, account, member, challenge.SetCookie, challenge.AuthMethod, mfaMethod)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
+		return
+	}
+	ac.recordLogin(c, account, member, challenge.AuthMethod)
+	httpx.ResponseSuccess(c, loginResult{Token: token, Describe: "set token in Authorization Header, [Authorization: Bearer {token}]"})
 }
 
 // @Summary 退出登录
@@ -407,7 +494,7 @@ func (ac *AuthController) RegisterComplete(c *gin.Context) {
 	}
 
 	// 注册即登录：令牌直接绑定新租户 owner 成员（免客户端再走切换）
-	token, err := ac.loginSession(c, result.Account, result.Member, false, secmodel.AuthMethodRegister)
+	token, err := ac.loginSession(c, result.Account, result.Member, false, secmodel.AuthMethodRegister, "")
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -628,6 +715,7 @@ func (ac *AuthController) ResetPassword(c *gin.Context) {
 
 func (ac *AuthController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/auth/token", ac.Login)
+	api.POST("/auth/mfa/verify", ac.VerifyMFA)
 	api.DELETE("/auth/token", ac.Logout)
 	api.POST("/auth/register", ac.RegisterComplete)
 	api.POST("/auth/password/reset", ac.ResetPassword)

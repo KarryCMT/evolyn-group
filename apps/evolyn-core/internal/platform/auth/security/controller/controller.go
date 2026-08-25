@@ -1,12 +1,17 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
 
+	"evolyn/internal/platform/auth/pki"
+	securitymodel "evolyn/internal/platform/auth/security/model"
 	"evolyn/internal/platform/auth/security/service"
 	"evolyn/internal/platform/controller"
 	"evolyn/internal/platform/ginctx"
 	"evolyn/internal/platform/httpx"
+	iammodel "evolyn/internal/platform/iam/model"
+	iamservice "evolyn/internal/platform/iam/service"
 
 	"github.com/gin-gonic/gin"
 )
@@ -15,10 +20,22 @@ import (
 // 挂 /accounts/me/* 之下，与 iam 账号自助控制器同域不同段
 type SecurityController struct {
 	securityService service.SecurityService
+	mfaService      service.MFAService
+	accountService  iamservice.AccountService
+	pkiKeypair      *pki.Keypair
 }
 
-func NewSecurityController(securityService service.SecurityService) controller.Controller {
-	return &SecurityController{securityService: securityService}
+func NewSecurityController(securityService service.SecurityService, mfaService service.MFAService,
+	accountService iamservice.AccountService, pkiKeypair *pki.Keypair) controller.Controller {
+	return &SecurityController{securityService: securityService, mfaService: mfaService, accountService: accountService, pkiKeypair: pkiKeypair}
+}
+
+func (sc *SecurityController) currentSID(c *gin.Context) string {
+	claims := ginctx.GetSession(c)
+	if claims == nil {
+		return ""
+	}
+	return claims.SID
 }
 
 // myAccount 从会话取账号 ID；未认证返回 false 并已写响应
@@ -57,7 +74,7 @@ func (sc *SecurityController) Overview(c *gin.Context) {
 // @Produce json
 // @Tags 账号
 // @Security JWT
-// @Success 200 {object} httpx.Response{data=[]model.AccountSession}
+// @Success 200 {object} httpx.Response{data=[]securitymodel.AccountSession}
 // @Router /api/v1/accounts/me/sessions [get]
 func (sc *SecurityController) ListSessions(c *gin.Context) {
 	accountID, ok := sc.myAccount(c)
@@ -65,6 +82,7 @@ func (sc *SecurityController) ListSessions(c *gin.Context) {
 		return
 	}
 
+	var sessions []securitymodel.AccountSession
 	sessions, err := sc.securityService.ListSessions(c.Request.Context(), accountID)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
@@ -95,8 +113,218 @@ func (sc *SecurityController) RevokeSession(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
+// reauthRequest 为高风险操作换取一次性短时凭证。已有 MFA 的账号可用 TOTP
+// 或恢复码；尚未绑定因子时只能以登录密码证明当前操作者身份。
+type reauthRequest struct {
+	Password string `json:"password"`
+	Method   string `json:"method"`
+	Code     string `json:"code"`
+}
+
+// @Summary 重新验证身份
+// @Description 高风险账号安全操作前，以密码或已绑定的 TOTP/恢复码换取五分钟一次性 reauthToken
+// @Accept json
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param body body controller.reauthRequest true "重新验证信息"
+// @Success 200 {object} httpx.Response{data=map[string]string}
+// @Failure 401 {object} httpx.Response "AUTH_MFA_INVALID·验证信息错误或已过期"
+// @Router /api/v1/accounts/me/security/reauth [post]
+func (sc *SecurityController) Reauth(c *gin.Context) {
+	accountID, ok := sc.myAccount(c)
+	if !ok {
+		return
+	}
+	if sc.mfaService == nil || sc.currentSID(c) == "" {
+		httpx.ResponseFailed(c, http.StatusServiceUnavailable, service.ErrMFAUnavailable)
+		return
+	}
+	req := new(reauthRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	var (
+		token string
+		err   error
+	)
+	if req.Password != "" {
+		plain, decryptErr := sc.pkiKeypair.Decrypt(req.Password)
+		if decryptErr != nil {
+			httpx.ResponseFailed(c, http.StatusBadRequest, decryptErr)
+			return
+		}
+		profile, profileErr := sc.accountService.GetProfile(c.Request.Context(), accountID)
+		if profileErr != nil {
+			httpx.ResponseFailed(c, http.StatusInternalServerError, profileErr)
+			return
+		}
+		verified, _, verifyErr := sc.accountService.Auth(c.Request.Context(), &iammodel.AuthUser{Name: profile.Name, Password: plain})
+		if verifyErr != nil || verified == nil || verified.ID != accountID {
+			httpx.ResponseFailed(c, http.StatusUnauthorized, service.ErrMFAInvalid)
+			return
+		}
+		token, err = sc.mfaService.IssueReauthToken(c.Request.Context(), accountID, sc.currentSID(c))
+	} else {
+		token, err = sc.mfaService.CreateReauthToken(c.Request.Context(), accountID, sc.currentSID(c), req.Method, req.Code)
+	}
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+	httpx.ResponseSuccess(c, map[string]string{"reauthToken": token})
+}
+
+type reauthTokenRequest struct {
+	ReauthToken string `json:"reauthToken" binding:"required"`
+}
+
+// @Summary 创建 TOTP 绑定向导
+// @Description 重新验证后生成五分钟有效的验证器导入地址；前端仅用于生成二维码，不得持久化密钥
+// @Accept json
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param body body controller.reauthTokenRequest true "重新验证令牌"
+// @Success 200 {object} httpx.Response{data=service.TOTPEnrollment}
+// @Router /api/v1/accounts/me/security/mfa/totp/enroll [post]
+func (sc *SecurityController) EnrollTOTP(c *gin.Context) {
+	accountID, ok := sc.myAccount(c)
+	if !ok {
+		return
+	}
+	req := new(reauthTokenRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := sc.requireReauth(c, accountID, req.ReauthToken); err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+	enrollment, err := sc.mfaService.Enroll(c.Request.Context(), accountID, "灵衍云", "account-"+fmt.Sprint(accountID))
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, enrollment)
+}
+
+type confirmTOTPRequest struct {
+	EnrollmentID string `json:"enrollmentId" binding:"required"`
+	Code         string `json:"code" binding:"required,len=6"`
+}
+
+// @Summary 确认 TOTP 绑定
+// @Description 校验验证器首个动态码后启用 MFA，并仅一次返回恢复码；成功会撤销其他设备会话
+// @Accept json
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param body body controller.confirmTOTPRequest true "绑定确认信息"
+// @Success 200 {object} httpx.Response{data=map[string][]string}
+// @Router /api/v1/accounts/me/security/mfa/totp/confirm [post]
+func (sc *SecurityController) ConfirmTOTP(c *gin.Context) {
+	accountID, ok := sc.myAccount(c)
+	if !ok {
+		return
+	}
+	req := new(confirmTOTPRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	// enroll 已要求并消费 reauthToken；enrollmentID 仅在该操作成功后写入 Redis，
+	// 且在此处再次校验账号归属，因此确认不重复消费已使用的一次性凭证。
+	codes, err := sc.mfaService.ConfirmEnrollment(c.Request.Context(), accountID, sc.currentSID(c), req.EnrollmentID, req.Code)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, map[string][]string{"recoveryCodes": codes})
+}
+
+// @Summary 关闭 TOTP 登录二次验证
+// @Description 重新验证后关闭当前账号的 TOTP 因子并撤销其他设备会话
+// @Accept json
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param body body controller.reauthTokenRequest true "重新验证令牌"
+// @Success 200 {object} httpx.Response
+// @Router /api/v1/accounts/me/security/mfa/totp [delete]
+func (sc *SecurityController) DisableTOTP(c *gin.Context) {
+	accountID, ok := sc.myAccount(c)
+	if !ok {
+		return
+	}
+	req := new(reauthTokenRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := sc.requireReauth(c, accountID, req.ReauthToken); err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+	if err := sc.mfaService.Disable(c.Request.Context(), accountID, sc.currentSID(c)); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, nil)
+}
+
+type singleSessionRequest struct {
+	ReauthToken string `json:"reauthToken" binding:"required"`
+	Enabled     bool   `json:"enabled"`
+}
+
+// @Summary 设置禁止同时登录
+// @Description 重新验证后更新账号级单会话开关；开启时立即撤销其他设备会话
+// @Accept json
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param body body controller.singleSessionRequest true "单会话设置"
+// @Success 200 {object} httpx.Response
+// @Router /api/v1/accounts/me/security/single-session [put]
+func (sc *SecurityController) UpdateSingleSession(c *gin.Context) {
+	accountID, ok := sc.myAccount(c)
+	if !ok {
+		return
+	}
+	req := new(singleSessionRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := sc.requireReauth(c, accountID, req.ReauthToken); err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+	if err := sc.securityService.UpdateSingleSession(c.Request.Context(), accountID, sc.currentSID(c), req.Enabled); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, nil)
+}
+
+func (sc *SecurityController) requireReauth(c *gin.Context, accountID uint, token string) error {
+	if sc.mfaService == nil {
+		return service.ErrMFAUnavailable
+	}
+	return sc.mfaService.RequireReauth(c.Request.Context(), accountID, sc.currentSID(c), token)
+}
+
 func (sc *SecurityController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/accounts/me/security", sc.Overview)
+	api.POST("/accounts/me/security/reauth", sc.Reauth)
+	api.POST("/accounts/me/security/mfa/totp/enroll", sc.EnrollTOTP)
+	api.POST("/accounts/me/security/mfa/totp/confirm", sc.ConfirmTOTP)
+	api.DELETE("/accounts/me/security/mfa/totp", sc.DisableTOTP)
+	api.PUT("/accounts/me/security/single-session", sc.UpdateSingleSession)
 	api.GET("/accounts/me/sessions", sc.ListSessions)
 	api.DELETE("/accounts/me/sessions/:sid", sc.RevokeSession)
 }

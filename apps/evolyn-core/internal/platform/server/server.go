@@ -31,6 +31,7 @@ import (
 	securitycontroller "evolyn/internal/platform/auth/security/controller"
 	securityrepository "evolyn/internal/platform/auth/security/repository"
 	securityservice "evolyn/internal/platform/auth/security/service"
+	"evolyn/internal/platform/auth/security/totp"
 	authservice "evolyn/internal/platform/auth/service"
 	"evolyn/internal/platform/auth/sms"
 	"evolyn/internal/platform/controller"
@@ -79,6 +80,25 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	rdb, err := infrastructure.NewRedisClient(&conf.Redis)
 	if err != nil {
 		return nil, errors.Wrap(err, "redis client failed")
+	}
+
+	// MFA 的 TOTP 主密钥仅从部署配置加载。release 绝不允许在没有密钥或
+	// Redis 的情况下启动该能力；debug 未配置时保留既有登录链路，安全设置
+	// 接口会明确返回不可用而不会降级绕过。
+	var keyring *totp.Keyring
+	if conf.Security.TOTP.CurrentKeyVersion != 0 || len(conf.Security.TOTP.MasterKeys) != 0 {
+		if err := conf.Security.TOTP.Validate(); err != nil {
+			return nil, err
+		}
+		keyring, err = totp.NewKeyring(conf.Security.TOTP.CurrentKeyVersion, conf.Security.TOTP.MasterKeys)
+		if err != nil {
+			return nil, errors.Wrap(err, "totp keyring init failed")
+		}
+		if !rdb.Endable() {
+			return nil, fmt.Errorf("security.totp 配置后 redis 必须启用")
+		}
+	} else if conf.Server.ENV == gin.ReleaseMode {
+		return nil, fmt.Errorf("release 环境必须配置 security.totp 主密钥")
 	}
 
 	// Schema 管理（FIX-009）：SQL Migration 是唯一生产路径；
@@ -224,19 +244,33 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	securitySessionRepo := securityrepository.NewSessionRepository(db)
 	sessionService := securityservice.NewSessionService(txManager, securitySettingsRepo, securitySessionRepo)
 	securitySvc := securityservice.NewSecurityService(
+		txManager,
 		securitySettingsRepo,
 		securityrepository.NewFactorRepository(db),
 		securityrepository.NewRecoveryRepository(db),
 		securitySessionRepo,
 		securityrepository.NewEventRepository(db),
 	)
-	securityController := securitycontroller.NewSecurityController(securitySvc)
+	var mfaSvc securityservice.MFAService
+	if keyring != nil {
+		mfaSvc = securityservice.NewMFAService(
+			txManager,
+			securitySettingsRepo,
+			securityrepository.NewFactorRepository(db),
+			securityrepository.NewRecoveryRepository(db),
+			securitySessionRepo,
+			securityrepository.NewEventRepository(db),
+			keyring,
+			rdb.Client,
+		)
+	}
+	securityController := securitycontroller.NewSecurityController(securitySvc, mfaSvc, accountService, keypair)
 	departmentController := iamcontroller.NewDepartmentController(departmentService)
 	groupController := iamcontroller.NewGroupController(groupService)
 	// 注册编排服务（认证域）：注册向导最终提交「进入产品」的单事务落库
 	// （免密注册账号 + 账号画像 + 租户开通/复用 + owner 成员解析）
 	registrationService := authservice.NewRegistrationService(txManager, accountService, tenantService, auditSvc)
-	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc, tokenRevoker, sessionService, loginGuard)
+	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc, tokenRevoker, sessionService, mfaSvc, loginGuard)
 	rbacController := iamcontroller.NewRbacController(rbacService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 	applicationController := applicationcontroller.NewApplicationController(applicationService)

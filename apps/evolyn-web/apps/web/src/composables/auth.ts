@@ -17,6 +17,7 @@ export function useAuth() {
     displayName,
     isTenantOwner,
     login: store.login,
+    completeMfaLogin: store.completeMfaLogin,
     applyJwt: store.applyJwt,
     loadUserInfo: store.loadUserInfo,
     logout: store.logout,

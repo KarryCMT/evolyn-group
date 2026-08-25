@@ -90,6 +90,7 @@ func newSvc(settings *model.SecuritySettings, factor *model.MFAFactor,
 	codes []model.RecoveryCode, sessions []model.AccountSession) (SecurityService, *fakeSessionRepo) {
 	sessionRepo := &fakeSessionRepo{sessions: sessions}
 	return NewSecurityService(
+		&fakeTxRunner{},
 		&fakeSettingsRepo{settings: settings},
 		&fakeFactorRepo{factor: factor},
 		&fakeRecoveryRepo{codes: codes},

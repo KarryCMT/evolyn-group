@@ -54,6 +54,7 @@ type SessionService interface {
 type IssueRequest struct {
 	AccountID  uint
 	AuthMethod string // password / sms / oauth / register
+	MFAMethod  string // 空 = 未启用 MFA；totp / recovery = 已完成第二步
 	IP         string
 	UserAgent  string
 	Location   string
@@ -88,6 +89,10 @@ func (s *sessionService) Issue(ctx context.Context, req IssueRequest) (*secmodel
 		CreatedAt:    kernel.JSONTime(now),
 		LastSeenAt:   kernel.JSONTime(now),
 		ExpiresAt:    kernel.JSONTime(now.Add(SessionTTL)),
+	}
+	if req.MFAMethod != "" {
+		method := req.MFAMethod
+		session.MFAMethod = &method
 	}
 
 	// 多步写走统一事务（FIX-020/021 口径）：锁行 → 读设置 → 撤销他人 → 建会话。

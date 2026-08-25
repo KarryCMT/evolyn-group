@@ -12,6 +12,7 @@ import (
 )
 
 type securityService struct {
+	tx       TxManager
 	settings repository.SettingsRepository
 	factors  repository.FactorRepository
 	recovery repository.RecoveryRepository
@@ -21,6 +22,7 @@ type securityService struct {
 
 // NewSecurityService 安全服务装配（server.go 调用；events 允许 nil 便于测试）
 func NewSecurityService(
+	tx TxManager,
 	settings repository.SettingsRepository,
 	factors repository.FactorRepository,
 	recovery repository.RecoveryRepository,
@@ -28,6 +30,7 @@ func NewSecurityService(
 	events repository.EventRepository,
 ) SecurityService {
 	return &securityService{
+		tx:       tx,
 		settings: settings,
 		factors:  factors,
 		recovery: recovery,
@@ -101,4 +104,24 @@ func (s *securityService) RevokeSession(ctx context.Context, accountID uint, sid
 		})
 	}
 	return nil
+}
+
+func (s *securityService) UpdateSingleSession(ctx context.Context, accountID uint, currentSID string, enabled bool) error {
+	return s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		if err := s.settings.LockAccountRow(tctx, accountID); err != nil {
+			return err
+		}
+		settings, err := s.settings.Get(tctx, accountID)
+		if err != nil {
+			return err
+		}
+		settings.SingleSessionEnabled = enabled
+		if err := s.settings.Upsert(tctx, settings); err != nil {
+			return err
+		}
+		if enabled {
+			_, err = s.sessions.RevokeOthers(tctx, accountID, currentSID, model.RevokeReplaced)
+		}
+		return err
+	})
 }

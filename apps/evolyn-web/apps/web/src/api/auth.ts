@@ -1,5 +1,6 @@
 import type {
   JwtToken,
+  LoginResult,
   LoginPayload,
   OpenTenantPayload,
   RegisterCompletePayload,
@@ -21,8 +22,17 @@ export function sendSmsCode(phone: string, scene: SmsScene): Promise<{ code?: st
 }
 
 /** 密码登录（用户名/手机号 + 密码），成功返回 JWT */
-export function login(payload: LoginPayload): Promise<JwtToken> {
+export function login(payload: LoginPayload): Promise<LoginResult> {
   return http.post('/auth/token', payload);
+}
+
+/** 消费登录第一步返回的 MFA challenge，成功后才得到设备会话 JWT。 */
+export function verifyMfaLogin(payload: {
+  mfaChallenge: string;
+  method: 'totp' | 'recovery';
+  code: string;
+}): Promise<JwtToken> {
+  return http.post('/auth/mfa/verify', payload);
 }
 
 /** OAuth 登录（github/wechat 授权码换取平台会话） */
