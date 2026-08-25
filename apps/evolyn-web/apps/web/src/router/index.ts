@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuth } from '~/composables';
+import { useGlobSetting } from '@evolyn.do/hooks';
 import routes from './modules/index';
 // 手动维护的路由表：不使用 vite-ssg / unplugin-vue-router 的文件式自动路由，
 // 路由路径与 src/pages/ 目录结构一一对应，新增页面时在此登记
@@ -40,7 +41,8 @@ router.beforeEach((to) => {
 
 // 仅在导航确认后更新标题，避免重定向或中断导航提前改变浏览器标签。
 router.afterEach((to) => {
-  document.title = to.meta.title || 'evolyn';
+  // 未声明路由标题时使用环境配置的产品名称，保持与入口 HTML 一致。
+  document.title = to.meta.title || useGlobSetting().title || '灵衍云';
 });
 
 export default router;

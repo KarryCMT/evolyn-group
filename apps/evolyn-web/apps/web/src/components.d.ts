@@ -111,6 +111,7 @@ declare module 'vue' {
     MessageSettings: typeof import('./components/dashboard/messageCenter/MessageSettings.vue')['default']
     MessageSettingsTabs: typeof import('./components/dashboard/messageCenter/MessageSettingsTabs.vue')['default']
     MessageToolbar: typeof import('./components/dashboard/messageCenter/MessageToolbar.vue')['default']
+    MfaVerifyDialog: typeof import('./components/auth/MfaVerifyDialog.vue')['default']
     OAuthLoginPanel: typeof import('./components/auth/OAuthLoginPanel.vue')['default']
     OnboardingWidget: typeof import('./components/dashboard/widgets/OnboardingWidget.vue')['default']
     OrganizationMemberDrawer: typeof import('./components/tenant/organization/OrganizationMemberDrawer.vue')['default']

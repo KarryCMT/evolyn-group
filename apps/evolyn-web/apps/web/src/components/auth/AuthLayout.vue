@@ -2,7 +2,11 @@
 // 认证页骨架：顶栏（Logo + 语言切换）+ 左侧品牌区 + 右侧表单卡片，
 // 登录/注册/找回密码页共用；卡片内容与底部引导由各页面通过插槽注入
 import loginBackground from '~/assets/images/login_bg_1.png';
-import brandLogo from '~/assets/images/logo.png';
+import brandLogo from '~/assets/logo/logo-light.png';
+import { useGlobSetting } from '@evolyn.do/hooks';
+
+// 产品名称由 VITE_GLOB_APP_TITLE 注入，缺省时保持灵衍云的默认品牌展示。
+const appTitle = useGlobSetting().title || '灵衍云';
 
 defineProps<{
   /** 卡片标题，如「欢迎来到 evolyn」 */
@@ -17,12 +21,10 @@ defineProps<{
 <template>
   <div class="auth-layout" :class="{ 'auth-layout--login': variant === 'login' }">
     <header class="auth-layout__header">
-      <img
-        v-if="variant === 'login'"
-        class="auth-layout__logo-image"
-        :src="brandLogo"
-        alt="灵衍云"
-      />
+      <div v-if="variant === 'login'" class="auth-layout__login-brand">
+        <img class="auth-layout__logo-image" :src="brandLogo" :alt="appTitle" />
+        <span class="auth-layout__login-brand-name">{{ appTitle }}</span>
+      </div>
       <div v-else class="auth-layout__logo">
         <span class="auth-layout__logo-mark">E</span>
         <span class="auth-layout__logo-name">evolyn</span>
@@ -98,8 +100,21 @@ defineProps<{
 
 .auth-layout__logo-image {
   display: block;
-  width: 142px;
+  width: 82px;
   height: auto;
+}
+
+.auth-layout__login-brand {
+  display: flex;
+  gap: var(--gp-space-lg);
+  align-items: center;
+}
+
+.auth-layout__login-brand-name {
+  font-size: var(--gp-text-xl);
+  font-weight: 600;
+  color: var(--gp-text-color-primary);
+  white-space: nowrap;
 }
 
 .auth-layout__body {
@@ -183,12 +198,13 @@ defineProps<{
     gap: 0;
     width: 100%;
     min-height: 100vh;
+    background-color: #e6f0fd;
     padding: 0;
   }
 
   .auth-layout__visual {
-    min-height: 100%;
-    background-color: #f7fcfc;
+    min-height: 42%;
+    background-color: #e6f0fd;
     background-repeat: no-repeat;
     background-position: 55% 56%;
     background-size: cover;
@@ -236,8 +252,11 @@ defineProps<{
 
     .auth-layout__body {
       display: block;
+      // 使用 border-box 避免最小视口高度与顶部留白叠加，产生 1px 的无意义滚动。
+      box-sizing: border-box;
       min-height: 100vh;
-      padding-top: 1px;
+      min-height: 100dvh;
+      padding-top: 0;
     }
 
     .auth-layout__visual {
@@ -246,7 +265,10 @@ defineProps<{
 
     .auth-layout__panel {
       justify-content: flex-start;
+      // 内边距应包含在视口高度内；内容真正超出时才允许页面滚动。
+      box-sizing: border-box;
       min-height: 100vh;
+      min-height: 100dvh;
       padding-top: 108px;
     }
   }
