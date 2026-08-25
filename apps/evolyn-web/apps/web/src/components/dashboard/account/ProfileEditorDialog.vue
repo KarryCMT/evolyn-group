@@ -22,7 +22,6 @@ const formRef = ref<FormInstance>();
 const form = reactive<AccountProfileForm>({
   nickname: '',
   email: '',
-  avatar: '',
 });
 
 const rules: FormRules<AccountProfileForm> = {
@@ -31,7 +30,6 @@ const rules: FormRules<AccountProfileForm> = {
     { max: 64, message: '姓名不能超过 64 个字符', trigger: 'blur' },
   ],
   email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: 'blur' }],
-  avatar: [{ type: 'url', message: '请输入有效的头像地址', trigger: 'blur' }],
 };
 
 // 每次打开时都以最新账号聚合信息回填，避免在别处改名后弹窗展示旧值。
@@ -41,7 +39,6 @@ watch(
     if (!visible) return;
     form.nickname = account?.nickname ?? '';
     form.email = account?.email ?? '';
-    form.avatar = account?.avatar ?? '';
     formRef.value?.clearValidate();
   },
   { immediate: true },
@@ -54,7 +51,6 @@ async function submit() {
     nickname: form.nickname.trim(),
     // 后端当前采用非空字段更新；空值不出参，避免误导为支持解绑邮箱或清空头像。
     email: form.email?.trim() || undefined,
-    avatar: form.avatar?.trim() || undefined,
   });
 }
 </script>
@@ -73,9 +69,6 @@ async function submit() {
       </el-form-item>
       <el-form-item label="邮箱" prop="email">
         <el-input v-model="form.email" type="email" autocomplete="email" />
-      </el-form-item>
-      <el-form-item label="头像地址" prop="avatar">
-        <el-input v-model="form.avatar" placeholder="https://example.com/avatar.png" />
       </el-form-item>
     </el-form>
     <template #footer>

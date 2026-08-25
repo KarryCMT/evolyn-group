@@ -101,6 +101,7 @@ export interface AccountInfo {
   nickname: string;
   phone: string;
   email: string;
+  /** 外部头像 URL 或个人设置裁剪后保存的 data URL */
   avatar: string;
   /** 密码是否已由本人设置：免密注册账号为 false，个人中心应引导首次设置 */
   passwordInitialized: boolean;

@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 
-	platformcontroller "evolyn/internal/platform/controller"
 	filemodel "evolyn/internal/platform/file/model"
 	fileservice "evolyn/internal/platform/file/service"
 	"evolyn/internal/platform/ginctx"
@@ -18,7 +17,7 @@ import (
 
 type FileController struct{ service fileservice.FileService }
 
-func NewFileController(service fileservice.FileService) platformcontroller.Controller {
+func NewFileController(service fileservice.FileService) *FileController {
 	return &FileController{service: service}
 }
 
@@ -31,6 +30,10 @@ func (f *FileController) RegisterRoute(router *gin.RouterGroup) {
 	files.GET("/:id", f.Get)
 	files.GET("/:id/download-url", f.DownloadURL)
 	files.DELETE("/:id", f.Delete)
+}
+
+func (f *FileController) RegisterPublicRoute(router *gin.RouterGroup) {
+	router.GET("/files/:id/content", f.PublicDownload)
 }
 
 // @Summary 创建文件上传会话
@@ -114,6 +117,16 @@ func (f *FileController) DownloadURL(c *gin.Context) {
 		return
 	}
 	httpx.ResponseSuccess(c, result)
+}
+
+// PublicDownload 仅返回临时对象跳转地址，不泄露底层对象键。
+func (f *FileController) PublicDownload(c *gin.Context) {
+	result, err := f.service.PublicDownloadURL(c.Request.Context(), fileCode(c))
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	http.Redirect(c.Writer, c.Request, result.URL, http.StatusTemporaryRedirect)
 }
 
 // @Summary 删除文件

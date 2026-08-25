@@ -28,6 +28,8 @@ const panelName = computed(() => displayName.value || '用户');
 
 // 公司名：超长由样式截断为省略号（对齐设计稿「重庆万柯互联网科技有限责任...」形态）
 const tenantName = computed(() => userInfo.value?.tenant.name ?? '');
+// 账号已保存头像地址时优先渲染图片；空值才回退为 Element Plus 的用户图标。
+const avatar = computed(() => userInfo.value?.account.avatar || '');
 const favoritesVisible = shallowRef(false);
 
 /**
@@ -63,12 +65,12 @@ async function handleLogout() {
 <template>
   <el-dropdown placement="bottom-end" popper-class="user-menu-popper" @command="onCommand">
     <!-- 触发器：顶栏小头像 -->
-    <el-avatar class="user-menu__trigger" :size="24" :icon="UserFilled" />
+    <el-avatar class="user-menu__trigger" :size="24" :src="avatar" :icon="UserFilled" />
     <template #dropdown>
       <div class="user-menu">
         <!-- 用户信息区：头像 + 昵称/「我创建的」标签 + 公司名 -->
         <div class="user-menu__profile">
-          <el-avatar class="user-menu__avatar" :size="40" :icon="UserFilled" />
+          <el-avatar class="user-menu__avatar" :size="40" :src="avatar" :icon="UserFilled" />
           <div class="user-menu__meta">
             <div class="user-menu__name-row">
               <span class="user-menu__name">{{ panelName }}</span>

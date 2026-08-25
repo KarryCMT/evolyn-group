@@ -271,6 +271,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		db:                db,
 		rdb:               rdb,
 		controllers:       controllers,
+		fileController:    fileController,
 		purgeWorker:       purgeWorker,
 		fileCleanupWorker: fileCleanupWorker,
 		authorizer:        authorizer,
@@ -289,6 +290,7 @@ type Server struct {
 	rdb *infrastructure.RedisDB
 
 	controllers       []controller.Controller
+	fileController    *filecontroller.FileController
 	purgeWorker       *tenantservice.PurgeWorker
 	fileCleanupWorker *fileservice.UploadCleanupWorker
 	authorizer        *authorization.Authorizer
@@ -379,6 +381,8 @@ func (s *Server) initRouter() {
 	// 解析为资源请求（resource=app），匿名用户仅持有 auth:create 规则，
 	// 未登录的登录/注册页将拿不到区号列表
 	controller.NewAppConfController(s.pkiKeypair).RegisterRoute(api)
+	// 头像等公开展示资源通过应用地址跳转至短期对象 URL，真实对象保持私有。
+	s.fileController.RegisterPublicRoute(api)
 
 	controllers := make([]string, 0, len(s.controllers))
 	for _, router := range s.controllers {

@@ -27,7 +27,8 @@ type Account struct {
 	// SessionVersion 随密码变更递增，并写入 JWT。认证中间件据此拒绝旧会话，
 	// 使密码找回/修改能一次性失效该账号的全部已签发令牌。
 	SessionVersion uint64 `json:"-" gorm:"not null;default:0"`
-	Avatar         string `json:"avatar" gorm:"size:256"`
+	// Avatar 保存经裁剪和压缩后的 data URL，避免客户端存储原始大图。
+	Avatar         string `json:"avatar" gorm:"type:text"`
 	// 账号注册引导画像（注册向导第 3 步「完善信息」）：角色/了解渠道是
 	// 「人」的属性挂账号；租户级画像见 tenants.config 的 onboarding 段
 	Onboarding AccountOnboarding `json:"onboarding" gorm:"type:jsonb;not null;default:'{}'"`

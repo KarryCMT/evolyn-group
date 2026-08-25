@@ -12,6 +12,7 @@ type FileService interface {
 	Get(ctx context.Context, member *iammodel.User, code string) (*filemodel.File, error)
 	Complete(ctx context.Context, member *iammodel.User, code string) (*filemodel.File, error)
 	DownloadURL(ctx context.Context, member *iammodel.User, code string) (*filemodel.DownloadURLResponse, error)
+	PublicDownloadURL(ctx context.Context, code string) (*filemodel.DownloadURLResponse, error)
 	Delete(ctx context.Context, member *iammodel.User, code string) error
 	CleanupExpired(ctx context.Context) error
 }

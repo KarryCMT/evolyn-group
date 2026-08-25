@@ -1,6 +1,7 @@
 import { ElMessage } from 'element-plus';
 import { shallowRef } from 'vue';
 import { changeMyPassword, updateMyProfile } from '~/api/account';
+import { resetPassword } from '~/api/auth';
 import { encryptPassword } from '~/api/conf';
 import { useAuth } from '~/composables/auth';
 import type { AccountPasswordForm, AccountProfileForm } from '~/types/account';
@@ -10,7 +11,7 @@ import type { AccountPasswordForm, AccountProfileForm } from '~/types/account';
  * 密码在此处完成 RSA 加密，避免页面组件接触接口细节。
  */
 export function useAccountSettings() {
-  const { loadUserInfo, logout } = useAuth();
+  const { loadUserInfo, logout, userInfo } = useAuth();
   const savingProfile = shallowRef(false);
   const savingPassword = shallowRef(false);
 
@@ -32,7 +33,15 @@ export function useAccountSettings() {
         payload.oldPassword ? encryptPassword(payload.oldPassword) : Promise.resolve(undefined),
         encryptPassword(payload.newPassword),
       ]);
-      await changeMyPassword({ oldPassword, newPassword });
+      if (payload.smsCode && userInfo.value?.account.phone) {
+        await resetPassword({
+          phone: userInfo.value.account.phone,
+          smsCode: payload.smsCode,
+          newPassword,
+        });
+      } else {
+        await changeMyPassword({ oldPassword, newPassword });
+      }
       // 后端递增账号会话版本，当前会话也会失效；立即清本地令牌并引导重新登录。
       // 当前 token 已被后端拒绝，登出接口可能返回 401；store 的 finally 仍会
       // 清理本地会话，这里吞掉该预期响应，保证后续提示和跳转能够执行。

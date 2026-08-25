@@ -5,10 +5,12 @@ import { useRouter } from 'vue-router';
 import AccountBasicInfoPanel from '~/components/dashboard/account/AccountBasicInfoPanel.vue';
 import AccountSecurityPanel from '~/components/dashboard/account/AccountSecurityPanel.vue';
 import AccountSettingsSidebar from '~/components/dashboard/account/AccountSettingsSidebar.vue';
+import AvatarEditorDialog from '~/components/dashboard/account/AvatarEditorDialog.vue';
 import LoginLogDrawer from '~/components/dashboard/account/LoginLogDrawer.vue';
 import PasswordEditorDialog from '~/components/dashboard/account/PasswordEditorDialog.vue';
 import ProfileEditorDialog from '~/components/dashboard/account/ProfileEditorDialog.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
+import { uploadAvatar } from '~/api/file';
 import { useAuth } from '~/composables/auth';
 import { useAccountSettings } from '~/composables/useAccountSettings';
 
@@ -19,12 +21,27 @@ const { savingPassword, savingProfile, savePassword, saveProfile } = useAccountS
 const router = useRouter();
 const activeTab = shallowRef<AccountSettingsTab>('basic');
 const profileDialogVisible = shallowRef(false);
+const avatarDialogVisible = shallowRef(false);
+const avatarDialogSource = shallowRef<File | null>(null);
 const passwordDialogVisible = shallowRef(false);
 const loginLogVisible = shallowRef(false);
 
 async function handleProfileSubmit(payload: AccountProfileForm) {
   await saveProfile(payload);
   profileDialogVisible.value = false;
+}
+
+async function handleAvatarSubmit(avatar: File) {
+  await saveProfile({
+    avatar: await uploadAvatar(avatar),
+    nickname: userInfo.value?.account.nickname || '',
+  });
+  avatarDialogVisible.value = false;
+}
+
+function handleAvatarEdit(file: File) {
+  avatarDialogSource.value = file;
+  avatarDialogVisible.value = true;
 }
 
 // 通讯录姓名使用与灵衍云一致的行内编辑；后端会在同一事务中同步账号与当前成员昵称。
@@ -58,6 +75,7 @@ function handleViewLoginLog() {
             :user-info="userInfo"
             :saving-contact-name="savingProfile"
             @edit-profile="profileDialogVisible = true"
+            @edit-avatar="handleAvatarEdit"
             @update-contact-name="handleContactNameUpdate"
             @change-password="passwordDialogVisible = true"
             @view-login-log="handleViewLoginLog"
@@ -73,9 +91,17 @@ function handleViewLoginLog() {
       :loading="savingProfile"
       @submit="handleProfileSubmit"
     />
+    <AvatarEditorDialog
+      v-model="avatarDialogVisible"
+      :source-file="avatarDialogSource"
+      :avatar="userInfo?.account.avatar || ''"
+      :loading="savingProfile"
+      @submit="handleAvatarSubmit"
+    />
     <PasswordEditorDialog
       v-model="passwordDialogVisible"
       :password-initialized="userInfo?.account.passwordInitialized ?? true"
+      :phone="userInfo?.account.phone || ''"
       :loading="savingPassword"
       @submit="handlePasswordSubmit"
     />

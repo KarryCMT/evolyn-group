@@ -2,13 +2,14 @@
 import type { DeepReadonly } from 'vue';
 import type { UserInfoResult } from '~/types';
 import { RiCheckboxCircleFill, RiUserFill } from '@remixicon/vue';
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
 import type { InputInstance } from 'element-plus';
 
 defineOptions({ name: 'AccountBasicInfoPanel' });
 
 const emit = defineEmits<{
   editProfile: [];
+  editAvatar: [file: File];
   updateContactName: [nickname: string, onSuccess: () => void];
   changePassword: [];
   viewLoginLog: [];
@@ -20,6 +21,7 @@ const props = defineProps<{
 }>();
 
 const contactNameInputRef = ref<InputInstance>();
+const avatarInputRef = useTemplateRef<HTMLInputElement>('avatarInput');
 const contactNameEditing = ref(false);
 const contactName = ref('');
 
@@ -61,6 +63,18 @@ function submitContactName() {
     contactNameEditing.value = false;
   });
 }
+
+// 头像编辑遵循「先选择文件，再打开裁剪弹窗」的交互，取消系统选图时不打断当前页面。
+function chooseAvatar() {
+  avatarInputRef.value?.click();
+}
+
+function handleAvatarChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  input.value = '';
+  if (file) emit('editAvatar', file);
+}
 </script>
 
 <template>
@@ -83,7 +97,14 @@ function submitContactName() {
           <el-avatar :size="36" :src="userInfo?.account.avatar">
             <el-icon><RiUserFill /></el-icon>
           </el-avatar>
-          <el-button link type="primary" @click="emit('editProfile')">修改</el-button>
+          <el-button link type="primary" @click="chooseAvatar">修改</el-button>
+          <input
+            ref="avatarInput"
+            class="account-basic-info__avatar-input"
+            type="file"
+            accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+            @change="handleAvatarChange"
+          />
         </dd>
       </div>
       <div class="account-basic-info__row">
@@ -242,6 +263,10 @@ function submitContactName() {
   &__identifier {
     font-family: var(--el-font-family);
     font-size: var(--el-font-size-small);
+  }
+
+  &__avatar-input {
+    display: none;
   }
 }
 </style>

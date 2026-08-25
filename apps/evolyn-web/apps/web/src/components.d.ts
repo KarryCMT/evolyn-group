@@ -32,6 +32,7 @@ declare module 'vue' {
     AppSettingSidebar: typeof import('./components/app/AppSettingSidebar.vue')['default']
     AppsWidget: typeof import('./components/dashboard/widgets/AppsWidget.vue')['default']
     AuthLayout: typeof import('./components/auth/AuthLayout.vue')['default']
+    AvatarEditorDialog: typeof import('./components/dashboard/account/AvatarEditorDialog.vue')['default']
     BlankApplicationDialog: typeof import('./components/application/create/BlankApplicationDialog.vue')['default']
     BrandPanel: typeof import('./components/auth/BrandPanel.vue')['default']
     ChartsWidget: typeof import('./components/dashboard/widgets/ChartsWidget.vue')['default']

@@ -166,6 +166,32 @@ func (s *fileService) DownloadURL(ctx context.Context, member *iammodel.User, co
 	return &filemodel.DownloadURLResponse{Method: presigned.Method, URL: presigned.URL, Headers: presigned.Headers, ExpiresAt: expiresAt}, nil
 }
 
+// PublicDownloadURL 为头像等公开展示资源签发短期对象地址，普通文件不会链接到公开入口。
+func (s *fileService) PublicDownloadURL(ctx context.Context, code string) (*filemodel.DownloadURLResponse, error) {
+	if !s.storage.Enabled || s.store == nil {
+		return nil, filedomain.ErrStorageDisabled
+	}
+	if strings.TrimSpace(code) == "" {
+		return nil, filedomain.ErrNotFound
+	}
+	file, err := s.repo.GetByCode(ctx, code)
+	if err == gorm.ErrRecordNotFound {
+		return nil, filedomain.ErrNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if file.State != filemodel.FileStateReady {
+		return nil, filedomain.ErrStateInvalid
+	}
+	presigned, err := s.store.PresignGet(ctx, file.Bucket, file.ObjectKey, s.storage.PresignTTL())
+	if err != nil {
+		return nil, httpx.Wrap(filedomain.ErrStorageDisabled, err)
+	}
+	expiresAt := kernelTime(time.Now().Add(s.storage.PresignTTL()))
+	return &filemodel.DownloadURLResponse{Method: presigned.Method, URL: presigned.URL, Headers: presigned.Headers, ExpiresAt: expiresAt}, nil
+}
+
 func (s *fileService) Delete(ctx context.Context, member *iammodel.User, code string) error {
 	if !s.storage.Enabled || s.store == nil {
 		return filedomain.ErrStorageDisabled

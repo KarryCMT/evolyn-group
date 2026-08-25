@@ -11,4 +11,6 @@ export type AccountProfileForm = Required<Pick<AccountProfilePayload, 'nickname'
 export interface AccountPasswordForm {
   oldPassword?: string;
   newPassword: string;
+  /** 首次设置密码经短信验证后的验证码，由找回密码接口在最终保存时原子校验。 */
+  smsCode?: string;
 }

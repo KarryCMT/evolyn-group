@@ -35,6 +35,16 @@ func NewRustFS(conf config.StorageConfig) (*RustFS, error) {
 	if err != nil {
 		return nil, fmt.Errorf("创建 RustFS S3 客户端: %w", err)
 	}
+	// 本地首次启用 MinIO 时自动创建业务桶，避免浏览器获得预签名地址后才因桶不存在失败。
+	exists, err := client.BucketExists(context.Background(), conf.Bucket)
+	if err != nil {
+		return nil, fmt.Errorf("检查 storage.bucket: %w", err)
+	}
+	if !exists {
+		if err := client.MakeBucket(context.Background(), conf.Bucket, minio.MakeBucketOptions{Region: "us-east-1"}); err != nil {
+			return nil, fmt.Errorf("创建 storage.bucket: %w", err)
+		}
+	}
 
 	// 内外网地址不同的时候，签名必须基于浏览器实际访问的 Host/Scheme。
 	signClient := client

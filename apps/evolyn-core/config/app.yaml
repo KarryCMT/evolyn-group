@@ -67,7 +67,7 @@ pki:
 # externalEndpoint 是浏览器实际访问的公开地址，预签名 URL 会以它为准。
 # 真实 AK/SK 仅写 app.local.yaml 或环境注入配置，绝不提交。
 storage:
-  enabled: false
+  enabled: true
   endpoint: '127.0.0.1:9000'
   externalEndpoint: 'http://127.0.0.1:9000'
   accessKey: 'vI4fbXw19GklqHDjPSxR'
