@@ -45,7 +45,6 @@ declare module 'vue' {
     DataPushFilterBar: typeof import('./components/application/data-push/DataPushFilterBar.vue')['default']
     DataPushList: typeof import('./components/application/data-push/DataPushList.vue')['default']
     DataPushSettings: typeof import('./components/application/data-push/DataPushSettings.vue')['default']
-    ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElButton: typeof import('element-plus/es')['ElButton']
     ElCheckbox: typeof import('element-plus/es')['ElCheckbox']
