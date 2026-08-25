@@ -3,7 +3,9 @@
 // 登录/注册/找回密码页共用；卡片内容与底部引导由各页面通过插槽注入
 import loginBackground from '~/assets/images/login_bg_1.png';
 import brandLogo from '~/assets/logo/logo-light.png';
+import { RiMoonFill, RiSunFill } from '@remixicon/vue';
 import { useGlobSetting } from '@evolyn.do/hooks';
+import { isDark } from '~/composables/dark';
 
 // 产品名称由 VITE_GLOB_APP_TITLE 注入，缺省时保持灵衍云的默认品牌展示。
 const appTitle = useGlobSetting().title || '灵衍云';
@@ -29,7 +31,18 @@ defineProps<{
         <span class="auth-layout__logo-mark">E</span>
         <span class="auth-layout__logo-name">evolyn</span>
       </div>
-      <LocaleSwitch />
+      <div class="auth-layout__header-actions">
+        <el-tooltip :content="isDark ? '切换为浅色模式' : '切换为暗黑模式'" placement="bottom">
+          <el-switch
+            v-model="isDark"
+            class="auth-layout__theme-switch"
+            :active-action-icon="RiMoonFill"
+            :inactive-action-icon="RiSunFill"
+            :aria-label="isDark ? '切换为浅色模式' : '切换为暗黑模式'"
+          />
+        </el-tooltip>
+        <LocaleSwitch />
+      </div>
     </header>
 
     <main class="auth-layout__body">
@@ -117,6 +130,12 @@ defineProps<{
   white-space: nowrap;
 }
 
+.auth-layout__header-actions {
+  display: flex;
+  gap: var(--gp-space-2xl);
+  align-items: center;
+}
+
 .auth-layout__body {
   display: grid;
   flex: 1;
@@ -188,6 +207,7 @@ defineProps<{
   }
 
   .auth-layout__header :deep(.locale-switch),
+  .auth-layout__theme-switch,
   .auth-layout__logo-image {
     pointer-events: auto;
   }
@@ -198,22 +218,22 @@ defineProps<{
     gap: 0;
     width: 100%;
     min-height: 100vh;
-    background-color: #e6f0fd;
+    background-color: var(--evolyn-auth-login-visual-bg);
     padding: 0;
   }
 
   .auth-layout__visual {
-    min-height: 42%;
-    background-color: #e6f0fd;
+    min-height: 36%;
+    background-color: var(--evolyn-auth-login-visual-bg);
     background-repeat: no-repeat;
     background-position: 55% 56%;
-    background-size: cover;
+    background-size: contain;
   }
 
   .auth-layout__panel {
     justify-content: center;
     min-height: 100%;
-    padding: 120px 32px 56px;
+    padding: 32px 32px 32px 32px;
     background-color: var(--el-bg-color);
   }
 

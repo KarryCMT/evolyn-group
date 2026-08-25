@@ -21,6 +21,8 @@
   --el-bg-color: #ffffff;
   --el-bg-color-page: #f5f5f5;
   --el-bg-color-overlay: #ffffff;
+  /* 登录页左侧视觉区背景色，由 dark.scss 在暗黑模式下覆盖。 */
+  --evolyn-auth-login-visual-bg: #e6f0fd;
   --el-border-radius-sm: 3px;
   --el-border-radius-small: 2px;
   --el-border-radius-medium: 8px;
