@@ -10,7 +10,7 @@ import (
 // SelfOpen/SelfOpenInTx 供认证域自助开通。仓储层内部已剥离租户上下文，
 // 防止 tenants 表自我过滤
 type TenantService interface {
-	// Open 开通租户：租户 + owner 账号/成员 + 租户内系统组/角色种子
+	// Open 开通租户：租户 + owner 账号/成员 + 顶级部门 + 租户内系统组/角色种子
 	Open(ctx context.Context, req *OpenTenantRequest) (*tenantmodel.Tenant, error)
 	// SelfOpen 自助开通（登录态独立事务）：owner 取自当前账号，编码服务端
 	// 生成，套餐默认免费版；onboarding 为注册向导采集的企业画像（写入租户
@@ -23,6 +23,8 @@ type TenantService interface {
 	List(ctx context.Context) ([]tenantmodel.Tenant, error)
 	Get(ctx context.Context, id string) (*tenantmodel.Tenant, error)
 	Update(ctx context.Context, id string, tenant *tenantmodel.Tenant) (*tenantmodel.Tenant, error)
+	// TransferOwner 转移创建人：目标账号成为成员、获 tenant-admin 后再更新归属。
+	TransferOwner(ctx context.Context, tenantID, targetAccountID uint) error
 	// UpdateMyName 仅更新当前会话所属租户名称，供租户后台组织根节点自助维护。
 	UpdateMyName(ctx context.Context, tenantID uint, name string) (*tenantmodel.Tenant, error)
 	// SetStatus 生命周期流转：active / frozen / deleted。

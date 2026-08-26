@@ -105,3 +105,8 @@ export function updateMySingleSession(payload: {
 }): Promise<null> {
   return http.put('/accounts/me/security/single-session', payload);
 }
+
+/** 注销当前账号；账号仍是任一团队创建人时，后端会拒绝并要求先处理团队归属。 */
+export function cancelMyAccount(reauthToken: string): Promise<null> {
+  return http.delete('/accounts/me', { reauthToken });
+}

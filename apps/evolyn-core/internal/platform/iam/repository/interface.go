@@ -30,6 +30,8 @@ type UserRepository interface {
 	AddRole(ctx context.Context, role *model.Role, user *model.User) error
 	DelRole(ctx context.Context, role *model.Role, user *model.User) error
 	GetGroups(ctx context.Context, user *model.User) ([]model.Group, error)
+	// PurgeByAccount 物理清理账号在所有租户中的成员及关系表记录。
+	PurgeByAccount(ctx context.Context, accountID uint) error
 	Migrate() error
 }
 
@@ -58,6 +60,8 @@ type AccountRepository interface {
 	DelAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error
 	// UpdatePassword 密码重置（已散列值，散列在服务层完成），同语句落 password_initialized
 	UpdatePassword(ctx context.Context, id uint, hashed string, initialized bool) error
+	// Purge 物理删除已无创建人归属的账号，并清理其第三方凭证。
+	Purge(ctx context.Context, accountID uint) error
 	Migrate() error
 }
 

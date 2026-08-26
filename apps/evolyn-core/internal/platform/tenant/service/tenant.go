@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 	tenantrepository "evolyn/internal/platform/tenant/repository"
 
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 // TxManager 事务边界抽象（FIX-020）：具体实现在 infrastructure（ctx 传播
@@ -33,6 +35,7 @@ type IAMRepositories interface {
 	User() iamrepository.UserRepository
 	RBAC() iamrepository.RBACRepository
 	Group() iamrepository.GroupRepository
+	Department() iamrepository.DepartmentRepository
 }
 
 // 租户内基线角色名（与默认租户种子、db.sql 口径一致）
@@ -54,7 +57,7 @@ var ErrCodeDuplicated = httpx.NewBiz("TENANT_CODE_DUPLICATED", "租户编码已�
 var ErrTenantNameInvalid = httpx.NewBiz("TENANT_NAME_INVALID", "租户名称格式不正确", http.StatusBadRequest)
 
 // tenantService 租户域服务：开通/查询/配置/生命周期流转（运营面）。
-// 依赖 iam 仓储完成「开通即建 owner 成员 + 租户内系统组/角色种子」；
+// 依赖 iam 仓储完成「开通即建 owner 成员/顶级部门 + 租户内系统组/角色种子」；
 // 开通全流程经 TxManager 单事务提交（FIX-020）；审计记录关键运营操作
 // （FIX-013），配额服务在开建成员前校验（FIX-011）
 type tenantService struct {
@@ -314,6 +317,19 @@ func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*
 		return nil, err
 	}
 
+	// 每个租户以自身名称创建唯一的组织根部门，并将创建者归属到该部门。
+	// 这里重新注入新租户上下文，使部门及成员-部门关系与常规租户写入保持
+	// 一致；bctx 仍携带外层事务，因此任一步失败会随整次开通一起回滚。
+	tenantCtx := contextx.NewTenantContext(bctx, tenant.ID)
+	rootDepartment := &iammodel.Department{Name: tenant.Name}
+	rootDepartment.TenantID = tenant.ID
+	if _, err = s.iam.Department().Create(tenantCtx, rootDepartment); err != nil {
+		return nil, err
+	}
+	if err = s.iam.Department().SetMemberDepartments(tenantCtx, member, []uint{rootDepartment.ID}); err != nil {
+		return nil, err
+	}
+
 	// 基线种子返回本租户刚创建的角色：owner 绑定直接用内存对象，不再按名
 	// 回查——无租户过滤的 GetRoleByName 会按 id 升序命中其他租户的同名
 	// tenant-admin 角色，造成跨租户角色绑定污染（FIX-022 攻击面）
@@ -455,6 +471,80 @@ func (s *tenantService) Update(ctx context.Context, id string, tenant *tenantmod
 		})
 	}
 	return updated, err
+}
+
+// TransferOwner 安全转移创建人：目标账号不存在成员身份时先建成员并校验配额，
+// 再确保其具备 tenant-admin，最后以窄更新写 owner_account_id。原创建人的
+// 成员与权限保持不变，避免一次归属转移意外剥夺其原有租户访问权。
+func (s *tenantService) TransferOwner(ctx context.Context, tenantID, targetAccountID uint) error {
+	if tenantID == 0 || targetAccountID == 0 {
+		return httpx.NewBiz(httpx.CodeValidation, "租户和目标账号不能为空", http.StatusBadRequest)
+	}
+
+	var previousOwner uint
+	err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		if err := s.tenantRepo.LockByID(tctx, tenantID); err != nil {
+			return err
+		}
+		tenant, err := s.tenantRepo.GetByID(tctx, tenantID)
+		if err != nil {
+			return err
+		}
+		if tenant.OwnerAccountId != nil {
+			previousOwner = *tenant.OwnerAccountId
+		}
+		if previousOwner == targetAccountID {
+			return nil
+		}
+
+		bctx := contextx.DetachTenant(tctx)
+		account, err := s.iam.Account().GetByID(bctx, targetAccountID)
+		if err != nil {
+			return err
+		}
+		tenantCtx := contextx.NewTenantContext(bctx, tenantID)
+		member, err := s.iam.User().GetByAccountAndTenant(tenantCtx, targetAccountID, tenantID)
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+			if s.quota != nil {
+				if err = s.quota.Check(tenantCtx, tenantID, tenantmodel.QuotaMembers); err != nil {
+					return err
+				}
+			}
+			nickname := account.Nickname
+			if nickname == "" {
+				nickname = account.Name
+			}
+			member = &iammodel.User{AccountId: account.ID, Nickname: nickname}
+			member.TenantID = tenantID
+			if _, err = s.iam.User().Create(tenantCtx, member); err != nil {
+				return err
+			}
+		}
+
+		adminRole, err := s.iam.RBAC().GetRoleByName(tenantCtx, TenantAdminRole)
+		if err != nil {
+			return err
+		}
+		if err = s.iam.User().AddRole(tenantCtx, adminRole, member); err != nil {
+			return err
+		}
+		return s.tenantRepo.UpdateOwner(tctx, tenantID, targetAccountID)
+	})
+	if err != nil {
+		return err
+	}
+	if s.audit != nil && previousOwner != targetAccountID {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "tenant", Action: "transfer_owner", ResourceType: "tenant",
+			ResourceID: strconv.FormatUint(uint64(tenantID), 10), TenantID: tenantID,
+			Before: map[string]uint{"ownerAccountId": previousOwner},
+			After:  map[string]uint{"ownerAccountId": targetAccountID},
+		})
+	}
+	return nil
 }
 
 // UpdateMyName 租户侧自助更新当前租户名称。tenantID 只能由租户中间件从 JWT

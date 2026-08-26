@@ -199,6 +199,24 @@ func (u *userRepository) GetGroups(ctx context.Context, user *model.User) ([]mod
 	return groups, err
 }
 
+// PurgeByAccount 平台账号注销时硬删其所有租户成员身份。关联表没有独立
+// 生命周期，必须先于 users 删除；调用方负责在外层事务中先校验账号不再
+// 是任何租户的创建人。
+func (u *userRepository) PurgeByAccount(ctx context.Context, accountID uint) error {
+	db := u.withContext(ctx)
+	for _, stmt := range []string{
+		`DELETE FROM department_users WHERE user_id IN (SELECT id FROM users WHERE account_id = ?)`,
+		`DELETE FROM user_groups WHERE user_id IN (SELECT id FROM users WHERE account_id = ?)`,
+		`DELETE FROM user_roles WHERE user_id IN (SELECT id FROM users WHERE account_id = ?)`,
+		`DELETE FROM users WHERE account_id = ?`,
+	} {
+		if err := db.Exec(stmt, accountID).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (u *userRepository) Migrate() error {
 	return u.db.AutoMigrate(&model.User{})
 }

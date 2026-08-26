@@ -2,6 +2,7 @@ package controller
 
 import (
 	"net/http"
+	"strconv"
 
 	platformcontroller "evolyn/internal/platform/controller"
 	"evolyn/internal/platform/httpx"
@@ -82,7 +83,7 @@ func (tc *TenantController) Get(c *gin.Context) {
 }
 
 // @Summary 更新租户（平台）
-// @Description 更新租户名称/套餐/配置/配额
+// @Description 更新租户名称/套餐/配置/配额；创建人转移须使用专用接口。
 // @Accept json
 // @Produce json
 // @Tags 平台管理
@@ -104,6 +105,39 @@ func (tc *TenantController) Update(c *gin.Context) {
 		return
 	}
 	httpx.ResponseSuccess(c, tenant)
+}
+
+// transferOwnerRequest 转移租户创建人请求。
+type transferOwnerRequest struct {
+	TargetAccountID uint `json:"targetAccountId" binding:"required"`
+}
+
+// @Summary 转移租户创建人（平台）
+// @Description 将目标账号纳入租户并授予租户管理员后，转移租户创建人归属。
+// @Accept json
+// @Produce json
+// @Tags 平台管理
+// @Security JWT
+// @Param id path int true "tenant id"
+// @Param body body controller.transferOwnerRequest true "目标账号"
+// @Success 200 {object} httpx.Response
+// @Router /api/v1/platform/tenants/{id}/owner [put]
+func (tc *TenantController) TransferOwner(c *gin.Context) {
+	tenantID, err := strconv.ParseUint(c.Param("id"), 10, 64)
+	if err != nil || tenantID == 0 {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	req := new(transferOwnerRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := tc.tenantService.TransferOwner(c.Request.Context(), uint(tenantID), req.TargetAccountID); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, nil)
 }
 
 // statusRequest 生命周期流转请求
@@ -142,6 +176,7 @@ func (tc *TenantController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/tenants", tc.Create)
 	api.GET("/tenants/:id", tc.Get)
 	api.PUT("/tenants/:id", tc.Update)
+	api.PUT("/tenants/:id/owner", tc.TransferOwner)
 	api.PUT("/tenants/:id/status", tc.SetStatus)
 }
 

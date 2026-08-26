@@ -9,6 +9,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AccountBasicInfoPanel: typeof import('./components/dashboard/account/AccountBasicInfoPanel.vue')['default']
+    AccountCancellationDialog: typeof import('./components/dashboard/account/AccountCancellationDialog.vue')['default']
     AccountSecurityPanel: typeof import('./components/dashboard/account/AccountSecurityPanel.vue')['default']
     AccountSessionDrawer: typeof import('./components/dashboard/account/AccountSessionDrawer.vue')['default']
     AccountSettingsSidebar: typeof import('./components/dashboard/account/AccountSettingsSidebar.vue')['default']

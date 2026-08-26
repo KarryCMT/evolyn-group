@@ -22,12 +22,23 @@ type SecurityController struct {
 	securityService service.SecurityService
 	mfaService      service.MFAService
 	accountService  iamservice.AccountService
+	accountDeletion iamservice.AccountDeletionService
 	pkiKeypair      *pki.Keypair
 }
 
 func NewSecurityController(securityService service.SecurityService, mfaService service.MFAService,
-	accountService iamservice.AccountService, pkiKeypair *pki.Keypair) controller.Controller {
-	return &SecurityController{securityService: securityService, mfaService: mfaService, accountService: accountService, pkiKeypair: pkiKeypair}
+	accountService iamservice.AccountService, pkiKeypair *pki.Keypair,
+	accountDeletion ...iamservice.AccountDeletionService) controller.Controller {
+	securityController := &SecurityController{
+		securityService: securityService,
+		mfaService:      mfaService,
+		accountService:  accountService,
+		pkiKeypair:      pkiKeypair,
+	}
+	if len(accountDeletion) > 0 {
+		securityController.accountDeletion = accountDeletion[0]
+	}
+	return securityController
 }
 
 func (sc *SecurityController) currentSID(c *gin.Context) string {
@@ -199,6 +210,46 @@ type reauthTokenRequest struct {
 	ReauthToken string `json:"reauthToken" binding:"required"`
 }
 
+// @Summary 注销我的账号
+// @Description 重新验证后永久删除本人账号、成员身份与第三方凭证；若仍是任一租户创建人，必须先转移创建人或注销租户
+// @Accept json
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param body body controller.reauthTokenRequest true "重新验证令牌"
+// @Success 200 {object} httpx.Response
+// @Failure 401 {object} httpx.Response "AUTH_REAUTH_REQUIRED·请先完成身份验证"
+// @Failure 409 {object} httpx.Response "ACCOUNT_OWNS_TENANT·账号仍是租户创建人"
+// @Router /api/v1/accounts/me [delete]
+func (sc *SecurityController) CancelMyAccount(c *gin.Context) {
+	accountID, ok := sc.myAccount(c)
+	if !ok {
+		return
+	}
+	if sc.accountDeletion == nil {
+		httpx.ResponseFailed(c, http.StatusServiceUnavailable, service.ErrMFAUnavailable)
+		return
+	}
+	req := new(reauthTokenRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := reauthPrerequisiteError(sc.mfaService != nil, sc.currentSID(c)); err != nil {
+		httpx.ResponseFailed(c, http.StatusServiceUnavailable, err)
+		return
+	}
+	if err := sc.requireReauth(c, accountID, req.ReauthToken); err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+	if err := sc.accountDeletion.Delete(c.Request.Context(), accountID); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, nil)
+}
+
 // @Summary 创建 TOTP 绑定向导
 // @Description 重新验证后生成五分钟有效的验证器导入地址；前端仅用于生成二维码，不得持久化密钥
 // @Accept json
@@ -342,6 +393,7 @@ func (sc *SecurityController) requireReauth(c *gin.Context, accountID uint, toke
 }
 
 func (sc *SecurityController) RegisterRoute(api *gin.RouterGroup) {
+	api.DELETE("/accounts/me", sc.CancelMyAccount)
 	api.GET("/accounts/me/security", sc.Overview)
 	api.POST("/accounts/me/security/reauth", sc.Reauth)
 	api.POST("/accounts/me/security/mfa/totp/enroll", sc.EnrollTOTP)

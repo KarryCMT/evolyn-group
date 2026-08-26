@@ -24,37 +24,43 @@ import (
 
 // openStore Open 全链路涉及的桩数据面（可整体快照/恢复）
 type openStore struct {
-	tenants    map[uint]*tenantmodel.Tenant
-	accounts   map[uint]*iammodel.Account
-	users      map[uint]*iammodel.User
-	roles      map[uint]*iammodel.Role
-	groups     map[uint]*iammodel.Group
-	userRoles  [][2]uint // (memberID, roleID)
-	groupRoles [][2]uint // (groupID, roleID)
-	seq        uint      // 各表共用的自增主键分配器
+	tenants     map[uint]*tenantmodel.Tenant
+	accounts    map[uint]*iammodel.Account
+	users       map[uint]*iammodel.User
+	departments map[uint]*iammodel.Department
+	roles       map[uint]*iammodel.Role
+	groups      map[uint]*iammodel.Group
+	memberDepts [][2]uint // (memberID, departmentID)
+	userRoles   [][2]uint // (memberID, roleID)
+	groupRoles  [][2]uint // (groupID, roleID)
+	seq         uint      // 各表共用的自增主键分配器
 }
 
 type openStoreSnapshot struct {
-	tenants    map[uint]*tenantmodel.Tenant
-	accounts   map[uint]*iammodel.Account
-	users      map[uint]*iammodel.User
-	roles      map[uint]*iammodel.Role
-	groups     map[uint]*iammodel.Group
-	userRoles  [][2]uint
-	groupRoles [][2]uint
-	seq        uint
+	tenants     map[uint]*tenantmodel.Tenant
+	accounts    map[uint]*iammodel.Account
+	users       map[uint]*iammodel.User
+	departments map[uint]*iammodel.Department
+	roles       map[uint]*iammodel.Role
+	groups      map[uint]*iammodel.Group
+	memberDepts [][2]uint
+	userRoles   [][2]uint
+	groupRoles  [][2]uint
+	seq         uint
 }
 
 func (s *openStore) snapshot() *openStoreSnapshot {
 	snap := &openStoreSnapshot{
-		tenants:    make(map[uint]*tenantmodel.Tenant, len(s.tenants)),
-		accounts:   make(map[uint]*iammodel.Account, len(s.accounts)),
-		users:      make(map[uint]*iammodel.User, len(s.users)),
-		roles:      make(map[uint]*iammodel.Role, len(s.roles)),
-		groups:     make(map[uint]*iammodel.Group, len(s.groups)),
-		userRoles:  append([][2]uint(nil), s.userRoles...),
-		groupRoles: append([][2]uint(nil), s.groupRoles...),
-		seq:        s.seq,
+		tenants:     make(map[uint]*tenantmodel.Tenant, len(s.tenants)),
+		accounts:    make(map[uint]*iammodel.Account, len(s.accounts)),
+		users:       make(map[uint]*iammodel.User, len(s.users)),
+		departments: make(map[uint]*iammodel.Department, len(s.departments)),
+		roles:       make(map[uint]*iammodel.Role, len(s.roles)),
+		groups:      make(map[uint]*iammodel.Group, len(s.groups)),
+		memberDepts: append([][2]uint(nil), s.memberDepts...),
+		userRoles:   append([][2]uint(nil), s.userRoles...),
+		groupRoles:  append([][2]uint(nil), s.groupRoles...),
+		seq:         s.seq,
 	}
 	for k, v := range s.tenants {
 		snap.tenants[k] = v
@@ -64,6 +70,9 @@ func (s *openStore) snapshot() *openStoreSnapshot {
 	}
 	for k, v := range s.users {
 		snap.users[k] = v
+	}
+	for k, v := range s.departments {
+		snap.departments[k] = v
 	}
 	for k, v := range s.roles {
 		snap.roles[k] = v
@@ -78,8 +87,10 @@ func (s *openStore) restore(snap *openStoreSnapshot) {
 	s.tenants = snap.tenants
 	s.accounts = snap.accounts
 	s.users = snap.users
+	s.departments = snap.departments
 	s.roles = snap.roles
 	s.groups = snap.groups
+	s.memberDepts = snap.memberDepts
 	s.userRoles = snap.userRoles
 	s.groupRoles = snap.groupRoles
 	s.seq = snap.seq
@@ -121,6 +132,24 @@ func (f *openTenantRepo) GetByCode(ctx context.Context, code string) (*tenantmod
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (f *openTenantRepo) GetByID(ctx context.Context, id uint) (*tenantmodel.Tenant, error) {
+	if tenant, ok := f.store.tenants[id]; ok {
+		return tenant, nil
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (f *openTenantRepo) LockByID(ctx context.Context, id uint) error { return nil }
+
+func (f *openTenantRepo) UpdateOwner(ctx context.Context, tenantID, ownerAccountID uint) error {
+	tenant, err := f.GetByID(ctx, tenantID)
+	if err != nil {
+		return err
+	}
+	tenant.OwnerAccountId = &ownerAccountID
+	return nil
+}
+
 func (f *openTenantRepo) Create(ctx context.Context, tenant *tenantmodel.Tenant) (*tenantmodel.Tenant, error) {
 	if f.failCreate != nil {
 		return nil, f.failCreate
@@ -160,6 +189,29 @@ type openUserRepo struct {
 	failCreate error
 }
 
+type openDepartmentRepo struct {
+	iamrepository.DepartmentRepository
+	store      *openStore
+	failCreate error
+}
+
+func (f *openDepartmentRepo) Create(ctx context.Context, department *iammodel.Department) (*iammodel.Department, error) {
+	if f.failCreate != nil {
+		return nil, f.failCreate
+	}
+	department.ID = f.store.nextID()
+	copied := *department
+	f.store.departments[department.ID] = &copied
+	return department, nil
+}
+
+func (f *openDepartmentRepo) SetMemberDepartments(ctx context.Context, member *iammodel.User, departmentIDs []uint) error {
+	for _, departmentID := range departmentIDs {
+		f.store.memberDepts = append(f.store.memberDepts, [2]uint{member.ID, departmentID})
+	}
+	return nil
+}
+
 func (f *openUserRepo) Create(ctx context.Context, member *iammodel.User) (*iammodel.User, error) {
 	if f.failCreate != nil {
 		return nil, f.failCreate
@@ -173,6 +225,15 @@ func (f *openUserRepo) Create(ctx context.Context, member *iammodel.User) (*iamm
 func (f *openUserRepo) AddRole(ctx context.Context, role *iammodel.Role, user *iammodel.User) error {
 	f.store.userRoles = append(f.store.userRoles, [2]uint{user.ID, role.ID})
 	return nil
+}
+
+func (f *openUserRepo) GetByAccountAndTenant(ctx context.Context, accountID, tenantID uint) (*iammodel.User, error) {
+	for _, member := range f.store.users {
+		if member.AccountId == accountID && member.TenantID == tenantID {
+			return member, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 
 type openRBACRepo struct {
@@ -191,6 +252,15 @@ func (f *openRBACRepo) Create(ctx context.Context, role *iammodel.Role) (*iammod
 	copied := *role
 	f.store.roles[role.ID] = &copied
 	return role, nil
+}
+
+func (f *openRBACRepo) GetRoleByName(ctx context.Context, name string) (*iammodel.Role, error) {
+	for _, role := range f.store.roles {
+		if role.Name == name {
+			return role, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
 }
 
 type openGroupRepo struct {
@@ -222,16 +292,18 @@ func (f *openGroupRepo) AddRole(ctx context.Context, role *iammodel.Role, group 
 
 // openIAM 聚合桩：满足 tenant/service.IAMRepositories 接口
 type openIAM struct {
-	account *openAccountRepo
-	user    *openUserRepo
-	rbac    *openRBACRepo
-	group   *openGroupRepo
+	account    *openAccountRepo
+	user       *openUserRepo
+	rbac       *openRBACRepo
+	group      *openGroupRepo
+	department *openDepartmentRepo
 }
 
-func (o *openIAM) Account() iamrepository.AccountRepository { return o.account }
-func (o *openIAM) User() iamrepository.UserRepository       { return o.user }
-func (o *openIAM) RBAC() iamrepository.RBACRepository       { return o.rbac }
-func (o *openIAM) Group() iamrepository.GroupRepository     { return o.group }
+func (o *openIAM) Account() iamrepository.AccountRepository       { return o.account }
+func (o *openIAM) User() iamrepository.UserRepository             { return o.user }
+func (o *openIAM) RBAC() iamrepository.RBACRepository             { return o.rbac }
+func (o *openIAM) Group() iamrepository.GroupRepository           { return o.group }
+func (o *openIAM) Department() iamrepository.DepartmentRepository { return o.department }
 
 // openAudit 计数桩：验证审计只在事务提交成功后记录
 type openAudit struct{ entries int }
@@ -257,17 +329,19 @@ func (q openQuota) CheckAndReserve(ctx context.Context, tenantID uint, key strin
 // newOpenFixtures 开通租户测试夹具：全空库起步，各桩带失败注入位
 func newOpenFixtures() (*openStore, *openTenantRepo, *openIAM, *openAudit) {
 	store := &openStore{
-		tenants:  map[uint]*tenantmodel.Tenant{},
-		accounts: map[uint]*iammodel.Account{},
-		users:    map[uint]*iammodel.User{},
-		roles:    map[uint]*iammodel.Role{},
-		groups:   map[uint]*iammodel.Group{},
+		tenants:     map[uint]*tenantmodel.Tenant{},
+		accounts:    map[uint]*iammodel.Account{},
+		users:       map[uint]*iammodel.User{},
+		departments: map[uint]*iammodel.Department{},
+		roles:       map[uint]*iammodel.Role{},
+		groups:      map[uint]*iammodel.Group{},
 	}
 	iam := &openIAM{
-		account: &openAccountRepo{store: store},
-		user:    &openUserRepo{store: store},
-		rbac:    &openRBACRepo{store: store},
-		group:   &openGroupRepo{store: store},
+		account:    &openAccountRepo{store: store},
+		user:       &openUserRepo{store: store},
+		rbac:       &openRBACRepo{store: store},
+		group:      &openGroupRepo{store: store},
+		department: &openDepartmentRepo{store: store},
 	}
 	return store, &openTenantRepo{store: store}, iam, &openAudit{}
 }
@@ -295,6 +369,7 @@ func TestTXTenant001TenantCreateFailNoResidue(t *testing.T) {
 	assert.Error(t, err)
 	assert.Empty(t, store.tenants)
 	assert.Empty(t, store.users)
+	assert.Empty(t, store.departments)
 	assert.Empty(t, store.roles)
 	assert.Empty(t, store.groups)
 	assert.Empty(t, store.accounts, "新建的 owner 账号必须随事务回滚")
@@ -312,6 +387,7 @@ func TestTXTenant002MemberCreateFailRollsBackTenant(t *testing.T) {
 	assert.Empty(t, store.tenants, "已创建的租户必须回滚")
 	assert.Empty(t, store.accounts, "新建的 owner 账号必须回滚")
 	assert.Empty(t, store.users)
+	assert.Empty(t, store.departments)
 	assert.Empty(t, store.roles)
 }
 
@@ -326,6 +402,7 @@ func TestTXTenant003SeedRoleFailRollsBackAll(t *testing.T) {
 	assert.Empty(t, store.roles)
 	assert.Empty(t, store.groups)
 	assert.Empty(t, store.users)
+	assert.Empty(t, store.departments)
 	assert.Empty(t, store.tenants)
 	assert.Empty(t, store.accounts)
 }
@@ -343,6 +420,7 @@ func TestTXTenant004GroupRoleBindingFailRollsBackAll(t *testing.T) {
 	assert.Empty(t, store.tenants)
 	assert.Empty(t, store.accounts)
 	assert.Empty(t, store.users)
+	assert.Empty(t, store.departments)
 	assert.Empty(t, store.roles)
 	assert.Empty(t, store.groups)
 	assert.Empty(t, store.groupRoles)
@@ -359,6 +437,8 @@ func TestTXTenant005HappyPathBaselineComplete(t *testing.T) {
 	assert.Len(t, store.tenants, 1)
 	assert.Len(t, store.accounts, 1, "owner 账号已创建")
 	assert.Len(t, store.users, 1, "owner 成员已创建")
+	assert.Len(t, store.departments, 1, "租户顶级部门已创建")
+	assert.Len(t, store.memberDepts, 1, "owner 已归属顶级部门")
 	assert.Len(t, store.roles, 3, "基线角色×3")
 	assert.Len(t, store.groups, 3, "系统分组×3")
 	assert.Len(t, store.groupRoles, 3, "组-角色绑定×3")
@@ -384,4 +464,37 @@ func TestTXTenant005HappyPathBaselineComplete(t *testing.T) {
 	for _, group := range store.groups {
 		assert.Equal(t, tenant.ID, group.TenantID)
 	}
+	for departmentID, department := range store.departments {
+		assert.Equal(t, tenant.ID, department.TenantID)
+		assert.Equal(t, tenant.Name, department.Name)
+		assert.Nil(t, department.ParentId, "顶级部门不应有父部门")
+		assert.Equal(t, [2]uint{memberID, departmentID}, store.memberDepts[0])
+	}
+}
+
+func TestTransferOwnerAddsMembershipAndTenantAdmin(t *testing.T) {
+	store, tenantRepo, iam, audit := newOpenFixtures()
+	svc := newOpenService(store, openRollbackTx{store}, tenantRepo, iam, audit)
+	tenant, err := svc.Open(context.Background(), openRequest())
+	assert.NoError(t, err)
+
+	// 目标账号尚未加入租户，转移流程应在同一事务内补齐成员与管理员角色。
+	target := &iammodel.Account{ID: 100, Name: "target", Nickname: "新创建人"}
+	store.accounts[target.ID] = target
+	assert.NoError(t, svc.TransferOwner(context.Background(), tenant.ID, target.ID))
+
+	assert.Equal(t, target.ID, *store.tenants[tenant.ID].OwnerAccountId)
+	member, err := iam.user.GetByAccountAndTenant(context.Background(), target.ID, tenant.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, "新创建人", member.Nickname)
+
+	var adminRoleID uint
+	for id, role := range store.roles {
+		if role.Name == TenantAdminRole {
+			adminRoleID = id
+			break
+		}
+	}
+	assert.Contains(t, store.userRoles, [2]uint{member.ID, adminRoleID})
+	assert.Equal(t, 2, audit.entries, "开通与转移均应记录审计")
 }

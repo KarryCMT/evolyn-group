@@ -16,7 +16,7 @@ import { useAccountSettings } from '~/composables/useAccountSettings';
 
 defineOptions({ name: 'AccountPage' });
 
-const { userInfo, loadUserInfo } = useAuth();
+const { userInfo, loadUserInfo, logout } = useAuth();
 const { savingPassword, savingProfile, savePassword, saveProfile } = useAccountSettings();
 const router = useRouter();
 const activeTab = shallowRef<AccountSettingsTab>('basic');
@@ -60,6 +60,15 @@ async function handlePasswordSubmit(payload: AccountPasswordForm) {
 function handleViewLoginLog() {
   loginLogVisible.value = true;
 }
+
+async function handleAccountCancelled() {
+  // 注销接口已删除服务端账号；logout 会在接口返回 401 时仍清掉本地会话。
+  try {
+    await logout();
+  } finally {
+    await router.replace('/auth/login');
+  }
+}
 </script>
 
 <template>
@@ -81,7 +90,11 @@ function handleViewLoginLog() {
             @change-password="passwordDialogVisible = true"
             @view-login-log="handleViewLoginLog"
           />
-          <AccountSecurityPanel v-else :user-info="userInfo" />
+          <AccountSecurityPanel
+            v-else
+            :user-info="userInfo"
+            @account-cancelled="handleAccountCancelled"
+          />
         </div>
       </section>
     </main>

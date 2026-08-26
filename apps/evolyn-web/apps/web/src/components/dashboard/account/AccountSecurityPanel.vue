@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import type { DeepReadonly } from 'vue';
 import type { UserInfoResult } from '~/types';
+import { ApiError, ERROR_CODES } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
 import { RiErrorWarningFill, RiInformationFill, RiLinksFill } from '@remixicon/vue';
 import { onMounted, shallowRef } from 'vue';
+import AccountCancellationDialog from '~/components/dashboard/account/AccountCancellationDialog.vue';
 import AccountSessionDrawer from '~/components/dashboard/account/AccountSessionDrawer.vue';
 import SecurityReauthDialog from '~/components/dashboard/account/SecurityReauthDialog.vue';
 import TotpEnrollmentDialog from '~/components/dashboard/account/TotpEnrollmentDialog.vue';
-import { disableMyTOTP, updateMySingleSession } from '~/api/account';
+import { cancelMyAccount, disableMyTOTP, updateMySingleSession } from '~/api/account';
 import { useAccountSecurityOverview } from '~/composables/useAccountSecurityOverview';
 
 defineOptions({ name: 'AccountSecurityPanel' });
@@ -15,12 +17,16 @@ defineOptions({ name: 'AccountSecurityPanel' });
 const props = defineProps<{
   userInfo: DeepReadonly<UserInfoResult> | null;
 }>();
+const emit = defineEmits<{
+  accountCancelled: [];
+}>();
 
 const { overview, loading, loadError, loadOverview } = useAccountSecurityOverview();
 const sessionDrawerVisible = shallowRef(false);
 const totpEnrollmentVisible = shallowRef(false);
+const accountCancellationVisible = shallowRef(false);
 const reauthDialogVisible = shallowRef(false);
-const pendingAction = shallowRef<'disable-totp' | 'single-session' | null>(null);
+const pendingAction = shallowRef<'cancel-account' | 'disable-totp' | 'single-session' | null>(null);
 const securityActionLoading = shallowRef(false);
 const requestedSingleSession = shallowRef(false);
 
@@ -48,6 +54,16 @@ function requestSingleSessionUpdate(value: string | number | boolean) {
   requestedSingleSession.value = value;
 }
 
+function requestAccountCancellation() {
+  accountCancellationVisible.value = true;
+}
+
+function confirmAccountCancellation() {
+  accountCancellationVisible.value = false;
+  pendingAction.value = 'cancel-account';
+  reauthDialogVisible.value = true;
+}
+
 function handleReauthDialogVisibility(visible: boolean) {
   reauthDialogVisible.value = visible;
   if (!visible && !securityActionLoading.value) pendingAction.value = null;
@@ -62,15 +78,30 @@ async function applySecurityAction(reauthToken: string) {
     if (action === 'disable-totp') {
       await disableMyTOTP(reauthToken);
       ElMessage.success('登录二次验证已关闭，其他设备已退出');
-    } else {
+    } else if (action === 'single-session') {
       await updateMySingleSession({ reauthToken, enabled: requestedSingleSession.value });
       ElMessage.success(requestedSingleSession.value ? '已开启禁止同时登录' : '已允许多设备登录');
+    } else {
+      await cancelMyAccount(reauthToken);
+      ElMessage.success('账号已注销');
+      emit('accountCancelled');
+      return;
     }
     reauthDialogVisible.value = false;
     pendingAction.value = null;
     await loadOverview();
-  } catch {
-    ElMessage.error('安全设置更新失败，请稍后重试');
+  } catch (error) {
+    if (
+      action === 'cancel-account' &&
+      error instanceof ApiError &&
+      error.errCode === ERROR_CODES.ACCOUNT_OWNS_TENANT
+    ) {
+      ElMessage.error('注销失败。若你仍是团队创建人，请先转移创建人或注销团队。');
+    } else if (action === 'cancel-account') {
+      ElMessage.error('账号注销失败，请稍后重试。');
+    } else {
+      ElMessage.error('安全设置更新失败，请稍后重试');
+    }
   } finally {
     securityActionLoading.value = false;
   }
@@ -169,10 +200,14 @@ async function applySecurityAction(reauthToken: string) {
         账号注销
       </strong>
       <span>
-        <el-button link type="danger">注销</el-button>
+        <el-button link type="danger" @click="requestAccountCancellation">注销</el-button>
       </span>
     </div>
 
+    <AccountCancellationDialog
+      v-model="accountCancellationVisible"
+      @confirm="confirmAccountCancellation"
+    />
     <AccountSessionDrawer v-model="sessionDrawerVisible" @session-revoked="handleSessionRevoked" />
     <TotpEnrollmentDialog
       v-model="totpEnrollmentVisible"
@@ -181,13 +216,27 @@ async function applySecurityAction(reauthToken: string) {
     />
     <SecurityReauthDialog
       :model-value="reauthDialogVisible"
-      :title="pendingAction === 'disable-totp' ? '关闭登录二次验证' : '验证身份'"
-      :description="
-        pendingAction === 'disable-totp'
-          ? '关闭后，登录将不再要求验证器动态码；其他设备会自动退出。'
-          : '修改禁止同时登录设置前，需要再次确认是你本人操作。'
+      :title="
+        pendingAction === 'cancel-account'
+          ? '验证身份后注销账号'
+          : pendingAction === 'disable-totp'
+            ? '关闭登录二次验证'
+            : '验证身份'
       "
-      :confirm-text="pendingAction === 'disable-totp' ? '确认关闭' : '继续'"
+      :description="
+        pendingAction === 'cancel-account'
+          ? '为保护账号安全，请输入当前密码。验证成功后会立即注销且无法恢复。'
+          : pendingAction === 'disable-totp'
+            ? '关闭后，登录将不再要求验证器动态码；其他设备会自动退出。'
+            : '修改禁止同时登录设置前，需要再次确认是你本人操作。'
+      "
+      :confirm-text="
+        pendingAction === 'cancel-account'
+          ? '确认注销'
+          : pendingAction === 'disable-totp'
+            ? '确认关闭'
+            : '继续'
+      "
       :password-initialized="props.userInfo?.account.passwordInitialized ?? false"
       :action-loading="securityActionLoading"
       @update:model-value="handleReauthDialogVisibility"

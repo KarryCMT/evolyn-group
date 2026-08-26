@@ -43,6 +43,10 @@ type TenantRepository interface {
 	List(ctx context.Context) ([]model.Tenant, error)
 	Create(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error)
 	Update(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error)
+	// UpdateOwner 仅更新租户创建人，避免转移创建人时覆盖套餐、配额等运营字段。
+	UpdateOwner(ctx context.Context, tenantID, ownerAccountID uint) error
+	// CountOwnedByAccount 统计账号作为创建人的租户（含注销墓碑），账号物理删除前校验用。
+	CountOwnedByAccount(ctx context.Context, accountID uint) (int64, error)
 	// UpdateName 租户侧自助修改当前租户名称；仅更新 name，避免套餐等运营字段被覆盖。
 	UpdateName(ctx context.Context, id uint, name string) error
 	// UpdateStatus 生命周期流转（FIX-012）：deleted 不再软删整行（保留墓碑
@@ -215,16 +219,35 @@ func (t *tenantRepository) Create(ctx context.Context, tenant *model.Tenant) (*m
 	return tenant, nil
 }
 
-// Update 运营面更新（名称/套餐/配置/配额覆盖/归属账号）
+// Update 运营面更新（名称/套餐/配置/配额覆盖）。创建人只能通过 UpdateOwner
+// 转移，避免通用更新绕过目标成员校验与 tenant-admin 授权。
 func (t *tenantRepository) Update(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error) {
 	pctx, cancel := platformCtx(ctx)
 	defer cancel()
 	if err := infrastructure.ResolveDB(pctx, t.db).Model(&model.Tenant{}).Where("id = ?", tenant.ID).
-		Select("name", "plan", "owner_account_id", "config", "quotas").Updates(tenant).Error; err != nil {
+		Select("name", "plan", "config", "quotas").Updates(tenant).Error; err != nil {
 		return nil, err
 	}
 	t.invalidateStatusCache(tenant.ID)
 	return tenant, nil
+}
+
+func (t *tenantRepository) UpdateOwner(ctx context.Context, tenantID, ownerAccountID uint) error {
+	pctx, cancel := platformCtx(ctx)
+	defer cancel()
+	if err := infrastructure.ResolveDB(pctx, t.db).Model(&model.Tenant{}).Where("id = ?", tenantID).
+		Update("owner_account_id", ownerAccountID).Error; err != nil {
+		return err
+	}
+	t.invalidateStatusCache(tenantID)
+	return nil
+}
+
+func (t *tenantRepository) CountOwnedByAccount(ctx context.Context, accountID uint) (int64, error) {
+	var total int64
+	err := t.withContext(ctx).Unscoped().Model(&model.Tenant{}).
+		Where("owner_account_id = ?", accountID).Count(&total).Error
+	return total, err
 }
 
 // UpdateName 是租户自助入口的窄写入操作：租户名称与套餐、配额等运营字段
@@ -300,8 +323,9 @@ func (t *tenantRepository) PurgeTenantData(ctx context.Context, tenantID uint) e
 			}
 		}
 
-		// 墓碑标记：保留行本身，置 purged_at
+		// 墓碑保留租户编码以防重用，同时清空创建人外键；否则已清理完
+		// 业务数据的账号仍会永久被墓碑租户阻止物理删除。
 		return tx.Model(&model.Tenant{}).Where("id = ?", tenantID).
-			Update("purged_at", time.Now()).Error
+			Updates(map[string]interface{}{"purged_at": time.Now(), "owner_account_id": nil}).Error
 	})
 }

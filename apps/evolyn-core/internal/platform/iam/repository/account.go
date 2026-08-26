@@ -120,6 +120,16 @@ func (a *accountRepository) UpdatePassword(ctx context.Context, id uint, hashed 
 		}).Error
 }
 
+// Purge 只由平台账号删除流程在外层事务内调用。成员关系先由 UserRepository
+// 清理；auth_infos 不设级联外键需显式删除，账号安全表由数据库 CASCADE 清理。
+func (a *accountRepository) Purge(ctx context.Context, accountID uint) error {
+	db := a.withContext(ctx)
+	if err := db.Where("account_id = ?", accountID).Delete(&model.AuthInfo{}).Error; err != nil {
+		return err
+	}
+	return db.Unscoped().Delete(&model.Account{}, accountID).Error
+}
+
 func (a *accountRepository) AddAuthInfo(ctx context.Context, authInfo *model.AuthInfo) error {
 	if authInfo == nil {
 		return nil

@@ -45,7 +45,7 @@ function isActive(path: string, nestedPath?: string) {
           :to="item.path"
         >
           <component :is="item.icon" aria-hidden="true" />
-          <span>{{ item.label }}</span>
+          <span class="tenant-management-sidebar__item-label">{{ item.label }}</span>
         </RouterLink>
       </section>
     </nav>

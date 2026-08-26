@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"evolyn/internal/platform/auth"
@@ -88,6 +89,23 @@ func TestSecurityControllerReauthPrerequisitesResponse(t *testing.T) {
 	}
 }
 
+func TestCancelMyAccountRequiresReauthAndDeletesCurrentAccount(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodDelete, "/api/v1/accounts/me", strings.NewReader(`{"reauthToken":"token-1"}`))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ginctx.SetSession(ctx, &auth.CustomClaims{AccountID: 7, SID: "session-1"})
+
+	deletion := &stubAccountDeletion{}
+	(&SecurityController{mfaService: stubMFAService{}, accountDeletion: deletion}).CancelMyAccount(ctx)
+
+	body := new(httpx.Response)
+	assert.NoError(t, json.Unmarshal(recorder.Body.Bytes(), body))
+	assert.Equal(t, http.StatusOK, recorder.Code)
+	assert.Equal(t, uint(7), deletion.accountID)
+}
+
 // stubMFAService 仅用于验证 Reauth 的前置条件分支；这些方法在测试中均不应执行。
 type stubMFAService struct{}
 
@@ -124,3 +142,12 @@ func (stubMFAService) IssueReauthToken(context.Context, uint, string) (string, e
 }
 
 func (stubMFAService) RequireReauth(context.Context, uint, string, string) error { return nil }
+
+type stubAccountDeletion struct {
+	accountID uint
+}
+
+func (s *stubAccountDeletion) Delete(_ context.Context, accountID uint) error {
+	s.accountID = accountID
+	return nil
+}
