@@ -1,32 +1,33 @@
 # evolyn-core 配置模板
 # 复制为 app.yaml（本地开发）或 app.local.yaml 后按环境填写真实值，真实配置不要提交入库。
+# 下列值均为示例；带有 CHANGE_ME 的密钥、密码和令牌必须通过未提交配置或密钥管理系统替换。
 
 server:
   env: 'debug' # debug / release
-  address: '127.0.0.1'
-  port: 8080
-  gracefulShutdownPeriod: 30
-  rateLimits:
-    - limitType: 'server'
-      burst: 500
-      qps: 100
-      cacheSize: 1
-    - limitType: 'ip'
-      burst: 50
-      qps: 10
-      cacheSize: 2048
+  address: '127.0.0.1' # HTTP 监听地址；示例：127.0.0.1（仅本机）或 0.0.0.0（容器部署）。
+  port: 8080 # HTTP 监听端口；示例：8080。
+  gracefulShutdownPeriod: 30 # 优雅停机等待秒数；示例：30。
+  rateLimits: # 请求限流规则列表；示例中同时配置全局与单 IP 两个维度。
+    - limitType: 'server' # 限流维度；示例：server（全局）或 ip（按客户端 IP）。
+      burst: 500 # 令牌桶瞬时容量；示例：500，必须大于或等于 qps。
+      qps: 100 # 稳态每秒允许请求数；示例：100。
+      cacheSize: 1 # 限流器缓存容量；server 维度仅需一个实例，示例：1。
+    - limitType: 'ip' # 限流维度；示例：ip，按客户端 IP 独立计数。
+      burst: 50 # 单 IP 的瞬时请求容量；示例：50。
+      qps: 10 # 单 IP 的稳态每秒请求数；示例：10。
+      cacheSize: 2048 # 单 IP 限流器缓存容量；示例：2048，按预计活跃 IP 数调整。
   jwtSecret: 'CHANGE_ME' # 生产环境必须替换为随机长字符串
   # CORS 来源白名单（精确匹配，含协议与端口）。生产必须显式配置实际站点域名，
   # 空白名单在 release 环境会拒绝启动；debug 空白名单回落放行 localhost/127.0.0.1
-  allowedOrigins:
-    - 'https://www.example.com'
+  allowedOrigins: # CORS 允许来源白名单，精确匹配协议、域名和端口；release 环境不能为空。
+    - 'https://www.example.com' # 允许的前端来源示例；本地可填写 http://localhost:5173。
 
 db:
-  port: 5432
-  host: 'localhost'
-  name: 'evolyn'
-  user: 'postgres'
-  password: 'postgres'
+  port: 5432 # PostgreSQL 端口；示例：5432。
+  host: 'localhost' # PostgreSQL 主机地址；示例：localhost 或 postgres（Docker 服务名）。
+  name: 'evolyn' # 数据库名称；示例：evolyn。
+  user: 'postgres' # 数据库用户名；示例：postgres。
+  password: 'postgres' # 数据库密码；示例为本地值，生产仅经未提交配置或密钥管理系统注入。
   migrate: false # GORM AutoMigrate（仅开发/测试实验，与 migrations 互斥）
   migrations: true # 版本化 SQL Migration（FIX-009，生产唯一 Schema 来源）
 
@@ -35,32 +36,32 @@ tenant:
   purgeIntervalSeconds: 3600 # 注销数据清理扫描周期（秒）
 
 redis:
-  enable: true
-  port: 6379
-  host: 'localhost'
-  password: 'CHANGE_ME'
+  enable: true # 是否启用 Redis；示例：true，认证会话、验证码和限流等能力依赖它。
+  port: 6379 # Redis 端口；示例：6379。
+  host: 'localhost' # Redis 主机地址；示例：localhost 或 redis（Docker 服务名）。
+  password: 'CHANGE_ME' # Redis 认证密码；无密码本地实例可留空，生产不得使用占位值。
 
 # RustFS 使用标准 S3 API。Endpoint 是 Go 服务可访问的内部地址；
 # externalEndpoint 是浏览器实际访问的公开地址，预签名 URL 会以它为准。
 # 真实 AK/SK 仅写 app.local.yaml 或环境注入配置，绝不提交。
 storage:
-  enabled: false
-  endpoint: '127.0.0.1:9000'
-  externalEndpoint: 'http://127.0.0.1:9000'
-  accessKey: 'vI4fbXw19GklqHDjPSxR'
-  secretKey: 'fxNXsrtAeU3hMjZ8Kv5kWbIRJdpV6EaCuGg24So0'
-  useSSL: false
-  bucket: 'evolyn'
-  prefix: 'evolyn'
-  presignTtlSeconds: 900
-  maxUploadBytes: 1073741824
-  uploadCleanupIntervalSeconds: 300
+  enabled: false # 是否启用对象存储；示例：false（未部署时关闭）或 true（启用上传）。
+  endpoint: '127.0.0.1:9000' # 服务端访问的 S3 Endpoint；示例：127.0.0.1:9000，不含协议。
+  externalEndpoint: 'http://127.0.0.1:9000' # 浏览器访问的 S3 Endpoint；示例：http://127.0.0.1:9000，包含协议。
+  accessKey: 'CHANGE_ME' # S3 Access Key；示例为占位值，启用存储时必须替换。
+  secretKey: 'CHANGE_ME' # S3 Secret Key；示例为占位值，禁止提交真实值。
+  useSSL: false # 服务端连接 S3 是否使用 HTTPS；示例：false（本地 HTTP）或 true（生产 HTTPS）。
+  bucket: 'evolyn' # 对象存储桶名称；示例：evolyn。
+  prefix: 'evolyn' # 对象键统一前缀；示例：evolyn，留空表示不加前缀。
+  presignTtlSeconds: 900 # 上传/下载预签名 URL 有效期（秒）；示例：900（15 分钟）。
+  maxUploadBytes: 1073741824 # 单文件最大上传字节数；示例：1073741824（1 GiB）。
+  uploadCleanupIntervalSeconds: 300 # 过期上传会话清理周期（秒）；示例：300（5 分钟）。
 
 oauth:
-  github:
-    authType: 'github'
-    clientId: ''
-    clientSecret: ''
+  github: # OAuth 提供方标识；示例：github，键名须与后端已注册提供方一致。
+    authType: 'github' # OAuth 提供方类型；示例：github。
+    clientId: '' # OAuth 应用 Client ID；示例：从 GitHub OAuth App 获取，真实值仅写未提交配置。
+    clientSecret: '' # OAuth 应用 Client Secret；示例：从 GitHub OAuth App 获取，禁止提交入库。
 
 sms:
   # dev=开发通道（固定验证码 666666，仅日志不外发）；生产填写真实服务商标识，
@@ -91,15 +92,15 @@ pki:
   # 私钥仅服务端解密。生产用 openssl genrsa 生成 2048 位密钥并配置同一把私钥
   # （多实例必须共享）；可直接配置 privateKey，或使用相对 app.yaml 的 privateKeyFile。
   # 两者都留空则每次启动随机生成（仅开发/测试，重启即轮换）
-  algorithm: 'rsa'
-  privateKey: ''
-  privateKeyFile: ''
+  algorithm: 'rsa' # 登录密码传输加密算法；当前仅支持 rsa，示例：rsa。
+  privateKey: '' # PEM 私钥内容；与 privateKeyFile 二选一，示例留空并通过未提交配置注入。
+  privateKeyFile: '' # PEM 私钥文件路径；相对路径以本 YAML 所在目录为基准，示例：private_key.pem。
 
 # 账号安全：TOTP 密钥只通过未提交的部署配置或密钥管理系统注入。新绑定使用
 # currentKeyVersion；保留旧版本直到所有对应因子完成重加密/停用。release 环境
 # 启用 MFA 前必须填入真实随机 32 字节 hex 密钥，示例值不可用于生产。
 security:
   totp:
-    currentKeyVersion: 1
-    masterKeys:
-      1: 'CHANGE_ME'
+    currentKeyVersion: 1 # 新绑定因子使用的主密钥版本；示例：1，轮换后递增。
+    masterKeys: # 主密钥版本映射；保留旧版本直到对应因子完成重加密或停用。
+      1: 'CHANGE_ME' # 版本 1 的 32 字节十六进制主密钥示例占位值；生产必须替换。

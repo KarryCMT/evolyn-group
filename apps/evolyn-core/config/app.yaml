@@ -1,47 +1,48 @@
-server:
-  env: 'debug'
-  address: '127.0.0.1'
-  port: 8080
-  gracefulShutdownPeriod: 30
-  rateLimits:
-    - limitType: 'server'
-      burst: 500
-      qps: 100
-      cacheSize: 1
-    - limitType: 'ip'
-      burst: 50
-      qps: 10
-      cacheSize: 2048
-  jwtSecret: evolyn-dev-secret
+server: # HTTP 服务与访问控制配置。
+  env: 'debug' # 运行环境；示例：debug（本地）或 release（生产）。
+  address: '127.0.0.1' # HTTP 监听地址；示例：127.0.0.1（仅本机）或 0.0.0.0（容器部署）。
+  port: 8080 # HTTP 监听端口；示例：8080。
+  gracefulShutdownPeriod: 30 # 优雅停机等待秒数；示例：30。
+  rateLimits: # 请求限流规则列表；示例中同时配置全局与单 IP 两个维度。
+    - limitType: 'server' # 限流维度；示例：server（全局）或 ip（按客户端 IP）。
+      burst: 500 # 令牌桶瞬时容量；示例：500，必须大于或等于 qps。
+      qps: 100 # 稳态每秒允许请求数；示例：100。
+      cacheSize: 1 # 限流器缓存容量；server 维度仅需一个实例，示例：1。
+    - limitType: 'ip' # 限流维度；示例：ip，按客户端 IP 独立计数。
+      burst: 50 # 单 IP 的瞬时请求容量；示例：50。
+      qps: 10 # 单 IP 的稳态每秒请求数；示例：10。
+      cacheSize: 2048 # 单 IP 限流器缓存容量；示例：2048，按预计活跃 IP 数调整。
+  jwtSecret: evolyn-dev-secret # JWT 签名密钥；示例为本地开发值，生产必须替换为随机长字符串且多实例保持一致。
   # CORS 来源白名单（精确匹配，含协议与端口）；debug 缺省回落放行 localhost/127.0.0.1，
   # release 环境空白名单将拒绝启动
-  allowedOrigins:
-    - 'http://localhost:5173'
-    - 'http://127.0.0.1:5173'
+  allowedOrigins: # CORS 允许来源白名单，精确匹配协议、域名和端口。
+    - 'http://localhost:5173' # 本地 Vite 前端来源示例。
+    - 'http://127.0.0.1:5173' # 以 IP 访问本地 Vite 前端的来源示例。
 
-db:
-  port: 5432
-  host: '127.0.0.1'
-  name: 'evolyn'
-  user: 'postgres'
-  password: 'postgres'
+db: # PostgreSQL 连接与 Schema 管理配置。
+  port: 5432 # PostgreSQL 端口；示例：5432。
+  host: '127.0.0.1' # PostgreSQL 主机地址；示例：127.0.0.1 或 postgres（Docker 服务名）。
+  name: 'evolyn' # 数据库名称；示例：evolyn。
+  user: 'postgres' # 数据库用户名；示例：postgres。
+  password: 'postgres' # 数据库密码；示例为本地开发默认值，生产仅经未提交配置或密钥管理系统注入。
   migrate: false # AutoMigrate 仅开发/测试（FIX-009）
   migrations: true # 启动时应用 migrations/ 版本化 SQL
 
-tenant:
-  retentionDays: 30
-  purgeIntervalSeconds: 3600
+tenant: # 租户注销后的数据保留与清理配置。
+  retentionDays: 30 # 租户注销后数据保留天数；示例：30。
+  purgeIntervalSeconds: 3600 # 注销数据清理任务扫描周期（秒）；示例：3600（1 小时）。
 
-redis:
-  enable: true
-  port: 6379
-  host: 'localhost'
-  password: '123456'
+redis: # Redis 连接配置。
+  enable: true # 是否启用 Redis；示例：true，认证会话、验证码和限流等能力依赖它。
+  port: 6379 # Redis 端口；示例：6379。
+  host: 'localhost' # Redis 主机地址；示例：localhost 或 redis（Docker 服务名）。
+  password: '123456' # Redis 认证密码；示例为本地开发值，无密码实例可留空，生产不得使用示例值。
 
-oauth:
-  github:
-    clientId: '85db232fde2c9320ece7' # set your client id
-    clientSecret: '' # set your client secret
+oauth: # OAuth 第三方登录提供方配置。
+  github: # OAuth 提供方标识；示例：github，键名须与后端已注册提供方一致。
+    authType: 'github' # OAuth 提供方类型；示例：github。
+    clientId: '' # OAuth 应用 Client ID；示例：从 GitHub OAuth App 获取，真实值仅写未提交配置。
+    clientSecret: '' # OAuth 应用 Client Secret；示例：从 GitHub OAuth App 获取，禁止提交入库。
 
 sms:
   provider: 'dev' # dev=开发通道（固定验证码 666666，仅日志不外发）；生产接服务商后替换，未支持的服务商启动即拦截
@@ -58,7 +59,7 @@ auth:
   revokeFailClosed: false # Redis 异常时令牌吊销检查降级策略：false=放行（可用性优先）；true=视为已吊销（泄露令牌立即失效优先）
   loginGuardSecret: evolyn-dev-guard-secret # 登录失败计数标识散列独立密钥（HMAC，防字典反查）；多实例共享同一把
 
-pki:
+pki: # 登录密码传输加密密钥配置。
   algorithm: 'rsa' # 登录密码加密算法：公钥经 GET /app/conf 下发前端
   privateKey: '' # PEM 私钥；与 privateKeyFile 二选一；空 = 启动随机生成
   privateKeyFile: 'private_key.pem' # PEM 私钥文件，相对 app.yaml 所在目录；公钥从私钥派生
@@ -66,15 +67,15 @@ pki:
 # RustFS 使用标准 S3 API。Endpoint 是 Go 服务可访问的内部地址；
 # externalEndpoint 是浏览器实际访问的公开地址，预签名 URL 会以它为准。
 # 真实 AK/SK 仅写 app.local.yaml 或环境注入配置，绝不提交。
-storage:
-  enabled: true
-  endpoint: '127.0.0.1:9000'
-  externalEndpoint: 'http://127.0.0.1:9000'
-  accessKey: 'vI4fbXw19GklqHDjPSxR'
-  secretKey: 'fxNXsrtAeU3hMjZ8Kv5kWbIRJdpV6EaCuGg24So0'
-  useSSL: false
-  bucket: 'evolyn'
-  prefix: 'evolyn'
-  presignTtlSeconds: 900
-  maxUploadBytes: 1073741824
-  uploadCleanupIntervalSeconds: 300
+storage: # RustFS / S3 兼容对象存储配置。
+  enabled: true # 是否启用对象存储；示例：true（启用上传）或 false（未部署时关闭）。
+  endpoint: '127.0.0.1:9000' # 服务端访问的 S3 Endpoint；示例：127.0.0.1:9000，不含协议。
+  externalEndpoint: 'http://127.0.0.1:9000' # 浏览器访问的 S3 Endpoint；示例：http://127.0.0.1:9000，包含协议。
+  accessKey: 'vI4fbXw19GklqHDjPSxR' # S3 Access Key；示例为本地开发值，生产必须经未提交配置注入。
+  secretKey: 'fxNXsrtAeU3hMjZ8Kv5kWbIRJdpV6EaCuGg24So0' # S3 Secret Key；示例为本地开发值，禁止用于生产。
+  useSSL: false # 服务端连接 S3 是否使用 HTTPS；示例：false（本地 HTTP）或 true（生产 HTTPS）。
+  bucket: 'evolyn' # 对象存储桶名称；示例：evolyn。
+  prefix: 'evolyn' # 对象键统一前缀；示例：evolyn，留空表示不加前缀。
+  presignTtlSeconds: 900 # 上传/下载预签名 URL 有效期（秒）；示例：900（15 分钟）。
+  maxUploadBytes: 1073741824 # 单文件最大上传字节数；示例：1073741824（1 GiB）。
+  uploadCleanupIntervalSeconds: 300 # 过期上传会话清理周期（秒）；示例：300（5 分钟）。
