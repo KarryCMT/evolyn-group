@@ -15,7 +15,7 @@ func TestPermissionsOf(t *testing.T) {
 	user := &model.User{
 		Roles: []model.Role{
 			{
-				Name: "authenticated",
+				Name: "已认证用户",
 				Rules: model.Rules{
 					{Resource: "users", Operation: model.EditOperation},
 					{Resource: "auth", Operation: model.AllOperation},
@@ -49,4 +49,13 @@ func TestPermissionsOf(t *testing.T) {
 	assert.True(t, permissions["auth:create"])
 	// 未授权资源
 	assert.False(t, permissions["tenants:delete"])
+}
+
+func TestIsClusterAdminUsesLocalizedRoleName(t *testing.T) {
+	user := &model.User{
+		ID:    1,
+		Roles: []model.Role{{Name: model.ClusterAdminRole}},
+	}
+
+	assert.True(t, IsClusterAdmin(user))
 }

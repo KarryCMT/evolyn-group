@@ -101,6 +101,9 @@ async function sendVerificationCode() {
     await sendSmsCode(props.phone, 'reset');
     startResendCountdown();
     ElMessage.success('验证码已发送，请注意查收短信');
+  } catch (error) {
+    // 请求层会将 429（含 AUTH_SMS_IP_LIMIT）归一为 ApiError，并保留后端的安全提示文案。
+    ElMessage.error(error instanceof Error ? error.message : '验证码发送失败，请稍后重试');
   } finally {
     sendingCode.value = false;
   }

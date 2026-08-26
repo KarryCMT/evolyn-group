@@ -53,7 +53,7 @@ func TestMemberListPageNormalizesQueryAndBuildsReadModel(t *testing.T) {
 				Departments: []model.Department{
 					{ID: 2, Name: "研发部"},
 				},
-				Roles: []model.Role{{ID: 3, Name: "tenant-admin"}},
+				Roles: []model.Role{{ID: 3, Name: "租户管理员"}},
 			},
 		},
 		total: 1,
@@ -70,7 +70,7 @@ func TestMemberListPageNormalizesQueryAndBuildsReadModel(t *testing.T) {
 	assert.Equal(t, "租户昵称", page.Items[0].Name)
 	assert.Equal(t, "13800000000", page.Items[0].Phone)
 	assert.Equal(t, []model.MemberDepartment{{ID: 2, Name: "研发部"}}, page.Items[0].Departments)
-	assert.Equal(t, []model.MemberRole{{ID: 3, Name: "tenant-admin"}}, page.Items[0].Roles)
+	assert.Equal(t, []model.MemberRole{{ID: 3, Name: "租户管理员"}}, page.Items[0].Roles)
 }
 
 func TestMemberListPageRejectsUnknownStatus(t *testing.T) {

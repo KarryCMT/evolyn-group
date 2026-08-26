@@ -38,11 +38,13 @@ type IAMRepositories interface {
 	Department() iamrepository.DepartmentRepository
 }
 
-// 租户内基线角色名（与默认租户种子、db.sql 口径一致）
+// 租户内基线角色名（与默认租户种子、db.sql 口径一致）。
+// 名称直接面向组织角色页展示，因此使用中文；租户内权限判定只依赖角色规则，
+// 不以名称作为授权依据。
 const (
-	TenantAdminRole     = "tenant-admin"
-	AuthenticatedRole   = "authenticated"
-	UnAuthenticatedRole = "unauthenticated"
+	TenantAdminRole     = "租户管理员"
+	AuthenticatedRole   = "已认证用户"
+	UnAuthenticatedRole = "未认证用户"
 )
 
 // DefaultRetentionPeriod 注销数据默认保留期（FIX-012）：保留期内可恢复，

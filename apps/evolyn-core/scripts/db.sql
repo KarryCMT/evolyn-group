@@ -276,9 +276,9 @@ ALTER TABLE roles ADD CONSTRAINT fk_roles_role_group
     FOREIGN KEY (role_group_id) REFERENCES role_groups(id) ON DELETE SET NULL;
 
 INSERT INTO roles (name, scope, rules) VALUES
-    ('cluster-admin', 'cluster', '[{"resource": "*", "operation": "*"}]'),
-    ('authenticated', 'cluster', '[{"resource": "users", "operation": "*"},{"resource": "auth", "operation": "*"},{"resource": "accounts", "operation": "*"},{"resource": "applications", "operation": "view"},{"resource": "files", "operation": "edit"}]'),
-    ('unauthenticated', 'cluster', '[{"resource": "auth", "operation": "create"}]') ON CONFLICT DO NOTHING;
+    ('平台管理员', 'cluster', '[{"resource": "*", "operation": "*"}]'),
+    ('已认证用户', 'cluster', '[{"resource": "users", "operation": "*"},{"resource": "auth", "operation": "*"},{"resource": "accounts", "operation": "*"},{"resource": "applications", "operation": "view"},{"resource": "files", "operation": "edit"}]'),
+    ('未认证用户', 'cluster', '[{"resource": "auth", "operation": "create"}]') ON CONFLICT DO NOTHING;
 
 -- 租户管理员可更新组织根节点（租户名称）；存量数据库由迁移 000022 同步。
 UPDATE roles
@@ -286,7 +286,7 @@ SET rules = (
     COALESCE(rules::jsonb, '[]'::jsonb)
     || jsonb_build_array(jsonb_build_object('resource', 'tenant', 'operation', 'edit'))
 )::json
-WHERE name = 'tenant-admin'
+WHERE name = '租户管理员'
   AND NOT EXISTS (
       SELECT 1
       FROM json_array_elements(COALESCE(rules, '[]'::json)) AS rule
@@ -300,7 +300,7 @@ SET rules = (
     COALESCE(rules::jsonb, '[]'::jsonb)
     || jsonb_build_array(jsonb_build_object('resource', 'members', 'operation', '*'))
 )::json
-WHERE name = 'tenant-admin'
+WHERE name = '租户管理员'
   AND NOT EXISTS (
       SELECT 1
       FROM json_array_elements(COALESCE(rules, '[]'::json)) AS rule
@@ -320,9 +320,9 @@ CREATE TABLE IF NOT EXISTS group_roles(
 );
 
 INSERT INTO group_roles (group_id, role_id) VALUES
-    ((SELECT id FROM groups WHERE name = 'root'), (SELECT id FROM roles WHERE name = 'cluster-admin')),
-    ((SELECT id FROM groups WHERE name = 'system:authenticated'), (SELECT id FROM roles WHERE name = 'authenticated')),
-    ((SELECT id FROM groups WHERE name = 'system:unauthenticated'), (SELECT id FROM roles WHERE name = 'unauthenticated'))
+    ((SELECT id FROM groups WHERE name = 'root'), (SELECT id FROM roles WHERE name = '平台管理员')),
+    ((SELECT id FROM groups WHERE name = 'system:authenticated'), (SELECT id FROM roles WHERE name = '已认证用户')),
+    ((SELECT id FROM groups WHERE name = 'system:unauthenticated'), (SELECT id FROM roles WHERE name = '未认证用户'))
     ON CONFLICT DO NOTHING;
 
 -- 业务审计日志（FIX-013）：追加写流水，无软删语义

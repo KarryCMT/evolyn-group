@@ -80,7 +80,7 @@ func IsClusterAdmin(user *model.User) bool {
 	}
 
 	for _, role := range roles {
-		if role.Name == "cluster-admin" {
+		if role.Name == model.ClusterAdminRole {
 			return true
 		}
 	}

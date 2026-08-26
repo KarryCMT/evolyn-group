@@ -14,6 +14,8 @@ import (
 
 const (
 	All = "*"
+	// ClusterAdminRole 是平台管理角色的中文展示名；平台鉴权使用该常量识别角色。
+	ClusterAdminRole = "平台管理员"
 )
 
 type Scope string
