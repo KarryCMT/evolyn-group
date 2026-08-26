@@ -77,12 +77,6 @@ pki: # 登录密码传输加密密钥配置。
   privateKey: '' # PEM 私钥内容；与 privateKeyFile 二选一；两者留空时开发环境启动随机生成。
   privateKeyFile: 'private_key.pem' # PEM 私钥文件路径；相对路径以本 YAML 所在目录为基准，示例：private_key.pem。
 
-security: # 账号安全配置；TOTP 主密钥仅能通过未提交配置或密钥管理系统注入。
-  totp: # TOTP 双因素认证主密钥配置；启用 MFA 前必须注入真实密钥。
-    currentKeyVersion: 1 # 新绑定因子使用的主密钥版本；示例：1，轮换后递增。
-    masterKeys: # 主密钥版本映射；保留旧版本直到对应因子完成重加密或停用。
-      1: 'CHANGE_ME' # 版本 1 的 32 字节十六进制主密钥示例占位值；生产必须替换。
-
 # RustFS 使用标准 S3 API。Endpoint 是 Go 服务可访问的内部地址；
 # externalEndpoint 是浏览器实际访问的公开地址，预签名 URL 会以它为准。
 # 真实 AK/SK 仅写 app.local.yaml 或环境注入配置，绝不提交。
@@ -98,9 +92,9 @@ storage: # RustFS / S3 兼容对象存储配置。
   presignTtlSeconds: 900 # 上传/下载预签名 URL 有效期（秒）；示例：900（15 分钟）。
   maxUploadBytes: 1073741824 # 单文件最大上传字节数；示例：1073741824（1 GiB）。
   uploadCleanupIntervalSeconds: 300 # 过期上传会话清理周期（秒）；示例：300（5 分钟）。
-security:
-  totp:
-    # 本机开发专用的 AES-256 主密钥；不得提交或复用到其他环境。
-    currentKeyVersion: 1
-    masterKeys:
-      1: 'bee7b7bb6d86dc57d72eb878d223182ea2bc0874c185fb59ffa05d6e4c2f86b1'
+
+security: # 账号安全配置；TOTP 主密钥仅能通过未提交配置或密钥管理系统注入。
+  totp: # TOTP 双因素认证主密钥配置；启用 MFA 前必须注入真实密钥。
+    currentKeyVersion: 1 # 新绑定因子使用的主密钥版本；示例：1，轮换后递增。
+    masterKeys: # 主密钥版本映射；保留旧版本直到对应因子完成重加密或停用。
+      1: 'bee7b7bb6d86dc57d72eb878d223182ea2bc0874c185fb59ffa05d6e4c2f86b1' # 版本 1 的 32 字节十六进制主密钥示例占位值；生产必须替换。
