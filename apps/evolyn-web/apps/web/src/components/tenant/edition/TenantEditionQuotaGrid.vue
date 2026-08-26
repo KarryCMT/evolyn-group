@@ -30,7 +30,9 @@ const emit = defineEmits<{
           </span>
         </header>
 
+        <!-- 待计量资源不渲染进度条（无真实已用值，禁止伪 0 展示） -->
         <div
+          v-if="card.meteringStatus === 'ready'"
           class="edition-quotas__progress"
           role="progressbar"
           :aria-valuenow="card.progress"
@@ -39,6 +41,7 @@ const emit = defineEmits<{
         >
           <i :style="{ width: `${card.progress}%` }" />
         </div>
+        <div v-else class="edition-quotas__progress edition-quotas__progress--pending" />
         <div class="edition-quotas__metrics">
           <span>{{ card.usageLabel }}</span>
           <span>
@@ -50,7 +53,6 @@ const emit = defineEmits<{
         </div>
         <p v-if="card.note" class="edition-quotas__note">{{ card.note }}</p>
         <footer class="edition-quotas__footer">
-          <button v-if="card.id === 'ai'" type="button" @click="emit('upgrade')">升级版本</button>
           <button type="button" @click="emit('detail', card)">查看详情</button>
         </footer>
       </article>
@@ -66,7 +68,7 @@ const emit = defineEmits<{
     display: flex;
     margin: 0 0 16px;
     align-items: center;
-    color: #1f2937;
+    color: var(--el-text-color-primary);
     font-size: 18px;
     font-weight: 650;
     line-height: 28px;
@@ -93,9 +95,9 @@ const emit = defineEmits<{
     box-sizing: border-box;
     flex-direction: column;
     padding: 28px;
-    border: 1px solid #e8ebf0;
+    border: 1px solid var(--el-border-color-light);
     border-radius: 14px;
-    background: #fff;
+    background: var(--el-bg-color);
     box-shadow: 0 1px 3px rgb(36 51 73 / 5%);
   }
 
@@ -121,7 +123,7 @@ const emit = defineEmits<{
     h3 {
       overflow: hidden;
       margin: 0;
-      color: #202c3f;
+      color: var(--el-text-color-primary);
       font-size: 18px;
       font-weight: 650;
       line-height: 28px;
@@ -187,15 +189,20 @@ const emit = defineEmits<{
     margin-top: 20px;
     overflow: hidden;
     border-radius: 10px;
-    background: #eff1f4;
+    background: var(--el-fill-color);
 
     i {
       display: block;
       height: 100%;
       min-width: 3px;
       border-radius: inherit;
-      background: #4e8df7;
+      background: var(--el-color-primary);
       transition: width 0.24s ease;
+    }
+
+    // 待计量占位：仅保留轨道撑住布局，不渲染任何进度比例
+    &--pending i {
+      display: none;
     }
   }
 
@@ -203,7 +210,7 @@ const emit = defineEmits<{
     margin-top: 12px;
     justify-content: space-between;
     gap: 10px;
-    color: #687384;
+    color: var(--el-text-color-regular);
     font-size: 15px;
     line-height: 24px;
 
@@ -217,14 +224,14 @@ const emit = defineEmits<{
     svg {
       width: 16px;
       height: 16px;
-      color: #b7bfcc;
+      color: var(--el-text-color-placeholder);
     }
   }
 
   &__note {
     min-height: 20px;
     margin: 8px 0 0;
-    color: #778292;
+    color: var(--el-text-color-secondary);
     font-size: 13px;
     line-height: 20px;
   }

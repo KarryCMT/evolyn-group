@@ -209,7 +209,7 @@ func hasVisibleDescendant(byID map[uint]*model.MenuEntry, group *model.MenuEntry
 
 // menuEntryDetail 节点出网投影：icon/color 空串投影为 null；parentEntryId
 // 由 byID 反查父节点编码（null 即根节点）。资产域落地前 target 不投影
-//（出网为 null，公开编码无从查起），M2-资产-1 接入资产查询后按 target_id
+// （出网为 null，公开编码无从查起），M2-资产-1 接入资产查询后按 target_id
 // 映射资产 code 并叠加节点级 features
 func menuEntryDetail(entry *model.MenuEntry, byID map[uint]*model.MenuEntry, caps model.MenuEntryCapabilities) model.MenuEntryDetail {
 	detail := model.MenuEntryDetail{

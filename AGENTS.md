@@ -111,6 +111,16 @@ internal/
                       节点表 + applications.menu_revision 菜单乐观并发口令，
                       读取走单条 SQL 快照保证修订号与节点同快照；菜单写
                       管理接口随 M2-菜单-3 落地）
+    edition/          版本信息域（一期，小三层，docs/低代码平台/版本信息/）：
+                      套餐目录/不可变套餐版本快照/租户订阅/特批权益覆盖
+                      （迁移 000030，四表 + 三档 seed + 存量回填）；活动订阅
+                      是权益事实源，tenants.plan/quotas 退为 QuotaService
+                      过渡兼容投影（同事务同步）；租户侧 GET /editions/current
+                      （editions:get 仅授租户管理员）+ 平台侧人工授予/取消/
+                      可授予版本列表；读时到期投影 expired + EditionWorker
+                      幂等降级免费版；QuotaService 经到期守卫 GuardLimit 在
+                      降级落库前按「免费快照+仅 manual 覆盖」拦截；租户开通
+                      经 SubscriptionSeeder 同事务补种初始订阅
 migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
                       命名 NNNNNN_name.(up|down).sql，版本号只增不复用）
 scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（本地证书）

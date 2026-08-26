@@ -17,6 +17,7 @@ import (
 	iamrepository "evolyn/internal/platform/iam/repository"
 	tenantmodel "evolyn/internal/platform/tenant/model"
 	tenantrepository "evolyn/internal/platform/tenant/repository"
+	"evolyn/internal/utils/request"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
@@ -26,6 +27,16 @@ import (
 // 事务 session），Service 只依赖最小接口，便于单测以快照/恢复模拟回滚
 type TxManager interface {
 	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error
+}
+
+// SubscriptionSeeder 开通事务内补种初始订阅（版本信息一期）：消费者侧窄
+// 接口，由 edition 服务结构性实现，装配期可选注入（nil 时开通不落订阅，
+// 读取侧按 tenants.plan 合成兜底视图）。活动订阅是权益事实源，新租户
+// 开通必须同事务补齐，避免「开通即缺事实源」
+type SubscriptionSeeder interface {
+	// SeedInitial 在调用方事务内为新租户补种初始订阅；planCode 取开通
+	// 请求的套餐（free/pro 落长期活动订阅，trial 无到期信息落待补录态）
+	SeedInitial(ctx context.Context, tenantID uint, planCode string) error
 }
 
 // IAMRepositories 开通租户所需的 iam 仓储能力子集：接口化便于测试替身，
@@ -69,6 +80,7 @@ type tenantService struct {
 	quota      QuotaService
 	audit      auditservice.Recorder
 	retention  time.Duration
+	subSeeder  SubscriptionSeeder
 }
 
 func NewTenantService(
@@ -78,11 +90,12 @@ func NewTenantService(
 	quota QuotaService,
 	audit auditservice.Recorder,
 	retention time.Duration,
+	seeders ...SubscriptionSeeder,
 ) TenantService {
 	if retention <= 0 {
 		retention = DefaultRetentionPeriod
 	}
-	return &tenantService{
+	svc := &tenantService{
 		tx:         tx,
 		tenantRepo: tenantRepo,
 		iam:        iam,
@@ -90,6 +103,10 @@ func NewTenantService(
 		audit:      audit,
 		retention:  retention,
 	}
+	if len(seeders) > 0 {
+		svc.subSeeder = seeders[0]
+	}
+	return svc
 }
 
 // OpenTenantRequest 开通租户请求：OwnerAccountID 与 Owner 账号信息二选一
@@ -303,6 +320,14 @@ func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*
 		return nil, err
 	}
 
+	// 版本信息一期：开通事务内补种初始订阅（活动订阅是权益事实源）；
+	// 注入失败即整体回滚，不允许出现「有租户无订阅」的半写状态
+	if s.subSeeder != nil {
+		if err = s.subSeeder.SeedInitial(bctx, tenant.ID, req.Plan); err != nil {
+			return nil, err
+		}
+	}
+
 	// owner 成员：先配额校验（FIX-011），再显式指定租户归属创建
 	if s.quota != nil {
 		if err = s.quota.Check(bctx, tenant.ID, tenantmodel.QuotaMembers); err != nil {
@@ -369,6 +394,8 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 文件管理：私有对象的签名、确认与删除均由租户管理员全量管理；
 			// 存量租户由 000017 补齐。
 			{Resource: "files", Operation: iammodel.AllOperation},
+			// 版本信息只读概览（版本信息一期）；存量租户由 000030 补齐
+			{Resource: "editions", Operation: request.GetOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},

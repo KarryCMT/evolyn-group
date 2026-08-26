@@ -62,12 +62,42 @@ type StorageQuotaService interface {
 	CheckAndReserveStorage(ctx context.Context, tenantID uint, bytes int64, fn func(ctx context.Context) error) error
 }
 
+// ExpiryGuard 订阅到期守卫（版本信息一期，设计 4.4.1）：消费者侧窄接口，
+// 由 edition 服务结构性实现，装配期经 UseExpiryGuard 注入（此前为 nil 走
+// 旧语义，不影响存量测试）。守卫返回 decided=true 时以「免费快照 + 仅有效
+// manual 覆盖」的解析结果替代旧 tenants.plan/quotas 读取——不复用
+// Quotas.Get(plan=free)，避免旧 quotas 中残留的试用投影在降级任务落库前
+// 把上限放大回旧档位（页面与写路径同档位降级）
+type ExpiryGuard interface {
+	GuardLimit(ctx context.Context, tenantID uint, resourceKey string) (limit int64, decided bool, err error)
+}
+
+// QuotaGuardInjector 装配期守卫注入能力（可选）：NewQuotaService 返回接口
+// 类型，装配处断言本接口后注入，不污染 QuotaService 契约与存量测试桩
+type QuotaGuardInjector interface {
+	UseExpiryGuard(guard ExpiryGuard)
+}
+
+// 存量键在权益解析器（新键空间）中的对应键：守卫只拦这三个
+const (
+	guardKeyMembers = "members"
+	guardKeyApps    = "apps"
+	guardKeyStorage = "storage_bytes"
+)
+
 type quotaService struct {
 	tenants tenantReader
 	locker  tenantLocker
 	members memberCounter
 	apps    applicationCounter
 	storage storageCounter
+	guard   ExpiryGuard
+}
+
+// UseExpiryGuard 注入到期守卫（装配期一次性调用；版本信息服务就绪后由
+// server 装配注入，运行期不再变更）
+func (s *quotaService) UseExpiryGuard(guard ExpiryGuard) {
+	s.guard = guard
 }
 
 // NewQuotaService 构造配额服务。locker/apps 为应用域落地后的扩展依赖
@@ -143,7 +173,8 @@ func (s *quotaService) CheckAndReserveStorage(ctx context.Context, tenantID uint
 }
 
 // limitAndUsage 取生效上限与当前用量。租户上下文可能不存在（运营/后台路径），
-// 租户读取走仓储默认行为
+// 租户读取走仓储默认行为。到期守卫先行：活动订阅已到期时（降级任务未落库
+// 的窗口期）以统一权益解析结果替代旧字段读取（版本信息一期，设计 4.4.1）
 func (s *quotaService) limitAndUsage(ctx context.Context, tenantID uint, key string) (int64, int64, error) {
 	var usage int64
 	var err error
@@ -165,6 +196,12 @@ func (s *quotaService) limitAndUsage(ctx context.Context, tenantID uint, key str
 		return 0, 0, err
 	}
 
+	if limit, decided, err := s.guardLimit(ctx, tenantID, key); err != nil {
+		return 0, 0, err
+	} else if decided {
+		return limit, usage, nil
+	}
+
 	tenant, err := s.tenants.GetByID(ctx, tenantID)
 	if err != nil {
 		return 0, 0, err
@@ -176,6 +213,7 @@ func (s *quotaService) limitAndUsage(ctx context.Context, tenantID uint, key str
 }
 
 // storageLimitAndUsage 将 storage_gb 的配置转换为字节上限；-1 仍表示不限量。
+// 到期守卫同 limitAndUsage：到期窗口内按解析器的字节上限判定
 func (s *quotaService) storageLimitAndUsage(ctx context.Context, tenantID uint) (int64, int64, error) {
 	if s.storage == nil {
 		return 0, 0, fmt.Errorf("quota counter not configured: %s", tenantmodel.QuotaStorageGB)
@@ -184,6 +222,13 @@ func (s *quotaService) storageLimitAndUsage(ctx context.Context, tenantID uint) 
 	if err != nil {
 		return 0, 0, err
 	}
+
+	if limit, decided, err := s.guardLimit(ctx, tenantID, guardKeyStorage); err != nil {
+		return 0, 0, err
+	} else if decided {
+		return limit, usage, nil
+	}
+
 	tenant, err := s.tenants.GetByID(ctx, tenantID)
 	if err != nil {
 		return 0, 0, err
@@ -197,4 +242,22 @@ func (s *quotaService) storageLimitAndUsage(ctx context.Context, tenantID uint) 
 		return 0, 0, fmt.Errorf("storage quota overflow: %d GB", limitGB)
 	}
 	return limitGB * gib, usage, nil
+}
+
+// guardLimit 到期守卫统一入口：旧配额键映射到权益解析键后询问守卫；
+// 守卫未注入或返回 decided=false 时继续走旧字段语义
+func (s *quotaService) guardLimit(ctx context.Context, tenantID uint, key string) (int64, bool, error) {
+	if s.guard == nil {
+		return 0, false, nil
+	}
+	switch key {
+	case tenantmodel.QuotaMembers:
+		return s.guard.GuardLimit(ctx, tenantID, guardKeyMembers)
+	case tenantmodel.QuotaApps:
+		return s.guard.GuardLimit(ctx, tenantID, guardKeyApps)
+	case tenantmodel.QuotaStorageGB:
+		return s.guard.GuardLimit(ctx, tenantID, guardKeyStorage)
+	default:
+		return 0, false, nil
+	}
 }

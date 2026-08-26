@@ -36,6 +36,9 @@ import (
 	authservice "evolyn/internal/platform/auth/service"
 	"evolyn/internal/platform/auth/sms"
 	"evolyn/internal/platform/controller"
+	editioncontroller "evolyn/internal/platform/edition/controller"
+	editionrepository "evolyn/internal/platform/edition/repository"
+	editionservice "evolyn/internal/platform/edition/service"
 	filecontroller "evolyn/internal/platform/file/controller"
 	filerepository "evolyn/internal/platform/file/repository"
 	fileservice "evolyn/internal/platform/file/service"
@@ -121,6 +124,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	applicationRepo := applicationrepository.NewRepository(db)
 	menuRepo := applicationrepository.NewMenuRepository(db)
 	fileRepo := filerepository.NewRepository(db)
+	// 版本信息域仓储（一期）：与各域仓储同批创建，dev AutoMigrate 块可用
+	editionRepo := editionrepository.NewRepository(db)
 	if conf.DB.Migrate {
 		if err := auditRepo.Migrate(); err != nil {
 			return nil, err
@@ -143,6 +148,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		if err := fileRepo.Migrate(); err != nil {
 			return nil, err
 		}
+		if err := editionRepo.Migrate(); err != nil {
+			return nil, err
+		}
 	}
 
 	// 种子：默认租户最先（单租户/存量数据归属兜底），再 iam 资源与系统分组
@@ -163,6 +171,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	}
 	txManager := infrastructure.NewTxManager(db)
 
+	// 版本信息域服务（一期）：先于租户服务装配——开通事务要经
+	// SubscriptionSeeder 补种初始订阅；QuotaService 经守卫在到期窗口改读
+	// 统一权益解析结果（设计 4.4.1）
+	editionService := editionservice.NewEditionService(txManager, editionRepo, tenantRepo, auditSvc, iamRepo.User(), applicationRepo, fileRepo)
+	if injector, ok := quotaSvc.(tenantservice.QuotaGuardInjector); ok {
+		injector.UseExpiryGuard(editionService)
+	}
+
 	// 登录日志域（认证域内，000013）：IP 归属地解析器数据内嵌随二进制，
 	// 装载失败仅可能为程序性损坏，fail-fast 拒绝启动
 	ipResolver, err := ipregion.New()
@@ -171,7 +187,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	}
 	loginLogSvc := loginlogservice.NewService(loginLogRepo, ipResolver)
 
-	tenantService := tenantservice.NewTenantService(txManager, tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention())
+	tenantService := tenantservice.NewTenantService(txManager, tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention(), editionService)
 	// 账号服务注入审计：换绑手机号等安全敏感操作落业务审计（best-effort）
 	accountService := service.NewAccountService(txManager, iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc, auditSvc)
 	userService := service.NewUserService(txManager, iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc)
@@ -299,14 +315,18 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	applicationController := applicationcontroller.NewApplicationController(applicationService)
 	menuController := applicationcontroller.NewMenuController(menuService)
 	fileController := filecontroller.NewFileController(fileService)
+	editionController := editioncontroller.NewEditionController(editionService)
+	platformEditionController := editioncontroller.NewPlatformEditionController(editionService)
 
 	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, securityController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, securityController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
+	// 订阅到期降级任务（版本信息一期）：间隔取默认值（读时投影已兜底窗口期）
+	editionWorker := editionservice.NewEditionWorker(editionService, 0, logger)
 
 	gin.SetMode(conf.Server.ENV)
 
@@ -346,6 +366,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		controllers:          controllers,
 		fileController:       fileController,
 		purgeWorker:          purgeWorker,
+		editionWorker:        editionWorker,
 		fileCleanupWorker:    fileCleanupWorker,
 		sessionCleanupWorker: sessionCleanupWorker,
 		authorizer:           authorizer,
@@ -366,6 +387,7 @@ type Server struct {
 	controllers       []controller.Controller
 	fileController    *filecontroller.FileController
 	purgeWorker       *tenantservice.PurgeWorker
+	editionWorker     *editionservice.EditionWorker
 	fileCleanupWorker *fileservice.UploadCleanupWorker
 	// 会话清理任务（ADR-009 SEC-3-4）：删除过期/超保留期的历史设备会话
 	sessionCleanupWorker *securityservice.SessionCleanupWorker
@@ -385,6 +407,7 @@ func (s *Server) Run() error {
 	workerCtx, workerCancel := context.WithCancel(context.Background())
 	defer workerCancel()
 	go s.purgeWorker.Run(workerCtx)
+	go s.editionWorker.Run(workerCtx)
 	go s.fileCleanupWorker.Run(workerCtx)
 	go s.sessionCleanupWorker.Run(workerCtx)
 

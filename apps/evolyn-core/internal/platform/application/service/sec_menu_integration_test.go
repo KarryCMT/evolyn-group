@@ -106,7 +106,7 @@ func TestSECMENU004PlainMemberReadOnly(t *testing.T) {
 
 // SEC-MENU-005：真库构造分组/资产树（资产域未落地，节点按菜单行出网、
 // target 不投影）→ 分组保留、资产节点可见；纯空分组被裁剪；结构损坏
-//（跨应用父节点）返回 APP_MENU_INVALID
+// （跨应用父节点）返回 APP_MENU_INVALID
 func TestSECMENU005PruningAndIntegrity(t *testing.T) {
 	env := newMenuEnv(t)
 

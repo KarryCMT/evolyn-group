@@ -1,295 +1,182 @@
 <script setup lang="ts">
 import {
-  RiAiGenerate2Fill,
   RiApps2Fill,
   RiAttachmentFill,
-  RiBarChartBoxFill,
-  RiCalculatorFill,
-  RiCoinsFill,
   RiDatabase2Fill,
   RiFileList3Fill,
-  RiFileSettingsFill,
-  RiLayoutGridFill,
-  RiLightbulbFill,
-  RiLock2Fill,
-  RiPaletteFill,
-  RiPenNibFill,
-  RiPieChart2Fill,
-  RiPrinterFill,
   RiPuzzle2Fill,
-  RiRecycleFill,
-  RiRobotFill,
   RiRouteFill,
-  RiShareForwardFill,
   RiShieldUserFill,
-  RiTableFill,
   RiUser3Fill,
-  RiUserSettingsFill,
 } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
-import { shallowRef } from 'vue';
+import type { Component } from 'vue';
+import { computed, onMounted, ref, shallowRef } from 'vue';
+import { getCurrentEdition } from '~/api/edition';
 import TenantEditionFeatureGroups from '~/components/tenant/edition/TenantEditionFeatureGroups.vue';
 import TenantEditionOverview from '~/components/tenant/edition/TenantEditionOverview.vue';
 import TenantEditionQuotaGrid from '~/components/tenant/edition/TenantEditionQuotaGrid.vue';
 import type { EditionFeatureGroup, EditionQuotaCard } from '~/components/tenant/edition/types';
+import type { CurrentEdition, EditionQuota } from '~/types';
 
 defineOptions({ name: 'TenantEditionPage' });
 
-// 接口接入前使用和灵衍云试用版一致的展示数据；后续仅需替换该数据源。
-const quotaCards: EditionQuotaCard[] = [
-  {
-    icon: RiUser3Fill,
-    id: 'members',
-    limitLabel: '上限：30人',
-    note: '成员数达到上限后，请升级版本或调整成员席位。',
-    progress: 4,
-    title: '可用人数',
-    tone: 'blue',
-    usageLabel: '已使用：1人',
-  },
-  {
-    icon: RiUserSettingsFill,
-    id: 'admins',
-    limitLabel: '总量：99,999人',
-    note: '子管理员 = 普通管理员 + 应用管理员，不包含赠送的 5 个系统管理员。',
-    progress: 0,
-    title: '子管理员',
-    tone: 'purple',
-    usageLabel: '已用：0人',
-  },
-  {
-    icon: RiAttachmentFill,
-    id: 'attachments',
-    limitLabel: '每年总量：120 GB',
-    note: '超出年度总量后消耗云币支付，19.92 云币 / GB。',
-    progress: 0,
-    title: '附件上传量',
-    tone: 'cyan',
-    usageLabel: '总量内已用：0 Bytes',
-  },
-  {
-    icon: RiFileList3Fill,
-    id: 'records',
-    limitLabel: '总量：750,000条',
-    note: '表单数据量按企业内全部应用汇总计算。',
-    progress: 1,
-    title: '总数据量',
-    tone: 'orange',
-    usageLabel: '已用：2,152条',
-  },
-  {
-    icon: RiDatabase2Fill,
-    id: 'data-factory',
-    limitLabel: '总量：50个',
-    note: '用量已超免费版限制。',
-    progress: 16,
-    title: '数据工厂',
-    tone: 'green',
-    usageLabel: '已用：8个',
-    warning: '用量已超免费版限制',
-  },
-  {
-    icon: RiLightbulbFill,
-    id: 'assistant',
-    limitLabel: '每年总量：1,000,000次',
-    note: '超出年度总量后消耗云币支付，0.01 云币 / 次。',
-    progress: 0,
-    title: '智能助手',
-    tone: 'purple',
-    usageLabel: '总量内已用：0次',
-  },
-  {
-    icon: RiRouteFill,
-    id: 'workflow',
-    limitLabel: '总量：20个',
-    note: '流程分析支持按实例查看运行效率。',
-    progress: 5,
-    title: '流程分析',
-    tone: 'cyan',
-    usageLabel: '已用：1个',
-  },
-  {
-    icon: RiApps2Fill,
-    id: 'applications',
-    limitLabel: '无限制',
-    progress: 40,
-    title: '应用',
-    tone: 'cyan',
-    usageLabel: '已用：6个',
-  },
-  {
-    icon: RiTableFill,
-    id: 'aggregate-tables',
-    limitLabel: '总量：120个',
-    note: '聚合表总量按企业维度统计。',
-    progress: 1,
-    title: '聚合表',
-    tone: 'purple',
-    usageLabel: '已用：2个',
-  },
-  {
-    icon: RiAiGenerate2Fill,
-    id: 'ai',
-    limitLabel: '每年总量：500 点',
-    progress: 0,
-    title: 'AI 额度',
-    tone: 'cyan',
-    usageLabel: '已用：0 点',
-  },
-];
-
-const featureGroups: EditionFeatureGroup[] = [
-  {
-    id: 'form-collaboration',
-    title: '表单协作',
-    items: [
-      { available: true, icon: RiPenNibFill, id: 'signature', title: '手写签名' },
-      { available: true, icon: RiCalculatorFill, id: 'calculation', title: '计算' },
-      { available: true, icon: RiPaletteFill, id: 'form-theme', title: '自定义表单外链样式' },
-      { available: true, icon: RiFileSettingsFill, id: 'detail-page', title: '自定义详情页' },
-      {
-        available: true,
-        icon: RiShieldUserFill,
-        id: 'submit-success',
-        title: '自定义提交成功页面',
-      },
-      { available: true, icon: RiAttachmentFill, id: 'export-attachment', title: '批量导出附件' },
-      { available: true, icon: RiShareForwardFill, id: 'cross-app', title: '跨应用' },
-      {
-        available: true,
-        icon: RiPrinterFill,
-        id: 'print',
-        meta: '已使用3个自定义打印模板',
-        title: '自定义打印',
-      },
-      { available: true, icon: RiLayoutGridFill, id: 'view', title: '高级视图' },
-      { available: true, icon: RiFileList3Fill, id: 'form-extension', title: '表单开放性增强' },
-      { available: true, icon: RiRobotFill, id: 'assistant-node', title: '智能助手高级节点' },
-      { available: true, icon: RiRecycleFill, id: 'workflow-test', title: '流程测试' },
-    ],
-  },
-  {
-    id: 'basic-data',
-    title: '基础数据',
-    items: [
-      {
-        available: true,
-        icon: RiFileList3Fill,
-        id: 'record-limit',
-        meta: '300,000条',
-        title: '单表数据上限',
-      },
-      {
-        available: true,
-        icon: RiAttachmentFill,
-        id: 'file-limit',
-        meta: '20 MB',
-        title: '单个文件上传上限',
-      },
-    ],
-  },
-  {
-    id: 'visualization',
-    title: '数据可视化',
-    items: [
-      { available: true, icon: RiBarChartBoxFill, id: 'advanced-charts', title: '仪表盘高级图表' },
-      { available: true, icon: RiLightbulbFill, id: 'warning', title: '仪表盘数据预警' },
-      { available: true, icon: RiPieChart2Fill, id: 'style', title: '仪表盘样式增强' },
-    ],
-  },
-  {
-    id: 'business',
-    title: '业务套件',
-    items: [
-      { available: true, icon: RiFileList3Fill, id: 'knowledge', meta: '50个', title: '知识库' },
-      { available: false, icon: RiApps2Fill, id: 'crm', title: 'CRM' },
-    ],
-  },
-  {
-    id: 'enterprise',
-    title: '企业管理',
-    items: [
-      { available: true, icon: RiUserSettingsFill, id: 'member-state', title: '成员启用/停用' },
-      {
-        available: true,
-        icon: RiUser3Fill,
-        id: 'external-people',
-        meta: '500个/对接互联组织',
-        title: '互联对接人',
-      },
-      {
-        available: true,
-        icon: RiDatabase2Fill,
-        id: 'external-connections',
-        meta: '60个',
-        title: '互联组织连接数',
-      },
-      { available: true, icon: RiLock2Fill, id: 'sso', title: '单点登录' },
-      { available: true, icon: RiPaletteFill, id: 'login-page', title: '自定义登录页' },
-      { available: true, icon: RiRecycleFill, id: 'sync', title: '成员自动同步' },
-      { available: true, icon: RiShieldUserFill, id: 'reminder', title: '提醒屏蔽' },
-      { available: true, icon: RiFileSettingsFill, id: 'watermark', title: '企业水印' },
-      { available: true, icon: RiPaletteFill, id: 'brand', title: '企业风格' },
-    ],
-  },
-  {
-    id: 'product-management',
-    requiresUpgrade: true,
-    title: '产品管理',
-    items: [
-      { available: true, icon: RiApps2Fill, id: 'management-group', title: '应用管理组' },
-      { available: true, icon: RiLock2Fill, id: 'permission-query', title: '权限查询' },
-      { available: true, icon: RiBarChartBoxFill, id: 'analytics', title: '使用统计（高级版）' },
-      { available: true, icon: RiLayoutGridFill, id: 'workbench', title: '自定义工作台（高级版）' },
-      { available: true, icon: RiCoinsFill, id: 'payment', title: '支付服务' },
-      { available: true, icon: RiRecycleFill, id: 'recycle-bin', meta: '180天', title: '回收站' },
-      { available: true, icon: RiShareForwardFill, id: 'api', title: '应用搭建API和数据推送' },
-      { available: false, icon: RiAttachmentFill, id: 'global-attachment', title: '全局附件管控' },
-    ],
-  },
-  {
-    id: 'open-platform',
-    title: '开放平台',
-    items: [
-      { available: true, icon: RiApps2Fill, id: 'open-platform', title: '开放平台' },
-      { available: true, icon: RiBarChartBoxFill, id: 'platform-api', title: '平台API和消息推送' },
-      {
-        available: false,
-        icon: RiFileSettingsFill,
-        id: 'resource-api',
-        title: '资源用量与审计日志API',
-      },
-      { available: true, icon: RiPuzzle2Fill, id: 'plugins', title: '自建插件' },
-    ],
-  },
-];
-
+// 版本信息一期：所有数据来自 GET /editions/current（订阅事实源），
+// 页面不再持有任何静态版本、余额、容量或权益常量
+const edition = shallowRef<CurrentEdition | null>(null);
+const loading = ref(false);
+const loaded = ref(false);
 const selectedQuota = shallowRef<EditionQuotaCard | null>(null);
 
-function notifyAction(action: Parameters<typeof handleOverviewAction>[0]) {
-  const labels = {
-    certificate: '上传凭证入口正在建设中',
-    consumption: '正在为您打开云币消耗统计',
-    consult: '顾问将尽快与您联系',
-    payment: '正在为您打开支付设置',
-    recharge: '正在为您打开云币充值',
-    'usage-log': '正在为您打开云币使用日志',
-  } as const;
-
-  ElMessage.success(labels[action]);
+async function loadEdition() {
+  loading.value = true;
+  try {
+    edition.value = await getCurrentEdition();
+  } finally {
+    loading.value = false;
+    loaded.value = true;
+  }
 }
 
-function handleOverviewAction(
-  action: 'consult' | 'certificate' | 'recharge' | 'payment' | 'consumption' | 'usage-log',
-) {
-  notifyAction(action);
+onMounted(loadEdition);
+
+// ---- 资源容量卡片：真实用量 + 待计量占位 ----
+
+const quotaMeta: Record<string, { icon: Component; tone: EditionQuotaCard['tone'] }> = {
+  members: { icon: RiUser3Fill, tone: 'blue' },
+  apps: { icon: RiApps2Fill, tone: 'cyan' },
+  storage_bytes: { icon: RiAttachmentFill, tone: 'green' },
+  forms: { icon: RiFileList3Fill, tone: 'orange' },
+  workflow_runs_month: { icon: RiRouteFill, tone: 'purple' },
+};
+
+const quotaNotes: Record<string, string> = {
+  storage_bytes: '统计包含上传中文件的声明预留与已完成文件的实际大小。',
+  members: '成员数达到上限后，新增成员将被阻止。',
+};
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ['KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unitIndex = -1;
+  do {
+    value /= 1024;
+    unitIndex += 1;
+  } while (value >= 1024 && unitIndex < units.length - 1);
+  const rounded = value >= 100 ? Math.round(value) : Math.round(value * 10) / 10;
+  return `${rounded} ${units[unitIndex]}`;
 }
 
-function handleUpgrade() {
-  ElMessage.success('已为您准备升级方案，请联系顾问完成版本升级');
+/** 已用值文案：待计量资源不展示伪数值 */
+function usageLabel(quota: EditionQuota): string {
+  if (quota.meteringStatus !== 'ready' || quota.usage === undefined) {
+    return '暂未启用统计';
+  }
+  switch (quota.key) {
+    case 'members':
+      return `已使用：${quota.usage} 人`;
+    case 'apps':
+    case 'forms':
+      return `已使用：${quota.usage} 个`;
+    case 'workflow_runs_month':
+      return `已使用：${quota.usage} 次`;
+    case 'storage_bytes':
+      return `已使用：${formatBytes(quota.usage)}`;
+    default:
+      return `已使用：${quota.usage}`;
+  }
 }
 
-/** 对话框关闭时只重置当前详情，容量数据仍由静态展示模型统一维护。 */
+/** 上限文案：-1 不限量 / 0 不可用 / 正数为上限 */
+function limitLabel(quota: EditionQuota): string {
+  if (quota.limit === -1) return '不限量';
+  if (quota.limit === 0) return '不可用';
+  switch (quota.key) {
+    case 'members':
+      return `上限：${quota.limit} 人`;
+    case 'apps':
+    case 'forms':
+      return `上限：${quota.limit} 个`;
+    case 'workflow_runs_month':
+      return `上限：${quota.limit} 次/月`;
+    case 'storage_bytes':
+      return `上限：${formatBytes(quota.limit)}`;
+    default:
+      return `上限：${quota.limit}`;
+  }
+}
+
+const quotaCards = computed<EditionQuotaCard[]>(() => {
+  const quotas = edition.value?.quotas ?? [];
+  return quotas.map((quota) => {
+    const meta = quotaMeta[quota.key] ?? { icon: RiDatabase2Fill, tone: 'cyan' };
+    const percent = quota.meteringStatus === 'ready' ? (quota.usagePercent ?? 0) : 0;
+    return {
+      id: quota.key,
+      icon: meta.icon,
+      title: quota.name,
+      tone: meta.tone,
+      meteringStatus: quota.meteringStatus,
+      progress: Math.min(100, Math.round(percent)),
+      usageLabel: usageLabel(quota),
+      limitLabel: limitLabel(quota),
+      note: quotaNotes[quota.key],
+      warning: percent >= 100 ? '已超出当前版本上限' : undefined,
+      limitSource: quota.limitSource,
+      asOf: quota.asOf,
+      resetCycle: quota.resetCycle,
+    };
+  });
+});
+
+// ---- 功能权益：按接口分组投影，可用性以服务端为准 ----
+
+const featureIcons: Record<string, Component> = {
+  application_management: RiApps2Fill,
+  member_management: RiUser3Fill,
+  department_management: RiFileList3Fill,
+  group_management: RiPuzzle2Fill,
+  role_permission: RiShieldUserFill,
+  file_upload: RiAttachmentFill,
+};
+
+const featureGroups = computed<EditionFeatureGroup[]>(() => {
+  const groups: EditionFeatureGroup[] = [];
+  const index = new Map<string, EditionFeatureGroup>();
+  for (const feature of edition.value?.features ?? []) {
+    let group = index.get(feature.group);
+    if (!group) {
+      group = { id: feature.group, title: feature.group, items: [] };
+      index.set(feature.group, group);
+      groups.push(group);
+    }
+    group.items.push({
+      id: feature.key,
+      title: feature.name,
+      available: feature.available,
+      icon: featureIcons[feature.key] ?? RiPuzzle2Fill,
+      meta: feature.description,
+    });
+  }
+  return groups;
+});
+
+const limitSourceLabels: Record<string, string> = {
+  plan_version: '套餐默认',
+  tenant_override: '租户特批覆盖',
+  legacy_quota: '历史配额覆盖',
+  expiry_fallback: '订阅到期回退（免费版）',
+};
+
+// ---- 交互 ----
+
+/** 咨询升级：公开联系入口未配置时如实提示，不伪造提交成功（设计 4.3.1） */
+function handleConsult() {
+  ElMessage.info('如需升级版本，请联系平台管理员');
+}
+
+/** 对话框关闭时只重置当前详情，容量数据仍以接口数据源为准。 */
 function updateQuotaDialog(visible: boolean) {
   if (!visible) {
     selectedQuota.value = null;
@@ -298,19 +185,18 @@ function updateQuotaDialog(visible: boolean) {
 </script>
 
 <template>
-  <section class="tenant-edition-page" aria-label="版本信息">
+  <section v-loading="loading" class="tenant-edition-page" aria-label="版本信息">
     <TenantEditionOverview
-      balance="2.00"
-      expiry-date="2026-08-28"
-      version-name="试用版"
-      @action="handleOverviewAction"
+      v-if="edition"
+      :subscription="edition.subscription"
+      @consult="handleConsult"
     />
-    <TenantEditionQuotaGrid
-      :cards="quotaCards"
-      @detail="selectedQuota = $event"
-      @upgrade="handleUpgrade"
-    />
-    <TenantEditionFeatureGroups :groups="featureGroups" @upgrade="handleUpgrade" />
+    <el-empty v-else-if="loaded" description="暂无法获取版本信息，请稍后重试">
+      <el-button @click="loadEdition">重新加载</el-button>
+    </el-empty>
+
+    <TenantEditionQuotaGrid v-if="edition" :cards="quotaCards" @detail="selectedQuota = $event" />
+    <TenantEditionFeatureGroups v-if="edition" :groups="featureGroups" />
 
     <el-dialog
       :model-value="selectedQuota !== null"
@@ -328,6 +214,18 @@ function updateQuotaDialog(visible: boolean) {
           <div>
             <dt>套餐上限</dt>
             <dd>{{ selectedQuota.limitLabel }}</dd>
+          </div>
+          <div v-if="selectedQuota.limitSource">
+            <dt>上限来源</dt>
+            <dd>{{ limitSourceLabels[selectedQuota.limitSource] ?? selectedQuota.limitSource }}</dd>
+          </div>
+          <div v-if="selectedQuota.resetCycle">
+            <dt>重置周期</dt>
+            <dd>每自然月重置</dd>
+          </div>
+          <div v-if="selectedQuota.asOf">
+            <dt>统计时间</dt>
+            <dd>{{ selectedQuota.asOf }}</dd>
           </div>
           <div v-if="selectedQuota.note">
             <dt>使用说明</dt>
@@ -348,7 +246,7 @@ function updateQuotaDialog(visible: boolean) {
   min-width: 1080px;
   min-height: 100%;
   padding: 28px;
-  background: #fff;
+  background: var(--el-bg-color);
 
   &__quota-detail {
     margin: 0;

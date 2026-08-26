@@ -398,3 +398,62 @@ export interface ApplicationMenu {
   /** 只表达已注册的后端能力，流程引擎未接入前 workflow 恒 false */
   features: { workflow: boolean };
 }
+
+// ---- 版本信息（管理后台「版本信息」页，一期：真实订阅与资源概览）----
+
+/** 订阅状态：active 活动 / expired 已到期（读时投影）/ legacy_pending_review 有效期待确认 */
+export type EditionSubscriptionStatus = 'active' | 'expired' | 'legacy_pending_review';
+
+/** 计量状态：ready 已接入真实用量 / pending 待计量（不展示已用值） */
+export type EditionMeteringStatus = 'ready' | 'pending';
+
+/** 上限解析来源：套餐版本 / 租户覆盖 / 旧配额迁移 / 到期回退免费版 */
+export type EditionLimitSource =
+  | 'plan_version'
+  | 'tenant_override'
+  | 'legacy_quota'
+  | 'expiry_fallback';
+
+/** 当前订阅投影（到期未降级窗口即返回 expired，权益按免费版解析） */
+export interface EditionSubscription {
+  planCode: string;
+  planName: string;
+  status: EditionSubscriptionStatus;
+  grantType: string;
+  startsAt: string;
+  endsAt?: string;
+  expiresAction: 'none' | 'downgrade_to_free';
+}
+
+/** 资源容量项：pending 时省略 usage/usagePercent/asOf，不返回伪零值 */
+export interface EditionQuota {
+  key: string;
+  category: string;
+  name: string;
+  unit: string;
+  limit: number;
+  usage?: number;
+  usagePercent?: number;
+  meteringStatus: EditionMeteringStatus;
+  limitSource: EditionLimitSource;
+  asOf?: string;
+  resetCycle?: string;
+}
+
+/** 功能权益项：仅展示与前端入口裁剪，不替代 RBAC */
+export interface EditionFeature {
+  group: string;
+  key: string;
+  name: string;
+  available: boolean;
+  parameters?: Record<string, unknown>;
+  description?: string;
+}
+
+/** GET /editions/current 响应：订阅 + 容量配额 + 功能权益 */
+export interface CurrentEdition {
+  subscription: EditionSubscription;
+  quotas: EditionQuota[];
+  features: EditionFeature[];
+  asOf: string;
+}
