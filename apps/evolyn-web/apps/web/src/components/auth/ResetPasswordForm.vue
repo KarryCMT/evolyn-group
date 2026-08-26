@@ -106,7 +106,7 @@ function handleSendCode() {
         clearable
         :prefix-icon="RiSmartphoneFill"
       >
-        <template #prepend>+86</template>
+        <template #prepend><span class="auth-phone-prefix">+86</span></template>
       </el-input>
     </el-form-item>
 
@@ -206,5 +206,9 @@ function handleSendCode() {
       color: var(--el-color-primary-light-3);
     }
   }
+}
+
+.auth-phone-prefix {
+  color: var(--el-color-primary);
 }
 </style>

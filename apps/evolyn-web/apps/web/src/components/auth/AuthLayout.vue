@@ -1,5 +1,5 @@
 <script setup lang="ts">
-// 认证页骨架：顶栏（Logo + 语言切换）+ 左侧品牌区 + 右侧表单卡片，
+// 认证页骨架：顶栏 Logo + 左侧品牌区 + 右侧表单卡片（含显示偏好操作），
 // 登录/注册/找回密码页共用；卡片内容与底部引导由各页面通过插槽注入
 import loginBackground from '~/assets/images/login_bg_1.png';
 import brandLogo from '~/assets/logo/logo-light.png';
@@ -31,18 +31,6 @@ defineProps<{
         <span class="auth-layout__logo-mark">E</span>
         <span class="auth-layout__logo-name">evolyn</span>
       </div>
-      <div class="auth-layout__header-actions">
-        <el-tooltip :content="isDark ? '切换为浅色模式' : '切换为暗黑模式'" placement="bottom">
-          <el-switch
-            v-model="isDark"
-            class="auth-layout__theme-switch"
-            :active-action-icon="RiMoonFill"
-            :inactive-action-icon="RiSunFill"
-            :aria-label="isDark ? '切换为浅色模式' : '切换为暗黑模式'"
-          />
-        </el-tooltip>
-        <LocaleSwitch />
-      </div>
     </header>
 
     <main class="auth-layout__body">
@@ -55,6 +43,19 @@ defineProps<{
       />
       <BrandPanel v-else class="auth-layout__brand" />
       <section class="auth-layout__panel">
+        <!-- 显示偏好归属于表单面板，避免固定顶栏跨越左右分栏。 -->
+        <div class="auth-layout__header-actions">
+          <el-tooltip :content="isDark ? '切换为浅色模式' : '切换为暗黑模式'" placement="bottom">
+            <el-switch
+              v-model="isDark"
+              class="auth-layout__theme-switch"
+              :active-action-icon="RiMoonFill"
+              :inactive-action-icon="RiSunFill"
+              :aria-label="isDark ? '切换为浅色模式' : '切换为暗黑模式'"
+            />
+          </el-tooltip>
+          <LocaleSwitch />
+        </div>
         <div class="auth-layout__card">
           <!-- 注册向导等场景可把进度放在标题前，避免影响普通认证页的标题层级。 -->
           <slot name="before-title" />
@@ -119,12 +120,12 @@ defineProps<{
 
 .auth-layout__login-brand {
   display: flex;
-  gap: var(--gp-space-lg);
+  gap: 12px;
   align-items: center;
 }
 
 .auth-layout__login-brand-name {
-  font-size: var(--gp-text-xl);
+  font-size: var(--el-font-size-extra-large);
   font-weight: 600;
   color: var(--el-text-color-primary);
   white-space: nowrap;
@@ -132,8 +133,12 @@ defineProps<{
 
 .auth-layout__header-actions {
   display: flex;
-  gap: var(--gp-space-2xl);
+  gap: 20px;
   align-items: center;
+  position: absolute;
+  z-index: 1;
+  top: 16px;
+  right: 16px;
 }
 
 .auth-layout__body {
@@ -150,8 +155,11 @@ defineProps<{
 .auth-layout__panel {
   display: flex;
   flex-direction: column;
+  align-self: stretch;
   align-items: center;
+  justify-content: center;
   gap: 20px;
+  position: relative;
 }
 
 .auth-layout__card {
@@ -200,16 +208,8 @@ defineProps<{
     position: fixed;
     z-index: 1;
     top: 0;
-    right: 0;
     left: 0;
     padding: 22px 24px;
-    pointer-events: none;
-  }
-
-  .auth-layout__header :deep(.locale-switch),
-  .auth-layout__theme-switch,
-  .auth-layout__logo-image {
-    pointer-events: auto;
   }
 
   .auth-layout__body {
@@ -231,10 +231,10 @@ defineProps<{
   }
 
   .auth-layout__panel {
-    justify-content: center;
     min-height: 100%;
-    padding: 32px 32px 32px 32px;
+    padding: 10px 32px 10px 32px;
     background-color: var(--el-bg-color);
+    box-sizing: border-box;
   }
 
   .auth-layout__card {
@@ -307,6 +307,11 @@ defineProps<{
     .auth-layout__panel {
       align-items: stretch;
       padding: 104px 24px 36px;
+    }
+
+    .auth-layout__header-actions {
+      top: 24px;
+      right: 24px;
     }
 
     .auth-layout__card {

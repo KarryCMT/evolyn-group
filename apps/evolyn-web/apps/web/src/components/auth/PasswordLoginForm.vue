@@ -3,7 +3,12 @@
 // 「下次自动登录」勾选时本地记住手机号并持久化令牌，取消勾选则为会话级登录
 import { reactive, useTemplateRef } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import { RiLockPasswordFill, RiSmartphoneFill } from '@remixicon/vue';
+import {
+  RiLockPasswordFill,
+  RiLockPasswordLine,
+  RiSmartphoneFill,
+  RiSmartphoneLine,
+} from '@remixicon/vue';
 
 /** 本地记住手机号的存储键 */
 const REMEMBER_PHONE_KEY = 'evolyn.login.phone';
@@ -70,9 +75,9 @@ async function handleSubmit() {
         placeholder="请输入手机号"
         autocomplete="tel"
         clearable
-        :prefix-icon="RiSmartphoneFill"
+        :prefix-icon="RiSmartphoneLine"
       >
-        <template #prepend>+86</template>
+        <template #prepend><span class="auth-phone-prefix">+86</span></template>
       </el-input>
     </el-form-item>
 
@@ -84,7 +89,7 @@ async function handleSubmit() {
         placeholder="请输入密码"
         autocomplete="current-password"
         show-password
-        :prefix-icon="RiLockPasswordFill"
+        :prefix-icon="RiLockPasswordLine"
         @keyup.enter="handleSubmit"
       />
     </el-form-item>
@@ -130,5 +135,9 @@ async function handleSubmit() {
 
 .password-login-form__submit {
   width: 100%;
+}
+
+.auth-phone-prefix {
+  color: var(--el-color-primary);
 }
 </style>

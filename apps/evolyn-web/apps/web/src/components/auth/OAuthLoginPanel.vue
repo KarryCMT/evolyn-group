@@ -19,17 +19,22 @@ function handleSelect(label: string) {
   <div class="oauth-login-panel">
     <el-divider class="oauth-login-panel__divider">其他登录方式</el-divider>
     <div class="oauth-login-panel__list">
-      <el-button
+      <el-tooltip
         v-for="provider in providers"
         :key="provider.key"
-        class="oauth-login-panel__item"
-        :icon="provider.icon"
-        plain
-        size="large"
-        @click="handleSelect(provider.label)"
+        :content="provider.label"
+        placement="bottom"
       >
-        {{ provider.label }}
-      </el-button>
+        <el-button
+          class="oauth-login-panel__item"
+          :icon="provider.icon"
+          :aria-label="`${provider.label} 登录`"
+          circle
+          size="large"
+          text
+          @click="handleSelect(provider.label)"
+        />
+      </el-tooltip>
     </div>
   </div>
 </template>
@@ -45,10 +50,11 @@ function handleSelect(label: string) {
 
 .oauth-login-panel__list {
   display: flex;
+  justify-content: center;
   gap: 12px;
 }
 
-.oauth-login-panel__item {
-  flex: 1;
+.oauth-login-panel__item :deep(.el-icon) {
+  font-size: 28px;
 }
 </style>

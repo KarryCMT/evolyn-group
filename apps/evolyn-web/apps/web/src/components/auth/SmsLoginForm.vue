@@ -4,7 +4,7 @@
 // 登录调用在父级。remember 决定令牌存储范围（持久/会话级，见 composables/auth）
 import { reactive, useTemplateRef, watch } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import { RiSmartphoneFill } from '@remixicon/vue';
+import { RiSmartphoneFill, RiSmartphoneLine } from '@remixicon/vue';
 import { useSmsCountdown } from '~/composables/useSmsCountdown';
 
 /** 重发倒计时秒数：与后端发送冷却窗口一致 */
@@ -90,9 +90,9 @@ function handleSendCode() {
         placeholder="你的手机号"
         autocomplete="tel"
         clearable
-        :prefix-icon="RiSmartphoneFill"
+        :prefix-icon="RiSmartphoneLine"
       >
-        <template #prepend>+86</template>
+        <template #prepend><span class="auth-phone-prefix">+86</span></template>
       </el-input>
     </el-form-item>
 
@@ -165,5 +165,9 @@ function handleSendCode() {
 
 .sms-login-form__submit {
   width: 100%;
+}
+
+.auth-phone-prefix {
+  color: var(--el-color-primary);
 }
 </style>

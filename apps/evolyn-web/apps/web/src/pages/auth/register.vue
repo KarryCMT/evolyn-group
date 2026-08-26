@@ -187,7 +187,7 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
   }
 
   :deep(.auth-layout__title) {
-    margin-bottom: 14px;
+    margin-bottom: 24px;
     text-align: left;
   }
 
