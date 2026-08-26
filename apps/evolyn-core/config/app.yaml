@@ -25,8 +25,8 @@ db: # PostgreSQL 连接与 Schema 管理配置。
   name: 'evolyn' # 数据库名称；示例：evolyn。
   user: 'postgres' # 数据库用户名；示例：postgres。
   password: 'postgres' # 数据库密码；示例为本地开发默认值，生产仅经未提交配置或密钥管理系统注入。
-  migrate: false # AutoMigrate 仅开发/测试（FIX-009）
-  migrations: true # 启动时应用 migrations/ 版本化 SQL
+  migrate: false # 是否执行 GORM AutoMigrate；示例：false，仅开发/测试可设 true，且不得与 migrations 同时开启。
+  migrations: true # 是否执行版本化 SQL Migration；示例：true，生产 Schema 的唯一来源。
 
 tenant: # 租户注销后的数据保留与清理配置。
   retentionDays: 30 # 租户注销后数据保留天数；示例：30。
@@ -44,25 +44,31 @@ oauth: # OAuth 第三方登录提供方配置。
     clientId: '' # OAuth 应用 Client ID；示例：从 GitHub OAuth App 获取，真实值仅写未提交配置。
     clientSecret: '' # OAuth 应用 Client Secret；示例：从 GitHub OAuth App 获取，禁止提交入库。
 
-sms:
-  provider: 'dev' # dev=开发通道（固定验证码 666666，仅日志不外发）；生产接服务商后替换，未支持的服务商启动即拦截
-  codeTtlSeconds: 300 # 验证码有效期 5 分钟
-  cooldownSeconds: 60 # 重发冷却 60 秒
-  maxTries: 5 # 单码最大试错次数
-  dailyLimit: 10 # 单手机号自然日发送上限（跨登录/注册/找回场景合计）
-  ipDailyLimit: 30 # 单 IP 自然日发送上限（跨手机号/场景合计，防轮换手机号刷短信）
-  devEcho: true # 响应回显验证码（仅本地联调，生产必须 false）
+sms: # 短信验证码通道与风控限制配置。
+  provider: 'dev' # 短信通道；示例：dev（固定验证码 666666，仅日志不外发）。
+  codeTtlSeconds: 300 # 验证码有效期（秒）；示例：300（5 分钟）。
+  cooldownSeconds: 60 # 同一手机号重发冷却时间（秒）；示例：60。
+  maxTries: 5 # 单个验证码最大校验失败次数；示例：5，超过后验证码失效。
+  dailyLimit: 10 # 单手机号自然日发送上限；示例：10，登录/注册/找回密码合计。
+  ipDailyLimit: 30 # 单 IP 自然日发送上限；示例：30，用于防止轮换手机号刷短信。
+  devEcho: true # 是否在接口响应中回显验证码；示例：true（仅本地联调），生产必须为 false。
 
-auth:
-  loginMaxFails: 5 # 窗口内连续登录失败上限，达到即临时锁定
-  loginLockMinutes: 15 # 登录锁定时长（分钟）
-  revokeFailClosed: false # Redis 异常时令牌吊销检查降级策略：false=放行（可用性优先）；true=视为已吊销（泄露令牌立即失效优先）
-  loginGuardSecret: evolyn-dev-guard-secret # 登录失败计数标识散列独立密钥（HMAC，防字典反查）；多实例共享同一把
+auth: # 登录失败锁定与令牌吊销降级策略配置。
+  loginMaxFails: 5 # 连续登录失败上限；示例：5，达到后临时锁定账号。
+  loginLockMinutes: 15 # 登录锁定时长（分钟）；示例：15。
+  revokeFailClosed: false # Redis 异常时令牌吊销检查策略；示例：false=放行（可用性优先），true=拒绝（安全优先）。
+  loginGuardSecret: evolyn-dev-guard-secret # 登录失败计数 HMAC 密钥；示例为本地开发值，生产使用随机密钥且多实例保持一致。
 
 pki: # 登录密码传输加密密钥配置。
-  algorithm: 'rsa' # 登录密码加密算法：公钥经 GET /app/conf 下发前端
-  privateKey: '' # PEM 私钥；与 privateKeyFile 二选一；空 = 启动随机生成
-  privateKeyFile: 'private_key.pem' # PEM 私钥文件，相对 app.yaml 所在目录；公钥从私钥派生
+  algorithm: 'rsa' # 登录密码传输加密算法；当前仅支持 rsa，示例：rsa。
+  privateKey: '' # PEM 私钥内容；与 privateKeyFile 二选一；两者留空时开发环境启动随机生成。
+  privateKeyFile: 'private_key.pem' # PEM 私钥文件路径；相对路径以本 YAML 所在目录为基准，示例：private_key.pem。
+
+security: # 账号安全配置；TOTP 主密钥仅能通过未提交配置或密钥管理系统注入。
+  totp: # TOTP 双因素认证主密钥配置；启用 MFA 前必须注入真实密钥。
+    currentKeyVersion: 1 # 新绑定因子使用的主密钥版本；示例：1，轮换后递增。
+    masterKeys: # 主密钥版本映射；保留旧版本直到对应因子完成重加密或停用。
+      1: 'CHANGE_ME' # 版本 1 的 32 字节十六进制主密钥示例占位值；生产必须替换。
 
 # RustFS 使用标准 S3 API。Endpoint 是 Go 服务可访问的内部地址；
 # externalEndpoint 是浏览器实际访问的公开地址，预签名 URL 会以它为准。

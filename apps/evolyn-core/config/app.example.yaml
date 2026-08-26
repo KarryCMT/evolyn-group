@@ -3,7 +3,7 @@
 # 下列值均为示例；带有 CHANGE_ME 的密钥、密码和令牌必须通过未提交配置或密钥管理系统替换。
 
 server:
-  env: 'debug' # debug / release
+  env: 'debug' # 运行环境；示例：debug（本地）或 release（生产）。
   address: '127.0.0.1' # HTTP 监听地址；示例：127.0.0.1（仅本机）或 0.0.0.0（容器部署）。
   port: 8080 # HTTP 监听端口；示例：8080。
   gracefulShutdownPeriod: 30 # 优雅停机等待秒数；示例：30。
@@ -16,7 +16,7 @@ server:
       burst: 50 # 单 IP 的瞬时请求容量；示例：50。
       qps: 10 # 单 IP 的稳态每秒请求数；示例：10。
       cacheSize: 2048 # 单 IP 限流器缓存容量；示例：2048，按预计活跃 IP 数调整。
-  jwtSecret: 'CHANGE_ME' # 生产环境必须替换为随机长字符串
+  jwtSecret: 'CHANGE_ME' # JWT 签名密钥；示例为占位值，生产必须替换为随机长字符串且多实例保持一致。
   # CORS 来源白名单（精确匹配，含协议与端口）。生产必须显式配置实际站点域名，
   # 空白名单在 release 环境会拒绝启动；debug 空白名单回落放行 localhost/127.0.0.1
   allowedOrigins: # CORS 允许来源白名单，精确匹配协议、域名和端口；release 环境不能为空。
@@ -28,12 +28,12 @@ db:
   name: 'evolyn' # 数据库名称；示例：evolyn。
   user: 'postgres' # 数据库用户名；示例：postgres。
   password: 'postgres' # 数据库密码；示例为本地值，生产仅经未提交配置或密钥管理系统注入。
-  migrate: false # GORM AutoMigrate（仅开发/测试实验，与 migrations 互斥）
-  migrations: true # 版本化 SQL Migration（FIX-009，生产唯一 Schema 来源）
+  migrate: false # 是否执行 GORM AutoMigrate；示例：false，仅开发/测试可设 true，且不得与 migrations 同时开启。
+  migrations: true # 是否执行版本化 SQL Migration；示例：true，生产 Schema 的唯一来源。
 
 tenant:
-  retentionDays: 30 # 租户注销后数据保留天数（FIX-012）
-  purgeIntervalSeconds: 3600 # 注销数据清理扫描周期（秒）
+  retentionDays: 30 # 租户注销后数据保留天数；示例：30。
+  purgeIntervalSeconds: 3600 # 注销数据清理扫描周期（秒）；示例：3600（1 小时）。
 
 redis:
   enable: true # 是否启用 Redis；示例：true，认证会话、验证码和限流等能力依赖它。
@@ -66,26 +66,26 @@ oauth:
 sms:
   # dev=开发通道（固定验证码 666666，仅日志不外发）；生产填写真实服务商标识，
   # 未支持的服务商启动即拦截（接入新服务商：实现 sms.Sender 并在 server 装配处分派）
-  provider: 'dev'
-  codeTtlSeconds: 300 # 验证码有效期（秒）
-  cooldownSeconds: 60 # 重发冷却（秒）
-  maxTries: 5 # 单码最大试错次数
-  dailyLimit: 10 # 单手机号自然日发送上限（跨登录/注册/找回场景合计）
-  ipDailyLimit: 30 # 单 IP 自然日发送上限（跨手机号/场景合计，防轮换手机号刷短信）
-  devEcho: false # 响应回显验证码（仅本地联调可开，生产必须 false）
+  provider: 'dev' # 短信通道；示例：dev（固定验证码 666666，仅日志不外发）。
+  codeTtlSeconds: 300 # 验证码有效期（秒）；示例：300（5 分钟）。
+  cooldownSeconds: 60 # 同一手机号重发冷却时间（秒）；示例：60。
+  maxTries: 5 # 单个验证码最大校验失败次数；示例：5，超过后验证码失效。
+  dailyLimit: 10 # 单手机号自然日发送上限；示例：10，登录/注册/找回密码合计。
+  ipDailyLimit: 30 # 单 IP 自然日发送上限；示例：30，用于防止轮换手机号刷短信。
+  devEcho: false # 是否在接口响应中回显验证码；示例：false，生产必须保持关闭。
 
 auth:
-  loginMaxFails: 5 # 窗口内连续登录失败上限，达到即临时锁定
-  loginLockMinutes: 15 # 登录锁定时长（分钟）
+  loginMaxFails: 5 # 连续登录失败上限；示例：5，达到后临时锁定账号。
+  loginLockMinutes: 15 # 登录锁定时长（分钟）；示例：15。
   # Redis 异常时令牌吊销检查的降级策略：false=放行（可用性优先，默认）；
   # true=视为已吊销并拒绝请求（对已泄露令牌立即失效要求更高时开启，
   # 代价是 Redis 故障期间全部携带 jti 的请求 401）
-  revokeFailClosed: false
+  revokeFailClosed: false # Redis 异常时令牌吊销检查策略；示例：false=放行（可用性优先），true=拒绝（安全优先）。
   # 登录失败计数标识散列的独立密钥：非空时 HMAC-SHA-256 防字典反查
   # （Redis key 可能经监控/备份暴露，无密钥散列可被彩虹表还原手机号/
   # 常见用户名）；留空回退无密钥 SHA-256 并在 release 启动时告警，
   # 占位值 CHANGE_ME 同样视为未配置。多实例必须共享同一把
-  loginGuardSecret: ''
+  loginGuardSecret: '' # 登录失败计数 HMAC 密钥；示例留空，生产使用随机密钥且多实例保持一致。
 
 pki:
   # 登录密码加密传输：公钥经 GET /app/conf 下发前端（jsencrypt PKCS#1 v1.5），
