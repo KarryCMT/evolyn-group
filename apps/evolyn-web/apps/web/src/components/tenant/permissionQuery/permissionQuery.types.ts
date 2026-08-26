@@ -1,6 +1,6 @@
 import type { Component } from 'vue';
 
-export type PermissionWorkspace = 'system' | 'jiandaoyun';
+export type PermissionWorkspace = 'system' | 'product';
 export type PermissionQueryView = 'management-groups' | 'permission-groups';
 export type PermissionSubjectType = 'member' | 'department' | 'role' | 'application';
 

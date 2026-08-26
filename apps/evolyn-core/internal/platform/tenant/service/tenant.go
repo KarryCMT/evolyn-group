@@ -47,6 +47,7 @@ type IAMRepositories interface {
 	RBAC() iamrepository.RBACRepository
 	Group() iamrepository.GroupRepository
 	Department() iamrepository.DepartmentRepository
+	AdminGroup() iamrepository.AdminGroupRepository
 }
 
 // MemberFieldSeeder 开通租户时预置成员字段默认配置的最小能力（成员信息
@@ -65,7 +66,9 @@ type MemberFieldSeederInjector interface {
 // 名称直接面向组织角色页展示，因此使用中文；租户内权限判定只依赖角色规则，
 // 不以名称作为授权依据。
 const (
-	TenantAdminRole     = "租户管理员"
+	// TenantAdminRole 常量收敛于 iam 模型层（内置系统管理员组的成员事实源），
+	// 租户域 seed 与 iam 域内置组代理共用同一名称
+	TenantAdminRole     = iammodel.TenantAdminRoleName
 	AuthenticatedRole   = "已认证用户"
 	UnAuthenticatedRole = "未认证用户"
 )
@@ -392,6 +395,12 @@ func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*
 		}
 	}
 
+	// 权限中心-管理员模块：开通事务内预置内置系统管理员组（幂等）；成员由
+	// 上方 owner 绑定的 tenant-admin 角色实时推导，不落成员表
+	if err = s.seedBuiltinAdminGroup(bctx, tenant.ID); err != nil {
+		return nil, err
+	}
+
 	for i := range baselineRoles {
 		if baselineRoles[i].Name == TenantAdminRole {
 			if err = s.iam.User().AddRole(bctx, &baselineRoles[i], member); err != nil {
@@ -497,6 +506,29 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 	}
 
 	return roles, nil
+}
+
+// seedBuiltinAdminGroup 开通事务内预置内置系统管理员组（幂等，权限中心-
+// 管理员模块）：每租户一行 built_in 组，成员不落 admin_group_members——
+// 由 owner 刚绑定的 tenant-admin 角色实时推导，保持单一事实源
+func (s *tenantService) seedBuiltinAdminGroup(bctx context.Context, tenantID uint) error {
+	tctx := contextx.NewTenantContext(bctx, tenantID)
+	adminGroups := s.iam.AdminGroup()
+	if _, err := adminGroups.GetByName(tctx, iammodel.AdminGroupBuiltinName); err == nil {
+		return nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	group := &iammodel.AdminGroup{
+		Name:        iammodel.AdminGroupBuiltinName,
+		Scope:       iammodel.AdminGroupScopeSystem,
+		BuiltIn:     true,
+		ScopeConfig: iammodel.AdminGroupScopeConfig{},
+	}
+	// bctx 无租户过滤不适用于组查询，TenantID 显式赋值与 Callback 回填口径一致
+	group.TenantID = tenantID
+	_, err := adminGroups.Create(tctx, group)
+	return err
 }
 
 func (s *tenantService) List(ctx context.Context) ([]tenantmodel.Tenant, error) {

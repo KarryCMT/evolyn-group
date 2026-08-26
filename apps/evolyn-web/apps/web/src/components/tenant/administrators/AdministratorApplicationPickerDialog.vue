@@ -1,15 +1,24 @@
 <script setup lang="ts">
-import { RiCloseFill, RiSearch2Line } from '@remixicon/vue';
+import {
+  RiBookmark3Fill,
+  RiBriefcase4Fill,
+  RiCheckboxCircleFill,
+  RiCloseFill,
+  RiContactsBook3Fill,
+  RiPieChart2Fill,
+  RiSearch2Line,
+} from '@remixicon/vue';
+import { markRaw, type Component } from 'vue';
 import { computed, shallowRef, watch } from 'vue';
 import type { AdministratorApplication } from './administrator.types';
 
 defineOptions({ name: 'AdministratorApplicationPickerDialog' });
 
-const props = defineProps<{ applications: AdministratorApplication[]; selectedIds: string[] }>();
+const props = defineProps<{ applications: AdministratorApplication[]; selectedIds: number[] }>();
 const visible = defineModel<boolean>({ default: false });
-const emit = defineEmits<{ confirm: [ids: string[]] }>();
+const emit = defineEmits<{ confirm: [payload: { ids: number[]; all: boolean }] }>();
 const keyword = shallowRef('');
-const draftIds = shallowRef<string[]>([]);
+const draftIds = shallowRef<number[]>([]);
 const filteredApplications = computed(() => {
   const query = keyword.value.trim();
   return query ? props.applications.filter((app) => app.name.includes(query)) : props.applications;
@@ -19,22 +28,44 @@ const selectedApps = computed(() =>
 );
 const allSelected = computed(() => draftIds.value.length === props.applications.length);
 
+// 图标键 → Remix Fill 图标（键值与后端服务端枚举一致，口径同工作台应用卡片；
+// 颜色统一主题色变量）
+const iconByKey: Record<string, Component> = {
+  bookmark: markRaw(RiBookmark3Fill),
+  briefcase: markRaw(RiBriefcase4Fill),
+  contacts: markRaw(RiContactsBook3Fill),
+  chart: markRaw(RiPieChart2Fill),
+  check: markRaw(RiCheckboxCircleFill),
+};
+
 function toggleAll(value: string | number | boolean) {
   draftIds.value = value === true ? props.applications.map((app) => app.id) : [];
 }
 function submit() {
-  emit('confirm', draftIds.value);
+  // 全选落语义全量（allApplications=true）：新建应用自动纳入可编辑范围
+  emit('confirm', {
+    ids: draftIds.value,
+    all: draftIds.value.length === props.applications.length && draftIds.value.length > 0,
+  });
   visible.value = false;
 }
-function remove(id: string) {
+function remove(id: number) {
   draftIds.value = draftIds.value.filter((item) => item !== id);
 }
 watch(visible, (isVisible) => {
   if (isVisible) {
     keyword.value = '';
-    draftIds.value = [...props.selectedIds];
+    // 初始勾选：语义全量时展开为全部应用（提交时仍会折叠回全量语义）
+    draftIds.value = [...allApplicationsIdsOf(props.selectedIds, props.applications)];
   }
 });
+
+/** 详情只存清单或全量标记：全量时勾选展开为全部，否则原样回显。 */
+function allApplicationsIdsOf(selectedIds: number[], applications: AdministratorApplication[]) {
+  return selectedIds.length === applications.length && applications.length > 0
+    ? applications.map((app) => app.id)
+    : selectedIds;
+}
 </script>
 
 <template>
@@ -60,19 +91,23 @@ watch(visible, (isVisible) => {
           @change="toggleAll"
           >全选</el-checkbox
         >
-        <el-checkbox-group v-model="draftIds" class="administrator-application-picker__list">
-          <el-checkbox v-for="app in filteredApplications" :key="app.id" :value="app.id"
-            ><i :class="`administrator-application-picker__app-icon--${app.tone}`">{{ app.icon }}</i
-            >{{ app.name }}</el-checkbox
-          >
-        </el-checkbox-group>
+        <el-scrollbar class="administrator-application-picker__list-scroll">
+          <el-checkbox-group v-model="draftIds" class="administrator-application-picker__list">
+            <el-checkbox v-for="app in filteredApplications" :key="app.id" :value="app.id"
+              ><i class="administrator-application-picker__app-icon">
+                <component :is="iconByKey[app.icon] ?? iconByKey.bookmark" /> </i
+              >{{ app.name }}</el-checkbox
+            >
+          </el-checkbox-group>
+        </el-scrollbar>
       </div>
       <div class="administrator-application-picker__selected">
         <span
           v-for="app in selectedApps"
           :key="app.id"
           class="administrator-application-picker__tag"
-          ><i :class="`administrator-application-picker__app-icon--${app.tone}`">{{ app.icon }}</i
+          ><i class="administrator-application-picker__app-icon">
+            <component :is="iconByKey[app.icon] ?? iconByKey.bookmark" /> </i
           >{{ app.name }}<RiCloseFill @click="remove(app.id)"
         /></span>
       </div>
@@ -136,6 +171,7 @@ watch(visible, (isVisible) => {
   &__catalog {
     display: flex;
     flex-direction: column;
+    min-height: 0;
     padding: 16px 20px;
     border-right: 1px solid #dde2ea;
     gap: 12px;
@@ -161,6 +197,10 @@ watch(visible, (isVisible) => {
     background: transparent;
     font: inherit;
   }
+  &__list-scroll {
+    flex: 1;
+    min-height: 0;
+  }
   &__list {
     display: flex;
     flex-direction: column;
@@ -177,12 +217,7 @@ watch(visible, (isVisible) => {
     color: #4c5666;
     font-size: 17px;
   }
-  &__app-icon--green,
-  &__app-icon--coral,
-  &__app-icon--blue,
-  &__app-icon--cyan,
-  &__app-icon--purple,
-  &__app-icon--orange {
+  &__app-icon {
     display: inline-flex;
     width: 28px;
     height: 28px;
@@ -190,27 +225,14 @@ watch(visible, (isVisible) => {
     align-items: center;
     justify-content: center;
     color: #fff;
+    background: var(--el-color-primary);
     font-size: 12px;
     font-style: normal;
-    font-weight: 700;
-  }
-  &__app-icon--green {
-    background: #5bcf73;
-  }
-  &__app-icon--coral {
-    background: #f56b70;
-  }
-  &__app-icon--blue {
-    background: #5b91f5;
-  }
-  &__app-icon--cyan {
-    background: #2eb3d7;
-  }
-  &__app-icon--purple {
-    background: #8565ec;
-  }
-  &__app-icon--orange {
-    background: #f5ad35;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
   }
   &__selected {
     display: flex;
@@ -228,7 +250,7 @@ watch(visible, (isVisible) => {
     border-radius: 7px;
     align-items: center;
     color: #4d5766;
-    background: #f4f5f7;
+    background: var(--el-fill-color-light);
     font-size: 16px;
   }
   &__tag svg {

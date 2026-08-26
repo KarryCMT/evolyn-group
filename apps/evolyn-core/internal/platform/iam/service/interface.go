@@ -180,3 +180,70 @@ type RBACService interface {
 	ListResources(ctx context.Context) ([]model.Resource, error)
 	ListOperations() ([]model.Operation, error)
 }
+
+// AdminGroupService 管理组服务（权限中心-管理员模块）：管理组 CRUD 与分区块
+// 即时更新；内置系统管理员组的成员读写代理到 tenant-admin 角色绑定
+type AdminGroupService interface {
+	// List 按 scope 列管理组概要（scope 为空返回全部；内置组恒在最前）
+	List(ctx context.Context, scope string) ([]model.AdminGroupSummary, error)
+	// Get 详情：成员展示视图 + 范围配置展开（字段名对齐前端 AdministratorGroup）
+	Get(ctx context.Context, id uint) (*model.AdminGroupDetailView, error)
+	Create(ctx context.Context, req *AdminGroupCreateRequest) (*model.AdminGroupDetailView, error)
+	// Update 分区块即时保存：请求至多携带一个区块，区块整体替换（幂等）
+	Update(ctx context.Context, id uint, req *AdminGroupPatchRequest) (*model.AdminGroupDetailView, error)
+	Delete(ctx context.Context, id uint) error
+	// SeedBuiltin 租户开通事务内预置内置系统管理员组（幂等，成员不落表）
+	SeedBuiltin(ctx context.Context, tenantID uint) error
+	// ScopesOfMember 当前成员的管理组身份聚合（/auth/admin-scopes）
+	ScopesOfMember(ctx context.Context, memberID uint) (*model.MemberAdminScopes, error)
+}
+
+// AdminGroupCreateRequest 创建管理组：名称必填（≤30 字符），scope 限定枚举；
+// 不接受 built_in（内置组只经 seed 产生）
+type AdminGroupCreateRequest struct {
+	Scope string `json:"scope" binding:"required,oneof=system application"`
+	Name  string `json:"name" binding:"required"`
+}
+
+// AdminGroupPatchRequest 分区块即时保存请求：对齐前端「每次勾选即保存」交互，
+// 至多一个区块非 nil（singleBlock 校验），区块整体替换
+type AdminGroupPatchRequest struct {
+	Name             *string                      `json:"name"`
+	Members          *[]uint                      `json:"members"`
+	DepartmentScope  *model.AdminDepartmentScope  `json:"departmentScope"`
+	RoleScope        *model.AdminRoleScope        `json:"roleScope"`
+	ExternalOrg      *model.AdminExternalOrgScope `json:"externalOrg"`
+	ApplicationScope *model.AdminApplicationScope `json:"applicationScope"`
+	AddressBook      *model.AdminAddressBookScope `json:"addressBook"`
+}
+
+// singleBlock 返回请求携带的唯一区块名；空或多区块均视为非法（整体替换语义
+// 下多区块并发提交会产生覆盖歧义，前端逐区块提交不存在该路径）
+func (r *AdminGroupPatchRequest) singleBlock() string {
+	blocks := make([]string, 0, 7)
+	if r.Name != nil {
+		blocks = append(blocks, "name")
+	}
+	if r.Members != nil {
+		blocks = append(blocks, "members")
+	}
+	if r.DepartmentScope != nil {
+		blocks = append(blocks, "departmentScope")
+	}
+	if r.RoleScope != nil {
+		blocks = append(blocks, "roleScope")
+	}
+	if r.ExternalOrg != nil {
+		blocks = append(blocks, "externalOrg")
+	}
+	if r.ApplicationScope != nil {
+		blocks = append(blocks, "applicationScope")
+	}
+	if r.AddressBook != nil {
+		blocks = append(blocks, "addressBook")
+	}
+	if len(blocks) != 1 {
+		return ""
+	}
+	return blocks[0]
+}

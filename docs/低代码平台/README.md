@@ -20,12 +20,13 @@
 - [前端功能模块现状.md](./前端功能模块现状.md)：前端静态页面、已完成接口对接与待对接能力的盘点基线和实施差距。
 - [版本信息/管理后台-版本信息两期功能设计方案.md](./版本信息/管理后台-版本信息两期功能设计方案.md)：管理后台版本信息的两期建设设计，覆盖真实套餐与资源概览，以及后续订阅、支付、云币与计量闭环。
 - [成员信息管理/管理后台-成员信息管理开发文档.md](./成员信息管理/管理后台-成员信息管理开发文档.md)：成员字段设置与卡片展示的开发方案，覆盖租户级字段配置、正式成员扩展档案、权限执行与邀请档案迁移。
+- [产品中心/管理后台-产品中心开发文档.md](./产品中心/管理后台-产品中心开发文档.md)：租户内置产品的启停与成员分发设计，覆盖产品目录、租户配置、范围关联、访问判定、权限、接口与实施约束。
 
 ## 正式实现位置
 
 | 规划目录 | 来源 | 说明 |
 | --- | --- | --- |
-| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，含 iam/tenant/auth/audit/application/edition 六域（edition 为版本信息一期：套餐版本/订阅/特批覆盖，迁移 000030）；认证域含短信与邮箱双验证码的账号安全绑定链路；application 为 M2-A 应用管理最小闭环：空白应用创建/列表/详情/更新/软删 + apps 配额，M2-菜单-1 起含应用菜单只读接口），migrations/ 版本化 SQL，engine 随 M2 起） |
+| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，含 iam/tenant/auth/audit/application/edition 六域（edition 为版本信息一期：套餐版本/订阅/特批覆盖，迁移 000030）；认证域含短信与邮箱双验证码的账号安全绑定链路；application 为 M2-A 应用管理最小闭环：空白应用创建/列表/详情/更新/软删 + apps 配额，M2-菜单-1 起含应用菜单只读接口；iam 含管理组（权限中心-管理员模块，迁移 000032：管理组 CRUD/分区块即时 PATCH、内置系统管理员组代理 tenant-admin 角色绑定、鉴权保守门）），migrations/ 版本化 SQL，engine 随 M2 起） |
 | `apps/evolyn-web/` | 现有目录演进（不改名） | pnpm + Turborepo monorepo：`apps/web/` Vue3 + TypeScript 主应用（脚手架阶段）、`packages/` 共享库 |
 | `services/workflow/` | 新建 | Java + Spring Boot + Flowable 流程服务 |
 | `packages/openapi/` | 新建 | 全平台 API 契约唯一事实源 |

@@ -1,11 +1,42 @@
 <script setup lang="ts">
 import { RiCloseFill, RiQuestionFill } from '@remixicon/vue';
-import type { AdministratorGroup } from './administrator.types';
+import { shallowRef, watch } from 'vue';
+import type { AddressBookScope } from './administrator.types';
 
 defineOptions({ name: 'AddressBookManagementDrawer' });
 
-defineProps<{ group: AdministratorGroup }>();
+const props = defineProps<{
+  /** 打开时的当前配置（null 为未配置，按空配置起步）。 */
+  initial: AddressBookScope | null;
+  /** 保存处理器：内部完成区块 PATCH 与失败回滚，返回 false 保持抽屉开启。 */
+  save: (scope: AddressBookScope) => Promise<boolean>;
+}>();
 const visible = defineModel<boolean>({ default: false });
+// 草稿副本：抽屉是显式保存语义，取消不落库；默认值对齐空配置
+const emptyScope = (): AddressBookScope => ({
+  departmentEnabled: false,
+  roleVisible: false,
+  roleManage: false,
+  externalEnabled: false,
+});
+const draft = shallowRef<AddressBookScope>(emptyScope());
+const saving = shallowRef(false);
+
+watch(visible, (isVisible) => {
+  if (isVisible) draft.value = props.initial ? { ...props.initial } : emptyScope();
+});
+
+async function submit() {
+  saving.value = true;
+  try {
+    // 失败提示由保存方给出（业务码文案统一在组合层维护）
+    if (await props.save(draft.value)) {
+      visible.value = false;
+    }
+  } finally {
+    saving.value = false;
+  }
+}
 </script>
 
 <template>
@@ -15,35 +46,44 @@ const visible = defineModel<boolean>({ default: false });
     direction="rtl"
     size="58%"
     :show-close="false"
+    :close-on-click-modal="!saving"
     append-to-body
   >
     <template #header
       ><header class="address-book-management-drawer__header">
         <h2>通讯录管理</h2>
-        <button type="button" aria-label="关闭" @click="visible = false">
+        <button type="button" aria-label="关闭" :disabled="saving" @click="visible = false">
           <RiCloseFill />
         </button></header
     ></template>
     <div class="address-book-management-drawer__body">
       <section class="address-book-management-drawer__section">
         <h3>内部部门</h3>
-        <el-checkbox v-model="group.departmentEnabled">可见/可管理</el-checkbox>
+        <el-checkbox v-model="draft.departmentEnabled">可见/可管理</el-checkbox>
       </section>
       <section class="address-book-management-drawer__section">
         <h3>内部角色</h3>
         <div>
-          <el-checkbox v-model="group.roleVisible">可见</el-checkbox
-          ><el-checkbox v-model="group.roleManage">可管理</el-checkbox>
+          <!-- 可管理必然隐含可见：服务端联动校验，前端勾选联动 -->
+          <el-checkbox
+            :model-value="draft.roleVisible || draft.roleManage"
+            @update:model-value="draft.roleVisible = Boolean($event)"
+            >可见</el-checkbox
+          ><el-checkbox
+            v-model="draft.roleManage"
+            @update:model-value="draft.roleManage && (draft.roleVisible = true)"
+            >可管理</el-checkbox
+          >
         </div>
       </section>
       <section class="address-book-management-drawer__section">
         <h3>互联组织</h3>
-        <el-checkbox v-model="group.externalEnabled">可见/可管理 <RiQuestionFill /></el-checkbox>
+        <el-checkbox v-model="draft.externalEnabled">可见/可管理 <RiQuestionFill /></el-checkbox>
       </section>
     </div>
     <template #footer
-      ><el-button type="primary" @click="visible = false">保存</el-button
-      ><el-button @click="visible = false">取消</el-button></template
+      ><el-button :loading="saving" type="primary" @click="submit">保存</el-button
+      ><el-button :disabled="saving" @click="visible = false">取消</el-button></template
     >
   </el-drawer>
 </template>
@@ -72,14 +112,16 @@ const visible = defineModel<boolean>({ default: false });
   }
   &__header h2 {
     margin: 0;
-    color: #273142;
-    font-size: 22px;
+    color: var(--el-text-color-primary);
+    font-size: 18px;
+    line-height: 26px;
   }
   &__header button {
     display: inline-flex;
     border: 0;
     padding: 4px;
     background: transparent;
+    color: var(--el-text-color-secondary);
     cursor: pointer;
   }
   &__header button:hover {
@@ -87,8 +129,8 @@ const visible = defineModel<boolean>({ default: false });
     background: var(--el-fill-color-light);
   }
   &__header svg {
-    width: 24px;
-    height: 24px;
+    width: 22px;
+    height: 22px;
   }
   &__body {
     padding: 30px 28px;
@@ -100,7 +142,7 @@ const visible = defineModel<boolean>({ default: false });
     margin: 0 0 22px;
     padding-left: 14px;
     border-left: 5px solid var(--el-color-primary);
-    color: #273142;
+    color: var(--el-text-color-primary);
     font-size: 20px;
   }
   &__section :deep(.el-checkbox) {

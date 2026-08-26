@@ -107,7 +107,15 @@ internal/
                        裁剪读写、管理员全量 + cardVisible 服务端裁剪卡片视图；
                        单人邀请 token 接受事务（建成员/迁档案/绑部门/置
                        accepted，注册编排与 POST /auth/invitations/accept
-                       两入口））；authorization/ 自研 RBAC 鉴权
+                       两入口））；admingroup 管理组（权限中心-管理员模块，
+                       迁移 000032：admin_groups + admin_group_members——
+                       内置系统管理员组由 tenant-admin 角色绑定实时推导成员
+                       （单一事实源），自定义组经 scope_config JSONB 承载
+                       部门/角色/互联组织/应用带范围委托；/admin-groups CRUD
+                       + 分区块即时 PATCH + /auth/admin-scopes 身份自查；
+                       authorization 拒绝后回落管理组保守门：仅 all 全量范围
+                       放行、partial 待各域数据过滤批，admin-groups 资源永
+                       不经管理组授予）；authorization/ 自研 RBAC 鉴权
     tenant/           租户域（小三层）：租户 CRUD 与生命周期（注销保留期/
                       Purge Worker）、plan 套餐与配额、QuotaService 配额执行；
                       SelfOpenInTx 供认证域注册编排在外层事务内组合开通

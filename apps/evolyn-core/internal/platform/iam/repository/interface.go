@@ -164,3 +164,34 @@ type RoleGroupRepository interface {
 	Delete(ctx context.Context, group *model.RoleGroup) error
 	Migrate() error
 }
+
+// AdminGroupRepository 管理组（权限中心-管理员模块）数据访问。
+// 内置系统管理员组（built_in）的成员不落 admin_group_members：经
+// ResolveBuiltinRoleID + ListBuiltinMembers/CountBuiltinMembers 由
+// tenant-admin 角色绑定实时推导，与租户域 seed 同一事实源。
+// 注：admin_group_members 含 tenant_id 列，与主表 join 会使 Callback 注入的
+// 不限定租户条件产生歧义列——按成员取组一律走两段查询（ID 清单 + 批量取组）
+type AdminGroupRepository interface {
+	GetByID(ctx context.Context, id uint) (*model.AdminGroup, error)
+	ListByTenant(ctx context.Context) ([]model.AdminGroup, error)
+	GetByName(ctx context.Context, name string) (*model.AdminGroup, error)
+	Create(ctx context.Context, group *model.AdminGroup) (*model.AdminGroup, error)
+	UpdateConfig(ctx context.Context, id uint, config model.AdminGroupScopeConfig) error
+	Rename(ctx context.Context, id uint, name string) error
+	Delete(ctx context.Context, id uint) error
+	ListMemberIDs(ctx context.Context, groupID uint) ([]uint, error)
+	// ReplaceMembers 整体替换组成员绑定（tenantID 显式落行，seed 路径兜底）
+	ReplaceMembers(ctx context.Context, groupID, tenantID uint, memberIDs []uint) error
+	ListGroupIDsOfMember(ctx context.Context, memberID uint) ([]uint, error)
+	ListByIDs(ctx context.Context, ids []uint) ([]model.AdminGroup, error)
+	// MemberCounts 各组成员数（列表概要一次取齐）
+	MemberCounts(ctx context.Context) (map[uint]int, error)
+	DeleteMembersOfGroup(ctx context.Context, groupID uint) error
+	// DeleteMembersOfMember 成员离职/删除路径清理其全部管理组绑定
+	DeleteMembersOfMember(ctx context.Context, memberID uint) error
+	// 内置组代理（成员读写经 user_roles 的 tenant-admin 绑定）
+	ResolveBuiltinRoleID(ctx context.Context) (uint, error)
+	ListBuiltinMembers(ctx context.Context, roleID uint) ([]model.User, error)
+	CountBuiltinMembers(ctx context.Context, roleID uint) (int64, error)
+	Migrate() error
+}

@@ -70,7 +70,7 @@ const subjectTrees: Record<PermissionSubjectType, SubjectNode[]> = {
   application: [
     {
       id: 'app-demo',
-      label: '简道云示例应用',
+      label: '灵衍云示例应用',
       icon: RiBookletFill,
       expanded: true,
       children: [
@@ -86,7 +86,7 @@ const subjectTrees: Record<PermissionSubjectType, SubjectNode[]> = {
     { id: 'app-contract', label: '合同管理', icon: RiBookletFill },
     { id: 'app-it', label: 'IT项目管理', icon: RiBookletFill },
     { id: 'app-task', label: '任务管理', icon: RiBookletFill },
-    { id: 'app-intro', label: '简道云高级功能介绍', icon: RiBookletFill },
+    { id: 'app-intro', label: '灵衍云高级功能介绍', icon: RiBookletFill },
     { id: 'app-crm', label: 'CRM_云星辰', icon: RiBookletFill },
   ],
 };
@@ -94,7 +94,7 @@ const subjectTrees: Record<PermissionSubjectType, SubjectNode[]> = {
 const permissionTree: PermissionNode[] = [
   {
     id: 'intro',
-    label: '简道云高级功能介绍',
+    label: '灵衍云高级功能介绍',
     icon: RiBookletFill,
     expanded: true,
     children: [

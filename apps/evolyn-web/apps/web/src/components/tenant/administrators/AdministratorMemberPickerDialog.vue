@@ -1,37 +1,91 @@
 <script setup lang="ts">
-import { RiArrowDownSFill, RiCloseFill, RiSearch2Line, RiTeamFill } from '@remixicon/vue';
+import { RiCloseFill, RiSearchFill } from '@remixicon/vue';
+import { ElMessage } from 'element-plus';
 import { computed, shallowRef, watch } from 'vue';
-import type { AdministratorMember } from './administrator.types';
+import type { DepartmentDto } from '~/api/department';
+import type { AdministratorMember, AdministratorPickerMember } from './administrator.types';
 
 defineOptions({ name: 'AdministratorMemberPickerDialog' });
 
 const props = defineProps<{
-  members: AdministratorMember[];
+  members: AdministratorPickerMember[];
+  departments: DepartmentDto[];
   selectedMembers: AdministratorMember[];
+  /** 租户创建人是固定所有者，不可通过管理组再次授予管理员身份。 */
+  tenantOwnerAccountId: number | null;
 }>();
 
 const visible = defineModel<boolean>({ default: false });
 const emit = defineEmits<{ confirm: [members: AdministratorMember[]] }>();
 const keyword = shallowRef('');
-const selectedIds = shallowRef<string[]>([]);
+const selectedIds = shallowRef<number[]>([]);
+// 部门过滤：null = 全部成员；点击树节点切换，再点「全部成员」或同节点取消
+const departmentFilterId = shallowRef<number | null>(null);
+
+const keywords = computed(() => keyword.value.trim().split(/\s+/).filter(Boolean));
+
+// 部门 → 整棵子树 ID 集：点父部门命中其下全部成员
+const departmentSubtrees = computed(() => {
+  const subtrees = new Map<number, Set<number>>();
+  const walk = (department: DepartmentDto): Set<number> => {
+    const ids = new Set<number>([department.id]);
+    for (const child of department.children ?? []) {
+      for (const id of walk(child)) ids.add(id);
+    }
+    subtrees.set(department.id, ids);
+    return ids;
+  };
+  for (const department of props.departments) walk(department);
+  return subtrees;
+});
+
 const visibleMembers = computed(() => {
-  const query = keyword.value.trim();
-  return query
-    ? props.members.filter((member) => `${member.name}${member.department}`.includes(query))
-    : props.members;
+  const subtree =
+    departmentFilterId.value !== null
+      ? departmentSubtrees.value.get(departmentFilterId.value)
+      : null;
+  return props.members.filter((member) => {
+    if (subtree && !member.departmentIds?.some((id) => subtree.has(id))) {
+      return false;
+    }
+    if (!keywords.value.length) return true;
+    // 多关键词空格分隔：全部命中（姓名/部门名）才展示
+    const haystack = `${member.name}${member.department}`;
+    return keywords.value.every((word) => haystack.includes(word));
+  });
 });
 const selectedItems = computed(() =>
   props.members.filter((member) => selectedIds.value.includes(member.id)),
 );
 
-function toggleMember(id: string) {
+function isTenantCreator(member: AdministratorPickerMember) {
+  return props.tenantOwnerAccountId !== null && member.accountId === props.tenantOwnerAccountId;
+}
+
+function toggleMember(id: number) {
   selectedIds.value = selectedIds.value.includes(id)
     ? selectedIds.value.filter((item) => item !== id)
     : [...selectedIds.value, id];
 }
 
-function removeMember(id: string) {
-  selectedIds.value = selectedIds.value.filter((item) => item !== id);
+function chooseMember(member: AdministratorPickerMember) {
+  if (isTenantCreator(member)) {
+    ElMessage.warning('企业创建者不能加入任何管理组');
+    return;
+  }
+  toggleMember(member.id);
+}
+
+function removeMember(member: AdministratorPickerMember) {
+  if (isTenantCreator(member)) {
+    ElMessage.warning('企业创建者不能加入任何管理组');
+    return;
+  }
+  selectedIds.value = selectedIds.value.filter((item) => item !== member.id);
+}
+
+function onNodeClick(data: unknown) {
+  departmentFilterId.value = (data as DepartmentDto).id;
 }
 
 function submit() {
@@ -42,6 +96,7 @@ function submit() {
 watch(visible, (isVisible) => {
   if (isVisible) {
     keyword.value = '';
+    departmentFilterId.value = null;
     selectedIds.value = props.selectedMembers.map((member) => member.id);
   }
 });
@@ -66,37 +121,64 @@ watch(visible, (isVisible) => {
         class="administrator-member-picker__tag"
       >
         <i>{{ member.name.slice(0, 1) }}</i
-        >{{ member.name }}<RiCloseFill @click="removeMember(member.id)" />
+        >{{ member.name }}<RiCloseFill @click="removeMember(member)" />
       </span>
     </section>
     <label class="administrator-member-picker__search">
-      <RiSearch2Line /><input v-model="keyword" placeholder="搜索（多个关键词用空格隔开）" />
+      <RiSearchFill /><input v-model="keyword" placeholder="搜索（多个关键词用空格隔开）" />
     </label>
     <section class="administrator-member-picker__body">
       <div class="administrator-member-picker__tree">
-        <p class="administrator-member-picker__all">全部成员</p>
-        <p class="administrator-member-picker__node">
-          <RiArrowDownSFill /><RiTeamFill />重庆灵衍云科技有限公司
-        </p>
-        <p class="administrator-member-picker__child"><RiTeamFill />研发部</p>
-        <p class="administrator-member-picker__child"><RiTeamFill />产品部</p>
+        <el-scrollbar>
+          <button
+            class="administrator-member-picker__all"
+            :class="{ 'administrator-member-picker__all--active': departmentFilterId === null }"
+            type="button"
+            @click="departmentFilterId = null"
+          >
+            全部成员
+          </button>
+          <el-tree
+            :data="departments"
+            node-key="id"
+            default-expand-all
+            highlight-current
+            :expand-on-click-node="false"
+            :props="{ label: 'name', children: 'children' }"
+            @node-click="onNodeClick"
+          />
+        </el-scrollbar>
       </div>
       <div class="administrator-member-picker__results">
-        <p class="administrator-member-picker__result-title">
-          已选 {{ selectedItems.length }}/{{ members.length }}
-        </p>
-        <label
-          v-for="member in visibleMembers"
-          :key="member.id"
-          class="administrator-member-picker__member"
-        >
-          <span class="administrator-member-picker__avatar">{{ member.name.slice(0, 1) }}</span>
-          <span>{{ member.name }}</span>
-          <el-checkbox
-            :model-value="selectedIds.includes(member.id)"
-            @change="toggleMember(member.id)"
-          />
-        </label>
+        <el-scrollbar>
+          <p class="administrator-member-picker__result-title">
+            已选 {{ selectedItems.length }}/{{ members.length }}
+          </p>
+          <label
+            v-for="member in visibleMembers"
+            :key="member.id"
+            class="administrator-member-picker__member"
+            :class="{ 'administrator-member-picker__member--creator': isTenantCreator(member) }"
+            :title="isTenantCreator(member) ? '企业创建者不能加入任何管理组' : undefined"
+            @click.prevent="chooseMember(member)"
+          >
+            <span class="administrator-member-picker__avatar">{{ member.name.slice(0, 1) }}</span>
+            <span>{{ member.name }}</span>
+            <span v-if="isTenantCreator(member)" class="administrator-member-picker__creator-tag"
+              >创建者</span
+            >
+            <span class="administrator-member-picker__member-department">{{
+              member.department
+            }}</span>
+            <el-checkbox
+              :model-value="selectedIds.includes(member.id)"
+              :disabled="isTenantCreator(member)"
+            />
+          </label>
+          <p v-if="visibleMembers.length === 0" class="administrator-member-picker__empty">
+            没有符合条件的成员
+          </p>
+        </el-scrollbar>
       </div>
     </section>
     <footer class="administrator-member-picker__footer">
@@ -149,12 +231,14 @@ watch(visible, (isVisible) => {
   &__selected {
     display: flex;
     min-height: 132px;
+    max-height: 176px;
     margin: 26px 28px 16px;
     padding: 12px;
     border: 1px dashed #dae0e9;
     border-radius: 9px;
     align-items: flex-start;
     gap: 8px;
+    overflow-y: auto;
   }
   &__tag {
     display: inline-flex;
@@ -164,7 +248,7 @@ watch(visible, (isVisible) => {
     border-radius: 7px;
     align-items: center;
     color: #4e5868;
-    background: #f4f5f7;
+    background: var(--el-fill-color-light);
     font-size: 17px;
   }
   &__tag i,
@@ -176,7 +260,7 @@ watch(visible, (isVisible) => {
     align-items: center;
     justify-content: center;
     color: #fff;
-    background: #f1575e;
+    background: var(--el-color-primary);
     font-size: 14px;
     font-style: normal;
   }
@@ -225,45 +309,77 @@ watch(visible, (isVisible) => {
     border-right: 1px solid #e2e6ec;
   }
   &__all {
+    display: block;
+    width: 100%;
+    min-height: 40px;
     margin: 0 0 9px;
-    padding: 12px 16px;
+    padding: 0 16px;
+    border: 0;
     border-radius: 7px;
+    color: #4f5968;
+    background: transparent;
+    font-size: 17px;
+    text-align: left;
+    cursor: pointer;
+  }
+  &__all:hover {
+    background: var(--el-fill-color-light);
+  }
+  &__all--active {
     color: var(--el-color-primary);
     background: var(--el-color-primary-light-9);
+  }
+  &__tree :deep(.el-tree) {
+    --el-tree-node-content-height: 38px;
+    background: transparent;
     font-size: 17px;
-  }
-  &__node,
-  &__child {
-    display: flex;
-    margin: 12px 12px;
-    align-items: center;
-    gap: 8px;
-    color: #4f5968;
-    font-size: 17px;
-  }
-  &__node svg,
-  &__child svg {
-    color: var(--el-color-primary);
-  }
-  &__child {
-    margin-left: 58px;
   }
   &__result-title {
-    margin: 0 0 12px;
+    margin: 0 4px 12px;
     color: var(--el-color-primary);
     font-size: 17px;
   }
   &__member {
     display: flex;
     height: 43px;
+    padding: 0 4px;
+    border-radius: 6px;
     align-items: center;
     gap: 8px;
     color: #4e5868;
     font-size: 17px;
     cursor: pointer;
   }
+  &__member:hover {
+    background: var(--el-fill-color-light);
+  }
+  &__member--creator {
+    color: var(--el-text-color-secondary);
+    cursor: not-allowed;
+  }
+  &__member--creator:hover {
+    background: var(--el-fill-color-light);
+  }
   &__member .el-checkbox {
     margin-left: auto;
+  }
+  &__creator-tag {
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--el-color-warning);
+    background: var(--el-color-warning-light-9);
+    font-size: 12px;
+  }
+  &__member-department {
+    color: #98a1af;
+    font-size: 15px;
+  }
+  &__empty {
+    margin: 0;
+    padding: 24px 0;
+    color: #909aa8;
+    font-size: 16px;
+    text-align: center;
   }
   &__footer {
     display: flex;

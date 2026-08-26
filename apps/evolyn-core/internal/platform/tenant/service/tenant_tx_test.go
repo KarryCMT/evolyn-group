@@ -30,6 +30,7 @@ type openStore struct {
 	departments map[uint]*iammodel.Department
 	roles       map[uint]*iammodel.Role
 	groups      map[uint]*iammodel.Group
+	adminGroups map[uint]*iammodel.AdminGroup
 	memberDepts [][2]uint // (memberID, departmentID)
 	userRoles   [][2]uint // (memberID, roleID)
 	groupRoles  [][2]uint // (groupID, roleID)
@@ -43,6 +44,7 @@ type openStoreSnapshot struct {
 	departments map[uint]*iammodel.Department
 	roles       map[uint]*iammodel.Role
 	groups      map[uint]*iammodel.Group
+	adminGroups map[uint]*iammodel.AdminGroup
 	memberDepts [][2]uint
 	userRoles   [][2]uint
 	groupRoles  [][2]uint
@@ -57,6 +59,7 @@ func (s *openStore) snapshot() *openStoreSnapshot {
 		departments: make(map[uint]*iammodel.Department, len(s.departments)),
 		roles:       make(map[uint]*iammodel.Role, len(s.roles)),
 		groups:      make(map[uint]*iammodel.Group, len(s.groups)),
+		adminGroups: make(map[uint]*iammodel.AdminGroup, len(s.adminGroups)),
 		memberDepts: append([][2]uint(nil), s.memberDepts...),
 		userRoles:   append([][2]uint(nil), s.userRoles...),
 		groupRoles:  append([][2]uint(nil), s.groupRoles...),
@@ -80,6 +83,9 @@ func (s *openStore) snapshot() *openStoreSnapshot {
 	for k, v := range s.groups {
 		snap.groups[k] = v
 	}
+	for k, v := range s.adminGroups {
+		snap.adminGroups[k] = v
+	}
 	return snap
 }
 
@@ -90,6 +96,7 @@ func (s *openStore) restore(snap *openStoreSnapshot) {
 	s.departments = snap.departments
 	s.roles = snap.roles
 	s.groups = snap.groups
+	s.adminGroups = snap.adminGroups
 	s.memberDepts = snap.memberDepts
 	s.userRoles = snap.userRoles
 	s.groupRoles = snap.groupRoles
@@ -297,6 +304,7 @@ type openIAM struct {
 	rbac       *openRBACRepo
 	group      *openGroupRepo
 	department *openDepartmentRepo
+	adminGroup *openAdminGroupRepo
 }
 
 func (o *openIAM) Account() iamrepository.AccountRepository       { return o.account }
@@ -304,6 +312,30 @@ func (o *openIAM) User() iamrepository.UserRepository             { return o.use
 func (o *openIAM) RBAC() iamrepository.RBACRepository             { return o.rbac }
 func (o *openIAM) Group() iamrepository.GroupRepository           { return o.group }
 func (o *openIAM) Department() iamrepository.DepartmentRepository { return o.department }
+func (o *openIAM) AdminGroup() iamrepository.AdminGroupRepository { return o.adminGroup }
+
+// openAdminGroupRepo 管理组桩：只实现开通 seed 用到的 GetByName/Create，
+// 其余经内嵌接口零实现（调用即 panic，测试立即暴露未预期路径）
+type openAdminGroupRepo struct {
+	iamrepository.AdminGroupRepository
+	store *openStore
+}
+
+func (f *openAdminGroupRepo) GetByName(_ context.Context, name string) (*iammodel.AdminGroup, error) {
+	for _, group := range f.store.adminGroups {
+		if group.Name == name {
+			return group, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (f *openAdminGroupRepo) Create(_ context.Context, group *iammodel.AdminGroup) (*iammodel.AdminGroup, error) {
+	group.ID = f.store.nextID()
+	copied := *group
+	f.store.adminGroups[group.ID] = &copied
+	return group, nil
+}
 
 // openAudit 计数桩：验证审计只在事务提交成功后记录
 type openAudit struct{ entries int }
@@ -335,6 +367,7 @@ func newOpenFixtures() (*openStore, *openTenantRepo, *openIAM, *openAudit) {
 		departments: map[uint]*iammodel.Department{},
 		roles:       map[uint]*iammodel.Role{},
 		groups:      map[uint]*iammodel.Group{},
+		adminGroups: map[uint]*iammodel.AdminGroup{},
 	}
 	iam := &openIAM{
 		account:    &openAccountRepo{store: store},
@@ -342,6 +375,7 @@ func newOpenFixtures() (*openStore, *openTenantRepo, *openIAM, *openAudit) {
 		rbac:       &openRBACRepo{store: store},
 		group:      &openGroupRepo{store: store},
 		department: &openDepartmentRepo{store: store},
+		adminGroup: &openAdminGroupRepo{store: store},
 	}
 	return store, &openTenantRepo{store: store}, iam, &openAudit{}
 }
@@ -370,6 +404,7 @@ func TestTXTenant001TenantCreateFailNoResidue(t *testing.T) {
 	assert.Empty(t, store.tenants)
 	assert.Empty(t, store.users)
 	assert.Empty(t, store.departments)
+	assert.Empty(t, store.adminGroups, "内置管理组不残留")
 	assert.Empty(t, store.roles)
 	assert.Empty(t, store.groups)
 	assert.Empty(t, store.accounts, "新建的 owner 账号必须随事务回滚")
@@ -444,6 +479,16 @@ func TestTXTenant005HappyPathBaselineComplete(t *testing.T) {
 	assert.Len(t, store.groupRoles, 3, "组-角色绑定×3")
 	assert.Len(t, store.userRoles, 1, "owner 绑定 tenant-admin")
 	assert.Equal(t, 1, audit.entries, "成功路径落一条审计")
+
+	// 权限中心-管理员模块：开通事务内预置内置系统管理员组（成员不落表，
+	// 由上方 owner 的 tenant-admin 角色绑定实时推导）
+	assert.Len(t, store.adminGroups, 1, "内置系统管理员组×1")
+	for _, adminGroup := range store.adminGroups {
+		assert.True(t, adminGroup.BuiltIn)
+		assert.Equal(t, iammodel.AdminGroupBuiltinName, adminGroup.Name)
+		assert.Equal(t, iammodel.AdminGroupScopeSystem, adminGroup.Scope)
+		assert.Equal(t, tenant.ID, adminGroup.TenantID)
+	}
 
 	// 关系完整性：owner 绑定的必须是本租户的 tenant-admin 角色。
 	// 回归防护：旧实现按名回查（无租户过滤）会命中其他租户的同名角色

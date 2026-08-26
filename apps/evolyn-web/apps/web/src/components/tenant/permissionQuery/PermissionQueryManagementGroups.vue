@@ -29,7 +29,7 @@ const emit = defineEmits<{
       <el-select model-value="管理员" aria-label="管理组类型"
         ><el-option label="管理员" value="管理员"
       /></el-select>
-      <el-select v-if="props.workspace === 'jiandaoyun'" model-value="" aria-label="应用范围"
+      <el-select v-if="props.workspace === 'product'" model-value="" aria-label="应用范围"
         ><el-option label="全部应用" value=""
       /></el-select>
     </div>
@@ -42,7 +42,7 @@ const emit = defineEmits<{
         }}</template></el-table-column
       >
       <el-table-column
-        v-if="props.workspace === 'jiandaoyun'"
+        v-if="props.workspace === 'product'"
         prop="applicationScope"
         label="应用权限范围"
         min-width="230"

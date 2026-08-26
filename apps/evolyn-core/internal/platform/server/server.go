@@ -192,6 +192,13 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	memberFieldService := service.NewMemberFieldService(txManager, iamRepo.MemberFieldSetting(), auditSvc)
 	memberProfileService := service.NewMemberProfileService(txManager, iamRepo.MemberProfile(), iamRepo.MemberFieldSetting(), iamRepo.User(), auditSvc)
 
+	// 管理组服务（权限中心-管理员模块）：应用清单经窄端口适配器桥接——
+	// iam 不能反向依赖应用域（应用域已依赖 iam 鉴权），装配层逐 ID 探测
+	adminGroupService := service.NewAdminGroupService(
+		txManager, iamRepo.AdminGroup(), iamRepo.User(), iamRepo.Department(), iamRepo.RBAC(),
+		adminGroupApplicationCatalog{applications: applicationRepo}, tenantRepo, auditSvc,
+	)
+
 	tenantService := tenantservice.NewTenantService(txManager, tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention(), editionService)
 	if injector, ok := tenantService.(tenantservice.MemberFieldSeederInjector); ok {
 		injector.UseFieldSeeder(memberFieldService)
@@ -327,11 +334,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	platformEditionController := editioncontroller.NewPlatformEditionController(editionService)
 	memberFieldController := iamcontroller.NewMemberFieldController(memberFieldService)
 	memberProfileController := iamcontroller.NewMemberProfileController(memberProfileService)
+	adminGroupController := iamcontroller.NewAdminGroupController(adminGroupService)
+	adminScopesController := iamcontroller.NewAdminScopesController(adminGroupService)
 
-	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
-	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
+	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）；管理组仓储供 RBAC
+	// 拒绝后的范围裁决回落（权限中心-管理员模块）
+	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group(), iamRepo.AdminGroup())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, securityController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, securityController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
@@ -515,6 +525,25 @@ func (s *Server) getRoutes() []string {
 		}
 	}
 	return paths.Slice()
+}
+
+// adminGroupApplicationCatalog 管理组应用清单窄端口适配器：iam 域不能反向
+// 依赖应用域（应用域已依赖 iam 鉴权），装配层以逐 ID 探测桥接；选择器提交
+// 的 ID 集合有限且租户应用为配额内规模，逐个 GetByID 足够（跨租户/已删 ID
+// 经 Callback 过滤为 NotFound → false）
+type adminGroupApplicationCatalog struct {
+	applications applicationrepository.ApplicationRepository
+}
+
+func (c adminGroupApplicationCatalog) Exists(ctx context.Context, id uint) (bool, error) {
+	_, err := c.applications.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
 }
 
 // buildSmsSender 按配置分派短信通道与固定验证码：

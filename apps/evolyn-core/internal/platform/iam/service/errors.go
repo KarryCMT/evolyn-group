@@ -71,4 +71,27 @@ var (
 	ErrMemberProfileInvalid = httpx.NewBiz("MEMBER_PROFILE_INVALID", "成员资料不合法", http.StatusBadRequest)
 	// ErrMemberInvitationAcceptInvalid 单人邀请 token、状态或受邀身份校验失败。
 	ErrMemberInvitationAcceptInvalid = httpx.NewBiz("MEMBER_INVITATION_ACCEPT_INVALID", "邀请不存在、已失效或与当前账号不匹配", http.StatusBadRequest)
+
+	// ---- 权限中心-管理员模块（管理组）----
+
+	// ErrAdminGroupNotFound 管理组不存在或不属于当前租户。
+	ErrAdminGroupNotFound = httpx.NewBiz("ADMIN_GROUP_NOT_FOUND", "管理组不存在", http.StatusNotFound)
+	// ErrAdminGroupNameInvalid 管理组名称为空、超长（>30 字符）。
+	ErrAdminGroupNameInvalid = httpx.NewBiz("ADMIN_GROUP_NAME_INVALID", "管理组名称不合法", http.StatusBadRequest)
+	// ErrAdminGroupDuplicateName 租户内管理组重名。
+	ErrAdminGroupDuplicateName = httpx.NewBiz("ADMIN_GROUP_DUPLICATE_NAME", "管理组名称已存在", http.StatusConflict)
+	// ErrAdminGroupBuiltinImmutable 内置系统管理员组不允许改名/删除/改配置
+	//（成员变更经角色绑定代理，是唯一允许的写路径）。
+	ErrAdminGroupBuiltinImmutable = httpx.NewBiz("ADMIN_GROUP_BUILTIN_IMMUTABLE", "内置管理组不允许该操作", http.StatusForbidden)
+	// ErrAdminGroupLastAdmin 系统管理员组至少保留一名管理员（清空/换空均拒绝）。
+	ErrAdminGroupLastAdmin = httpx.NewBiz("ADMIN_GROUP_LAST_ADMIN", "系统管理员组至少保留一名管理员", http.StatusConflict)
+	// ErrAdminGroupScopeMismatch 区块与管理组类型不符（如 system 组提交应用范围）。
+	ErrAdminGroupScopeMismatch = httpx.NewBiz("ADMIN_GROUP_SCOPE_MISMATCH", "该配置不适用于当前管理组类型", http.StatusBadRequest)
+	// ErrAdminGroupConfigInvalid 范围配置不合法：mode 非法、可管理未开启可见、
+	// 部门/角色/应用 ID 不属于本租户、PATCH 携带多区块等。
+	ErrAdminGroupConfigInvalid = httpx.NewBiz("ADMIN_GROUP_CONFIG_INVALID", "管理组配置不合法", http.StatusBadRequest)
+	// ErrAdminGroupMemberInvalid 成员不属于本租户、不存在或已离职。
+	ErrAdminGroupMemberInvalid = httpx.NewBiz("ADMIN_GROUP_MEMBER_INVALID", "管理组成员不合法", http.StatusBadRequest)
+	// ErrAdminGroupTenantCreatorNotAllowed 租户创建人具备固定所有者权限，不能加入自定义管理组。
+	ErrAdminGroupTenantCreatorNotAllowed = httpx.NewBiz("ADMIN_GROUP_TENANT_CREATOR_NOT_ALLOWED", "企业创建者不能加入任何管理组", http.StatusBadRequest)
 )

@@ -1,22 +1,31 @@
 <script setup lang="ts">
 import { RiCloseFill } from '@remixicon/vue';
-import { ElMessage } from 'element-plus';
 import { shallowRef, watch } from 'vue';
 
 defineOptions({ name: 'AddAdministratorGroupDialog' });
 
 const visible = defineModel<boolean>({ default: false });
-const emit = defineEmits<{ confirm: [name: string] }>();
+const props = defineProps<{
+  /** 提交处理器：内部完成创建与列表刷新，返回 false 表示失败（保持弹窗）。 */
+  submit: (name: string) => Promise<boolean>;
+}>();
 const groupName = shallowRef('');
+const submitting = shallowRef(false);
 
-function submit() {
+async function submit() {
   const name = groupName.value.trim();
   if (!name) {
-    ElMessage.warning('请输入管理组名称');
     return;
   }
-  emit('confirm', name);
-  visible.value = false;
+  submitting.value = true;
+  try {
+    // 失败提示由提交方给出（业务码文案统一在组合层维护）
+    if (await props.submit(name)) {
+      visible.value = false;
+    }
+  } finally {
+    submitting.value = false;
+  }
 }
 
 watch(visible, (isVisible) => {
@@ -41,11 +50,13 @@ watch(visible, (isVisible) => {
       class="add-administrator-group-dialog__input"
       placeholder="请输入管理组名称"
       maxlength="30"
+      show-word-limit
+      :disabled="submitting"
       @keyup.enter="submit"
     />
     <footer class="add-administrator-group-dialog__footer">
-      <el-button @click="visible = false">取消</el-button>
-      <el-button type="primary" @click="submit">确定</el-button>
+      <el-button :disabled="submitting" @click="visible = false">取消</el-button>
+      <el-button :loading="submitting" type="primary" @click="submit">确定</el-button>
     </footer>
   </el-dialog>
 </template>

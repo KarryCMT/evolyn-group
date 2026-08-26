@@ -34,12 +34,12 @@ const {
         系统</button
       ><button
         :class="{
-          'permission-query-panel__workspace-tab--active': workspace === 'jiandaoyun',
+          'permission-query-panel__workspace-tab--active': workspace === 'product',
         }"
         type="button"
-        @click="workspace = 'jiandaoyun'"
+        @click="workspace = 'product'"
       >
-        简道云
+        灵衍云
       </button>
     </nav>
     <nav class="permission-query-panel__view-tabs" aria-label="查询类型">

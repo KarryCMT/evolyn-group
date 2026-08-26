@@ -23,6 +23,7 @@ type Repositories struct {
 	invitation    MemberInvitationRepository
 	memberField   MemberFieldSettingRepository
 	memberProfile MemberProfileRepository
+	adminGroup    AdminGroupRepository
 }
 
 func NewRepositories(db *gorm.DB, rdb *infrastructure.RedisDB) *Repositories {
@@ -37,6 +38,7 @@ func NewRepositories(db *gorm.DB, rdb *infrastructure.RedisDB) *Repositories {
 		invitation:    newMemberInvitationRepository(db),
 		memberField:   newMemberFieldSettingRepository(db),
 		memberProfile: newMemberProfileRepository(db),
+		adminGroup:    newAdminGroupRepository(db),
 	}
 }
 
@@ -76,12 +78,16 @@ func (r *Repositories) MemberProfile() MemberProfileRepository {
 	return r.memberProfile
 }
 
+func (r *Repositories) AdminGroup() AdminGroupRepository {
+	return r.adminGroup
+}
+
 // Migrate iam 域表迁移：account/auth_infos → user → group → role/resource → department。
 // AutoMigrate 仅开发/测试路径（FIX-009）：GORM 标签表达不了 PG 部分唯一索引，
 // 此处用幂等 SQL 补齐，使开发库约束与 migrations 终态一致
 // （FIX-002/003/004/017；外键约束只在 migrations 路径落地）
 func (r *Repositories) Migrate() error {
-	for _, m := range []interface{ Migrate() error }{r.account, r.user, r.group, r.roleGroup, r.rbac, r.department, r.invitation, r.memberField, r.memberProfile} {
+	for _, m := range []interface{ Migrate() error }{r.account, r.user, r.group, r.roleGroup, r.rbac, r.department, r.invitation, r.memberField, r.memberProfile, r.adminGroup} {
 		if err := m.Migrate(); err != nil {
 			return err
 		}
@@ -165,6 +171,12 @@ func (r *Repositories) Init() error {
 		// 成员信息管理：字段设置/卡片展示的租户级显示策略（与路由前缀一致）
 		{
 			Name:  model.MemberFieldSettingResource,
+			Scope: model.ClusterScope,
+		},
+		// 权限中心-管理员模块：管理组自身的读写资源（仅授予租户管理员，
+		// 永不经管理组授予，防通讯录管理组自我扩权）
+		{
+			Name:  model.AdminGroupResource,
 			Scope: model.ClusterScope,
 		},
 	}
