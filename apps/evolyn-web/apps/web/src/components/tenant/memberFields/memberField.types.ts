@@ -1,155 +1,12 @@
-/** 成员档案字段在设置页与卡片预览页共用的展示模型。 */
-export interface MemberProfileField {
-  key: string;
-  label: string;
-  type: string;
-  /** 字段设置中是否可由管理员调整个人页可见性。 */
-  visibilityLocked?: boolean;
-  /** 字段设置中是否可由管理员调整个人页编辑权限。 */
-  editableLocked?: boolean;
-  visible: boolean;
-  editable: boolean;
-  /** 成员名为资料卡固定信息，不参与选择。 */
-  cardLocked?: boolean;
-  cardVisible: boolean;
-}
+/**
+ * 成员信息管理页面的本地展示物料。
+ * 字段目录（key/label/type/锁定规则/配置值）以服务端字段配置快照为唯一
+ * 来源（api/memberField.ts 的 MemberFieldSettingDto），本文件不再维护
+ * 硬编码的可变配置；卡片预览页保留样例成员数据用于视觉预览，生产成员
+ * 卡片必须消费服务端按 cardVisible 裁剪后的数据。
+ */
 
-export const memberProfileFields: MemberProfileField[] = [
-  {
-    key: 'name',
-    label: '姓名',
-    type: '单行文本',
-    visibilityLocked: true,
-    editableLocked: true,
-    visible: true,
-    editable: false,
-    cardLocked: true,
-    cardVisible: true,
-  },
-  {
-    key: 'code',
-    label: '编号',
-    type: '单行文本',
-    visibilityLocked: true,
-    editableLocked: true,
-    visible: false,
-    editable: false,
-    cardVisible: true,
-  },
-  {
-    key: 'mobile',
-    label: '手机',
-    type: '单行文本',
-    visibilityLocked: true,
-    editableLocked: true,
-    visible: true,
-    editable: true,
-    cardVisible: true,
-  },
-  {
-    key: 'email',
-    label: '邮箱',
-    type: '单行文本',
-    visibilityLocked: true,
-    editableLocked: true,
-    visible: true,
-    editable: true,
-    cardVisible: true,
-  },
-  {
-    key: 'department',
-    label: '部门',
-    type: '部门多选',
-    visibilityLocked: true,
-    editableLocked: true,
-    visible: false,
-    editable: false,
-    cardVisible: true,
-  },
-  {
-    key: 'role',
-    label: '角色',
-    type: '角色多选',
-    visibilityLocked: true,
-    editableLocked: true,
-    visible: false,
-    editable: false,
-    cardVisible: false,
-  },
-  {
-    key: 'alias',
-    label: '别名',
-    type: '单行文本',
-    visible: false,
-    editable: false,
-    cardVisible: false,
-  },
-  {
-    key: 'employeeId',
-    label: '工号',
-    type: '单行文本',
-    visible: false,
-    editable: false,
-    cardVisible: false,
-  },
-  {
-    key: 'gender',
-    label: '性别',
-    type: '单行文本',
-    visible: false,
-    editable: false,
-    cardVisible: false,
-  },
-  {
-    key: 'position',
-    label: '职务',
-    type: '单行文本',
-    visible: false,
-    editable: false,
-    cardVisible: false,
-  },
-  {
-    key: 'employment',
-    label: '聘用形式',
-    type: '单行文本',
-    visible: false,
-    editable: false,
-    cardVisible: false,
-  },
-  {
-    key: 'hireDate',
-    label: '入职日期',
-    type: '日期时间',
-    visible: false,
-    editable: false,
-    cardVisible: false,
-  },
-  {
-    key: 'workplace',
-    label: '工作地点',
-    type: '单行文本',
-    visible: false,
-    editable: false,
-    cardVisible: false,
-  },
-  {
-    key: 'birthday',
-    label: '出生日期',
-    type: '日期时间',
-    visible: false,
-    editable: false,
-    cardVisible: false,
-  },
-  {
-    key: 'education',
-    label: '学历',
-    type: '单行文本',
-    visible: false,
-    editable: false,
-    cardVisible: false,
-  },
-];
-
+/** 卡片预览的样例成员取值（按字段 key 索引；姓名为卡片固定信息不参与勾选）。 */
 export const memberPreviewValues: Record<string, string> = {
   code: 'Cloud001',
   mobile: '+86-13800138000',
@@ -165,4 +22,11 @@ export const memberPreviewValues: Record<string, string> = {
   workplace: '上海',
   birthday: '1994-07-21',
   education: '本科',
+};
+
+/** 卡片预览的样例成员固定信息（与字段配置无关）。 */
+export const memberPreviewIdentity = {
+  avatarText: '帆',
+  name: '帆小云',
+  tag: '内部成员',
 };

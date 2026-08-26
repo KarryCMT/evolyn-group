@@ -1,20 +1,78 @@
 <script setup lang="ts">
+import { ERROR_CODES, isKnownErrorCode } from '@evolyn.do/utils';
 import { RiComputerFill, RiSmartphoneFill } from '@remixicon/vue';
-import { computed, ref, shallowRef } from 'vue';
+import { ElMessage } from 'element-plus';
+import { computed, onMounted, shallowRef } from 'vue';
+import type { MemberFieldSettingDto } from '~/api/memberField';
 import previewBackdrop from '~/assets/images/tenant/member-card-preview-desktop-v1.png';
-import { memberPreviewValues, memberProfileFields } from './memberField.types';
+import { useMemberFields } from '~/composables/memberFields';
+import { memberPreviewIdentity, memberPreviewValues } from './memberField.types';
 
 defineOptions({ name: 'MemberCardDisplay' });
 
+// 卡片展示与字段设置共用同一份服务端配置（store 驱动，页签切换不重复
+// 拉取）：勾选直接以服务端 cardVisible 初始化与提交，即时 PATCH 保存；
+// 预览保留样例成员，生产成员卡片由服务端按 cardVisible 裁剪后下发
+const { fields, loading, load, updateField } = useMemberFields();
+
 const previewMode = shallowRef<'desktop' | 'mobile'>('desktop');
-const selectedCardFieldKeys = ref(
-  memberProfileFields.filter((field) => field.cardVisible).map((field) => field.key),
-);
 const previewDevices = ['desktop', 'mobile'];
 
+/** 勾选中的卡片字段 key（服务端 cardVisible 的本地镜像）。 */
+const selectedCardFieldKeys = computed({
+  get: () => fields.value.filter((field) => field.cardVisible).map((field) => field.key),
+  set: (keys: string[]) => {
+    // checkbox-group 整组写入：对发生变化的字段逐个即时保存
+    for (const field of fields.value) {
+      const next = keys.includes(field.key);
+      if (field.cardVisible !== next && !field.cardLocked) {
+        void submitCardChange(field, next);
+      }
+    }
+  },
+});
+
+/** 预览渲染的字段：锁定字段（姓名为卡片固定信息）不进入明细列表。 */
 const selectedFields = computed(() =>
-  memberProfileFields.filter((field) => selectedCardFieldKeys.value.includes(field.key)),
+  fields.value.filter((field) => field.cardVisible && !field.cardLocked),
 );
+
+onMounted(() => {
+  void load();
+});
+
+/** 单字段卡片开关即时保存：失败回滚该行并按 errCode 提示。 */
+async function submitCardChange(field: MemberFieldSettingDto, next: boolean) {
+  const previous = field.cardVisible;
+  field.cardVisible = next;
+  try {
+    await updateField(field.key, { cardVisible: next });
+  } catch (err) {
+    field.cardVisible = previous;
+    notifyCardError(err);
+    if (errorCodeOf(err) === ERROR_CODES.MEMBER_FIELD_CONFIG_CONFLICT) {
+      void load(true);
+    }
+  }
+}
+
+function errorCodeOf(err: unknown): string | undefined {
+  const code = (err as { errCode?: string } | null)?.errCode;
+  return isKnownErrorCode(code) ? code : undefined;
+}
+
+function notifyCardError(err: unknown) {
+  switch (errorCodeOf(err)) {
+    case ERROR_CODES.MEMBER_FIELD_LOCKED:
+      ElMessage.error('该字段为卡片固定信息，不可调整');
+      break;
+    case ERROR_CODES.MEMBER_FIELD_CONFIG_CONFLICT:
+      ElMessage.error('配置已被其他管理员更新，已为您刷新');
+      break;
+    default:
+      ElMessage.error('保存失败，请稍后重试');
+  }
+}
 </script>
 
 <template>
@@ -23,9 +81,13 @@ const selectedFields = computed(() =>
       <h2 id="member-card-display-title">选择可见字段</h2>
       <p>管理成员卡片显示字段</p>
       <el-scrollbar class="member-card-display__field-scrollbar">
-        <el-checkbox-group v-model="selectedCardFieldKeys" class="member-card-display__field-list">
+        <el-checkbox-group
+          v-model="selectedCardFieldKeys"
+          class="member-card-display__field-list"
+          :disabled="loading"
+        >
           <el-checkbox
-            v-for="field in memberProfileFields"
+            v-for="field in fields"
             :key="field.key"
             :value="field.key"
             :disabled="field.cardLocked"
@@ -67,16 +129,16 @@ const selectedFields = computed(() =>
           <div class="member-card-display__desktop-shade" aria-hidden="true" />
           <article class="member-card member-card--desktop">
             <div class="member-card__identity">
-              <span class="member-card__avatar">帆</span>
+              <span class="member-card__avatar">{{ memberPreviewIdentity.avatarText }}</span>
               <div>
-                <h3>帆小云</h3>
-                <span>内部成员</span>
+                <h3>{{ memberPreviewIdentity.name }}</h3>
+                <span>{{ memberPreviewIdentity.tag }}</span>
               </div>
             </div>
             <dl class="member-card__details">
               <template v-for="field in selectedFields" :key="field.key">
-                <dt v-if="!field.cardLocked">{{ field.label }}</dt>
-                <dd v-if="!field.cardLocked">{{ memberPreviewValues[field.key] }}</dd>
+                <dt>{{ field.label }}</dt>
+                <dd>{{ memberPreviewValues[field.key] }}</dd>
               </template>
             </dl>
           </article>
@@ -90,16 +152,16 @@ const selectedFields = computed(() =>
             </div>
             <div class="member-card__mobile-content">
               <div class="member-card__identity">
-                <span class="member-card__avatar">帆</span>
+                <span class="member-card__avatar">{{ memberPreviewIdentity.avatarText }}</span>
                 <div>
-                  <h3>帆小云</h3>
-                  <span>内部成员</span>
+                  <h3>{{ memberPreviewIdentity.name }}</h3>
+                  <span>{{ memberPreviewIdentity.tag }}</span>
                 </div>
               </div>
               <dl class="member-card__details">
                 <template v-for="field in selectedFields" :key="field.key">
-                  <dt v-if="!field.cardLocked">{{ field.label }}</dt>
-                  <dd v-if="!field.cardLocked">{{ memberPreviewValues[field.key] }}</dd>
+                  <dt>{{ field.label }}</dt>
+                  <dd>{{ memberPreviewValues[field.key] }}</dd>
                 </template>
               </dl>
             </div>
@@ -277,8 +339,8 @@ const selectedFields = computed(() =>
     border-radius: 50%;
     align-items: center;
     justify-content: center;
-    color: #ffffff;
-    background: #f64d52;
+    color: var(--el-color-primary-light-9);
+    background: var(--el-color-primary);
     font-size: 21px;
     line-height: 1;
   }

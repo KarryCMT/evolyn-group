@@ -28,6 +28,9 @@ type RegistrationRequest struct {
 	TenantOnboarding tenantmodel.OnboardingConfig // 企业画像：需求/行业（选填，写入租户 Config）
 	// PublicInviteToken 非空时加入对应租户，不再创建或复用自有租户。
 	PublicInviteToken string
+	// MemberInviteToken 单人邀请 token（与公开链接 token 分属两个独立空间，
+	// 不混用）：非空时消费对应邀请并迁入邀请档案，不再创建或复用自有租户
+	MemberInviteToken string
 }
 
 // RegistrationResult 注册完成结果：签发会话令牌所需的账号与新租户 owner 成员
@@ -44,10 +47,14 @@ type RegistrationService interface {
 	// Complete 单事务完成注册。前置：验证码已由调用方校验。幂等：已注册
 	// 手机号等价短信登录；名下已有自有租户则复用，不重复开通
 	Complete(ctx context.Context, req *RegistrationRequest) (*RegistrationResult, error)
+	// AcceptMemberInvite 已登录账号消费单人邀请（POST /auth/invitations/accept）：
+	// 事务内创建成员并迁入邀请档案，与注册链路共用同一邀请消费实现
+	AcceptMemberInvite(ctx context.Context, accountID uint, token string) (*iammodel.User, error)
 }
 
-// MemberInvitationAccepter 是认证域接受公开成员邀请所需的最小能力，
+// MemberInvitationAccepter 是认证域接受成员邀请所需的最小能力，
 // 由 iam 成员邀请服务实现，避免认证域依赖邀请存储细节。
 type MemberInvitationAccepter interface {
 	AcceptPublicLink(ctx context.Context, accountID uint, nickname, token string) (*iammodel.User, error)
+	AcceptPersonalInvite(ctx context.Context, accountID uint, token string) (*iammodel.User, error)
 }

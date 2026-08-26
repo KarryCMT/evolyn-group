@@ -104,6 +104,9 @@ const (
 	RoleResource   = "roles"
 	AuthResource   = "auth"
 	TenantResource = "tenant"
+	// MemberFieldSettingResource 与 /member-field-settings 路由保持一致，
+	// 代表成员信息管理（字段设置/卡片展示）的租户级配置权限。
+	MemberFieldSettingResource = "member-field-settings"
 )
 
 type Resource struct {

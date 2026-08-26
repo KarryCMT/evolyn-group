@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	auditservice "evolyn/internal/platform/audit/service"
+	iammodel "evolyn/internal/platform/iam/model"
 	iamservice "evolyn/internal/platform/iam/service"
 	tenantmodel "evolyn/internal/platform/tenant/model"
 	tenantservice "evolyn/internal/platform/tenant/service"
@@ -61,7 +62,7 @@ func (s *registrationService) Complete(ctx context.Context, req *RegistrationReq
 			return err
 		}
 
-		if !created && req.PublicInviteToken == "" {
+		if !created && req.PublicInviteToken == "" && req.MemberInviteToken == "" {
 			// 已注册：恢复会话即止（RegisterByPhone 已按登录成员优选解析）
 			result = &RegistrationResult{Account: account, Member: member, Created: false}
 			return nil
@@ -78,6 +79,19 @@ func (s *registrationService) Complete(ctx context.Context, req *RegistrationReq
 			if _, err := s.accounts.UpdateProfile(tctx, account); err != nil {
 				return err
 			}
+		}
+
+		// 单人邀请：受邀手机号即注册手机号，接受时校验并迁入完整邀请档案
+		if req.MemberInviteToken != "" {
+			if s.invites == nil {
+				return iamservice.ErrMemberInvitationAcceptInvalid
+			}
+			member, err = s.invites.AcceptPersonalInvite(tctx, account.ID, req.MemberInviteToken)
+			if err != nil {
+				return err
+			}
+			result = &RegistrationResult{Account: account, Member: member, Created: created}
+			return nil
 		}
 
 		if req.PublicInviteToken != "" {
@@ -124,6 +138,15 @@ func (s *registrationService) Complete(ctx context.Context, req *RegistrationReq
 		})
 	}
 	return result, nil
+}
+
+// AcceptMemberInvite 已登录账号消费单人邀请：与注册链路共用 iam 邀请服务的
+// 事务实现（校验 token/状态/受邀身份 → 建成员 → 迁档案与部门 → 置 accepted）
+func (s *registrationService) AcceptMemberInvite(ctx context.Context, accountID uint, token string) (*iammodel.User, error) {
+	if s.invites == nil || accountID == 0 || token == "" {
+		return nil, iamservice.ErrMemberInvitationAcceptInvalid
+	}
+	return s.invites.AcceptPersonalInvite(ctx, accountID, token)
 }
 
 // resolveTenant 租户决策：账号名下已有自有租户则复用（向导重试幂等），

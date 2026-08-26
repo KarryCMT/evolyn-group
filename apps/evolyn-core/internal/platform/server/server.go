@@ -187,11 +187,19 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	}
 	loginLogSvc := loginlogservice.NewService(loginLogRepo, ipResolver)
 
+	// 成员信息管理（一期）：字段配置/成员档案服务先于租户服务构造——开通
+	// 事务经 UseFieldSeeder 注入预置默认字段配置（读取侧另有幂等兜底）
+	memberFieldService := service.NewMemberFieldService(txManager, iamRepo.MemberFieldSetting(), auditSvc)
+	memberProfileService := service.NewMemberProfileService(txManager, iamRepo.MemberProfile(), iamRepo.MemberFieldSetting(), iamRepo.User(), auditSvc)
+
 	tenantService := tenantservice.NewTenantService(txManager, tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention(), editionService)
+	if injector, ok := tenantService.(tenantservice.MemberFieldSeederInjector); ok {
+		injector.UseFieldSeeder(memberFieldService)
+	}
 	// 账号服务注入审计：换绑手机号等安全敏感操作落业务审计（best-effort）
 	accountService := service.NewAccountService(txManager, iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc, auditSvc)
 	userService := service.NewUserService(txManager, iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc)
-	memberInvitationService := service.NewMemberInvitationService(iamRepo.Invitation(), iamRepo.Department(), iamRepo.Account(), userService, auditSvc)
+	memberInvitationService := service.NewMemberInvitationService(txManager, iamRepo.Invitation(), iamRepo.Department(), iamRepo.Account(), userService, iamRepo.MemberProfile(), auditSvc)
 	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User(), auditSvc)
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User(), iamRepo.RBAC(), auditSvc)
 	jwtService := auth.NewJWTService(conf.Server.JWTSecret)
@@ -317,11 +325,13 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	fileController := filecontroller.NewFileController(fileService)
 	editionController := editioncontroller.NewEditionController(editionService)
 	platformEditionController := editioncontroller.NewPlatformEditionController(editionService)
+	memberFieldController := iamcontroller.NewMemberFieldController(memberFieldService)
+	memberProfileController := iamcontroller.NewMemberProfileController(memberProfileService)
 
 	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, securityController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, securityController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)

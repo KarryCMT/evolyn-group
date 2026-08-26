@@ -16,6 +16,9 @@ import (
 // UserRepository 成员（users 表）数据访问。登录身份见 AccountRepository（ADR-006）
 type UserRepository interface {
 	GetUserByID(ctx context.Context, id uint) (*model.User, error)
+	// GetMemberDetail 按 ID 加载成员及其账号/部门/角色（成员档案聚合读取：
+	// 档案值跨 users/accounts/关系表，需一次带全关联，避免服务层拼装多跳查询）
+	GetMemberDetail(ctx context.Context, id uint) (*model.User, error)
 	ListByAccount(ctx context.Context, accountID uint) (model.Users, error)
 	GetByAccountAndTenant(ctx context.Context, accountID, tenantID uint) (*model.User, error)
 	List(ctx context.Context) (model.Users, error)
@@ -40,10 +43,49 @@ type UserRepository interface {
 type MemberInvitationRepository interface {
 	Create(ctx context.Context, invitation *model.MemberInvitation) (*model.MemberInvitation, error)
 	CreateBatch(ctx context.Context, invitations []model.MemberInvitation) error
+	// GetByToken 按单人邀请 token 全局定位邀请（接受链路尚未进入目标租户，
+	// 需剥离调用方租户上下文）
+	GetByToken(ctx context.Context, token string) (*model.MemberInvitation, error)
+	// MarkAccepted 邀请状态流转为 accepted（租户内按 ID 更新，白名单列）
+	MarkAccepted(ctx context.Context, invitation *model.MemberInvitation) error
 	GetPublicLink(ctx context.Context) (*model.TenantPublicInvitationLink, error)
 	GetPublicLinkByToken(ctx context.Context, token string) (*model.TenantPublicInvitationLink, error)
 	CreatePublicLink(ctx context.Context, link *model.TenantPublicInvitationLink) (*model.TenantPublicInvitationLink, error)
 	UpdatePublicLink(ctx context.Context, link *model.TenantPublicInvitationLink) (*model.TenantPublicInvitationLink, error)
+	Migrate() error
+}
+
+// MemberFieldSettingRepository 租户级成员字段显示策略数据访问。
+// field_key 的合法性由 Service 依字段注册表校验，数据库不做枚举约束（便于
+// 后续增加预置字段，文档 4.1）
+type MemberFieldSettingRepository interface {
+	// ListByTenant 当前租户全部有效配置行（租户过滤由 Callback 注入）
+	ListByTenant(ctx context.Context) ([]model.MemberFieldSetting, error)
+	// GetByFieldKey 当前租户指定字段的配置行
+	GetByFieldKey(ctx context.Context, fieldKey string) (*model.MemberFieldSetting, error)
+	// CreateBatch 批量写入配置行（seed 路径：租户开通/读取兜底补齐）
+	CreateBatch(ctx context.Context, settings []model.MemberFieldSetting) error
+	// UpdateWithRevision 按 (id, revision) 乐观锁更新配置值：revision 匹配
+	// 才落库并整体 +1，返回是否命中（false 即配置已被其他管理员修改）
+	UpdateWithRevision(ctx context.Context, id uint, revision int64, updates map[string]interface{}) (bool, error)
+	// BumpRevision 将当前租户全部配置行 revision +1：PATCH 单字段成功后
+	// 同步推进整页版本号，使顶层 revision 成为真正的租户配置快照版本
+	BumpRevision(ctx context.Context) error
+	Migrate() error
+}
+
+// MemberProfileRepository 正式成员扩展档案数据访问。
+// (tenant_id, member_id) 有效记录唯一，写入侧经 Upsert 保证
+type MemberProfileRepository interface {
+	// GetByMember 当前租户指定成员的档案；无档案时返回 NotFound（调用方
+	// 以空档案语义兜底，不视为业务错误）
+	GetByMember(ctx context.Context, memberID uint) (*model.MemberProfile, error)
+	// Upsert 写入档案：已有记录按显式列白名单更新（identifier 与 attributes
+	// 整体替换），无记录插入；attributes 只允许注册表扩展 key（服务层校验）
+	Upsert(ctx context.Context, profile *model.MemberProfile) (*model.MemberProfile, error)
+	// IdentifierExists 编号是否已被同租户其他有效成员占用（唯一性服务层校验，
+	// 数据库部分唯一索引兜底）
+	IdentifierExists(ctx context.Context, identifier string, excludeMemberID uint) (bool, error)
 	Migrate() error
 }
 

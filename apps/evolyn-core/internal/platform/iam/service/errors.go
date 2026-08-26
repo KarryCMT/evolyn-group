@@ -58,4 +58,17 @@ var (
 	ErrMemberInvitationContactRequired = httpx.NewBiz("MEMBER_INVITATION_CONTACT_REQUIRED", "手机号和邮箱至少填写一项", http.StatusBadRequest)
 	// ErrMemberInvitationImportFile 上传文件不是有效的通讯录 Excel 模板或超过大小限制。
 	ErrMemberInvitationImportFile = httpx.NewBiz("MEMBER_INVITATION_IMPORT_FILE_INVALID", "请上传不超过 5MB 的有效通讯录模板", http.StatusBadRequest)
+	// ErrMemberFieldNotFound 预置字段 key 不在服务端注册表中（成员信息管理一期）。
+	ErrMemberFieldNotFound = httpx.NewBiz("MEMBER_FIELD_NOT_FOUND", "成员字段不存在", http.StatusNotFound)
+	// ErrMemberFieldLocked 试图修改注册表锁定的配置项（可见/可编辑/卡片固定）。
+	ErrMemberFieldLocked = httpx.NewBiz("MEMBER_FIELD_LOCKED", "该字段配置不允许修改", http.StatusForbidden)
+	// ErrMemberFieldConfigInvalid 可编辑与可见联动规则冲突或提交值非法。
+	ErrMemberFieldConfigInvalid = httpx.NewBiz("MEMBER_FIELD_CONFIG_INVALID", "字段配置不合法", http.StatusBadRequest)
+	// ErrMemberFieldConfigConflict revision 过期：配置已被其他管理员修改，前端应以最新快照重试。
+	ErrMemberFieldConfigConflict = httpx.NewBiz("MEMBER_FIELD_CONFIG_CONFLICT", "配置已更新，请刷新后重试", http.StatusConflict)
+	// ErrMemberProfileInvalid 扩展资料字段、日期格式或长度不合法；也用于拒绝
+	// 经通用资料接口提交的非扩展字段（手机/邮箱/部门/角色走专用接口）。
+	ErrMemberProfileInvalid = httpx.NewBiz("MEMBER_PROFILE_INVALID", "成员资料不合法", http.StatusBadRequest)
+	// ErrMemberInvitationAcceptInvalid 单人邀请 token、状态或受邀身份校验失败。
+	ErrMemberInvitationAcceptInvalid = httpx.NewBiz("MEMBER_INVITATION_ACCEPT_INVALID", "邀请不存在、已失效或与当前账号不匹配", http.StatusBadRequest)
 )

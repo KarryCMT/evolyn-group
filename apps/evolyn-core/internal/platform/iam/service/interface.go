@@ -84,6 +84,49 @@ type MemberInvitationService interface {
 	GetPublicLink(ctx context.Context) (*model.TenantPublicInvitationLink, error)
 	UpdatePublicLink(ctx context.Context, inviterMemberID uint, enabled bool) (*model.TenantPublicInvitationLink, error)
 	AcceptPublicLink(ctx context.Context, accountID uint, nickname, token string) (*model.User, error)
+	// AcceptPersonalInvite 消费单人邀请 token（文档 5.3）：单事务完成校验 →
+	// 创建正式成员 → 迁移邀请档案与部门归属 → 邀请状态置 accepted
+	AcceptPersonalInvite(ctx context.Context, accountID uint, token string) (*model.User, error)
+}
+
+// MemberFieldService 成员字段配置（成员信息管理）：租户级显示策略读取与即时更新
+type MemberFieldService interface {
+	// GetSnapshot 完整配置快照（15 预置字段恒完整，读取侧幂等补齐默认行）
+	GetSnapshot(ctx context.Context) (*model.MemberFieldConfigSnapshot, error)
+	// UpdateField 单字段即时更新（乐观锁 + 锁定/联动校验），返回最新整页快照
+	UpdateField(ctx context.Context, fieldKey string, req *MemberFieldSettingUpdateRequest) (*model.MemberFieldConfigSnapshot, error)
+	// SeedDefaults 为指定租户预置默认配置（租户开通事务内调用，幂等）
+	SeedDefaults(ctx context.Context, tenantID uint) error
+}
+
+// MemberFieldSettingUpdateRequest 单字段即时更新请求：指针为 nil 表示本次
+// 不变更该开关；revision 为页面读取到的租户配置版本号（乐观锁）
+type MemberFieldSettingUpdateRequest struct {
+	PersonalVisible  *bool `json:"personalVisible"`
+	PersonalEditable *bool `json:"personalEditable"`
+	CardVisible      *bool `json:"cardVisible"`
+	Revision         int64 `json:"revision"`
+}
+
+// MemberProfileService 正式成员扩展档案：本人视图（按字段配置裁剪）与管理员
+// 视图（全量 + 卡片裁剪）的读取与更新
+type MemberProfileService interface {
+	// GetMyProfile 本人资料：Values 按 personalVisible 裁剪，EditableKeys
+	// 为允许提交的扩展字段集合
+	GetMyProfile(ctx context.Context, memberID uint) (*model.MemberProfileView, error)
+	// UpdateMyProfile 本人更新：仅接受 personalEditable 的扩展字段
+	UpdateMyProfile(ctx context.Context, memberID uint, values map[string]string) (*model.MemberProfileView, error)
+	// GetMemberProfile 管理员读取：全量值 + cardVisible 裁剪的卡片视图 + 字段元数据
+	GetMemberProfile(ctx context.Context, memberID uint) (*model.MemberProfileAdminView, error)
+	// UpdateMemberProfile 管理员维护：扩展字段与企业内编号 identifier
+	UpdateMemberProfile(ctx context.Context, memberID uint, req *MemberProfileUpdateRequest) (*model.MemberProfileAdminView, error)
+}
+
+// MemberProfileUpdateRequest 管理员维护成员档案请求：Values 为扩展字段
+// （key → 值，整体合并覆盖提交项）；Identifier 指针非空才变更编号
+type MemberProfileUpdateRequest struct {
+	Identifier *string           `json:"identifier"`
+	Values     map[string]string `json:"values"`
 }
 
 // AddMemberRequest 拉人入租户请求：AccountID 与 AccountName 二选一

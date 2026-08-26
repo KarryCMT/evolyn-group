@@ -49,6 +49,18 @@ type IAMRepositories interface {
 	Department() iamrepository.DepartmentRepository
 }
 
+// MemberFieldSeeder 开通租户时预置成员字段默认配置的最小能力（成员信息
+// 管理一期）：由 iam 字段配置服务实现，经 MemberFieldSeederInjector 注入
+// （口径同 QuotaGuardInjector，避免构造参数继续膨胀）
+type MemberFieldSeeder interface {
+	SeedDefaults(ctx context.Context, tenantID uint) error
+}
+
+// MemberFieldSeederInjector 支持事后注入字段配置种子器的租户服务
+type MemberFieldSeederInjector interface {
+	UseFieldSeeder(seeder MemberFieldSeeder)
+}
+
 // 租户内基线角色名（与默认租户种子、db.sql 口径一致）。
 // 名称直接面向组织角色页展示，因此使用中文；租户内权限判定只依赖角色规则，
 // 不以名称作为授权依据。
@@ -74,13 +86,14 @@ var ErrTenantNameInvalid = httpx.NewBiz("TENANT_NAME_INVALID", "租户名称格�
 // 开通全流程经 TxManager 单事务提交（FIX-020）；审计记录关键运营操作
 // （FIX-013），配额服务在开建成员前校验（FIX-011）
 type tenantService struct {
-	tx         TxManager
-	tenantRepo tenantrepository.TenantRepository
-	iam        IAMRepositories
-	quota      QuotaService
-	audit      auditservice.Recorder
-	retention  time.Duration
-	subSeeder  SubscriptionSeeder
+	tx          TxManager
+	tenantRepo  tenantrepository.TenantRepository
+	iam         IAMRepositories
+	quota       QuotaService
+	audit       auditservice.Recorder
+	retention   time.Duration
+	subSeeder   SubscriptionSeeder
+	fieldSeeder MemberFieldSeeder
 }
 
 func NewTenantService(
@@ -107,6 +120,12 @@ func NewTenantService(
 		svc.subSeeder = seeders[0]
 	}
 	return svc
+}
+
+// UseFieldSeeder 注入成员字段配置种子器（成员信息管理一期）：新租户开通
+// 事务内预置 15 个预置字段的默认显示策略；未注入时读取侧幂等兜底补齐
+func (s *tenantService) UseFieldSeeder(seeder MemberFieldSeeder) {
+	s.fieldSeeder = seeder
 }
 
 // OpenTenantRequest 开通租户请求：OwnerAccountID 与 Owner 账号信息二选一
@@ -364,6 +383,15 @@ func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*
 	if err != nil {
 		return nil, err
 	}
+
+	// 成员信息管理一期：开通事务内预置成员字段默认配置（幂等；注入失败
+	// 即整体回滚，不允许出现「有租户无字段配置」的半写状态，读取侧另有兜底）
+	if s.fieldSeeder != nil {
+		if err = s.fieldSeeder.SeedDefaults(contextx.NewTenantContext(bctx, tenant.ID), tenant.ID); err != nil {
+			return nil, err
+		}
+	}
+
 	for i := range baselineRoles {
 		if baselineRoles[i].Name == TenantAdminRole {
 			if err = s.iam.User().AddRole(bctx, &baselineRoles[i], member); err != nil {
@@ -396,6 +424,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			{Resource: "files", Operation: iammodel.AllOperation},
 			// 版本信息只读概览（版本信息一期）；存量租户由 000030 补齐
 			{Resource: "editions", Operation: request.GetOperation},
+			// 成员信息管理（字段设置/卡片展示）：租户管理员全量；
+			// 存量租户由 000031 补齐
+			{Resource: iammodel.MemberFieldSettingResource, Operation: iammodel.AllOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},

@@ -12,6 +12,7 @@ const (
 	MemberInvitationSourceManual = "manual"
 	MemberInvitationSourceBatch  = "batch"
 	MemberInvitationPending      = "pending"
+	MemberInvitationAccepted     = "accepted"
 )
 
 // MemberInviteProfile 承载通讯录模板中的成员档案字段。邀请尚未接受时没有

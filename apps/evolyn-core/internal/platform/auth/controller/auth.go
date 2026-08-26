@@ -413,6 +413,7 @@ type registerRequest struct {
 	Onboarding   registerOnboarding    `json:"onboarding" binding:"required"`            // 账号画像：角色/了解渠道（必填，枚举白名单校验）
 	Tenant       registerTenantProfile `json:"tenant" binding:"required"`                // 企业画像
 	TenantInvite string                `json:"tenantInvite"`                             // 公开成员邀请 token（可选）
+	MemberInvite string                `json:"memberInvite"`                             // 单人成员邀请 token（可选，与公开链接 token 不混用）
 }
 
 // 注册画像枚举白名单（P2-5：与前端选项一一对应，防任意客户端写入
@@ -510,6 +511,7 @@ func (ac *AuthController) RegisterComplete(c *gin.Context) {
 		TenantName:        req.Tenant.Name,
 		TenantOnboarding:  tenantmodel.OnboardingConfig{Demand: req.Tenant.Demand, Industry: req.Tenant.Industry},
 		PublicInviteToken: req.TenantInvite,
+		MemberInviteToken: req.MemberInvite,
 	})
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
@@ -744,6 +746,7 @@ func (ac *AuthController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/auth/password/reset", ac.ResetPassword)
 	api.POST("/auth/tenant", ac.OpenTenant)
 	api.POST("/auth/sms/send", ac.SendSmsCode)
+	api.POST("/auth/invitations/accept", ac.AcceptMemberInvite)
 	api.GET("/auth/tenants", ac.ListTenants)
 	api.POST("/auth/token/switch", ac.SwitchTenant)
 	api.GET("/auth/userinfo", ac.UserInfo)
@@ -762,6 +765,42 @@ func (ac *AuthController) sessionFrom(c *gin.Context) (*auth.CustomClaims, bool)
 		return nil, false
 	}
 	return claims, true
+}
+
+// acceptMemberInviteRequest 已登录账号接受单人成员邀请
+type acceptMemberInviteRequest struct {
+	Token string `json:"token" binding:"required"`
+}
+
+// @Summary 接受成员邀请
+// @Description 已登录账号消费单人成员邀请 token：单事务完成校验（token、状态、
+// 受邀手机号/邮箱与当前账号匹配）→ 创建正式成员 → 迁入邀请档案与部门归属 →
+// 邀请状态置为已接受。公开邀请链接 token 不在此接口消费（注册链路专用）
+// @Accept json
+// @Produce json
+// @Tags 认证
+// @Security JWT
+// @Param body body controller.acceptMemberInviteRequest true "单人成员邀请 token"
+// @Success 200 {object} httpx.Response{data=model.User}
+// @Failure 400 {object} httpx.Response "errCode=MEMBER_INVITATION_ACCEPT_INVALID|MEMBER_PROFILE_INVALID"
+// @Failure 409 {object} httpx.Response "errCode=DUPLICATE_MEMBER"
+// @Router /api/v1/auth/invitations/accept [post]
+func (ac *AuthController) AcceptMemberInvite(c *gin.Context) {
+	claims, ok := ac.sessionFrom(c)
+	if !ok {
+		return
+	}
+	req := new(acceptMemberInviteRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	member, err := ac.registrationService.AcceptMemberInvite(c.Request.Context(), claims.AccountID, req.Token)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, member)
 }
 
 // @Summary 我的租户列表

@@ -24,21 +24,25 @@ import (
 const maxMemberInvitationBatchSize = 200
 
 type memberInvitationService struct {
+	tx          TxManager
 	invitations repository.MemberInvitationRepository
 	departments repository.DepartmentRepository
 	accounts    repository.AccountRepository
 	users       UserService
+	profiles    repository.MemberProfileRepository
 	audit       auditservice.Recorder
 }
 
 func NewMemberInvitationService(
+	tx TxManager,
 	invitations repository.MemberInvitationRepository,
 	departments repository.DepartmentRepository,
 	accounts repository.AccountRepository,
 	users UserService,
+	profiles repository.MemberProfileRepository,
 	audit auditservice.Recorder,
 ) MemberInvitationService {
-	return &memberInvitationService{invitations: invitations, departments: departments, accounts: accounts, users: users, audit: audit}
+	return &memberInvitationService{tx: tx, invitations: invitations, departments: departments, accounts: accounts, users: users, profiles: profiles, audit: audit}
 }
 
 func (s *memberInvitationService) Create(ctx context.Context, inviterMemberID uint, req MemberInvitationRequest) (*model.MemberInvitation, error) {
@@ -171,6 +175,7 @@ func (s *memberInvitationService) UpdatePublicLink(ctx context.Context, inviterM
 
 // AcceptPublicLink 将已完成注册的账号加入公开链接所对应的租户。链接查找时
 // 显式剥离调用链租户，随后重新注入目标租户再复用成员创建的配额与同租户校验。
+// 公开链接不携带成员档案，与单人邀请 token 属两个独立空间，不接受混用
 func (s *memberInvitationService) AcceptPublicLink(ctx context.Context, accountID uint, nickname, token string) (*model.User, error) {
 	if s.users == nil || accountID == 0 || strings.TrimSpace(token) == "" {
 		return nil, ErrMemberInvitationInvalid
@@ -183,6 +188,121 @@ func (s *memberInvitationService) AcceptPublicLink(ctx context.Context, accountI
 		return nil, ErrMemberInvitationInvalid
 	}
 	return s.users.AddMember(contextx.NewTenantContext(ctx, link.TenantID), &AddMemberRequest{AccountID: accountID, Nickname: strings.TrimSpace(nickname)})
+}
+
+// AcceptPersonalInvite 消费单人邀请 token（文档 5.3）：单事务完成
+//  1. 校验邀请 token、状态与受邀手机号/邮箱与当前账号的匹配关系；
+//  2. 复用 AddMember 创建正式成员（配额/重复成员/同租户校验）并绑定邀请档案
+//     中的部门归属；
+//  3. 将邀请草稿档案（编号/别名/工号等）迁入 member_profiles；
+//  4. 邀请状态置 accepted（条件更新，重复消费按冲突回滚）。
+//
+// 事务提交后以 best-effort 追加审计日志。token 查询剥离调用链租户，
+// 校验通过后重新注入目标租户上下文
+func (s *memberInvitationService) AcceptPersonalInvite(ctx context.Context, accountID uint, token string) (*model.User, error) {
+	token = strings.TrimSpace(token)
+	if s.users == nil || s.profiles == nil || accountID == 0 || token == "" {
+		return nil, ErrMemberInvitationAcceptInvalid
+	}
+
+	invitation, err := s.invitations.GetByToken(ctx, token)
+	if err != nil {
+		return nil, ErrMemberInvitationAcceptInvalid
+	}
+	if invitation.Status != model.MemberInvitationPending {
+		return nil, ErrMemberInvitationAcceptInvalid
+	}
+
+	// 受邀身份校验：账号手机号或邮箱须与邀请登记的联系方式一致
+	account, err := s.accounts.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	if !invitationMatchesAccount(invitation, account) {
+		return nil, ErrMemberInvitationAcceptInvalid
+	}
+
+	// 邀请草稿档案 → 统一字段 key（文档 3.1 对应关系）；非法日期/长度
+	// 在接受时拦截，避免脏档案进入正式 member_profiles
+	attributes := inviteProfileAttributes(invitation.Profile)
+	if err := validateExtensionValues(attributes); err != nil {
+		return nil, err
+	}
+
+	var member *model.User
+	err = s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		tenantCtx := contextx.NewTenantContext(tctx, invitation.TenantID)
+		created, err := s.users.AddMember(tenantCtx, &AddMemberRequest{
+			AccountID:     accountID,
+			Nickname:      invitation.Name,
+			DepartmentIDs: invitation.Profile.DepartmentIDs,
+		})
+		if err != nil {
+			return err
+		}
+		profile := &model.MemberProfile{
+			MemberID:   created.ID,
+			Identifier: strings.TrimSpace(invitation.Identifier),
+			Attributes: attributes,
+		}
+		profile.TenantID = invitation.TenantID
+		if _, err := s.profiles.Upsert(tenantCtx, profile); err != nil {
+			return err
+		}
+		// 条件更新 pending→accepted：并发重复消费时 0 行命中，整体回滚
+		if err := s.invitations.MarkAccepted(tenantCtx, invitation); err != nil {
+			return err
+		}
+		member = created
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "iam", Action: "update", ResourceType: "member_invitation",
+			ResourceID: fmt.Sprint(invitation.ID),
+			TenantID:   invitation.TenantID,
+			After:      map[string]any{"status": model.MemberInvitationAccepted, "memberId": member.ID},
+		})
+	}
+	return member, nil
+}
+
+// invitationMatchesAccount 受邀联系方式与账号的匹配判定：手机号精确匹配或
+// 邮箱忽略大小写匹配，二者满足其一即可
+func invitationMatchesAccount(invitation *model.MemberInvitation, account *model.Account) bool {
+	if invitation.Phone != "" && account.Phone == invitation.Phone {
+		return true
+	}
+	if invitation.Email != "" && strings.EqualFold(account.Email, invitation.Email) {
+		return true
+	}
+	return false
+}
+
+// inviteProfileAttributes 邀请草稿字段到统一字段 key 的映射（文档 3.1：
+// employeeNo→employeeId、title→position、employmentType→employment、
+// hiredAt→hireDate、workLocation→workplace）；空值不落档案
+func inviteProfileAttributes(profile model.MemberInviteProfile) model.MemberProfileAttributes {
+	attributes := model.MemberProfileAttributes{}
+	put := func(key, value string) {
+		if value = strings.TrimSpace(value); value != "" {
+			attributes[key] = value
+		}
+	}
+	put(model.MemberFieldKeyAlias, profile.Alias)
+	put(model.MemberFieldKeyEmployeeId, profile.EmployeeNo)
+	put(model.MemberFieldKeyGender, profile.Gender)
+	put(model.MemberFieldKeyPosition, profile.Title)
+	put(model.MemberFieldKeyEmployment, profile.EmploymentType)
+	put(model.MemberFieldKeyHireDate, profile.HiredAt)
+	put(model.MemberFieldKeyWorkplace, profile.WorkLocation)
+	put(model.MemberFieldKeyBirthday, profile.Birthday)
+	put(model.MemberFieldKeyEducation, profile.Education)
+	return attributes
 }
 
 func (s *memberInvitationService) resolveProfileDepartments(ctx context.Context, req MemberInvitationRequest) (model.MemberInviteProfile, error) {

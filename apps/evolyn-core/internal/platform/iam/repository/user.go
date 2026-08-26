@@ -185,6 +185,21 @@ func (u *userRepository) GetUserByID(ctx context.Context, id uint) (*model.User,
 	return user, nil
 }
 
+// GetMemberDetail 按成员 ID 加载账号/部门/角色全关联（成员档案聚合读取）：
+// 与 GetUserByID 的差异在于补齐 Departments 与 Account——档案值跨
+// users/accounts/关系表，一次带全避免服务层多跳拼装
+func (u *userRepository) GetMemberDetail(ctx context.Context, id uint) (*model.User, error) {
+	user := new(model.User)
+	if err := u.withContext(ctx).
+		Preload("Account").
+		Preload("Roles").
+		Preload(model.DepartmentAssociation).
+		First(user, id).Error; err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
 func (u *userRepository) AddRole(ctx context.Context, role *model.Role, user *model.User) error {
 	return u.withContext(ctx).Model(user).Association("Roles").Append(role)
 }

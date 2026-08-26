@@ -13,26 +13,30 @@ import (
 // Repositories iam 域仓储集合：聚合 account/user/group/rbac 四仓储与域级迁移/种子。
 // 取代原全局 Repository 巨型聚合接口（ADR-007 域模块化），域间各自自治。
 type Repositories struct {
-	db         *gorm.DB
-	account    AccountRepository
-	user       UserRepository
-	group      GroupRepository
-	rbac       RBACRepository
-	roleGroup  RoleGroupRepository
-	department DepartmentRepository
-	invitation MemberInvitationRepository
+	db            *gorm.DB
+	account       AccountRepository
+	user          UserRepository
+	group         GroupRepository
+	rbac          RBACRepository
+	roleGroup     RoleGroupRepository
+	department    DepartmentRepository
+	invitation    MemberInvitationRepository
+	memberField   MemberFieldSettingRepository
+	memberProfile MemberProfileRepository
 }
 
 func NewRepositories(db *gorm.DB, rdb *infrastructure.RedisDB) *Repositories {
 	return &Repositories{
-		db:         db,
-		account:    newAccountRepository(db, rdb),
-		user:       newUserRepository(db, rdb),
-		group:      newGroupRepository(db, rdb),
-		rbac:       newRBACRepository(db, rdb),
-		roleGroup:  newRoleGroupRepository(db),
-		department: newDepartmentRepository(db, rdb),
-		invitation: newMemberInvitationRepository(db),
+		db:            db,
+		account:       newAccountRepository(db, rdb),
+		user:          newUserRepository(db, rdb),
+		group:         newGroupRepository(db, rdb),
+		rbac:          newRBACRepository(db, rdb),
+		roleGroup:     newRoleGroupRepository(db),
+		department:    newDepartmentRepository(db, rdb),
+		invitation:    newMemberInvitationRepository(db),
+		memberField:   newMemberFieldSettingRepository(db),
+		memberProfile: newMemberProfileRepository(db),
 	}
 }
 
@@ -64,12 +68,20 @@ func (r *Repositories) Invitation() MemberInvitationRepository {
 	return r.invitation
 }
 
+func (r *Repositories) MemberFieldSetting() MemberFieldSettingRepository {
+	return r.memberField
+}
+
+func (r *Repositories) MemberProfile() MemberProfileRepository {
+	return r.memberProfile
+}
+
 // Migrate iam 域表迁移：account/auth_infos → user → group → role/resource → department。
 // AutoMigrate 仅开发/测试路径（FIX-009）：GORM 标签表达不了 PG 部分唯一索引，
 // 此处用幂等 SQL 补齐，使开发库约束与 migrations 终态一致
 // （FIX-002/003/004/017；外键约束只在 migrations 路径落地）
 func (r *Repositories) Migrate() error {
-	for _, m := range []interface{ Migrate() error }{r.account, r.user, r.group, r.roleGroup, r.rbac, r.department, r.invitation} {
+	for _, m := range []interface{ Migrate() error }{r.account, r.user, r.group, r.roleGroup, r.rbac, r.department, r.invitation, r.memberField, r.memberProfile} {
 		if err := m.Migrate(); err != nil {
 			return err
 		}
@@ -148,6 +160,11 @@ func (r *Repositories) Init() error {
 		// 文件上传会话与私有下载地址（RustFS 对象仅由文件域签发访问）
 		{
 			Name:  "files",
+			Scope: model.ClusterScope,
+		},
+		// 成员信息管理：字段设置/卡片展示的租户级显示策略（与路由前缀一致）
+		{
+			Name:  model.MemberFieldSettingResource,
 			Scope: model.ClusterScope,
 		},
 	}

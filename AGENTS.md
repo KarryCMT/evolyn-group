@@ -98,7 +98,16 @@ internal/
                        修改——免密注册账号（注册向导不设密码）
                        password_initialized=false（迁移 000012）首设免旧
                        密码；迁移 000010/000011）/ user 租户成员 /
-                       group / rbac / department；authorization/ 自研 RBAC 鉴权
+                       group / rbac / department；memberfield 成员信息管理
+                       （docs/低代码平台/成员信息管理/，迁移 000031：
+                       tenant_member_field_settings 租户字段显示策略
+                       ——服务端字段注册表 + 乐观锁单字段即时 PATCH，租户
+                       开通事务预置默认配置、读取侧幂等兜底；member_profiles
+                       正式成员扩展档案——本人按 personalVisible/personalEditable
+                       裁剪读写、管理员全量 + cardVisible 服务端裁剪卡片视图；
+                       单人邀请 token 接受事务（建成员/迁档案/绑部门/置
+                       accepted，注册编排与 POST /auth/invitations/accept
+                       两入口））；authorization/ 自研 RBAC 鉴权
     tenant/           租户域（小三层）：租户 CRUD 与生命周期（注销保留期/
                       Purge Worker）、plan 套餐与配额、QuotaService 配额执行；
                       SelfOpenInTx 供认证域注册编排在外层事务内组合开通
