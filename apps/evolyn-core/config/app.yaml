@@ -1,3 +1,5 @@
+# 本地开发默认配置。字段定义与填写说明统一以 app.example.yaml 为准；
+# 本机连接地址与密钥请写入已忽略的 app.local.yaml，启动时通过 --config 指定。
 server: # HTTP 服务与访问控制配置。
   env: 'debug' # 运行环境；示例：debug（本地）或 release（生产）。
   address: '127.0.0.1' # HTTP 监听地址；示例：127.0.0.1（仅本机）或 0.0.0.0（容器部署）。
@@ -65,6 +67,7 @@ email:
   smtpUsername: '1570606465@qq.com'
   smtpPassword: 'rmuwzvfvdkroihcc'
   smtpFrom: '1570606465@qq.com'
+  smtpImplicitTls: false # 465 等隐式 TLS 端口填写 true；465 端口也会自动识别。
 
 auth: # 登录失败锁定与令牌吊销降级策略配置。
   loginMaxFails: 5 # 连续登录失败上限；示例：5，达到后临时锁定账号。

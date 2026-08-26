@@ -1,4 +1,5 @@
-# 生产部署配置模板。所有 CHANGE_ME 必须由部署密钥管理系统替换，禁止提交真实值。
+# 生产部署配置。字段定义、顺序与填写说明统一以 app.example.yaml 为准。
+# 所有 CHANGE_ME 必须由部署密钥管理系统替换，禁止提交真实值。
 server:
   env: 'release'
   address: '0.0.0.0'
@@ -48,6 +49,12 @@ storage:
   presignTtlSeconds: 900
   maxUploadBytes: 1073741824
   uploadCleanupIntervalSeconds: 300
+
+oauth:
+  github:
+    authType: 'github'
+    clientId: 'CHANGE_ME'
+    clientSecret: 'CHANGE_ME'
 
 sms:
   # 当前仅实现 dev 通道；接入正式短信服务商后在此填写其 provider。
