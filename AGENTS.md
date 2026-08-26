@@ -26,6 +26,7 @@
 - 修改 API 字段、路由、权限模型时，同步检查 `apps/evolyn-web/apps/web/src`（`router/index.ts`、`pages/`）与后端 swagger。
 - 遇到工作区已有未提交改动时，默认视为用户改动；只处理当前任务相关文件，不回滚无关文件。
 - 改动的代码需要补充相关注释，简单逻辑简要注释，复杂逻辑详细注释。注释可使用中文。
+- 开始执行或实施前，必须先执行git pull 确保代码是最新的。
 
 ## evolyn-core 后端
 
@@ -214,7 +215,7 @@ pnpm -F @evolyn.do/web build        # 生产构建
   内执行 `pnpm run lint:format`（等价于编辑器 Prettier - Code formatter 插件
   保存格式化），不自定义其他格式化风格或手工对齐。
 - 样式统一引用 Element Plus 默认命名空间 CSS 变量（`--el-*`），不自定义 CSS
-  token；类名采用 BEM（块__元素--修饰符），优先组件内 scoped 样式。
+  token；类名采用 BEM（块\_\_元素--修饰符），优先组件内 scoped 样式。
 - 管理后台的选中态、操作态、状态标签和强调元素必须使用当前主题色相关变量
   （如 `--el-color-primary` 及其 `light-*` 色阶），禁止在后台页面局部硬编码品牌色或覆盖主题色变量。
 - 前端样式统一使用 SCSS 编写；新增或修改样式时不要引入 CSS、Less 等其他预处理器。
