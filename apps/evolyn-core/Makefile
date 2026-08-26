@@ -37,8 +37,8 @@ help: ## 显示所有可用目标及说明
 build: ## 构建服务二进制到 bin/（ldflags 注入版本信息）
 	go build -ldflags "$(LDFLAGS)" -o bin/$(BINARY) ./cmd/api
 
-run: ## 本地运行服务（需 config/app.yaml，postgres/redis 就绪；启动时应用版本化迁移）
-	go run ./cmd/api
+run: ## 运行服务（默认 config/app.yaml；可传 CONFIG=config/app.test.yaml 切换环境）
+	go run ./cmd/api --config $(or $(CONFIG),config/app.yaml)
 
 test: ## 单元测试（含覆盖率，产物 cover.out/coverage.txt）
 	go test -ldflags -s -v -coverprofile=cover.out $(PKGS)

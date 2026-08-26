@@ -1,0 +1,93 @@
+# 生产部署配置模板。所有 CHANGE_ME 必须由部署密钥管理系统替换，禁止提交真实值。
+server:
+  env: 'release'
+  address: '0.0.0.0'
+  port: 8080
+  gracefulShutdownPeriod: 30
+  rateLimits:
+    - limitType: 'server'
+      burst: 500
+      qps: 100
+      cacheSize: 1
+    - limitType: 'ip'
+      burst: 50
+      qps: 10
+      cacheSize: 2048
+  jwtSecret: 'CHANGE_ME'
+  allowedOrigins:
+    - 'https://www.lingyanyun.com'
+
+db:
+  host: 'CHANGE_ME'
+  port: 5432
+  name: 'evolyn'
+  user: 'CHANGE_ME'
+  password: 'CHANGE_ME'
+  migrate: false
+  migrations: true
+
+tenant:
+  retentionDays: 30
+  purgeIntervalSeconds: 3600
+
+redis:
+  enable: true
+  host: 'CHANGE_ME'
+  port: 6379
+  password: 'CHANGE_ME'
+
+storage:
+  enabled: true
+  endpoint: 'CHANGE_ME'
+  externalEndpoint: 'https://files.lingyanyun.com'
+  accessKey: 'CHANGE_ME'
+  secretKey: 'CHANGE_ME'
+  useSSL: true
+  bucket: 'evolyn'
+  prefix: 'evolyn'
+  presignTtlSeconds: 900
+  maxUploadBytes: 1073741824
+  uploadCleanupIntervalSeconds: 300
+
+sms:
+  # 当前仅实现 dev 通道；接入正式短信服务商后在此填写其 provider。
+  provider: 'CHANGE_ME'
+  codeTtlSeconds: 300
+  cooldownSeconds: 60
+  maxTries: 5
+  dailyLimit: 10
+  ipDailyLimit: 30
+  devEcho: false
+
+email:
+  provider: 'smtp'
+  codeTtlSeconds: 300
+  cooldownSeconds: 60
+  maxTries: 5
+  identityTtlSeconds: 300
+  devEcho: false
+  smtpHost: 'CHANGE_ME'
+  smtpPort: 587
+  smtpUsername: 'CHANGE_ME'
+  smtpPassword: 'CHANGE_ME'
+  smtpFrom: 'CHANGE_ME'
+  smtpImplicitTls: false
+
+auth:
+  loginMaxFails: 5
+  loginLockMinutes: 15
+  revokeFailClosed: true
+  loginGuardSecret: 'CHANGE_ME'
+
+pki:
+  algorithm: 'rsa'
+  privateKey: ''
+  # 推荐在部署时写入受保护的 PEM 文件，并填写绝对路径；生产不得留空。
+  privateKeyFile: ''
+
+security:
+  totp:
+    currentKeyVersion: 1
+    # 填写 32 字节十六进制主密钥；支持按版本追加以完成密钥轮换。
+    masterKeys:
+      1: 'CHANGE_ME'

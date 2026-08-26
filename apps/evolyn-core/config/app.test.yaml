@@ -1,0 +1,74 @@
+# 自动化测试与测试环境配置。测试数据库应与开发数据库隔离。
+server:
+  env: 'test'
+  address: '127.0.0.1'
+  port: 8081
+  gracefulShutdownPeriod: 5
+  rateLimits:
+    - limitType: 'server'
+      burst: 1000
+      qps: 500
+      cacheSize: 1
+  jwtSecret: 'evolyn-test-secret'
+  allowedOrigins:
+    - 'http://localhost:11007'
+
+db:
+  host: '127.0.0.1'
+  port: 5432
+  name: 'evolyn_test'
+  user: 'postgres'
+  password: 'postgres'
+  migrate: false
+  migrations: true
+
+tenant:
+  retentionDays: 1
+  purgeIntervalSeconds: 60
+
+redis:
+  enable: false
+  host: '127.0.0.1'
+  port: 6379
+  password: ''
+
+storage:
+  enabled: false
+  endpoint: ''
+  externalEndpoint: ''
+  accessKey: ''
+  secretKey: ''
+  useSSL: false
+  bucket: ''
+  prefix: 'evolyn-test'
+  presignTtlSeconds: 60
+  maxUploadBytes: 10485760
+  uploadCleanupIntervalSeconds: 60
+
+sms:
+  provider: 'dev'
+  codeTtlSeconds: 300
+  cooldownSeconds: 1
+  maxTries: 5
+  dailyLimit: 100
+  ipDailyLimit: 100
+  devEcho: true
+
+email:
+  provider: 'dev'
+  codeTtlSeconds: 300
+  cooldownSeconds: 1
+  maxTries: 5
+  identityTtlSeconds: 300
+  devEcho: true
+
+auth:
+  loginMaxFails: 5
+  loginLockMinutes: 1
+  revokeFailClosed: false
+  loginGuardSecret: 'evolyn-test-login-guard-secret'
+
+pki:
+  algorithm: 'rsa'
+  privateKey: ''
+  privateKeyFile: ''

@@ -9,6 +9,18 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// TestParseEnvironmentConfigTemplates 确保纳入版本管理的环境配置模板可被解析。
+// app.local.yaml 为开发者私有配置且已忽略，不应由仓库测试依赖。
+func TestParseEnvironmentConfigTemplates(t *testing.T) {
+	for _, name := range []string{"app.test.yaml", "app.prod.yaml"} {
+		t.Run(name, func(t *testing.T) {
+			configPath := filepath.Join("..", "..", "config", name)
+			_, err := Parse(configPath)
+			require.NoError(t, err)
+		})
+	}
+}
+
 // TestParseLoadsPKIPrivateKeyFile 验证相对路径以配置文件目录为基准，避免依赖进程工作目录。
 func TestParseLoadsPKIPrivateKeyFile(t *testing.T) {
 	dir := t.TempDir()

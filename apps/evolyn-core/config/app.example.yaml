@@ -1,5 +1,6 @@
 # evolyn-core 配置模板
-# 复制为 app.yaml（本地开发）或 app.local.yaml 后按环境填写真实值，真实配置不要提交入库。
+# 可复制为 app.local.yaml（本机开发）、app.test.yaml（测试）或 app.prod.yaml（生产）后按环境填写。
+# 启动时通过 --config 指定对应文件；真实配置不要提交入库。
 # 下列值均为示例；带有 CHANGE_ME 的密钥、密码和令牌必须通过未提交配置或密钥管理系统替换。
 
 server:
