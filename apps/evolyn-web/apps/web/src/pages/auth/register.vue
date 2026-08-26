@@ -100,6 +100,8 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
         demand: tenant.demand,
         industry: tenant.industry,
       },
+      tenantInvite:
+        typeof route.query.tenantInvite === 'string' ? route.query.tenantInvite : undefined,
     });
     applyJwt(result);
     // 注册即登录：跳首页前拉齐聚合信息（账号/成员/租户/配额），失败不阻断跳转

@@ -366,6 +366,19 @@ func maskPhone(phone string) string {
 	return phone[:3] + "****" + phone[7:]
 }
 
+// maskEmail 仅供审计快照使用，避免在操作日志中保留完整邮箱地址。
+func maskEmail(email string) string {
+	parts := strings.Split(email, "@")
+	if len(parts) != 2 || parts[0] == "" {
+		return ""
+	}
+	local := []rune(parts[0])
+	if len(local) == 1 {
+		return "*@" + parts[1]
+	}
+	return string(local[:1]) + "***@" + parts[1]
+}
+
 // passwordInitialized 读侧判定：nil 视同 true——历史账号与其他未显式
 // 落库的创建路径（OAuth 首登等）密码均为用户链路写入
 func passwordInitialized(account *model.Account) bool {
@@ -616,6 +629,45 @@ func (s *accountService) UpdateProfile(ctx context.Context, account *model.Accou
 		return nil, err
 	}
 	return account, nil
+}
+
+// BindEmail 落库已通过邮箱验证码证明持有的新邮箱。此方法刻意不暴露给通用
+// 资料更新流程：账号安全控制器必须先让认证域原子消费手机号身份凭证和邮箱码。
+func (s *accountService) BindEmail(ctx context.Context, accountID uint, email string) (*model.Account, error) {
+	if accountID == 0 || strings.TrimSpace(email) == "" {
+		return nil, ErrEmailBindRequired
+	}
+
+	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	before := maskEmail(account.Email)
+	if account.Email == email {
+		return account, nil
+	}
+
+	updated := *account
+	updated.Email = email
+	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		_, err := s.accountRepo.Update(tctx, &model.Account{ID: accountID, Email: email})
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	// 邮箱是账号恢复与安全通知的关键联系方式，审计仅记录脱敏前后值。
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module:       "iam",
+			Action:       "bind_email",
+			ResourceType: "account",
+			ResourceID:   fmt.Sprintf("%d", accountID),
+			Before:       map[string]any{"email": before},
+			After:        map[string]any{"email": maskEmail(email)},
+		})
+	}
+	return &updated, nil
 }
 
 // ResetPasswordByPhone 密码找回（P1-3）：凭手机号验证码（控制器已校验

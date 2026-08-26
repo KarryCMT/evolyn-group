@@ -1,6 +1,12 @@
 package model
 
-import "testing"
+import (
+	"sync"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+	"gorm.io/gorm/schema"
+)
 
 func TestNewSIDUniquenessAndFormat(t *testing.T) {
 	seen := make(map[string]struct{})
@@ -22,4 +28,13 @@ func TestNewSIDUniquenessAndFormat(t *testing.T) {
 	if len(seen) != 200 {
 		t.Fatalf("sid collisions: %d unique of 200", len(seen))
 	}
+}
+
+func TestAccountSessionSIDColumnName(t *testing.T) {
+	parsed, err := schema.Parse(&AccountSession{}, &sync.Map{}, schema.NamingStrategy{})
+	require.NoError(t, err)
+
+	field := parsed.LookUpField("SID")
+	require.NotNil(t, field)
+	require.Equal(t, "sid", field.DBName)
 }

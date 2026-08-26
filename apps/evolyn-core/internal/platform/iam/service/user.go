@@ -5,8 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
+	"time"
 
 	"evolyn/internal/contextx"
+	kernel "evolyn/internal/model"
 	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/repository"
@@ -60,6 +63,66 @@ func (u *userService) List(ctx context.Context) (model.Users, error) {
 	return u.userRepository.List(ctx)
 }
 
+// ListPage 查询组织成员列表；列表状态属于成员在当前租户中的身份，不影响账号在其他租户的状态。
+func (u *userService) ListPage(ctx context.Context, query model.MemberListQuery) (*model.MemberPage, error) {
+	query.Status = strings.TrimSpace(query.Status)
+	query.Keyword = strings.TrimSpace(query.Keyword)
+	if query.Page < 1 {
+		query.Page = 1
+	}
+	if query.PageSize < 1 {
+		query.PageSize = 20
+	}
+	if query.PageSize > 100 {
+		query.PageSize = 100
+	}
+	if query.Status != "" && query.Status != model.MemberStatusAll &&
+		query.Status != model.MemberStatusActive && query.Status != model.MemberStatusDisabled &&
+		query.Status != model.MemberStatusResigned {
+		return nil, ErrMemberStatusInvalid
+	}
+
+	users, total, err := u.userRepository.ListPage(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	items := make([]model.MemberListItem, 0, len(users))
+	for _, member := range users {
+		items = append(items, toMemberListItem(member))
+	}
+	return &model.MemberPage{Items: items, Total: total}, nil
+}
+
+func toMemberListItem(member model.User) model.MemberListItem {
+	item := model.MemberListItem{
+		ID:          member.ID,
+		AccountID:   member.AccountId,
+		Name:        member.Nickname,
+		Status:      member.Status,
+		ResignedAt:  member.ResignedAt,
+		Departments: make([]model.MemberDepartment, 0, len(member.Departments)),
+		Roles:       make([]model.MemberRole, 0, len(member.Roles)),
+	}
+	if member.Account != nil {
+		item.Phone = member.Account.Phone
+		item.Email = member.Account.Email
+		item.Avatar = member.Account.Avatar
+		if item.Name == "" {
+			item.Name = member.Account.Nickname
+		}
+		if item.Name == "" {
+			item.Name = member.Account.Name
+		}
+	}
+	for _, department := range member.Departments {
+		item.Departments = append(item.Departments, model.MemberDepartment{ID: department.ID, Name: department.Name})
+	}
+	for _, role := range member.Roles {
+		item.Roles = append(item.Roles, model.MemberRole{ID: role.ID, Name: role.Name})
+	}
+	return item
+}
+
 func (u *userService) Get(ctx context.Context, id string) (*model.User, error) {
 	return u.getUserByID(ctx, id)
 }
@@ -86,6 +149,36 @@ func (u *userService) Update(ctx context.Context, id string, member *model.User)
 		})
 	}
 	return updated, err
+}
+
+// UpdateStatus 更新成员在当前租户的状态。离职保留成员及其历史关系，避免软删除后无法查询离职成员；恢复在职时清空离职时间。
+func (u *userService) UpdateStatus(ctx context.Context, id, status string) (*model.User, error) {
+	status = strings.TrimSpace(status)
+	if status != model.MemberStatusActive && status != model.MemberStatusDisabled && status != model.MemberStatusResigned {
+		return nil, ErrMemberStatusInvalid
+	}
+	member, err := u.getUserByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	member.Status = status
+	if status == model.MemberStatusResigned {
+		now := kernel.JSONTime(time.Now())
+		member.ResignedAt = &now
+	} else {
+		member.ResignedAt = nil
+	}
+	updated, err := u.userRepository.UpdateStatus(ctx, member)
+	if err != nil {
+		return nil, err
+	}
+	if u.audit != nil {
+		u.audit.Record(ctx, auditservice.Entry{
+			Module: "iam", Action: "update", ResourceType: "member_status", ResourceID: id,
+			After: map[string]string{"status": status},
+		})
+	}
+	return updated, nil
 }
 
 func (u *userService) Delete(ctx context.Context, id string) error {

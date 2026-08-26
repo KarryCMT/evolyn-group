@@ -26,6 +26,8 @@ type RegistrationRequest struct {
 
 	TenantName       string                       // 企业名称（必填，2-50 字符）
 	TenantOnboarding tenantmodel.OnboardingConfig // 企业画像：需求/行业（选填，写入租户 Config）
+	// PublicInviteToken 非空时加入对应租户，不再创建或复用自有租户。
+	PublicInviteToken string
 }
 
 // RegistrationResult 注册完成结果：签发会话令牌所需的账号与新租户 owner 成员
@@ -42,4 +44,10 @@ type RegistrationService interface {
 	// Complete 单事务完成注册。前置：验证码已由调用方校验。幂等：已注册
 	// 手机号等价短信登录；名下已有自有租户则复用，不重复开通
 	Complete(ctx context.Context, req *RegistrationRequest) (*RegistrationResult, error)
+}
+
+// MemberInvitationAccepter 是认证域接受公开成员邀请所需的最小能力，
+// 由 iam 成员邀请服务实现，避免认证域依赖邀请存储细节。
+type MemberInvitationAccepter interface {
+	AcceptPublicLink(ctx context.Context, accountID uint, nickname, token string) (*iammodel.User, error)
 }

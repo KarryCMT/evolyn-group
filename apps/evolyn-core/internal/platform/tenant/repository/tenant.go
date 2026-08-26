@@ -43,6 +43,8 @@ type TenantRepository interface {
 	List(ctx context.Context) ([]model.Tenant, error)
 	Create(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error)
 	Update(ctx context.Context, tenant *model.Tenant) (*model.Tenant, error)
+	// UpdateName 租户侧自助修改当前租户名称；仅更新 name，避免套餐等运营字段被覆盖。
+	UpdateName(ctx context.Context, id uint, name string) error
 	// UpdateStatus 生命周期流转（FIX-012）：deleted 不再软删整行（保留墓碑
 	// 供审计/恢复），active 恢复时清空注销时间线；同步失效状态缓存
 	UpdateStatus(ctx context.Context, id uint, status string, lifecycle *LifecycleTimes) error
@@ -223,6 +225,15 @@ func (t *tenantRepository) Update(ctx context.Context, tenant *model.Tenant) (*m
 	}
 	t.invalidateStatusCache(tenant.ID)
 	return tenant, nil
+}
+
+// UpdateName 是租户自助入口的窄写入操作：租户名称与套餐、配额等运营字段
+// 分属不同权限域，因此不能复用运营面 Update 的全字段覆盖语义。
+func (t *tenantRepository) UpdateName(ctx context.Context, id uint, name string) error {
+	if err := t.withContext(ctx).Model(&model.Tenant{}).Where("id = ?", id).Update("name", name).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 // UpdateStatus 生命周期流转（FIX-012）：不再对 deleted 做软删（保留墓碑行，

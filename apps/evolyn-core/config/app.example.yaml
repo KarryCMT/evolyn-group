@@ -74,6 +74,22 @@ sms:
   ipDailyLimit: 30 # 单 IP 自然日发送上限；示例：30，用于防止轮换手机号刷短信。
   devEcho: false # 是否在接口响应中回显验证码；示例：false，生产必须保持关闭。
 
+email:
+  # dev 仅可用于 debug；release 环境必须使用 smtp，SMTP 凭据只通过未提交的
+  # 部署配置注入，禁止将真实密码提交到仓库。
+  provider: 'dev'
+  codeTtlSeconds: 300 # 验证码有效期（秒）
+  cooldownSeconds: 60 # 重发冷却（秒）
+  maxTries: 5 # 单验证码最大试错次数
+  identityTtlSeconds: 300 # 手机号身份验证凭证有效期（秒）
+  devEcho: false # 仅本地联调可开，生产必须 false
+  smtpHost: ''
+  smtpPort: 587
+  smtpUsername: ''
+  smtpPassword: ''
+  smtpFrom: ''
+  smtpImplicitTls: false # 465 等隐式 TLS 端口填写 true；465 端口也会自动识别
+
 auth:
   loginMaxFails: 5 # 连续登录失败上限；示例：5，达到后临时锁定账号。
   loginLockMinutes: 15 # 登录锁定时长（分钟）；示例：15。

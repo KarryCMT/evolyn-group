@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type {
   EvolynTableColumn,
+  EvolynTableCustomRender,
   EvolynTableCustomRenderElement,
   EvolynTableCustomRenderObj,
 } from '@evolyn.do/ui';
@@ -11,16 +12,17 @@ import type { OrganizationMember, OrganizationMode } from './organization.types'
 
 const props = defineProps<{
   mode: OrganizationMode;
-  roleName: string;
   members: OrganizationMember[];
-  roleNameOf: (roleId: string) => string;
   keyword: string;
-  status: string;
+  status: 'all' | 'active' | 'disabled';
+  total: number;
+  currentPage: number;
 }>();
 
 const emit = defineEmits<{
   'update:keyword': [value: string];
-  'update:status': [value: string];
+  'update:status': [value: 'all' | 'active' | 'disabled'];
+  'update:page': [page: number];
   invite: [];
   addMember: [];
   export: [];
@@ -30,101 +32,103 @@ const emit = defineEmits<{
 }>();
 
 const ROW_HEIGHT = 64;
-const currentPage = shallowRef(1);
+// VTable 的 customRender 坐标从单元格边缘起算，需显式预留与普通文本单元格一致的内边距。
+const CELL_HORIZONTAL_PADDING = 12;
 const actionMember = shallowRef<OrganizationMember | null>(null);
 const actionMenuVisible = shallowRef(false);
 
 const tableRecords = computed(() =>
   props.members.map((member) => ({
     ...member,
-    roleLabel: member.roleIds.map(props.roleNameOf).filter(Boolean).join('、'),
+    roleLabel: member.roleNames.join('、'),
   })),
 );
+
+function memberAt(row: number): OrganizationMember | undefined {
+  // VTable 的第 0 行是表头；customRender 与 click-cell 返回的是表格行号，
+  // 因此需换算为 records 下标。否则首条成员会回落为占位头像且姓名/角色为空。
+  const recordIndex = row - 1;
+  return recordIndex >= 0 ? props.members[recordIndex] : undefined;
+}
+
+function memberInitial(member: OrganizationMember | undefined) {
+  return member?.name.trim().slice(0, 1) || '成';
+}
 
 const columns = computed<EvolynTableColumn[]>(() => {
   const avatar: EvolynTableCustomRenderElement = {
     type: 'circle',
-    x: 14,
+    x: CELL_HORIZONTAL_PADDING + 14,
     y: ROW_HEIGHT / 2,
     radius: 14,
     fill: '#f25555',
   };
-  const avatarText: EvolynTableCustomRenderElement = {
-    type: 'text',
-    x: 14,
-    y: ROW_HEIGHT / 2,
-    text: '李',
-    fill: '#fff',
-    fontSize: 14,
-    textAlign: 'center',
-    textBaseline: 'middle',
+  const nameRender: EvolynTableCustomRender = ({ row }): EvolynTableCustomRenderObj => {
+    const member = memberAt(row);
+    return {
+      expectedWidth: 270,
+      expectedHeight: ROW_HEIGHT,
+      elements: [
+        avatar,
+        {
+          type: 'text',
+          x: CELL_HORIZONTAL_PADDING + 14,
+          y: ROW_HEIGHT / 2,
+          text: memberInitial(member),
+          fill: '#fff',
+          fontSize: 14,
+          textAlign: 'center',
+          textBaseline: 'middle',
+        },
+        {
+          type: 'text',
+          x: CELL_HORIZONTAL_PADDING + 36,
+          y: ROW_HEIGHT / 2,
+          text: member?.name ?? '',
+          fill: '#394150',
+          fontSize: 16,
+          textBaseline: 'middle',
+        },
+      ],
+    };
   };
-  const nameRender = (): EvolynTableCustomRenderObj => ({
-    expectedWidth: 270,
-    expectedHeight: ROW_HEIGHT,
-    elements: [
-      avatar,
-      avatarText,
-      {
-        type: 'text',
-        x: 36,
-        y: ROW_HEIGHT / 2,
-        text: '李同学',
-        fill: '#394150',
-        fontSize: 16,
-        textBaseline: 'middle',
-      },
-      ...(props.mode === 'department'
+  const roleRender: EvolynTableCustomRender = ({ row }): EvolynTableCustomRenderObj => {
+    const roleLabel = memberAt(row)?.roleNames.join('、') ?? '';
+    return {
+      expectedWidth: 190,
+      expectedHeight: ROW_HEIGHT,
+      elements: roleLabel
         ? [
             {
-              type: 'rect' as const,
-              x: 96,
-              y: 19,
-              width: 52,
-              height: 26,
-              fill: '#2f80ed',
+              type: 'rect',
+              x: CELL_HORIZONTAL_PADDING,
+              y: 17,
+              width: 88,
+              height: 30,
+              fill: '#f1f5fd',
             },
             {
-              type: 'text' as const,
-              x: 122,
+              type: 'text',
+              x: CELL_HORIZONTAL_PADDING + 11,
               y: ROW_HEIGHT / 2,
-              text: '创建者',
-              fill: '#fff',
+              text: '●',
+              fill: '#377ff5',
               fontSize: 13,
-              textAlign: 'center' as const,
-              textBaseline: 'middle' as const,
+              textBaseline: 'middle',
+            },
+            {
+              type: 'text',
+              x: CELL_HORIZONTAL_PADDING + 27,
+              y: ROW_HEIGHT / 2,
+              text: roleLabel,
+              fill: '#556071',
+              fontSize: 15,
+              textBaseline: 'middle',
             },
           ]
-        : []),
-    ],
-  });
-  const roleRender = (): EvolynTableCustomRenderObj => ({
-    expectedWidth: 190,
-    expectedHeight: ROW_HEIGHT,
-    elements: props.roleName
-      ? [
-          { type: 'rect', x: 0, y: 17, width: 88, height: 30, fill: '#f1f5fd' },
-          {
-            type: 'text',
-            x: 11,
-            y: ROW_HEIGHT / 2,
-            text: '●',
-            fill: '#377ff5',
-            fontSize: 13,
-            textBaseline: 'middle',
-          },
-          {
-            type: 'text',
-            x: 27,
-            y: ROW_HEIGHT / 2,
-            text: props.roleName,
-            fill: '#556071',
-            fontSize: 15,
-            textBaseline: 'middle',
-          },
-        ]
-      : [],
-  });
+        : [],
+    };
+  };
   const actionRender = (): EvolynTableCustomRenderObj => ({
     expectedWidth: 84,
     expectedHeight: ROW_HEIGHT,
@@ -149,7 +153,8 @@ const columns = computed<EvolynTableColumn[]>(() => {
   if (props.mode === 'department') {
     baseColumns.push(
       { field: 'phone', title: '手机', minWidth: 170 },
-      { field: 'email', title: '邮箱', minWidth: 170 },
+      // 常见企业邮箱长度超过 170px，固定更宽列避免列表中被过早截断。
+      { field: 'email', title: '邮箱', width: 240 },
       { field: 'roleLabel', title: '角色', width: 190, customRender: roleRender },
     );
   } else {
@@ -172,7 +177,7 @@ function openActionMenu(member: OrganizationMember) {
 function onCellClick(event: unknown) {
   const payload = event as { field?: string; row?: number };
   if (payload.field !== 'operation' || payload.row === undefined || payload.row < 0) return;
-  const member = props.members[payload.row];
+  const member = memberAt(payload.row);
   if (member) openActionMenu(member);
 }
 
@@ -223,12 +228,12 @@ function removeCurrentMember() {
           <el-select
             :model-value="props.status"
             class="organization-members-table__status-select"
-            @update:model-value="emit('update:status', $event)"
+            @update:model-value="emit('update:status', $event as 'all' | 'active' | 'disabled')"
           >
-            <el-option label="全部" value="全部" /><el-option
+            <el-option label="全部" value="all" /><el-option
               label="已启用"
-              value="已启用"
-            /><el-option label="已停用" value="已停用" />
+              value="active"
+            /><el-option label="已停用" value="disabled" />
           </el-select>
         </template>
       </div>
@@ -266,15 +271,16 @@ function removeCurrentMember() {
 
     <footer class="organization-members-table__footer">
       <div class="organization-members-table__count">
-        <el-select v-model="currentPage" class="organization-members-table__page-size"
-          ><el-option :value="1" label="20 条/页" /></el-select
-        ><span>共 {{ props.members.length }} 条</span>
+        <el-select :model-value="20" class="organization-members-table__page-size" disabled
+          ><el-option :value="20" label="20 条/页" /></el-select
+        ><span>共 {{ props.total }} 条</span>
       </div>
       <el-pagination
-        v-model:current-page="currentPage"
+        :current-page="props.currentPage"
         :page-size="20"
-        :total="props.members.length"
+        :total="props.total"
         layout="prev, pager, next"
+        @current-change="emit('update:page', $event)"
       />
     </footer>
   </section>

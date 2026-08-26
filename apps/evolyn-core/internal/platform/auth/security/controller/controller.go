@@ -54,6 +54,7 @@ func (sc *SecurityController) myAccount(c *gin.Context) (uint, bool) {
 // @Tags 账号
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=service.SecurityOverview}
+// @Failure 401 {object} httpx.Response "UNAUTHORIZED·登录态无效"
 // @Router /api/v1/accounts/me/security [get]
 func (sc *SecurityController) Overview(c *gin.Context) {
 	accountID, ok := sc.myAccount(c)
@@ -75,6 +76,7 @@ func (sc *SecurityController) Overview(c *gin.Context) {
 // @Tags 账号
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=[]securitymodel.AccountSession}
+// @Failure 401 {object} httpx.Response "UNAUTHORIZED·登录态无效"
 // @Router /api/v1/accounts/me/sessions [get]
 func (sc *SecurityController) ListSessions(c *gin.Context) {
 	accountID, ok := sc.myAccount(c)
@@ -98,6 +100,7 @@ func (sc *SecurityController) ListSessions(c *gin.Context) {
 // @Security JWT
 // @Param sid path string true "会话标识"
 // @Success 200 {object} httpx.Response
+// @Failure 401 {object} httpx.Response "UNAUTHORIZED·登录态无效"
 // @Failure 404 {object} httpx.Response "NOT_FOUND·会话不存在"
 // @Router /api/v1/accounts/me/sessions/{sid} [delete]
 func (sc *SecurityController) RevokeSession(c *gin.Context) {
@@ -129,6 +132,7 @@ type reauthRequest struct {
 // @Security JWT
 // @Param body body controller.reauthRequest true "重新验证信息"
 // @Success 200 {object} httpx.Response{data=map[string]string}
+// @Failure 400 {object} httpx.Response "AUTH_PASSWORD_DECRYPT_FAILED·密码传输校验失败"
 // @Failure 401 {object} httpx.Response "AUTH_MFA_INVALID·验证信息错误或已过期"
 // @Router /api/v1/accounts/me/security/reauth [post]
 func (sc *SecurityController) Reauth(c *gin.Context) {
@@ -136,8 +140,10 @@ func (sc *SecurityController) Reauth(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if sc.mfaService == nil || sc.currentSID(c) == "" {
-		httpx.ResponseFailed(c, http.StatusServiceUnavailable, service.ErrMFAUnavailable)
+	if err := reauthPrerequisiteError(sc.mfaService != nil, sc.currentSID(c)); err != nil {
+		// BizError 自带最终 HTTP 状态：MFA 未装配为 503，存量无 SID 登录态为
+		// 401。不能把后者伪装成服务不可用，否则用户重复输入正确密码也无法恢复。
+		httpx.ResponseFailed(c, http.StatusServiceUnavailable, err)
 		return
 	}
 	req := new(reauthRequest)
@@ -177,6 +183,18 @@ func (sc *SecurityController) Reauth(c *gin.Context) {
 	httpx.ResponseSuccess(c, map[string]string{"reauthToken": token})
 }
 
+// reauthPrerequisiteError 区分基础设施未配置与存量登录态，避免两个可恢复方式
+// 完全不同的问题共用 AUTH_MFA_UNAVAILABLE。
+func reauthPrerequisiteError(mfaAvailable bool, sid string) error {
+	if !mfaAvailable {
+		return service.ErrMFAUnavailable
+	}
+	if sid == "" {
+		return service.ErrMFAReauthLoginRequired
+	}
+	return nil
+}
+
 type reauthTokenRequest struct {
 	ReauthToken string `json:"reauthToken" binding:"required"`
 }
@@ -189,6 +207,8 @@ type reauthTokenRequest struct {
 // @Security JWT
 // @Param body body controller.reauthTokenRequest true "重新验证令牌"
 // @Success 200 {object} httpx.Response{data=service.TOTPEnrollment}
+// @Failure 401 {object} httpx.Response "AUTH_REAUTH_REQUIRED·请先完成身份验证"
+// @Failure 409 {object} httpx.Response "AUTH_MFA_ALREADY_ENABLED·登录二次验证已启用"
 // @Router /api/v1/accounts/me/security/mfa/totp/enroll [post]
 func (sc *SecurityController) EnrollTOTP(c *gin.Context) {
 	accountID, ok := sc.myAccount(c)
@@ -225,6 +245,7 @@ type confirmTOTPRequest struct {
 // @Security JWT
 // @Param body body controller.confirmTOTPRequest true "绑定确认信息"
 // @Success 200 {object} httpx.Response{data=map[string][]string}
+// @Failure 401 {object} httpx.Response "AUTH_MFA_INVALID·验证信息错误或已过期"
 // @Router /api/v1/accounts/me/security/mfa/totp/confirm [post]
 func (sc *SecurityController) ConfirmTOTP(c *gin.Context) {
 	accountID, ok := sc.myAccount(c)
@@ -254,6 +275,7 @@ func (sc *SecurityController) ConfirmTOTP(c *gin.Context) {
 // @Security JWT
 // @Param body body controller.reauthTokenRequest true "重新验证令牌"
 // @Success 200 {object} httpx.Response
+// @Failure 401 {object} httpx.Response "AUTH_REAUTH_REQUIRED/AUTH_MFA_INVALID·需重新验证或验证器未启用"
 // @Router /api/v1/accounts/me/security/mfa/totp [delete]
 func (sc *SecurityController) DisableTOTP(c *gin.Context) {
 	accountID, ok := sc.myAccount(c)
@@ -289,6 +311,7 @@ type singleSessionRequest struct {
 // @Security JWT
 // @Param body body controller.singleSessionRequest true "单会话设置"
 // @Success 200 {object} httpx.Response
+// @Failure 401 {object} httpx.Response "AUTH_REAUTH_REQUIRED·请先完成身份验证"
 // @Router /api/v1/accounts/me/security/single-session [put]
 func (sc *SecurityController) UpdateSingleSession(c *gin.Context) {
 	accountID, ok := sc.myAccount(c)

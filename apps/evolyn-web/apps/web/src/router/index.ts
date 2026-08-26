@@ -21,21 +21,24 @@ declare module 'vue-router' {
 
 // 全局守卫：未登录访问受保护页面时跳转登录页并携带回跳地址；
 // 已登录再访问登录页则直接回首页，避免会话内重复登录
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const { isAuthenticated, userInfo, loadUserInfo } = useAuth();
 
-  // if (!to.meta.public && !isAuthenticated.value) {
-  //   return { name: 'login', query: { redirect: to.fullPath } };
-  // }
+  if (!to.meta.public && !isAuthenticated.value) {
+    return { name: 'login', query: { redirect: to.fullPath } };
+  }
 
-  // if (to.name === 'login' && isAuthenticated.value) {
-  //   return { path: '/' };
-  // }
+  if (to.name === 'login' && isAuthenticated.value) {
+    return { path: '/' };
+  }
 
-  // 聚合信息是内存态，刷新页面即丢失：已登录访问受保护页时兜底重拉。
-  // 不阻塞导航，页面在请求完成前按空数据安全降级。
+  // 聚合信息是内存态，刷新页面即丢失：先向后端确认令牌仍对应有效设备会话。
+  // 被挤下线的旧令牌不能只因仍存于浏览器而进入受保护界面。
   if (!to.meta.public && isAuthenticated.value && !userInfo.value) {
-    void loadUserInfo();
+    const info = await loadUserInfo();
+    if (!info) {
+      return { name: 'login', query: { redirect: to.fullPath } };
+    }
   }
 });
 

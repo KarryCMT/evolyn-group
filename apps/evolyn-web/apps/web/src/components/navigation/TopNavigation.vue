@@ -10,6 +10,7 @@ import {
 } from '@remixicon/vue';
 import { shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
+import appLogo from '~/assets/logo/logo.png';
 import MessageCenterDrawer from '~/components/dashboard/messageCenter/MessageCenterDrawer.vue';
 import UserMenu from '~/components/navigation/UserMenu.vue';
 
@@ -95,12 +96,7 @@ function notifyUnavailable() {}
           >
             <RiApps2Fill />
           </button>
-          <span class="top-navigation__logo" aria-hidden="true">
-            <i class="top-navigation__logo-petal top-navigation__logo-petal--left" />
-            <i class="top-navigation__logo-petal top-navigation__logo-petal--top" />
-            <i class="top-navigation__logo-petal top-navigation__logo-petal--right" />
-            <i class="top-navigation__logo-petal top-navigation__logo-petal--bottom" />
-          </span>
+          <img class="top-navigation__logo" :src="appLogo" alt="" aria-hidden="true" />
         </template>
       </slot>
 
@@ -186,7 +182,7 @@ function notifyUnavailable() {}
   align-items: center;
   justify-content: space-between;
   color: #202938;
-  background: #f3f3f8;
+  background: var(--gp-color-bg-page);
   font-size: 16px;
 
   &--surface {
@@ -290,49 +286,11 @@ function notifyUnavailable() {}
   }
 
   &__logo {
-    position: relative;
-    display: inline-flex;
-    width: 36px;
-    height: 28px;
-    flex: 0 0 36px;
-    align-items: center;
-  }
-
-  &__logo-petal {
-    position: absolute;
     display: block;
-    width: 19px;
-    height: 19px;
-    border-radius: 14px 4px 14px 4px;
-    transform-origin: center;
-
-    &--left {
-      left: 0;
-      top: 7px;
-      background: #8bbbff;
-      transform: rotate(-27deg);
-    }
-
-    &--top {
-      left: 10px;
-      top: 0;
-      background: #5ca0ff;
-      transform: rotate(18deg);
-    }
-
-    &--right {
-      right: 0;
-      top: 8px;
-      background: #1677ff;
-      transform: rotate(70deg);
-    }
-
-    &--bottom {
-      left: 11px;
-      bottom: 0;
-      background: #408cff;
-      transform: rotate(131deg);
-    }
+    width: 28px;
+    height: 28px;
+    flex: 0 0 28px;
+    object-fit: contain;
   }
 
   &__title {

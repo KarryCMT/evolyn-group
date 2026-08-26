@@ -58,6 +58,11 @@ const iconByKey: Record<ApplicationIcon, Component> = {
 
 const applicationIcon = computed(() => iconByKey[application.value?.icon ?? 'bookmark']);
 const workspacePreviewEnabled = computed(() => route.query.workspace === 'form');
+// 首页形态以应用持久化状态为准；workspace 查询参数仅保留给当前表单设计器
+// 的回跳预览。当前成员无菜单权限时仍保留运行时壳，不会退回构建引导。
+const showApplicationWorkspace = computed(
+  () => application.value?.homeMode === 'application' || workspacePreviewEnabled.value,
+);
 const activeAssetCode = shallowRef('');
 const workspaceMode = shallowRef<ApplicationWorkspaceMode>('fill');
 
@@ -176,8 +181,8 @@ function reloadWorkspace() {
 
 <template>
   <div class="application-home-page">
-    <!-- 表单创建接口未落地前，设计器回跳通过 workspace=form 呈现工作区壳。 -->
-    <template v-if="workspacePreviewEnabled && status === 'ready'">
+    <!-- 菜单型应用直接进入运行时壳；表单设计器的 workspace=form 回跳仍兼容。 -->
+    <template v-if="showApplicationWorkspace && status === 'ready'">
       <!-- 应用元信息已就绪但菜单加载失败：错误态统一在页面层拦截并重试，
            侧栏/内容组件不感知后端错误码（应用菜单方案 §11）。 -->
       <el-result

@@ -101,10 +101,18 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       await apiLogout();
     } finally {
-      removeToken();
-      token.value = null;
-      userInfo.value = null;
+      clearSession();
     }
+  }
+
+  /**
+   * 清理本地会话镜像：除持久化令牌外，还必须同步清空 Pinia 内存态。
+   * 被其他设备挤下线时由全局 401 处理器调用，避免受保护界面继续按旧状态渲染。
+   */
+  function clearSession() {
+    removeToken();
+    token.value = null;
+    userInfo.value = null;
   }
 
   /**
@@ -133,6 +141,7 @@ export const useAuthStore = defineStore('auth', () => {
     completeMfaLogin,
     applyJwt,
     loadUserInfo,
+    clearSession,
     logout,
     switchTenant,
     loadTenants,

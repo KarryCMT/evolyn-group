@@ -13,7 +13,7 @@ import {
 /** 本地记住手机号的存储键 */
 const REMEMBER_PHONE_KEY = 'evolyn.login.phone';
 
-defineProps<{
+const props = defineProps<{
   /** 提交中：按钮显示 loading 并防重复提交 */
   loading?: boolean;
 }>();
@@ -42,6 +42,7 @@ const rules: FormRules = {
 };
 
 async function handleSubmit() {
+  if (props.loading) return;
   const valid = await formRef.value?.validate().then(
     () => true,
     () => false,
@@ -107,6 +108,7 @@ async function handleSubmit() {
       size="large"
       native-type="submit"
       :loading="loading"
+      :disabled="loading"
     >
       登录
     </el-button>

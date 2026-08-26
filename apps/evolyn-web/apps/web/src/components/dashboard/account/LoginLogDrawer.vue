@@ -109,6 +109,8 @@ const avatarFallback = computed(() => props.nickname.trim().charAt(0) || '我');
 const displayName = computed(() => props.nickname || '当前用户');
 
 const ROW_HEIGHT = 40;
+// 富单元格从表格边框开始定位，统一预留与 VTable 普通文本单元格一致的左右留白。
+const CELL_HORIZONTAL_PADDING = 12;
 
 /** 首列「头像 + 昵称」富单元格：以 40px 行高为基准绝对定位（24px 头像垂直居中） */
 const columns = computed<EvolynTableColumn[]>(() => {
@@ -117,7 +119,7 @@ const columns = computed<EvolynTableColumn[]>(() => {
   const avatar: EvolynTableCustomRenderElement = props.avatar
     ? {
         type: 'image',
-        x: 0,
+        x: CELL_HORIZONTAL_PADDING,
         y: (ROW_HEIGHT - 24) / 2,
         width: 24,
         height: 24,
@@ -126,7 +128,7 @@ const columns = computed<EvolynTableColumn[]>(() => {
       }
     : {
         type: 'circle',
-        x: 12,
+        x: CELL_HORIZONTAL_PADDING + 12,
         y: textY,
         radius: 12,
         fill: canvasTokens.value.primary,
@@ -137,7 +139,7 @@ const columns = computed<EvolynTableColumn[]>(() => {
     : [
         {
           type: 'text',
-          x: 12,
+          x: CELL_HORIZONTAL_PADDING + 12,
           y: textY,
           text: avatarFallback.value,
           fill: '#fff',
@@ -160,7 +162,7 @@ const columns = computed<EvolynTableColumn[]>(() => {
           ...fallbackInitial,
           {
             type: 'text',
-            x: 32,
+            x: CELL_HORIZONTAL_PADDING + 32,
             y: textY,
             text: displayName.value,
             fill: canvasTokens.value.textRegular,

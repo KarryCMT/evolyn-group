@@ -51,6 +51,8 @@ export interface RegisterCompletePayload {
     demand?: string;
     industry?: string;
   };
+  /** 公开成员邀请链接携带的租户 token；存在时注册后加入目标租户。 */
+  tenantInvite?: string;
 }
 
 /**
@@ -207,6 +209,44 @@ export interface LoginLogQuery {
   endDate?: string;
 }
 
+// ---------- 账号安全概览（GET /accounts/me/security） ----------
+
+/** 账号安全策略与当前设备会话摘要；仅当前登录账号可读取。 */
+export interface AccountSecurityOverview {
+  /** 是否已启用 TOTP 登录二次验证。 */
+  mfaEnabled: boolean;
+  /** 是否仅保留一个活跃设备会话。 */
+  singleSessionEnabled: boolean;
+  /** 是否存在已验证且未停用的 TOTP 因子。 */
+  totpEnrolled: boolean;
+  /** 尚未使用的 MFA 恢复码数量。 */
+  recoveryCodesRemaining: number;
+  /** 当前未撤销且未过期的设备会话数量。 */
+  activeSessions: number;
+}
+
+/** 设备级账号会话；仅返回当前账号未撤销且未过期的会话。 */
+export interface AccountSession {
+  /** JWT 内携带的随机设备会话标识。 */
+  sid: string;
+  /** 第一阶段认证方式：password、sms、oauth 或 register。 */
+  authMethod: string;
+  /** 第二阶段 MFA 方式；未启用时为 null。 */
+  mfaMethod: string | null;
+  createdAt: string;
+  lastSeenAt: string;
+  expiresAt: string;
+  ip: string;
+  location: string;
+  userAgent: string;
+}
+
+/** TOTP 绑定向导：验证器导入地址仅在内存中保留至本次确认完成。 */
+export interface TOTPEnrollment {
+  enrollmentId: string;
+  otpauthUrl: string;
+}
+
 // ---------- 应用配置（GET /app/conf，形态对齐灵衍云 conf 接口） ----------
 
 /** 手机区号项：三语文案 + E.164 前缀值 */
@@ -244,6 +284,9 @@ export type ApplicationIcon = 'bookmark' | 'briefcase' | 'contacts' | 'chart' | 
 
 /** 应用稳定颜色键（服务端枚举，渲染时映射主题色变量） */
 export type ApplicationColor = 'primary';
+
+/** 应用入口形态：构建引导与运行时首页由应用自身状态决定，不依赖当前成员菜单数量。 */
+export type ApplicationHomeMode = 'builder' | 'application';
 
 /** 创建空白应用请求（POST /applications）：名称必填，图标/颜色可省略取服务端默认 */
 export interface CreateBlankApplicationPayload {
@@ -285,6 +328,7 @@ export interface ApplicationItem {
   source: ApplicationSource;
   status: 'active' | 'archived';
   provisionStatus: 'ready' | 'pending' | 'running' | 'failed';
+  homeMode: ApplicationHomeMode;
   ownerMemberId: number;
   creatorMemberId: number;
   sortOrder: number;

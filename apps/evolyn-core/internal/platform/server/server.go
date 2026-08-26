@@ -24,6 +24,7 @@ import (
 	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/auth"
 	authcontroller "evolyn/internal/platform/auth/controller"
+	emailauth "evolyn/internal/platform/auth/email"
 	loginlogrepository "evolyn/internal/platform/auth/loginlog/repository"
 	loginlogservice "evolyn/internal/platform/auth/loginlog/service"
 	"evolyn/internal/platform/auth/oauth"
@@ -174,6 +175,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 账号服务注入审计：换绑手机号等安全敏感操作落业务审计（best-effort）
 	accountService := service.NewAccountService(txManager, iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc, auditSvc)
 	userService := service.NewUserService(txManager, iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc)
+	memberInvitationService := service.NewMemberInvitationService(iamRepo.Invitation(), iamRepo.Department(), iamRepo.Account(), userService, auditSvc)
 	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User(), auditSvc)
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User(), iamRepo.RBAC(), auditSvc)
 	jwtService := auth.NewJWTService(conf.Server.JWTSecret)
@@ -206,7 +208,22 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		DevEcho:      conf.SMS.DevEcho,
 		FixedCode:    smsFixedCode,
 	})
+	// 邮箱绑定验证码独立于短信验证码：手机号仅用于第一步身份持有证明，第二步
+	// 邮件必须发送至待绑定的新地址。release 不允许静默使用开发通道。
+	emailSender, emailFixedCode, err := buildEmailSender(conf.Email, conf.Server.ENV)
+	if err != nil {
+		return nil, err
+	}
+	emailService := emailauth.NewService(rdb.Client, emailSender, emailauth.Options{
+		CodeTTL:     time.Duration(conf.Email.CodeTTLSeconds) * time.Second,
+		Cooldown:    time.Duration(conf.Email.CooldownSeconds) * time.Second,
+		MaxTries:    conf.Email.MaxTries,
+		IdentityTTL: time.Duration(conf.Email.IdentityTTL) * time.Second,
+		DevEcho:     conf.Email.DevEcho,
+		FixedCode:   emailFixedCode,
+	})
 	rbacService := service.NewRBACService(iamRepo.RBAC(), auditSvc)
+	organizationRoleService := service.NewOrganizationRoleService(txManager, iamRepo.RBAC(), iamRepo.RoleGroup(), iamRepo.User(), userService, auditSvc)
 	// 应用域服务（M2-A）：空白应用创建/查询/更新/软删 + 配额占位；
 	// 访问判定与鉴权中间件同源（按 ID 重载成员 + authenticated 系统组）
 	appAccess := applicationservice.NewRBACAccessEvaluator(iamRepo.User(), iamRepo.Group())
@@ -235,9 +252,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		logger.Warn("pki.privateKey 未配置，已随机生成临时 RSA 密钥对（重启轮换；生产与多实例部署必须显式配置同一密钥对）")
 	}
 
-	userController := iamcontroller.NewUserController(userService, departmentService)
+	userController := iamcontroller.NewUserController(userService, departmentService, memberInvitationService)
 	// 账号控制器注入换绑验证码校验器（认证域 sms.Service 实现窄接口）
-	accountController := iamcontroller.NewAccountController(accountService, keypair, loginLogSvc, smsService)
+	accountController := iamcontroller.NewAccountController(accountService, keypair, loginLogSvc, smsService, emailService)
 
 	// 账号安全子域（ADR-009）：会话/因子/恢复码/开关仓储 + 服务装配
 	securitySettingsRepo := securityrepository.NewSettingsRepository(db)
@@ -271,10 +288,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	groupController := iamcontroller.NewGroupController(groupService)
 	// 注册编排服务（认证域）：注册向导最终提交「进入产品」的单事务落库
 	// （免密注册账号 + 账号画像 + 租户开通/复用 + owner 成员解析）
-	registrationService := authservice.NewRegistrationService(txManager, accountService, tenantService, auditSvc)
+	registrationService := authservice.NewRegistrationService(txManager, accountService, tenantService, auditSvc, memberInvitationService)
 	authController := authcontroller.NewAuthController(accountService, registrationService, jwtService, oauthManager, tenantService, smsService, keypair, loginLogSvc, tokenRevoker, sessionService, mfaSvc, loginGuard)
 	rbacController := iamcontroller.NewRbacController(rbacService)
+	organizationRoleController := iamcontroller.NewOrganizationRoleController(organizationRoleService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
+	tenantProfileController := tenantcontroller.NewTenantProfileController(tenantService)
 	applicationController := applicationcontroller.NewApplicationController(applicationService)
 	menuController := applicationcontroller.NewMenuController(menuService)
 	fileController := filecontroller.NewFileController(fileService)
@@ -282,7 +301,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 鉴权器显式注入 iam 仓储（P0-4：拆除全局单例）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, tenantController, accountController, departmentController, applicationController, menuController, fileController, securityController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, departmentController, applicationController, menuController, fileController, securityController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
@@ -472,6 +491,36 @@ func buildSmsSender(provider string) (sms.Sender, string, error) {
 		return sms.NewDevSender(), sms.DevFixedCode, nil
 	default:
 		return nil, "", fmt.Errorf("短信服务商 provider=%q 尚未支持（当前仅 dev），接入真实通道后实现 sms.Sender 并在此分派", provider)
+	}
+}
+
+// buildEmailSender 按环境分派邮件通道。开发通道可支撑本地联调；release 环境
+// 必须显式配置 SMTP，避免用户误以为验证码已真实送达。
+func buildEmailSender(conf config.EmailConfig, env string) (emailauth.Sender, string, error) {
+	if env == gin.ReleaseMode && conf.DevEcho {
+		return nil, "", fmt.Errorf("release 环境 email.devEcho 必须关闭")
+	}
+	switch conf.Provider {
+	case "", "dev":
+		if env == gin.ReleaseMode {
+			return nil, "", fmt.Errorf("release 环境邮箱验证码必须配置 email.provider=smtp")
+		}
+		return emailauth.NewDevSender(), emailauth.DevFixedCode, nil
+	case "smtp":
+		sender, err := emailauth.NewSMTPSender(
+			conf.SMTPHost,
+			conf.SMTPPort,
+			conf.SMTPUsername,
+			conf.SMTPPassword,
+			conf.SMTPFrom,
+			conf.SMTPImplicitTLS,
+		)
+		if err != nil {
+			return nil, "", fmt.Errorf("smtp 邮件通道配置无效: %w", err)
+		}
+		return sender, "", nil
+	default:
+		return nil, "", fmt.Errorf("邮件服务商 provider=%q 尚未支持（当前支持 dev/smtp）", conf.Provider)
 	}
 }
 

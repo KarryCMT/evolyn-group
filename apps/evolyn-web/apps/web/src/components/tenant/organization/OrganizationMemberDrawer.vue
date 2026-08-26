@@ -17,6 +17,13 @@ const activeTab = shallowRef<'basic' | 'more'>('basic');
 const draft = shallowRef<OrganizationMember | null>(null);
 
 const displayName = computed(() => props.member?.name ?? '成员');
+const displayInitial = computed(() => displayName.value.trim().slice(0, 1) || '成');
+const statusLabel = computed(() => {
+  const status = props.member?.status;
+  if (status === 'disabled') return '已停用';
+  if (status === 'resigned') return '已离职';
+  return '已启用';
+});
 watch(
   () => props.member,
   (member) => {
@@ -46,11 +53,11 @@ function save() {
       <div class="organization-member-drawer__overlay" @click="close" />
       <aside class="organization-member-drawer__panel">
         <header class="organization-member-drawer__header">
-          <span class="organization-member-drawer__avatar">李</span>
+          <span class="organization-member-drawer__avatar">{{ displayInitial }}</span>
           <div>
             <h2>{{ displayName }}</h2>
             <div class="organization-member-drawer__tags">
-              <el-tag>已加入</el-tag><el-tag type="success">已启用</el-tag>
+              <el-tag>已加入</el-tag><el-tag type="success">{{ statusLabel }}</el-tag>
             </div>
           </div>
           <button

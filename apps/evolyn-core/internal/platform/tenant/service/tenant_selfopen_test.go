@@ -9,6 +9,7 @@ import (
 
 	iammodel "evolyn/internal/platform/iam/model"
 	tenantmodel "evolyn/internal/platform/tenant/model"
+	tenantrepository "evolyn/internal/platform/tenant/repository"
 )
 
 // stubTx 单测事务桩：不执行事务函数，直接返回数据库不可用错误，
@@ -17,6 +18,47 @@ type stubTx struct{}
 
 func (stubTx) WithinTransaction(_ context.Context, _ func(ctx context.Context) error) error {
 	return errors.New("stub: database unavailable in unit test")
+}
+
+// tenantNameRepo 仅承载租户名称自助更新所需的窄仓储行为，其他接口由嵌入接口兜底。
+type tenantNameRepo struct {
+	tenantrepository.TenantRepository
+	tenant    *tenantmodel.Tenant
+	updatedID uint
+	updated   string
+}
+
+func (r *tenantNameRepo) GetByID(_ context.Context, id uint) (*tenantmodel.Tenant, error) {
+	if r.tenant == nil || r.tenant.ID != id {
+		return nil, errors.New("tenant not found")
+	}
+	return r.tenant, nil
+}
+
+func (r *tenantNameRepo) UpdateName(_ context.Context, id uint, name string) error {
+	r.updatedID = id
+	r.updated = name
+	return nil
+}
+
+func TestUpdateMyName(t *testing.T) {
+	repo := &tenantNameRepo{tenant: &tenantmodel.Tenant{ID: 8, Name: "旧名称"}}
+	svc := &tenantService{tenantRepo: repo}
+
+	updated, err := svc.UpdateMyName(context.Background(), 8, "  新名称  ")
+	if err != nil {
+		t.Fatalf("UpdateMyName should succeed, got %v", err)
+	}
+	if updated.Name != "新名称" || repo.updatedID != 8 || repo.updated != "新名称" {
+		t.Fatalf("tenant name update mismatch: updated=%+v repo=%+v", updated, repo)
+	}
+
+	if _, err := svc.UpdateMyName(context.Background(), 8, "我"); err == nil {
+		t.Fatal("single-rune tenant name should be rejected")
+	}
+	if repo.updated != "新名称" {
+		t.Fatalf("invalid name must not reach repository, got %q", repo.updated)
+	}
 }
 
 // TestSelfOpenNameValidation 自助开通的名称与 owner 校验：名称 2-50 字符

@@ -18,7 +18,9 @@ type Repositories struct {
 	user       UserRepository
 	group      GroupRepository
 	rbac       RBACRepository
+	roleGroup  RoleGroupRepository
 	department DepartmentRepository
+	invitation MemberInvitationRepository
 }
 
 func NewRepositories(db *gorm.DB, rdb *infrastructure.RedisDB) *Repositories {
@@ -28,7 +30,9 @@ func NewRepositories(db *gorm.DB, rdb *infrastructure.RedisDB) *Repositories {
 		user:       newUserRepository(db, rdb),
 		group:      newGroupRepository(db, rdb),
 		rbac:       newRBACRepository(db, rdb),
+		roleGroup:  newRoleGroupRepository(db),
 		department: newDepartmentRepository(db, rdb),
+		invitation: newMemberInvitationRepository(db),
 	}
 }
 
@@ -48,8 +52,16 @@ func (r *Repositories) RBAC() RBACRepository {
 	return r.rbac
 }
 
+func (r *Repositories) RoleGroup() RoleGroupRepository {
+	return r.roleGroup
+}
+
 func (r *Repositories) Department() DepartmentRepository {
 	return r.department
+}
+
+func (r *Repositories) Invitation() MemberInvitationRepository {
+	return r.invitation
 }
 
 // Migrate iam 域表迁移：account/auth_infos → user → group → role/resource → department。
@@ -57,7 +69,7 @@ func (r *Repositories) Department() DepartmentRepository {
 // 此处用幂等 SQL 补齐，使开发库约束与 migrations 终态一致
 // （FIX-002/003/004/017；外键约束只在 migrations 路径落地）
 func (r *Repositories) Migrate() error {
-	for _, m := range []interface{ Migrate() error }{r.account, r.user, r.group, r.rbac, r.department} {
+	for _, m := range []interface{ Migrate() error }{r.account, r.user, r.group, r.roleGroup, r.rbac, r.department, r.invitation} {
 		if err := m.Migrate(); err != nil {
 			return err
 		}
@@ -72,6 +84,8 @@ func (r *Repositories) Migrate() error {
 func (r *Repositories) ensurePartialUniqueIndexes() error {
 	for _, stmt := range []string{
 		`CREATE UNIQUE INDEX IF NOT EXISTS uk_roles_tenant_name ON roles (tenant_id, name) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_role_groups_tenant_name ON role_groups (tenant_id, name) WHERE deleted_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_role_groups_tenant_sort ON role_groups (tenant_id, sort, id) WHERE deleted_at IS NULL`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uk_groups_tenant_name ON groups (tenant_id, name) WHERE deleted_at IS NULL`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uk_users_tenant_account ON users (tenant_id, account_id) WHERE deleted_at IS NULL`,
 		`CREATE UNIQUE INDEX IF NOT EXISTS uk_auth_identity ON auth_infos (auth_type, auth_id) WHERE deleted_at IS NULL`,
@@ -103,6 +117,10 @@ func (r *Repositories) Init() error {
 		},
 		{
 			Name:  model.UserResource,
+			Scope: model.ClusterScope,
+		},
+		{
+			Name:  model.MemberResource,
 			Scope: model.ClusterScope,
 		},
 		{

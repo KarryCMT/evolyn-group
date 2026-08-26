@@ -14,6 +14,14 @@ const (
 	ApplicationStatusArchived = "archived"
 )
 
+// 应用首页形态：builder 为首次构建引导，application 为运行时应用首页。
+// 该状态由应用生命周期维护，不根据当前成员可见菜单数量推导，避免权限
+// 过滤或菜单请求失败时将已有应用误判为空白应用。
+const (
+	ApplicationHomeModeBuilder     = "builder"
+	ApplicationHomeModeApplication = "application"
+)
+
 // 实例化状态（§7.1）：与 status 独立演进；M2-A 空白应用同步创建即 ready，
 // pending/running/failed 留给 M2-C 异步模板安装
 const (
@@ -45,8 +53,9 @@ type Application struct {
 	SourceType        string `json:"sourceType" gorm:"size:16;not null"`            // blank / template
 	Status            string `json:"status" gorm:"size:16;not null;default:active"` // active / archived
 	ProvisionStatus   string `json:"provisionStatus" gorm:"size:16;not null;default:ready"`
-	DefinitionVersion int    `json:"definitionVersion" gorm:"not null;default:1"` // 应用定义版本，非乐观锁
-	MenuRevision      int64  `json:"menuRevision" gorm:"not null;default:1"`      // 菜单修订号：菜单写入乐观并发口令（000016），与发布演进独立
+	HomeMode          string `json:"homeMode" gorm:"size:16;not null;default:builder"` // builder / application
+	DefinitionVersion int    `json:"definitionVersion" gorm:"not null;default:1"`      // 应用定义版本，非乐观锁
+	MenuRevision      int64  `json:"menuRevision" gorm:"not null;default:1"`           // 菜单修订号：菜单写入乐观并发口令（000016），与发布演进独立
 	SortOrder         int64  `json:"sortOrder" gorm:"not null;default:0"`
 	Config            Config `json:"config" gorm:"type:jsonb;not null;default:'{}'"` // 小型应用级配置
 

@@ -1,27 +1,25 @@
 <script setup lang="ts">
 import { EvolynMemberDepartmentRolePicker } from '@evolyn.do/ui';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { RiCloseFill } from '@remixicon/vue';
-import { computed, onUnmounted, shallowRef } from 'vue';
+import { computed, onMounted, shallowRef, watch } from 'vue';
+import { updateMyTenantProfile } from '~/api/tenant';
+import OrganizationInviteMemberDialog from '~/components/tenant/organization/OrganizationInviteMemberDialog.vue';
 import OrganizationMemberDrawer from '~/components/tenant/organization/OrganizationMemberDrawer.vue';
 import OrganizationMembersTable from '~/components/tenant/organization/OrganizationMembersTable.vue';
 import OrganizationTreeSidebar from '~/components/tenant/organization/OrganizationTreeSidebar.vue';
 import type {
+  OrganizationDepartment,
   OrganizationMember,
+  OrganizationRole,
+  OrganizationRoleGroup,
   OrganizationSelection,
 } from '~/components/tenant/organization/organization.types';
 import organizationInviteIllustration from '~/assets/images/organization-invite-illustration.png';
 import { useOrganization } from '~/composables/tenant/useOrganization';
+import { useAuth } from '~/composables/auth';
 
 defineOptions({ name: 'TenantOrganizationPage' });
-
-// 管理后台在现有设计中固定使用浅色表面；同时让 VTable 读取正确的根级主题变量。
-const restoreDarkClass =
-  typeof document !== 'undefined' && document.documentElement.classList.contains('dark');
-if (restoreDarkClass) document.documentElement.classList.remove('dark');
-onUnmounted(() => {
-  if (restoreDarkClass) document.documentElement.classList.add('dark');
-});
 
 const {
   mode,
@@ -30,33 +28,57 @@ const {
   roleGroups,
   roles,
   members,
+  availableMembers,
+  memberTotal,
+  memberPage,
   filters,
   filteredMembers,
   switchMode,
   selectItem,
-  roleName,
   addMembers,
   removeMember,
   updateMember,
+  loadMembers,
+  loadAvailableMembers,
+  loadRoles,
+  changeMemberStatus,
+  setMemberPage,
   createRoleGroup,
   createRole,
   renameRole,
+  renameRoleGroup,
+  deleteRoleGroup,
+  reorderRoleGroups,
   moveRole,
+  deleteRole,
+  reorderRoles,
+  loadDepartments,
+  setTenantRootName,
+  renameDepartment,
+  createChildDepartment,
 } = useOrganization();
+const { userInfo, loadUserInfo } = useAuth();
 
 const inviteBannerVisible = shallowRef(true);
+const inviteDialogVisible = shallowRef(false);
 const memberPickerVisible = shallowRef(false);
 const memberEditorVisible = shallowRef(false);
 const editingMember = shallowRef<OrganizationMember | null>(null);
 const roleDialogVisible = shallowRef(false);
-const roleDialogMode = shallowRef<'group' | 'role' | 'rename'>('role');
+const roleDialogMode = shallowRef<'group' | 'role' | 'rename' | 'group-rename'>('role');
 const roleNameDraft = shallowRef('');
+const roleGroupTarget = shallowRef<OrganizationRoleGroup | null>(null);
 const groupAdjustVisible = shallowRef(false);
-const targetGroupId = shallowRef('role-group-default');
+const targetGroupId = shallowRef('');
+const departmentDialogVisible = shallowRef(false);
+const departmentDialogMode = shallowRef<'rename' | 'create-child'>('rename');
+const departmentNameDraft = shallowRef('');
+const departmentTarget = shallowRef<OrganizationDepartment | null>(null);
+const departmentSubmitting = shallowRef(false);
+// 左侧组织树的初始宽度；由 Splitter 在拖动时维护当前像素值。
+const organizationSidebarWidth = shallowRef(356);
 
-const roleNamesForEditor = computed(
-  () => editingMember.value?.roleIds.map(roleName).filter(Boolean) ?? [],
-);
+const roleNamesForEditor = computed(() => editingMember.value?.roleNames ?? []);
 const pickerDepartments = computed(() => [
   {
     id: departments.value.id,
@@ -68,12 +90,10 @@ const pickerDepartments = computed(() => [
   },
 ]);
 const pickerMembers = computed(() =>
-  members.value.map((member) => ({
+  availableMembers.value.map((member) => ({
     id: member.id,
     label: member.name,
-    departmentIds: [
-      member.department === departments.value.name ? departments.value.id : 'dept-rd',
-    ],
+    departmentIds: member.departmentIds,
     keywords: [member.phone, member.email].filter((value): value is string => Boolean(value)),
   })),
 );
@@ -92,30 +112,139 @@ function chooseItem(nextSelection: OrganizationSelection) {
   selectItem(nextSelection);
 }
 
-function openCreateDialog(kind: 'group' | 'role') {
+function openCreateDialog(kind: 'group' | 'role', group?: OrganizationRoleGroup) {
   roleDialogMode.value = kind;
+  roleGroupTarget.value = group ?? null;
   roleNameDraft.value = '';
   roleDialogVisible.value = true;
 }
 
+function openDepartmentDialog(
+  action: 'rename' | 'create-child',
+  department: OrganizationDepartment,
+) {
+  departmentDialogMode.value = action;
+  departmentTarget.value = department;
+  departmentNameDraft.value = action === 'rename' ? department.name : '';
+  departmentDialogVisible.value = true;
+}
+
+async function confirmDepartmentDialog() {
+  const name = departmentNameDraft.value.trim();
+  const target = departmentTarget.value;
+  if (!name || !target) return;
+  departmentSubmitting.value = true;
+  try {
+    if (departmentDialogMode.value === 'rename') {
+      if (target.isTenantRoot) {
+        await updateMyTenantProfile({ name });
+        const info = await loadUserInfo();
+        setTenantRootName(info?.tenant.name ?? name);
+      } else {
+        await renameDepartment(target, name);
+      }
+    } else {
+      await createChildDepartment(target.id, name);
+    }
+    departmentDialogVisible.value = false;
+    ElMessage.success(departmentDialogMode.value === 'rename' ? '名称已修改' : '子部门已添加');
+  } finally {
+    departmentSubmitting.value = false;
+  }
+}
+
 function openRenameDialog() {
   roleDialogMode.value = 'rename';
+  roleGroupTarget.value = null;
   roleNameDraft.value = selection.value.name;
   roleDialogVisible.value = true;
 }
 
-function confirmRoleDialog() {
+function handleRoleGroupAction(
+  action: 'rename' | 'add-role' | 'delete',
+  group: OrganizationRoleGroup,
+) {
+  if (action === 'add-role') {
+    openCreateDialog('role', group);
+    return;
+  }
+  if (action === 'rename') {
+    roleDialogMode.value = 'group-rename';
+    roleGroupTarget.value = group;
+    roleNameDraft.value = group.name;
+    roleDialogVisible.value = true;
+    return;
+  }
+  void confirmDeleteRoleGroup(group).catch(() => undefined);
+}
+
+async function confirmDeleteRoleGroup(group: OrganizationRoleGroup) {
+  await ElMessageBox.confirm(
+    `删除「${group.name}」后，组内角色将移至默认角色组，角色权限和成员关系保持不变。`,
+    '删除角色组',
+    { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' },
+  );
+  await deleteRoleGroup(group);
+  ElMessage.success('角色组已删除');
+}
+
+async function handleRoleGroupReorder(groupIds: string[]) {
+  await reorderRoleGroups(groupIds);
+  ElMessage.success('角色组排序已保存');
+}
+
+function handleRoleAction(action: 'rename' | 'adjust-group' | 'delete', role: OrganizationRole) {
+  selectItem({ mode: 'role', id: role.id, name: role.name });
+  if (action === 'rename') {
+    openRenameDialog();
+    return;
+  }
+  if (action === 'adjust-group') {
+    openGroupAdjust();
+    return;
+  }
+  void confirmDeleteRole(role).catch(() => undefined);
+}
+
+async function confirmDeleteRole(role: OrganizationRole) {
+  await ElMessageBox.confirm(`确定删除角色「${role.name}」吗？`, '删除角色', {
+    confirmButtonText: '删除',
+    cancelButtonText: '取消',
+    type: 'warning',
+  });
+  await deleteRole(role);
+  await loadMembers();
+  ElMessage.success('角色已删除');
+}
+
+async function handleRoleReorder(groupId: string, roleIds: string[]) {
+  await reorderRoles(groupId, roleIds);
+  ElMessage.success('角色排序已保存');
+}
+
+function openGroupAdjust() {
+  targetGroupId.value =
+    roles.value.find((role) => role.id === selection.value.id)?.groupId ??
+    roleGroups.value[0]?.id ??
+    '';
+  groupAdjustVisible.value = true;
+}
+
+async function confirmRoleDialog() {
   const name = roleNameDraft.value.trim();
   if (!name) return;
-  if (roleDialogMode.value === 'group') createRoleGroup(name);
-  if (roleDialogMode.value === 'role') createRole(name);
-  if (roleDialogMode.value === 'rename') renameRole(name);
+  if (roleDialogMode.value === 'group') await createRoleGroup(name);
+  if (roleDialogMode.value === 'role') await createRole(name, roleGroupTarget.value?.id);
+  if (roleDialogMode.value === 'rename') await renameRole(name);
+  if (roleDialogMode.value === 'group-rename' && roleGroupTarget.value)
+    await renameRoleGroup(roleGroupTarget.value, name);
   roleDialogVisible.value = false;
+  roleGroupTarget.value = null;
   ElMessage.success('已保存');
 }
 
-function confirmGroupAdjust() {
-  moveRole(targetGroupId.value);
+async function confirmGroupAdjust() {
+  await moveRole(targetGroupId.value);
   groupAdjustVisible.value = false;
   ElMessage.success('角色分组已调整');
 }
@@ -123,8 +252,8 @@ function confirmGroupAdjust() {
 function openMemberPicker() {
   memberPickerVisible.value = true;
 }
-function confirmMemberPicker(values: { id: string | number }[]) {
-  addMembers(values.map((value) => String(value)));
+async function confirmMemberPicker(values: { id: string | number }[]) {
+  await addMembers(values.map((value) => String(value)));
   ElMessage.success('成员已添加到角色');
 }
 function openMemberEditor(member: OrganizationMember) {
@@ -135,81 +264,130 @@ function saveMember(member: OrganizationMember) {
   updateMember(member);
   ElMessage.success('成员信息已保存');
 }
-function handleRemoveMember(member: OrganizationMember) {
-  removeMember(member.id);
-  ElMessage.success(mode.value === 'role' ? '成员已移出角色' : '成员已转为离职');
+async function handleRemoveMember(member: OrganizationMember) {
+  if (mode.value === 'role') {
+    await removeMember(member.id);
+    ElMessage.success('成员已移出角色');
+    return;
+  }
+  await changeMemberStatus(member, 'resigned');
+  ElMessage.success('成员已转为离职');
 }
 function exportMembers() {
   ElMessage.success('成员导出任务已创建');
 }
 function inviteMember() {
-  ElMessage.success('邀请链接已生成');
+  inviteDialogVisible.value = true;
 }
+
+onMounted(async () => {
+  try {
+    const info = userInfo.value ?? (await loadUserInfo());
+    await Promise.all([
+      loadDepartments(info?.tenant.name ?? departments.value.name),
+      loadRoles(),
+      loadAvailableMembers(),
+    ]);
+  } catch {
+    // 任一组织数据读取失败不阻断成员列表，页面仍保留已成功加载的部分数据。
+  }
+  await loadMembers();
+});
+
+// 部门、离职成员入口、状态筛选和翻页均由服务端完成，避免前端仅对当前页做伪筛选。
+watch(
+  () => [mode.value, selection.value.id, filters.status, memberPage.value],
+  () => void loadMembers(),
+);
+
+// 关键词输入使用短暂延迟，减少连续输入时的无效请求；切换筛选条件会清理旧定时器。
+watch(
+  () => filters.memberKeyword,
+  (_keyword, _previous, onCleanup) => {
+    const timer = window.setTimeout(() => {
+      memberPage.value = 1;
+      void loadMembers();
+    }, 250);
+    onCleanup(() => window.clearTimeout(timer));
+  },
+);
 </script>
 
 <template>
   <section class="tenant-organization-page" aria-label="内部组织">
-    <OrganizationTreeSidebar
-      :mode="mode"
-      :selection="selection"
-      :departments="departments"
-      :role-groups="roleGroups"
-      :roles="roles"
-      @update:mode="updateMode"
-      @select="chooseItem"
-      @create="openCreateDialog"
-    />
+    <el-splitter class="tenant-organization-page__splitter">
+      <el-splitter-panel v-model:size="organizationSidebarWidth" :min="300" :max="560">
+        <OrganizationTreeSidebar
+          :mode="mode"
+          :selection="selection"
+          :departments="departments"
+          :role-groups="roleGroups"
+          :roles="roles"
+          @update:mode="updateMode"
+          @select="chooseItem"
+          @department-action="openDepartmentDialog"
+          @create="openCreateDialog"
+          @role-group-action="handleRoleGroupAction"
+          @role-group-reorder="handleRoleGroupReorder"
+          @role-action="handleRoleAction"
+          @role-reorder="handleRoleReorder"
+        />
+      </el-splitter-panel>
 
-    <main class="tenant-organization-page__content">
-      <template v-if="mode === 'department'">
-        <section
-          v-if="inviteBannerVisible"
-          class="tenant-organization-page__invite-banner"
-          aria-label="邀请成员"
-        >
-          <img :src="organizationInviteIllustration" alt="成员协作插画" />
-          <strong>邀请成员加入 一起管理企业业务</strong>
-          <button type="button" @click="inviteMember">邀请成员</button>
-          <button
-            class="tenant-organization-page__banner-close"
-            type="button"
-            aria-label="关闭邀请横幅"
-            @click="inviteBannerVisible = false"
-          >
-            <RiCloseFill />
-          </button>
-        </section>
-        <header class="tenant-organization-page__title-row">
-          <h1>{{ selection.name }}</h1>
-        </header>
-      </template>
-      <template v-else>
-        <header class="tenant-organization-page__role-header">
-          <h1>{{ selection.name }}</h1>
-          <div>
-            <button type="button" @click="openRenameDialog">修改名称</button
-            ><span aria-hidden="true">|</span
-            ><button type="button" @click="groupAdjustVisible = true">调整分组</button>
-          </div>
-        </header>
-      </template>
-      <OrganizationMembersTable
-        :mode="mode"
-        :role-name="selection.name"
-        :members="filteredMembers"
-        :role-name-of="roleName"
-        :keyword="filters.memberKeyword"
-        :status="filters.status"
-        @update:keyword="filters.memberKeyword = $event"
-        @update:status="filters.status = $event"
-        @invite="inviteMember"
-        @add-member="openMemberPicker"
-        @import="ElMessage.success('导入功能即将接入')"
-        @export="exportMembers"
-        @edit="openMemberEditor"
-        @remove="handleRemoveMember"
-      />
-    </main>
+      <el-splitter-panel :min="640">
+        <main class="tenant-organization-page__content">
+          <template v-if="mode === 'department'">
+            <section
+              v-if="inviteBannerVisible"
+              class="tenant-organization-page__invite-banner"
+              aria-label="邀请成员"
+            >
+              <img :src="organizationInviteIllustration" alt="成员协作插画" />
+              <strong>邀请成员加入 一起管理企业业务</strong>
+              <button type="button" @click="inviteMember">邀请成员</button>
+              <button
+                class="tenant-organization-page__banner-close"
+                type="button"
+                aria-label="关闭邀请横幅"
+                @click="inviteBannerVisible = false"
+              >
+                <RiCloseFill />
+              </button>
+            </section>
+            <header class="tenant-organization-page__title-row">
+              <h1>{{ selection.name }}</h1>
+            </header>
+          </template>
+          <template v-else>
+            <header class="tenant-organization-page__role-header">
+              <h1>{{ selection.name }}</h1>
+              <div>
+                <button type="button" @click="openRenameDialog">修改名称</button
+                ><span aria-hidden="true">|</span
+                ><button type="button" @click="openGroupAdjust">调整分组</button>
+              </div>
+            </header>
+          </template>
+          <OrganizationMembersTable
+            :mode="mode"
+            :members="filteredMembers"
+            :keyword="filters.memberKeyword"
+            :status="filters.status"
+            :total="memberTotal"
+            :current-page="memberPage"
+            @update:keyword="filters.memberKeyword = $event"
+            @update:status="filters.status = $event"
+            @update:page="setMemberPage"
+            @invite="inviteMember"
+            @add-member="openMemberPicker"
+            @import="inviteMember"
+            @export="exportMembers"
+            @edit="openMemberEditor"
+            @remove="handleRemoveMember"
+          />
+        </main>
+      </el-splitter-panel>
+    </el-splitter>
 
     <EvolynMemberDepartmentRolePicker
       v-model:open="memberPickerVisible"
@@ -232,21 +410,58 @@ function inviteMember() {
       :role-names="roleNamesForEditor"
       @save="saveMember"
     />
+    <OrganizationInviteMemberDialog
+      v-model="inviteDialogVisible"
+      :departments="departments"
+      @completed="loadMembers"
+    />
+    <el-dialog
+      v-model="departmentDialogVisible"
+      :title="departmentDialogMode === 'rename' ? '修改部门名称' : '添加子部门'"
+      width="480px"
+      align-center
+      @closed="departmentTarget = null"
+    >
+      <p
+        v-if="departmentDialogMode === 'create-child'"
+        class="tenant-organization-page__dialog-prompt"
+      >
+        将在「{{ departmentTarget?.name }}」下创建子部门
+      </p>
+      <el-input
+        v-model="departmentNameDraft"
+        :placeholder="departmentDialogMode === 'rename' ? '请输入部门名称' : '请输入子部门名称'"
+        maxlength="30"
+        show-word-limit
+        @keyup.enter="confirmDepartmentDialog"
+      />
+      <template #footer
+        ><el-button @click="departmentDialogVisible = false">取消</el-button
+        ><el-button type="primary" :loading="departmentSubmitting" @click="confirmDepartmentDialog"
+          >确定</el-button
+        ></template
+      >
+    </el-dialog>
     <el-dialog
       v-model="roleDialogVisible"
       :title="
         roleDialogMode === 'group'
           ? '创建角色组'
-          : roleDialogMode === 'rename'
+          : roleDialogMode === 'rename' || roleDialogMode === 'group-rename'
             ? '修改名称'
             : '创建角色'
       "
       width="480px"
       align-center
+      @closed="roleGroupTarget = null"
     >
       <el-input
         v-model="roleNameDraft"
-        :placeholder="roleDialogMode === 'group' ? '请输入角色组名称' : '请输入角色名称'"
+        :placeholder="
+          roleDialogMode === 'group' || roleDialogMode === 'group-rename'
+            ? '请输入角色组名称'
+            : '请输入角色名称'
+        "
         maxlength="30"
         show-word-limit
       />
@@ -279,16 +494,19 @@ function inviteMember() {
 
 <style scoped lang="scss">
 .tenant-organization-page {
-  display: flex;
+  position: relative;
   height: 100%;
   min-height: 720px;
   overflow: hidden;
   background: #fff;
 }
+.tenant-organization-page__splitter {
+  height: 100%;
+}
 .tenant-organization-page__content {
   display: flex;
+  height: 100%;
   min-width: 0;
-  flex: 1;
   flex-direction: column;
 }
 .tenant-organization-page__invite-banner {

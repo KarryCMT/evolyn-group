@@ -38,6 +38,8 @@ type AccountService interface {
 	// 账号自助（P3-2）
 	GetProfile(ctx context.Context, accountID uint) (*model.Account, error)
 	UpdateProfile(ctx context.Context, account *model.Account) (*model.Account, error)
+	// BindEmail 仅由已完成双重验证码校验的控制器调用；email 已经认证域规范化。
+	BindEmail(ctx context.Context, accountID uint, email string) (*model.Account, error)
 	ChangePassword(ctx context.Context, accountID uint, oldPassword, newPassword string) error
 	// EnsurePhoneAvailable 换绑手机号可用性预检（格式 + 未被占用）：
 	// 供控制器在消费一次性短信验证码前调用，避免号码已占用时白白耗码
@@ -62,8 +64,10 @@ type DepartmentService interface {
 // UserService 成员服务（租户内身份）
 type UserService interface {
 	List(ctx context.Context) (model.Users, error)
+	ListPage(ctx context.Context, query model.MemberListQuery) (*model.MemberPage, error)
 	Get(ctx context.Context, id string) (*model.User, error)
 	Update(ctx context.Context, id string, member *model.User) (*model.User, error)
+	UpdateStatus(ctx context.Context, id, status string) (*model.User, error)
 	Delete(ctx context.Context, id string) error
 	GetGroups(ctx context.Context, id string) ([]model.Group, error)
 	AddRole(ctx context.Context, id, rid string) error
@@ -73,6 +77,15 @@ type UserService interface {
 	AddMember(ctx context.Context, req *AddMemberRequest) (*model.User, error)
 }
 
+// MemberInvitationService 管理手动邀请、通讯录模板导入和公开邀请链接。
+type MemberInvitationService interface {
+	Create(ctx context.Context, inviterMemberID uint, req MemberInvitationRequest) (*model.MemberInvitation, error)
+	Import(ctx context.Context, inviterMemberID uint, content []byte) (*model.MemberInvitationBatchResult, error)
+	GetPublicLink(ctx context.Context) (*model.TenantPublicInvitationLink, error)
+	UpdatePublicLink(ctx context.Context, inviterMemberID uint, enabled bool) (*model.TenantPublicInvitationLink, error)
+	AcceptPublicLink(ctx context.Context, accountID uint, nickname, token string) (*model.User, error)
+}
+
 // AddMemberRequest 拉人入租户请求：AccountID 与 AccountName 二选一
 type AddMemberRequest struct {
 	AccountID     uint   `json:"accountId"`
@@ -80,6 +93,26 @@ type AddMemberRequest struct {
 	Nickname      string `json:"nickname"`
 	DepartmentIDs []uint `json:"departmentIds"`
 	RoleIDs       []uint `json:"roleIds"`
+}
+
+// MemberInvitationRequest 对齐通讯录批量导入模板中的完整成员档案。
+// 手机和邮箱至少填写一项；日期按 YYYY-MM-DD 字符串保存，避免时区改变原始档案日期。
+type MemberInvitationRequest struct {
+	Name            string   `json:"name"`
+	Identifier      string   `json:"identifier"`
+	Phone           string   `json:"phone"`
+	Email           string   `json:"email"`
+	DepartmentIDs   []uint   `json:"departmentIds"`
+	DepartmentNames []string `json:"departmentNames"`
+	Alias           string   `json:"alias"`
+	EmployeeNo      string   `json:"employeeNo"`
+	Gender          string   `json:"gender"`
+	Title           string   `json:"title"`
+	EmploymentType  string   `json:"employmentType"`
+	HiredAt         string   `json:"hiredAt"`
+	WorkLocation    string   `json:"workLocation"`
+	Birthday        string   `json:"birthday"`
+	Education       string   `json:"education"`
 }
 
 type GroupService interface {

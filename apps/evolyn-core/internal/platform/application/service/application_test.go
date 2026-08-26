@@ -356,6 +356,7 @@ func TestCreateBlankSuccess(t *testing.T) {
 	assert.Equal(t, model.InstallChannelSelf, detail.Source.Channel)
 	assert.Equal(t, model.ApplicationStatusActive, detail.Status)
 	assert.Equal(t, model.ProvisionStatusReady, detail.ProvisionStatus)
+	assert.Equal(t, model.ApplicationHomeModeBuilder, detail.HomeMode)
 
 	// 安装记录成对写入
 	app := repo.apps[detail.ID]
@@ -513,12 +514,14 @@ func TestCapabilitiesByPermission(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			app := &model.Application{
 				ID: 1, Status: tc.appStatus, ProvisionStatus: model.ProvisionStatusReady,
+				HomeMode: model.ApplicationHomeModeApplication,
 			}
 			svc := newTestService(newFakeAppRepo(), fakeQuota{}, nil, fakeAccess{perms: tc.perms}).(*applicationService)
 			detail := svc.detailFor(tc.perms, app)
 			assert.Equal(t, tc.wantView, detail.Capabilities.View)
 			assert.Equal(t, tc.wantEdit, detail.Capabilities.Edit)
 			assert.Equal(t, tc.wantDelete, detail.Capabilities.Delete)
+			assert.Equal(t, model.ApplicationHomeModeApplication, detail.HomeMode)
 		})
 	}
 }

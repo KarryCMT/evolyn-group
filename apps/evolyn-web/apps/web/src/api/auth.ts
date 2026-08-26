@@ -13,12 +13,16 @@ import type {
 // （见 evolyn-core internal/platform/auth/controller/auth.go）
 import { http } from '@evolyn.do/utils';
 
-/** 短信验证码场景：login=登录 / register=注册 / reset=找回密码 */
-export type SmsScene = 'login' | 'register' | 'reset';
+/** 短信验证码场景：login=登录 / register=注册 / reset=找回密码 / rebind=安全凭证换绑 */
+export type SmsScene = 'login' | 'register' | 'reset' | 'rebind';
 
 /** 发送短信验证码（60s 冷却/5min 有效由后端控制）；本地联调 devEcho 时回显验证码 */
-export function sendSmsCode(phone: string, scene: SmsScene): Promise<{ code?: string }> {
-  return http.post('/auth/sms/send', { phone, scene });
+export function sendSmsCode(
+  phone: string,
+  scene: SmsScene,
+  purpose?: 'old' | 'new',
+): Promise<{ code?: string }> {
+  return http.post('/auth/sms/send', { phone, scene, purpose });
 }
 
 /** 密码登录（用户名/手机号 + 密码），成功返回 JWT */

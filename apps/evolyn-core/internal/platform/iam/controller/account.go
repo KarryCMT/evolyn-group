@@ -28,6 +28,9 @@ type AccountController struct {
 	// smsVerifier 换绑手机号验证码校验（认证域 sms.Service 实现）：iam 不
 	// import 认证域（域依赖方向），以窄接口在装配层注入
 	smsVerifier PhoneCodeVerifier
+	// emailBinding 邮箱验证码与短时身份凭证（认证域实现）。iam 仅依赖当前
+	// 绑定流程需要的窄接口，保持领域间单向依赖。
+	emailBinding EmailBindingVerifier
 }
 
 // PhoneCodeVerifier 换绑流程所需的验证码校验能力（*sms.Service 天然满足）
@@ -35,16 +38,25 @@ type PhoneCodeVerifier interface {
 	Verify(ctx context.Context, scene, phone, code string) error
 }
 
+// EmailBindingVerifier 邮箱绑定所需的认证域能力。身份凭证与验证码均由
+// 实现方在 Redis 原子管理，避免控制器持有可重放状态。
+type EmailBindingVerifier interface {
+	IssueIdentityTicket(ctx context.Context, accountID uint) (string, error)
+	SendCode(ctx context.Context, accountID uint, ticket, email string) (string, error)
+	VerifyCode(ctx context.Context, accountID uint, ticket, email, code string) (string, error)
+}
+
 // ScenePhoneRebind 换绑手机号验证码场景（与认证域 sms.SceneRebind 同值约定；
 // 换绑码的发送走 POST /auth/sms/send，该场景要求已登录）
 const ScenePhoneRebind = "rebind"
 
-func NewAccountController(accountService service.AccountService, pkiKeypair *pki.Keypair, loginLogQuery loginlogservice.QueryService, smsVerifier PhoneCodeVerifier) platformcontroller.Controller {
+func NewAccountController(accountService service.AccountService, pkiKeypair *pki.Keypair, loginLogQuery loginlogservice.QueryService, smsVerifier PhoneCodeVerifier, emailBinding EmailBindingVerifier) platformcontroller.Controller {
 	return &AccountController{
 		accountService: accountService,
 		pkiKeypair:     pkiKeypair,
 		loginLogQuery:  loginLogQuery,
 		smsVerifier:    smsVerifier,
+		emailBinding:   emailBinding,
 	}
 }
 
@@ -78,8 +90,9 @@ func (a *AccountController) GetMe(c *gin.Context) {
 	httpx.ResponseSuccess(c, account)
 }
 
-// updateProfileRequest 资料更新（不含密码与手机号：手机号是登录与找回
-// 密码凭据，须走专用换绑流程 PUT /accounts/me/phone）
+// updateProfileRequest 资料更新（不含密码、手机号与邮箱：手机号和邮箱均为
+// 账号安全凭据，分别走专用绑定流程）。保留 Email 字段仅用于对旧客户端
+// 返回稳定错误码，禁止静默忽略越权更新。
 type updateProfileRequest struct {
 	Nickname   string                  `json:"nickname"`
 	Email      string                  `json:"email"`
@@ -89,7 +102,7 @@ type updateProfileRequest struct {
 
 // @Summary 更新我的账号资料
 // @Description 自助更新账号资料；onboarding 为注册向导「完善信息」提交的角色与了解渠道画像，
-// 昵称非空时同步当前成员的租户内称呼。手机号不在此入口变更（走 PUT /accounts/me/phone 换绑流程）
+// 昵称非空时同步当前成员的租户内称呼。手机号和邮箱不在此入口变更，分别走专用绑定流程
 // @Accept json
 // @Produce json
 // @Tags 账号
@@ -108,14 +121,153 @@ func (a *AccountController) UpdateMe(c *gin.Context) {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
+	if req.Email != "" {
+		httpx.ResponseFailed(c, http.StatusBadRequest, service.ErrEmailBindRequired)
+		return
+	}
 
 	account, err := a.accountService.UpdateProfile(c.Request.Context(), &model.Account{
 		ID:         accountID,
 		Nickname:   req.Nickname,
-		Email:      req.Email,
 		Avatar:     req.Avatar,
 		Onboarding: req.Onboarding,
 	})
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, account)
+}
+
+// verifyEmailIdentityRequest 是绑定邮箱第一步：当前手机号收到的换绑验证码。
+type verifyEmailIdentityRequest struct {
+	SMSCode string `json:"smsCode" binding:"required,len=6"`
+}
+
+// @Summary 验证绑定邮箱身份
+// @Description 校验当前绑定手机号收到的 rebind 验证码，成功后签发 5 分钟、一次性的邮箱绑定身份凭证
+// @Accept json
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param body body controller.verifyEmailIdentityRequest true "当前手机号验证码"
+// @Success 200 {object} httpx.Response{data=map[string]string}
+// @Failure 400 {object} httpx.Response "AUTH_PHONE_NOT_BOUND·当前账号未绑定手机号"
+// @Failure 401 {object} httpx.Response "AUTH_SMS_INVALID·验证码错误或已过期"
+// @Router /api/v1/accounts/me/email/identity [post]
+func (a *AccountController) VerifyEmailIdentity(c *gin.Context) {
+	accountID, ok := a.myAccount(c)
+	if !ok {
+		return
+	}
+	if a.emailBinding == nil || a.smsVerifier == nil {
+		httpx.ResponseFailed(c, http.StatusInternalServerError, fmt.Errorf("email binding verifier is not configured"))
+		return
+	}
+	req := new(verifyEmailIdentityRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	account, err := a.accountService.GetProfile(c.Request.Context(), accountID)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
+		return
+	}
+	if account.Phone == "" {
+		httpx.ResponseFailed(c, http.StatusBadRequest, service.ErrPhoneNotBound)
+		return
+	}
+	if err := a.smsVerifier.Verify(c.Request.Context(), ScenePhoneRebind, account.Phone, req.SMSCode); err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+	ticket, err := a.emailBinding.IssueIdentityTicket(c.Request.Context(), accountID)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
+		return
+	}
+	httpx.ResponseSuccess(c, gin.H{"verificationToken": ticket})
+}
+
+// sendEmailCodeRequest 是绑定邮箱第二步的验证码下发请求。
+type sendEmailCodeRequest struct {
+	Email             string `json:"email" binding:"required"`
+	VerificationToken string `json:"verificationToken" binding:"required"`
+}
+
+// @Summary 发送邮箱绑定验证码
+// @Description 仅接受已完成手机号身份验证的短时凭证；验证码与账号、目标邮箱和身份凭证绑定
+// @Accept json
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param body body controller.sendEmailCodeRequest true "邮箱与身份凭证"
+// @Success 200 {object} httpx.Response{data=map[string]string}
+// @Failure 401 {object} httpx.Response "AUTH_EMAIL_IDENTITY_EXPIRED·身份验证已过期"
+// @Failure 429 {object} httpx.Response "AUTH_EMAIL_COOLDOWN·发送过于频繁"
+// @Router /api/v1/accounts/me/email/code [post]
+func (a *AccountController) SendEmailCode(c *gin.Context) {
+	accountID, ok := a.myAccount(c)
+	if !ok {
+		return
+	}
+	if a.emailBinding == nil {
+		httpx.ResponseFailed(c, http.StatusInternalServerError, fmt.Errorf("email binding verifier is not configured"))
+		return
+	}
+	req := new(sendEmailCodeRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	code, err := a.emailBinding.SendCode(c.Request.Context(), accountID, req.VerificationToken, req.Email)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	// 仅开发通道回显固定码；生产通道 code 为空，不会泄露验证码。
+	httpx.ResponseSuccess(c, gin.H{"code": code})
+}
+
+// bindEmailRequest 是邮箱绑定的最终原子提交；验证码成功后立即被认证域消费。
+type bindEmailRequest struct {
+	Email             string `json:"email" binding:"required"`
+	EmailCode         string `json:"emailCode" binding:"required,len=6"`
+	VerificationToken string `json:"verificationToken" binding:"required"`
+}
+
+// @Summary 绑定邮箱
+// @Description 原子消费手机号身份凭证和新邮箱验证码，成功后更新账号邮箱并记录脱敏审计日志
+// @Accept json
+// @Produce json
+// @Tags 账号
+// @Security JWT
+// @Param body body controller.bindEmailRequest true "邮箱、邮箱验证码与身份凭证"
+// @Success 200 {object} httpx.Response{data=model.Account}
+// @Failure 401 {object} httpx.Response "AUTH_EMAIL_IDENTITY_EXPIRED/AUTH_EMAIL_CODE_INVALID·身份或邮箱验证码无效"
+// @Failure 429 {object} httpx.Response "AUTH_EMAIL_TOO_MANY_TRIES·验证码尝试次数过多"
+// @Router /api/v1/accounts/me/email [put]
+func (a *AccountController) BindEmail(c *gin.Context) {
+	accountID, ok := a.myAccount(c)
+	if !ok {
+		return
+	}
+	if a.emailBinding == nil {
+		httpx.ResponseFailed(c, http.StatusInternalServerError, fmt.Errorf("email binding verifier is not configured"))
+		return
+	}
+	req := new(bindEmailRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	email, err := a.emailBinding.VerifyCode(c.Request.Context(), accountID, req.VerificationToken, req.Email, req.EmailCode)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	account, err := a.accountService.BindEmail(c.Request.Context(), accountID, email)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -327,6 +479,9 @@ func (a *AccountController) MyLoginLogs(c *gin.Context) {
 func (a *AccountController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/accounts/me", a.GetMe)
 	api.PUT("/accounts/me", a.UpdateMe)
+	api.POST("/accounts/me/email/identity", a.VerifyEmailIdentity)
+	api.POST("/accounts/me/email/code", a.SendEmailCode)
+	api.PUT("/accounts/me/email", a.BindEmail)
 	api.PUT("/accounts/me/password", a.ChangePassword)
 	api.PUT("/accounts/me/phone", a.ChangeMyPhone)
 	api.GET("/accounts/me/login-logs", a.MyLoginLogs)

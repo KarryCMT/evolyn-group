@@ -45,6 +45,56 @@ func (u *userRepository) List(ctx context.Context) (model.Users, error) {
 	return users, nil
 }
 
+// ListPage 组织成员分页查询。先按 members 主表计数和分页，再 Preload 多对多
+// 部门/角色，避免多关联 JOIN 令分页重复或 total 失真。
+func (u *userRepository) ListPage(ctx context.Context, params model.MemberListQuery) (model.Users, int64, error) {
+	// JOIN accounts 仅用于过滤有效账号与关键词匹配；必须限定主查询为 users.*。
+	// 否则 PostgreSQL 返回的 accounts 列会与 users 的同名列混在一起，GORM 扫描时
+	// 可能将 members.account_id 覆盖为零值，进而使创建者资料显示为空。
+	query := u.withContext(ctx).Model(&model.User{}).Select("users.*").
+		Joins("JOIN accounts ON accounts.id = users.account_id AND accounts.deleted_at IS NULL")
+
+	if params.DepartmentID > 0 {
+		query = query.Joins("JOIN department_users ON department_users.user_id = users.id").
+			Where("department_users.department_id = ?", params.DepartmentID)
+	}
+	if params.RoleID > 0 {
+		// 按角色筛选只连接关系表，成员完整角色列表仍由 Preload 返回，供组织页
+		// 在同一行展示成员拥有的全部角色。
+		query = query.Joins("JOIN user_roles ON user_roles.user_id = users.id").
+			Where("user_roles.role_id = ?", params.RoleID)
+	}
+	if params.Keyword != "" {
+		keyword := "%" + params.Keyword + "%"
+		query = query.Where(
+			"users.nickname ILIKE ? OR accounts.nickname ILIKE ? OR accounts.name ILIKE ? OR accounts.phone ILIKE ? OR accounts.email ILIKE ?",
+			keyword, keyword, keyword, keyword, keyword,
+		)
+	}
+	switch params.Status {
+	case model.MemberStatusActive, model.MemberStatusDisabled, model.MemberStatusResigned:
+		query = query.Where("users.status = ?", params.Status)
+	default:
+		query = query.Where("users.status IN ?", []string{model.MemberStatusActive, model.MemberStatusDisabled})
+	}
+
+	var total int64
+	// Distinct 会把当前链的 Select 改为 users.id。计数使用独立会话，避免后续
+	// Find 只取回 id，导致创建者的 account_id、昵称等字段全部成为零值。
+	countQuery := query.Session(&gorm.Session{})
+	if err := countQuery.Distinct("users.id").Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	users := make(model.Users, 0)
+	if err := query.Preload("Account").Preload("Roles").Preload(model.DepartmentAssociation).
+		Order("users.id").Offset((params.Page - 1) * params.PageSize).Limit(params.PageSize).
+		Find(&users).Error; err != nil {
+		return nil, 0, err
+	}
+	return users, total, nil
+}
+
 // ListByAccount 账号的全部成员关系（登录后租户列表/默认成员解析）。
 // 登录链路可能尚未注入租户上下文，此处显式按账号查全量成员关系
 func (u *userRepository) ListByAccount(ctx context.Context, accountID uint) (model.Users, error) {
@@ -65,12 +115,14 @@ func (u *userRepository) GetByAccountAndTenant(ctx context.Context, accountID, t
 	return user, nil
 }
 
-// CountByTenant 指定租户的有效成员数（软删行不计）：配额执行路径使用，
+// CountByTenant 指定租户的有效成员数（软删与离职成员均不计）：配额执行路径使用，
 // 显式 Scope 而非依赖请求租户上下文（运营/定时任务可能无上下文）
 func (u *userRepository) CountByTenant(ctx context.Context, tenantID uint) (int64, error) {
 	var count int64
 	err := u.withContext(ctx).Model(&model.User{}).
-		Scopes(infrastructure.TenantScope(tenantID)).Count(&count).Error
+		Scopes(infrastructure.TenantScope(tenantID)).
+		Where("status IN ?", []string{model.MemberStatusActive, model.MemberStatusDisabled}).
+		Count(&count).Error
 	return count, err
 }
 
@@ -92,6 +144,16 @@ func (u *userRepository) Update(ctx context.Context, member *model.User) (*model
 
 	u.rdb.HDel(member.CacheKey(), strconv.Itoa(int(member.ID)))
 
+	return member, nil
+}
+
+// UpdateStatus 仅修改成员租户内状态及离职时间；账号资料不受该操作影响。
+func (u *userRepository) UpdateStatus(ctx context.Context, member *model.User) (*model.User, error) {
+	if err := u.withContext(ctx).Model(&model.User{}).Where("id = ?", member.ID).
+		Select("status", "resigned_at").Updates(member).Error; err != nil {
+		return nil, err
+	}
+	u.rdb.HDel(member.CacheKey(), strconv.Itoa(int(member.ID)))
 	return member, nil
 }
 

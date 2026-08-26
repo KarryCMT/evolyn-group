@@ -19,15 +19,29 @@ type UserRepository interface {
 	ListByAccount(ctx context.Context, accountID uint) (model.Users, error)
 	GetByAccountAndTenant(ctx context.Context, accountID, tenantID uint) (*model.User, error)
 	List(ctx context.Context) (model.Users, error)
+	ListPage(ctx context.Context, query model.MemberListQuery) (model.Users, int64, error)
 	// CountByTenant 指定租户的有效成员数（配额执行用，FIX-011）。
 	// 显式按租户计数：调用方（配额/运营路径）可能无租户上下文
 	CountByTenant(ctx context.Context, tenantID uint) (int64, error)
 	Create(ctx context.Context, member *model.User) (*model.User, error)
 	Update(ctx context.Context, member *model.User) (*model.User, error)
+	UpdateStatus(ctx context.Context, member *model.User) (*model.User, error)
 	Delete(ctx context.Context, member *model.User) error
 	AddRole(ctx context.Context, role *model.Role, user *model.User) error
 	DelRole(ctx context.Context, role *model.Role, user *model.User) error
 	GetGroups(ctx context.Context, user *model.User) ([]model.Group, error)
+	Migrate() error
+}
+
+// MemberInvitationRepository 管理待接受成员邀请和租户公开邀请链接。
+// 两类记录均为租户内资源，租户过滤统一由 GORM Callback 注入。
+type MemberInvitationRepository interface {
+	Create(ctx context.Context, invitation *model.MemberInvitation) (*model.MemberInvitation, error)
+	CreateBatch(ctx context.Context, invitations []model.MemberInvitation) error
+	GetPublicLink(ctx context.Context) (*model.TenantPublicInvitationLink, error)
+	GetPublicLinkByToken(ctx context.Context, token string) (*model.TenantPublicInvitationLink, error)
+	CreatePublicLink(ctx context.Context, link *model.TenantPublicInvitationLink) (*model.TenantPublicInvitationLink, error)
+	UpdatePublicLink(ctx context.Context, link *model.TenantPublicInvitationLink) (*model.TenantPublicInvitationLink, error)
 	Migrate() error
 }
 
@@ -86,7 +100,21 @@ type RBACRepository interface {
 	GetResource(ctx context.Context, id int) (*model.Resource, error)
 	GetRoleByName(ctx context.Context, name string) (*model.Role, error)
 	Update(ctx context.Context, role *model.Role) (*model.Role, error)
+	// ClearRoleGroup 在删除展示分组前清除其中角色的分组归属，角色本身不删除。
+	ClearRoleGroup(ctx context.Context, groupID uint) error
 	Delete(ctx context.Context, id uint) error
 	DeleteResource(ctx context.Context, id uint) error
+	Migrate() error
+}
+
+// RoleGroupRepository 管理内部组织页中的角色展示分组。它与权限分组 Group
+// 独立，避免角色分类意外影响成员的权限继承。
+type RoleGroupRepository interface {
+	List(ctx context.Context) ([]model.RoleGroup, error)
+	GetByID(ctx context.Context, id uint) (*model.RoleGroup, error)
+	GetByName(ctx context.Context, name string) (*model.RoleGroup, error)
+	Create(ctx context.Context, group *model.RoleGroup) (*model.RoleGroup, error)
+	Update(ctx context.Context, group *model.RoleGroup) (*model.RoleGroup, error)
+	Delete(ctx context.Context, group *model.RoleGroup) error
 	Migrate() error
 }

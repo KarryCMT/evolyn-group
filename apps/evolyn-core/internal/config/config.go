@@ -19,6 +19,7 @@ type Config struct {
 	Tenant      TenantRuntimeConfig    `yaml:"tenant"`
 	OAuthConfig map[string]OAuthConfig `yaml:"oauth"`
 	SMS         SMSConfig              `yaml:"sms"`
+	Email       EmailConfig            `yaml:"email"`
 	Auth        AuthConfig             `yaml:"auth"`
 	PKI         PKIConfig              `yaml:"pki"`
 	Security    SecurityConfig         `yaml:"security"`
@@ -73,6 +74,25 @@ type SMSConfig struct {
 	IPDailyLimit    int    `yaml:"ipDailyLimit"`    // 单 IP 自然日发送上限（默认 30，跨手机号/场景合计；防轮换手机号刷短信成本）
 	// DevEcho 响应中回显验证码：仅本地联调可开，生产必须关闭
 	DevEcho bool `yaml:"devEcho"`
+}
+
+// EmailConfig 是邮箱绑定验证码的通道与风控参数。开发环境使用 dev 通道，仅
+// 记录脱敏地址和固定码；生产使用 smtp，凭据由未提交的部署配置注入。
+type EmailConfig struct {
+	Provider        string `yaml:"provider"`
+	CodeTTLSeconds  int    `yaml:"codeTtlSeconds"`
+	CooldownSeconds int    `yaml:"cooldownSeconds"`
+	MaxTries        int    `yaml:"maxTries"`
+	IdentityTTL     int    `yaml:"identityTtlSeconds"`
+	DevEcho         bool   `yaml:"devEcho"`
+	SMTPHost        string `yaml:"smtpHost"`
+	SMTPPort        int    `yaml:"smtpPort"`
+	SMTPUsername    string `yaml:"smtpUsername"`
+	SMTPPassword    string `yaml:"smtpPassword"`
+	SMTPFrom        string `yaml:"smtpFrom"`
+	// SMTPImplicitTLS 用于 465 等服务端要求客户端在连接建立时即 TLS 握手的端口；
+	// 留空时服务会将 465 自动识别为隐式 TLS，其余端口优先使用 STARTTLS。
+	SMTPImplicitTLS bool `yaml:"smtpImplicitTls"`
 }
 
 // PKIConfig 登录口令加密传输密钥：公钥经 GET /app/conf 下发前端，

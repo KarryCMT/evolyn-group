@@ -30,7 +30,7 @@ func (rbac *rbacRepository) withContext(ctx context.Context) *gorm.DB {
 
 func (rbac *rbacRepository) List(ctx context.Context) ([]model.Role, error) {
 	roles := make([]model.Role, 0)
-	if err := rbac.withContext(ctx).Find(&roles).Error; err != nil {
+	if err := rbac.withContext(ctx).Order("sort, id").Find(&roles).Error; err != nil {
 		return nil, err
 	}
 	return roles, nil
@@ -83,6 +83,13 @@ func (rbac *rbacRepository) GetRoleByName(ctx context.Context, name string) (*mo
 func (rbac *rbacRepository) Update(ctx context.Context, role *model.Role) (*model.Role, error) {
 	err := rbac.withContext(ctx).Updates(role).Error
 	return role, err
+}
+
+func (rbac *rbacRepository) ClearRoleGroup(ctx context.Context, groupID uint) error {
+	return rbac.withContext(ctx).
+		Model(&model.Role{}).
+		Where("role_group_id = ?", groupID).
+		Update("role_group_id", nil).Error
 }
 
 func (rbac *rbacRepository) Delete(ctx context.Context, id uint) error {

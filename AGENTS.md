@@ -69,7 +69,10 @@ internal/
                        OAuth（github/wechat）、短信验证码（sms/ 子包：Redis
                        存码 + 冷却/试错上限，场景 login/register；开发通道
                        provider=dev 固定码 666666 + devEcho 回显，其他
-                       provider 启动拦截）、登录口令加密（pki/ 子包：RSA
+                       provider 启动拦截）、邮箱绑定验证码（email/ 子包：当前
+                       手机号 rebind 验证后签发短时身份凭证，再向新邮箱发码；
+                       Redis 原子消费凭证与验证码，dev 固定码 666666，release
+                       强制 smtp 通道）、登录口令加密（pki/ 子包：RSA
                        密钥对，公钥经 /app/conf 下发前端 jsencrypt 加密、
                        服务端私钥解密，私钥配置注入或开发态启动随机生成）、
                        service/ 子包（注册编排 RegistrationService：单事务

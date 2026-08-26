@@ -1,13 +1,80 @@
 <script setup lang="ts">
 import type { DeepReadonly } from 'vue';
 import type { UserInfoResult } from '~/types';
+import { ElMessage } from 'element-plus';
 import { RiErrorWarningFill, RiInformationFill, RiLinksFill } from '@remixicon/vue';
+import { onMounted, shallowRef } from 'vue';
+import AccountSessionDrawer from '~/components/dashboard/account/AccountSessionDrawer.vue';
+import SecurityReauthDialog from '~/components/dashboard/account/SecurityReauthDialog.vue';
+import TotpEnrollmentDialog from '~/components/dashboard/account/TotpEnrollmentDialog.vue';
+import { disableMyTOTP, updateMySingleSession } from '~/api/account';
+import { useAccountSecurityOverview } from '~/composables/useAccountSecurityOverview';
 
 defineOptions({ name: 'AccountSecurityPanel' });
 
-defineProps<{
+const props = defineProps<{
   userInfo: DeepReadonly<UserInfoResult> | null;
 }>();
+
+const { overview, loading, loadError, loadOverview } = useAccountSecurityOverview();
+const sessionDrawerVisible = shallowRef(false);
+const totpEnrollmentVisible = shallowRef(false);
+const reauthDialogVisible = shallowRef(false);
+const pendingAction = shallowRef<'disable-totp' | 'single-session' | null>(null);
+const securityActionLoading = shallowRef(false);
+const requestedSingleSession = shallowRef(false);
+
+// 该组件仅在「账号安全」页签激活时挂载，因此首次挂载即代表用户进入该页签。
+onMounted(loadOverview);
+
+function handleSessionRevoked() {
+  void loadOverview();
+}
+
+function handleTotpCompleted() {
+  void loadOverview();
+}
+
+function requestDisableTOTP() {
+  pendingAction.value = 'disable-totp';
+  reauthDialogVisible.value = true;
+}
+
+function requestSingleSessionUpdate(value: string | number | boolean) {
+  if (typeof value !== 'boolean' || !overview.value || securityActionLoading.value) return;
+  pendingAction.value = 'single-session';
+  reauthDialogVisible.value = true;
+  // 将用户本次开关意图保存在同一个受控状态中，二次验证成功后才真正提交。
+  requestedSingleSession.value = value;
+}
+
+function handleReauthDialogVisibility(visible: boolean) {
+  reauthDialogVisible.value = visible;
+  if (!visible && !securityActionLoading.value) pendingAction.value = null;
+}
+
+async function applySecurityAction(reauthToken: string) {
+  const action = pendingAction.value;
+  if (!action) return;
+
+  securityActionLoading.value = true;
+  try {
+    if (action === 'disable-totp') {
+      await disableMyTOTP(reauthToken);
+      ElMessage.success('登录二次验证已关闭，其他设备已退出');
+    } else {
+      await updateMySingleSession({ reauthToken, enabled: requestedSingleSession.value });
+      ElMessage.success(requestedSingleSession.value ? '已开启禁止同时登录' : '已允许多设备登录');
+    }
+    reauthDialogVisible.value = false;
+    pendingAction.value = null;
+    await loadOverview();
+  } catch {
+    ElMessage.error('安全设置更新失败，请稍后重试');
+  } finally {
+    securityActionLoading.value = false;
+  }
+}
 </script>
 
 <template>
@@ -15,21 +82,63 @@ defineProps<{
     <div class="account-security__row">
       <div>
         <strong>登录二次验证</strong>
-        <el-tooltip content="该策略需由后端安全服务启用后才可配置" placement="top">
+        <el-tooltip content="绑定验证器后，登录时需额外输入动态码" placement="top">
           <el-icon class="account-security__help"><RiInformationFill /></el-icon>
         </el-tooltip>
       </div>
-      <el-switch disabled aria-label="登录二次验证暂未开放" />
+      <div class="account-security__status">
+        <el-switch
+          :model-value="overview?.mfaEnabled ?? false"
+          disabled
+          aria-label="登录二次验证状态"
+        />
+        <el-tag v-if="overview?.totpEnrolled" size="small" type="success" effect="plain"
+          >已绑定验证器</el-tag
+        >
+        <span v-else class="account-security__muted">未绑定验证器</span>
+        <el-button
+          v-if="!overview?.totpEnrolled"
+          link
+          type="primary"
+          :disabled="!props.userInfo?.account.passwordInitialized"
+          @click="totpEnrollmentVisible = true"
+        >
+          绑定验证器
+        </el-button>
+        <el-button v-else link type="danger" @click="requestDisableTOTP">关闭验证器</el-button>
+      </div>
     </div>
     <div class="account-security__row">
       <div>
         <strong>禁止同时登录</strong>
-        <el-tooltip content="该策略需由后端会话服务启用后才可配置" placement="top">
+        <el-tooltip content="开启后，新设备登录会自动退出其他设备" placement="top">
           <el-icon class="account-security__help"><RiInformationFill /></el-icon>
         </el-tooltip>
       </div>
-      <el-switch disabled aria-label="禁止同时登录暂未开放" />
+      <div class="account-security__status">
+        <el-switch
+          :model-value="overview?.singleSessionEnabled ?? false"
+          :loading="securityActionLoading && pendingAction === 'single-session'"
+          :disabled="!overview || !props.userInfo?.account.passwordInitialized"
+          aria-label="禁止同时登录状态"
+          @update:model-value="requestSingleSessionUpdate"
+        />
+        <span class="account-security__muted">
+          {{ overview?.singleSessionEnabled ? '仅保留当前设备会话' : '允许多设备登录' }}
+        </span>
+      </div>
     </div>
+
+    <div
+      class="account-security__summary"
+      :class="{ 'account-security__summary--loading': loading }"
+    >
+      <span>活跃设备 {{ overview?.activeSessions ?? '-' }}</span>
+      <span>剩余恢复码 {{ overview?.recoveryCodesRemaining ?? '-' }}</span>
+      <el-button link type="primary" @click="sessionDrawerVisible = true">管理设备</el-button>
+      <el-button link type="primary" :loading="loading" @click="loadOverview">刷新</el-button>
+    </div>
+    <p v-if="loadError" class="account-security__error" role="alert">{{ loadError }}</p>
 
     <div class="account-security__binding">
       <strong>账号绑定</strong>
@@ -63,6 +172,27 @@ defineProps<{
         <el-button link type="danger">注销</el-button>
       </span>
     </div>
+
+    <AccountSessionDrawer v-model="sessionDrawerVisible" @session-revoked="handleSessionRevoked" />
+    <TotpEnrollmentDialog
+      v-model="totpEnrollmentVisible"
+      :password-initialized="props.userInfo?.account.passwordInitialized ?? false"
+      @completed="handleTotpCompleted"
+    />
+    <SecurityReauthDialog
+      :model-value="reauthDialogVisible"
+      :title="pendingAction === 'disable-totp' ? '关闭登录二次验证' : '验证身份'"
+      :description="
+        pendingAction === 'disable-totp'
+          ? '关闭后，登录将不再要求验证器动态码；其他设备会自动退出。'
+          : '修改禁止同时登录设置前，需要再次确认是你本人操作。'
+      "
+      :confirm-text="pendingAction === 'disable-totp' ? '确认关闭' : '继续'"
+      :password-initialized="props.userInfo?.account.passwordInitialized ?? false"
+      :action-loading="securityActionLoading"
+      @update:model-value="handleReauthDialogVisibility"
+      @verified="applySecurityAction"
+    />
   </section>
 </template>
 
@@ -75,6 +205,29 @@ defineProps<{
     grid-template-columns: 162px minmax(0, 1fr);
     align-items: center;
     min-height: 54px;
+  }
+
+  &__status,
+  &__summary {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__summary {
+    min-height: 42px;
+    padding: 0 0 10px 162px;
+    color: var(--el-text-color-secondary);
+  }
+
+  &__summary--loading {
+    opacity: 0.72;
+  }
+
+  &__error {
+    margin: -4px 0 10px 162px;
+    color: var(--el-color-danger);
+    font-size: 13px;
   }
 
   &__row > div,

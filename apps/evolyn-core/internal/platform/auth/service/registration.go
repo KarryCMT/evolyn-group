@@ -17,6 +17,7 @@ type registrationService struct {
 	tx       TxManager
 	accounts iamservice.AccountService
 	tenants  tenantservice.TenantService
+	invites  MemberInvitationAccepter
 	audit    auditservice.Recorder
 }
 
@@ -26,8 +27,13 @@ func NewRegistrationService(
 	accounts iamservice.AccountService,
 	tenants tenantservice.TenantService,
 	audit auditservice.Recorder,
+	invites ...MemberInvitationAccepter,
 ) RegistrationService {
-	return &registrationService{tx: tx, accounts: accounts, tenants: tenants, audit: audit}
+	var invitationAccepter MemberInvitationAccepter
+	if len(invites) > 0 {
+		invitationAccepter = invites[0]
+	}
+	return &registrationService{tx: tx, accounts: accounts, tenants: tenants, invites: invitationAccepter, audit: audit}
 }
 
 // Complete 注册向导最终提交「进入产品」的单事务编排：
@@ -55,19 +61,35 @@ func (s *registrationService) Complete(ctx context.Context, req *RegistrationReq
 			return err
 		}
 
-		if !created {
+		if !created && req.PublicInviteToken == "" {
 			// 已注册：恢复会话即止（RegisterByPhone 已按登录成员优选解析）
 			result = &RegistrationResult{Account: account, Member: member, Created: false}
 			return nil
 		}
 
-		// 昵称为空串保留注册默认值（脱敏手机号），不覆盖
-		if req.Nickname != "" {
+		// 昵称为空串保留注册默认值（脱敏手机号），不覆盖。
+		// 已有账号经公开链接加入时同样不覆盖平台级昵称，仅使用邀请昵称
+		// 写目标租户成员。
+		if created && req.Nickname != "" {
 			account.Nickname = req.Nickname
 		}
-		account.Onboarding = req.Onboarding
-		if _, err := s.accounts.UpdateProfile(tctx, account); err != nil {
-			return err
+		if created {
+			account.Onboarding = req.Onboarding
+			if _, err := s.accounts.UpdateProfile(tctx, account); err != nil {
+				return err
+			}
+		}
+
+		if req.PublicInviteToken != "" {
+			if s.invites == nil {
+				return iamservice.ErrMemberInvitationInvalid
+			}
+			member, err = s.invites.AcceptPublicLink(tctx, account.ID, req.Nickname, req.PublicInviteToken)
+			if err != nil {
+				return err
+			}
+			result = &RegistrationResult{Account: account, Member: member, Created: created}
+			return nil
 		}
 
 		tenant, opened, err := s.resolveTenant(tctx, account.ID, req)

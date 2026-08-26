@@ -157,6 +157,9 @@ func (s *applicationService) provisionBlank(
 			SourceType:      model.SourceTypeBlank,
 			Status:          model.ApplicationStatusActive,
 			ProvisionStatus: model.ProvisionStatusReady,
+			// 空白创建一律进入构建引导；菜单管理写路径将在首次发布菜单时
+			// 与菜单变更同一事务切换为 application，不能由当前成员权限反推。
+			HomeMode: model.ApplicationHomeModeBuilder,
 		}
 		draft.TenantID = tenantID
 		created, aerr := s.repo.Create(tctx, draft)
@@ -414,6 +417,7 @@ func (s *applicationService) detailFor(perms map[string]bool, app *model.Applica
 		Source:          model.ApplicationSource{Type: app.SourceType, Channel: channelForSourceType(app.SourceType)},
 		Status:          app.Status,
 		ProvisionStatus: app.ProvisionStatus,
+		HomeMode:        app.HomeMode,
 		OwnerMemberID:   app.OwnerMemberID,
 		CreatorMemberID: app.CreatorMemberID,
 		SortOrder:       app.SortOrder,

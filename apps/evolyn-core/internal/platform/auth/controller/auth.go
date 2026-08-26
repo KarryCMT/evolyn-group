@@ -66,8 +66,11 @@ func NewAuthController(accountService service.AccountService, registrationServic
 		pkiKeypair:          pkiKeypair,
 		loginLog:            loginLog,
 		revoker:             revoker,
-		mfa:                 mfa,
-		loginGuard:          loginGuard,
+		// 登录会话服务必须保留到控制器，loginSession 才会创建 account_sessions
+		// 并把 SID 签入 JWT；遗漏注入会静默回退为存量无 SID 令牌。
+		sessions:   sessions,
+		mfa:        mfa,
+		loginGuard: loginGuard,
 	}
 }
 
@@ -94,37 +97,55 @@ func (ac *AuthController) recordLogin(c *gin.Context, account *model.Account, me
 // 「账号+成员+租户+设备会话（sid）」（ADR-009）。authMethod 声明第一步
 // 通过的证据类别（password/sms/oauth/register），落入会话流水
 func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, member *model.User, setCookie bool, authMethod, mfaMethod string) (string, error) {
-	var session *secmodel.AccountSession
-	if ac.sessions != nil {
-		ua := ""
-		if c.Request != nil {
-			ua = c.Request.UserAgent()
+	var (
+		cookieMember string
+		token        string
+		err          error
+	)
+	if setCookie {
+		memberJSON, marshalErr := json.Marshal(member)
+		if marshalErr != nil {
+			return "", marshalErr
 		}
-		var err error
-		session, err = ac.sessions.Issue(c.Request.Context(), securityservice.IssueRequest{
-			AccountID:  account.ID,
-			AuthMethod: authMethod,
-			MFAMethod:  mfaMethod,
-			IP:         c.ClientIP(),
-			UserAgent:  ua,
-		})
-		if err != nil {
-			return "", err
-		}
+		cookieMember = string(memberJSON)
 	}
 
-	token, err := ac.jwtService.CreateToken(account, member, session)
+	if ac.sessions == nil {
+		return ac.jwtService.CreateToken(account, member, nil)
+	}
+
+	// 单会话模式会在 Issue 的事务中撤销其他会话。JWT 签名和 Cookie 序列化
+	// 是该事务之后最可能让登录响应失败的步骤，因此必须先完成所有可失败的
+	// 响应准备工作，成功后才允许撤销旧设备。
+	sid, err := secmodel.NewSID()
+	if err != nil {
+		return "", err
+	}
+	preparedSession := &secmodel.AccountSession{SID: sid, TokenVersion: 1}
+	token, err = ac.jwtService.CreateToken(account, member, preparedSession)
+	if err != nil {
+		return "", err
+	}
+
+	ua := ""
+	if c.Request != nil {
+		ua = c.Request.UserAgent()
+	}
+	_, err = ac.sessions.Issue(c.Request.Context(), securityservice.IssueRequest{
+		SID:        sid,
+		AccountID:  account.ID,
+		AuthMethod: authMethod,
+		MFAMethod:  mfaMethod,
+		IP:         c.ClientIP(),
+		UserAgent:  ua,
+	})
 	if err != nil {
 		return "", err
 	}
 
 	if setCookie {
-		memberJson, err := json.Marshal(member)
-		if err != nil {
-			return "", err
-		}
 		c.SetCookie(httpx.CookieTokenName, token, 3600*24, "/", "", true, true)
-		c.SetCookie(httpx.CookieLoginUser, string(memberJson), 3600*24, "/", "", true, false)
+		c.SetCookie(httpx.CookieLoginUser, cookieMember, 3600*24, "/", "", true, false)
 	}
 
 	return token, nil
@@ -386,11 +407,12 @@ type registerTenantProfile struct {
 // 采集的全量数据——手机号+验证码、企业画像、账号画像，点「进入产品」时
 // 一次性上送，此前向导各步不产生任何服务端写副作用
 type registerRequest struct {
-	Phone      string                `json:"phone" binding:"required,len=11"`          // 手机号（格式再经 sms 校验）
-	SmsCode    string                `json:"smsCode" binding:"required,len=6"`         // 短信验证码
-	Nickname   string                `json:"nickname" binding:"required,min=2,max=20"` // 怎么称呼你（与前端表单一致 2-20 必填）
-	Onboarding registerOnboarding    `json:"onboarding" binding:"required"`            // 账号画像：角色/了解渠道（必填，枚举白名单校验）
-	Tenant     registerTenantProfile `json:"tenant" binding:"required"`                // 企业画像
+	Phone        string                `json:"phone" binding:"required,len=11"`          // 手机号（格式再经 sms 校验）
+	SmsCode      string                `json:"smsCode" binding:"required,len=6"`         // 短信验证码
+	Nickname     string                `json:"nickname" binding:"required,min=2,max=20"` // 怎么称呼你（与前端表单一致 2-20 必填）
+	Onboarding   registerOnboarding    `json:"onboarding" binding:"required"`            // 账号画像：角色/了解渠道（必填，枚举白名单校验）
+	Tenant       registerTenantProfile `json:"tenant" binding:"required"`                // 企业画像
+	TenantInvite string                `json:"tenantInvite"`                             // 公开成员邀请 token（可选）
 }
 
 // 注册画像枚举白名单（P2-5：与前端选项一一对应，防任意客户端写入
@@ -482,11 +504,12 @@ func (ac *AuthController) RegisterComplete(c *gin.Context) {
 	}
 
 	result, err := ac.registrationService.Complete(c.Request.Context(), &authservice.RegistrationRequest{
-		Phone:            req.Phone,
-		Nickname:         req.Nickname,
-		Onboarding:       model.AccountOnboarding{Role: req.Onboarding.Role, Channel: req.Onboarding.Channel},
-		TenantName:       req.Tenant.Name,
-		TenantOnboarding: tenantmodel.OnboardingConfig{Demand: req.Tenant.Demand, Industry: req.Tenant.Industry},
+		Phone:             req.Phone,
+		Nickname:          req.Nickname,
+		Onboarding:        model.AccountOnboarding{Role: req.Onboarding.Role, Channel: req.Onboarding.Channel},
+		TenantName:        req.Tenant.Name,
+		TenantOnboarding:  tenantmodel.OnboardingConfig{Demand: req.Tenant.Demand, Industry: req.Tenant.Industry},
+		PublicInviteToken: req.TenantInvite,
 	})
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)

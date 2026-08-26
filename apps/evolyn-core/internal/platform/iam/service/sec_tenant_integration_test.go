@@ -328,6 +328,31 @@ func TestSECTenant010TenantScopedLists(t *testing.T) {
 	}
 }
 
+// SEC-TENANT-012：组织成员列表必须返回租户创建者的账号资料。成员表只保存
+// 租户内身份，姓名、手机号等展示资料来自 account_id 关联的 accounts，不能
+// 因 JOIN/Preload 漏读而返回空的创建者行。
+func TestSECTenant012MemberListReturnsCreatorAccount(t *testing.T) {
+	env := newSecEnv(t)
+
+	page, err := env.userSvc.ListPage(itCtx(env.alpha.ID), iammodel.MemberListQuery{Page: 1, PageSize: 20})
+	assert.NoError(t, err)
+	assert.EqualValues(t, 1, page.Total)
+	if assert.Len(t, page.Items, 1) {
+		owner, err := env.iamRepo.Account().GetByName(context.Background(), "owner-alpha")
+		assert.NoError(t, err)
+		assert.Equal(t, env.alphaMember.ID, page.Items[0].ID)
+		assert.Equal(t, owner.ID, page.Items[0].AccountID)
+		assert.Equal(t, ownerNameOrNickname(owner), page.Items[0].Name)
+	}
+}
+
+func ownerNameOrNickname(account *iammodel.Account) string {
+	if account.Nickname != "" {
+		return account.Nickname
+	}
+	return account.Name
+}
+
 // SEC-TENANT-011：租户 frozen 状态下请求级拦截（真实仓储链路）
 func TestSECTenant011TenantStatusFrozenBlocks(t *testing.T) {
 	env := newSecEnv(t)

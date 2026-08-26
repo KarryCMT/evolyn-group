@@ -10,6 +10,11 @@ export interface HttpRequestOptions {
   body?: unknown;
   query?: Record<string, string | number | boolean | undefined | null>;
   signal?: AbortSignal;
+  /**
+   * 当前会话仍有效、但本次身份凭据不正确时使用（如安全设置的密码二次验证）。
+   * 此类 401 只应反馈给当前表单，不能按「登录态失效」清令牌并跳转登录页。
+   */
+  skipUnauthorizedHandler?: boolean;
 }
 
 /**
@@ -45,7 +50,7 @@ function cleanQuery(
  * 排除 /auth/token 前缀避免登录失败（401）被误判为会话过期造成循环跳转。
  */
 export async function request<T>(path: string, options: HttpRequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, query, signal } = options;
+  const { method = 'GET', body, query, signal, skipUnauthorizedHandler = false } = options;
   try {
     return await defHttp.request<T>({
       url: path,
@@ -59,7 +64,8 @@ export async function request<T>(path: string, options: HttpRequestOptions = {})
       err instanceof ApiError &&
       err.status === 401 &&
       getToken() &&
-      !path.startsWith('/auth/token')
+      !path.startsWith('/auth/token') &&
+      !skipUnauthorizedHandler
     ) {
       unauthorizedHandler?.(err);
       throw new ApiError('登录已过期，请重新登录', 401);
@@ -72,7 +78,11 @@ export async function request<T>(path: string, options: HttpRequestOptions = {})
 export const http = {
   get: <T>(path: string, query?: HttpRequestOptions['query'], signal?: AbortSignal) =>
     request<T>(path, { query, signal }),
-  post: <T>(path: string, body?: unknown) => request<T>(path, { method: 'POST', body }),
+  post: <T>(
+    path: string,
+    body?: unknown,
+    options?: Pick<HttpRequestOptions, 'signal' | 'skipUnauthorizedHandler'>,
+  ) => request<T>(path, { method: 'POST', body, ...options }),
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PUT', body }),
   patch: <T>(path: string, body?: unknown) => request<T>(path, { method: 'PATCH', body }),
   delete: <T>(path: string, body?: unknown) => request<T>(path, { method: 'DELETE', body }),

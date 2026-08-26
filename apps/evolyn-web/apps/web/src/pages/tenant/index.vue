@@ -171,11 +171,6 @@ function toggleSidebar() {
   background: transparent;
   cursor: pointer;
 
-  svg {
-    width: 26px;
-    height: 26px;
-  }
-
   &:hover {
     background: rgb(54 65 82 / 8%);
   }
@@ -185,22 +180,6 @@ function toggleSidebar() {
   width: 31px;
   height: 31px;
   color: var(--el-color-primary);
-}
-
-/* 管理后台的顶栏比成员工作台更舒展，和下方宽菜单形成同一套管理界面比例。 */
-:deep(.top-navigation) {
-  height: 72px;
-  min-height: 72px;
-  padding: 0 28px;
-  background: transparent;
-}
-
-:deep(.top-navigation__brand) {
-  gap: 10px;
-}
-
-:deep(.top-navigation__title) {
-  font-size: 21px;
 }
 
 @media (max-width: 720px) {

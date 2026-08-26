@@ -29,6 +29,9 @@ var (
 	ErrMFAChallengeExpired = httpx.NewBiz("AUTH_MFA_CHALLENGE_EXPIRED", "验证已过期，请重新登录", http.StatusUnauthorized)
 	ErrMFAChallengeTries   = httpx.NewBiz("AUTH_MFA_CHALLENGE_TRIES_EXCEEDED", "尝试次数过多，请重新登录", http.StatusTooManyRequests)
 	ErrMFAReauthRequired   = httpx.NewBiz("AUTH_REAUTH_REQUIRED", "请先完成身份验证", http.StatusUnauthorized)
+	// ErrMFAReauthLoginRequired 用于存量 JWT：它们没有设备会话 SID，无法安全绑定
+	// 一次性 reauthToken，必须重新登录以签发带 SID 的新令牌。
+	ErrMFAReauthLoginRequired = httpx.NewBiz("AUTH_REAUTH_LOGIN_REQUIRED", "当前登录态不支持此安全操作，请重新登录", http.StatusUnauthorized)
 )
 
 const (

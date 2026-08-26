@@ -17,6 +17,7 @@
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@element-plus/icons-vue": "catalog:ui",
     "@evolyn.do/dashboard": "workspace:*",
     "@evolyn.do/data": "workspace:*",
     "@evolyn.do/form": "workspace:*",
@@ -24,20 +25,21 @@
     "@evolyn.do/ui": "workspace:*",
     "@evolyn.do/utils": "workspace:*",
     "@evolyn.do/workflow": "workspace:*",
-    "@element-plus/icons-vue": "catalog:ui",
+    "@remixicon/vue": "catalog:ui",
     "@vueuse/core": "catalog:utils",
     "axios": "catalog:utils",
+    "cropperjs": "catalog:frontend",
     "element-plus": "catalog:ui",
-    "@remixicon/vue": "catalog:ui",
-    "vue": "catalog:frontend",
-    "vue-router": "catalog:frontend",
-    "pinia": "catalog:frontend",
     "jsencrypt": "catalog:utils",
-    "cropperjs": "catalog:frontend"
+    "pinia": "catalog:frontend",
+    "qrcode": "catalog:frontend",
+    "vue": "catalog:frontend",
+    "vue-router": "catalog:frontend"
   },
   "devDependencies": {
     "@antfu/eslint-config": "^5.1.0",
     "@types/node": "catalog:types",
+    "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "catalog:build",
     "eslint": "catalog:lint",
     "eslint-plugin-format": "^1.0.1",

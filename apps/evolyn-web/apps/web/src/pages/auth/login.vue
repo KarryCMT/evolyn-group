@@ -1,7 +1,7 @@
 <script setup lang="ts">
 // 登录页：认证域薄壳视图，组合骨架与两种登录表单，负责提交分发与登录后去向；
 // 多租户账号在弹窗中选择进入的团队（单租户直接进入，与后端默认租户体验一致）
-import { shallowRef } from 'vue';
+import { onMounted, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import MfaVerifyDialog from '~/components/auth/MfaVerifyDialog.vue';
@@ -31,12 +31,29 @@ const switching = shallowRef(false);
 const mfaChallenge = shallowRef<LoginMfaChallenge | null>(null);
 const mfaDialogVisible = shallowRef(false);
 
+onMounted(() => {
+  if (route.query.reason !== 'session-replaced') return;
+
+  ElMessage.warning('账号已在其他设备登录，当前会话已下线');
+
+  // 消费一次性提示，防止用户刷新登录页时反复出现；同时舍弃递归生成的登录页回跳地址。
+  const query = { ...route.query };
+  delete query.reason;
+  if (typeof query.redirect === 'string' && query.redirect.startsWith('/auth/login')) {
+    delete query.redirect;
+  }
+  void router.replace({ query });
+});
+
 /** 密码登录：密码先经平台公钥 RSA 加密再上送；remember 决定令牌存储范围 */
 async function handlePasswordSubmit(payload: {
   phone: string;
   password: string;
   remember: boolean;
 }) {
+  // Enter 键与表单原生提交、快速连点都可能在视图更新前触发第二次 emit；
+  // 必须在请求入口同步加锁，避免两次成功登录互相挤掉刚签发的设备会话。
+  if (loading.value) return;
   loading.value = true;
   try {
     const password = await encryptPassword(payload.password);
@@ -56,6 +73,7 @@ async function handlePasswordSubmit(payload: {
 
 /** 验证码登录：免密，走 phone + smsCode；remember 决定令牌存储范围 */
 async function handleSmsSubmit(payload: { phone: string; code: string; remember: boolean }) {
+  if (loading.value) return;
   loading.value = true;
   try {
     const result = await login({ phone: payload.phone, smsCode: payload.code }, payload.remember);
@@ -73,7 +91,7 @@ async function handleSmsSubmit(payload: { phone: string; code: string; remember:
 }
 
 async function handleMfaVerify(payload: { method: 'totp' | 'recovery'; code: string }) {
-  if (!mfaChallenge.value) return;
+  if (!mfaChallenge.value || loading.value) return;
   loading.value = true;
   try {
     await completeMfaLogin({ ...payload, mfaChallenge: mfaChallenge.value.mfaChallenge });

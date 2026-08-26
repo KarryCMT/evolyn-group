@@ -54,6 +54,7 @@ watch(
 );
 
 async function handleSubmit() {
+  if (props.loading) return;
   const valid = await formRef.value?.validate().then(
     () => true,
     () => false,
@@ -129,6 +130,7 @@ function handleSendCode() {
       size="large"
       native-type="submit"
       :loading="loading"
+      :disabled="loading"
     >
       登录
     </el-button>

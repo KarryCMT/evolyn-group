@@ -48,6 +48,7 @@ type ApplicationDetail struct {
 	Source          ApplicationSource       `json:"source"`
 	Status          string                  `json:"status"`
 	ProvisionStatus string                  `json:"provisionStatus"`
+	HomeMode        string                  `json:"homeMode"`
 	OwnerMemberID   uint                    `json:"ownerMemberId"`
 	CreatorMemberID uint                    `json:"creatorMemberId"`
 	SortOrder       int64                   `json:"sortOrder"`

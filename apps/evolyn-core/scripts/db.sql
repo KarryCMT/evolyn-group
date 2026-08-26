@@ -91,6 +91,8 @@ CREATE TABLE IF NOT EXISTS users (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     account_id BIGINT NOT NULL,
     nickname varchar(100),
+    status varchar(16) NOT NULL DEFAULT 'active',
+    resigned_at timestamp with time zone,
     tenant_id BIGINT NOT NULL DEFAULT 1,
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
@@ -102,9 +104,69 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_users_tenant_account
     ON users (tenant_id, account_id)
     WHERE deleted_at IS NULL;
 
+ALTER TABLE users
+    DROP CONSTRAINT IF EXISTS chk_users_status,
+    ADD CONSTRAINT chk_users_status CHECK (status IN ('active', 'disabled', 'resigned'));
+
+COMMENT ON COLUMN users.status IS '成员状态：active 启用、disabled 停用、resigned 离职；全部成员视图默认不含 resigned';
+COMMENT ON COLUMN users.resigned_at IS '成员转为离职的时间；恢复启用或停用时清空';
+
+CREATE INDEX IF NOT EXISTS idx_users_tenant_status_id
+    ON users (tenant_id, status, id)
+    WHERE deleted_at IS NULL;
+
 INSERT INTO users (account_id, nickname, tenant_id, created_at)
     SELECT a.id, a.nickname, 1, a.created_at FROM accounts AS a
     WHERE a.name IN ('admin', 'demo') ON CONFLICT DO NOTHING;
+
+-- 成员邀请在受邀人接受前保存完整档案草稿，不创建占位 users 记录。
+CREATE TABLE IF NOT EXISTS member_invitations (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    inviter_member_id BIGINT NOT NULL DEFAULT 0,
+    name varchar(80) NOT NULL,
+    identifier varchar(50),
+    phone varchar(32),
+    email varchar(256),
+    profile jsonb NOT NULL DEFAULT '{}'::jsonb,
+    invite_token varchar(64) NOT NULL,
+    source varchar(16) NOT NULL DEFAULT 'manual',
+    status varchar(16) NOT NULL DEFAULT 'pending',
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone,
+    CONSTRAINT chk_member_invitations_source CHECK (source IN ('manual', 'batch')),
+    CONSTRAINT chk_member_invitations_status CHECK (status IN ('pending', 'accepted', 'cancelled')),
+    CONSTRAINT chk_member_invitations_contact CHECK (phone <> '' OR email <> '')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_member_invitations_token
+    ON member_invitations (invite_token) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_member_invitations_tenant_phone_pending
+    ON member_invitations (tenant_id, phone)
+    WHERE phone <> '' AND status = 'pending' AND deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_member_invitations_tenant_email_pending
+    ON member_invitations (tenant_id, email)
+    WHERE email <> '' AND status = 'pending' AND deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_member_invitations_tenant_status
+    ON member_invitations (tenant_id, status, id DESC) WHERE deleted_at IS NULL;
+
+-- 每个租户只有一条公开邀请链接；关闭后保留 token，重新开启无需再次生成。
+CREATE TABLE IF NOT EXISTS tenant_public_invitation_links (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    token varchar(64) NOT NULL,
+    enabled boolean NOT NULL DEFAULT false,
+    creator_member_id BIGINT NOT NULL DEFAULT 0,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tenant_public_invitation_links_tenant
+    ON tenant_public_invitation_links (tenant_id) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tenant_public_invitation_links_token
+    ON tenant_public_invitation_links (token) WHERE deleted_at IS NULL;
 
 -- 部门（租户内组织架构，邻接表树；parent_id NULL=root + 自引用外键——FIX-015）
 CREATE TABLE IF NOT EXISTS departments (
@@ -144,6 +206,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_groups_tenant_name
     ON groups (tenant_id, name)
     WHERE deleted_at IS NULL;
 
+-- 角色展示分组：仅供内部组织页归类角色，不影响分组角色授权关系。
+CREATE TABLE IF NOT EXISTS role_groups (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    name varchar(100) NOT NULL,
+    creator_id BIGINT NOT NULL DEFAULT 0,
+    sort INTEGER NOT NULL DEFAULT 0,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_role_groups_tenant_name
+    ON role_groups (tenant_id, name)
+    WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_role_groups_tenant_sort
+    ON role_groups (tenant_id, sort, id)
+    WHERE deleted_at IS NULL;
+
 INSERT INTO groups (name, kind, describe, created_at) VALUES
     ('root', 'system', 'evolyn system group', LOCALTIMESTAMP),
     ('system:authenticated', 'system', 'system group contains all authenticated user', LOCALTIMESTAMP),
@@ -172,6 +253,8 @@ CREATE TABLE IF NOT EXISTS resources (
 CREATE TABLE IF NOT EXISTS roles (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     name varchar(100) NOT NULL,
+    role_group_id BIGINT,
+    sort INTEGER NOT NULL DEFAULT 0,
     scope varchar(100),
     namespace varchar(100),
     rules json,
@@ -184,11 +267,45 @@ CREATE TABLE IF NOT EXISTS roles (
 CREATE UNIQUE INDEX IF NOT EXISTS uk_roles_tenant_name
     ON roles (tenant_id, name)
     WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_roles_role_group_id ON roles (role_group_id);
+CREATE INDEX IF NOT EXISTS idx_roles_role_group_sort
+    ON roles (tenant_id, role_group_id, sort, id)
+    WHERE deleted_at IS NULL;
+ALTER TABLE roles DROP CONSTRAINT IF EXISTS fk_roles_role_group;
+ALTER TABLE roles ADD CONSTRAINT fk_roles_role_group
+    FOREIGN KEY (role_group_id) REFERENCES role_groups(id) ON DELETE SET NULL;
 
 INSERT INTO roles (name, scope, rules) VALUES
     ('cluster-admin', 'cluster', '[{"resource": "*", "operation": "*"}]'),
     ('authenticated', 'cluster', '[{"resource": "users", "operation": "*"},{"resource": "auth", "operation": "*"},{"resource": "accounts", "operation": "*"},{"resource": "applications", "operation": "view"},{"resource": "files", "operation": "edit"}]'),
     ('unauthenticated', 'cluster', '[{"resource": "auth", "operation": "create"}]') ON CONFLICT DO NOTHING;
+
+-- 租户管理员可更新组织根节点（租户名称）；存量数据库由迁移 000022 同步。
+UPDATE roles
+SET rules = (
+    COALESCE(rules::jsonb, '[]'::jsonb)
+    || jsonb_build_array(jsonb_build_object('resource', 'tenant', 'operation', 'edit'))
+)::json
+WHERE name = 'tenant-admin'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM json_array_elements(COALESCE(rules, '[]'::json)) AS rule
+      WHERE rule->>'resource' = 'tenant'
+  );
+
+-- 租户成员管理路由为 /members；创建者绑定的 tenant-admin 需拥有完整权限。
+-- 存量数据库由迁移 000024 同步，避免资源名 users 与 members 不一致导致 403。
+UPDATE roles
+SET rules = (
+    COALESCE(rules::jsonb, '[]'::jsonb)
+    || jsonb_build_array(jsonb_build_object('resource', 'members', 'operation', '*'))
+)::json
+WHERE name = 'tenant-admin'
+  AND NOT EXISTS (
+      SELECT 1
+      FROM json_array_elements(COALESCE(rules, '[]'::json)) AS rule
+      WHERE rule->>'resource' = 'members'
+  );
 
 CREATE TABLE IF NOT EXISTS user_roles(
     user_id BIGINT NOT NULL REFERENCES users(id),
@@ -261,6 +378,7 @@ CREATE TABLE IF NOT EXISTS applications (
     source_type varchar(16) NOT NULL,
     status varchar(16) NOT NULL DEFAULT 'active',
     provision_status varchar(16) NOT NULL DEFAULT 'ready',
+    home_mode varchar(16) NOT NULL DEFAULT 'builder',
     definition_version INTEGER NOT NULL DEFAULT 1,
     menu_revision BIGINT NOT NULL DEFAULT 1,
     sort_order BIGINT NOT NULL DEFAULT 0,
@@ -270,7 +388,8 @@ CREATE TABLE IF NOT EXISTS applications (
     deleted_at timestamp with time zone,
     CONSTRAINT chk_applications_source_type CHECK (source_type IN ('blank', 'template')),
     CONSTRAINT chk_applications_status CHECK (status IN ('active', 'archived')),
-    CONSTRAINT chk_applications_provision_status CHECK (provision_status IN ('ready', 'pending', 'running', 'failed'))
+    CONSTRAINT chk_applications_provision_status CHECK (provision_status IN ('ready', 'pending', 'running', 'failed')),
+    CONSTRAINT chk_applications_home_mode CHECK (home_mode IN ('builder', 'application'))
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_applications_tenant_code
@@ -475,6 +594,8 @@ COMMENT ON COLUMN resources.kind IS '资源种类：resource=API 资源 / menu=�
 COMMENT ON TABLE roles IS '角色（租户内）：rules 声明资源-操作授权规则，可挂成员或分组';
 COMMENT ON COLUMN roles.id IS '自增主键';
 COMMENT ON COLUMN roles.name IS '角色名，租户内唯一（软删友好部分唯一索引 uk_roles_tenant_name，FIX-002）';
+COMMENT ON COLUMN roles.role_group_id IS '角色所属展示分组 ID；为空表示未归类';
+COMMENT ON COLUMN roles.sort IS '角色在所属展示分组中的展示顺序，数值越小越靠前';
 COMMENT ON COLUMN roles.scope IS '作用域：cluster=平台级';
 COMMENT ON COLUMN roles.namespace IS '命名空间，预留扩展';
 COMMENT ON COLUMN roles.rules IS '授权规则 JSON 数组，元素形如 {"resource":"*","operation":"*"}；operation 支持 */edit/view';
@@ -482,6 +603,16 @@ COMMENT ON COLUMN roles.tenant_id IS '所属租户 ID';
 COMMENT ON COLUMN roles.created_at IS '创建时间';
 COMMENT ON COLUMN roles.updated_at IS '更新时间';
 COMMENT ON COLUMN roles.deleted_at IS '软删除时间，NULL=未删除';
+
+COMMENT ON TABLE role_groups IS '角色展示分组：仅供内部组织页归类角色，不参与权限继承';
+COMMENT ON COLUMN role_groups.id IS '自增主键';
+COMMENT ON COLUMN role_groups.name IS '角色组名称，租户内未删除记录唯一';
+COMMENT ON COLUMN role_groups.creator_id IS '创建该角色组的成员 ID';
+COMMENT ON COLUMN role_groups.sort IS '角色组在内部组织左侧角色树中的展示顺序，数值越小越靠前';
+COMMENT ON COLUMN role_groups.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN role_groups.created_at IS '创建时间';
+COMMENT ON COLUMN role_groups.updated_at IS '更新时间';
+COMMENT ON COLUMN role_groups.deleted_at IS '软删除时间，NULL=未删除';
 
 COMMENT ON TABLE user_roles IS '成员-角色关联表（多对多），联合主键无独立生命周期';
 COMMENT ON COLUMN user_roles.user_id IS '成员 ID，联合主键之一，外键指向 users(id)';
@@ -532,6 +663,7 @@ COMMENT ON COLUMN applications.creator_member_id IS '创建者（租户成员 ID
 COMMENT ON COLUMN applications.source_type IS '创建来源：blank 空白创建 / template 模板安装（冗余于安装记录，便于列表查询）';
 COMMENT ON COLUMN applications.status IS '可见业务状态：active 正常 / archived 归档；删除只写 deleted_at，不设 deleted 状态值';
 COMMENT ON COLUMN applications.provision_status IS '实例化进度（与 status 独立）：ready 就绪 / pending 待处理 / running 处理中 / failed 失败；M2-A 空白应用同步创建即 ready';
+COMMENT ON COLUMN applications.home_mode IS '应用首页形态：builder 显示首次构建引导 / application 进入运行时应用首页；由应用生命周期维护，不按当前成员可见菜单数量推导';
 COMMENT ON COLUMN applications.definition_version IS '应用定义版本（发布演进用），非数据库乐观锁';
 COMMENT ON COLUMN applications.menu_revision IS '菜单修订号（菜单结构乐观并发口令）：菜单写入在同事务内条件递增；与 definition_version（发布演进）独立，应用名称/图标/归档等非菜单更新不递增';
 COMMENT ON COLUMN applications.sort_order IS '列表排序值，小者在前，同值按 id 倒序';

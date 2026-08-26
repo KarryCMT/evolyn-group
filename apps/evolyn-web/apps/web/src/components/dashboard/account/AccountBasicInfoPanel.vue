@@ -8,7 +8,7 @@ import type { InputInstance } from 'element-plus';
 defineOptions({ name: 'AccountBasicInfoPanel' });
 
 const emit = defineEmits<{
-  editProfile: [];
+  bindEmail: [];
   editAvatar: [file: File];
   updateContactName: [nickname: string, onSuccess: () => void];
   changePassword: [];
@@ -176,7 +176,7 @@ function handleAvatarChange(event: Event) {
         <dt>邮箱</dt>
         <dd>
           <span>{{ userInfo?.account.email || '未绑定' }}</span>
-          <el-button link type="primary" @click="emit('editProfile')">
+          <el-button link type="primary" @click="emit('bindEmail')">
             {{ userInfo?.account.email ? '修改' : '绑定' }}
           </el-button>
         </dd>

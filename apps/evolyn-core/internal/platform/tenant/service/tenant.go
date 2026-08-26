@@ -50,6 +50,9 @@ const DefaultRetentionPeriod = 30 * 24 * time.Hour
 // 指定编码开通时撞已有租户（含注销保留期内的墓碑），编码细节不出网
 var ErrCodeDuplicated = httpx.NewBiz("TENANT_CODE_DUPLICATED", "租户编码已存在", http.StatusConflict)
 
+// ErrTenantNameInvalid 租户侧名称编辑的稳定错误码；不暴露长度等内部校验细节。
+var ErrTenantNameInvalid = httpx.NewBiz("TENANT_NAME_INVALID", "租户名称格式不正确", http.StatusBadRequest)
+
 // tenantService 租户域服务：开通/查询/配置/生命周期流转（运营面）。
 // 依赖 iam 仓储完成「开通即建 owner 成员 + 租户内系统组/角色种子」；
 // 开通全流程经 TxManager 单事务提交（FIX-020）；审计记录关键运营操作
@@ -336,7 +339,10 @@ func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*
 func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) ([]iammodel.Role, error) {
 	roles := []iammodel.Role{
 		{Name: TenantAdminRole, Rules: iammodel.Rules{
-			{Resource: "users", Operation: iammodel.AllOperation},
+			// 租户组织根节点（租户名称）自助维护；套餐、配额仍只允许平台运营面修改。
+			{Resource: iammodel.TenantResource, Operation: iammodel.EditOperation},
+			// /members 是租户成员管理路由，创建者须具备完整管理权限。
+			{Resource: iammodel.MemberResource, Operation: iammodel.AllOperation},
 			{Resource: "groups", Operation: iammodel.AllOperation},
 			{Resource: "roles", Operation: iammodel.AllOperation},
 			{Resource: "departments", Operation: iammodel.AllOperation},
@@ -449,6 +455,38 @@ func (s *tenantService) Update(ctx context.Context, id string, tenant *tenantmod
 		})
 	}
 	return updated, err
+}
+
+// UpdateMyName 租户侧自助更新当前租户名称。tenantID 只能由租户中间件从 JWT
+// 注入，控制器不接受路径或请求体中的租户 ID，避免越权修改其他租户。
+func (s *tenantService) UpdateMyName(ctx context.Context, tenantID uint, name string) (*tenantmodel.Tenant, error) {
+	name = strings.TrimSpace(name)
+	if tenantID == 0 || len([]rune(name)) < 2 || len([]rune(name)) > 50 {
+		return nil, httpx.Wrap(ErrTenantNameInvalid, fmt.Errorf("tenant name length must be 2-50"))
+	}
+
+	tenant, err := s.tenantRepo.GetByID(ctx, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	beforeName := tenant.Name
+	if err := s.tenantRepo.UpdateName(ctx, tenantID, name); err != nil {
+		return nil, err
+	}
+	tenant.Name = name
+
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module:       "tenant",
+			Action:       "update_name",
+			ResourceType: "tenant",
+			ResourceID:   strconv.FormatUint(uint64(tenantID), 10),
+			TenantID:     tenantID,
+			Before:       map[string]any{"name": beforeName},
+			After:        map[string]any{"name": name},
+		})
+	}
+	return tenant, nil
 }
 
 // SetStatus 生命周期流转（FIX-007/012）：状态变更即时生效（请求链状态拦截

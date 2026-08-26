@@ -128,6 +128,19 @@ func TestIssueMultiSessionKeepsOthers(t *testing.T) {
 	assert.NotContains(t, sessions.revoked, "others:"+secmodel.RevokeReplaced)
 }
 
+func TestIssueUsesPreparedSID(t *testing.T) {
+	svc, _, sessions := newSessionSvc(nil)
+
+	session, err := svc.Issue(context.Background(), IssueRequest{
+		SID:       "prepared-session-id",
+		AccountID: 7,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "prepared-session-id", session.SID)
+	require.Len(t, sessions.created, 1)
+	assert.Equal(t, "prepared-session-id", sessions.created[0].SID)
+}
+
 func TestValidateBranches(t *testing.T) {
 	svc, _, sessions := newSessionSvc(nil)
 

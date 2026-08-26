@@ -88,8 +88,9 @@ func (*RecoveryCode) TableName() string {
 
 // AccountSession 设备级逻辑会话：sid 进 JWT，token_version 随租户切换重签递增
 type AccountSession struct {
-	ID           uint           `json:"id" gorm:"autoIncrement;primaryKey"`
-	SID          string         `json:"sid" gorm:"size:64;not null;uniqueIndex"`
+	ID uint `json:"id" gorm:"autoIncrement;primaryKey"`
+	// SID 是既有数据库列 sid；显式声明以避免 GORM 将全大写缩写按 s_id 命名。
+	SID          string         `json:"sid" gorm:"column:sid;size:64;not null;uniqueIndex"`
 	AccountID    uint           `json:"accountId" gorm:"index;not null"`
 	TokenVersion int64          `json:"tokenVersion" gorm:"not null;default:1"`
 	AuthMethod   string         `json:"authMethod" gorm:"size:16;not null"`

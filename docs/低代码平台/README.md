@@ -23,7 +23,7 @@
 
 | 规划目录 | 来源 | 说明 |
 | --- | --- | --- |
-| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，含 iam/tenant/auth/audit/application 五域（application 为 M2-A 应用管理最小闭环：空白应用创建/列表/详情/更新/软删 + apps 配额；M2-菜单-1 起含应用菜单只读接口），migrations/ 版本化 SQL，engine 随 M2 起） |
+| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，含 iam/tenant/auth/audit/application 五域；认证域含短信与邮箱双验证码的账号安全绑定链路；application 为 M2-A 应用管理最小闭环：空白应用创建/列表/详情/更新/软删 + apps 配额，M2-菜单-1 起含应用菜单只读接口），migrations/ 版本化 SQL，engine 随 M2 起） |
 | `apps/evolyn-web/` | 现有目录演进（不改名） | pnpm + Turborepo monorepo：`apps/web/` Vue3 + TypeScript 主应用（脚手架阶段）、`packages/` 共享库 |
 | `services/workflow/` | 新建 | Java + Spring Boot + Flowable 流程服务 |
 | `packages/openapi/` | 新建 | 全平台 API 契约唯一事实源 |

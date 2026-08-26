@@ -26,8 +26,11 @@ const (
 // FIX-001：内嵌 TenantBaseModel，补齐 created_at/updated_at/deleted_at
 // 与 db.sql 对齐，删除统一为软删除（物理删除需显式 Unscoped）
 type Role struct {
-	ID        uint   `json:"id" gorm:"autoIncrement;primaryKey"`
-	Name      string `json:"name" gorm:"size:100;not null;index"` // 租户内唯一：服务层预检 + 部分唯一索引兜底（FIX-002）
+	ID          uint   `json:"id" gorm:"autoIncrement;primaryKey"`
+	Name        string `json:"name" gorm:"size:100;not null;index"` // 租户内唯一：服务层预检 + 部分唯一索引兜底（FIX-002）
+	RoleGroupID *uint  `json:"roleGroupId" gorm:"index"`            // 组织页展示分组；不参与权限继承，避免与 Group 混用。
+	// Sort 仅定义角色在所属展示分组中的顺序，数值越小越靠前。
+	Sort      int    `json:"sort" gorm:"not null;default:0"`
 	Scope     Scope  `json:"scope" gorm:"size:100"`
 	Namespace string `json:"namespace"  gorm:"size:100"`
 	Rules     Rules  `json:"rules" gorm:"type:json"`
@@ -91,10 +94,14 @@ const (
 )
 
 const (
-	UserResource  = "users"
-	GroupResource = "groups"
-	RoleResource  = "roles"
-	AuthResource  = "auth"
+	UserResource = "users"
+	// MemberResource 与 /members 路由保持一致，代表租户成员的管理权限。
+	// 账号自身资料仍通过 accounts 资源控制，避免把平台账号与租户成员混为一谈。
+	MemberResource = "members"
+	GroupResource  = "groups"
+	RoleResource   = "roles"
+	AuthResource   = "auth"
+	TenantResource = "tenant"
 )
 
 type Resource struct {

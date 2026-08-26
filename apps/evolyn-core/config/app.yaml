@@ -53,6 +53,19 @@ sms: # 短信验证码通道与风控限制配置。
   ipDailyLimit: 30 # 单 IP 自然日发送上限；示例：30，用于防止轮换手机号刷短信。
   devEcho: true # 是否在接口响应中回显验证码；示例：true（仅本地联调），生产必须为 false。
 
+email:
+  provider: 'smtp' # dev=仅写本地日志；生产使用 smtp
+  codeTtlSeconds: 300 # 邮箱验证码有效期 5 分钟
+  cooldownSeconds: 60 # 重发冷却 60 秒
+  maxTries: 5 # 单验证码最大试错次数
+  identityTtlSeconds: 300 # 手机号身份验证凭证有效期 5 分钟
+  devEcho: true # 仅本地联调时回显固定验证码 666666
+  smtpHost: 'smtp.qq.com'
+  smtpPort: 465
+  smtpUsername: '1570606465@qq.com'
+  smtpPassword: 'rmuwzvfvdkroihcc'
+  smtpFrom: '1570606465@qq.com'
+
 auth: # 登录失败锁定与令牌吊销降级策略配置。
   loginMaxFails: 5 # 连续登录失败上限；示例：5，达到后临时锁定账号。
   loginLockMinutes: 15 # 登录锁定时长（分钟）；示例：15。
@@ -85,3 +98,9 @@ storage: # RustFS / S3 兼容对象存储配置。
   presignTtlSeconds: 900 # 上传/下载预签名 URL 有效期（秒）；示例：900（15 分钟）。
   maxUploadBytes: 1073741824 # 单文件最大上传字节数；示例：1073741824（1 GiB）。
   uploadCleanupIntervalSeconds: 300 # 过期上传会话清理周期（秒）；示例：300（5 分钟）。
+security:
+  totp:
+    # 本机开发专用的 AES-256 主密钥；不得提交或复用到其他环境。
+    currentKeyVersion: 1
+    masterKeys:
+      1: 'bee7b7bb6d86dc57d72eb878d223182ea2bc0874c185fb59ffa05d6e4c2f86b1'

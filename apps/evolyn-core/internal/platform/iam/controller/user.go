@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"io"
 	"net/http"
 	"strconv"
 
@@ -20,31 +21,49 @@ import (
 type UserController struct {
 	userService       service.UserService
 	departmentService service.DepartmentService
+	invitationService service.MemberInvitationService
 }
 
-func NewUserController(userService service.UserService, departmentService service.DepartmentService) platformcontroller.Controller {
+func NewUserController(userService service.UserService, departmentService service.DepartmentService, invitationService service.MemberInvitationService) platformcontroller.Controller {
 	return &UserController{
 		userService:       userService,
 		departmentService: departmentService,
+		invitationService: invitationService,
 	}
 }
 
 // @Summary 成员列表
-// @Description 查询当前租户的成员列表
+// @Description 分页查询当前租户的成员；可按部门、成员状态及关键词筛选。全部成员默认不含离职成员，离职成员传 status=resigned 查询
 // @Produce json
 // @Tags 成员
 // @Security JWT
-// @Success 200 {object} httpx.Response{data=model.Users}
+// @Param departmentId query int false "部门 ID"
+// @Param status query string false "成员状态：active/disabled/resigned，默认 active 与 disabled"
+// @Param keyword query string false "姓名、手机号或邮箱关键词"
+// @Param page query int false "页码，默认 1"
+// @Param pageSize query int false "每页条数，默认 20，上限 100"
+// @Success 200 {object} httpx.Response{data=model.MemberPage}
+// @Failure 400 {object} httpx.Response "errCode=MEMBER_STATUS_INVALID"
 // @Router /api/v1/members [get]
 func (u *UserController) List(c *gin.Context) {
 	ginctx.TraceStep(c, "start list members")
-	users, err := u.userService.List(c.Request.Context())
+	departmentID := queryInt(c, "departmentId")
+	query := model.MemberListQuery{
+		Status:   c.Query("status"),
+		Keyword:  c.Query("keyword"),
+		Page:     queryInt(c, "page"),
+		PageSize: queryInt(c, "pageSize"),
+	}
+	if departmentID > 0 {
+		query.DepartmentID = uint(departmentID)
+	}
+	page, err := u.userService.ListPage(c.Request.Context(), query)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
 	ginctx.TraceStep(c, "list members done")
-	httpx.ResponseSuccess(c, users)
+	httpx.ResponseSuccess(c, page)
 }
 
 // @Summary 成员详情
@@ -97,6 +116,36 @@ func (u *UserController) Update(c *gin.Context) {
 	}
 
 	httpx.ResponseSuccess(c, user)
+}
+
+// updateMemberStatusRequest 成员在当前租户中的生命周期状态。
+type updateMemberStatusRequest struct {
+	Status string `json:"status"`
+}
+
+// @Summary 更新成员状态
+// @Description 更新当前租户内成员状态；转为离职会保留成员历史，以便在离职成员中查询
+// @Accept json
+// @Produce json
+// @Tags 成员
+// @Security JWT
+// @Param id path int true "member id"
+// @Param body body controller.updateMemberStatusRequest true "member status"
+// @Success 200 {object} httpx.Response{data=model.User}
+// @Failure 400 {object} httpx.Response "errCode=MEMBER_STATUS_INVALID"
+// @Router /api/v1/members/{id}/status [put]
+func (u *UserController) UpdateStatus(c *gin.Context) {
+	req := new(updateMemberStatusRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	member, err := u.userService.UpdateStatus(c.Request.Context(), c.Param("id"), req.Status)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, member)
 }
 
 // @Summary 移除成员
@@ -203,11 +252,137 @@ func (u *UserController) AddMember(c *gin.Context) {
 	httpx.ResponseSuccess(c, member)
 }
 
+// @Summary 邀请成员
+// @Description 保存手动填写的成员邀请及完整档案，手机号和邮箱至少填写一项
+// @Accept json
+// @Produce json
+// @Tags 成员
+// @Security JWT
+// @Param body body service.MemberInvitationRequest true "成员邀请信息"
+// @Success 200 {object} httpx.Response{data=model.MemberInvitation}
+// @Failure 400 {object} httpx.Response "errCode=MEMBER_INVITATION_INVALID|MEMBER_INVITATION_CONTACT_REQUIRED"
+// @Router /api/v1/members/invitations [post]
+func (u *UserController) CreateInvitation(c *gin.Context) {
+	if u.invitationService == nil {
+		httpx.ResponseFailed(c, http.StatusNotImplemented, nil)
+		return
+	}
+	req := new(service.MemberInvitationRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	member := ginctx.GetUser(c)
+	invitation, err := u.invitationService.Create(c.Request.Context(), member.ID, *req)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, invitation)
+}
+
+// @Summary 批量导入邀请成员
+// @Description 导入通讯录模板（xlsx，最大 5MB、最多 200 条），已存在的手机号或邮箱不会创建重复邀请
+// @Accept multipart/form-data
+// @Produce json
+// @Tags 成员
+// @Security JWT
+// @Param file formData file true "通讯录批量导入模板"
+// @Success 200 {object} httpx.Response{data=model.MemberInvitationBatchResult}
+// @Failure 400 {object} httpx.Response "errCode=MEMBER_INVITATION_IMPORT_FILE_INVALID"
+// @Router /api/v1/members/invitations/import [post]
+func (u *UserController) ImportInvitations(c *gin.Context) {
+	if u.invitationService == nil {
+		httpx.ResponseFailed(c, http.StatusNotImplemented, nil)
+		return
+	}
+	file, err := c.FormFile("file")
+	if err != nil || file.Size <= 0 || file.Size > 5*1024*1024 {
+		httpx.ResponseFailed(c, http.StatusBadRequest, service.ErrMemberInvitationImportFile)
+		return
+	}
+	reader, err := file.Open()
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, service.ErrMemberInvitationImportFile)
+		return
+	}
+	defer reader.Close()
+	content, err := io.ReadAll(io.LimitReader(reader, 5*1024*1024+1))
+	if err != nil || len(content) > 5*1024*1024 {
+		httpx.ResponseFailed(c, http.StatusBadRequest, service.ErrMemberInvitationImportFile)
+		return
+	}
+	member := ginctx.GetUser(c)
+	result, err := u.invitationService.Import(c.Request.Context(), member.ID, content)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
+// @Summary 查询公开邀请链接
+// @Description 返回当前租户的公开邀请链接开关与安全令牌；首次查询自动生成未开启链接
+// @Produce json
+// @Tags 成员
+// @Security JWT
+// @Success 200 {object} httpx.Response{data=model.TenantPublicInvitationLink}
+// @Router /api/v1/members/invitation-link [get]
+func (u *UserController) GetPublicInvitationLink(c *gin.Context) {
+	if u.invitationService == nil {
+		httpx.ResponseFailed(c, http.StatusNotImplemented, nil)
+		return
+	}
+	link, err := u.invitationService.GetPublicLink(c.Request.Context())
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, link)
+}
+
+type updatePublicInvitationLinkRequest struct {
+	Enabled bool `json:"enabled"`
+}
+
+// @Summary 设置公开邀请链接
+// @Description 开启或关闭当前租户的公开邀请链接
+// @Accept json
+// @Produce json
+// @Tags 成员
+// @Security JWT
+// @Param body body controller.updatePublicInvitationLinkRequest true "公开邀请链接设置"
+// @Success 200 {object} httpx.Response{data=model.TenantPublicInvitationLink}
+// @Router /api/v1/members/invitation-link [put]
+func (u *UserController) UpdatePublicInvitationLink(c *gin.Context) {
+	if u.invitationService == nil {
+		httpx.ResponseFailed(c, http.StatusNotImplemented, nil)
+		return
+	}
+	req := new(updatePublicInvitationLinkRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	member := ginctx.GetUser(c)
+	link, err := u.invitationService.UpdatePublicLink(c.Request.Context(), member.ID, req.Enabled)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, link)
+}
+
 func (u *UserController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/members", u.List)
 	api.POST("/members", u.AddMember)
+	api.POST("/members/invitations", u.CreateInvitation)
+	api.POST("/members/invitations/import", u.ImportInvitations)
+	api.GET("/members/invitation-link", u.GetPublicInvitationLink)
+	api.PUT("/members/invitation-link", u.UpdatePublicInvitationLink)
 	api.GET("/members/:id", u.Get)
 	api.PUT("/members/:id", u.Update)
+	api.PUT("/members/:id/status", u.UpdateStatus)
 	api.DELETE("/members/:id", u.Delete)
 	api.GET("/members/:id/groups", u.GetGroups)
 	api.POST("/members/:id/roles/:rid", u.AddRole)

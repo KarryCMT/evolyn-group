@@ -1,14 +1,14 @@
 <script setup lang="ts">
-import type { AccountPasswordForm, AccountProfileForm, AccountSettingsTab } from '~/types/account';
+import type { AccountPasswordForm, AccountSettingsTab } from '~/types/account';
 import { shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
 import AccountBasicInfoPanel from '~/components/dashboard/account/AccountBasicInfoPanel.vue';
 import AccountSecurityPanel from '~/components/dashboard/account/AccountSecurityPanel.vue';
 import AccountSettingsSidebar from '~/components/dashboard/account/AccountSettingsSidebar.vue';
 import AvatarEditorDialog from '~/components/dashboard/account/AvatarEditorDialog.vue';
+import EmailBindingDialog from '~/components/dashboard/account/EmailBindingDialog.vue';
 import LoginLogDrawer from '~/components/dashboard/account/LoginLogDrawer.vue';
 import PasswordEditorDialog from '~/components/dashboard/account/PasswordEditorDialog.vue';
-import ProfileEditorDialog from '~/components/dashboard/account/ProfileEditorDialog.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { uploadAvatar } from '~/api/file';
 import { useAuth } from '~/composables/auth';
@@ -16,19 +16,20 @@ import { useAccountSettings } from '~/composables/useAccountSettings';
 
 defineOptions({ name: 'AccountPage' });
 
-const { userInfo } = useAuth();
+const { userInfo, loadUserInfo } = useAuth();
 const { savingPassword, savingProfile, savePassword, saveProfile } = useAccountSettings();
 const router = useRouter();
 const activeTab = shallowRef<AccountSettingsTab>('basic');
-const profileDialogVisible = shallowRef(false);
+const emailBindingVisible = shallowRef(false);
 const avatarDialogVisible = shallowRef(false);
 const avatarDialogSource = shallowRef<File | null>(null);
 const passwordDialogVisible = shallowRef(false);
 const loginLogVisible = shallowRef(false);
 
-async function handleProfileSubmit(payload: AccountProfileForm) {
-  await saveProfile(payload);
-  profileDialogVisible.value = false;
+async function handleEmailBound() {
+  // 绑定接口独立完成双重校验；仅在成功后刷新顶栏与当前页共享的登录聚合资料。
+  await loadUserInfo();
+  emailBindingVisible.value = false;
 }
 
 async function handleAvatarSubmit(avatar: File) {
@@ -74,7 +75,7 @@ function handleViewLoginLog() {
             v-if="activeTab === 'basic'"
             :user-info="userInfo"
             :saving-contact-name="savingProfile"
-            @edit-profile="profileDialogVisible = true"
+            @bind-email="emailBindingVisible = true"
             @edit-avatar="handleAvatarEdit"
             @update-contact-name="handleContactNameUpdate"
             @change-password="passwordDialogVisible = true"
@@ -85,11 +86,10 @@ function handleViewLoginLog() {
       </section>
     </main>
 
-    <ProfileEditorDialog
-      v-model="profileDialogVisible"
+    <EmailBindingDialog
+      v-model="emailBindingVisible"
       :account="userInfo?.account"
-      :loading="savingProfile"
-      @submit="handleProfileSubmit"
+      @bound="handleEmailBound"
     />
     <AvatarEditorDialog
       v-model="avatarDialogVisible"
@@ -120,7 +120,7 @@ function handleViewLoginLog() {
   min-height: 720px;
   flex-direction: column;
   overflow: auto;
-  background: #f3f3f8;
+  background: var(--gp-color-bg-page);
 
   &__main {
     display: flex;

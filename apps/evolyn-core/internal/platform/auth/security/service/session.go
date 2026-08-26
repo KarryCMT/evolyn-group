@@ -52,6 +52,9 @@ type SessionService interface {
 
 // IssueRequest 会话签发请求（登录链路的请求元数据）
 type IssueRequest struct {
+	// SID 由认证控制器预先生成并写入待签发 JWT。先完成令牌与 Cookie 数据准备，
+	// 再提交单会话的撤销事务，确保无法响应成功的登录不会挤掉既有设备。
+	SID        string
 	AccountID  uint
 	AuthMethod string // password / sms / oauth / register
 	MFAMethod  string // 空 = 未启用 MFA；totp / recovery = 已完成第二步
@@ -72,9 +75,13 @@ func NewSessionService(tx TxManager, settings repository.SettingsRepository, ses
 }
 
 func (s *sessionService) Issue(ctx context.Context, req IssueRequest) (*secmodel.AccountSession, error) {
-	sid, err := secmodel.NewSID()
-	if err != nil {
-		return nil, err
+	var err error
+	sid := req.SID
+	if sid == "" {
+		sid, err = secmodel.NewSID()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	now := time.Now()
