@@ -51,6 +51,9 @@ import (
 	tenantcontroller "evolyn/internal/platform/tenant/controller"
 	tenantrepository "evolyn/internal/platform/tenant/repository"
 	tenantservice "evolyn/internal/platform/tenant/service"
+	tenantproductcontroller "evolyn/internal/platform/tenantproduct/controller"
+	tenantproductrepository "evolyn/internal/platform/tenantproduct/repository"
+	tenantproductservice "evolyn/internal/platform/tenantproduct/service"
 	"evolyn/internal/utils/request"
 	"evolyn/internal/utils/set"
 	"evolyn/internal/version"
@@ -126,6 +129,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	fileRepo := filerepository.NewRepository(db)
 	// 版本信息域仓储（一期）：与各域仓储同批创建，dev AutoMigrate 块可用
 	editionRepo := editionrepository.NewRepository(db)
+	// 产品中心域仓储（一期）：平台产品目录 + 租户产品配置 + 范围关联
+	tenantProductRepo := tenantproductrepository.NewRepository(db)
 	if conf.DB.Migrate {
 		if err := auditRepo.Migrate(); err != nil {
 			return nil, err
@@ -149,6 +154,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 			return nil, err
 		}
 		if err := editionRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := tenantProductRepo.Migrate(); err != nil {
 			return nil, err
 		}
 	}
@@ -199,13 +207,20 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		adminGroupApplicationCatalog{applications: applicationRepo}, tenantRepo, auditSvc,
 	)
 
+	// 产品中心域服务（一期）：版本投影经窄端口只读消费 edition 服务；
+	// 先于租户服务构造——开通事务经 UseProductSeeder 注入产品配置初始化
+	tenantProductService := tenantproductservice.NewTenantProductService(txManager, tenantProductRepo, editionService, auditSvc)
+
 	tenantService := tenantservice.NewTenantService(txManager, tenantRepo, iamRepo, quotaSvc, auditSvc, conf.Tenant.Retention(), editionService)
 	if injector, ok := tenantService.(tenantservice.MemberFieldSeederInjector); ok {
 		injector.UseFieldSeeder(memberFieldService)
 	}
+	if injector, ok := tenantService.(tenantservice.ProductConfigSeederInjector); ok {
+		injector.UseProductSeeder(tenantProductService)
+	}
 	// 账号服务注入审计：换绑手机号等安全敏感操作落业务审计（best-effort）
 	accountService := service.NewAccountService(txManager, iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc, auditSvc)
-	userService := service.NewUserService(txManager, iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc)
+	userService := service.NewUserService(txManager, iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc, tenantRepo)
 	memberInvitationService := service.NewMemberInvitationService(txManager, iamRepo.Invitation(), iamRepo.Department(), iamRepo.Account(), userService, iamRepo.MemberProfile(), auditSvc)
 	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User(), auditSvc)
 	groupService := service.NewGroupService(iamRepo.Group(), iamRepo.User(), iamRepo.RBAC(), auditSvc)
@@ -332,6 +347,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	fileController := filecontroller.NewFileController(fileService)
 	editionController := editioncontroller.NewEditionController(editionService)
 	platformEditionController := editioncontroller.NewPlatformEditionController(editionService)
+	// 产品中心（一期）：管理面控制器挂租户域链；TenantProductAccessEvaluator
+	// 供产品真实受保护路径接入（产品后端落地时构造，同应用域 appAccess 先例）
+	tenantProductController := tenantproductcontroller.NewTenantProductController(tenantProductService)
 	memberFieldController := iamcontroller.NewMemberFieldController(memberFieldService)
 	memberProfileController := iamcontroller.NewMemberProfileController(memberProfileService)
 	adminGroupController := iamcontroller.NewAdminGroupController(adminGroupService)
@@ -341,7 +359,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 拒绝后的范围裁决回落（权限中心-管理员模块）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group(), iamRepo.AdminGroup())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, securityController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)

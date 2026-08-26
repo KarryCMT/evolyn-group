@@ -48,6 +48,8 @@ var (
 	ErrPhoneNotBound = httpx.NewBiz("AUTH_PHONE_NOT_BOUND", "当前账号未绑定手机号", http.StatusBadRequest)
 	// ErrMemberStatusInvalid 成员状态仅允许 active、disabled、resigned。
 	ErrMemberStatusInvalid = httpx.NewBiz("MEMBER_STATUS_INVALID", "成员状态不合法", http.StatusBadRequest)
+	// ErrTenantCreatorStatusImmutable 租户创建人是固定所有者，不能转为离职。
+	ErrTenantCreatorStatusImmutable = httpx.NewBiz("TENANT_CREATOR_STATUS_IMMUTABLE", "企业创建者无法转为离职", http.StatusForbidden)
 	// ErrOrganizationRoleGroupNameInvalid 角色组名称为空或仅含空白字符。
 	ErrOrganizationRoleGroupNameInvalid = httpx.NewBiz("ROLE_GROUP_NAME_INVALID", "角色组名称不合法", http.StatusBadRequest)
 	// ErrOrganizationRoleRequestInvalid 角色分组、角色成员操作的路径或请求参数无效。

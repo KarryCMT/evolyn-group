@@ -26,7 +26,7 @@
 
 | 规划目录 | 来源 | 说明 |
 | --- | --- | --- |
-| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，含 iam/tenant/auth/audit/application/edition 六域（edition 为版本信息一期：套餐版本/订阅/特批覆盖，迁移 000030）；认证域含短信与邮箱双验证码的账号安全绑定链路；application 为 M2-A 应用管理最小闭环：空白应用创建/列表/详情/更新/软删 + apps 配额，M2-菜单-1 起含应用菜单只读接口；iam 含管理组（权限中心-管理员模块，迁移 000032：管理组 CRUD/分区块即时 PATCH、内置系统管理员组代理 tenant-admin 角色绑定、鉴权保守门）），migrations/ 版本化 SQL，engine 随 M2 起） |
+| `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，含 iam/tenant/auth/audit/application/edition/tenantproduct 七域（edition 为版本信息一期：套餐版本/订阅/特批覆盖，迁移 000030；tenantproduct 为产品中心一期：平台产品目录/租户配置/范围关联与 TenantProductAccessEvaluator 访问判定，迁移 000033，见 docs/低代码平台/产品中心/）；认证域含短信与邮箱双验证码的账号安全绑定链路；application 为 M2-A 应用管理最小闭环：空白应用创建/列表/详情/更新/软删 + apps 配额，M2-菜单-1 起含应用菜单只读接口；iam 含管理组（权限中心-管理员模块，迁移 000032：管理组 CRUD/分区块即时 PATCH、内置系统管理员组代理 tenant-admin 角色绑定、鉴权保守门）），migrations/ 版本化 SQL，engine 随 M2 起） |
 | `apps/evolyn-web/` | 现有目录演进（不改名） | pnpm + Turborepo monorepo：`apps/web/` Vue3 + TypeScript 主应用（脚手架阶段）、`packages/` 共享库 |
 | `services/workflow/` | 新建 | Java + Spring Boot + Flowable 流程服务 |
 | `packages/openapi/` | 新建 | 全平台 API 契约唯一事实源 |

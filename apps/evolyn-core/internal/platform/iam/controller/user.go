@@ -44,6 +44,7 @@ func NewUserController(userService service.UserService, departmentService servic
 // @Param pageSize query int false "每页条数，默认 20，上限 100"
 // @Success 200 {object} httpx.Response{data=model.MemberPage}
 // @Failure 400 {object} httpx.Response "errCode=MEMBER_STATUS_INVALID"
+// @Failure 403 {object} httpx.Response "errCode=TENANT_CREATOR_STATUS_IMMUTABLE"
 // @Router /api/v1/members [get]
 func (u *UserController) List(c *gin.Context) {
 	ginctx.TraceStep(c, "start list members")

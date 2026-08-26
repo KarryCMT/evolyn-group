@@ -179,6 +179,12 @@ func (r *Repositories) Init() error {
 			Name:  model.AdminGroupResource,
 			Scope: model.ClusterScope,
 		},
+		// 产品中心：平台内置产品的启停与可用范围配置（仅授予租户管理员；
+		// 运行时产品访问由 tenantproduct 域访问判定器独立裁决）
+		{
+			Name:  model.TenantProductResource,
+			Scope: model.ClusterScope,
+		},
 	}
 
 	if err := r.rbac.CreateResources(ctx, resources, clause.OnConflict{DoNothing: true}); err != nil {

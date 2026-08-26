@@ -25,6 +25,12 @@ type TxManager interface {
 	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }
 
+// TenantOwnerReader 成员状态变更所需的租户归属窄读取端口：仅用于保护创建人。
+// 以可选依赖注入，避免既有成员服务测试与纯成员场景承担额外装配负担。
+type TenantOwnerReader interface {
+	GetByID(ctx context.Context, id uint) (*tenantmodel.Tenant, error)
+}
+
 // userService 成员服务（租户内语义）：登录身份相关见 AccountService（ADR-006）。
 // 依赖说明：RBAC/部门仓储用于关系绑定的同租户校验（FIX-006）；
 // 配额服务来自租户域（FIX-011，依赖方向 iam→tenant/service 单向无环）；
@@ -37,6 +43,7 @@ type userService struct {
 	departmentRepository repository.DepartmentRepository
 	quota                tenantservice.QuotaService
 	audit                auditservice.Recorder
+	tenantOwnerReader    TenantOwnerReader
 }
 
 func NewUserService(
@@ -47,7 +54,12 @@ func NewUserService(
 	departmentRepository repository.DepartmentRepository,
 	quota tenantservice.QuotaService,
 	audit auditservice.Recorder,
+	tenantOwnerReaders ...TenantOwnerReader,
 ) UserService {
+	var tenantOwnerReader TenantOwnerReader
+	if len(tenantOwnerReaders) > 0 {
+		tenantOwnerReader = tenantOwnerReaders[0]
+	}
 	return &userService{
 		tx:                   tx,
 		userRepository:       userRepository,
@@ -56,6 +68,7 @@ func NewUserService(
 		departmentRepository: departmentRepository,
 		quota:                quota,
 		audit:                audit,
+		tenantOwnerReader:    tenantOwnerReader,
 	}
 }
 
@@ -160,6 +173,19 @@ func (u *userService) UpdateStatus(ctx context.Context, id, status string) (*mod
 	member, err := u.getUserByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	// 创建人是租户固定所有者，转为离职会留下无所有者的租户；该路径必须
+	// 服务端兜底，不能仅依赖组织页对操作项的禁用态。
+	if status == model.MemberStatusResigned && u.tenantOwnerReader != nil {
+		if tenantID, ok := contextx.TenantIDFromContext(ctx); ok {
+			tenant, err := u.tenantOwnerReader.GetByID(ctx, tenantID)
+			if err != nil {
+				return nil, err
+			}
+			if tenant.OwnerAccountId != nil && member.AccountId == *tenant.OwnerAccountId {
+				return nil, ErrTenantCreatorStatusImmutable
+			}
+		}
 	}
 	member.Status = status
 	if status == model.MemberStatusResigned {

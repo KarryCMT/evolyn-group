@@ -107,6 +107,10 @@ const (
 	// MemberFieldSettingResource 与 /member-field-settings 路由保持一致，
 	// 代表成员信息管理（字段设置/卡片展示）的租户级配置权限。
 	MemberFieldSettingResource = "member-field-settings"
+	// TenantProductResource 与 /tenant-products 路由保持一致，代表产品中心
+	// （平台内置产品的启停与可用范围配置）的租户级管理权限。运行时产品
+	// 访问不等同于本资源：命中范围的普通成员无需本权限即可使用产品。
+	TenantProductResource = "tenant-products"
 )
 
 type Resource struct {

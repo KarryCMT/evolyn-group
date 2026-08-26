@@ -1,25 +1,33 @@
 <script setup lang="ts">
-import { EvolynMemberDepartmentRolePicker } from '@evolyn.do/ui';
-import { ElMessage, ElMessageBox } from 'element-plus';
+import {
+  EvolynMemberDepartmentRolePicker,
+  type EvolynMemberDepartmentRolePickerMember,
+  type EvolynMemberDepartmentRolePickerSelection,
+} from '@evolyn.do/ui';
+import { ElCheckbox, ElMessage, ElMessageBox } from 'element-plus';
 import { RiCloseFill } from '@remixicon/vue';
-import { computed, onMounted, shallowRef, watch } from 'vue';
+import { computed, defineComponent, h, onMounted, shallowRef, watch } from 'vue';
 import { updateMyTenantProfile } from '~/api/tenant';
 import OrganizationInviteMemberDialog from '~/components/tenant/organization/OrganizationInviteMemberDialog.vue';
 import OrganizationMemberDrawer from '~/components/tenant/organization/OrganizationMemberDrawer.vue';
 import OrganizationMembersTable from '~/components/tenant/organization/OrganizationMembersTable.vue';
 import OrganizationTreeSidebar from '~/components/tenant/organization/OrganizationTreeSidebar.vue';
+import WorkHandoverDialog from '~/components/tenant/organization/WorkHandoverDialog.vue';
 import type {
   OrganizationDepartment,
   OrganizationMember,
   OrganizationRole,
   OrganizationRoleGroup,
   OrganizationSelection,
+  WorkHandoverSelection,
 } from '~/components/tenant/organization/organization.types';
 import organizationInviteIllustration from '~/assets/images/organization-invite-illustration.png';
 import { useOrganization } from '~/composables/tenant/useOrganization';
 import { useAuth } from '~/composables/auth';
 
 defineOptions({ name: 'TenantOrganizationPage' });
+
+const DISABLE_REMINDER_STORAGE_KEY = 'evolyn.organization.disable-reminder-date';
 
 const {
   mode,
@@ -58,12 +66,26 @@ const {
   createChildDepartment,
 } = useOrganization();
 const { userInfo, loadUserInfo } = useAuth();
+const tenantOwnerAccountId = computed(() =>
+  userInfo.value?.tenant.ownerAccountId === null ||
+  userInfo.value?.tenant.ownerAccountId === undefined
+    ? null
+    : String(userInfo.value.tenant.ownerAccountId),
+);
 
 const inviteBannerVisible = shallowRef(true);
 const inviteDialogVisible = shallowRef(false);
 const memberPickerVisible = shallowRef(false);
 const memberEditorVisible = shallowRef(false);
 const editingMember = shallowRef<OrganizationMember | null>(null);
+const workHandoverVisible = shallowRef(false);
+const workHandoverMember = shallowRef<OrganizationMember | null>(null);
+const workHandoverSelection = shallowRef<WorkHandoverSelection | null>(null);
+const recipientPickerVisible = shallowRef(false);
+const recipientSelections = shallowRef<EvolynMemberDepartmentRolePickerSelection[]>([]);
+const disableReminderDate = shallowRef(
+  window.localStorage.getItem(DISABLE_REMINDER_STORAGE_KEY) ?? '',
+);
 const roleDialogVisible = shallowRef(false);
 const roleDialogMode = shallowRef<'group' | 'role' | 'rename' | 'group-rename'>('role');
 const roleNameDraft = shallowRef('');
@@ -98,6 +120,17 @@ const pickerMembers = computed(() =>
   })),
 );
 const selectedMemberIds = computed(() => filteredMembers.value.map((member) => member.id));
+const handoverCandidates = computed<EvolynMemberDepartmentRolePickerMember[]>(() =>
+  availableMembers.value.map((member) => ({
+    id: member.id,
+    label: member.name,
+    departmentIds: member.departmentIds,
+    avatarUrl: member.avatar,
+    keywords: [member.phone, member.email].filter((value): value is string => Boolean(value)),
+    // 接交人不能是工作原持有人，前端提前排除无效操作，服务端仍需同样校验。
+    disabled: member.id === workHandoverMember.value?.id,
+  })),
+);
 
 function updateMode(nextMode: 'department' | 'role') {
   switchMode(nextMode);
@@ -260,6 +293,87 @@ function openMemberEditor(member: OrganizationMember) {
   editingMember.value = member;
   memberEditorVisible.value = true;
 }
+
+function openWorkHandover(member: OrganizationMember) {
+  workHandoverMember.value = member;
+  workHandoverSelection.value = null;
+  recipientSelections.value = [];
+  workHandoverVisible.value = true;
+}
+
+function openRecipientPicker(selection: WorkHandoverSelection) {
+  workHandoverSelection.value = selection;
+  recipientSelections.value = [];
+  recipientPickerVisible.value = true;
+}
+
+function confirmHandoverRecipient(selections: EvolynMemberDepartmentRolePickerSelection[]) {
+  const recipient = selections[0];
+  if (!recipient) return;
+  if (String(recipient.id) === workHandoverMember.value?.id) {
+    ElMessage.warning('无法转交给本人');
+    return;
+  }
+  // 当前后端尚未提供交接预览和提交接口；保留完整选择快照，避免伪造已完成的业务操作。
+  const workCount = workHandoverSelection.value?.roleIds.length ?? 0;
+  ElMessage.info(
+    `已选择 ${recipient.label} 作为接交人${workCount ? `，包含 ${workCount} 个角色` : ''}；交接能力待后端接口接入后执行`,
+  );
+}
+
+function currentDateKey() {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Shanghai' }).format(new Date());
+}
+
+async function disableMember(member: OrganizationMember) {
+  const today = currentDateKey();
+  const shouldSkipReminder = disableReminderDate.value === today;
+  const doNotRemindToday = shallowRef(false);
+  // MessageBox 接收的是 VNode；以一个轻量渲染组件承载复选框，才能保持其受控状态响应式更新。
+  const DisableConfirmation = defineComponent({
+    name: 'OrganizationMemberDisableConfirmation',
+    setup() {
+      return () =>
+        h('div', { class: 'organization-member-disable-confirmation' }, [
+          h('p', { class: 'organization-member-disable-confirmation__message' }, [
+            '停用后，该成员无法访问本企业。',
+          ]),
+          h(
+            ElCheckbox,
+            {
+              modelValue: doNotRemindToday.value,
+              'onUpdate:modelValue': (value: unknown) => {
+                doNotRemindToday.value = Boolean(value);
+              },
+            },
+            { default: () => '今日不再提示' },
+          ),
+        ]);
+    },
+  });
+
+  if (!shouldSkipReminder) {
+    try {
+      await ElMessageBox.confirm(h(DisableConfirmation), '停用成员', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        closeOnClickModal: false,
+        customClass: 'organization-member-disable-message-box',
+        type: 'warning',
+      });
+    } catch {
+      return;
+    }
+  }
+
+  if (doNotRemindToday.value) {
+    disableReminderDate.value = today;
+    window.localStorage.setItem(DISABLE_REMINDER_STORAGE_KEY, today);
+  }
+  await changeMemberStatus(member, 'disabled');
+  ElMessage.success('成员已停用');
+}
+
 function saveMember(member: OrganizationMember) {
   updateMember(member);
   ElMessage.success('成员信息已保存');
@@ -268,6 +382,10 @@ async function handleRemoveMember(member: OrganizationMember) {
   if (mode.value === 'role') {
     await removeMember(member.id);
     ElMessage.success('成员已移出角色');
+    return;
+  }
+  if (member.accountId === tenantOwnerAccountId.value) {
+    ElMessage.warning('企业创建者无法转为离职');
     return;
   }
   await changeMemberStatus(member, 'resigned');
@@ -375,6 +493,7 @@ watch(
             :status="filters.status"
             :total="memberTotal"
             :current-page="memberPage"
+            :tenant-owner-account-id="tenantOwnerAccountId"
             @update:keyword="filters.memberKeyword = $event"
             @update:status="filters.status = $event"
             @update:page="setMemberPage"
@@ -383,6 +502,8 @@ watch(
             @import="inviteMember"
             @export="exportMembers"
             @edit="openMemberEditor"
+            @handover="openWorkHandover"
+            @disable="disableMember"
             @remove="handleRemoveMember"
           />
         </main>
@@ -414,6 +535,23 @@ watch(
       v-model="inviteDialogVisible"
       :departments="departments"
       @completed="loadMembers"
+    />
+    <WorkHandoverDialog
+      v-model="workHandoverVisible"
+      :member="workHandoverMember"
+      :roles="roles"
+      @choose-recipient="openRecipientPicker"
+    />
+    <EvolynMemberDepartmentRolePicker
+      v-model:open="recipientPickerVisible"
+      v-model="recipientSelections"
+      title="选择接交人"
+      :departments="pickerDepartments"
+      :members="handoverCandidates"
+      :selectable-types="['member']"
+      :member-multiple="false"
+      :max="1"
+      @confirm="confirmHandoverRecipient"
     />
     <el-dialog
       v-model="departmentDialogVisible"
@@ -644,6 +782,13 @@ watch(
   color: var(--el-color-primary) !important;
   background: var(--el-color-primary-light-9) !important;
 }
+
+// 接交人选择器与交接抽屉都传送到 body。抽屉遮罩由 Element Plus 分配更高层级，
+// 因此仅在二者并存时提升紧随其后的选择器，避免影响其他页面的通用选择器。
+:global(.work-handover-dialog__modal ~ .evolyn-member-department-role-picker) {
+  z-index: 3000;
+}
+
 @media (max-width: 1200px) {
   .tenant-organization-page__invite-banner {
     padding-left: 270px;

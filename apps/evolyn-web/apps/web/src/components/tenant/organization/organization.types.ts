@@ -45,3 +45,9 @@ export interface OrganizationSelection {
   id: string;
   name: string;
 }
+
+/** 交接抽屉确认后保留的资源选择快照，供后续交接接口提交。 */
+export interface WorkHandoverSelection {
+  categoryIds: string[];
+  roleIds: string[];
+}

@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import {
   RiAddFill,
-  RiArrowDownSFill,
   RiFolder3Fill,
   RiGroup2Fill,
   RiMore2Fill,
   RiSearch2Line,
   RiTeamFill,
 } from '@remixicon/vue';
-import { computed, onBeforeUnmount, onMounted, shallowRef } from 'vue';
-import OrganizationDepartmentTreeNode from './OrganizationDepartmentTreeNode.vue';
+import type { AllowDropFunction, NodeDropType } from 'element-plus';
+import { computed, shallowRef } from 'vue';
 import type {
   OrganizationDepartment,
   OrganizationMode,
@@ -20,19 +19,17 @@ import type {
 
 type RoleGroupAction = 'rename' | 'add-role' | 'delete';
 type RoleAction = 'rename' | 'adjust-group' | 'delete';
-type OpenedOperationMenu =
-  | {
-      kind: 'group';
-      group: OrganizationRoleGroup;
-      top: number;
-      left: number;
-    }
-  | {
-      kind: 'role';
-      role: OrganizationRole;
-      top: number;
-      left: number;
-    };
+interface RoleTreeNode {
+  key: string;
+  kind: 'group' | 'role';
+  name: string;
+  group: OrganizationRoleGroup;
+  role?: OrganizationRole;
+  children?: RoleTreeNode[];
+}
+
+type ElementTreeNode = Parameters<AllowDropFunction>[0];
+type RoleTreeDropType = NodeDropType | 'prev' | 'next';
 
 const props = defineProps<{
   mode: OrganizationMode;
@@ -55,28 +52,20 @@ const emit = defineEmits<{
 
 const keyword = shallowRef('');
 const createMenuVisible = shallowRef(false);
-const expandedGroupIds = shallowRef<string[]>([]);
-const draggingGroupId = shallowRef<string | null>(null);
-const draggingRole = shallowRef<{ groupId: string; roleId: string } | null>(null);
-const openedOperationMenu = shallowRef<OpenedOperationMenu | null>(null);
 
-const openedGroupMenuID = computed(() =>
-  openedOperationMenu.value?.kind === 'group' ? openedOperationMenu.value.group.id : null,
-);
-const openedRoleMenuID = computed(() =>
-  openedOperationMenu.value?.kind === 'role' ? openedOperationMenu.value.role.id : null,
-);
-const openedRoleGroup = computed(() =>
-  openedOperationMenu.value?.kind === 'group' ? openedOperationMenu.value.group : null,
-);
-const openedRole = computed(() =>
-  openedOperationMenu.value?.kind === 'role' ? openedOperationMenu.value.role : null,
-);
-const operationMenuStyle = computed(() => {
-  const menu = openedOperationMenu.value;
-  if (!menu) return {};
-  return { top: `${menu.top}px`, left: `${menu.left}px` };
-});
+// 分段控制器直接承载组织视图的唯一切换状态，避免维护一套自定义 tab 行为。
+const modeOptions = [
+  { label: '部门', value: 'department' },
+  { label: '角色', value: 'role' },
+] satisfies { label: string; value: OrganizationMode }[];
+const departmentTreeProps = {
+  children: 'children',
+  label: 'name',
+} as const;
+const roleTreeProps = {
+  children: 'children',
+  label: 'name',
+} as const;
 
 const rolesByGroup = computed(() => {
   const result = new Map<string, OrganizationRole[]>();
@@ -99,6 +88,28 @@ const filteredRoleGroups = computed(() => {
   });
 });
 
+// el-tree 使用可序列化节点，业务对象则作为数据引用保留给选择和操作事件。
+const roleTreeData = computed<RoleTreeNode[]>(() =>
+  filteredRoleGroups.value.map((group) => ({
+    key: `group:${group.id}`,
+    kind: 'group',
+    name: group.name,
+    group,
+    children: groupRoles(group.id).map((role) => ({
+      key: `role:${role.id}`,
+      kind: 'role',
+      name: role.name,
+      group,
+      role,
+    })),
+  })),
+);
+const currentRoleTreeKey = computed(() =>
+  props.selection.mode === 'role' && props.roles.some((role) => role.id === props.selection.id)
+    ? `role:${props.selection.id}`
+    : undefined,
+);
+
 const filteredDepartments = computed(() => {
   const normalizedKeyword = keyword.value.trim().toLowerCase();
   if (!normalizedKeyword) return props.departments;
@@ -114,14 +125,13 @@ const filteredDepartments = computed(() => {
   return filterDepartment(props.departments);
 });
 
-function changeMode(mode: OrganizationMode) {
+function changeMode(mode: string | number | boolean) {
+  if (mode !== 'department' && mode !== 'role') return;
   createMenuVisible.value = false;
-  closeOperationMenu();
   emit('update:mode', mode);
 }
 
 function choose(selection: OrganizationSelection) {
-  closeOperationMenu();
   emit('select', selection);
 }
 
@@ -137,164 +147,94 @@ function handleDepartmentAction(
   emit('departmentAction', action, department);
 }
 
+function selectDepartment(department: OrganizationDepartment) {
+  choose({
+    mode: 'department',
+    id: department.id,
+    name: department.name,
+  });
+}
+
 function groupRoles(groupID: string) {
   return rolesByGroup.value.get(groupID) ?? [];
 }
 
-function isGroupExpanded(groupID: string) {
-  // 初次进入时角色组保持展开，用户可单独收起任意分组。
-  return !expandedGroupIds.value.includes(groupID);
-}
-
-function toggleGroup(groupID: string) {
-  const expanded = isGroupExpanded(groupID);
-  expandedGroupIds.value = expanded
-    ? [...expandedGroupIds.value, groupID]
-    : expandedGroupIds.value.filter((id) => id !== groupID);
-}
-
-function resolveOperationMenuPosition(event: MouseEvent) {
-  const reference = event.currentTarget;
-  if (!(reference instanceof HTMLElement)) return null;
-  const rect = reference.getBoundingClientRect();
-  return {
-    top: Math.min(rect.top, window.innerHeight - 180),
-    left: Math.min(rect.right + 8, window.innerWidth - 180),
-  };
-}
-
-function closeOperationMenu() {
-  openedOperationMenu.value = null;
-}
-
-function toggleRoleGroupMenu(group: OrganizationRoleGroup, event: MouseEvent) {
-  if (openedGroupMenuID.value === group.id) {
-    closeOperationMenu();
-    return;
-  }
-  const position = resolveOperationMenuPosition(event);
-  if (!position) return;
-  createMenuVisible.value = false;
-  openedOperationMenu.value = { kind: 'group', group, ...position };
-}
-
-function toggleRoleMenu(role: OrganizationRole, event: MouseEvent) {
-  if (openedRoleMenuID.value === role.id) {
-    closeOperationMenu();
-    return;
-  }
-  const position = resolveOperationMenuPosition(event);
-  if (!position) return;
-  createMenuVisible.value = false;
-  openedOperationMenu.value = { kind: 'role', role, ...position };
-}
-
-function handleRoleGroupMenuAction(action: RoleGroupAction) {
-  const group = openedRoleGroup.value;
-  if (!group) return;
-  closeOperationMenu();
+function handleRoleGroupAction(action: RoleGroupAction, group: OrganizationRoleGroup) {
   emit('roleGroupAction', action, group);
 }
 
-function handleRoleMenuAction(action: RoleAction) {
-  const role = openedRole.value;
-  if (!role) return;
-  closeOperationMenu();
+function handleRoleAction(action: RoleAction, role: OrganizationRole) {
   emit('roleAction', action, role);
 }
 
-function startGroupDrag(groupID: string, event: DragEvent) {
-  draggingGroupId.value = groupID;
-  event.dataTransfer?.setData('text/plain', groupID);
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+function selectRoleTreeNode(node: RoleTreeNode) {
+  if (node.kind !== 'role' || !node.role) return;
+  choose({ mode: 'role', id: node.role.id, name: node.role.name });
 }
 
-function finishGroupDrag() {
-  draggingGroupId.value = null;
+function canMoveRoleTreeNode(
+  draggingData: RoleTreeNode,
+  dropData: RoleTreeNode,
+  dropType: RoleTreeDropType,
+) {
+  if (draggingData.kind !== dropData.kind || dropType === 'inner') return false;
+  return draggingData.kind === 'group' || draggingData.group.id === dropData.group.id;
 }
 
-function dropGroup(targetID: string) {
-  const sourceID = draggingGroupId.value;
-  finishGroupDrag();
-  if (!sourceID || sourceID === targetID) return;
-  const groupIDs = props.roleGroups.map((group) => group.id);
-  const sourceIndex = groupIDs.indexOf(sourceID);
-  const targetIndex = groupIDs.indexOf(targetID);
-  if (sourceIndex < 0 || targetIndex < 0) return;
-  groupIDs.splice(sourceIndex, 1);
-  groupIDs.splice(targetIndex, 0, sourceID);
-  emit('roleGroupReorder', groupIDs);
+const canDropRoleTreeNode: AllowDropFunction = (draggingNode, dropNode, dropType) =>
+  canMoveRoleTreeNode(draggingNode.data as RoleTreeNode, dropNode.data as RoleTreeNode, dropType);
+
+function moveTreeNode(ids: string[], sourceID: string, targetID: string, dropType: NodeDropType) {
+  if (sourceID === targetID || dropType === 'inner') return null;
+  const sourceIndex = ids.indexOf(sourceID);
+  const targetIndex = ids.indexOf(targetID);
+  if (sourceIndex < 0 || targetIndex < 0) return null;
+  ids.splice(sourceIndex, 1);
+  const updatedTargetIndex = ids.indexOf(targetID);
+  ids.splice(updatedTargetIndex + (dropType === 'after' ? 1 : 0), 0, sourceID);
+  return ids;
 }
 
-function startRoleDrag(groupId: string, roleId: string, event: DragEvent) {
-  draggingRole.value = { groupId, roleId };
-  event.dataTransfer?.setData('text/plain', roleId);
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+function handleRoleTreeDrop(
+  draggingNode: ElementTreeNode,
+  dropNode: ElementTreeNode,
+  dropType: NodeDropType,
+) {
+  const draggingData = draggingNode.data as RoleTreeNode;
+  const dropData = dropNode.data as RoleTreeNode;
+  if (!canMoveRoleTreeNode(draggingData, dropData, dropType)) return;
+  if (draggingData.kind === 'group') {
+    const groupIDs = moveTreeNode(
+      props.roleGroups.map((group) => group.id),
+      draggingData.group.id,
+      dropData.group.id,
+      dropType,
+    );
+    if (groupIDs) emit('roleGroupReorder', groupIDs);
+    return;
+  }
+  if (!draggingData.role || !dropData.role) return;
+  const roleIDs = moveTreeNode(
+    groupRoles(draggingData.group.id).map((role) => role.id),
+    draggingData.role.id,
+    dropData.role.id,
+    dropType,
+  );
+  if (roleIDs) emit('roleReorder', draggingData.group.id, roleIDs);
 }
-
-function finishRoleDrag() {
-  draggingRole.value = null;
-}
-
-function dropRole(groupId: string, targetRoleId: string) {
-  const source = draggingRole.value;
-  finishRoleDrag();
-  // 跨角色组移动有独立的“调整分组”操作，拖拽只改变当前组内的展示顺序。
-  if (!source || source.groupId !== groupId || source.roleId === targetRoleId) return;
-  const roleIDs = groupRoles(groupId).map((role) => role.id);
-  const sourceIndex = roleIDs.indexOf(source.roleId);
-  const targetIndex = roleIDs.indexOf(targetRoleId);
-  if (sourceIndex < 0 || targetIndex < 0) return;
-  roleIDs.splice(sourceIndex, 1);
-  roleIDs.splice(targetIndex, 0, source.roleId);
-  emit('roleReorder', groupId, roleIDs);
-}
-
-function handleOperationMenuKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') closeOperationMenu();
-}
-
-// 操作菜单使用固定坐标的单一 Teleport 容器，不再交由 Popper 在触发节点变更时重算位置。
-// 角色树滚动、窗口缩放或点到菜单外时直接关闭，避免出现陈旧位置的浮层。
-onMounted(() => {
-  document.addEventListener('pointerdown', closeOperationMenu);
-  document.addEventListener('keydown', handleOperationMenuKeydown);
-  window.addEventListener('resize', closeOperationMenu);
-  window.addEventListener('scroll', closeOperationMenu, true);
-});
-
-onBeforeUnmount(() => {
-  document.removeEventListener('pointerdown', closeOperationMenu);
-  document.removeEventListener('keydown', handleOperationMenuKeydown);
-  window.removeEventListener('resize', closeOperationMenu);
-  window.removeEventListener('scroll', closeOperationMenu, true);
-});
 </script>
 
 <template>
   <aside class="organization-tree-sidebar" aria-label="内部组织导航">
-    <div class="organization-tree-sidebar__mode-switch" role="tablist" aria-label="组织视图">
-      <button
-        class="organization-tree-sidebar__mode-button"
-        :class="{ 'organization-tree-sidebar__mode-button--active': props.mode === 'department' }"
-        type="button"
-        role="tab"
-        :aria-selected="props.mode === 'department'"
-        @click="changeMode('department')"
-      >
-        部门
-      </button>
-      <button
-        class="organization-tree-sidebar__mode-button"
-        :class="{ 'organization-tree-sidebar__mode-button--active': props.mode === 'role' }"
-        type="button"
-        role="tab"
-        :aria-selected="props.mode === 'role'"
-        @click="changeMode('role')"
-      >
-        角色
-      </button>
-    </div>
+    <el-segmented
+      :model-value="props.mode"
+      :options="modeOptions"
+      block
+      size="large"
+      class="organization-tree-sidebar__mode-switch"
+      aria-label="组织视图"
+      @update:model-value="changeMode"
+    />
 
     <div v-if="props.mode === 'department'" class="organization-tree-sidebar__department-area">
       <p class="organization-tree-sidebar__section-label">成员</p>
@@ -332,13 +272,42 @@ onBeforeUnmount(() => {
         <input v-model="keyword" placeholder="搜索" aria-label="搜索部门" />
       </label>
       <el-scrollbar v-if="filteredDepartments" class="organization-tree-sidebar__department-tree">
-        <OrganizationDepartmentTreeNode
-          :department="filteredDepartments"
-          :depth="0"
-          :selection="props.selection"
-          @select="choose"
-          @action="handleDepartmentAction"
-        />
+        <el-tree
+          :data="[filteredDepartments]"
+          :props="departmentTreeProps"
+          node-key="id"
+          default-expand-all
+          highlight-current
+          :current-node-key="props.selection.id"
+          :expand-on-click-node="false"
+          :indent="28"
+          @node-click="selectDepartment"
+        >
+          <template #default="{ data: department }">
+            <div class="organization-tree-sidebar__department-node">
+              <RiGroup2Fill class="organization-tree-sidebar__department-node-icon" />
+              <span class="organization-tree-sidebar__department-node-name">{{
+                department.name
+              }}</span>
+              <el-dropdown trigger="click" @command="handleDepartmentAction($event, department)">
+                <button
+                  class="organization-tree-sidebar__department-node-more"
+                  type="button"
+                  :aria-label="`${department.name} 操作`"
+                  @click.stop
+                >
+                  <RiMore2Fill />
+                </button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="rename">修改名称</el-dropdown-item>
+                    <el-dropdown-item command="create-child">添加子部门</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+            </div>
+          </template>
+        </el-tree>
       </el-scrollbar>
       <p v-else class="organization-tree-sidebar__empty">未找到匹配的部门</p>
     </div>
@@ -372,141 +341,81 @@ onBeforeUnmount(() => {
         </el-popover>
       </div>
       <el-scrollbar class="organization-tree-sidebar__role-tree">
-        <section
-          v-for="group in filteredRoleGroups"
-          :key="group.id"
-          class="organization-tree-sidebar__role-group"
-          :class="{
-            'organization-tree-sidebar__role-group--dragging': draggingGroupId === group.id,
-          }"
-          @dragover.prevent
-          @drop.prevent="dropGroup(group.id)"
+        <el-tree
+          :data="roleTreeData"
+          :props="roleTreeProps"
+          node-key="key"
+          default-expand-all
+          highlight-current
+          draggable
+          :current-node-key="currentRoleTreeKey"
+          :allow-drop="canDropRoleTreeNode"
+          :expand-on-click-node="true"
+          :indent="28"
+          @node-click="selectRoleTreeNode"
+          @node-drop="handleRoleTreeDrop"
         >
-          <div
-            class="organization-tree-sidebar__role-group-row"
-            :class="{
-              'organization-tree-sidebar__role-group-row--menu-open':
-                openedGroupMenuID === group.id,
-            }"
-          >
-            <button
-              class="organization-tree-sidebar__role-group-title"
-              type="button"
-              :aria-expanded="isGroupExpanded(group.id)"
-              @click="toggleGroup(group.id)"
-            >
-              <RiArrowDownSFill
-                :class="{
-                  'organization-tree-sidebar__expand-icon--collapsed': !isGroupExpanded(group.id),
-                }"
-              />
-              <RiFolder3Fill />
-              <span>{{ group.name }}</span>
-            </button>
-            <div class="organization-tree-sidebar__role-group-actions">
-              <button
-                class="organization-tree-sidebar__drag-handle"
-                type="button"
-                draggable="true"
-                aria-label="拖拽排序角色组"
-                @dragend="finishGroupDrag"
-                @dragstart="startGroupDrag(group.id, $event)"
-              >
-                ⠿
-              </button>
-              <button
-                class="organization-tree-sidebar__more-button"
-                type="button"
-                aria-label="角色组操作"
-                @click="toggleRoleGroupMenu(group, $event)"
-                @pointerdown.stop
-              >
-                <RiMore2Fill />
-              </button>
-            </div>
-          </div>
-          <template v-if="isGroupExpanded(group.id)">
+          <template #default="{ data: node }">
             <div
-              v-for="role in groupRoles(group.id)"
-              :key="role.id"
-              class="organization-tree-sidebar__role-row"
+              class="organization-tree-sidebar__role-node"
               :class="{
-                'organization-tree-sidebar__role-row--dragging': draggingRole?.roleId === role.id,
-                'organization-tree-sidebar__role-row--active': props.selection.id === role.id,
-                'organization-tree-sidebar__role-row--menu-open': openedRoleMenuID === role.id,
+                'organization-tree-sidebar__role-node--group': node.kind === 'group',
+                'organization-tree-sidebar__role-node--role': node.kind === 'role',
               }"
-              @dragover.prevent
-              @drop.prevent="dropRole(group.id, role.id)"
             >
-              <button
-                class="organization-tree-sidebar__role-item"
-                :class="{
-                  'organization-tree-sidebar__role-item--active': props.selection.id === role.id,
-                }"
-                type="button"
-                @click="choose({ mode: 'role', id: role.id, name: role.name })"
+              <RiFolder3Fill
+                v-if="node.kind === 'group'"
+                class="organization-tree-sidebar__role-node-icon"
+              />
+              <RiGroup2Fill v-else class="organization-tree-sidebar__role-node-icon" />
+              <span class="organization-tree-sidebar__role-node-name">{{ node.name }}</span>
+              <el-dropdown
+                v-if="node.kind === 'group'"
+                trigger="click"
+                @command="handleRoleGroupAction($event, node.group)"
               >
-                <RiGroup2Fill />
-                <span>{{ role.name }}</span>
-              </button>
-              <div class="organization-tree-sidebar__role-actions">
                 <button
-                  class="organization-tree-sidebar__drag-handle"
+                  class="organization-tree-sidebar__role-node-more"
                   type="button"
-                  draggable="true"
-                  aria-label="拖拽排序角色"
-                  @dragend="finishRoleDrag"
-                  @dragstart="startRoleDrag(group.id, role.id, $event)"
-                >
-                  ⠿
-                </button>
-                <button
-                  class="organization-tree-sidebar__more-button"
-                  type="button"
-                  aria-label="角色操作"
-                  @click="toggleRoleMenu(role, $event)"
-                  @pointerdown.stop
+                  :aria-label="`${node.name} 操作`"
+                  @click.stop
                 >
                   <RiMore2Fill />
                 </button>
-              </div>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="rename">修改名称</el-dropdown-item>
+                    <el-dropdown-item command="add-role">添加角色</el-dropdown-item>
+                    <el-dropdown-item command="delete">删除</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-dropdown
+                v-else-if="node.role"
+                trigger="click"
+                @command="handleRoleAction($event, node.role)"
+              >
+                <button
+                  class="organization-tree-sidebar__role-node-more"
+                  type="button"
+                  :aria-label="`${node.name} 操作`"
+                  @click.stop
+                >
+                  <RiMore2Fill />
+                </button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item command="rename">修改名称</el-dropdown-item>
+                    <el-dropdown-item command="adjust-group">调整分组</el-dropdown-item>
+                    <el-dropdown-item command="delete">删除</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
             </div>
           </template>
-        </section>
+        </el-tree>
       </el-scrollbar>
     </div>
-
-    <Teleport to="body">
-      <div
-        v-if="openedOperationMenu"
-        class="organization-tree-sidebar__operation-menu"
-        :style="operationMenuStyle"
-        @pointerdown.stop
-      >
-        <template v-if="openedRoleGroup">
-          <button type="button" @click="handleRoleGroupMenuAction('rename')">修改名称</button>
-          <button type="button" @click="handleRoleGroupMenuAction('add-role')">添加角色</button>
-          <button
-            class="organization-tree-sidebar__operation-menu-delete"
-            type="button"
-            @click="handleRoleGroupMenuAction('delete')"
-          >
-            删除
-          </button>
-        </template>
-        <template v-else-if="openedRole">
-          <button type="button" @click="handleRoleMenuAction('rename')">修改名称</button>
-          <button type="button" @click="handleRoleMenuAction('adjust-group')">调整分组</button>
-          <button
-            class="organization-tree-sidebar__operation-menu-delete"
-            type="button"
-            @click="handleRoleMenuAction('delete')"
-          >
-            删除
-          </button>
-        </template>
-      </div>
-    </Teleport>
   </aside>
 </template>
 
@@ -522,40 +431,13 @@ onBeforeUnmount(() => {
   background: #fff;
 
   &__mode-switch {
-    display: grid;
-    height: 44px;
-    padding: 2px;
-    grid-template-columns: 1fr 1fr;
-    border-radius: 8px;
-    background: var(--el-fill-color);
-  }
-
-  &__mode-button {
-    border: 0;
-    border-radius: 6px;
-    color: var(--el-text-color-primary);
-    background: transparent;
-    cursor: pointer;
-    font: inherit;
-    font-size: 16px;
-    transition:
-      background-color 0.18s ease,
-      color 0.18s ease,
-      box-shadow 0.18s ease;
-
-    &:hover {
-      background: var(--el-fill-color-light);
-    }
-    &:focus-visible {
-      outline: 2px solid var(--el-color-primary);
-      outline-offset: -2px;
-    }
-
-    &--active {
-      color: var(--el-color-primary);
-      background: #fff;
-      box-shadow: 0 1px 3px rgb(31 41 55 / 14%);
-    }
+    width: 100%;
+    min-height: 44px;
+    --el-segmented-bg-color: var(--el-fill-color);
+    --el-segmented-item-selected-color: var(--el-color-primary);
+    --el-segmented-item-selected-bg-color: var(--el-bg-color);
+    --el-segmented-item-hover-bg-color: var(--el-fill-color-light);
+    --el-segmented-item-active-bg-color: var(--el-fill-color);
   }
 
   &__department-area,
@@ -575,9 +457,7 @@ onBeforeUnmount(() => {
     margin-top: 30px;
   }
 
-  &__quick-item,
-  &__role-group-title,
-  &__role-item {
+  &__quick-item {
     display: flex;
     box-sizing: border-box;
     min-width: 0;
@@ -660,12 +540,87 @@ onBeforeUnmount(() => {
       color: var(--el-text-color-placeholder);
     }
   }
+  &__role-area .organization-tree-sidebar__search {
+    // 与分段控制器保留固定间距，避免角色搜索框紧贴切换控件。
+    margin-top: 22px;
+  }
 
   &__department-tree,
   &__role-tree {
     min-height: 0;
     margin-top: 22px;
     overflow-y: auto;
+  }
+  &__department-tree :deep(.el-tree) {
+    --el-tree-node-content-height: 44px;
+    background: transparent;
+  }
+  &__department-tree :deep(.el-tree-node__content) {
+    padding-right: 6px;
+    border-radius: 6px;
+    color: var(--el-text-color-regular);
+  }
+  &__department-tree :deep(.el-tree-node__content:hover),
+  &__department-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+  }
+  &__department-node {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    align-items: center;
+  }
+  &__department-node-icon {
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    flex: 0 0 20px;
+    color: var(--el-color-primary);
+  }
+  &__department-node-name {
+    overflow: hidden;
+    flex: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &__department-node-more {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    margin-left: 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
+    align-items: center;
+    justify-content: center;
+    color: var(--el-text-color-secondary);
+    background: transparent;
+    cursor: pointer;
+    opacity: 0;
+    transition:
+      opacity 0.18s ease,
+      background-color 0.18s ease;
+
+    &:hover {
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-8);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--el-color-primary);
+      outline-offset: -2px;
+      opacity: 1;
+    }
+  }
+  &__department-node-more svg {
+    width: 19px;
+    height: 19px;
+  }
+  &__department-tree :deep(.el-tree-node__content:hover) &__department-node-more,
+  &__department-tree
+    :deep(.el-tree-node.is-current > .el-tree-node__content)
+    &__department-node-more {
+    opacity: 1;
   }
   &__empty {
     margin: 22px 0 0;
@@ -707,133 +662,74 @@ onBeforeUnmount(() => {
     width: 22px;
     height: 22px;
   }
-  &__role-group {
-    margin-top: 12px;
-    border-radius: 8px;
-  }
-  &__role-group--dragging {
-    opacity: 0.52;
-  }
-  &__role-group-row {
-    display: flex;
-    height: 46px;
-    padding-right: 7px;
-    align-items: center;
-    border-radius: 8px;
-
-    &:hover {
-      background: var(--el-fill-color-light);
-    }
-  }
-  &__role-group-title {
-    min-width: 0;
-    flex: 1;
-    height: 46px;
-    gap: 8px;
-    padding: 0 14px;
-    font-size: 16px;
-  }
-  &__role-group-title svg:first-child {
-    width: 18px;
-    height: 18px;
-    color: var(--el-text-color-secondary);
-  }
-  &__role-group-title svg:nth-child(2) {
-    width: 23px;
-    height: 23px;
-    color: var(--el-color-warning);
-  }
-  &__expand-icon--collapsed {
-    transform: rotate(-90deg);
-  }
-  &__role-group-actions {
-    display: none;
-    align-items: center;
-    gap: 2px;
-  }
-  &__role-group-row:hover &__role-group-actions,
-  &__role-group-row--menu-open &__role-group-actions,
-  &__role-group-actions:focus-within {
-    display: flex;
-  }
-  &__drag-handle,
-  &__more-button {
-    display: inline-flex;
-    width: 28px;
-    height: 32px;
-    padding: 0;
-    border: 0;
-    border-radius: 6px;
-    align-items: center;
-    justify-content: center;
-    color: var(--el-text-color-regular);
+  &__role-tree :deep(.el-tree) {
+    --el-tree-node-content-height: 46px;
     background: transparent;
-    cursor: grab;
-    font: inherit;
   }
-  &__drag-handle:hover,
-  &__more-button:hover {
+  &__role-tree :deep(.el-tree-node__content) {
+    padding-right: 6px;
+    border-radius: 8px;
+    color: var(--el-text-color-regular);
+  }
+  &__role-tree :deep(.el-tree-node__content:hover),
+  &__role-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
     color: var(--el-color-primary);
     background: var(--el-color-primary-light-9);
   }
-  &__drag-handle:active {
-    cursor: grabbing;
-  }
-  &__more-button {
-    cursor: pointer;
-  }
-  &__more-button svg {
-    width: 20px;
-    height: 20px;
-  }
-  &__role-item {
+  &__role-node {
+    display: flex;
     min-width: 0;
     flex: 1;
-    height: 56px;
-    gap: 9px;
-    padding: 0 24px 0 72px;
-    border-radius: 8px;
-    font-size: 16px;
+    align-items: center;
   }
-  &__role-item svg {
+  &__role-node-icon {
     width: 22px;
     height: 22px;
+    margin-right: 9px;
+    flex: 0 0 22px;
     color: var(--el-color-primary);
   }
-  &__role-item--active {
-    color: var(--el-color-primary);
-    background: var(--el-color-primary-light-9);
+  &__role-node--group .organization-tree-sidebar__role-node-icon {
+    color: var(--el-color-warning);
   }
-  &__role-row {
-    display: flex;
-    height: 56px;
-    padding-right: 7px;
+  &__role-node-name {
+    overflow: hidden;
+    flex: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &__role-node-more {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    margin-left: 4px;
+    padding: 0;
+    border: 0;
+    border-radius: 4px;
     align-items: center;
-    border-radius: 8px;
+    justify-content: center;
+    color: var(--el-text-color-secondary);
+    background: transparent;
+    cursor: pointer;
+    opacity: 0;
 
     &:hover {
-      background: var(--el-fill-color-light);
+      color: var(--el-color-primary);
+      background: var(--el-color-primary-light-8);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--el-color-primary);
+      outline-offset: -2px;
+      opacity: 1;
     }
   }
-  &__role-row--dragging {
-    opacity: 0.52;
+  &__role-node-more svg {
+    width: 19px;
+    height: 19px;
   }
-  &__role-row--active {
-    color: var(--el-color-primary);
-    background: var(--el-color-primary-light-9);
-  }
-  &__role-row .organization-tree-sidebar__role-item--active {
-    background: transparent;
-  }
-  &__role-actions {
-    display: none;
-    align-items: center;
-    gap: 2px;
-  }
-  &__role-row:hover &__role-actions,
-  &__role-row--menu-open &__role-actions,
-  &__role-actions:focus-within {
-    display: flex;
+  &__role-tree :deep(.el-tree-node__content:hover) &__role-node-more,
+  &__role-tree :deep(.el-tree-node.is-current > .el-tree-node__content) &__role-node-more {
+    opacity: 1;
   }
 
   &__create-menu {
@@ -854,52 +750,6 @@ onBeforeUnmount(() => {
   &__create-menu button:hover {
     color: var(--el-color-primary);
     background: var(--el-color-primary-light-9);
-  }
-
-  &__operation-menu {
-    display: grid;
-    position: fixed;
-    z-index: 3000;
-    width: 164px;
-    padding: 8px;
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: var(--el-box-shadow-light);
-    gap: 2px;
-  }
-  &__operation-menu::before {
-    position: absolute;
-    top: 20px;
-    left: -5px;
-    width: 9px;
-    height: 9px;
-    border-bottom: 1px solid var(--el-border-color-lighter);
-    border-left: 1px solid var(--el-border-color-lighter);
-    background: #fff;
-    content: '';
-    transform: rotate(45deg);
-  }
-  &__operation-menu button {
-    position: relative;
-    padding: 8px 10px;
-    border: 0;
-    border-radius: 4px;
-    color: var(--el-text-color-primary);
-    background: transparent;
-    cursor: pointer;
-    font: inherit;
-    font-size: 15px;
-    text-align: left;
-  }
-  &__operation-menu button:hover {
-    background: var(--el-fill-color-light);
-  }
-  &__operation-menu .organization-tree-sidebar__operation-menu-delete {
-    color: var(--el-color-danger);
-  }
-  &__operation-menu .organization-tree-sidebar__operation-menu-delete:hover {
-    background: var(--el-color-danger-light-9);
   }
 }
 </style>

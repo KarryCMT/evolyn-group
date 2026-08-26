@@ -167,6 +167,7 @@ declare module 'vue' {
     WidgetPalette: typeof import('./components/dashboard/editor/WidgetPalette.vue')['default']
     WorkbenchEditorShell: typeof import('./components/dashboard/editor/WorkbenchEditorShell.vue')['default']
     WorkbenchEditorToolbar: typeof import('./components/dashboard/editor/WorkbenchEditorToolbar.vue')['default']
+    WorkHandoverDialog: typeof import('./components/tenant/organization/WorkHandoverDialog.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']

@@ -24,6 +24,7 @@ const emit = defineEmits<{
   selectPartialScope: [];
   updateEnabled: [enabled: boolean];
   updateScope: [scope: ProductMemberScope];
+  viewEdition: [];
 }>();
 
 function updateScope(scope: ProductMemberScope) {
@@ -67,11 +68,7 @@ function selectScope(scope: string | number | boolean | undefined) {
       <p class="product-center-card__row">
         <span class="product-center-card__label">当前版本：</span>
         <span>{{ props.product.versionName }}</span>
-        <button
-          class="product-center-card__text-button"
-          type="button"
-          @click="emit('enterProduct')"
-        >
+        <button class="product-center-card__text-button" type="button" @click="emit('viewEdition')">
           查看
         </button>
       </p>

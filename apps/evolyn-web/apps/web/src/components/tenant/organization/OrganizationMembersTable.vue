@@ -17,6 +17,8 @@ const props = defineProps<{
   status: 'all' | 'active' | 'disabled';
   total: number;
   currentPage: number;
+  /** 租户创建人账号；其状态不可转为离职。 */
+  tenantOwnerAccountId: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -28,6 +30,8 @@ const emit = defineEmits<{
   export: [];
   import: [];
   edit: [member: OrganizationMember];
+  handover: [member: OrganizationMember];
+  disable: [member: OrganizationMember];
   remove: [member: OrganizationMember];
 }>();
 
@@ -36,6 +40,12 @@ const ROW_HEIGHT = 64;
 const CELL_HORIZONTAL_PADDING = 12;
 const actionMember = shallowRef<OrganizationMember | null>(null);
 const actionMenuVisible = shallowRef(false);
+const actionMemberIsTenantCreator = computed(
+  () =>
+    props.mode === 'department' &&
+    props.tenantOwnerAccountId !== null &&
+    actionMember.value?.accountId === props.tenantOwnerAccountId,
+);
 
 const tableRecords = computed(() =>
   props.members.map((member) => ({
@@ -186,6 +196,16 @@ function editMember() {
   actionMenuVisible.value = false;
 }
 
+function handoverCurrentMember() {
+  if (actionMember.value) emit('handover', actionMember.value);
+  actionMenuVisible.value = false;
+}
+
+function disableCurrentMember() {
+  if (actionMember.value) emit('disable', actionMember.value);
+  actionMenuVisible.value = false;
+}
+
 function removeCurrentMember() {
   if (actionMember.value) emit('remove', actionMember.value);
   actionMenuVisible.value = false;
@@ -257,11 +277,17 @@ function removeCurrentMember() {
         <button type="button" @click="editMember">
           {{ props.mode === 'department' ? '编辑' : '调整分管部门' }}
         </button>
-        <button v-if="props.mode === 'department'" type="button">交接工作</button>
-        <button v-if="props.mode === 'department'" type="button">停用</button>
+        <button v-if="props.mode === 'department'" type="button" @click="handoverCurrentMember">
+          交接工作
+        </button>
+        <button v-if="props.mode === 'department'" type="button" @click="disableCurrentMember">
+          停用
+        </button>
         <button
           class="organization-members-table__action-menu-panel--danger"
           type="button"
+          :disabled="actionMemberIsTenantCreator"
+          :title="actionMemberIsTenantCreator ? '企业创建者无法转为离职' : undefined"
           @click="removeCurrentMember"
         >
           {{ props.mode === 'department' ? '转为离职' : '移出成员' }}
@@ -400,6 +426,11 @@ function removeCurrentMember() {
 }
 .organization-members-table__action-menu-panel--danger {
   color: var(--el-color-danger) !important;
+}
+.organization-members-table__action-menu-panel button:disabled {
+  color: var(--el-text-color-disabled) !important;
+  background: transparent;
+  cursor: not-allowed;
 }
 .organization-members-table__footer {
   display: flex;

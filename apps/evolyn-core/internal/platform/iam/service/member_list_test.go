@@ -5,9 +5,11 @@ import (
 	"errors"
 	"testing"
 
+	"evolyn/internal/contextx"
 	kernel "evolyn/internal/model"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/repository"
+	tenantmodel "evolyn/internal/platform/tenant/model"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -39,6 +41,15 @@ func (r *memberListRepo) GetUserByID(_ context.Context, id uint) (*model.User, e
 func (r *memberListRepo) UpdateStatus(_ context.Context, user *model.User) (*model.User, error) {
 	r.updatedUser = user
 	return user, nil
+}
+
+// memberTenantOwnerReaderStub 仅模拟成员状态变更所需的租户创建人读取。
+type memberTenantOwnerReaderStub struct {
+	ownerAccountID *uint
+}
+
+func (r memberTenantOwnerReaderStub) GetByID(_ context.Context, id uint) (*tenantmodel.Tenant, error) {
+	return &tenantmodel.Tenant{ID: id, OwnerAccountId: r.ownerAccountID}, nil
 }
 
 func TestMemberListPageNormalizesQueryAndBuildsReadModel(t *testing.T) {
@@ -99,4 +110,34 @@ func TestUpdateMemberStatusKeepsResignationHistory(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, model.MemberStatusActive, active.Status)
 	assert.Nil(t, active.ResignedAt)
+}
+
+func TestUpdateMemberStatusRejectsTenantCreatorResignation(t *testing.T) {
+	ownerAccountID := uint(18)
+	repo := &memberListRepo{users: model.Users{{
+		ID:              8,
+		AccountId:       ownerAccountID,
+		Status:          model.MemberStatusActive,
+		TenantBaseModel: kernel.TenantBaseModel{TenantID: 1},
+	}}}
+	svc := NewUserService(
+		nil,
+		repo,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+		memberTenantOwnerReaderStub{ownerAccountID: &ownerAccountID},
+	)
+
+	_, err := svc.UpdateStatus(
+		contextx.NewTenantContext(context.Background(), 1),
+		"8",
+		model.MemberStatusResigned,
+	)
+
+	assert.ErrorIs(t, err, ErrTenantCreatorStatusImmutable)
+	assert.Nil(t, repo.updatedUser)
+	assert.Equal(t, model.MemberStatusActive, repo.users[0].Status)
 }

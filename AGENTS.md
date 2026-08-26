@@ -138,6 +138,18 @@ internal/
                       幂等降级免费版；QuotaService 经到期守卫 GuardLimit 在
                       降级落库前按「免费快照+仅 manual 覆盖」拦截；租户开通
                       经 SubscriptionSeeder 同事务补种初始订阅
+    tenantproduct/    产品中心域（一期，小三层，docs/低代码平台/产品中心/）：
+                      平台产品目录/租户产品配置/部门与成员范围关联（迁移
+                      000033，四表 + lingyanyun seed + 存量租户回填，目录是
+                      平台级资源）；租户侧 GET /tenant-products 卡片列表 +
+                      PUT /:code/enabled 启停 + PUT /:code/access-scope 范围
+                      全量替换（revision 乐观锁 + 统一事务 + 提交后审计；
+                      tenant-products:view/update 仅授租户管理员）；版本投影
+                      经窄端口只读消费 edition 域；TenantProductAccessEvaluator
+                      服务端访问判定（目录 active → 租户启用 → 有效成员 →
+                      all/命中直接成员或部门含子部门），产品受保护路径接入
+                      时构造使用；租户开通经 ProductConfigSeeder 同事务初始
+                      化默认配置（enabled=true、scope=all）
 migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
                       命名 NNNNNN_name.(up|down).sql，版本号只增不复用）
 scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（本地证书）
@@ -237,6 +249,7 @@ pnpm -F @evolyn.do/web build        # 生产构建
 
 - 使用 Composition API（`<script setup>`）+ TypeScript；`typecheck` 必须通过。
 - 前端界面还原截图时，统一以 1080P（1920×1080）画布尺寸为基准进行还原。
+- 前端界面还原必须优先使用element-plus组件库提供的组件，utils方法。
 - 前端在进行页面开发时，需要善于发现某些组件可以复用就做成通用组件，并放到@evolyn.do/ui里面，统一管理维护。
 - 前端在进行页面开发时，必须需要适配暗黑主题模式，避免出现写死的颜色值。
 - 代码统一以 Prettier 格式化（约束）：以 `apps/evolyn-web/prettier.config.mjs`

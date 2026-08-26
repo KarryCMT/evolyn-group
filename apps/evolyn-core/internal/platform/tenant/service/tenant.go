@@ -62,6 +62,19 @@ type MemberFieldSeederInjector interface {
 	UseFieldSeeder(seeder MemberFieldSeeder)
 }
 
+// ProductConfigSeeder 开通租户时初始化产品配置的最小能力（产品中心一期）：
+// 由 tenantproduct 服务实现，经 ProductConfigSeederInjector 注入——为全部
+// 当前 active 目录创建 enabled=true、scope=all 的配置行，与初始订阅、
+// 管理员成员保持同一开通事务边界（产品中心文档 8.2）
+type ProductConfigSeeder interface {
+	SeedDefaults(ctx context.Context, tenantID uint) error
+}
+
+// ProductConfigSeederInjector 支持事后注入产品配置种子器的租户服务
+type ProductConfigSeederInjector interface {
+	UseProductSeeder(seeder ProductConfigSeeder)
+}
+
 // 租户内基线角色名（与默认租户种子、db.sql 口径一致）。
 // 名称直接面向组织角色页展示，因此使用中文；租户内权限判定只依赖角色规则，
 // 不以名称作为授权依据。
@@ -89,14 +102,15 @@ var ErrTenantNameInvalid = httpx.NewBiz("TENANT_NAME_INVALID", "租户名称格�
 // 开通全流程经 TxManager 单事务提交（FIX-020）；审计记录关键运营操作
 // （FIX-013），配额服务在开建成员前校验（FIX-011）
 type tenantService struct {
-	tx          TxManager
-	tenantRepo  tenantrepository.TenantRepository
-	iam         IAMRepositories
-	quota       QuotaService
-	audit       auditservice.Recorder
-	retention   time.Duration
-	subSeeder   SubscriptionSeeder
-	fieldSeeder MemberFieldSeeder
+	tx            TxManager
+	tenantRepo    tenantrepository.TenantRepository
+	iam           IAMRepositories
+	quota         QuotaService
+	audit         auditservice.Recorder
+	retention     time.Duration
+	subSeeder     SubscriptionSeeder
+	fieldSeeder   MemberFieldSeeder
+	productSeeder ProductConfigSeeder
 }
 
 func NewTenantService(
@@ -129,6 +143,13 @@ func NewTenantService(
 // 事务内预置 15 个预置字段的默认显示策略；未注入时读取侧幂等兜底补齐
 func (s *tenantService) UseFieldSeeder(seeder MemberFieldSeeder) {
 	s.fieldSeeder = seeder
+}
+
+// UseProductSeeder 注入产品配置种子器（产品中心一期）：新租户开通事务内
+// 为全部 active 目录初始化默认产品配置；未注入时产品中心列表侧保守合成
+// 停用卡片（写入路径仍按未初始化拒绝）
+func (s *tenantService) UseProductSeeder(seeder ProductConfigSeeder) {
+	s.productSeeder = seeder
 }
 
 // OpenTenantRequest 开通租户请求：OwnerAccountID 与 Owner 账号信息二选一
@@ -395,6 +416,15 @@ func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*
 		}
 	}
 
+	// 产品中心一期：开通事务内初始化产品配置（幂等；为全部 active 目录建
+	// enabled=true、scope=all 的配置行）；注入失败即整体回滚，保证新租户
+	// 与存量回填租户的产品配置口径一致（产品中心文档 8.2）
+	if s.productSeeder != nil {
+		if err = s.productSeeder.SeedDefaults(contextx.NewTenantContext(bctx, tenant.ID), tenant.ID); err != nil {
+			return nil, err
+		}
+	}
+
 	// 权限中心-管理员模块：开通事务内预置内置系统管理员组（幂等）；成员由
 	// 上方 owner 绑定的 tenant-admin 角色实时推导，不落成员表
 	if err = s.seedBuiltinAdminGroup(bctx, tenant.ID); err != nil {
@@ -436,6 +466,11 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 成员信息管理（字段设置/卡片展示）：租户管理员全量；
 			// 存量租户由 000031 补齐
 			{Resource: iammodel.MemberFieldSettingResource, Operation: iammodel.AllOperation},
+			// 产品中心（内置产品启停/可用范围）：view 展开 get+list 覆盖
+			// 卡片列表，update 覆盖启停与范围替换两条 PUT 子资源路径；
+			// 存量租户由 000033 补齐
+			{Resource: iammodel.TenantProductResource, Operation: iammodel.ViewOperation},
+			{Resource: iammodel.TenantProductResource, Operation: request.UpdateOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},
