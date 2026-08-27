@@ -301,6 +301,7 @@ function notifyUnavailable() {}
     line-height: 1;
     text-overflow: ellipsis;
     white-space: nowrap;
+    color: var(--el-text-color-primary);
   }
 
   &__nav-button {

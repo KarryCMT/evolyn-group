@@ -138,11 +138,8 @@ const tenantRoutes: RouteRecordRaw[] = [
       {
         path: 'enterprise-logs',
         name: 'tenant-enterprise-logs',
-        ...featurePage({
-          title: '企业日志',
-          description: '审计企业管理与关键配置的操作记录。',
-          capabilities: ['按操作者与时间筛选', '操作详情查看', '日志导出与留存策略'],
-        }),
+        component: () => import('~/pages/tenant/enterprise-logs.vue'),
+        meta: { title: '企业日志' },
       },
       {
         path: 'product-logs',
