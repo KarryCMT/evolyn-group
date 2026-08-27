@@ -40,6 +40,13 @@ build: ## 构建服务二进制到 bin/（ldflags 注入版本信息）
 run: ## 运行服务（默认 config/app.yaml；可传 CONFIG=config/app.test.yaml 切换环境）
 	go run ./cmd/api --config $(or $(CONFIG),config/app.yaml)
 
+run-windows: ## 运行服务（默认 config/app.yaml；可传 CONFIG=config/app.test.yaml 切换环境）
+	go run ./cmd/api --config $(or $(CONFIG),config/app.local.yaml)
+
+run-mac: ## 运行服务（默认 config/app.yaml；可传 CONFIG=config/app.test.yaml 切换环境）
+	go run ./cmd/api --config $(or $(CONFIG),config/app.yaml)
+
+
 test: ## 单元测试（含覆盖率，产物 cover.out/coverage.txt）
 	go test -ldflags -s -v -coverprofile=cover.out $(PKGS)
 	go tool cover -func=cover.out -o coverage.txt
