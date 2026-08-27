@@ -185,6 +185,12 @@ func (r *Repositories) Init() error {
 			Name:  model.TenantProductResource,
 			Scope: model.ClusterScope,
 		},
+		// 企业日志：登录日志/操作日志的只读查询与导出（仅授予租户管理员，
+		// 不经管理组间接放行）
+		{
+			Name:  model.EnterpriseLogResource,
+			Scope: model.ClusterScope,
+		},
 	}
 
 	if err := r.rbac.CreateResources(ctx, resources, clause.OnConflict{DoNothing: true}); err != nil {

@@ -143,7 +143,7 @@ async function submit() {
     padding-left: var(--el-space-lg);
     border-left: 5px solid var(--el-color-primary);
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
   &__section :deep(.el-checkbox) {
     margin-right: var(--el-space-4xl);

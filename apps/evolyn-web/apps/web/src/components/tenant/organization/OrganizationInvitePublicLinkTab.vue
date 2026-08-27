@@ -113,7 +113,7 @@ watch(
   &__address h3 {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     line-height: 30px;
   }

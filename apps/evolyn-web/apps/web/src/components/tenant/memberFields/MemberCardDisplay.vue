@@ -225,8 +225,7 @@ function notifyCardError(err: unknown) {
     min-width: 0;
     min-height: 0;
     flex-direction: column;
-    padding: var(--el-space-3xl) var(--el-space-6xl) var(--el-space-2xl)
-      var(--el-space-lg);
+    padding: var(--el-space-3xl) var(--el-space-6xl) var(--el-space-2xl) var(--el-space-lg);
   }
 
   &__preview-header {
@@ -342,7 +341,7 @@ function notifyCardError(err: unknown) {
     justify-content: center;
     color: var(--el-color-primary-light-9);
     background: var(--el-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     line-height: 1;
   }
 

@@ -181,7 +181,7 @@ onMounted(() => {
     margin-bottom: var(--el-space-md);
     color: var(--el-color-white);
     border-radius: var(--el-border-radius-base);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
 
     // 颜色键映射主题色变量（后端稳定枚举，禁止字面量色值）
     &--primary {

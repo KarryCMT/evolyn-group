@@ -40,11 +40,21 @@ func (t JSONTime) IsZero() bool { return time.Time(t).IsZero() }
 
 // MarshalJSON 出网统一走秒级东八区格式；零值输出空串，避免 "0001-01-01 00:00:00" 泄漏
 func (t JSONTime) MarshalJSON() ([]byte, error) {
+	return json.Marshal(t.formatOrEmpty())
+}
+
+// String 与 MarshalJSON 同口径的字符串化（日志/CSV 等非 JSON 场景复用）；
+// 零值输出空串
+func (t JSONTime) String() string {
+	return t.formatOrEmpty()
+}
+
+func (t JSONTime) formatOrEmpty() string {
 	tt := time.Time(t)
 	if tt.IsZero() {
-		return []byte(`""`), nil
+		return ""
 	}
-	return json.Marshal(tt.In(cstLocation).Format(jsonTimeLayout))
+	return tt.In(cstLocation).Format(jsonTimeLayout)
 }
 
 // UnmarshalJSON 入参兼容统一格式与 RFC 3339（秒/纳秒精度）；无偏移字面量按东八区解释

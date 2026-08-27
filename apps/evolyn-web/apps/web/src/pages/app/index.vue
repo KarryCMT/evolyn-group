@@ -294,7 +294,7 @@ function reloadWorkspace() {
     background: transparent;
     border: 0;
     border-radius: var(--el-border-radius-base);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
 
     &:hover {
       color: var(--el-color-primary);

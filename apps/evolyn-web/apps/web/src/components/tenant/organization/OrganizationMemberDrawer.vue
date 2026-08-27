@@ -177,7 +177,7 @@ function save() {
   border-radius: var(--el-border-radius-half);
   color: #fff;
   background: #f25555;
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
 }
 .organization-member-drawer__header h2 {
   margin: 0 0 var(--el-space-sm);
@@ -311,15 +311,13 @@ function save() {
   padding: 0 var(--el-space-lg);
   border: 1px solid var(--el-border-color);
   border-right: 0;
-  border-radius: var(--el-border-radius-medium) 0 0
-    var(--el-border-radius-medium);
+  border-radius: var(--el-border-radius-medium) 0 0 var(--el-border-radius-medium);
   align-items: center;
   color: var(--el-text-color-secondary);
   background: var(--el-fill-color-light);
 }
 .organization-member-drawer__phone input {
-  border-radius: 0 var(--el-border-radius-medium)
-    var(--el-border-radius-medium) 0;
+  border-radius: 0 var(--el-border-radius-medium) var(--el-border-radius-medium) 0;
 }
 .organization-member-drawer__selection {
   display: flex;

@@ -163,7 +163,7 @@ function saveCompletion(profile: TenantProfileCompletion) {
     margin: 0;
     padding-left: var(--el-space-xl);
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     font-weight: 650;
     line-height: 28px;
 

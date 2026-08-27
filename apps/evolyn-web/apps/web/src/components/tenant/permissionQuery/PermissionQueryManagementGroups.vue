@@ -189,7 +189,7 @@ const emit = defineEmits<{
   }
   &__drawer-header h2 {
     margin: 0;
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
   &__drawer-header button {
     display: inline-flex;
@@ -210,7 +210,7 @@ const emit = defineEmits<{
     margin: 0 0 var(--el-space-3xl);
     align-items: center;
     gap: var(--el-space-md);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
   &__drawer-content h3 i {
     width: 5px;

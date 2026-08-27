@@ -141,7 +141,7 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
   &__header h2 {
     margin: 0;
     color: #273142;
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
   &__header button {
     display: inline-flex;

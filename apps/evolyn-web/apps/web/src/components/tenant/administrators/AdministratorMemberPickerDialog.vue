@@ -142,7 +142,8 @@ watch(visible, (isVisible) => {
             :data="departments"
             node-key="id"
             default-expand-all
-            highlight-current: expand-on-click-node="false"
+            highlight-current:
+            expand-on-click-node="false"
             :props="{ label: 'name', children: 'children' }"
             @node-click="onNodeClick"
           />
@@ -209,7 +210,7 @@ watch(visible, (isVisible) => {
   &__header h2 {
     margin: 0;
     color: #273142;
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
   &__header button {
     display: inline-flex;

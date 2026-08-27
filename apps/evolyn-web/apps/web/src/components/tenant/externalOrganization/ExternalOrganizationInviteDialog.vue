@@ -166,7 +166,7 @@ function downloadTemplate() {
   &__header h1 {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     font-weight: 650;
     line-height: 28px;
   }
@@ -198,8 +198,7 @@ function downloadTemplate() {
   }
   &__surface {
     min-height: calc(100vh - 140px);
-    margin: var(--el-space-3xl)
-      clamp(var(--el-space-3xl), 7vw, 140px);
+    margin: var(--el-space-3xl) clamp(var(--el-space-3xl), 7vw, 140px);
     padding: var(--el-space-4xl);
     border-radius: var(--el-border-radius-large);
     background: var(--el-bg-color);

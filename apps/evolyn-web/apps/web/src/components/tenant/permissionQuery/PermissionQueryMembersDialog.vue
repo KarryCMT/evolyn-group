@@ -124,7 +124,7 @@ watch(visible, (isVisible) => {
   }
   &__header h2 {
     margin: 0;
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
   &__header button {
     display: inline-flex;

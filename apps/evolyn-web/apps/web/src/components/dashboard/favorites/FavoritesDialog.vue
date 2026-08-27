@@ -134,7 +134,7 @@ const visible = defineModel<boolean>({ default: false });
   height: 32px;
   padding: 0;
   color: var(--el-text-color-primary);
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   cursor: pointer;
 
   &:hover {
@@ -144,7 +144,7 @@ const visible = defineModel<boolean>({ default: false });
 }
 
 .favorites-dialog__close.el-button .el-icon {
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
 }
 
 .favorites-dialog__content {
@@ -167,7 +167,7 @@ const visible = defineModel<boolean>({ default: false });
 }
 
 .favorites-dialog__panel-title {
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   font-weight: 650;
   line-height: 1.2;
 }
@@ -180,7 +180,7 @@ const visible = defineModel<boolean>({ default: false });
 }
 
 .favorites-dialog__add .el-icon {
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
 }
 
 .favorites-dialog__grid {
@@ -230,7 +230,7 @@ const visible = defineModel<boolean>({ default: false });
 }
 
 .favorites-dialog__application-icon .el-icon {
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
 }
 
 .favorites-dialog__application-icon--blue {
@@ -254,7 +254,7 @@ const visible = defineModel<boolean>({ default: false });
 
 .favorites-dialog__application-name {
   overflow: hidden;
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;

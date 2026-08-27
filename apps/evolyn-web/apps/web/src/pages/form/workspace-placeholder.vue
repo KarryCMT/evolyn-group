@@ -41,7 +41,7 @@ defineProps<{
 
   &__title {
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     line-height: 30px;
   }
 

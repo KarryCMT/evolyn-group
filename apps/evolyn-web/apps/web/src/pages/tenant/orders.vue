@@ -1,15 +1,14 @@
 <script setup lang="ts">
+import type { InvoiceStatusFilter, OrderStatusFilter } from '~/components/tenant/orders/types';
 import { ElMessage } from 'element-plus';
 import { shallowRef } from 'vue';
 import TenantOrdersFilterBar from '~/components/tenant/orders/TenantOrdersFilterBar.vue';
 import TenantOrdersTable from '~/components/tenant/orders/TenantOrdersTable.vue';
-import type { InvoiceStatusFilter, OrderStatusFilter } from '~/components/tenant/orders/types';
 
 defineOptions({ name: 'TenantOrdersPage' });
 
 const orderStatus = shallowRef<OrderStatusFilter>('all');
 const invoiceStatus = shallowRef<InvoiceStatusFilter>('all');
-const selectedAll = shallowRef(false);
 
 function viewInvoices() {
   ElMessage.info('发票中心将在订单服务接入后开放');
@@ -30,7 +29,7 @@ function mergeInvoices() {
     />
     <div class="tenant-orders-page__table-scroll">
       <el-scrollbar class="tenant-orders-page__scrollbar">
-        <TenantOrdersTable v-model:selected-all="selectedAll" />
+        <TenantOrdersTable />
       </el-scrollbar>
     </div>
   </section>

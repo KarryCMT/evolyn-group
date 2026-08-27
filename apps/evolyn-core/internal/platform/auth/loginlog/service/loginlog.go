@@ -51,6 +51,9 @@ func (s *loginLogService) Record(ctx context.Context, e Entry) {
 		Location:  s.resolver.Resolve(meta.IP),
 		UserAgent: meta.UserAgent,
 		RequestID: meta.RequestID,
+		// 登录人显示名快照（000036 企业日志）：写时固化，成员改名/离职后
+		// 历史展示一致；空串由读取侧回查当前昵称兜底
+		ActorNameSnapshot: e.ActorName,
 	}
 
 	if err := s.repo.Create(ctx, entry); err != nil {

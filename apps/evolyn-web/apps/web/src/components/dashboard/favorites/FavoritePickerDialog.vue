@@ -246,7 +246,7 @@ function confirm() {
 
 .favorite-picker-dialog__heading {
   margin: 0;
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   font-weight: 650;
   color: var(--el-text-color-primary);
 }
@@ -259,7 +259,7 @@ function confirm() {
   height: 32px;
   padding: 0;
   color: var(--el-text-color-secondary);
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
 }
 
 .favorite-picker-dialog__body {
@@ -286,7 +286,7 @@ function confirm() {
 }
 
 .favorite-picker-dialog__search .el-input__prefix-inner {
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
 }
 
 .favorite-picker-dialog__list {
@@ -423,7 +423,7 @@ function confirm() {
     padding: 0 var(--el-space-2xl);
   }
   .favorite-picker-dialog__heading {
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
   .favorite-picker-dialog__name {
     font-size: var(--el-font-size-large);

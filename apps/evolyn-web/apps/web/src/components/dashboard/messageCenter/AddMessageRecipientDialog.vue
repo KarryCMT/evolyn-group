@@ -118,7 +118,7 @@ async function submit() {
   padding: 0;
   border-radius: var(--el-border-radius-medium);
   color: var(--el-text-color-regular);
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
 }
 
 .add-message-recipient-dialog__close.el-button:hover {

@@ -1,15 +1,35 @@
 <script setup lang="ts">
-import { EvolynTable, type EvolynTableColumn } from '@evolyn.do/ui';
+import { EvolynTable, type EvolynTableColumn, type EvolynTableRow } from '@evolyn.do/ui';
 import { RiDownload2Fill, RiInformationFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
-import { computed, shallowRef } from 'vue';
+import { computed, onMounted, shallowRef, watch } from 'vue';
+import { listMembers } from '~/api/member';
+import {
+  createEnterpriseLogExport,
+  downloadEnterpriseLogExport,
+  listEnterpriseLoginLogs,
+  listEnterpriseOperationLogs,
+  listOperationCategories,
+  type EnterpriseLoginLogItem,
+  type EnterpriseLogFilterQuery,
+  type EnterpriseOperationLogItem,
+  type OperationCategoryOption,
+} from '~/api/enterpriseLog';
 import { isDark } from '~/composables/dark';
 
 defineOptions({ name: 'TenantEnterpriseLogsPage' });
 
 type LogTab = 'login' | 'operation';
 
-interface LoginRecord {
+/** 登录平台展示文案（后端 client 枚举映射，未知值原样透出） */
+const CLIENT_LABELS: Record<string, string> = {
+  web: '电脑网页版',
+  wap: '手机网页版',
+  unknown: '未知',
+};
+
+/** 表格行（服务端受控投影 + 登录平台文案映射） */
+interface LoginRow {
   operator: string;
   loggedAt: string;
   location: string;
@@ -17,10 +37,9 @@ interface LoginRecord {
   ip: string;
 }
 
-interface OperationRecord {
+interface OperationRow {
   operator: string;
   operatedAt: string;
-  category: string;
   type: string;
   detail: string;
   ip: string;
@@ -28,148 +47,55 @@ interface OperationRecord {
 
 const PAGE_SIZE = 10;
 const activeTab = shallowRef<LogTab>('login');
-const currentPage = shallowRef(1);
 
-const loginOperator = shallowRef('');
+// ---- 成员远程搜索（登录人/操作人筛选共用形态，各自独立状态） ----
+interface MemberOption {
+  id: number;
+  name: string;
+}
+
+function createMemberPicker() {
+  const options = shallowRef<MemberOption[]>([]);
+  const loading = shallowRef(false);
+  async function search(keyword: string) {
+    loading.value = true;
+    try {
+      const page = await listMembers({ keyword: keyword.trim(), page: 1, pageSize: 20 });
+      options.value = page.items.map((member) => ({ id: member.id, name: member.name }));
+    } catch {
+      options.value = [];
+    } finally {
+      loading.value = false;
+    }
+  }
+  return { options, loading, search };
+}
+
+// ---- 页签各自独立的筛选草稿、生效快照、页码与列表状态（互不污染） ----
+const loginMemberPicker = createMemberPicker();
+const loginMemberId = shallowRef<number>();
 const loginStartDate = shallowRef('');
 const loginEndDate = shallowRef('');
-const operationCategory = shallowRef('all');
-const operationType = shallowRef('');
-const operationOperator = shallowRef('');
+const appliedLoginFilters = shallowRef<EnterpriseLogFilterQuery>({});
+const loginPage = shallowRef(1);
+const loginLoading = shallowRef(false);
+const loginRows = shallowRef<LoginRow[]>([]);
+const loginTotal = shallowRef(0);
+
+const categoryOptions = shallowRef<OperationCategoryOption[]>([]);
+const operationCategory = shallowRef('');
+const operationEvent = shallowRef('');
+const operationMemberPicker = createMemberPicker();
+const operationMemberId = shallowRef<number>();
 const operationStartDate = shallowRef('');
 const operationEndDate = shallowRef('');
+const appliedOperationFilters = shallowRef<EnterpriseLogFilterQuery>({});
+const operationPage = shallowRef(1);
+const operationLoading = shallowRef(false);
+const operationRows = shallowRef<OperationRow[]>([]);
+const operationTotal = shallowRef(0);
 
-/** 前端还原阶段的展示数据；后端接口接入后替换为对应分页请求。 */
-const loginRecords: LoginRecord[] = [
-  ['李同学', '2026-08-25 21:50:43', '广东省 深圳市', '电脑网页版', '27.46.93.3'],
-  ['李同学', '2026-08-21 13:29:07', '广东省 深圳市', '电脑网页版', '210.21.226.222'],
-  ['王同学', '2026-08-21 08:52:39', '广东省 深圳市', '电脑网页版', '210.21.226.222'],
-  ['李同学', '2026-08-20 22:55:31', '广东省 深圳市', '电脑网页版', '27.46.93.3'],
-  ['陈同学', '2026-08-20 11:16:28', '广东省 深圳市', '手机网页版', '210.21.226.222'],
-  ['李同学', '2026-08-19 22:34:40', '广东省 深圳市', '电脑网页版', '27.46.93.4'],
-  ['赵同学', '2026-08-18 12:38:38', '广东省 深圳市', '电脑网页版', '27.46.93.3'],
-  ['李同学', '2026-08-18 07:26:22', '广东省 深圳市', '电脑网页版', '183.238.228.138'],
-  ['孙同学', '2026-08-17 16:02:18', '广东省 广州市', '电脑网页版', '27.46.93.5'],
-  ['周同学', '2026-08-16 09:13:45', '广东省 深圳市', '手机网页版', '119.123.31.10'],
-  ['李同学', '2026-08-15 18:26:10', '广东省 深圳市', '电脑网页版', '27.46.93.3'],
-  ['王同学', '2026-08-15 08:10:29', '广东省 深圳市', '电脑网页版', '210.21.226.222'],
-].map(([operator, loggedAt, location, platform, ip]) => ({
-  operator,
-  loggedAt,
-  location,
-  platform,
-  ip,
-}));
-
-const operationRecords: OperationRecord[] = [
-  [
-    '李同学',
-    '2026-08-24 23:14:35',
-    '成员管理',
-    '个人设置成员权限',
-    '修改了个人设置项「聘用形式」的成员可见状态',
-    '27.46.93.4',
-  ],
-  [
-    '李同学',
-    '2026-08-24 23:14:35',
-    '成员管理',
-    '个人设置成员权限',
-    '修改了个人设置项「聘用形式」的成员可改状态',
-    '27.46.93.4',
-  ],
-  [
-    '李同学',
-    '2026-08-24 23:14:34',
-    '成员管理',
-    '个人设置成员权限',
-    '修改了个人设置项「职务」的成员可见状态',
-    '27.46.93.4',
-  ],
-  [
-    '李同学',
-    '2026-08-24 23:14:34',
-    '成员管理',
-    '个人设置成员权限',
-    '修改了个人设置项「职务」的成员可改状态',
-    '27.46.93.4',
-  ],
-  [
-    '李同学',
-    '2026-08-24 21:55:16',
-    '产品管理',
-    '设置产品可用范围',
-    '设置了「简道云」的可见范围',
-    '27.46.93.3',
-  ],
-  [
-    '李同学',
-    '2026-08-21 13:56:24',
-    '产品管理',
-    '启用插件',
-    '启用了插件「未命名插件」',
-    '210.21.226.222',
-  ],
-  [
-    '李同学',
-    '2026-08-21 13:56:20',
-    '产品管理',
-    '修改插件',
-    '修改了插件「未命名插件」',
-    '210.21.226.222',
-  ],
-  [
-    '李同学',
-    '2026-08-21 13:46:18',
-    '产品管理',
-    '启用插件',
-    '启用了插件「金蝶精斗云同步简道云CRM套件」',
-    '210.21.226.222',
-  ],
-  [
-    '李同学',
-    '2026-08-21 13:46:15',
-    '产品管理',
-    '安装插件',
-    '安装了插件「金蝶精斗云同步简道云CRM套件」',
-    '210.21.226.222',
-  ],
-  ['王同学', '2026-08-21 11:23:57', '企业设置', '新增密钥', '新增了密钥', '210.21.226.222'],
-  [
-    '李同学',
-    '2026-08-21 11:22:31',
-    '产品管理',
-    '启用插件',
-    '启用了插件「金蝶云星辰多账套同步简道云CRM套件」',
-    '210.21.226.222',
-  ],
-  [
-    '李同学',
-    '2026-08-18 22:15:59',
-    '组织管理',
-    '添加部门',
-    '添加了部门「产品部」',
-    '183.238.228.138',
-  ],
-].map(([operator, operatedAt, category, type, detail, ip]) => ({
-  operator,
-  operatedAt,
-  category,
-  type,
-  detail,
-  ip,
-}));
-
-const categoryOptions = ['全部', '成员管理', '组织管理', '产品管理', '企业设置'];
-const typeOptions = [
-  '个人设置成员权限',
-  '设置产品可用范围',
-  '启用插件',
-  '修改插件',
-  '安装插件',
-  '新增密钥',
-  '添加部门',
-];
+const exporting = shallowRef(false);
 
 const loginColumns: EvolynTableColumn[] = [
   { field: 'operator', title: '登录人', minWidth: 150 },
@@ -187,51 +113,187 @@ const operationColumns: EvolynTableColumn[] = [
   { field: 'ip', title: 'IP', minWidth: 160 },
 ];
 
-const filteredRecords = computed<Array<LoginRecord | OperationRecord>>(() => {
-  if (activeTab.value === 'login') {
-    return loginRecords.filter((record) => {
-      const date = record.loggedAt.slice(0, 10);
-      return (
-        record.operator.includes(loginOperator.value.trim()) &&
-        (!loginStartDate.value || date >= loginStartDate.value) &&
-        (!loginEndDate.value || date <= loginEndDate.value)
-      );
-    });
-  }
-  return operationRecords.filter((record) => {
-    const date = record.operatedAt.slice(0, 10);
-    return (
-      (operationCategory.value === 'all' || record.category === operationCategory.value) &&
-      (!operationType.value || record.type === operationType.value) &&
-      record.operator.includes(operationOperator.value.trim()) &&
-      (!operationStartDate.value || date >= operationStartDate.value) &&
-      (!operationEndDate.value || date <= operationEndDate.value)
-    );
-  });
-});
-
-const pageRecords = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE;
-  return filteredRecords.value.slice(start, start + PAGE_SIZE);
-});
-
 const tableColumns = computed(() =>
   activeTab.value === 'login' ? loginColumns : operationColumns,
 );
+// 两个页签的行结构不同，以 EvolynTableRow 收窄后整体替换引用（表格按引用增量刷新）
+const tableRecords = computed<EvolynTableRow[]>(() =>
+  activeTab.value === 'login' ? loginRows.value : operationRows.value,
+);
+const tableTotal = computed(() =>
+  activeTab.value === 'login' ? loginTotal.value : operationTotal.value,
+);
 const tableOptions = { defaultHeaderRowHeight: 42, defaultRowHeight: 43 };
+const tableLoading = computed(() =>
+  activeTab.value === 'login' ? loginLoading.value : operationLoading.value,
+);
+
+/** 操作类型选项随日志范围联动：未选范围为全部分类的事件并集 */
+const eventOptions = computed(() => {
+  const category = operationCategory.value;
+  if (!category) return categoryOptions.value.flatMap((option) => option.events);
+  return categoryOptions.value.find((option) => option.code === category)?.events ?? [];
+});
+
+/** 范围切换后事件选项集合变化，清空已选事件避免提交失效事件码 */
+watch(operationCategory, () => {
+  operationEvent.value = '';
+});
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message ? error.message : fallback;
+}
+
+/** 日期草稿校验：开始晚于结束直接拦截（与产品日志页同文案口径） */
+function validateDateRange(startDate: string, endDate: string): boolean {
+  if (startDate && endDate && startDate > endDate) {
+    ElMessage.warning('开始日期不能晚于结束日期');
+    return false;
+  }
+  return true;
+}
+
+function loadLoginLogs() {
+  loginLoading.value = true;
+  listEnterpriseLoginLogs({
+    ...appliedLoginFilters.value,
+    page: loginPage.value,
+    pageSize: PAGE_SIZE,
+  })
+    .then((page: { items: EnterpriseLoginLogItem[]; total: number }) => {
+      loginRows.value = page.items.map((item) => ({
+        operator: item.actorName,
+        loggedAt: item.loggedAt,
+        location: item.location,
+        platform: CLIENT_LABELS[item.client] ?? item.client,
+        ip: item.ip,
+      }));
+      loginTotal.value = page.total;
+    })
+    .catch((error: unknown) => {
+      loginRows.value = [];
+      loginTotal.value = 0;
+      ElMessage.error(errorMessage(error, '登录日志加载失败，请稍后重试'));
+    })
+    .finally(() => {
+      loginLoading.value = false;
+    });
+}
+
+function loadOperationLogs() {
+  operationLoading.value = true;
+  listEnterpriseOperationLogs({
+    ...appliedOperationFilters.value,
+    page: operationPage.value,
+    pageSize: PAGE_SIZE,
+  })
+    .then((page: { items: EnterpriseOperationLogItem[]; total: number }) => {
+      operationRows.value = page.items.map((item) => ({
+        operator: item.actorName,
+        operatedAt: item.operatedAt,
+        type: item.eventName,
+        detail: item.summary,
+        ip: item.ip,
+      }));
+      operationTotal.value = page.total;
+    })
+    .catch((error: unknown) => {
+      operationRows.value = [];
+      operationTotal.value = 0;
+      ElMessage.error(errorMessage(error, '操作日志加载失败，请稍后重试'));
+    })
+    .finally(() => {
+      operationLoading.value = false;
+    });
+}
+
+function loadCategories() {
+  listOperationCategories()
+    .then((options) => {
+      categoryOptions.value = options;
+    })
+    .catch(() => {
+      categoryOptions.value = [];
+    });
+}
 
 function switchTab(tab: LogTab) {
   activeTab.value = tab;
-  currentPage.value = 1;
 }
 
+/** 点击「查询」：快照当前页签筛选草稿并回到第一页重新拉取 */
 function queryLogs() {
-  currentPage.value = 1;
+  if (activeTab.value === 'login') {
+    if (!validateDateRange(loginStartDate.value, loginEndDate.value)) return;
+    appliedLoginFilters.value = {
+      memberId: loginMemberId.value,
+      startAt: loginStartDate.value || undefined,
+      endAt: loginEndDate.value || undefined,
+    };
+    if (loginPage.value === 1) {
+      loadLoginLogs();
+    } else {
+      loginPage.value = 1;
+    }
+    return;
+  }
+  if (!validateDateRange(operationStartDate.value, operationEndDate.value)) return;
+  appliedOperationFilters.value = {
+    categoryCode: operationCategory.value || undefined,
+    eventCode: operationEvent.value || undefined,
+    memberId: operationMemberId.value,
+    startAt: operationStartDate.value || undefined,
+    endAt: operationEndDate.value || undefined,
+  };
+  if (operationPage.value === 1) {
+    loadOperationLogs();
+  } else {
+    operationPage.value = 1;
+  }
 }
 
-function exportLogs() {
-  ElMessage.info('导出功能将在企业日志服务接入后开放');
+/** 导出当前页签当前筛选条件（已生效快照，与列表可见数据一致）下的全部授权数据 */
+async function exportLogs() {
+  if (exporting.value) return;
+  exporting.value = true;
+  try {
+    const kind = activeTab.value;
+    const filters = kind === 'login' ? appliedLoginFilters.value : appliedOperationFilters.value;
+    const task = await createEnterpriseLogExport({ kind, ...filters });
+    if (task.status !== 'ready') {
+      ElMessage.warning('导出文件尚未生成完成，请稍后重试');
+      return;
+    }
+    const blob = await downloadEnterpriseLogExport(task.id);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = task.fileName || `企业日志-${kind === 'login' ? '登录日志' : '操作日志'}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    ElMessage.success(`已导出 ${task.total} 条记录`);
+  } catch (error) {
+    ElMessage.error(errorMessage(error, '导出失败，请稍后重试'));
+  } finally {
+    exporting.value = false;
+  }
 }
+
+// 翻页触发当前页签拉取：查询按钮已保证回到第一页，这里只响应页码变化
+watch(loginPage, () => {
+  if (activeTab.value === 'login') loadLoginLogs();
+});
+watch(operationPage, () => {
+  if (activeTab.value === 'operation') loadOperationLogs();
+});
+
+onMounted(() => {
+  void loginMemberPicker.search('');
+  void operationMemberPicker.search('');
+  loadLoginLogs();
+  loadOperationLogs();
+  loadCategories();
+});
 </script>
 
 <template>
@@ -263,12 +325,22 @@ function exportLogs() {
       >
         <label class="enterprise-logs-page__filter enterprise-logs-page__filter--member">
           <span>登录人</span>
-          <el-input
-            v-model="loginOperator"
+          <el-select
+            v-model="loginMemberId"
             clearable
-            placeholder="请输入登录人"
-            @change="queryLogs"
-          />
+            filterable
+            placeholder="请选择登录人"
+            remote
+            :loading="loginMemberPicker.loading.value"
+            :remote-method="loginMemberPicker.search"
+          >
+            <el-option
+              v-for="member in loginMemberPicker.options.value"
+              :key="member.id"
+              :label="member.name"
+              :value="member.id"
+            />
+          </el-select>
         </label>
         <label class="enterprise-logs-page__filter enterprise-logs-page__filter--date">
           <span>登录时间</span>
@@ -277,7 +349,6 @@ function exportLogs() {
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="开始日期"
-            @change="queryLogs"
           />
           <em>~</em>
           <el-date-picker
@@ -285,7 +356,6 @@ function exportLogs() {
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="结束日期"
-            @change="queryLogs"
           />
         </label>
       </section>
@@ -297,29 +367,45 @@ function exportLogs() {
       >
         <label class="enterprise-logs-page__filter">
           <span>日志范围</span>
-          <el-select v-model="operationCategory" @change="queryLogs">
+          <el-select v-model="operationCategory">
+            <el-option label="全部" value="" />
             <el-option
-              v-for="label in categoryOptions"
-              :key="label"
-              :label="label"
-              :value="label === '全部' ? 'all' : label"
+              v-for="category in categoryOptions"
+              :key="category.code"
+              :label="category.name"
+              :value="category.code"
             />
           </el-select>
         </label>
         <label class="enterprise-logs-page__filter">
           <span>操作类型</span>
-          <el-select v-model="operationType" clearable placeholder="全部" @change="queryLogs">
-            <el-option v-for="label in typeOptions" :key="label" :label="label" :value="label" />
+          <el-select v-model="operationEvent" clearable placeholder="全部">
+            <el-option
+              v-for="event in eventOptions"
+              :key="event.code"
+              :label="event.name"
+              :value="event.code"
+            />
           </el-select>
         </label>
         <label class="enterprise-logs-page__filter enterprise-logs-page__filter--member">
           <span>操作人</span>
-          <el-input
-            v-model="operationOperator"
+          <el-select
+            v-model="operationMemberId"
             clearable
-            placeholder="请输入操作人"
-            @change="queryLogs"
-          />
+            filterable
+            placeholder="请选择操作人"
+            remote
+            :loading="operationMemberPicker.loading.value"
+            :remote-method="operationMemberPicker.search"
+          >
+            <el-option
+              v-for="member in operationMemberPicker.options.value"
+              :key="member.id"
+              :label="member.name"
+              :value="member.id"
+            />
+          </el-select>
         </label>
         <label class="enterprise-logs-page__filter enterprise-logs-page__filter--date">
           <span>操作时间</span>
@@ -328,7 +414,6 @@ function exportLogs() {
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="开始日期"
-            @change="queryLogs"
           />
           <em>~</em>
           <el-date-picker
@@ -336,7 +421,6 @@ function exportLogs() {
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="结束日期"
-            @change="queryLogs"
           />
         </label>
       </section>
@@ -346,19 +430,19 @@ function exportLogs() {
           <RiInformationFill class="enterprise-logs-page__hint" aria-label="日志说明" />
         </el-tooltip>
         <div class="enterprise-logs-page__toolbar-actions">
-          <el-button v-if="activeTab === 'operation'" type="primary" @click="queryLogs"
-            >查询</el-button
-          >
-          <el-button plain type="primary" @click="exportLogs"><RiDownload2Fill />导出</el-button>
+          <el-button type="primary" @click="queryLogs">查询</el-button>
+          <el-button :loading="exporting" plain type="primary" @click="exportLogs">
+            <RiDownload2Fill />导出
+          </el-button>
         </div>
       </div>
 
-      <div class="enterprise-logs-page__table-area">
+      <div v-loading="tableLoading" class="enterprise-logs-page__table-area">
         <el-scrollbar class="enterprise-logs-page__scrollbar">
           <EvolynTable
             class="enterprise-logs-page__table"
             :columns="tableColumns"
-            :records="pageRecords"
+            :records="tableRecords"
             :options="tableOptions"
             :theme="isDark ? 'dark' : 'light'"
             empty-text="暂无日志记录"
@@ -367,11 +451,19 @@ function exportLogs() {
       </div>
 
       <footer class="enterprise-logs-page__footer">
-        <span>共 {{ filteredRecords.length }} 条</span>
+        <span>共 {{ tableTotal || 0 }} 条</span>
         <el-pagination
-          v-model:current-page="currentPage"
+          v-if="activeTab === 'login'"
+          v-model:current-page="loginPage"
           :page-size="PAGE_SIZE"
-          :total="filteredRecords.length"
+          :total="loginTotal"
+          layout="prev, pager, next"
+        />
+        <el-pagination
+          v-else
+          v-model:current-page="operationPage"
+          :page-size="PAGE_SIZE"
+          :total="operationTotal"
           layout="prev, pager, next"
         />
       </footer>

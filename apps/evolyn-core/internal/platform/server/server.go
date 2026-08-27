@@ -11,9 +11,11 @@ import (
 	"time"
 
 	"evolyn/internal/config"
+	"evolyn/internal/contextx"
 	"evolyn/internal/infrastructure"
 	"evolyn/internal/infrastructure/ipregion"
 	"evolyn/internal/infrastructure/objectstore"
+	apperrors "evolyn/internal/platform/enterpriselog"
 	// swagger spec 注册：swag init 生成的 docs 包经 init() 把接口定义
 	// 注册给 gin-swagger，不引入则 /swagger/doc.json 500（页面能开但无内容）
 	_ "evolyn/docs"
@@ -39,6 +41,9 @@ import (
 	editioncontroller "evolyn/internal/platform/edition/controller"
 	editionrepository "evolyn/internal/platform/edition/repository"
 	editionservice "evolyn/internal/platform/edition/service"
+	enterpriselogcontroller "evolyn/internal/platform/enterpriselog/controller"
+	enterpriselogrepository "evolyn/internal/platform/enterpriselog/repository"
+	enterpriselogservice "evolyn/internal/platform/enterpriselog/service"
 	filecontroller "evolyn/internal/platform/file/controller"
 	filerepository "evolyn/internal/platform/file/repository"
 	fileservice "evolyn/internal/platform/file/service"
@@ -131,6 +136,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	editionRepo := editionrepository.NewRepository(db)
 	// 产品中心域仓储（一期）：平台产品目录 + 租户产品配置 + 范围关联
 	tenantProductRepo := tenantproductrepository.NewRepository(db)
+	// 企业日志域仓储（000036）：login_logs/audit_logs 只读查询 + 导出任务
+	enterpriseLogRepo := enterpriselogrepository.NewRepository(db)
 	if conf.DB.Migrate {
 		if err := auditRepo.Migrate(); err != nil {
 			return nil, err
@@ -159,6 +166,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		if err := tenantProductRepo.Migrate(); err != nil {
 			return nil, err
 		}
+		if err := enterpriseLogRepo.Migrate(); err != nil {
+			return nil, err
+		}
 	}
 
 	// 种子：默认租户最先（单租户/存量数据归属兜底），再 iam 资源与系统分组
@@ -170,8 +180,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	}
 
 	// 域服务装配：审计/配额/事务管理为跨域基础能力，先于业务服务构造
-	// （FIX-020/021：核心写路径经 TxManager 声明原子边界）
-	auditSvc := auditservice.NewService(auditRepo)
+	// （FIX-020/021：核心写路径经 TxManager 声明原子边界）。审计注入操作者
+	// 显示名解析端口（企业日志展示快照，000036）：iam 成员仓储适配
+	auditSvc := auditservice.NewService(auditRepo, auditActorNamer{users: iamRepo.User()})
 	quotaSvc := tenantservice.NewQuotaService(tenantRepo, tenantRepo, iamRepo.User(), applicationRepo, fileRepo)
 	storageQuotaSvc, ok := quotaSvc.(tenantservice.StorageQuotaService)
 	if !ok {
@@ -359,7 +370,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 拒绝后的范围裁决回落（权限中心-管理员模块）
 	authorizer := authorization.NewAuthorizer(iamRepo.User(), iamRepo.Group(), iamRepo.AdminGroup())
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController}
+	// 企业日志域（000036）：只读查询 + 导出编排；成员目录/下载复核经窄端口
+	// 适配（域间不直接耦合 iam），下载路径复核 create 动词（export 语义）
+	enterpriseLogService := enterpriselogservice.NewEnterpriseLogService(
+		enterpriseLogRepo, enterpriseLogMemberDirectory{users: iamRepo.User()}, auditSvc,
+	)
+	enterpriseLogController := enterpriselogcontroller.NewEnterpriseLogController(enterpriseLogService, authorizer)
+
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
@@ -562,6 +580,40 @@ func (c adminGroupApplicationCatalog) Exists(ctx context.Context, id uint) (bool
 		return false, err
 	}
 	return true, nil
+}
+
+// auditActorNamer 审计操作者显示名解析窄端口适配（000036 企业日志）：
+// 审计域不反向依赖 iam，装配层以成员仓储桥接；解析失败返回空串（读取侧
+// JOIN 当前昵称兜底），不阻断审计写入
+type auditActorNamer struct {
+	users repository.UserRepository
+}
+
+func (n auditActorNamer) MemberDisplayName(ctx context.Context, memberID uint) string {
+	member, err := n.users.GetUserByID(ctx, memberID)
+	if err != nil {
+		return ""
+	}
+	return member.Nickname
+}
+
+// enterpriseLogMemberDirectory 企业日志成员目录窄端口适配：登录人/操作人
+// 筛选的成员归属校验。以租户上下文包裹后经成员仓储查询——租户 Callback
+// 自动过滤，跨租户/已删成员返回 NotFound → ErrMemberInvalid
+type enterpriseLogMemberDirectory struct {
+	users repository.UserRepository
+}
+
+func (d enterpriseLogMemberDirectory) ValidateMember(ctx context.Context, tenantID, memberID uint) error {
+	member, err := d.users.GetUserByID(contextx.NewTenantContext(ctx, tenantID), memberID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrMemberInvalid
+		}
+		return httpx.Wrap(httpx.NewBiz(httpx.CodeInternalServer, "成员校验失败", http.StatusInternalServerError), err)
+	}
+	_ = member
+	return nil
 }
 
 // buildSmsSender 按配置分派短信通道与固定验证码：

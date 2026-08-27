@@ -154,6 +154,22 @@ internal/
                       均按名补授会漏），改按「members:*+roles:*+departments:*」
                       规则签名补授 tenant-products/editions/member-field-
                       settings/admin-groups，与角色名无关
+    enterpriselog/    企业日志域（一期，小三层，docs/低代码平台/企业日志/）：
+                      管理后台 /tenant/enterprise-logs 的登录日志/操作日志
+                      只读查询与导出编排（迁移 000036：login_logs 补
+                      actor_name_snapshot、audit_logs 补 event_code/
+                      category_code/快照/summary 展示投影 + 租户维度索引 +
+                      enterprise_log_exports 导出任务表）；不接管登录/审计
+                      写入（分属 auth/loginlog 与 audit 域），仓储显式租户
+                      条件 + JOIN users/accounts 显示名兜底 + keyset 导出
+                      扫描；GET /enterprise-logs/login|operations|operation-
+                      categories + POST/GET /enterprise-logs/exports（同步
+                      生成 CSV、24h 有效、单次上限 5 万行；enterprise-logs:
+                      view/create 仅授租户管理员，下载路径复核 create 动词，
+                      不经管理组放行）；既有审计调用方零改动——audit 域事件
+                      注册表（service/events.go）按 module+resourceType+action
+                      推导事件码/分类/脱敏摘要，存量历史行读取侧降级
+                      「历史操作记录」
 migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
                       命名 NNNNNN_name.(up|down).sql，版本号只增不复用）
 scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（本地证书）

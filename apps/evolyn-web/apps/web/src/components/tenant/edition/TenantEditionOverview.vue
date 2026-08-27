@@ -112,8 +112,7 @@ const expiresHint = computed<string>(() => {
     min-height: 170px;
     box-sizing: border-box;
     overflow: hidden;
-    padding: var(--el-space-4xl) 184px
-      var(--el-space-3xl) var(--el-space-3xl);
+    padding: var(--el-space-4xl) 184px var(--el-space-3xl) var(--el-space-3xl);
     border: 1px solid var(--el-border-color-light);
     border-radius: var(--el-border-radius-large);
     background: linear-gradient(
@@ -235,7 +234,7 @@ const expiresHint = computed<string>(() => {
     color: #fff;
     background: linear-gradient(135deg, var(--el-color-primary-light-3), var(--el-color-primary));
     box-shadow: var(--el-box-shadow-light);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
 
     &::first-letter {
       transform: rotate(-45deg);

@@ -45,7 +45,7 @@ const props = defineProps<TenantFeaturePageProps>();
   }
 
   &__title {
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     line-height: 28px;
   }

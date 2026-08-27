@@ -124,7 +124,7 @@ const emit = defineEmits<{
   }
 
   &__add .el-icon {
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
 
   &__table {

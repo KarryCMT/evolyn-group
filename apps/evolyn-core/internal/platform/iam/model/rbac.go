@@ -111,6 +111,11 @@ const (
 	// （平台内置产品的启停与可用范围配置）的租户级管理权限。运行时产品
 	// 访问不等同于本资源：命中范围的普通成员无需本权限即可使用产品。
 	TenantProductResource = "tenant-products"
+	// EnterpriseLogResource 与 /enterprise-logs 路由保持一致，代表企业日志
+	//（登录日志/操作日志的只读查询与导出）权限：view 覆盖查询、create 覆盖
+	// 导出任务创建（enterprise-logs:export 语义）。该资源不接受管理组间接
+	// 放行——如需委派应增加细粒度数据范围设计，而非复用管理组全量范围。
+	EnterpriseLogResource = "enterprise-logs"
 )
 
 type Resource struct {

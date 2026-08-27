@@ -9,12 +9,15 @@ import (
 
 // Entry 登录事件描述：身份字段由登录链路显式传入（登录时 ctx 内尚无
 // 操作者/租户上下文可解析），IP/UA/RequestID 从请求元数据自动补全。
-// Method 取 loginlog/model 的 Method* 常量（OAuth 为前缀拼接 provider）
+// Method 取 loginlog/model 的 Method* 常量（OAuth 为前缀拼接 provider）；
+// ActorName 为登录人显示名快照（000036 企业日志），建议传成员昵称，
+// 空串时企业日志读取侧回查当前成员昵称兜底
 type Entry struct {
 	AccountID uint
 	TenantID  uint
 	MemberID  uint
 	Method    string
+	ActorName string
 }
 
 // Recorder 登录日志记录器：写入失败只告警不阻断登录主流程（与审计域同口径）

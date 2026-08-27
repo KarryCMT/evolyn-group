@@ -669,7 +669,7 @@ watch(
 .tenant-organization-page__invite-banner strong {
   position: relative;
   color: var(--el-color-white);
-  font-size: clamp(var(--el-font-size-extra-large), 1.65vw, 30.0006px);
+  font-size: clamp(var(--el-font-size-medium), 1.65vw, 30.0006px);
   font-weight: 600;
   letter-spacing: 1px;
   white-space: nowrap;
@@ -729,7 +729,7 @@ watch(
 .tenant-organization-page__role-header h1 {
   margin: 0;
   color: var(--el-text-color-primary);
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   font-weight: 650;
 }
 .tenant-organization-page__role-header > div {
@@ -798,7 +798,7 @@ watch(
     width: 300px;
   }
   .tenant-organization-page__invite-banner strong {
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
 }
 </style>

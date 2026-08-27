@@ -1,212 +1,45 @@
 <script setup lang="ts">
-import { RiFileList3Fill } from '@remixicon/vue';
+import type { EvolynTableColumn, EvolynTableRow } from '@evolyn.do/ui';
+import { EvolynTable } from '@evolyn.do/ui';
+import { isDark } from '~/composables/dark';
 
 defineOptions({ name: 'TenantOrdersTable' });
 
-const selectedAll = defineModel<boolean>('selectedAll', { required: true });
+// 前端还原阶段暂无订单数据；后端订单接口接入后替换为分页结果。
+const records: EvolynTableRow[] = [];
 
-const columns = ['订单信息', '订单总价', '支付时间', '订单状态', '发票状态', '操作'];
+// 列结构沿用原实现的比例：选择列固定窄宽，订单信息为主列，其余等宽；
+// headerType 显式给 checkbox 才会在表头渲染全选框（VTable 默认表头是 text）。
+const columns: EvolynTableColumn[] = [
+  { field: 'checked', title: '', width: 54, cellType: 'checkbox', headerType: 'checkbox' },
+  { field: 'orderInfo', title: '订单信息', minWidth: 200, align: 'center' },
+  { field: 'totalPrice', title: '订单总价', minWidth: 110, align: 'center' },
+  { field: 'paidAt', title: '支付时间', minWidth: 110, align: 'center' },
+  { field: 'orderStatus', title: '订单状态', minWidth: 110, align: 'center' },
+  { field: 'invoiceStatus', title: '发票状态', minWidth: 110, align: 'center' },
+  { field: 'operation', title: '操作', minWidth: 80, align: 'center' },
+];
+
+// 表头高度沿用原设计 76px；行高预留订单信息多行内容的空间。
+const tableOptions = { defaultHeaderRowHeight: 76, defaultRowHeight: 64 };
 </script>
 
 <template>
-  <section class="tenant-orders-table" aria-label="订单列表">
-    <header class="tenant-orders-table__header" role="row">
-      <div class="tenant-orders-table__selection">
-        <el-checkbox v-model="selectedAll" aria-label="全选订单" />
-      </div>
-      <div
-        v-for="column in columns"
-        :key="column"
-        class="tenant-orders-table__column"
-        role="columnheader"
-      >
-        {{ column }}
-      </div>
-    </header>
-
-    <div class="tenant-orders-table__empty" role="status">
-      <div class="tenant-orders-table__illustration" aria-hidden="true">
-        <span class="tenant-orders-table__ground" />
-        <span class="tenant-orders-table__tree tenant-orders-table__tree--left" />
-        <span class="tenant-orders-table__tree tenant-orders-table__tree--right" />
-        <span class="tenant-orders-table__paper">
-          <RiFileList3Fill />
-          <i />
-          <i />
-        </span>
-        <span class="tenant-orders-table__pencil" />
-      </div>
-      <p>暂无订单信息</p>
-    </div>
-  </section>
+  <EvolynTable
+    class="tenant-orders-table"
+    aria-label="订单列表"
+    :columns="columns"
+    :records="records"
+    :options="tableOptions"
+    :theme="isDark ? 'dark' : 'light'"
+    empty-text="暂无订单信息"
+  />
 </template>
 
 <style scoped lang="scss">
 .tenant-orders-table {
-  display: flex;
-  min-height: 0;
+  min-height: 340px;
   flex: 1;
-  flex-direction: column;
-
-  &__header {
-    display: grid;
-    min-height: 76px;
-    grid-template-columns: 54px minmax(200px, 1.85fr) repeat(4, minmax(110px, 1fr)) minmax(
-        80px,
-        0.64fr
-      );
-    align-items: center;
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: var(--el-border-radius-medium);
-    background: var(--el-fill-color-light);
-  }
-
-  &__selection {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  &__column {
-    padding: 0 var(--el-space-md);
-    color: var(--el-text-color-regular);
-    font-size: var(--el-font-size-medium);
-    font-weight: 600;
-    line-height: 24px;
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  &__empty {
-    display: flex;
-    min-height: 340px;
-    padding-bottom: 11%;
-    align-items: center;
-    justify-content: center;
-    flex: 1;
-    flex-direction: column;
-
-    p {
-      margin: var(--el-space-lg) 0 0;
-      color: var(--el-text-color-secondary);
-      font-size: var(--el-font-size-medium);
-      line-height: 24px;
-    }
-  }
-
-  &__illustration {
-    position: relative;
-    width: 184px;
-    height: 132px;
-  }
-
-  &__ground {
-    position: absolute;
-    bottom: 16px;
-    left: 16px;
-    width: 152px;
-    height: 22px;
-    border-radius: var(--el-border-radius-half);
-    opacity: 0.82;
-    background: linear-gradient(90deg, transparent, var(--el-fill-color), transparent);
-  }
-
-  &__tree {
-    position: absolute;
-    z-index: 1;
-    bottom: 24px;
-    width: 13px;
-    height: 22px;
-    border-radius: var(--el-border-radius-large)
-      var(--el-border-radius-large) var(--el-border-radius-medium)
-      var(--el-border-radius-medium);
-    background: var(--el-color-primary-light-8);
-
-    &::after {
-      position: absolute;
-      bottom: -9px;
-      left: 5px;
-      width: 3px;
-      height: 11px;
-      border-radius: var(--el-border-radius-small);
-      background: var(--el-color-primary-light-7);
-      content: '';
-    }
-
-    &--left {
-      left: 31px;
-    }
-
-    &--right {
-      right: 26px;
-      width: 11px;
-      height: 18px;
-    }
-  }
-
-  &__paper {
-    position: absolute;
-    z-index: 2;
-    top: 25px;
-    left: 68px;
-    display: flex;
-    width: 68px;
-    height: 76px;
-    border: 4px solid var(--el-color-primary-light-5);
-    border-radius: var(--el-border-radius-base);
-    align-items: center;
-    justify-content: center;
-    color: var(--el-color-primary-light-7);
-    background: var(--el-bg-color);
-    box-shadow: 7px 7px 0 var(--el-color-primary-light-9);
-    transform: rotate(34deg);
-
-    svg {
-      width: 39px;
-      height: 39px;
-    }
-
-    i {
-      position: absolute;
-      right: 8px;
-      width: 13px;
-      height: 3px;
-      border-radius: var(--el-border-radius-half);
-      background: var(--el-color-primary-light-5);
-
-      &:first-of-type {
-        top: 15px;
-      }
-
-      &:last-of-type {
-        top: 23px;
-      }
-    }
-  }
-
-  &__pencil {
-    position: absolute;
-    z-index: 3;
-    top: 13px;
-    left: 58px;
-    width: 6px;
-    height: 53px;
-    border-radius: var(--el-border-radius-half);
-    background: var(--el-color-warning-light-5);
-    transform: rotate(-30deg);
-
-    &::after {
-      position: absolute;
-      bottom: -5px;
-      left: 0;
-      width: 0;
-      height: 0;
-      border-top: 7px solid var(--el-text-color-secondary);
-      border-right: 3px solid var(--el-color-transparent);
-      border-left: 3px solid var(--el-color-transparent);
-      content: '';
-    }
-  }
 }
 
 @media (max-width: 980px) {

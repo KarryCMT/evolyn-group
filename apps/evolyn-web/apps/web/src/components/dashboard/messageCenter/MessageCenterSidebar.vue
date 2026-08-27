@@ -185,7 +185,7 @@ const categoryIcons = {
 
   &__category-icon {
     color: var(--el-text-color-placeholder);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
 
   &__category--active &__category-icon,
@@ -219,7 +219,7 @@ const categoryIcons = {
 
     .el-icon {
       color: var(--el-text-color-secondary);
-      font-size: var(--el-font-size-extra-large);
+      font-size: var(--el-font-size-medium);
     }
   }
 }

@@ -80,7 +80,8 @@ func NewAuthController(accountService service.AccountService, registrationServic
 var errLoginLocked = httpx.NewBiz("AUTH_LOGIN_LOCKED", "失败次数过多，请稍后再试", http.StatusTooManyRequests)
 
 // recordLogin 落一条登录日志：member 为本次会话绑定的成员（可空，如未选
-// 租户场景）；IP/UA 由服务层从请求元数据自动补全，写入失败只告警不影响登录
+// 租户场景）；IP/UA 由服务层从请求元数据自动补全，写入失败只告警不影响登录。
+// 登录人显示名快照取「成员昵称 → 账号昵称 → 登录名」（000036 企业日志）
 func (ac *AuthController) recordLogin(c *gin.Context, account *model.Account, member *model.User, method string) {
 	if ac.loginLog == nil || account == nil {
 		return
@@ -89,6 +90,13 @@ func (ac *AuthController) recordLogin(c *gin.Context, account *model.Account, me
 	if member != nil {
 		entry.TenantID = member.TenantID
 		entry.MemberID = member.ID
+		entry.ActorName = member.Nickname
+	}
+	if entry.ActorName == "" {
+		entry.ActorName = account.Nickname
+	}
+	if entry.ActorName == "" {
+		entry.ActorName = account.Name
 	}
 	ac.loginLog.Record(c.Request.Context(), entry)
 }

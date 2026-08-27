@@ -474,6 +474,11 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 存量租户由 000033 补齐
 			{Resource: iammodel.TenantProductResource, Operation: iammodel.ViewOperation},
 			{Resource: iammodel.TenantProductResource, Operation: request.UpdateOperation},
+			// 企业日志（登录/操作日志）：view 覆盖查询接口，create 覆盖导出
+			// 任务创建（enterprise-logs:export 语义，下载路径复核 create）；
+			// 存量租户由 000036 补齐。该资源不经管理组间接放行。
+			{Resource: iammodel.EnterpriseLogResource, Operation: iammodel.ViewOperation},
+			{Resource: iammodel.EnterpriseLogResource, Operation: request.CreateOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},

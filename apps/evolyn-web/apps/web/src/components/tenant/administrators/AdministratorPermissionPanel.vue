@@ -487,7 +487,7 @@ async function saveAddressBook(scope: AddressBookScope) {
   &__header h1 {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     line-height: 28px;
   }
   &__header p {
@@ -497,8 +497,7 @@ async function saveAddressBook(scope: AddressBookScope) {
   }
   &__body {
     position: relative;
-    padding: var(--el-space-3xl) var(--el-space-4xl)
-      80px;
+    padding: var(--el-space-3xl) var(--el-space-4xl) 80px;
   }
   &__placeholder {
     display: flex;
@@ -593,8 +592,7 @@ async function saveAddressBook(scope: AddressBookScope) {
     font-style: normal;
   }
   &__scope-detail {
-    margin: -5px 0 var(--el-space-3xl)
-      246px;
+    margin: -5px 0 var(--el-space-3xl) 246px;
   }
   &__scope-detail :deep(.el-radio) {
     color: var(--el-text-color-regular);
@@ -658,8 +656,7 @@ async function saveAddressBook(scope: AddressBookScope) {
     font-size: var(--el-font-size-base);
   }
   &__sub-action {
-    margin: -18px 0 var(--el-space-3xl)
-      246px;
+    margin: -18px 0 var(--el-space-3xl) 246px;
   }
   &__row--address-book {
     margin-top: var(--el-space-lg);

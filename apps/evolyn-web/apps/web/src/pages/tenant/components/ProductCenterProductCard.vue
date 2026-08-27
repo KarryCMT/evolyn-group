@@ -198,7 +198,7 @@ function selectScope(scope: string | number | boolean | undefined) {
   &__name {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     letter-spacing: 0.01em;
     line-height: 30px;
