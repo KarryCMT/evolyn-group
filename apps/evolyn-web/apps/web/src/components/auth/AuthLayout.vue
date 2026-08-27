@@ -232,8 +232,7 @@ defineProps<{
 
   .auth-layout__panel {
     min-height: 100%;
-    padding: var(--el-space-md) var(--el-space-4xl) var(--el-space-md)
-      var(--el-space-4xl);
+    padding: var(--el-space-md) var(--el-space-4xl) var(--el-space-md) var(--el-space-4xl);
     background-color: var(--el-bg-color);
     box-sizing: border-box;
   }

@@ -494,8 +494,70 @@ CREATE INDEX IF NOT EXISTS idx_application_menu_entries_app_target
     ON application_menu_entries (tenant_id, application_id, target_type, target_id)
     WHERE deleted_at IS NULL AND target_id IS NOT NULL;
 
+-- 表单资产与草稿（000037，ADR-010）：draft_content 为目标保存协议草稿全文
+--（content.items 两层结构，保存前经字段字典严格校验），draft_revision 乐观锁
+CREATE TABLE IF NOT EXISTS forms (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    application_id BIGINT NOT NULL,
+    name varchar(128) NOT NULL,
+    draft_content JSONB NOT NULL,
+    draft_revision BIGINT NOT NULL DEFAULT 1,
+    protocol_version INTEGER NOT NULL DEFAULT 1,
+    latest_version_id BIGINT,
+    published_version INTEGER NOT NULL DEFAULT 0,
+    creator_member_id BIGINT NOT NULL,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone,
+    CONSTRAINT chk_forms_content_object CHECK (jsonb_typeof(draft_content) = 'object')
+);
+
+CREATE INDEX IF NOT EXISTS idx_forms_tenant_app
+    ON forms (tenant_id, application_id, id DESC)
+    WHERE deleted_at IS NULL;
+
+-- 发布快照（000037）：不可变、追加写；(form_id, version_no) 唯一，
+-- schema_revision=行 id（发布事务内回填），提交按双口令定位并依据快照终审
+CREATE TABLE IF NOT EXISTS form_versions (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    form_id BIGINT NOT NULL REFERENCES forms(id),
+    version_no INTEGER NOT NULL,
+    schema_revision BIGINT NOT NULL DEFAULT 0,
+    content JSONB NOT NULL,
+    field_keys JSONB NOT NULL DEFAULT '[]',
+    protocol_version INTEGER NOT NULL DEFAULT 1,
+    published_by_member_id BIGINT NOT NULL,
+    published_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP,
+    created_at timestamp with time zone
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_form_versions_form_no
+    ON form_versions (form_id, version_no);
+
+CREATE INDEX IF NOT EXISTS idx_form_versions_tenant
+    ON form_versions (tenant_id, id);
+
+-- 表单记录提交（000038）：追加写；values 为按发布快照校验通过的值（键=widgetName），
+-- form_version_id 固定受理时所依据的发布版本（历史版本合法）
+CREATE TABLE IF NOT EXISTS form_records (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    form_id BIGINT NOT NULL REFERENCES forms(id),
+    form_version_id BIGINT NOT NULL REFERENCES form_versions(id),
+    values JSONB NOT NULL,
+    submitted_by_member_id BIGINT NOT NULL,
+    submitted_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP,
+    created_at timestamp with time zone
+);
+
+CREATE INDEX IF NOT EXISTS idx_form_records_tenant_form
+    ON form_records (tenant_id, form_id, id DESC);
+
 -- RustFS 文件元数据（000017）：对象字节存于私有 bucket，数据库只保存
 -- 租户归属、配额预留与访问控制所需字段。
+
 CREATE TABLE IF NOT EXISTS files (
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL,
@@ -751,6 +813,43 @@ COMMENT ON COLUMN application_menu_entries.config IS '小型显示配置 JSONB�
 COMMENT ON COLUMN application_menu_entries.created_at IS '创建时间';
 COMMENT ON COLUMN application_menu_entries.updated_at IS '更新时间';
 COMMENT ON COLUMN application_menu_entries.deleted_at IS '软删除时间，NULL=未删除；资产软删时同事务软删关联节点，应用软删后的节点由清理任务处理';
+
+COMMENT ON TABLE forms IS '表单资产（租户内从属于应用，ADR-010）：draft_content 为目标保存协议草稿全文（content.items 两层结构，保存前经字段字典严格校验）；草稿与发布快照分表，删除只写 deleted_at，发布版本行保留';
+COMMENT ON COLUMN forms.id IS '自增主键（菜单 target_id 引用值）';
+COMMENT ON COLUMN forms.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN forms.application_id IS '所属应用 ID（同租户，服务层归属校验，禁止裸 ID 写入）';
+COMMENT ON COLUMN forms.name IS '表单名称（trim 后 1–128 字符）；表单名称不进入协议 content';
+COMMENT ON COLUMN forms.draft_content IS '目标保存协议草稿全文 JSONB：根结构 {content:{type:"form",items:[]}}，原样字节存取保证未编辑属性不丢失';
+COMMENT ON COLUMN forms.draft_revision IS '草稿乐观锁口令：每次草稿保存条件递增，客户端原样回传，过期返回 FORM_REVISION_CONFLICT';
+COMMENT ON COLUMN forms.protocol_version IS '协议版本外部承载（协议文档内不携带版本字段，字典 1.3），当前固定 1';
+COMMENT ON COLUMN forms.latest_version_id IS '最新发布版本行 ID；NULL=从未发布';
+COMMENT ON COLUMN forms.published_version IS '最新发布号（冗余自最新快照 version_no，0=未发布），供列表展示免 JOIN';
+COMMENT ON COLUMN forms.creator_member_id IS '创建者（租户成员 ID），审计语义';
+COMMENT ON COLUMN forms.created_at IS '创建时间';
+COMMENT ON COLUMN forms.updated_at IS '更新时间';
+COMMENT ON COLUMN forms.deleted_at IS '软删除时间，NULL=未删除；置位即释放 forms 配额，发布版本行保留';
+COMMENT ON TABLE form_versions IS '不可变发布快照（追加写，无更新/删除路径）：发布时草稿全文固化，记录提交按 (publishedVersion, schemaRevision) 双口令定位并依据本快照终审；禁止以任何写路径覆盖历史快照';
+COMMENT ON COLUMN form_versions.id IS '自增主键；即 schema_revision 口令的数值（出网字符串）';
+COMMENT ON COLUMN form_versions.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN form_versions.form_id IS '所属表单 ID';
+COMMENT ON COLUMN form_versions.version_no IS '表单内递增发布号 1,2,3…（即 publishedVersion）；与 form_id 联合唯一，并发发布兜底';
+COMMENT ON COLUMN form_versions.schema_revision IS '修订口令（= 行 id，发布事务内回填）；与 version_no 共同构成提交定位双因子';
+COMMENT ON COLUMN form_versions.content IS '发布时的目标保存协议全文快照 JSONB，写入后永不更新';
+COMMENT ON COLUMN form_versions.field_keys IS '顶层字段键有序数组 JSONB（widgetName 序列），提交未知键快速拒绝与后续记录索引使用';
+COMMENT ON COLUMN form_versions.protocol_version IS '快照协议版本（与发布时 forms 行一致）';
+COMMENT ON COLUMN form_versions.published_by_member_id IS '发布人（租户成员 ID）';
+COMMENT ON COLUMN form_versions.published_at IS '发布时间';
+COMMENT ON COLUMN form_versions.created_at IS '创建时间';
+COMMENT ON TABLE form_records IS '表单记录提交（追加写）：values 为服务端按发布快照校验通过后的值（键=widgetName，仅快照内可见字段）；form_version_id 固定受理时所依据的发布版本（历史版本合法）';
+COMMENT ON COLUMN form_records.id IS '自增主键（记录 ID）';
+COMMENT ON COLUMN form_records.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN form_records.form_id IS '表单 ID';
+COMMENT ON COLUMN form_records.form_version_id IS '受理时依据的发布快照行 ID（任意历史版本均可受理，字段定义可复现）';
+COMMENT ON COLUMN form_records.values IS '字段值 JSONB（键=widgetName）；服务端终审通过的清洗值，隐藏字段与布局字段不落库';
+COMMENT ON COLUMN form_records.submitted_by_member_id IS '提交人（租户成员 ID）';
+COMMENT ON COLUMN form_records.submitted_at IS '提交时间';
+COMMENT ON COLUMN form_records.created_at IS '创建时间';
+
 
 -- 000019: 账号会话体系与 MFA 数据层（ADR-009），平台级表
 CREATE TABLE IF NOT EXISTS account_security_settings (
@@ -1521,3 +1620,27 @@ WHERE deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
   AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*')
   AND NOT EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'enterprise-logs');
+
+-- 表单资产（000037，ADR-010）：基线管理员按签名补授 forms 资源（全量管理；
+-- 发布复用 create 动词，一期不拆独立发布权）
+UPDATE roles
+SET rules = (
+    rules::jsonb || jsonb_build_array(jsonb_build_object('resource', 'forms', 'operation', '*'))
+)::json
+WHERE deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*')
+  AND NOT EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'forms');
+
+-- 表单记录提交（000038）：全体成员（authenticated 基线按系统角色名补授）
+-- 授 form-records:create；填写提交与表单设计权限（forms）彻底分离
+UPDATE roles
+SET rules = (rules::jsonb || '[{"resource": "form-records", "operation": "create"}]'::jsonb)::json
+WHERE name = 'authenticated'
+  AND deleted_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM json_array_elements_text(rules) AS e
+      WHERE e::json->>'resource' = 'form-records'
+  );

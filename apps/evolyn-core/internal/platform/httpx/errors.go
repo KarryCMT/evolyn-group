@@ -25,6 +25,7 @@ type BizError struct {
 	Code string // 稳定业务码，如 DUPLICATE_PHONE，前端按此分支
 	Msg  string // 对外文案，可直接展示（禁止携带内部数据）
 	HTTP int    // 建议 HTTP 状态码（信封 code 同步）
+	Data any    // 可选安全数据负载（如协议校验 issues / 提交字段错误），仅允许客户端可消费的展示性数据
 	err  error  // 被包装的原始错误，仅用于日志与 Unwrap
 }
 
@@ -33,12 +34,20 @@ func NewBiz(code, msg string, httpStatus int) *BizError {
 	return &BizError{Code: code, Msg: msg, HTTP: httpStatus}
 }
 
+// WithData 为业务错误附加安全数据负载（链式）：负载随信封 data 出网，
+// 用于需要结构化明细的错误（如 JSON Path 级校验问题、按字段键回填的提交错误）；
+// 禁止塞入租户 ID、SQL、内部用量等敏感数据（ADR-008 脱敏原则不变）。
+func (e *BizError) WithData(data any) *BizError {
+	e.Data = data
+	return e
+}
+
 // Wrap 为业务错误附加原始错误（保留码/文案/状态码），细节不外泄只入日志
 func Wrap(biz *BizError, err error) *BizError {
 	if biz == nil {
 		return nil
 	}
-	return &BizError{Code: biz.Code, Msg: biz.Msg, HTTP: biz.HTTP, err: err}
+	return &BizError{Code: biz.Code, Msg: biz.Msg, HTTP: biz.HTTP, Data: biz.Data, err: err}
 }
 
 func (e *BizError) Error() string {

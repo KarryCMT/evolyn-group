@@ -38,6 +38,11 @@ type (
 	storageCounter interface {
 		CountStorageBytes(ctx context.Context, tenantID uint) (int64, error)
 	}
+	// FormCounter 计费表单数（由表单域仓储实现，装配期经 UseFormCounter 注入；
+	// 计数口径见表单域 CountBillableFormsByTenant：软删行除外全量计数）
+	FormCounter interface {
+		CountBillableFormsByTenant(ctx context.Context, tenantID uint) (int64, error)
+	}
 )
 
 // QuotaService 配额执行服务（FIX-011）：统一入口校验「当前用量是否仍在上限内」。
@@ -83,6 +88,7 @@ const (
 	guardKeyMembers = "members"
 	guardKeyApps    = "apps"
 	guardKeyStorage = "storage_bytes"
+	guardKeyForms   = "forms"
 )
 
 type quotaService struct {
@@ -91,6 +97,7 @@ type quotaService struct {
 	members memberCounter
 	apps    applicationCounter
 	storage storageCounter
+	forms   FormCounter
 	guard   ExpiryGuard
 }
 
@@ -98,6 +105,18 @@ type quotaService struct {
 // server 装配注入，运行期不再变更）
 func (s *quotaService) UseExpiryGuard(guard ExpiryGuard) {
 	s.guard = guard
+}
+
+// UseFormCounter 注入表单计数器（装配期一次性调用，ADR-010 表单域落地后由
+// server 装配注入；未注入时 forms 键不可用，不影响既有测试桩）
+func (s *quotaService) UseFormCounter(counter FormCounter) {
+	s.forms = counter
+}
+
+// QuotaFormCounterInjector 装配期表单计数器注入能力（可选）：NewQuotaService
+// 返回接口类型，装配处断言本接口后注入，不污染 QuotaService 契约与存量测试桩
+type QuotaFormCounterInjector interface {
+	UseFormCounter(counter FormCounter)
 }
 
 // NewQuotaService 构造配额服务。locker/apps 为应用域落地后的扩展依赖
@@ -189,6 +208,11 @@ func (s *quotaService) limitAndUsage(ctx context.Context, tenantID uint, key str
 			return 0, 0, fmt.Errorf("quota counter not configured: %s", key)
 		}
 		usage, err = s.apps.CountBillableByTenant(ctx, tenantID)
+	case tenantmodel.QuotaForms:
+		if s.forms == nil {
+			return 0, 0, fmt.Errorf("quota counter not configured: %s", key)
+		}
+		usage, err = s.forms.CountBillableFormsByTenant(ctx, tenantID)
 	default:
 		return 0, 0, fmt.Errorf("quota key not supported yet: %s", key)
 	}
@@ -257,6 +281,8 @@ func (s *quotaService) guardLimit(ctx context.Context, tenantID uint, key string
 		return s.guard.GuardLimit(ctx, tenantID, guardKeyApps)
 	case tenantmodel.QuotaStorageGB:
 		return s.guard.GuardLimit(ctx, tenantID, guardKeyStorage)
+	case tenantmodel.QuotaForms:
+		return s.guard.GuardLimit(ctx, tenantID, guardKeyForms)
 	default:
 		return 0, false, nil
 	}

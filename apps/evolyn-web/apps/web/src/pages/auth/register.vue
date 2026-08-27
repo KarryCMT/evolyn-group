@@ -157,7 +157,8 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
     <TenantChoiceStep v-else-if="step === 1" :loading="submitting" @submit="handleTenantSubmit" />
 
     <RegisterProfileStep
-      v-else: default-nickname="maskedPhone"
+      v-else:
+      default-nickname="maskedPhone"
       :loading="submitting"
       @submit="handleProfileSubmit"
     />

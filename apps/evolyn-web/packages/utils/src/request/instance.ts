@@ -146,6 +146,7 @@ const transform: AxiosTransform = {
       envelope?.msg || `请求失败（HTTP ${response.status}）`,
       response.status,
       envelope?.errCode,
+      envelope?.data,
     );
 
     // errorMessageMode='modal' 显示重要错误弹窗；'message' 轻量提示；默认 'none' 静默

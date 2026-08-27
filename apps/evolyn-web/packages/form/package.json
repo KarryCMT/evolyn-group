@@ -1,6 +1,6 @@
 {
   "name": "@evolyn.do/form",
-  "description": "Evolyn form schema and designer foundation",
+  "description": "Evolyn form schema, runtime and designer foundation",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/cjs/index.js",
@@ -11,6 +11,22 @@
       "types": "./dist/types/index.d.ts",
       "import": "./dist/esm/index.mjs",
       "require": "./dist/cjs/index.js"
+    },
+    "./schema": {
+      "types": "./dist/types/schema/index.d.ts",
+      "import": "./dist/esm/schema/index.mjs",
+      "require": "./dist/cjs/schema/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/types/runtime/index.d.ts",
+      "import": "./dist/esm/runtime/index.mjs",
+      "require": "./dist/cjs/runtime/index.js"
+    },
+    "./runtime/style.css": "./dist/runtime/style.css",
+    "./designer": {
+      "types": "./dist/types/designer/index.d.ts",
+      "import": "./dist/esm/designer/index.mjs",
+      "require": "./dist/cjs/designer/index.js"
     },
     "./style.css": "./dist/style.css",
     "./*": "./dist/*"
@@ -26,7 +42,9 @@
   "scripts": {
     "build": "rimraf dist && tsdown",
     "clean": "rimraf .turbo node_modules dist",
-    "publish": "pnpm publish"
+    "publish": "pnpm publish",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "peerDependencies": {
     "@remixicon/vue": "catalog:ui",
@@ -38,17 +56,19 @@
     "@tsdown/css": "catalog:build",
     "@types/node": "catalog:types",
     "@vitejs/plugin-vue": "catalog:build",
+    "@vue/test-utils": "catalog:test",
     "element-plus": "catalog:ui",
+    "happy-dom": "catalog:test",
     "rimraf": "catalog:dev",
     "sass": "catalog:dev",
     "tsdown": "catalog:build",
     "typescript": "catalog:types",
     "unplugin-vue": "catalog:build",
+    "vitest": "catalog:test",
     "vue": "catalog:frontend",
     "vue-tsc": "catalog:build"
   },
   "dependencies": {
-    "monaco-editor": "catalog:frontend",
     "vuedraggable": "catalog:frontend"
   }
 }

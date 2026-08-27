@@ -59,12 +59,13 @@ func ResponseFailed(c *gin.Context, code int, err error) {
 
 	var errCode, msg string
 	var biz *BizError
+	var data any
 	switch {
 	case errors.As(err, &biz):
 		if biz.HTTP != 0 {
 			code = biz.HTTP
 		}
-		errCode, msg = biz.Code, biz.Msg
+		errCode, msg, data = biz.Code, biz.Msg, biz.Data
 	case errors.Is(err, gorm.ErrRecordNotFound), errors.Is(err, redis.Nil):
 		code, errCode, msg = http.StatusNotFound, CodeNotFound, "记录不存在"
 	default:
@@ -97,7 +98,7 @@ func ResponseFailed(c *gin.Context, code int, err error) {
 		}
 		logrus.Warnf("url: %s, user: %s, code: %s, error: %v", url, name, errCode, err)
 	}
-	c.JSON(code, Response{Code: code, ErrCode: errCode, Msg: msg, Data: nil})
+	c.JSON(code, Response{Code: code, ErrCode: errCode, Msg: msg, Data: data})
 }
 
 // statusErrCode 4xx 未分类错误按状态给通用码

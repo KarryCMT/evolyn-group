@@ -202,8 +202,7 @@ function handleCreateAsset(command: string | number | object) {
   display: flex;
   width: 280px;
   min-width: 280px;
-  padding: var(--el-space-lg) var(--el-space-lg)
-    var(--el-space-xl);
+  padding: var(--el-space-lg) var(--el-space-lg) var(--el-space-xl);
   overflow: hidden;
   flex-direction: column;
   color: var(--el-color-white);
@@ -347,8 +346,7 @@ function handleCreateAsset(command: string | number | object) {
 
   &__asset-tools {
     padding-top: var(--el-space-lg);
-    border-top: 1px solid
-      color-mix(in srgb, var(--el-color-white) 30%, var(--el-color-transparent));
+    border-top: 1px solid color-mix(in srgb, var(--el-color-white) 30%, var(--el-color-transparent));
     gap: var(--el-space-md);
   }
 
@@ -399,8 +397,7 @@ function handleCreateAsset(command: string | number | object) {
     padding-top: var(--el-space-lg);
     flex: 0 0 auto;
     margin-top: auto;
-    border-top: 1px solid
-      color-mix(in srgb, var(--el-color-white) 30%, var(--el-color-transparent));
+    border-top: 1px solid color-mix(in srgb, var(--el-color-white) 30%, var(--el-color-transparent));
   }
 
   &__management {

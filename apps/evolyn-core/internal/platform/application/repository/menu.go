@@ -2,6 +2,8 @@ package repository
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 
 	"evolyn/internal/infrastructure"
@@ -116,6 +118,82 @@ GROUP BY a.id, a.code, a.status, a.provision_status, a.menu_revision`
 		MenuRevision:    row.MenuRevision,
 		Entries:         entries,
 	}, nil
+}
+
+// ---- M2-资产-1：表单资产节点维护（全部在调用方事务内执行） ----
+
+// newMenuEntryCode 生成菜单节点编码：menu_ + 16 位随机 hex。租户内唯一由
+// uk_application_menu_entries_tenant_code 部分唯一索引兜底（软删释放）。
+func newMenuEntryCode() (string, error) {
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err != nil {
+		return "", err
+	}
+	return "menu_" + hex.EncodeToString(buf), nil
+}
+
+// MaxSortOrder 指定父节点（parentEntryID 为 nil 即根级）下最大排序值；
+// 无节点返回 0。新增子节点取返回值 + 1024，与根级口径一致。
+func (r *menuRepository) MaxSortOrder(ctx context.Context, applicationID uint, parentEntryID *uint) (int64, error) {
+	var maxSort int64
+	query := infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuEntry{}).
+		Where("application_id = ?", applicationID)
+	if parentEntryID == nil {
+		query = query.Where("parent_entry_id IS NULL")
+	} else {
+		query = query.Where("parent_entry_id = ?", *parentEntryID)
+	}
+	err := query.Select("COALESCE(MAX(sort_order), 0)").Scan(&maxSort).Error
+	return maxSort, err
+}
+
+// FindByCode 按节点编码查未软删节点（挂载父分组定位）；不存在返回
+// gorm.ErrRecordNotFound。租户过滤由 GORM 租户 Callback 注入。
+func (r *menuRepository) FindByCode(ctx context.Context, applicationID uint, code string) (*model.MenuEntry, error) {
+	var entry model.MenuEntry
+	err := infrastructure.ResolveDB(ctx, r.db).
+		Where("application_id = ? AND code = ?", applicationID, code).
+		First(&entry).Error
+	if err != nil {
+		return nil, err
+	}
+	return &entry, nil
+}
+
+// CreateFormEntry 在表单创建事务内插入 form 资产节点（根级或指定分组下、
+// target 指向表单 ID）；code 冲突由唯一索引兜底，随机空间下可忽略。
+func (r *menuRepository) CreateFormEntry(ctx context.Context, entry *model.MenuEntry) (*model.MenuEntry, error) {
+	code, err := newMenuEntryCode()
+	if err != nil {
+		return nil, err
+	}
+	entry.Code = code
+	if err := infrastructure.ResolveDB(ctx, r.db).Create(entry).Error; err != nil {
+		return nil, err
+	}
+	return entry, nil
+}
+
+// UpdateNameByFormTarget 表单改名事务内同步节点展示名。
+func (r *menuRepository) UpdateNameByFormTarget(ctx context.Context, applicationID, formID uint, name string) error {
+	return infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuEntry{}).
+		Where("application_id = ? AND entry_type = ? AND target_id = ?", applicationID, model.MenuEntryTypeForm, formID).
+		Update("name", name).Error
+}
+
+// SoftDeleteByFormTarget 表单删除事务内软删节点。
+func (r *menuRepository) SoftDeleteByFormTarget(ctx context.Context, applicationID, formID uint) error {
+	return infrastructure.ResolveDB(ctx, r.db).
+		Where("application_id = ? AND entry_type = ? AND target_id = ?", applicationID, model.MenuEntryTypeForm, formID).
+		Delete(&model.MenuEntry{}).Error
+}
+
+// BumpMenuRevision 菜单写入的并发口令：同事务条件递增（SQL 表达式避免
+// 读改写竞态，口径同 applications.menu_revision 约定）。
+func (r *menuRepository) BumpMenuRevision(ctx context.Context, applicationID uint) error {
+	return infrastructure.ResolveDB(ctx, r.db).Model(&model.Application{}).
+		Where("id = ?", applicationID).
+		Update("menu_revision", gorm.Expr("menu_revision + 1")).Error
 }
 
 // Migrate 开发/测试路径：AutoMigrate 建表 + 补齐 GORM 标签表达不了的

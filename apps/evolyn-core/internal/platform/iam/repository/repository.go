@@ -191,6 +191,19 @@ func (r *Repositories) Init() error {
 			Name:  model.EnterpriseLogResource,
 			Scope: model.ClusterScope,
 		},
+		// 表单资产（ADR-010）：表单设计与管理仅授予租户管理员（forms:*）；
+		// 运行时填写走 applications:get（bootstrap）与 form-records（提交），
+		// 不要求本资源
+		{
+			Name:  model.FormResource,
+			Scope: model.ClusterScope,
+		},
+		// 表单记录提交：create 动词授予全体成员（authenticated 基线），
+		// 与表单设计权限分离
+		{
+			Name:  model.FormRecordResource,
+			Scope: model.ClusterScope,
+		},
 	}
 
 	if err := r.rbac.CreateResources(ctx, resources, clause.OnConflict{DoNothing: true}); err != nil {

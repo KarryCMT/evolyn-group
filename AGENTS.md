@@ -138,7 +138,19 @@ internal/
                       幂等降级免费版；QuotaService 经到期守卫 GuardLimit 在
                       降级落库前按「免费快照+仅 manual 覆盖」拦截；租户开通
                       经 SubscriptionSeeder 同事务补种初始订阅
-    tenantproduct/    产品中心域（一期，小三层，docs/低代码平台/产品中心/）：
+    form/             表单资产域（ADR-010，docs/低代码平台/表单设计器/）：表单资产与
+                      草稿（forms.draft_content 目标保存协议全文 + draft_revision
+                      乐观锁）、不可变发布快照（form_versions：version_no +
+                      schema_revision 双口令）、记录提交（form_records：按快照终审，
+                      错误按 widgetName 回填）；服务层含与前端逐字一致的协议校验器
+                      与基础字段值校验器（schema.go/value.go 镜像 TS 字典）；
+                      权限资源 forms（管理员）/form-records（全体成员提交）、
+                      forms 配额键（QuotaService 计数器注入）；M2-资产-1 最小
+                      纵切：创建/改名/删除同事务维护 application_menu_entries
+                      的 form 节点并递增 menu_revision，菜单读侧经 FormDirectory
+                      窄端口做存在性裁剪与 target 投影（跨域双向窄端口装配）；
+                      迁移 000037/000038
+  tenantproduct/    产品中心域（一期，小三层，docs/低代码平台/产品中心/）：
                       平台产品目录/租户产品配置/部门与成员范围关联（迁移
                       000033，四表 + lingyanyun seed + 存量租户回填，目录是
                       平台级资源）；租户侧 GET /tenant-products 卡片列表 +
@@ -240,7 +252,18 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
 - 主应用 `apps/web/`（`@evolyn.do/web`）：Vue 3.5 + Vite + Element Plus
   （`unplugin-vue-components` 按需自动导入，`components.d.ts` 勿手改）+ Sass，
   路径别名 `~/` 指向 `src/`。
-- 共享库 `packages/`：`ui`（组件库）、`utils`、`hooks`、`directives`、
+- 共享库 `packages/`：`ui`（组件库）、`form`（表单三入口，ADR-010 目标保存协议
+  `content.items[].widget` 为唯一事实结构：`@evolyn.do/form/schema` 纯 TS 协议层
+  （27 种 widget.type 字典/严格校验器 JSON Path 级错误/深拷贝/迁移器/基础字段值
+  编解码，与后端 internal/platform/form 校验器逐字一致）、`@evolyn.do/form/runtime`
+  最终渲染器（按 `widget.type` 注册组件、值按 `widgetName` 取键、enable/visible/
+  labelHidden/lineWidth 静态执行、提交双口令，P2 基础 9 类已落地）、
+  `@evolyn.do/form/designer` 设计器入口（素材/画布/属性面板组件与
+  useFormSchemaEditor，页面状态即协议文档），主入口 `@evolyn.do/form` 为兼容期
+  别名；运行时样式独立走 `@evolyn.do/form/runtime/style.css`，不得静态引入设计器
+  或重型字段模块；发布白名单 PUBLISHABLE_WIDGET_TYPES 前后端各一份保持一致，
+  tsdown 构建必须保持单图（见 tsdown.config.ts 注释，分组双写会丢公共导出））、
+  `utils`、`hooks`、`directives`、
   `lint-configs`（eslint/prettier/stylelint/commitlint/typescript 配置）。
 - 文档站 `apps/docs/`（VitePress）。依赖版本走 `pnpm-workspace.yaml` 的
   `catalog:` 统一管理。

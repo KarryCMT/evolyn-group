@@ -34,6 +34,13 @@ function publishFeature(props: FormFeatureProps) {
  * 表单路由集合
  */
 const formRoutes: RouteRecordRaw[] = [
+  // 预览页独立于表单工作台壳：以最终用户填写视角全屏渲染，复用同一运行时。
+  {
+    path: '/app/:appCode/form/:formId/preview',
+    name: 'form-preview',
+    component: () => import('~/pages/form/preview.vue'),
+    meta: { public: false, title: '表单预览' },
+  },
   {
     path: '/app/:appCode/form/:formId',
     name: 'form',

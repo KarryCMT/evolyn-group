@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { RiArrowLeftFill, RiNotification3Fill, RiQuestionFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
-import { computed } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import UserMenu from '~/components/navigation/UserMenu.vue';
+import { getForm } from '~/api/form';
 
 defineOptions({ name: 'FormWorkspaceShell' });
 
@@ -22,8 +23,8 @@ interface FormNavigationItem {
 const route = useRoute();
 const router = useRouter();
 
-/** 本期仅提供页面骨架；真实表单名称将在表单详情接口接入后替换。 */
-const formName = '未命名表单';
+/** 表单名称：详情接口回填；新建态（formId=new）与加载前保持默认文案。 */
+const formTitle = ref('未命名表单');
 const standardNavigationItems: FormNavigationItem[] = [
   { name: 'form-design', label: '表单设计' },
   { name: 'form-workflow-design', label: '流程设计' },
@@ -43,9 +44,25 @@ const activeNavigationName = computed<FormRouteName>(() => {
   return active?.name ?? 'form-design';
 });
 
+// 设计器新建表单成功后会以真实 ID 替换路由参数（同组件不重挂载），watch 跟进标题。
+watch(
+  formId,
+  async (value) => {
+    const id = Number(value);
+    if (!Number.isInteger(id) || id <= 0) {
+      formTitle.value = '未命名表单';
+      return;
+    }
+    try {
+      formTitle.value = (await getForm(id)).name;
+    } catch {
+      formTitle.value = '未命名表单';
+    }
+  },
+  { immediate: true },
+);
+
 function returnToApplication() {
-  // 新建态暂未持久化表单资产；用查询参数承接「创建完成后进入应用工作区」的过渡体验。
-  // 表单运行时接口落地后，由返回的默认资产替代这段临时标识。
   void router.push({
     name: 'App',
     params: { appCode: appCode.value },
@@ -80,7 +97,7 @@ function notifyUnavailable(action: string) {
         >
           <RiArrowLeftFill />
         </button>
-        <strong class="form-workspace-shell__title">{{ formName }}</strong>
+        <strong class="form-workspace-shell__title">{{ formTitle }}</strong>
       </div>
 
       <nav class="form-workspace-shell__navigation" aria-label="表单管理导航">

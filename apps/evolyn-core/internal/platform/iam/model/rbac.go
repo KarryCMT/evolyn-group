@@ -116,6 +116,12 @@ const (
 	// 导出任务创建（enterprise-logs:export 语义）。该资源不接受管理组间接
 	// 放行——如需委派应增加细粒度数据范围设计，而非复用管理组全量范围。
 	EnterpriseLogResource = "enterprise-logs"
+	// FormResource 与 /forms 路由保持一致，代表表单资产的设计与管理权限
+	//（创建/列表/详情/改名/草稿/发布/删除，ADR-010）。发布复用 create 动词。
+	FormResource = "forms"
+	// FormRecordResource 与 /form-records 路由保持一致，代表表单记录提交
+	//（create 动词授予全体成员）：填写提交与表单设计权限彻底分离。
+	FormRecordResource = "form-records"
 )
 
 type Resource struct {

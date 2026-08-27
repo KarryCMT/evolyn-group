@@ -7,9 +7,11 @@ import {
   RiContactsBook3Fill,
   RiPieChart2Fill,
 } from '@remixicon/vue';
-import { ElMessage } from 'element-plus';
+import { ApiError } from '@evolyn.do/utils';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, markRaw, shallowRef, watch, type Component } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { createForm } from '~/api/form';
 import ApplicationEmptyState from '~/components/application/runtime/ApplicationEmptyState.vue';
 import type { ApplicationAssetStarter } from '~/components/application/runtime/applicationAssetCatalog';
 import ApplicationWorkspaceShell from '~/components/application/workspace/ApplicationWorkspaceShell.vue';
@@ -88,20 +90,52 @@ function returnToDashboard() {
 }
 
 /**
- * 表单设计页当前尚未接入创建接口，先以 `new` 作为新建态路由标识进入设计器。
- * 流程表单通过 query 标记其类型，以便设计器展示额外的流程设计入口；
- * 后续创建 API 落地后，在成功回调中替换为服务端返回的真实 formId 和类型。
+ * 新建表单（入口即创建）：命名 → 以当前应用调 POST /forms 创建资产与空草稿
+ * （后端同事务在应用菜单挂 form 节点，parentEntryCode 存在时挂到指定分组下）
+ * → 携真实 formId 跳转设计器继续编辑。流程表单通过 query 标记类型，
+ * 供设计器展示流程设计入口。
  */
-function startNewForm(workflow = false, parentEntryCode?: string) {
-  const query: { type?: 'workflow'; parentEntryCode?: string } = {};
-  if (workflow) query.type = 'workflow';
-  if (parentEntryCode) query.parentEntryCode = parentEntryCode;
+async function startNewForm(workflow = false, parentEntryCode?: string) {
+  const app = application.value;
+  if (!app) {
+    ElMessage.error('应用信息尚未就绪，请稍后重试');
+    return;
+  }
 
-  void router.push({
-    name: 'form-design',
-    params: { appCode: appCode.value, formId: 'new' },
-    query: Object.keys(query).length ? query : undefined,
-  });
+  let name: string;
+  try {
+    const { value } = await ElMessageBox.prompt('请输入表单名称', '新建表单', {
+      inputValue: '未命名表单',
+      inputValidator: (input: string) =>
+        input && input.trim() ? true : '请输入 1–128 个字符的表单名称',
+      confirmButtonText: '创建并设计',
+      cancelButtonText: '取消',
+      closeOnClickModal: false,
+    });
+    name = value.trim();
+  } catch {
+    // 取消命名即放弃创建，停留在应用工作台。
+    return;
+  }
+
+  try {
+    const detail = await createForm({ applicationId: app.id, name, parentEntryCode });
+    void router.push({
+      name: 'form-design',
+      params: { appCode: appCode.value, formId: String(detail.id) },
+      query: workflow ? { type: 'workflow' } : undefined,
+    });
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'QUOTA_EXCEEDED') {
+      ElMessage.error('表单数量已达套餐上限，请升级套餐或删除闲置表单');
+    } else if (error instanceof ApiError && error.errCode === 'APP_MENU_PARENT_INVALID') {
+      // 目标分组已被删除或不可用：菜单可能已过期，提示刷新重选
+      ElMessage.error('目标分组不存在或已删除，请刷新页面后重试');
+      reloadMenu();
+    } else {
+      ElMessage.error('创建表单失败，请稍后重试');
+    }
+  }
 }
 
 function openAssetStarter(starter: ApplicationAssetStarter) {
@@ -135,6 +169,25 @@ function openApplicationManagement() {
 function selectWorkspaceAsset(asset: ApplicationWorkspaceAsset) {
   activeAssetCode.value = asset.code;
   workspaceMode.value = 'fill';
+}
+
+/** 顶栏“编辑”只对当前表单生效，并携带菜单目标资产的公开 formId 进入设计器。 */
+function updateWorkspaceMode(mode: ApplicationWorkspaceMode) {
+  if (mode !== 'design') {
+    workspaceMode.value = mode;
+    return;
+  }
+
+  const asset = activeWorkspaceAsset.value;
+  if (!asset || asset.type !== 'form' || !asset.targetId) {
+    ElMessage.info('请先从左侧选择要编辑的表单');
+    return;
+  }
+
+  void router.push({
+    name: 'form-design',
+    params: { appCode: appCode.value, formId: asset.targetId },
+  });
 }
 
 /**
@@ -211,7 +264,7 @@ function reloadWorkspace() {
         @select-asset="selectWorkspaceAsset"
         @asset-action="handleWorkspaceAssetAction"
         @open-management="openApplicationManagement"
-        @update-mode="workspaceMode = $event"
+        @update-mode="updateWorkspaceMode"
       />
     </template>
 

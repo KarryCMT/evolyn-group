@@ -14,6 +14,8 @@ export interface ApplicationWorkspaceAsset {
   label: string;
   icon: Component;
   type: 'form' | 'dashboard' | 'page' | 'folder';
+  /** 资产公开编码；表单节点用于跳转设计器的 formId，分组节点为空。 */
+  targetId: string | null;
   /** 当前成员由菜单读取接口派生的操作能力，用于控制右侧更多入口。 */
   capabilities: ApplicationMenuCapabilities;
   children?: ApplicationWorkspaceAsset[];

@@ -1,0 +1,131 @@
+<template>
+  <aside class="form-schema-palette" aria-label="字段素材面板">
+    <section v-for="group in groups" :key="group.key" class="form-schema-palette__group">
+      <p class="form-schema-palette__group-title">{{ group.title }}</p>
+      <Draggable
+        :list="group.entries"
+        :group="{ name: FORM_SCHEMA_DRAG_GROUP, pull: 'clone', put: false }"
+        :sort="false"
+        :clone="clonePaletteItem"
+        item-key="type"
+        class="form-schema-palette__list"
+        :data-enabled="group.enabled"
+      >
+        <template #item="{ element }">
+          <button
+            class="form-schema-palette__item"
+            type="button"
+            :disabled="!group.enabled"
+            :title="group.enabled ? element.label : '该分组字段随后续版本开放'"
+            @click="$emit('add-field', element)"
+          >
+            <el-icon><component :is="element.icon" /></el-icon>
+            <span>{{ element.label }}</span>
+          </button>
+        </template>
+      </Draggable>
+    </section>
+  </aside>
+</template>
+
+<script setup lang="ts">
+import { ElIcon } from 'element-plus';
+import Draggable from 'vuedraggable';
+import { FORM_SCHEMA_DRAG_GROUP, type FormSchemaPaletteDrag } from './palette';
+
+/**
+ * 字段素材面板：按分组展示控件入口，支持点击添加与拖拽克隆到画布。
+ * 拖拽时 clone 出仅含 paletteType 标记的临时对象，由画布 add 事件换成本页
+ * 通过 createWidgetItem 生成的真实字段项（协议文档不落任何临时结构）。
+ */
+export interface FormSchemaPaletteGroup {
+  key: string;
+  title: string;
+  /** 未开放的分组置灰只展示（后续阶段开放），本期仅基础字段可添加。 */
+  enabled: boolean;
+  entries: Array<{ type: string; label: string; icon: unknown }>;
+}
+
+defineProps<{ groups: FormSchemaPaletteGroup[] }>();
+
+defineEmits<{
+  (event: 'add-field', value: { type: string; label: string; icon: unknown }): void;
+}>();
+
+// 临时对象以 paletteType 标记控件类型；画布 add 后立即被真实字段项替换。
+const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
+  paletteType: item.type,
+});
+</script>
+
+<style lang="scss">
+.form-schema-palette {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: var(--el-space-lg);
+  width: 152px;
+  padding: var(--el-space-xl) var(--el-space-lg);
+  overflow-y: auto;
+  background-color: var(--el-bg-color);
+  border-top: 1px solid var(--el-border-color);
+  border-bottom: 1px solid var(--el-border-color);
+  border-left: 1px solid var(--el-border-color);
+  border-top-left-radius: var(--gp-radius-md);
+  border-bottom-left-radius: var(--gp-radius-md);
+
+  &__group-title {
+    margin: 0 0 var(--el-space-md);
+    font-size: var(--el-font-size-extra-small);
+    font-weight: 600;
+    color: var(--el-text-color-secondary);
+  }
+
+  &__list {
+    min-height: 100%;
+  }
+
+  &__item {
+    display: flex;
+    gap: var(--el-space-sm);
+    align-items: center;
+    justify-content: flex-start;
+    width: 100%;
+    min-height: 34px;
+    padding: 0 var(--el-space-xl);
+    margin-bottom: var(--el-space-lg);
+    font-size: var(--el-font-size-base);
+    color: var(--el-text-color-primary);
+    cursor: pointer;
+    background-color: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: var(--gp-radius-md);
+    transition:
+      background-color 0.16s ease,
+      border-color 0.16s ease;
+
+    &:hover:not(:disabled) {
+      color: var(--el-color-primary);
+      cursor: move;
+      background-color: var(--el-color-primary-light-1);
+      border-color: var(--el-color-primary-light-3);
+
+      .el-icon {
+        color: var(--el-color-primary);
+      }
+    }
+
+    &:disabled {
+      color: var(--el-text-color-disabled);
+      cursor: not-allowed;
+      background-color: var(--el-fill-color-lighter);
+    }
+
+    .el-icon {
+      flex-shrink: 0;
+      font-size: var(--el-font-size-medium);
+      color: var(--el-text-color-regular);
+    }
+  }
+}
+</style>

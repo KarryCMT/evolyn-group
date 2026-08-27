@@ -47,6 +47,9 @@ import (
 	filecontroller "evolyn/internal/platform/file/controller"
 	filerepository "evolyn/internal/platform/file/repository"
 	fileservice "evolyn/internal/platform/file/service"
+	formcontroller "evolyn/internal/platform/form/controller"
+	formrepository "evolyn/internal/platform/form/repository"
+	formservice "evolyn/internal/platform/form/service"
 	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
 	iamcontroller "evolyn/internal/platform/iam/controller"
@@ -138,6 +141,10 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	tenantProductRepo := tenantproductrepository.NewRepository(db)
 	// 企业日志域仓储（000036）：login_logs/audit_logs 只读查询 + 导出任务
 	enterpriseLogRepo := enterpriselogrepository.NewRepository(db)
+	// 表单资产域仓储（000037/000038，ADR-010）：表单+草稿、不可变发布快照、记录
+	formRepo := formrepository.NewRepository(db)
+	formVersionRepo := formrepository.NewVersionRepository(db)
+	formRecordRepo := formrepository.NewRecordRepository(db)
 	if conf.DB.Migrate {
 		if err := auditRepo.Migrate(); err != nil {
 			return nil, err
@@ -169,6 +176,15 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		if err := enterpriseLogRepo.Migrate(); err != nil {
 			return nil, err
 		}
+		if err := formRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := formVersionRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := formRecordRepo.Migrate(); err != nil {
+			return nil, err
+		}
 	}
 
 	// 种子：默认租户最先（单租户/存量数据归属兜底），再 iam 资源与系统分组
@@ -184,6 +200,11 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 显示名解析端口（企业日志展示快照，000036）：iam 成员仓储适配
 	auditSvc := auditservice.NewService(auditRepo, auditActorNamer{users: iamRepo.User()})
 	quotaSvc := tenantservice.NewQuotaService(tenantRepo, tenantRepo, iamRepo.User(), applicationRepo, fileRepo)
+	// 表单配额键（forms）随表单域落地接入计量面（ADR-010）；注入失败属装配
+	// 错误直接返回，不允许「表面配置了配额实际不生效」
+	if injector, ok := quotaSvc.(tenantservice.QuotaFormCounterInjector); ok {
+		injector.UseFormCounter(formRepo)
+	}
 	storageQuotaSvc, ok := quotaSvc.(tenantservice.StorageQuotaService)
 	if !ok {
 		return nil, fmt.Errorf("storage quota service not configured")
@@ -377,7 +398,23 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	)
 	enterpriseLogController := enterpriselogcontroller.NewEnterpriseLogController(enterpriseLogService, authorizer)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController}
+	// M2-资产-1：菜单读侧接入表单目录（存在性裁剪 + target 投影），
+	// 由表单仓储经装配层适配，application 域不依赖 form 域
+	if injector, ok := menuService.(applicationservice.MenuFormDirectoryInjector); ok {
+		injector.UseFormDirectory(formMenuDirectory{forms: formRepo})
+	}
+
+	// 表单资产域（ADR-010）：草稿/发布/提交；权限集、应用只读目录与菜单
+	// 节点维护端口均经窄端口适配（域间不直接耦合 application），访问判定
+	// 与鉴权中间件同源
+	formMenuMaintenance := applicationservice.NewMenuMaintenanceService(menuRepo)
+	formService := formservice.NewFormService(
+		txManager, formRepo, formVersionRepo, formRecordRepo, quotaSvc, auditSvc,
+		appAccess, formApplicationDirectory{applications: applicationRepo}, formMenuMaintenance,
+	)
+	formController := formcontroller.NewFormController(formService)
+
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
@@ -580,6 +617,45 @@ func (c adminGroupApplicationCatalog) Exists(ctx context.Context, id uint) (bool
 		return false, err
 	}
 	return true, nil
+}
+
+// formMenuDirectory 菜单读侧的表单目录窄端口适配：application 域不反向
+// 依赖 form 域，装配层以表单仓储桥接（批量存在性查询）
+type formMenuDirectory struct {
+	forms formrepository.FormRepository
+}
+
+func (d formMenuDirectory) ExistingFormIDs(ctx context.Context, ids []uint) (map[uint]bool, error) {
+	return d.forms.ExistingFormIDs(ctx, ids)
+}
+
+// formApplicationDirectory 表单域的应用只读目录窄端口适配：form 域不直接依赖
+// application 域，装配层以应用仓储桥接；GetByID/GetByCode 经 ctx 租户过滤，
+// 跨租户即 NotFound（与 form 域 ErrFormAppInvalid 口径一致）
+type formApplicationDirectory struct {
+	applications applicationrepository.ApplicationRepository
+}
+
+func (d formApplicationDirectory) ApplicationByID(ctx context.Context, id uint) (formservice.ApplicationView, bool, error) {
+	app, err := d.applications.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return formservice.ApplicationView{}, true, nil
+		}
+		return formservice.ApplicationView{}, false, err
+	}
+	return formservice.ApplicationView{ID: app.ID, Status: app.Status}, false, nil
+}
+
+func (d formApplicationDirectory) ApplicationByCode(ctx context.Context, code string) (formservice.ApplicationView, bool, error) {
+	app, err := d.applications.GetByCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return formservice.ApplicationView{}, true, nil
+		}
+		return formservice.ApplicationView{}, false, err
+	}
+	return formservice.ApplicationView{ID: app.ID, Status: app.Status}, false, nil
 }
 
 // auditActorNamer 审计操作者显示名解析窄端口适配（000036 企业日志）：

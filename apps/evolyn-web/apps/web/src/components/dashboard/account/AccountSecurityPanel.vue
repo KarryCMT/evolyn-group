@@ -274,8 +274,7 @@ async function applySecurityAction(reauthToken: string) {
   }
 
   &__error {
-    margin: -4px 0 var(--el-space-md)
-      162px;
+    margin: -4px 0 var(--el-space-md) 162px;
     color: var(--el-color-danger);
     font-size: var(--el-font-size-small);
   }

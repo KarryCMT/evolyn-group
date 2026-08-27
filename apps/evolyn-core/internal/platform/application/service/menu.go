@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 
 	"evolyn/internal/contextx"
 	apperrors "evolyn/internal/platform/application"
@@ -21,14 +22,27 @@ import (
 // 树完整性校验 → 可见性裁剪 → capabilities 派生。写路径（分组创建/移动/
 // 重排/删除与 baseMenuRevision 条件递增）随 M2-菜单-3 落地
 type menuService struct {
-	repo   repository.MenuRepository
-	access ApplicationAccessEvaluator
+	repo    repository.MenuRepository
+	access  ApplicationAccessEvaluator
+	formDir FormDirectory
 }
 
 // NewMenuService 构造菜单服务；访问判定与鉴权中间件同源（复用应用域
 // ApplicationAccessEvaluator，§6.1：Service 复核不能仅依赖中间件）
 func NewMenuService(repo repository.MenuRepository, access ApplicationAccessEvaluator) ApplicationMenuService {
 	return &menuService{repo: repo, access: access}
+}
+
+// UseFormDirectory 注入表单目录窄端口（装配期一次性调用，M2-资产-1）：
+// 菜单读侧据此裁剪已软删表单节点并投影 target 公开编码；未注入时保持
+// 旧行为（节点按存在性出网、target 不投影），存量测试桩无需调整。
+func (s *menuService) UseFormDirectory(dir FormDirectory) {
+	s.formDir = dir
+}
+
+// MenuFormDirectoryInjector 装配期注入能力（可选）。
+type MenuFormDirectoryInjector interface {
+	UseFormDirectory(dir FormDirectory)
 }
 
 // GetMenu 按应用编码读取当前成员可见的菜单快照（方案 §6）：
@@ -57,20 +71,45 @@ func (s *menuService) GetMenu(ctx context.Context, member *iammodel.User, code s
 		return nil, err
 	}
 
-	return buildMenuSnapshot(perms, snap)
+	// M2-资产-1：表单目标存在性批量查询。existingForms 以 nil 表达「目录
+	// 未接入」（旧行为：不裁剪、不投影）；目录接入且确无表单时为空 map，
+	// form 节点按不存在裁剪——两种空态语义必须区分。
+	var existingForms map[uint]bool
+	formIDs := make([]uint, 0)
+	for i := range snap.Entries {
+		if snap.Entries[i].EntryType == model.MenuEntryTypeForm && snap.Entries[i].TargetID != nil {
+			formIDs = append(formIDs, *snap.Entries[i].TargetID)
+		}
+	}
+	if s.formDir != nil && len(formIDs) > 0 {
+		existingForms, err = s.formDir.ExistingFormIDs(ctx, formIDs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return buildMenuSnapshot(perms, snap, existingForms)
 }
 
-// assetVisible 资产节点可见性判定钩子。表单/仪表盘/页面域（M2-资产-1）
-// 尚未落地时没有资产级权限判定来源：菜单行本身是库内真实数据（非硬编码
-// 预览），按节点存在性出网、target 编码留待资产域投影；接入资产查询与
-// 资产级授权后替换实现（叠加软删/归属/成员访问结果），单测可替换构造
-// 不可见资产场景
-var assetVisible = func(_ *model.MenuEntry) bool { return true }
+// assetVisible 资产节点可见性判定（M2-资产-1 起按目录端口注入的存在集
+// 执行）：form 节点在表单软删/不存在时不可见；目录未接入（existingForms
+// 为 nil）时保持旧行为——按节点存在性出网。仪表盘/页面域落地后在此扩展。
+var assetVisible = func(entry *model.MenuEntry, existingForms map[uint]bool) bool {
+	switch entry.EntryType {
+	case model.MenuEntryTypeForm:
+		if existingForms == nil {
+			return true
+		}
+		return entry.TargetID != nil && existingForms[*entry.TargetID]
+	default:
+		return true
+	}
+}
 
 // buildMenuSnapshot 由仓储快照组装出网视图：结构完整性校验 → 可见性
 // 裁剪 → 排序投影。损坏树（孤儿/父非分组/循环）记录告警并返回
 // ErrMenuInvalid，不把异常数据当正常树交给前端（方案 §6.3）
-func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot) (*model.MenuSnapshot, error) {
+func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, existingForms map[uint]bool) (*model.MenuSnapshot, error) {
 	byID := make(map[uint]*model.MenuEntry, len(snap.Entries))
 	for i := range snap.Entries {
 		byID[snap.Entries[i].ID] = &snap.Entries[i]
@@ -99,9 +138,9 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot) (*m
 		entry := &snap.Entries[i]
 		switch entry.EntryType {
 		case model.MenuEntryTypeGroup:
-			visible[entry.ID] = hasVisibleDescendant(byID, entry, groupMemo)
+			visible[entry.ID] = hasVisibleDescendant(byID, entry, groupMemo, existingForms)
 		default:
-			visible[entry.ID] = assetVisible(entry)
+			visible[entry.ID] = assetVisible(entry, existingForms)
 		}
 	}
 
@@ -131,7 +170,7 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot) (*m
 		if !visible[entry.ID] {
 			continue
 		}
-		out.EntryMap[entry.Code] = menuEntryDetail(entry, byID, caps)
+		out.EntryMap[entry.Code] = menuEntryDetail(entry, byID, caps, existingForms)
 		if entry.ParentEntryID == nil {
 			roots = append(roots, entry)
 		}
@@ -180,7 +219,7 @@ func validateMenuAncestry(byID map[uint]*model.MenuEntry, entry *model.MenuEntry
 // （可见资产，或自身有可见后代的子分组）；空分组被裁剪（方案目标 3）。
 // memo 缓存已判定分组避免链形树重复递归；树已被 validateMenuAncestry
 // 保证无环，递归必然终止
-func hasVisibleDescendant(byID map[uint]*model.MenuEntry, group *model.MenuEntry, memo map[uint]bool) bool {
+func hasVisibleDescendant(byID map[uint]*model.MenuEntry, group *model.MenuEntry, memo map[uint]bool, existingForms map[uint]bool) bool {
 	if cached, ok := memo[group.ID]; ok {
 		return cached
 	}
@@ -192,13 +231,13 @@ func hasVisibleDescendant(byID map[uint]*model.MenuEntry, group *model.MenuEntry
 			continue
 		}
 		if entry.EntryType != model.MenuEntryTypeGroup {
-			if assetVisible(entry) {
+			if assetVisible(entry, existingForms) {
 				keep = true
 				break
 			}
 			continue
 		}
-		if hasVisibleDescendant(byID, entry, memo) {
+		if hasVisibleDescendant(byID, entry, memo, existingForms) {
 			keep = true
 			break
 		}
@@ -208,10 +247,11 @@ func hasVisibleDescendant(byID map[uint]*model.MenuEntry, group *model.MenuEntry
 }
 
 // menuEntryDetail 节点出网投影：icon/color 空串投影为 null；parentEntryId
-// 由 byID 反查父节点编码（null 即根节点）。资产域落地前 target 不投影
-// （出网为 null，公开编码无从查起），M2-资产-1 接入资产查询后按 target_id
-// 映射资产 code 并叠加节点级 features
-func menuEntryDetail(entry *model.MenuEntry, byID map[uint]*model.MenuEntry, caps model.MenuEntryCapabilities) model.MenuEntryDetail {
+// 由 byID 反查父节点编码（null 即根节点）。M2-资产-1 起 form 节点按目录
+// 存在集投影 target（表单公开编码 = 数字 ID 字符串，与工作区路由参数一致）；
+// 目录未接入（existingForms nil）时 target 保持不投影。仪表盘/页面域随
+// 各自资产批次扩展
+func menuEntryDetail(entry *model.MenuEntry, byID map[uint]*model.MenuEntry, caps model.MenuEntryCapabilities, existingForms map[uint]bool) model.MenuEntryDetail {
 	detail := model.MenuEntryDetail{
 		EntryID:      entry.Code,
 		Type:         entry.EntryType,
@@ -230,6 +270,15 @@ func menuEntryDetail(entry *model.MenuEntry, byID map[uint]*model.MenuEntry, cap
 	}
 	if entry.Color != "" {
 		detail.Color = &entry.Color
+	}
+	// 目录接入后才投影（existingForms 非 nil 且表单存在）；未接入时保持
+	// 旧行为（target 出网 null），与裁剪钩子的 nil 语义一致。
+	if entry.EntryType == model.MenuEntryTypeForm && entry.TargetID != nil &&
+		existingForms != nil && existingForms[*entry.TargetID] {
+		detail.Target = &model.MenuEntryTarget{
+			Type: model.MenuEntryTypeForm,
+			ID:   strconv.FormatUint(uint64(*entry.TargetID), 10),
+		}
 	}
 	return detail
 }

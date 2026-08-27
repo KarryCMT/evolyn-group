@@ -11,6 +11,9 @@ export class ApiError extends Error {
     readonly status: number,
     /** 稳定业务码，如 AUTH_COOLDOWN；成功响应不携带 */
     readonly errCode?: string,
+    /** 错误信封的安全数据负载（后端 BizError.Data，如表单协议校验 issues、
+     *  按字段键回填的提交错误）；仅结构化展示数据，无敏感信息 */
+    readonly data?: unknown,
   ) {
     super(message);
     this.name = 'ApiError';

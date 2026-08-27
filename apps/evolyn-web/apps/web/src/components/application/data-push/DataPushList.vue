@@ -57,8 +57,7 @@ const tableOptions = { defaultHeaderRowHeight: 60, defaultRowHeight: ROW_HEIGHT 
 .data-push-list {
   display: flex;
   min-height: 0;
-  padding: var(--el-space-lg) var(--el-space-3xl)
-    var(--el-space-2xl);
+  padding: var(--el-space-lg) var(--el-space-3xl) var(--el-space-2xl);
   flex: 1;
   flex-direction: column;
 

@@ -457,3 +457,61 @@ export interface CurrentEdition {
   features: EditionFeature[];
   asOf: string;
 }
+
+// ---- 表单资产域（ADR-010，见 docs/低代码平台/表单设计器/表单资产域后端契约.md） ----
+
+/** 目标保存协议文档（唯一事实结构，与 packages/form schema 同源） */
+export type FormSchemaDocument = import('@evolyn.do/form/schema').FormSchemaDocument;
+
+/** 表单详情（GET /forms/:id）：含草稿全文与修订口令 */
+export interface FormDetail {
+  id: number;
+  applicationId: number;
+  name: string;
+  draftRevision: number;
+  publishedVersion: number;
+  draft: FormSchemaDocument;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 表单列表条目（不含草稿全文） */
+export interface FormSummary {
+  id: number;
+  applicationId: number;
+  name: string;
+  publishedVersion: number;
+  updatedAt: string;
+}
+
+/** GET /forms 游标分页结果 */
+export interface FormPage {
+  items: FormSummary[];
+  nextCursor: string;
+  hasMore: boolean;
+}
+
+/** PUT /forms/:id/draft 结果：新口令供下次保存回传 */
+export interface FormDraftSaveResult {
+  draftRevision: number;
+}
+
+/** POST /forms/:id/publish 结果：发布双口令 */
+export interface FormPublishResult {
+  publishedVersion: number;
+  schemaRevision: string;
+}
+
+/** GET /applications/code/:appCode/forms/:formId/runtime 响应（运行时引导） */
+export interface FormRuntimeBootstrap {
+  formId: number;
+  name: string;
+  publishedVersion: number;
+  schemaRevision: string;
+  content: FormSchemaDocument;
+}
+
+/** POST /form-records 受理结果 */
+export interface FormRecordSubmitResult {
+  recordId: number;
+}

@@ -212,8 +212,7 @@ const emit = defineEmits<{
   &__content {
     box-sizing: border-box;
     min-height: 100%;
-    padding: var(--el-space-3xl) var(--el-space-4xl)
-      var(--el-space-5xl);
+    padding: var(--el-space-3xl) var(--el-space-4xl) var(--el-space-5xl);
   }
 
   &__context {

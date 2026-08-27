@@ -131,8 +131,7 @@ const emit = defineEmits<{
 
   &__tips {
     margin: 0 0 var(--el-space-3xl);
-    padding: var(--el-space-lg) var(--el-space-2xl)
-      var(--el-space-lg) var(--el-space-5xl);
+    padding: var(--el-space-lg) var(--el-space-2xl) var(--el-space-lg) var(--el-space-5xl);
     border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-secondary);
     background: var(--el-fill-color-light);

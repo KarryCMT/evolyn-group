@@ -479,6 +479,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 存量租户由 000036 补齐。该资源不经管理组间接放行。
 			{Resource: iammodel.EnterpriseLogResource, Operation: iammodel.ViewOperation},
 			{Resource: iammodel.EnterpriseLogResource, Operation: request.CreateOperation},
+			// 表单资产（ADR-010）：表单设计/发布/删除全量；存量租户由 000037
+			// 按「管理员规则签名」补授（与角色名无关）
+			{Resource: iammodel.FormResource, Operation: iammodel.AllOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},
@@ -492,6 +495,10 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 成员可创建并读取自己的文件；文件服务还会复核 creator_id，避免
 			// 仅凭通用资源 view 读取同租户其他成员的未绑定文件。
 			{Resource: "files", Operation: iammodel.EditOperation},
+			// 表单记录提交（ADR-010）：全体成员可提交填写（bootstrap 走
+			// applications:get）；表单设计权限在 forms 资源，与本规则分离；
+			// 存量租户由 000038 补授
+			{Resource: iammodel.FormRecordResource, Operation: request.CreateOperation},
 		}},
 		{Name: UnAuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "auth", Operation: "create"},

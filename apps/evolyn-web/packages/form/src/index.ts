@@ -1,30 +1,3 @@
-// 共享组件不能依赖消费应用的按需自动导入；在包入口统一输出其实际使用的 Element Plus 主题样式。
-import 'element-plus/theme-chalk/src/button.scss';
-import 'element-plus/theme-chalk/src/checkbox.scss';
-import 'element-plus/theme-chalk/src/date-picker.scss';
-import 'element-plus/theme-chalk/src/empty.scss';
-import 'element-plus/theme-chalk/src/icon.scss';
-import 'element-plus/theme-chalk/src/input-number.scss';
-import 'element-plus/theme-chalk/src/input.scss';
-import 'element-plus/theme-chalk/src/popconfirm.scss';
-import 'element-plus/theme-chalk/src/popover.scss';
-import 'element-plus/theme-chalk/src/scrollbar.scss';
-import 'element-plus/theme-chalk/src/select-v2.scss';
-import 'element-plus/theme-chalk/src/select.scss';
-import 'element-plus/theme-chalk/src/tooltip.scss';
-
-export { default as FormDesignPalette } from './components/FormDesignPalette.vue';
-export { default as FormFieldCanvas } from './components/FormFieldCanvas.vue';
-export { default as FormDesignPropertyPanel } from './components/FormDesignPropertyPanel.vue';
-export { default as FormDesignFieldControl } from './components/FormDesignFieldControl.vue';
-export { default as FormSubformCanvas } from './components/FormSubformCanvas.vue';
-export { default as FormSubformFieldPanel } from './components/FormSubformFieldPanel.vue';
-export { default as FormSubformChildPropertyPanel } from './components/FormSubformChildPropertyPanel.vue';
-export { default as FormCodeEditor } from './components/FormCodeEditor.vue';
-export { default as FormDesignCodeView } from './components/FormDesignCodeView.vue';
-export * from './composables/useFormEditor';
-export * from './composables/useFormPersistence';
-export * from './hooks/useFormDesignFactory';
-export * from './hooks/useFormFieldActions';
-export * from './schema';
-export * from './types';
+// 主入口为兼容期别名，等价于设计器入口（@evolyn.do/form/designer）。
+// 最终用户填写入口必须使用 @evolyn.do/form/runtime；迁移完成后本入口将随设计器入口收编。
+export * from './designer';

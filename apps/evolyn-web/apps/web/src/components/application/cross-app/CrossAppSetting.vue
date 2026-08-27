@@ -172,8 +172,7 @@ function handleFormToggle(id: string) {
   &__body {
     display: flex;
     min-height: 0;
-    padding: var(--el-space-2xl) var(--el-space-3xl)
-      var(--el-space-3xl);
+    padding: var(--el-space-2xl) var(--el-space-3xl) var(--el-space-3xl);
     overflow: hidden;
     flex: 1;
     flex-direction: column;

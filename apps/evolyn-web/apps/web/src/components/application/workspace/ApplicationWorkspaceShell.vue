@@ -88,8 +88,7 @@ function toggleSidebar() {
     min-width: 0;
     min-height: 0;
     flex: 1;
-    margin: var(--el-space-md) var(--el-space-md)
-      var(--el-space-md) 0;
+    margin: var(--el-space-md) var(--el-space-md) var(--el-space-md) 0;
     overflow: hidden;
     flex-direction: column;
     background: var(--el-bg-color);

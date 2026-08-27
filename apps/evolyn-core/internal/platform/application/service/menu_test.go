@@ -30,6 +30,26 @@ func (f *fakeMenuRepo) GetSnapshot(ctx context.Context, tenantID uint, code stri
 
 func (f *fakeMenuRepo) Migrate() error { return nil }
 
+// M2-资产-1 写路径桩（菜单维护用例见 menu_maintenance_test.go；只读用例不触达）
+func (f *fakeMenuRepo) CreateFormEntry(ctx context.Context, entry *model.MenuEntry) (*model.MenuEntry, error) {
+	return entry, nil
+}
+func (f *fakeMenuRepo) UpdateNameByFormTarget(ctx context.Context, applicationID, formID uint, name string) error {
+	return nil
+}
+func (f *fakeMenuRepo) SoftDeleteByFormTarget(ctx context.Context, applicationID, formID uint) error {
+	return nil
+}
+func (f *fakeMenuRepo) MaxSortOrder(ctx context.Context, applicationID uint, parentEntryID *uint) (int64, error) {
+	return 0, nil
+}
+func (f *fakeMenuRepo) FindByCode(ctx context.Context, applicationID uint, code string) (*model.MenuEntry, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+func (f *fakeMenuRepo) BumpMenuRevision(ctx context.Context, applicationID uint) error {
+	return nil
+}
+
 // menuEntryFixture 构造菜单节点（测试内联便捷函数）
 func menuEntryFixture(id uint, code string, parent *uint, entryType string, sortOrder int64) model.MenuEntry {
 	entry := model.MenuEntry{
@@ -129,24 +149,30 @@ func TestMenuSnapshotVisibilityAndOrdering(t *testing.T) {
 }
 
 func TestMenuAssetInvisiblePruning(t *testing.T) {
-	// 资产级授权落地后的裁剪回归：资产不可见（钩子替换模拟）时排除其
-	// 菜单节点，且没有可见后代的分组整体裁剪（方案 §6.3）
-	original := assetVisible
-	assetVisible = func(*model.MenuEntry) bool { return false }
-	t.Cleanup(func() { assetVisible = original })
-
+	// 资产级授权落地后的裁剪回归：资产不可见（目录注入空存在集模拟）时
+	// 排除其菜单节点，且没有可见后代的分组整体裁剪（方案 §6.3）
 	root := menuEntryFixture(1, "menu_root", nil, model.MenuEntryTypeGroup, 1024)
 	form := menuEntryFixture(2, "menu_form", ptrUint(1), model.MenuEntryTypeForm, 1024)
 	snap := emptySnapshot("app_a")
 	snap.Entries = []model.MenuEntry{root, form}
 
 	repo := &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": snap}}
-	svc := newMenuTestService(repo, fullPerms())
+	svc := newMenuTestService(repo, fullPerms()).(*menuService)
+	svc.UseFormDirectory(fakeFormDirectory{existing: map[uint]bool{}})
 
 	menu, err := svc.GetMenu(alphaCtx(), alphaMember(), "app_a")
 	assert.NoError(t, err)
 	assert.Empty(t, menu.RootEntryIDs)
 	assert.Empty(t, menu.EntryMap)
+}
+
+// fakeFormDirectory 表单目录端口桩（M2-资产-1）：existing 即存在集
+type fakeFormDirectory struct {
+	existing map[uint]bool
+}
+
+func (f fakeFormDirectory) ExistingFormIDs(ctx context.Context, ids []uint) (map[uint]bool, error) {
+	return f.existing, nil
 }
 
 func TestMenuIntegrityFailures(t *testing.T) {

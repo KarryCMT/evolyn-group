@@ -121,8 +121,7 @@ const emit = defineEmits<{
 
     h3 {
       margin: 0;
-      padding: var(--el-space-3xl) var(--el-space-3xl)
-        var(--el-space-lg);
+      padding: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-lg);
       color: #596577;
       font-size: var(--el-font-size-medium);
       font-weight: 650;

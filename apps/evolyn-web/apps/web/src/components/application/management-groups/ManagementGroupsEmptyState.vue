@@ -100,9 +100,8 @@ const emit = defineEmits<{
     left: 131px;
     width: 58px;
     height: 126px;
-    border-radius: var(--el-border-radius-medium)
-      var(--el-border-radius-medium) var(--el-border-radius-small)
-      var(--el-border-radius-small);
+    border-radius: var(--el-border-radius-medium) var(--el-border-radius-medium)
+      var(--el-border-radius-small) var(--el-border-radius-small);
     background:
       linear-gradient(90deg, transparent 46%, rgb(110 132 161 / 13%) 48%, transparent 50%),
       linear-gradient(180deg, #e7eff8, #cbd9e9);
@@ -125,8 +124,7 @@ const emit = defineEmits<{
       left: 24px;
       width: 10px;
       height: 16px;
-      border-radius: var(--el-border-radius-base)
-        var(--el-border-radius-base) 0 0;
+      border-radius: var(--el-border-radius-base) var(--el-border-radius-base) 0 0;
       background: #9cb2cb;
       content: '';
     }
@@ -148,8 +146,7 @@ const emit = defineEmits<{
     left: 21px;
     width: 17px;
     height: 25px;
-    border-radius: var(--el-border-radius-large)
-      var(--el-border-radius-large) 0 0;
+    border-radius: var(--el-border-radius-large) var(--el-border-radius-large) 0 0;
     background: #9eb5cf;
   }
 

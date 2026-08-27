@@ -1,0 +1,367 @@
+// 表单运行时最小样式（文档 §7.4）：自带语义化 CSS 与主题变量，不依赖 Element Plus。
+// 变量默认值与《前端中性色变量》规范保持一致；Web 宿主接入时应将 --evf-* 映射到
+// 宿主主题变量（如 --el-*），即可获得全局主题与暗色模式的自动跟随。
+
+.evf-form {
+  // —— 主题变量：文本 ——
+  --evf-color-text: #303133;
+  --evf-color-text-regular: #606266;
+  --evf-color-text-secondary: #909399;
+  --evf-color-text-placeholder: #a8abb2;
+  --evf-color-text-disabled: #c0c4cc;
+  // —— 主题变量：边框 / 填充 / 背景 ——
+  --evf-color-border: #dcdfe6;
+  --evf-color-border-light: #e4e7ed;
+  --evf-color-border-lighter: #ebeef5;
+  --evf-color-fill-light: #f5f7fa;
+  --evf-color-bg: #ffffff;
+  --evf-color-primary: #409eff;
+  --evf-color-danger: #f56c6c;
+  // —— 主题变量：字号 / 间距 / 圆角 / 控件高度 ——
+  --evf-font-size-base: 14px;
+  --evf-font-size-small: 13px;
+  --evf-font-size-extra-small: 12px;
+  --evf-space-sm: 6px;
+  --evf-space-md: 8px;
+  --evf-space-lg: 12px;
+  --evf-space-xl: 16px;
+  --evf-space-3xl: 24px;
+  --evf-radius-base: 4px;
+  --evf-radius-medium: 6px;
+  --evf-control-height: 36px;
+  // —— 布局意图（lineWidth 语义见字段字典 §2）：移动端默认单列，桌面 12 栅格；
+  // 断点由媒体查询切换，不在 Schema 复制两份配置 ——
+  --evf-columns: 1;
+
+  display: flex;
+  flex-direction: column;
+  color: var(--evf-color-text);
+  font-size: var(--evf-font-size-base);
+  line-height: 1.5;
+
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+}
+
+// 桌面端切换为 12 栅格；跨列数由 --evf-field-span 表达并收敛在列数内。
+@media (min-width: 768px) {
+  .evf-form {
+    --evf-columns: 12;
+    --evf-control-height: 36px;
+  }
+}
+
+// 移动端触控目标不小于 44px。
+@media (max-width: 767px) {
+  .evf-form {
+    --evf-control-height: 44px;
+  }
+}
+
+// —— 区块与字段栅格（渲染器只遍历 render plan，样式只负责排布） ——
+.evf-form__body {
+  display: grid;
+  grid-template-columns: repeat(var(--evf-columns), minmax(0, 1fr));
+  column-gap: var(--evf-space-3xl);
+  row-gap: var(--evf-space-xl);
+  padding: var(--evf-space-3xl);
+}
+
+.evf-form__section {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  row-gap: var(--evf-space-xl);
+}
+
+.evf-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--evf-space-md);
+  grid-column: span clamp(1, var(--evf-field-span, 12), var(--evf-columns, 1));
+
+  &--layout {
+    // 布局项（分割线等）忽略 lineWidth，整行渲染。
+    grid-column: 1 / -1;
+    padding-top: var(--evf-space-md);
+  }
+}
+
+.evf-field__label {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 500;
+  color: var(--evf-color-text);
+}
+
+.evf-field__required {
+  color: var(--evf-color-danger);
+  font-weight: 500;
+}
+
+.evf-field__description {
+  margin: 0;
+  font-size: var(--evf-font-size-extra-small);
+  color: var(--evf-color-text-secondary);
+}
+
+.evf-field__errors {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.evf-field__error {
+  font-size: var(--evf-font-size-extra-small);
+  color: var(--evf-color-danger);
+}
+
+// —— 基础控件：原生控件的统一外观 ——
+.evf-input,
+.evf-textarea,
+.evf-select {
+  width: 100%;
+  min-height: var(--evf-control-height);
+  padding: 4px var(--evf-space-lg);
+  font: inherit;
+  font-size: var(--evf-font-size-base);
+  color: var(--evf-color-text);
+  background: var(--evf-color-bg);
+  border: 1px solid var(--evf-color-border);
+  border-radius: var(--evf-radius-base);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+
+  &::placeholder {
+    color: var(--evf-color-text-placeholder);
+  }
+
+  &:hover:not(:disabled):not([readonly]) {
+    border-color: var(--evf-color-text-placeholder);
+  }
+
+  &:focus-visible {
+    border-color: var(--evf-color-primary);
+    outline: none;
+    box-shadow: 0 0 0 1px var(--evf-color-primary);
+  }
+
+  &:disabled {
+    color: var(--evf-color-text-disabled);
+    background: var(--evf-color-fill-light);
+    border-color: var(--evf-color-border-lighter);
+    cursor: not-allowed;
+  }
+
+  &[readonly] {
+    background: var(--evf-color-fill-light);
+  }
+}
+
+.evf-textarea {
+  resize: vertical;
+  line-height: 1.6;
+
+  &--auto {
+    height: auto;
+    min-height: calc(var(--evf-control-height) + 16px);
+    resize: none;
+    overflow: hidden;
+  }
+}
+
+.evf-select--multiple {
+  min-height: calc(var(--evf-control-height) + 24px);
+  padding: var(--evf-space-md);
+}
+
+// 选择组（单选/复选）：默认纵向排列（字典 layout=vertical），horizontal 修饰符横排；
+// 行高按触控目标展开，保证移动端可点面积。
+.evf-choice-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--evf-space-md) var(--evf-space-xl);
+
+  &--horizontal {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+}
+
+.evf-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--evf-space-md);
+  min-height: 36px;
+  padding: var(--evf-space-sm) 0;
+  cursor: pointer;
+
+  input {
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    accent-color: var(--evf-color-primary);
+    cursor: inherit;
+  }
+
+  &:has(input:disabled) {
+    color: var(--evf-color-text-disabled);
+    cursor: not-allowed;
+  }
+}
+
+@media (max-width: 767px) {
+  .evf-choice {
+    min-height: 44px;
+  }
+}
+
+// —— 布局字段 / 未支持字段 ——
+.evf-divider {
+  display: flex;
+  align-items: center;
+  gap: var(--evf-space-lg);
+  min-height: 32px;
+  color: var(--evf-color-text);
+
+  &::before {
+    content: '';
+    flex: 0 0 var(--evf-space-lg);
+    height: 1px;
+    background: var(--evf-color-border);
+  }
+
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--evf-color-border);
+  }
+
+  &__label {
+    font-weight: 500;
+  }
+
+  &--dashed {
+    &::before,
+    &::after {
+      background: none;
+      border-top: 1px dashed var(--evf-color-border);
+    }
+  }
+}
+
+.evf-unsupported {
+  display: flex;
+  align-items: center;
+  min-height: var(--evf-control-height);
+  padding: var(--evf-space-md) var(--evf-space-lg);
+  font-size: var(--evf-font-size-small);
+  color: var(--evf-color-text-secondary);
+  background: var(--evf-color-fill-light);
+  border: 1px dashed var(--evf-color-border);
+  border-radius: var(--evf-radius-base);
+}
+
+// —— 无效 Schema 的受控错误态（文档 §10.2：不创建半初始化会话） ——
+.evf-form__invalid {
+  margin: var(--evf-space-3xl);
+  padding: var(--evf-space-3xl);
+  color: var(--evf-color-danger);
+  background: var(--evf-color-bg);
+  border: 1px solid var(--evf-color-border-lighter);
+  border-radius: var(--evf-radius-medium);
+
+  &-title {
+    margin: 0 0 var(--evf-space-md);
+    font-weight: 500;
+  }
+
+  &-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding-left: var(--evf-space-xl);
+    font-size: var(--evf-font-size-small);
+  }
+}
+
+// —— 提交栏：移动端固定在安全区内（文档 §8.2） ——
+.evf-submit-bar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--evf-space-md);
+  padding: var(--evf-space-lg) var(--evf-space-3xl)
+    max(var(--evf-space-lg), env(safe-area-inset-bottom));
+  border-top: 1px solid var(--evf-color-border-lighter);
+  background: var(--evf-color-bg);
+
+  &__issues {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__issue {
+    font-size: var(--evf-font-size-extra-small);
+    color: var(--evf-color-danger);
+  }
+
+  &__submit {
+    display: inline-flex;
+    width: 100%;
+    height: 44px;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--evf-font-size-base);
+    font-weight: 500;
+    color: #ffffff;
+    background: var(--evf-color-primary);
+    border: 0;
+    border-radius: var(--evf-radius-medium);
+    cursor: pointer;
+    transition: opacity 0.15s ease;
+
+    &:hover:not(:disabled) {
+      opacity: 0.85;
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--evf-color-primary);
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+    }
+  }
+}
+
+// —— 暗色回退：非 Web 宿主（未映射主题变量）时的默认暗色值 ——
+// Web 宿主将 --evf-* 映射到 --el-* 后由宿主主题接管，此块仅作兜底。
+html.dark .evf-form {
+  --evf-color-text: #e5eaf3;
+  --evf-color-text-regular: #cfd3dc;
+  --evf-color-text-secondary: #a3a6ad;
+  --evf-color-text-placeholder: #8d9095;
+  --evf-color-text-disabled: #6c6e72;
+  --evf-color-border: #414243;
+  --evf-color-border-light: #363637;
+  --evf-color-border-lighter: #303030;
+  --evf-color-fill-light: #262727;
+  --evf-color-bg: #141414;
+}
