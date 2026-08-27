@@ -1392,3 +1392,66 @@ COMMENT ON COLUMN tenant_product_members.tenant_product_config_id IS '租户产�
 COMMENT ON COLUMN tenant_product_members.tenant_id IS '所属租户 ID（冗余存储，服务层校验成员同租户且 active 后写入）';
 COMMENT ON COLUMN tenant_product_members.member_id IS '租户成员 users.id，写入时必须为同租户 active 成员';
 COMMENT ON COLUMN tenant_product_members.created_at IS '创建时间';
+
+-- 000034: 产品中心权限补授兜底（角色名可改，按管理员规则签名补授：members:* + roles:* + departments:*）
+UPDATE roles
+SET rules = (
+    rules::jsonb
+    || jsonb_build_array(
+        jsonb_build_object('resource', 'tenant-products', 'operation', 'view'),
+        jsonb_build_object('resource', 'tenant-products', 'operation', 'update')
+    )
+)::json
+WHERE deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND EXISTS (
+      SELECT 1 FROM json_array_elements(rules) AS rule
+      WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*'
+  )
+  AND EXISTS (
+      SELECT 1 FROM json_array_elements(rules) AS rule
+      WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*'
+  )
+  AND EXISTS (
+      SELECT 1 FROM json_array_elements(rules) AS rule
+      WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*'
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM json_array_elements(rules) AS rule
+      WHERE rule->>'resource' = 'tenant-products'
+  );
+
+-- 000035: 基线管理员权限补授兜底（editions/member-field-settings/admin-groups，
+-- 与 000034 同口径：角色名可改，按管理员规则签名补授）
+UPDATE roles
+SET rules = (
+    rules::jsonb || jsonb_build_array(jsonb_build_object('resource', 'editions', 'operation', 'get'))
+)::json
+WHERE deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*')
+  AND NOT EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'editions');
+
+UPDATE roles
+SET rules = (
+    rules::jsonb || jsonb_build_array(jsonb_build_object('resource', 'member-field-settings', 'operation', '*'))
+)::json
+WHERE deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*')
+  AND NOT EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'member-field-settings');
+
+UPDATE roles
+SET rules = (
+    rules::jsonb || jsonb_build_array(jsonb_build_object('resource', 'admin-groups', 'operation', '*'))
+)::json
+WHERE deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*')
+  AND NOT EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'admin-groups');

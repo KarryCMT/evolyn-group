@@ -232,8 +232,8 @@ watch(groupPickerVisible, (visible) => {
   flex-direction: column;
   padding: var(--el-space-4xl) var(--el-space-3xl);
   border-right: 1px solid var(--el-border-color-light);
-  background: #fff;
-  color: #5c6472;
+  background: var(--el-bg-color);
+  color: var(--el-text-color-regular);
 
   &__built-in,
   &__custom {
@@ -254,7 +254,7 @@ watch(groupPickerVisible, (visible) => {
 
   &__section-title {
     margin: 0;
-    color: #818a98;
+    color: var(--el-text-color-secondary);
     font-size: var(--el-font-size-large);
     line-height: 32px;
   }
@@ -268,7 +268,7 @@ watch(groupPickerVisible, (visible) => {
     border-radius: var(--el-border-radius-large);
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--el-color-white);
     background: var(--el-color-primary);
     cursor: pointer;
 
@@ -301,8 +301,7 @@ watch(groupPickerVisible, (visible) => {
     width: 117px;
     gap: var(--el-space-lg);
     padding: 0 var(--el-space-xl);
-    border-radius: var(--el-border-radius-medium) 0 0
-      var(--el-border-radius-medium);
+    border-radius: var(--el-border-radius-medium) 0 0 var(--el-border-radius-medium);
     color: var(--el-text-color-secondary);
   }
 
@@ -311,8 +310,7 @@ watch(groupPickerVisible, (visible) => {
     justify-content: space-between;
     margin-left: -1px;
     padding: 0 var(--el-space-lg) 0 var(--el-space-xl);
-    border-radius: 0 var(--el-border-radius-medium)
-      var(--el-border-radius-medium) 0;
+    border-radius: 0 var(--el-border-radius-medium) var(--el-border-radius-medium) 0;
     color: var(--el-text-color-secondary);
     font-size: var(--el-font-size-medium);
     text-align: left;
@@ -343,7 +341,7 @@ watch(groupPickerVisible, (visible) => {
     border: 0;
     border-radius: var(--el-border-radius-medium);
     align-items: center;
-    color: #626b78;
+    color: var(--el-text-color-regular);
     background: transparent;
     font-size: var(--el-font-size-large);
     text-align: left;
@@ -352,7 +350,7 @@ watch(groupPickerVisible, (visible) => {
     svg {
       width: 24px;
       height: 24px;
-      color: #9ca5b3;
+      color: var(--el-text-color-placeholder);
     }
 
     &:hover {

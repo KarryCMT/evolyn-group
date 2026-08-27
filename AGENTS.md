@@ -149,7 +149,11 @@ internal/
                       服务端访问判定（目录 active → 租户启用 → 有效成员 →
                       all/命中直接成员或部门含子部门），产品受保护路径接入
                       时构造使用；租户开通经 ProductConfigSeeder 同事务初始
-                      化默认配置（enabled=true、scope=all）
+                      化默认配置（enabled=true、scope=all）；000034/000035 权限
+                      补授兜底：基线管理员角色名可被改名（历史 000030-000033
+                      均按名补授会漏），改按「members:*+roles:*+departments:*」
+                      规则签名补授 tenant-products/editions/member-field-
+                      settings/admin-groups，与角色名无关
 migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
                       命名 NNNNNN_name.(up|down).sql，版本号只增不复用）
 scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（本地证书）

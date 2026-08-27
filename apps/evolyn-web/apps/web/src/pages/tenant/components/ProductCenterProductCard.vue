@@ -139,8 +139,7 @@ function selectScope(scope: string | number | boolean | undefined) {
   &__header {
     display: flex;
     min-height: 96px;
-    padding: var(--el-space-3xl) var(--el-space-2xl) var(--el-space-md)
-      var(--el-space-3xl);
+    padding: var(--el-space-3xl) var(--el-space-2xl) var(--el-space-md) var(--el-space-3xl);
     align-items: flex-start;
     justify-content: space-between;
   }
@@ -177,21 +176,21 @@ function selectScope(scope: string | number | boolean | undefined) {
     &--left {
       top: 10px;
       left: 4px;
-      background: #56ddd2;
+      background: var(--el-color-primary-light-3);
       transform: rotate(-44deg);
     }
 
     &--top {
       top: 0;
       left: 19px;
-      background: #7ce9df;
+      background: var(--el-color-primary-light-5);
       transform: rotate(1deg);
     }
 
     &--right {
       top: 12px;
       right: 3px;
-      background: #18bdb4;
+      background: var(--el-color-primary);
       transform: rotate(47deg);
     }
   }

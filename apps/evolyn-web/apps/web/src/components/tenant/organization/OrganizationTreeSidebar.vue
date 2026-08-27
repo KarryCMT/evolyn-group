@@ -428,7 +428,7 @@ function handleRoleTreeDrop(
   height: 100%;
   padding: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-2xl);
   flex-direction: column;
-  background: #fff;
+  background: var(--el-bg-color);
 
   &__mode-switch {
     width: 100%;
@@ -496,7 +496,7 @@ function handleRoleTreeDrop(
     svg {
       width: 22px;
       height: 22px;
-      color: #a6afbd;
+      color: var(--el-text-color-placeholder);
     }
     &--active {
       color: var(--el-color-primary);
@@ -647,7 +647,7 @@ function handleRoleTreeDrop(
     border-radius: var(--el-border-radius-medium);
     align-items: center;
     justify-content: center;
-    color: #fff;
+    color: var(--el-color-white);
     background: var(--el-color-primary);
     cursor: pointer;
   }

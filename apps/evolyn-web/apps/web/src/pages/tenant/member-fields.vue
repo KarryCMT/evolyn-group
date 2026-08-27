@@ -46,7 +46,7 @@ const tabs: TenantRouteTab[] = [
   }
 
   :deep(.tenant-route-tabs__item:hover) {
-    background: rgb(255 255 255 / 64%);
+    background: var(--el-fill-color);
   }
 
   :deep(.tenant-route-tabs__item--active) {

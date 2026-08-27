@@ -636,7 +636,7 @@ watch(
   height: 100%;
   min-height: 720px;
   overflow: hidden;
-  background: #fff;
+  background: var(--el-bg-color);
 }
 .tenant-organization-page__splitter {
   height: 100%;
@@ -656,7 +656,7 @@ watch(
   overflow: hidden;
   border-radius: var(--el-border-radius-base);
   align-items: center;
-  background: #2f70e9;
+  background: var(--el-color-primary);
 }
 .tenant-organization-page__invite-banner img {
   position: absolute;
@@ -668,12 +668,8 @@ watch(
 }
 .tenant-organization-page__invite-banner strong {
   position: relative;
-  color: #fff;
-  font-size: clamp(
-    var(--el-font-size-extra-large),
-    1.65vw,
-    30.0006px
-  );
+  color: var(--el-color-white);
+  font-size: clamp(var(--el-font-size-extra-large), 1.65vw, 30.0006px);
   font-weight: 600;
   letter-spacing: 1px;
   white-space: nowrap;
@@ -684,8 +680,8 @@ watch(
   margin-left: auto;
   border: 0;
   border-radius: 24px;
-  color: #2f70e9;
-  background: #fff;
+  color: var(--el-color-primary);
+  background: var(--el-bg-color);
   cursor: pointer;
   font: inherit;
   font-size: var(--el-font-size-medium);
@@ -707,13 +703,14 @@ watch(
   border-radius: var(--el-border-radius-base);
   align-items: center;
   justify-content: center;
-  color: rgb(255 255 255 / 80%);
+  color: var(--el-color-white);
   background: transparent;
   cursor: pointer;
+  opacity: 0.8;
 }
 .tenant-organization-page__banner-close:hover {
-  color: #fff;
-  background: rgb(255 255 255 / 14%);
+  background: var(--el-color-primary-light-3);
+  opacity: 1;
 }
 .tenant-organization-page__banner-close svg {
   width: 22px;
