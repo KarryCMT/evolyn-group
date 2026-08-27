@@ -57,9 +57,9 @@ const emit = defineEmits<{
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--el-space-3xl);
   overflow: hidden;
-  padding: 2px 0 0;
+  padding: var(--el-space-xs) 0 0;
 
   &__summary {
     display: flex;
@@ -67,28 +67,28 @@ const emit = defineEmits<{
     flex: 0 0 auto;
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
-    padding: 0 20px;
+    gap: var(--el-space-2xl);
+    padding: 0 var(--el-space-2xl);
     background: #fff;
-    border-radius: 10px;
-    box-shadow: 0 4px 16px rgb(42 57 77 / 3%);
+    border-radius: var(--el-border-radius-large);
+    box-shadow: var(--el-box-shadow-light);
   }
 
   &__quota {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
-    gap: 18px;
+    gap: var(--el-space-xl);
 
     strong {
       color: #202938;
-      font-size: 19px;
+      font-size: var(--el-font-size-large);
       line-height: 28px;
     }
 
     span {
       color: #828b99;
-      font-size: 16px;
+      font-size: var(--el-font-size-medium);
       line-height: 24px;
     }
   }
@@ -96,12 +96,12 @@ const emit = defineEmits<{
   &__recipient-button {
     height: 38px;
     border: 1px solid var(--el-color-primary);
-    padding: 0 14px;
+    padding: 0 var(--el-space-lg);
     color: var(--el-color-primary);
     background: #fff;
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
 
     &:hover {
       background: var(--el-color-primary-light-9);
@@ -116,15 +116,15 @@ const emit = defineEmits<{
 
 @media (max-width: 600px) {
   .message-settings {
-    gap: 16px;
+    gap: var(--el-space-xl);
 
     &__summary {
-      padding: 14px;
+      padding: var(--el-space-lg);
       align-items: flex-start;
     }
 
     &__quota {
-      gap: 2px;
+      gap: var(--el-space-xs);
       flex-direction: column;
     }
 

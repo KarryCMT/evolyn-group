@@ -239,8 +239,8 @@ const tableOptions = { defaultRowHeight: ROW_HEIGHT };
   &__filter {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin-bottom: 14px;
+    gap: var(--el-space-md);
+    margin-bottom: var(--el-space-lg);
   }
 
   &__filter-label {
@@ -261,7 +261,7 @@ const tableOptions = { defaultRowHeight: ROW_HEIGHT };
   &__pagination {
     display: flex;
     justify-content: flex-end;
-    padding-top: 14px;
+    padding-top: var(--el-space-lg);
   }
 }
 </style>
@@ -273,13 +273,13 @@ const tableOptions = { defaultRowHeight: ROW_HEIGHT };
   box-sizing: border-box;
   align-items: center;
   margin: 0;
-  padding: 0 16px 0 20px;
+  padding: 0 var(--el-space-xl) 0 var(--el-space-2xl);
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .login-log-drawer-panel .el-drawer__title {
   color: var(--el-text-color-primary);
-  font-size: 18px;
+  font-size: var(--el-font-size-large);
   font-weight: 650;
   line-height: 26px;
 }
@@ -290,7 +290,7 @@ const tableOptions = { defaultRowHeight: ROW_HEIGHT };
   height: 32px;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--el-border-radius-medium);
   cursor: pointer;
 }
 
@@ -300,6 +300,6 @@ const tableOptions = { defaultRowHeight: ROW_HEIGHT };
 }
 
 .login-log-drawer-panel .el-drawer__close-btn .el-icon {
-  font-size: 22px;
+  font-size: var(--el-font-size-extra-large);
 }
 </style>

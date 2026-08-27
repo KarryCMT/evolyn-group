@@ -136,15 +136,15 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
     box-sizing: border-box;
     align-items: center;
     justify-content: space-between;
-    padding: 0 16px 0 20px;
+    padding: 0 var(--el-space-xl) 0 var(--el-space-2xl);
     background: #fff;
-    border-bottom: 1px solid #dfe4ea;
+    border-bottom: 1px solid var(--el-border-color-light);
   }
 
   &__title {
     margin: 0;
     color: #1d2737;
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     font-weight: 700;
     letter-spacing: 0.02em;
     line-height: 26px;
@@ -159,7 +159,7 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
     justify-content: center;
     color: #202938;
     background: transparent;
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     cursor: pointer;
     transition:
       color 0.18s ease,
@@ -176,7 +176,7 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
     }
 
     .el-icon {
-      font-size: 22px;
+      font-size: var(--el-font-size-extra-large);
     }
   }
 
@@ -192,7 +192,8 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
     min-height: 0;
     flex: 1;
     flex-direction: column;
-    padding: 30px 34px 28px;
+    padding: var(--el-space-4xl) var(--el-space-4xl)
+      var(--el-space-3xl);
   }
 }
 
@@ -201,15 +202,15 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
     &__header {
       height: 52px;
       min-height: 52px;
-      padding: 0 12px 0 16px;
+      padding: 0 var(--el-space-lg) 0 var(--el-space-xl);
     }
 
     &__title {
-      font-size: 18px;
+      font-size: var(--el-font-size-large);
     }
 
     &__content {
-      padding: 20px 16px;
+      padding: var(--el-space-2xl) var(--el-space-xl);
     }
   }
 }

@@ -142,8 +142,7 @@ watch(visible, (isVisible) => {
             :data="departments"
             node-key="id"
             default-expand-all
-            highlight-current
-            :expand-on-click-node="false"
+            highlight-current: expand-on-click-node="false"
             :props="{ label: 'name', children: 'children' }"
             @node-click="onNodeClick"
           />
@@ -190,7 +189,7 @@ watch(visible, (isVisible) => {
 
 <style scoped lang="scss">
 :global(.administrator-member-picker) {
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
 }
 :global(.administrator-member-picker .el-dialog__header) {
   display: none;
@@ -202,26 +201,26 @@ watch(visible, (isVisible) => {
   &__header {
     display: flex;
     height: 68px;
-    padding: 0 28px;
-    border-bottom: 1px solid #dde2ea;
+    padding: 0 var(--el-space-3xl);
+    border-bottom: 1px solid var(--el-border-color);
     align-items: center;
     justify-content: space-between;
   }
   &__header h2 {
     margin: 0;
     color: #273142;
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
   }
   &__header button {
     display: inline-flex;
     border: 0;
-    padding: 5px;
+    padding: var(--el-space-xs);
     color: #66707e;
     background: transparent;
     cursor: pointer;
   }
   &__header button:hover {
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     background: var(--el-fill-color-light);
   }
   &__header svg {
@@ -232,40 +231,40 @@ watch(visible, (isVisible) => {
     display: flex;
     min-height: 132px;
     max-height: 176px;
-    margin: 26px 28px 16px;
-    padding: 12px;
-    border: 1px dashed #dae0e9;
-    border-radius: 9px;
+    margin: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-xl);
+    padding: var(--el-space-lg);
+    border: 1px dashed var(--el-border-color);
+    border-radius: var(--el-border-radius-large);
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--el-space-md);
     overflow-y: auto;
   }
   &__tag {
     display: inline-flex;
     height: 42px;
-    gap: 7px;
-    padding: 0 12px;
-    border-radius: 7px;
+    gap: var(--el-space-sm);
+    padding: 0 var(--el-space-lg);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     color: #4e5868;
     background: var(--el-fill-color-light);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
   &__tag i,
   &__avatar {
     display: inline-flex;
     width: 25px;
     height: 25px;
-    border-radius: 50%;
+    border-radius: var(--el-border-radius-half);
     align-items: center;
     justify-content: center;
     color: #fff;
     background: var(--el-color-primary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     font-style: normal;
   }
   &__tag svg {
-    margin-left: 48px;
+    margin-left: var(--el-space-6xl);
     cursor: pointer;
   }
   &__tag svg:hover {
@@ -274,11 +273,11 @@ watch(visible, (isVisible) => {
   &__search {
     display: flex;
     height: 44px;
-    margin: 0 28px;
-    padding: 0 12px;
-    border-radius: 7px;
+    margin: 0 var(--el-space-3xl);
+    padding: 0 var(--el-space-lg);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     background: #f5f6f8;
     color: #697384;
   }
@@ -297,28 +296,28 @@ watch(visible, (isVisible) => {
   &__body {
     display: grid;
     min-height: 460px;
-    margin: 6px 28px 0;
+    margin: var(--el-space-sm) var(--el-space-3xl) 0;
     grid-template-columns: 1fr 1fr;
-    border-top: 1px solid #edf0f4;
+    border-top: 1px solid var(--el-border-color-lighter);
   }
   &__tree,
   &__results {
-    padding: 14px 12px;
+    padding: var(--el-space-lg) var(--el-space-lg);
   }
   &__tree {
-    border-right: 1px solid #e2e6ec;
+    border-right: 1px solid var(--el-border-color-light);
   }
   &__all {
     display: block;
     width: 100%;
     min-height: 40px;
-    margin: 0 0 9px;
-    padding: 0 16px;
+    margin: 0 0 var(--el-space-md);
+    padding: 0 var(--el-space-xl);
     border: 0;
-    border-radius: 7px;
+    border-radius: var(--el-border-radius-medium);
     color: #4f5968;
     background: transparent;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     text-align: left;
     cursor: pointer;
   }
@@ -332,22 +331,22 @@ watch(visible, (isVisible) => {
   &__tree :deep(.el-tree) {
     --el-tree-node-content-height: 38px;
     background: transparent;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
   &__result-title {
-    margin: 0 4px 12px;
+    margin: 0 var(--el-space-xs) var(--el-space-lg);
     color: var(--el-color-primary);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
   &__member {
     display: flex;
     height: 43px;
-    padding: 0 4px;
-    border-radius: 6px;
+    padding: 0 var(--el-space-xs);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: #4e5868;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     cursor: pointer;
   }
   &__member:hover {
@@ -364,36 +363,36 @@ watch(visible, (isVisible) => {
     margin-left: auto;
   }
   &__creator-tag {
-    padding: 2px 6px;
-    border-radius: 4px;
+    padding: var(--el-space-xs) var(--el-space-sm);
+    border-radius: var(--el-border-radius-base);
     color: var(--el-color-warning);
     background: var(--el-color-warning-light-9);
-    font-size: 12px;
+    font-size: var(--el-font-size-extra-small);
   }
   &__member-department {
     color: #98a1af;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
   }
   &__empty {
     margin: 0;
-    padding: 24px 0;
+    padding: var(--el-space-3xl) 0;
     color: #909aa8;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     text-align: center;
   }
   &__footer {
     display: flex;
     height: 76px;
-    padding: 0 28px;
-    border-top: 1px solid #dde2ea;
+    padding: 0 var(--el-space-3xl);
+    border-top: 1px solid var(--el-border-color);
     align-items: center;
     justify-content: flex-end;
-    gap: 12px;
+    gap: var(--el-space-lg);
   }
   &__footer .el-button {
     min-width: 74px;
     height: 42px;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
 }
 </style>

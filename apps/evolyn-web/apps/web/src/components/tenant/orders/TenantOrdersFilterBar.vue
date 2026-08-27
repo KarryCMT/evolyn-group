@@ -65,7 +65,7 @@ const invoiceStatusOptions: Array<{ label: string; value: InvoiceStatusFilter }>
   min-height: 48px;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--el-space-2xl);
 
   &__filters,
   &__actions,
@@ -76,13 +76,13 @@ const invoiceStatusOptions: Array<{ label: string; value: InvoiceStatusFilter }>
 
   &__filters {
     flex-wrap: wrap;
-    gap: 20px 40px;
+    gap: var(--el-space-2xl) var(--el-space-5xl);
   }
 
   &__filter {
-    gap: 12px;
+    gap: var(--el-space-lg);
     color: var(--el-text-color-regular);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
     white-space: nowrap;
 
@@ -93,7 +93,7 @@ const invoiceStatusOptions: Array<{ label: string; value: InvoiceStatusFilter }>
 
   &__actions {
     flex: 0 0 auto;
-    gap: 12px;
+    gap: var(--el-space-lg);
   }
 }
 

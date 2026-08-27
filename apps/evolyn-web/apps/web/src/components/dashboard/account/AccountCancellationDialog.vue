@@ -43,7 +43,7 @@ function close() {
 :global(.account-cancellation-dialog) {
   --el-dialog-padding-primary: 0;
 
-  border-radius: 12px;
+  border-radius: var(--el-border-radius-large);
 }
 
 :global(.account-cancellation-dialog .el-dialog__body) {
@@ -53,8 +53,8 @@ function close() {
 :global(.account-cancellation-dialog .el-dialog__footer) {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 0 28px 28px;
+  gap: var(--el-space-md);
+  padding: 0 var(--el-space-3xl) var(--el-space-3xl);
 }
 
 :global(.account-cancellation-dialog .el-dialog__footer .el-button) {
@@ -66,33 +66,33 @@ function close() {
 .account-cancellation-dialog {
   &__content {
     display: flex;
-    gap: 16px;
-    padding: 30px 28px 24px;
+    gap: var(--el-space-xl);
+    padding: var(--el-space-4xl) var(--el-space-3xl) var(--el-space-3xl);
   }
 
   &__icon {
     flex: none;
-    margin-top: 3px;
+    margin-top: var(--el-space-xs);
     color: var(--el-color-warning);
     font-size: 42px;
   }
 
   &__content h2 {
-    margin: 0 0 12px;
+    margin: 0 0 var(--el-space-lg);
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     line-height: 28px;
   }
 
   &__content p {
     margin: 0;
     color: var(--el-text-color-regular);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
   }
 
   &__notice {
-    margin-top: 12px !important;
+    margin-top: var(--el-space-lg) !important;
     color: var(--el-color-danger) !important;
   }
 }
@@ -104,7 +104,7 @@ function close() {
 
   .account-cancellation-dialog {
     &__content {
-      padding: 24px 20px 20px;
+      padding: var(--el-space-3xl) var(--el-space-2xl) var(--el-space-2xl);
     }
   }
 }

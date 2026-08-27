@@ -106,10 +106,10 @@ const emit = defineEmits<{
   &__header {
     display: flex;
     min-height: 106px;
-    padding: 22px 30px;
+    padding: var(--el-space-2xl) var(--el-space-4xl);
     align-items: flex-start;
     justify-content: space-between;
-    gap: 22px;
+    gap: var(--el-space-2xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
@@ -120,9 +120,9 @@ const emit = defineEmits<{
   }
 
   &__step {
-    margin-bottom: 3px;
+    margin-bottom: var(--el-space-xs);
     color: var(--el-color-primary);
-    font-size: 11px;
+    font-size: var(--el-font-size-extra-small);
     font-weight: 700;
     letter-spacing: 0.08em;
     line-height: 16px;
@@ -131,16 +131,16 @@ const emit = defineEmits<{
   &__title {
     display: inline;
     color: var(--el-text-color-primary);
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     font-weight: 650;
     line-height: 26px;
   }
 
   &__description {
     display: inline;
-    margin-left: 12px;
+    margin-left: var(--el-space-lg);
     color: var(--el-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 22px;
   }
 
@@ -148,7 +148,7 @@ const emit = defineEmits<{
     display: flex;
     flex: 0 0 auto;
     align-items: center;
-    gap: 10px;
+    gap: var(--el-space-md);
   }
 
   &__add,
@@ -156,15 +156,15 @@ const emit = defineEmits<{
   &__empty button {
     display: inline-flex;
     min-height: 36px;
-    padding: 0 12px;
+    padding: 0 var(--el-space-lg);
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     border: 0;
     border-radius: var(--el-border-radius-base);
     cursor: pointer;
     font: inherit;
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     transition:
       color 0.18s ease,
       background-color 0.18s ease;
@@ -212,37 +212,38 @@ const emit = defineEmits<{
   &__content {
     box-sizing: border-box;
     min-height: 100%;
-    padding: 26px 30px 42px;
+    padding: var(--el-space-3xl) var(--el-space-4xl)
+      var(--el-space-5xl);
   }
 
   &__context {
     display: flex;
-    margin-bottom: 22px;
+    margin-bottom: var(--el-space-2xl);
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
 
     strong {
       color: var(--el-text-color-primary);
-      font-size: 14px;
+      font-size: var(--el-font-size-base);
       font-weight: 600;
     }
   }
 
   &__context-label {
-    padding: 2px 7px;
+    padding: var(--el-space-xs) var(--el-space-sm);
     border-radius: var(--el-border-radius-small);
     color: var(--el-color-primary);
     background: var(--el-color-primary-light-9);
-    font-size: 12px;
+    font-size: var(--el-font-size-extra-small);
   }
 
   &__groups {
     display: flex;
     width: 100%;
     flex-direction: column;
-    gap: 14px;
+    gap: var(--el-space-lg);
   }
 
   &__empty {
@@ -250,12 +251,12 @@ const emit = defineEmits<{
     display: flex;
     width: 100%;
     min-height: 250px;
-    padding: 28px;
+    padding: var(--el-space-3xl);
     align-items: center;
     justify-content: center;
     flex-direction: column;
     border: 1px dashed var(--el-border-color);
-    border-radius: 10px;
+    border-radius: var(--el-border-radius-large);
     color: var(--el-text-color-secondary);
     background: var(--el-fill-color-lighter);
     text-align: center;
@@ -263,18 +264,18 @@ const emit = defineEmits<{
     p {
       margin: 0;
       color: var(--el-text-color-primary);
-      font-size: 16px;
+      font-size: var(--el-font-size-medium);
       font-weight: 600;
     }
 
     span {
-      margin-top: 7px;
-      font-size: 13px;
+      margin-top: var(--el-space-sm);
+      font-size: var(--el-font-size-small);
       line-height: 20px;
     }
 
     button {
-      margin-top: 18px;
+      margin-top: var(--el-space-xl);
     }
   }
 }
@@ -282,17 +283,17 @@ const emit = defineEmits<{
 @media (max-width: 760px) {
   .permission-groups-panel {
     &__header {
-      padding: 20px;
+      padding: var(--el-space-2xl);
       flex-direction: column;
     }
 
     &__description {
       display: block;
-      margin: 5px 0 0;
+      margin: var(--el-space-xs) 0 0;
     }
 
     &__content {
-      padding: 20px;
+      padding: var(--el-space-2xl);
     }
   }
 }

@@ -136,12 +136,12 @@ async function handleSubmit() {
 .profile-step__tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--el-space-md);
   width: 100%;
 }
 
 .profile-step__submit {
   width: 100%;
-  margin-top: 8px;
+  margin-top: var(--el-space-md);
 }
 </style>

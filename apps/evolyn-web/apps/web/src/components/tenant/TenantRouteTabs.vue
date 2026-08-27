@@ -34,19 +34,19 @@ defineProps<{
   display: flex;
   min-height: 64px;
   align-items: flex-end;
-  padding: 0 22px;
+  padding: 0 var(--el-space-2xl);
   border-bottom: 1px solid var(--el-border-color-lighter);
-  gap: 8px;
+  gap: var(--el-space-md);
   background: var(--el-bg-color);
 
   &__item {
     display: inline-flex;
     min-height: 64px;
     align-items: center;
-    padding: 0 16px;
-    border-bottom: 2px solid transparent;
+    padding: 0 var(--el-space-xl);
+    border-bottom: 2px solid var(--el-color-transparent);
     color: var(--el-text-color-regular);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     text-decoration: none;
     cursor: pointer;
     transition:

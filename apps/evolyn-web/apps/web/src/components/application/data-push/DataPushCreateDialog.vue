@@ -53,14 +53,14 @@ function confirm() {
 .data-push-create-dialog {
   &__body {
     min-height: 410px;
-    padding: 28px;
+    padding: var(--el-space-3xl);
   }
 
   &__label {
     display: block;
-    margin-bottom: 12px;
+    margin-bottom: var(--el-space-lg);
     color: var(--el-text-color-primary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     line-height: 24px;
   }
@@ -72,7 +72,7 @@ function confirm() {
   &__footer {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: var(--el-space-md);
   }
 }
 </style>

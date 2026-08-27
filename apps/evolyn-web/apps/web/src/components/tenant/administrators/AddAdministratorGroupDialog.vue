@@ -50,8 +50,7 @@ watch(visible, (isVisible) => {
       class="add-administrator-group-dialog__input"
       placeholder="请输入管理组名称"
       maxlength="30"
-      show-word-limit
-      :disabled="submitting"
+      show-word-limit: disabled="submitting"
       @keyup.enter="submit"
     />
     <footer class="add-administrator-group-dialog__footer">
@@ -63,37 +62,37 @@ watch(visible, (isVisible) => {
 
 <style scoped lang="scss">
 :global(.add-administrator-group-dialog) {
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
 }
 :global(.add-administrator-group-dialog .el-dialog__header) {
   display: none;
 }
 :global(.add-administrator-group-dialog .el-dialog__body) {
-  padding: 28px;
+  padding: var(--el-space-3xl);
 }
 .add-administrator-group-dialog {
   &__header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 24px;
+    margin-bottom: var(--el-space-3xl);
   }
   &__header h2 {
     margin: 0;
     color: #273142;
-    font-size: 21px;
+    font-size: var(--el-font-size-extra-large);
     line-height: 28px;
   }
   &__header button {
     display: inline-flex;
     border: 0;
-    padding: 3px;
+    padding: var(--el-space-xs);
     background: transparent;
     color: #6f7886;
     cursor: pointer;
   }
   &__header button:hover {
-    border-radius: 5px;
+    border-radius: var(--el-border-radius-base);
     background: var(--el-fill-color-light);
   }
   &__header svg {
@@ -106,14 +105,14 @@ watch(visible, (isVisible) => {
   }
   &__footer {
     display: flex;
-    margin-top: 36px;
+    margin-top: var(--el-space-4xl);
     justify-content: flex-end;
-    gap: 12px;
+    gap: var(--el-space-lg);
   }
   &__footer .el-button {
     min-width: 74px;
     height: 44px;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
 }
 </style>

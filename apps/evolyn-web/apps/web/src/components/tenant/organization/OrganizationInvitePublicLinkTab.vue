@@ -101,26 +101,26 @@ watch(
   min-height: 320px;
 
   &__switch-row {
-    padding: 8px 0 38px;
+    padding: var(--el-space-md) 0 var(--el-space-5xl);
   }
   &__switch-row > div {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
-    gap: 24px;
+    gap: var(--el-space-3xl);
   }
   &__switch-row h2,
   &__address h3 {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 600;
     line-height: 30px;
   }
   &__switch-row h2 span {
-    margin-left: 14px;
+    margin-left: var(--el-space-lg);
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     font-weight: 400;
   }
   &__divider {
@@ -128,10 +128,10 @@ watch(
     background: var(--el-border-color-lighter);
   }
   &__address {
-    padding-top: 40px;
+    padding-top: var(--el-space-5xl);
   }
   &__address h3 {
-    margin-bottom: 18px;
+    margin-bottom: var(--el-space-xl);
   }
   &__address :deep(.el-input-group__append) {
     padding: 0;
@@ -140,11 +140,11 @@ watch(
   &__address :deep(.el-input-group__append button) {
     display: inline-flex;
     height: 42px;
-    padding: 0 18px;
+    padding: 0 var(--el-space-xl);
     border: 0;
     border-left: 1px solid var(--el-border-color);
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     color: var(--el-text-color-regular);
     background: transparent;
     cursor: pointer;
@@ -168,18 +168,18 @@ watch(
     right: -220px;
     display: flex;
     width: 288px;
-    padding: 24px 28px;
+    padding: var(--el-space-3xl) var(--el-space-3xl);
     border: 1px solid var(--el-border-color-lighter);
-    border-radius: 12px;
+    border-radius: var(--el-border-radius-large);
     flex-direction: column;
     align-items: center;
     background: var(--el-bg-color-overlay);
     box-shadow: var(--el-box-shadow-light);
   }
   &__qr-card p {
-    margin: 0 0 14px;
+    margin: 0 0 var(--el-space-lg);
     color: var(--el-text-color-regular);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__qr-card img {
     width: 220px;
@@ -189,12 +189,12 @@ watch(
     display: inline-flex;
     width: 100%;
     height: 40px;
-    margin-top: 15px;
+    margin-top: var(--el-space-xl);
     border: 1px solid var(--el-border-color);
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-regular);
     background: transparent;
     cursor: pointer;
@@ -210,7 +210,7 @@ watch(
   .organization-invite-public__qr-card {
     position: static;
     width: 288px;
-    margin: 28px 0 0 auto;
+    margin: var(--el-space-3xl) 0 0 auto;
   }
 }
 </style>

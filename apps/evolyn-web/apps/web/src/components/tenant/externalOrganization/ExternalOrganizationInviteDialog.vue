@@ -166,7 +166,7 @@ function downloadTemplate() {
   &__header h1 {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 28px;
   }
@@ -178,7 +178,7 @@ function downloadTemplate() {
     height: 36px;
     padding: 0;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     justify-content: center;
     color: var(--el-text-color-primary);
@@ -198,21 +198,22 @@ function downloadTemplate() {
   }
   &__surface {
     min-height: calc(100vh - 140px);
-    margin: 28px clamp(24px, 7vw, 140px);
-    padding: 30px;
-    border-radius: 14px;
+    margin: var(--el-space-3xl)
+      clamp(var(--el-space-3xl), 7vw, 140px);
+    padding: var(--el-space-4xl);
+    border-radius: var(--el-border-radius-large);
     background: var(--el-bg-color);
   }
   &__tabs :deep(.el-tabs__header) {
-    margin-bottom: 30px;
+    margin-bottom: var(--el-space-4xl);
   }
   &__tabs :deep(.el-tabs__item) {
     height: 56px;
-    padding: 0 40px;
+    padding: 0 var(--el-space-5xl);
     border: 1px solid var(--el-border-color-light);
     border-bottom: 0;
-    border-radius: 8px 8px 0 0;
-    font-size: 16px;
+    border-radius: var(--el-border-radius-medium) var(--el-border-radius-medium) 0 0;
+    font-size: var(--el-font-size-medium);
   }
   &__tabs :deep(.el-tabs__item.is-active) {
     color: var(--el-color-primary);
@@ -227,20 +228,20 @@ function downloadTemplate() {
   &__panel h2 {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     font-weight: 650;
     line-height: 26px;
   }
   &__tips {
-    margin: 10px 0 28px;
-    padding-left: 20px;
+    margin: var(--el-space-md) 0 var(--el-space-3xl);
+    padding-left: var(--el-space-2xl);
     color: var(--el-text-color-secondary);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 28px;
   }
   &__tips button,
   &__text-link {
-    padding: 0 2px;
+    padding: 0 var(--el-space-xs);
     border: 0;
     color: var(--el-color-primary);
     background: transparent;
@@ -248,13 +249,13 @@ function downloadTemplate() {
     font: inherit;
   }
   &__section-title {
-    margin-top: 26px !important;
+    margin-top: var(--el-space-3xl) !important;
   }
   &__intro,
   &__batch-notice {
-    margin: 8px 0 24px;
+    margin: var(--el-space-md) 0 var(--el-space-3xl);
     color: var(--el-text-color-secondary);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 26px;
   }
   &__add {
@@ -263,11 +264,11 @@ function downloadTemplate() {
     padding: 0;
     border: 0;
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     color: var(--el-color-primary);
     background: transparent;
     cursor: pointer;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__add:hover {
     background: var(--el-color-primary-light-9);
@@ -278,8 +279,8 @@ function downloadTemplate() {
   }
   &__cards {
     display: grid;
-    margin-top: 14px;
-    gap: 16px;
+    margin-top: var(--el-space-lg);
+    gap: var(--el-space-xl);
   }
   &__upload :deep(.el-upload-dragger) {
     display: grid;
@@ -293,15 +294,15 @@ function downloadTemplate() {
   &__upload :deep(.el-upload-dragger > svg) {
     width: 26px;
     height: 26px;
-    margin: 0 auto 8px;
+    margin: 0 auto var(--el-space-md);
     color: var(--el-color-primary);
   }
   &__upload :deep(.el-upload-dragger > span) {
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__upload :deep(.el-upload__tip) {
-    margin-top: 22px;
+    margin-top: var(--el-space-2xl);
     text-align: center;
   }
   &__upload :deep(.el-upload__tip button) {
@@ -309,7 +310,7 @@ function downloadTemplate() {
     color: var(--el-color-primary);
     background: transparent;
     cursor: pointer;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     text-decoration: underline;
   }
   &__upload :deep(.el-upload__tip svg) {
@@ -318,7 +319,7 @@ function downloadTemplate() {
     vertical-align: -3px;
   }
   &__batch-notice {
-    margin-top: 30px;
+    margin-top: var(--el-space-4xl);
   }
   &__batch-result {
     display: grid;
@@ -327,7 +328,7 @@ function downloadTemplate() {
     height: 78px;
     color: var(--el-text-color-secondary);
     background: var(--el-fill-color-light);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     place-items: center;
   }
 }
@@ -364,11 +365,11 @@ function downloadTemplate() {
 @media (max-width: 720px) {
   .external-organization-invite-dialog {
     &__surface {
-      margin: 16px;
-      padding: 20px;
+      margin: var(--el-space-xl);
+      padding: var(--el-space-2xl);
     }
     &__tabs :deep(.el-tabs__item) {
-      padding: 0 16px;
+      padding: 0 var(--el-space-xl);
     }
   }
 }

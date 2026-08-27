@@ -143,21 +143,21 @@ const selectedChildFieldKey = computed({
   // border-left: 1px solid var(--el-border-color-lighter);
 
   h3 {
-    margin: 0 0 var(--gp-space-2xl);
+    margin: 0 0 var(--el-space-2xl);
     font-size: var(--el-font-size-medium);
     color: var(--el-text-color-primary);
   }
 
   &__label {
     display: block;
-    margin: var(--gp-space-xl) 0 var(--gp-space-sm);
+    margin: var(--el-space-xl) 0 var(--el-space-sm);
     font-size: var(--el-font-size-extra-small);
     font-weight: 600;
     color: var(--el-text-color-primary);
 
     &--help {
       display: inline-flex;
-      gap: var(--gp-space-xs);
+      gap: var(--el-space-xs);
       align-items: center;
     }
   }
@@ -187,8 +187,8 @@ const selectedChildFieldKey = computed({
 
   &__option {
     display: flex;
-    gap: var(--gp-space-xs);
-    margin-bottom: var(--gp-space-sm);
+    gap: var(--el-space-xs);
+    margin-bottom: var(--el-space-sm);
 
     button {
       width: 28px;
@@ -203,7 +203,7 @@ const selectedChildFieldKey = computed({
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: var(--gp-space-xl) 0 var(--gp-space-sm);
+    margin: var(--el-space-xl) 0 var(--el-space-sm);
 
     .form-design-property__label {
       margin: 0;

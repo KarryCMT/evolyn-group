@@ -121,7 +121,7 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
 
 <style scoped lang="scss">
 :global(.administrator-application-picker) {
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
 }
 :global(.administrator-application-picker .el-dialog__header) {
   display: none;
@@ -133,26 +133,26 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
   &__header {
     display: flex;
     height: 68px;
-    padding: 0 28px;
-    border-bottom: 1px solid #dde2ea;
+    padding: 0 var(--el-space-3xl);
+    border-bottom: 1px solid var(--el-border-color);
     align-items: center;
     justify-content: space-between;
   }
   &__header h2 {
     margin: 0;
     color: #273142;
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
   }
   &__header button {
     display: inline-flex;
     border: 0;
-    padding: 5px;
+    padding: var(--el-space-xs);
     color: #66707e;
     background: transparent;
     cursor: pointer;
   }
   &__header button:hover {
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     background: var(--el-fill-color-light);
   }
   &__header svg {
@@ -163,26 +163,26 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
     display: grid;
     height: 652px;
     grid-template-columns: 1fr 1fr;
-    margin: 24px 28px 16px;
-    border: 1px solid #dce2ea;
-    border-radius: 8px;
+    margin: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-xl);
+    border: 1px solid var(--el-border-color);
+    border-radius: var(--el-border-radius-medium);
     overflow: hidden;
   }
   &__catalog {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    padding: 16px 20px;
-    border-right: 1px solid #dde2ea;
-    gap: 12px;
+    padding: var(--el-space-xl) var(--el-space-2xl);
+    border-right: 1px solid var(--el-border-color);
+    gap: var(--el-space-lg);
   }
   &__search {
     display: flex;
     height: 42px;
-    padding: 0 12px;
-    border-radius: 7px;
+    padding: 0 var(--el-space-lg);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: #687383;
     background: #f5f6f8;
   }
@@ -204,7 +204,7 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
   &__list {
     display: flex;
     flex-direction: column;
-    gap: 13px;
+    gap: var(--el-space-lg);
   }
   &__list :deep(.el-checkbox) {
     height: 27px;
@@ -213,20 +213,20 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
   &__list :deep(.el-checkbox__label) {
     display: inline-flex;
     align-items: center;
-    gap: 12px;
+    gap: var(--el-space-lg);
     color: #4c5666;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
   &__app-icon {
     display: inline-flex;
     width: 28px;
     height: 28px;
-    border-radius: 5px;
+    border-radius: var(--el-border-radius-base);
     align-items: center;
     justify-content: center;
     color: #fff;
     background: var(--el-color-primary);
-    font-size: 12px;
+    font-size: var(--el-font-size-extra-small);
     font-style: normal;
 
     svg {
@@ -236,25 +236,25 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
   }
   &__selected {
     display: flex;
-    padding: 16px 20px;
+    padding: var(--el-space-xl) var(--el-space-2xl);
     align-content: flex-start;
     align-items: flex-start;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
   &__tag {
     display: inline-flex;
     height: 42px;
-    gap: 8px;
-    padding: 0 10px;
-    border-radius: 7px;
+    gap: var(--el-space-md);
+    padding: 0 var(--el-space-md);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     color: #4d5766;
     background: var(--el-fill-color-light);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__tag svg {
-    margin-left: 4px;
+    margin-left: var(--el-space-xs);
     color: #6d7785;
     cursor: pointer;
   }
@@ -264,15 +264,15 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
   &__footer {
     display: flex;
     height: 76px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     align-items: center;
     justify-content: flex-end;
-    gap: 12px;
+    gap: var(--el-space-lg);
   }
   &__footer .el-button {
     min-width: 74px;
     height: 42px;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
 }
 </style>

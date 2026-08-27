@@ -186,22 +186,22 @@ onBeforeUnmount(clearPreview);
 <style lang="scss">
 .avatar-editor-dialog {
   max-width: calc(100vw - 32px);
-  border-radius: 12px;
+  border-radius: var(--el-border-radius-large);
 
   .el-dialog__header {
     margin-right: 0;
-    padding: 12px 14px 10px;
+    padding: var(--el-space-lg) var(--el-space-lg) var(--el-space-md);
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
   .el-dialog__body {
     box-sizing: border-box;
     height: 357px;
-    padding: 10px 14px 8px;
+    padding: var(--el-space-md) var(--el-space-lg) var(--el-space-md);
   }
 
   .el-dialog__footer {
-    padding: 0 14px 10px;
+    padding: 0 var(--el-space-lg) var(--el-space-md);
   }
 
   &__header {
@@ -213,7 +213,7 @@ onBeforeUnmount(clearPreview);
     h2 {
       margin: 0;
       color: var(--el-text-color-primary);
-      font-size: 18px;
+      font-size: var(--el-font-size-large);
       font-weight: 600;
       line-height: 26px;
     }
@@ -226,7 +226,7 @@ onBeforeUnmount(clearPreview);
       justify-content: center;
       padding: 0;
       border: 0;
-      border-radius: 4px;
+      border-radius: var(--el-border-radius-base);
       background: transparent;
       color: var(--el-text-color-secondary);
       cursor: pointer;
@@ -247,9 +247,9 @@ onBeforeUnmount(clearPreview);
   }
 
   &__body > p {
-    margin: 0 0 14px;
+    margin: 0 0 var(--el-space-lg);
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
 
@@ -286,7 +286,7 @@ onBeforeUnmount(clearPreview);
     align-items: center;
     justify-content: center;
     color: var(--el-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
   }
 
   &__file-input {
@@ -296,13 +296,13 @@ onBeforeUnmount(clearPreview);
   &__footer {
     display: flex;
     justify-content: flex-end;
-    gap: 12px;
+    gap: var(--el-space-lg);
 
     .el-button {
       min-width: 112px;
       height: 40px;
       margin: 0;
-      font-size: 16px;
+      font-size: var(--el-font-size-medium);
     }
   }
 
@@ -321,19 +321,19 @@ onBeforeUnmount(clearPreview);
 @media (max-width: 640px) {
   .avatar-editor-dialog {
     .el-dialog__header {
-      padding: 14px 18px;
+      padding: var(--el-space-lg) var(--el-space-xl);
     }
 
     .el-dialog__body {
-      padding: 16px 18px 10px;
+      padding: var(--el-space-xl) var(--el-space-xl) var(--el-space-md);
     }
 
     .el-dialog__footer {
-      padding: 0 18px 16px;
+      padding: 0 var(--el-space-xl) var(--el-space-xl);
     }
 
     &__header h2 {
-      font-size: 18px;
+      font-size: var(--el-font-size-large);
       line-height: 26px;
     }
 

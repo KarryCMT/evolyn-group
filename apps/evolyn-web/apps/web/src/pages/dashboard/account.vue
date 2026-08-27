@@ -140,7 +140,7 @@ async function handleAccountCancelled() {
     min-height: 0;
     flex: 1;
     justify-content: center;
-    padding: 22px 24px 36px;
+    padding: var(--el-space-2xl) var(--el-space-3xl) var(--el-space-4xl);
   }
 
   &__card {
@@ -148,15 +148,15 @@ async function handleAccountCancelled() {
     width: min(900px, 100%);
     min-height: 680px;
     overflow: hidden;
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     background: var(--el-bg-color);
-    box-shadow: 0 1px 2px rgb(0 0 0 / 2%);
+    box-shadow: var(--el-box-shadow-light);
   }
 
   &__content {
     min-width: 0;
     flex: 1;
-    padding: 26px 28px 40px;
+    padding: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-5xl);
   }
 }
 
@@ -166,7 +166,7 @@ async function handleAccountCancelled() {
     min-height: 100vh;
 
     &__main {
-      padding: 0 12px 24px;
+      padding: 0 var(--el-space-lg) var(--el-space-3xl);
     }
 
     &__card {
@@ -175,7 +175,7 @@ async function handleAccountCancelled() {
     }
 
     &__content {
-      padding: 20px;
+      padding: var(--el-space-2xl);
     }
   }
 }

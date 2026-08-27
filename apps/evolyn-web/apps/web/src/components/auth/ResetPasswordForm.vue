@@ -173,7 +173,7 @@ function handleSendCode() {
 
 <style lang="scss" scoped>
 .reset-password-form__send {
-  padding: 4px 0 4px 12px;
+  padding: var(--el-space-xs) 0 var(--el-space-xs) var(--el-space-lg);
   border: 0;
   border-left: 1px solid var(--el-border-color);
   background: transparent;
@@ -195,7 +195,7 @@ function handleSendCode() {
 }
 
 .reset-password-form__login {
-  margin-top: 16px;
+  margin-top: var(--el-space-xl);
   text-align: center;
   color: var(--el-text-color-regular);
 

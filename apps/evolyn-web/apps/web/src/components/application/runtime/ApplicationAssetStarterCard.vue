@@ -41,7 +41,7 @@ const emit = defineEmits<{
   box-sizing: border-box;
   width: 270px;
   height: 300px;
-  padding: 14px 14px 16px;
+  padding: var(--el-space-lg) var(--el-space-lg) var(--el-space-xl);
   flex: 0 0 270px;
   flex-direction: column;
   align-items: center;
@@ -50,7 +50,7 @@ const emit = defineEmits<{
   cursor: pointer;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 12px;
+  border-radius: var(--el-border-radius-large);
   box-shadow: var(--el-box-shadow-light);
   transition:
     border-color 0.18s ease,
@@ -76,7 +76,7 @@ const emit = defineEmits<{
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    border-radius: 10px;
+    border-radius: var(--el-border-radius-large);
 
     &--workflow-form {
       background: #fff4e5;
@@ -115,7 +115,7 @@ const emit = defineEmits<{
 
   &__title {
     margin-top: -7px;
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 28px;
   }
@@ -123,10 +123,10 @@ const emit = defineEmits<{
   &__description {
     display: -webkit-box;
     max-width: 238px;
-    margin-top: 14px;
+    margin-top: var(--el-space-lg);
     overflow: hidden;
     color: var(--el-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;

@@ -27,10 +27,10 @@ defineProps<{
 
   &__header {
     min-height: 68px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     display: flex;
     align-items: center;
-    gap: 16px;
+    gap: var(--el-space-xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
@@ -41,13 +41,13 @@ defineProps<{
 
   &__title {
     color: var(--el-text-color-primary);
-    font-size: 19px;
+    font-size: var(--el-font-size-large);
     line-height: 28px;
   }
 
   &__description {
     color: var(--el-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
   }
 
   &__body {

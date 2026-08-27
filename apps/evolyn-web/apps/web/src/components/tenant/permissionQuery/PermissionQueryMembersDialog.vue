@@ -104,7 +104,7 @@ watch(visible, (isVisible) => {
 
 <style scoped lang="scss">
 :global(.permission-query-members-dialog) {
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
 }
 :global(.permission-query-members-dialog .el-dialog__header) {
   display: none;
@@ -117,25 +117,25 @@ watch(visible, (isVisible) => {
   &__footer {
     display: flex;
     height: 68px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     align-items: center;
     justify-content: space-between;
   }
   &__header h2 {
     margin: 0;
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
   }
   &__header button {
     display: inline-flex;
-    padding: 4px;
+    padding: var(--el-space-xs);
     border: 0;
     color: var(--el-text-color-regular);
     background: transparent;
     cursor: pointer;
   }
   &__header button:hover {
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     background: var(--el-fill-color-light);
   }
   &__header svg {
@@ -145,19 +145,19 @@ watch(visible, (isVisible) => {
   &__selected {
     display: flex;
     min-height: 132px;
-    margin: 26px 28px 16px;
-    padding: 12px;
+    margin: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-xl);
+    padding: var(--el-space-lg);
     border: 1px dashed var(--el-border-color);
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
   &__tag {
     display: inline-flex;
     height: 42px;
-    gap: 7px;
-    padding: 0 12px;
-    border-radius: 7px;
+    gap: var(--el-space-sm);
+    padding: 0 var(--el-space-lg);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     background: var(--el-fill-color);
   }
@@ -166,16 +166,16 @@ watch(visible, (isVisible) => {
     display: inline-flex;
     width: 26px;
     height: 26px;
-    border-radius: 50%;
+    border-radius: var(--el-border-radius-half);
     align-items: center;
     justify-content: center;
     color: #fff;
     background: var(--el-color-danger);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     font-style: normal;
   }
   &__tag svg {
-    margin-left: 42px;
+    margin-left: var(--el-space-5xl);
     cursor: pointer;
   }
   &__tag svg:hover {
@@ -184,11 +184,11 @@ watch(visible, (isVisible) => {
   &__search {
     display: flex;
     height: 44px;
-    margin: 0 28px;
-    padding: 0 12px;
-    border-radius: 7px;
+    margin: 0 var(--el-space-3xl);
+    padding: 0 var(--el-space-lg);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     background: var(--el-fill-color-light);
   }
   &__search svg {
@@ -207,30 +207,30 @@ watch(visible, (isVisible) => {
   &__body {
     display: grid;
     min-height: 460px;
-    margin: 6px 28px 0;
+    margin: var(--el-space-sm) var(--el-space-3xl) 0;
     grid-template-columns: 1fr 1fr;
     border-top: 1px solid var(--el-border-color-lighter);
   }
   &__tree,
   &__results {
-    padding: 14px 12px;
+    padding: var(--el-space-lg) var(--el-space-lg);
   }
   &__tree {
     border-right: 1px solid var(--el-border-color-lighter);
   }
   &__all {
-    margin: 0 0 9px;
-    padding: 12px 16px;
-    border-radius: 7px;
+    margin: 0 0 var(--el-space-md);
+    padding: var(--el-space-lg) var(--el-space-xl);
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-color-primary);
     background: var(--el-color-primary-light-9);
   }
   &__node,
   &__child {
     display: flex;
-    margin: 12px;
+    margin: var(--el-space-lg);
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
   &__node svg,
   &__child svg {
@@ -240,14 +240,14 @@ watch(visible, (isVisible) => {
     margin-left: 58px;
   }
   &__results p {
-    margin: 0 0 12px;
+    margin: 0 0 var(--el-space-lg);
     color: var(--el-color-primary);
   }
   &__member {
     display: flex;
     height: 43px;
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     cursor: pointer;
   }
   &__member .el-checkbox {
@@ -258,7 +258,7 @@ watch(visible, (isVisible) => {
     border-top: 1px solid var(--el-border-color-lighter);
     border-bottom: 0;
     justify-content: flex-end;
-    gap: 12px;
+    gap: var(--el-space-lg);
   }
   &__footer .el-button {
     min-width: 74px;

@@ -224,7 +224,7 @@ const removeField = (fieldKey: string) => {
     flex: 1 0 auto;
     width: max-content;
     min-width: 0;
-    min-height: calc(var(--el-space-6xl) + var(--gp-space-4xl));
+    min-height: calc(var(--el-space-6xl) + var(--el-space-4xl));
 
     &.is-empty {
       flex: 0 0 176px;
@@ -239,7 +239,7 @@ const removeField = (fieldKey: string) => {
       align-self: stretch;
       width: 128px;
       min-width: 128px;
-      min-height: calc(var(--gp-space-6xl) + var(--gp-space-4xl));
+      min-height: calc(var(--el-space-6xl) + var(--el-space-4xl));
       padding: 0;
       margin: 0;
       color: transparent;
@@ -295,12 +295,12 @@ const removeField = (fieldKey: string) => {
     display: flex;
     align-items: center;
     justify-content: center;
-    min-height: var(--gp-space-6xl);
+    min-height: var(--el-space-6xl);
     font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-regular);
 
     &--header {
-      min-height: var(--gp-space-4xl);
+      min-height: var(--el-space-4xl);
       background-color: var(--el-fill-color-light);
       border-bottom: 1px solid var(--el-border-color);
     }
@@ -311,20 +311,20 @@ const removeField = (fieldKey: string) => {
     box-sizing: border-box;
     display: flex;
     align-items: center;
-    padding: var(--gp-space-xs) var(--gp-space-sm);
+    padding: var(--el-space-xs) var(--el-space-sm);
     font-size: var(--el-font-size-extra-small);
     font-weight: 600;
     color: var(--el-text-color-primary);
     border-right: 1px solid var(--el-border-color);
 
     &--header {
-      min-height: var(--gp-space-4xl);
+      min-height: var(--el-space-4xl);
       background-color: var(--el-fill-color-light);
       border-bottom: 1px solid var(--el-border-color);
     }
 
     &--body {
-      min-height: var(--gp-space-6xl);
+      min-height: var(--el-space-6xl);
     }
 
     .form-subform-canvas__field-label {
@@ -347,7 +347,7 @@ const removeField = (fieldKey: string) => {
   }
 
   &__column.is-active &__cell--header {
-    padding-right: var(--gp-space-6xl);
+    padding-right: var(--el-space-6xl);
   }
 
   &__selector {
@@ -356,8 +356,8 @@ const removeField = (fieldKey: string) => {
 
   &__actions {
     position: absolute;
-    top: var(--gp-space-xs);
-    right: var(--gp-space-xs);
+    top: var(--el-space-xs);
+    right: var(--el-space-xs);
     z-index: 2;
     display: flex;
     overflow: hidden;
@@ -393,8 +393,8 @@ const removeField = (fieldKey: string) => {
     align-items: center;
     justify-content: center;
     min-width: 176px;
-    min-height: calc(var(--gp-space-6xl) + var(--gp-space-4xl));
-    padding: 0 var(--gp-space-lg);
+    min-height: calc(var(--el-space-6xl) + var(--el-space-4xl));
+    padding: 0 var(--el-space-lg);
     font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-secondary);
   }

@@ -57,7 +57,7 @@ const columns = ['订单信息', '订单总价', '支付时间', '订单状态',
       );
     align-items: center;
     border: 1px solid var(--el-border-color-lighter);
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     background: var(--el-fill-color-light);
   }
 
@@ -68,9 +68,9 @@ const columns = ['订单信息', '订单总价', '支付时间', '订单状态',
   }
 
   &__column {
-    padding: 0 8px;
+    padding: 0 var(--el-space-md);
     color: var(--el-text-color-regular);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     line-height: 24px;
     text-align: center;
@@ -87,9 +87,9 @@ const columns = ['订单信息', '订单总价', '支付时间', '订单状态',
     flex-direction: column;
 
     p {
-      margin: 12px 0 0;
+      margin: var(--el-space-lg) 0 0;
       color: var(--el-text-color-secondary);
-      font-size: 16px;
+      font-size: var(--el-font-size-medium);
       line-height: 24px;
     }
   }
@@ -106,7 +106,7 @@ const columns = ['订单信息', '订单总价', '支付时间', '订单状态',
     left: 16px;
     width: 152px;
     height: 22px;
-    border-radius: 50%;
+    border-radius: var(--el-border-radius-half);
     opacity: 0.82;
     background: linear-gradient(90deg, transparent, var(--el-fill-color), transparent);
   }
@@ -117,7 +117,9 @@ const columns = ['订单信息', '订单总价', '支付时间', '订单状态',
     bottom: 24px;
     width: 13px;
     height: 22px;
-    border-radius: 9px 9px 7px 7px;
+    border-radius: var(--el-border-radius-large)
+      var(--el-border-radius-large) var(--el-border-radius-medium)
+      var(--el-border-radius-medium);
     background: var(--el-color-primary-light-8);
 
     &::after {
@@ -126,7 +128,7 @@ const columns = ['订单信息', '订单总价', '支付时间', '订单状态',
       left: 5px;
       width: 3px;
       height: 11px;
-      border-radius: 3px;
+      border-radius: var(--el-border-radius-small);
       background: var(--el-color-primary-light-7);
       content: '';
     }
@@ -151,7 +153,7 @@ const columns = ['订单信息', '订单总价', '支付时间', '订单状态',
     width: 68px;
     height: 76px;
     border: 4px solid var(--el-color-primary-light-5);
-    border-radius: 5px;
+    border-radius: var(--el-border-radius-base);
     align-items: center;
     justify-content: center;
     color: var(--el-color-primary-light-7);
@@ -169,7 +171,7 @@ const columns = ['订单信息', '订单总价', '支付时间', '订单状态',
       right: 8px;
       width: 13px;
       height: 3px;
-      border-radius: 99px;
+      border-radius: var(--el-border-radius-half);
       background: var(--el-color-primary-light-5);
 
       &:first-of-type {
@@ -189,7 +191,7 @@ const columns = ['订单信息', '订单总价', '支付时间', '订单状态',
     left: 58px;
     width: 6px;
     height: 53px;
-    border-radius: 99px;
+    border-radius: var(--el-border-radius-half);
     background: var(--el-color-warning-light-5);
     transform: rotate(-30deg);
 
@@ -200,8 +202,8 @@ const columns = ['订单信息', '订单总价', '支付时间', '订单状态',
       width: 0;
       height: 0;
       border-top: 7px solid var(--el-text-color-secondary);
-      border-right: 3px solid transparent;
-      border-left: 3px solid transparent;
+      border-right: 3px solid var(--el-color-transparent);
+      border-left: 3px solid var(--el-color-transparent);
       content: '';
     }
   }

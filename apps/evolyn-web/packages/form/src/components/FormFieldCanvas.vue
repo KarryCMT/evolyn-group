@@ -198,7 +198,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     flex: 1;
     flex-direction: column;
     min-height: 100%;
-    padding-bottom: var(--gp-space-4xl);
+    padding-bottom: var(--el-space-4xl);
 
     // 根画布统一使用紧凑的单层虚线投影，明确提示字段最终插入位置。
     & > .form-design-palette__item,
@@ -208,9 +208,9 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
       box-sizing: border-box;
       display: block;
       width: 100%;
-      min-height: var(--gp-space-4xl);
+      min-height: var(--el-space-4xl);
       padding: 0;
-      margin: 0 0 var(--gp-space-lg);
+      margin: 0 0 var(--el-space-lg);
       color: transparent;
       background-color: transparent;
       border: 1px dashed var(--el-color-primary);
@@ -228,7 +228,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
 
   &__empty {
     position: absolute;
-    inset: var(--gp-space-2xl);
+    inset: var(--el-space-2xl);
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -243,7 +243,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     position: relative;
     width: 280px;
     height: 150px;
-    margin-bottom: var(--gp-space-lg);
+    margin-bottom: var(--el-space-lg);
     background-color: var(--el-fill-color-lighter);
     border: 1px solid var(--el-border-color-lighter);
     border-radius: var(--gp-radius-md);
@@ -279,8 +279,8 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
 
   &__field {
     position: relative;
-    padding: var(--gp-space-md) var(--gp-space-xl);
-    margin-bottom: var(--gp-space-lg);
+    padding: var(--el-space-md) var(--el-space-xl);
+    margin-bottom: var(--el-space-lg);
     cursor: grab;
     background-color: transparent;
     border: 1px solid transparent;
@@ -305,7 +305,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     // 空名称仍为顶部操作区预留按钮高度，保持操作按钮原有位置并避免覆盖控件。
     &.is-label-empty {
       .form-field-canvas__field-header {
-        min-height: var(--gp-space-3xl);
+        min-height: var(--el-space-3xl);
       }
     }
 
@@ -328,12 +328,12 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
 
   &__field-header {
     display: flex;
-    gap: var(--gp-space-xs);
+    gap: var(--el-space-xs);
     align-items: center;
     // 操作区为 24px 高，标题行须完整占位，才能与下方预览控件保留 4px 间距。
-    min-height: var(--gp-space-3xl);
-    padding-right: var(--gp-space-6xl);
-    margin-bottom: var(--gp-space-xs);
+    min-height: var(--el-space-3xl);
+    padding-right: var(--el-space-6xl);
+    margin-bottom: var(--el-space-xs);
     font-size: var(--el-font-size-extra-small);
     font-weight: 600;
     color: var(--el-text-color-primary);
@@ -345,7 +345,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
   }
 
   &__field-required {
-    margin-left: var(--gp-space-xs);
+    margin-left: var(--el-space-xs);
     color: var(--el-color-error);
   }
 
@@ -360,8 +360,8 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
 
   &__actions {
     position: absolute;
-    top: var(--gp-space-xs);
-    right: var(--gp-space-xl);
+    top: var(--el-space-xs);
+    right: var(--el-space-xl);
     display: flex;
     overflow: hidden;
     pointer-events: none;

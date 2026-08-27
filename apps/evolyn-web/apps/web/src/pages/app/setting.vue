@@ -83,7 +83,7 @@ function toggleSidebar() {
     height: 36px;
     padding: 0;
     border: 0;
-    border-radius: 0 8px 8px 0;
+    border-radius: 0 var(--el-border-radius-medium) var(--el-border-radius-medium) 0;
     align-items: center;
     justify-content: center;
     color: var(--el-text-color-secondary);
@@ -116,9 +116,9 @@ function toggleSidebar() {
     min-width: 0;
     min-height: 0;
     flex: 1;
-    margin: 0 8px 8px 0;
+    margin: 0 var(--el-space-md) var(--el-space-md) 0;
     overflow: hidden;
-    border-radius: 10px;
+    border-radius: var(--el-border-radius-large);
     background: var(--el-bg-color);
   }
 

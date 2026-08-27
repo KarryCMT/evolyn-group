@@ -154,13 +154,13 @@ function notifyFieldError(err: unknown) {
   height: 100%;
   min-height: 0;
   flex-direction: column;
-  padding: 22px 22px 20px;
+  padding: var(--el-space-2xl) var(--el-space-2xl) var(--el-space-2xl);
 
   &__description {
     flex: 0 0 auto;
-    margin: 0 0 9px;
+    margin: 0 0 var(--el-space-md);
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
 
@@ -177,7 +177,7 @@ function notifyFieldError(err: unknown) {
     --el-table-header-text-color: var(--el-text-color-primary);
     --el-table-row-hover-bg-color: var(--el-fill-color-light);
     --el-table-text-color: var(--el-text-color-primary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
 
     :deep(.el-table__header-wrapper .el-table__cell) {
       height: 56px;
@@ -190,23 +190,23 @@ function notifyFieldError(err: unknown) {
     }
 
     :deep(.el-table__cell) {
-      padding: 0 16px;
+      padding: 0 var(--el-space-xl);
     }
   }
 
   &__permissions {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: var(--el-space-xl);
   }
 }
 
 @media (max-width: 840px) {
   .member-field-settings {
-    padding: 18px 16px 16px;
+    padding: var(--el-space-xl) var(--el-space-xl) var(--el-space-xl);
 
     &__description {
-      margin-bottom: 16px;
+      margin-bottom: var(--el-space-xl);
     }
   }
 }

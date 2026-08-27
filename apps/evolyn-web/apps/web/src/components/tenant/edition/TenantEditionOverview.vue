@@ -89,18 +89,18 @@ const expiresHint = computed<string>(() => {
 .edition-overview {
   &__section-title {
     display: flex;
-    margin: 0 0 14px;
+    margin: 0 0 var(--el-space-lg);
     align-items: center;
     color: var(--el-text-color-primary);
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     font-weight: 650;
     line-height: 28px;
 
     &::before {
       width: 5px;
       height: 20px;
-      margin-right: 10px;
-      border-radius: 4px;
+      margin-right: var(--el-space-md);
+      border-radius: var(--el-border-radius-base);
       background: var(--el-color-primary);
       content: '';
     }
@@ -112,9 +112,10 @@ const expiresHint = computed<string>(() => {
     min-height: 170px;
     box-sizing: border-box;
     overflow: hidden;
-    padding: 30px 184px 28px 28px;
+    padding: var(--el-space-4xl) 184px
+      var(--el-space-3xl) var(--el-space-3xl);
     border: 1px solid var(--el-border-color-light);
-    border-radius: 14px;
+    border-radius: var(--el-border-radius-large);
     background: linear-gradient(
       120deg,
       var(--el-color-primary-light-9) 0%,
@@ -131,12 +132,12 @@ const expiresHint = computed<string>(() => {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 16px;
+    gap: var(--el-space-xl);
     white-space: nowrap;
 
     strong {
       color: var(--el-text-color-primary);
-      font-size: 30px;
+      font-size: 30.0006px;
       font-weight: 650;
       letter-spacing: 0.01em;
       line-height: 40px;
@@ -146,17 +147,17 @@ const expiresHint = computed<string>(() => {
   &__validity {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
 
   &__content p {
-    margin: 10px 0 16px;
+    margin: var(--el-space-md) 0 var(--el-space-xl);
     max-width: 640px;
     color: var(--el-text-color-regular);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 24px;
     white-space: normal;
   }
@@ -164,12 +165,12 @@ const expiresHint = computed<string>(() => {
   &__actions {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: var(--el-space-md);
 
     :deep(.el-button) {
       height: 36px;
       margin: 0;
-      padding: 0 16px;
+      padding: 0 var(--el-space-xl);
     }
   }
 
@@ -230,11 +231,11 @@ const expiresHint = computed<string>(() => {
     height: 34px;
     transform: rotate(45deg);
     place-items: center;
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     color: #fff;
     background: linear-gradient(135deg, var(--el-color-primary-light-3), var(--el-color-primary));
-    box-shadow: 0 5px 10px rgb(37 139 229 / 30%);
-    font-size: 22px;
+    box-shadow: var(--el-box-shadow-light);
+    font-size: var(--el-font-size-extra-large);
 
     &::first-letter {
       transform: rotate(-45deg);
@@ -245,13 +246,13 @@ const expiresHint = computed<string>(() => {
 @media (max-width: 640px) {
   .edition-overview {
     &__card {
-      padding: 24px;
+      padding: var(--el-space-3xl);
     }
 
     &__heading {
       align-items: flex-start;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--el-space-sm);
     }
 
     &__illustration {

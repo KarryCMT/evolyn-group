@@ -164,7 +164,7 @@ async function submit() {
   margin-bottom: 0;
   overflow: hidden;
   flex-direction: column;
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
 }
 
 .blank-application-dialog .el-dialog__header,
@@ -181,7 +181,7 @@ async function submit() {
 .blank-application-dialog .el-dialog__body {
   flex: 1;
   min-height: 0;
-  padding: 26px 32px 18px;
+  padding: var(--el-space-3xl) var(--el-space-4xl) var(--el-space-xl);
 }
 
 .blank-application-dialog .el-dialog__footer {
@@ -191,7 +191,7 @@ async function submit() {
 .blank-application-dialog__header {
   display: flex;
   height: 56px;
-  padding: 0 16px 0 28px;
+  padding: 0 var(--el-space-xl) 0 var(--el-space-3xl);
   align-items: center;
   justify-content: space-between;
 }
@@ -199,7 +199,7 @@ async function submit() {
 .blank-application-dialog__heading {
   margin: 0;
   color: var(--el-text-color-primary);
-  font-size: 20px;
+  font-size: var(--el-font-size-extra-large);
   font-weight: 650;
   line-height: 26px;
 }
@@ -216,7 +216,7 @@ async function submit() {
   background: transparent;
   border: 0;
   border-radius: var(--el-border-radius-base);
-  font-size: 22px;
+  font-size: var(--el-font-size-extra-large);
 
   &:hover:not(:disabled) {
     color: var(--el-color-primary);
@@ -235,21 +235,21 @@ async function submit() {
 }
 
 .blank-application-dialog__form .el-form-item {
-  margin-bottom: 24px;
+  margin-bottom: var(--el-space-3xl);
 }
 
 .blank-application-dialog__form .el-form-item__label {
   height: auto;
-  padding-bottom: 8px;
+  padding-bottom: var(--el-space-md);
   color: var(--el-text-color-primary);
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
   line-height: 1.4;
 }
 
 .blank-application-dialog__form .el-input__wrapper {
   min-height: 44px;
-  padding: 0 12px;
-  border-radius: 8px;
+  padding: 0 var(--el-space-lg);
+  border-radius: var(--el-border-radius-medium);
   box-shadow: 0 0 0 1px var(--el-border-color) inset;
 }
 
@@ -258,13 +258,13 @@ async function submit() {
 }
 
 .blank-application-dialog__form .el-input__inner {
-  font-size: 15px;
+  font-size: var(--el-font-size-base);
 }
 
 .blank-application-dialog__icon-list {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--el-space-md);
 }
 
 .blank-application-dialog__icon-option {
@@ -277,9 +277,9 @@ async function submit() {
   color: var(--el-text-color-secondary);
   cursor: pointer;
   background: var(--el-fill-color-lighter);
-  border: 1px solid transparent;
-  border-radius: 12px;
-  font-size: 29px;
+  border: 1px solid var(--el-color-transparent);
+  border-radius: var(--el-border-radius-large);
+  font-size: 28.9996px;
   transition:
     color 0.18s ease,
     background-color 0.18s ease,
@@ -307,17 +307,17 @@ async function submit() {
 .blank-application-dialog__footer {
   display: flex;
   height: 72px;
-  padding: 0 28px;
+  padding: 0 var(--el-space-3xl);
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: var(--el-space-md);
 }
 
 .blank-application-dialog__footer .el-button {
   min-width: 78px;
   height: 36px;
   margin: 0;
-  font-size: 15px;
+  font-size: var(--el-font-size-base);
 }
 
 @media (max-width: 720px) {
@@ -328,20 +328,20 @@ async function submit() {
 
   .blank-application-dialog__header {
     height: 52px;
-    padding: 0 12px 0 20px;
+    padding: 0 var(--el-space-lg) 0 var(--el-space-2xl);
   }
 
   .blank-application-dialog__heading {
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
   }
 
   .blank-application-dialog .el-dialog__body {
-    padding: 22px 20px 14px;
+    padding: var(--el-space-2xl) var(--el-space-2xl) var(--el-space-lg);
   }
 
   .blank-application-dialog__footer {
     height: 64px;
-    padding: 0 20px;
+    padding: 0 var(--el-space-2xl);
   }
 }
 </style>

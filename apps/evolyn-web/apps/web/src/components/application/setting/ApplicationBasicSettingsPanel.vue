@@ -248,7 +248,7 @@ function selectIcon(icon: ApplicationIcon) {
   &__header {
     display: flex;
     height: 82px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     align-items: center;
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
@@ -256,13 +256,13 @@ function selectIcon(icon: ApplicationIcon) {
   &__title {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 600;
     line-height: 28px;
   }
 
   &__body {
-    padding: 24px 28px 72px;
+    padding: var(--el-space-3xl) var(--el-space-3xl) 72px;
   }
 
   &__scrollbar {
@@ -290,12 +290,12 @@ function selectIcon(icon: ApplicationIcon) {
   &__label {
     box-sizing: border-box;
     display: flex;
-    padding: 12px 24px;
+    padding: var(--el-space-lg) var(--el-space-3xl);
     align-items: center;
     justify-content: center;
     color: var(--el-text-color-regular);
     background: var(--el-fill-color-lighter);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     text-align: center;
   }
 
@@ -304,15 +304,15 @@ function selectIcon(icon: ApplicationIcon) {
     box-sizing: border-box;
     display: flex;
     min-width: 0;
-    padding: 12px 32px;
+    padding: var(--el-space-lg) var(--el-space-4xl);
     align-items: center;
-    gap: 20px;
+    gap: var(--el-space-2xl);
     color: var(--el-text-color-primary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
 
   &__value--name {
-    gap: 18px;
+    gap: var(--el-space-xl);
   }
 
   &__value--icon {
@@ -320,7 +320,7 @@ function selectIcon(icon: ApplicationIcon) {
   }
 
   &__value--inline {
-    gap: 24px;
+    gap: var(--el-space-3xl);
   }
 
   &__name,
@@ -333,9 +333,9 @@ function selectIcon(icon: ApplicationIcon) {
   }
 
   &__text-button {
-    padding: 5px 2px;
+    padding: var(--el-space-xs) var(--el-space-xs);
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     color: var(--el-color-primary);
     cursor: pointer;
     background: transparent;
@@ -366,13 +366,13 @@ function selectIcon(icon: ApplicationIcon) {
     height: 52px;
     padding: 0;
     border: 0;
-    border-radius: 12px;
+    border-radius: var(--el-border-radius-large);
     align-items: center;
     justify-content: center;
     color: var(--el-color-white);
     cursor: pointer;
     background: var(--el-color-primary);
-    box-shadow: 0 7px 16px rgb(15 23 42 / 14%);
+    box-shadow: var(--el-box-shadow-light);
     font-size: 28px;
     transition:
       transform 0.18s ease,
@@ -380,7 +380,7 @@ function selectIcon(icon: ApplicationIcon) {
 
     &:hover {
       transform: translateY(-1px);
-      box-shadow: 0 10px 20px rgb(15 23 42 / 20%);
+      box-shadow: var(--el-box-shadow-light);
     }
 
     &:focus-visible {
@@ -395,10 +395,10 @@ function selectIcon(icon: ApplicationIcon) {
     top: calc(50% + 34px);
     left: 32px;
     display: flex;
-    padding: 8px;
-    gap: 4px;
+    padding: var(--el-space-md);
+    gap: var(--el-space-xs);
     border: 1px solid var(--el-border-color-light);
-    border-radius: 10px;
+    border-radius: var(--el-border-radius-large);
     background: var(--el-bg-color);
     box-shadow: var(--el-box-shadow-light);
   }
@@ -409,13 +409,13 @@ function selectIcon(icon: ApplicationIcon) {
     height: 34px;
     padding: 0;
     border: 0;
-    border-radius: 7px;
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     justify-content: center;
     color: var(--el-text-color-secondary);
     cursor: pointer;
     background: transparent;
-    font-size: 19px;
+    font-size: var(--el-font-size-large);
 
     &:hover,
     &--active {
@@ -431,7 +431,7 @@ function selectIcon(icon: ApplicationIcon) {
 
   &__hint {
     color: var(--el-text-color-secondary);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
   }
 }
 
@@ -439,11 +439,11 @@ function selectIcon(icon: ApplicationIcon) {
   .application-basic-settings {
     &__header {
       height: 64px;
-      padding: 0 20px;
+      padding: 0 var(--el-space-2xl);
     }
 
     &__body {
-      padding: 16px 20px 40px;
+      padding: var(--el-space-xl) var(--el-space-2xl) var(--el-space-5xl);
     }
 
     &__row {
@@ -452,8 +452,8 @@ function selectIcon(icon: ApplicationIcon) {
 
     &__label,
     &__value {
-      padding-right: 20px;
-      padding-left: 20px;
+      padding-right: var(--el-space-2xl);
+      padding-left: var(--el-space-2xl);
     }
 
     &__value {

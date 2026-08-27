@@ -57,7 +57,8 @@ const tableOptions = { defaultHeaderRowHeight: 60, defaultRowHeight: ROW_HEIGHT 
 .data-push-list {
   display: flex;
   min-height: 0;
-  padding: 14px 28px 22px;
+  padding: var(--el-space-lg) var(--el-space-3xl)
+    var(--el-space-2xl);
   flex: 1;
   flex-direction: column;
 
@@ -72,11 +73,11 @@ const tableOptions = { defaultHeaderRowHeight: 60, defaultRowHeight: ROW_HEIGHT 
   &__footer {
     display: flex;
     min-height: 58px;
-    padding: 10px 10px 0;
+    padding: var(--el-space-md) var(--el-space-md) 0;
     align-items: center;
     justify-content: space-between;
     color: var(--el-text-color-primary);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
   }
 }
 </style>

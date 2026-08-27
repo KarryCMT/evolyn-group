@@ -230,8 +230,8 @@ watch(groupPickerVisible, (visible) => {
   min-width: 356px;
   height: 100%;
   flex-direction: column;
-  padding: 30px 28px;
-  border-right: 1px solid #e5e8ee;
+  padding: var(--el-space-4xl) var(--el-space-3xl);
+  border-right: 1px solid var(--el-border-color-light);
   background: #fff;
   color: #5c6472;
 
@@ -239,11 +239,11 @@ watch(groupPickerVisible, (visible) => {
   &__custom {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: var(--el-space-xl);
   }
 
   &__custom {
-    margin-top: 30px;
+    margin-top: var(--el-space-4xl);
   }
 
   &__custom-heading {
@@ -255,7 +255,7 @@ watch(groupPickerVisible, (visible) => {
   &__section-title {
     margin: 0;
     color: #818a98;
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     line-height: 32px;
   }
 
@@ -265,7 +265,7 @@ watch(groupPickerVisible, (visible) => {
     height: 36px;
     padding: 0;
     border: 0;
-    border-radius: 9px;
+    border-radius: var(--el-border-radius-large);
     align-items: center;
     justify-content: center;
     color: #fff;
@@ -299,9 +299,10 @@ watch(groupPickerVisible, (visible) => {
 
   &__filter-trigger {
     width: 117px;
-    gap: 14px;
-    padding: 0 18px;
-    border-radius: 7px 0 0 7px;
+    gap: var(--el-space-lg);
+    padding: 0 var(--el-space-xl);
+    border-radius: var(--el-border-radius-medium) 0 0
+      var(--el-border-radius-medium);
     color: var(--el-text-color-secondary);
   }
 
@@ -309,10 +310,11 @@ watch(groupPickerVisible, (visible) => {
     flex: 1;
     justify-content: space-between;
     margin-left: -1px;
-    padding: 0 12px 0 17px;
-    border-radius: 0 7px 7px 0;
+    padding: 0 var(--el-space-lg) 0 var(--el-space-xl);
+    border-radius: 0 var(--el-border-radius-medium)
+      var(--el-border-radius-medium) 0;
     color: var(--el-text-color-secondary);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     text-align: left;
   }
 
@@ -336,14 +338,14 @@ watch(groupPickerVisible, (visible) => {
     display: flex;
     width: 100%;
     height: 56px;
-    gap: 10px;
-    padding: 0 18px;
+    gap: var(--el-space-md);
+    padding: 0 var(--el-space-xl);
     border: 0;
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     color: #626b78;
     background: transparent;
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     text-align: left;
     cursor: pointer;
 
@@ -369,38 +371,38 @@ watch(groupPickerVisible, (visible) => {
 }
 
 :global(.administrator-group-list__filter-popper.el-popper) {
-  margin-top: 10px;
-  padding: 7px;
+  margin-top: var(--el-space-md);
+  padding: var(--el-space-sm);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--el-border-radius-medium);
   box-shadow: var(--el-box-shadow-light);
 }
 
 :global(.administrator-group-list__picker-popper.el-popper) {
-  margin-top: 8px;
-  padding: 8px;
+  margin-top: var(--el-space-md);
+  padding: var(--el-space-md);
   border: 0;
-  border-radius: 10px;
+  border-radius: var(--el-border-radius-large);
   box-shadow: var(--el-box-shadow-light);
 }
 
 .administrator-group-list__filter-menu {
   display: grid;
-  gap: 2px;
+  gap: var(--el-space-xs);
 }
 
 .administrator-group-list__filter-menu button {
   display: flex;
   width: 100%;
   height: 58px;
-  gap: 14px;
-  padding: 0 16px;
+  gap: var(--el-space-lg);
+  padding: 0 var(--el-space-xl);
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--el-border-radius-medium);
   align-items: center;
   color: var(--el-text-color-primary);
   background: transparent;
-  font-size: 18px;
+  font-size: var(--el-font-size-large);
   font-weight: 600;
   text-align: left;
   cursor: pointer;
@@ -424,13 +426,13 @@ watch(groupPickerVisible, (visible) => {
 
 .administrator-group-list__picker :deep(.el-input__wrapper) {
   min-height: 48px;
-  padding: 0 13px;
+  padding: 0 var(--el-space-lg);
   box-shadow: none;
 }
 
 .administrator-group-list__picker :deep(.el-input__inner) {
   color: var(--el-text-color-primary);
-  font-size: 18px;
+  font-size: var(--el-font-size-large);
 }
 
 .administrator-group-list__picker :deep(.el-input__prefix-inner) {
@@ -451,14 +453,14 @@ watch(groupPickerVisible, (visible) => {
   display: flex;
   width: 100%;
   min-height: 54px;
-  padding: 0 16px;
+  padding: 0 var(--el-space-xl);
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--el-border-radius-medium);
   align-items: center;
   justify-content: space-between;
   color: var(--el-text-color-primary);
   background: transparent;
-  font-size: 18px;
+  font-size: var(--el-font-size-large);
   text-align: left;
   cursor: pointer;
 }
@@ -470,14 +472,14 @@ watch(groupPickerVisible, (visible) => {
 
 .administrator-group-list__picker-results small {
   color: var(--el-text-color-secondary);
-  font-size: 13px;
+  font-size: var(--el-font-size-small);
 }
 
 .administrator-group-list__picker-empty {
   margin: 0;
-  padding: 24px 16px;
+  padding: var(--el-space-3xl) var(--el-space-xl);
   color: var(--el-text-color-secondary);
-  font-size: 14px;
+  font-size: var(--el-font-size-base);
   text-align: center;
 }
 </style>

@@ -49,7 +49,7 @@ const clonePaletteItem = (item: FormDesignPaletteItem) => ({
   flex-shrink: 0;
   // 收窄控件面板及横向留白，为中间画布保留更多设计空间。
   width: 152px;
-  padding: var(--el-space-xl) var(--gp-space-lg);
+  padding: var(--el-space-xl) var(--el-space-lg);
   background-color: var(--el-bg-color);
   border-top: 1px solid var(--el-border-color);
   border-bottom: 1px solid var(--el-border-color);
@@ -63,13 +63,13 @@ const clonePaletteItem = (item: FormDesignPaletteItem) => ({
 
   &__item {
     display: flex;
-    gap: var(--gp-space-sm);
+    gap: var(--el-space-sm);
     align-items: center;
     justify-content: flex-start;
     width: 100%;
     min-height: 34px;
-    padding: 0 var(--gp-space-xl);
-    margin-bottom: var(--gp-space-lg);
+    padding: 0 var(--el-space-xl);
+    margin-bottom: var(--el-space-lg);
     font-size: var(--el-font-size-base);
     color: var(--el-text-color-primary);
     cursor: pointer;

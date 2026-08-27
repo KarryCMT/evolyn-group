@@ -172,7 +172,7 @@ watch(activeTab, (tab) => {
   &__header {
     display: flex;
     height: 56px;
-    padding: 0 22px;
+    padding: 0 var(--el-space-2xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     align-items: center;
     justify-content: space-between;
@@ -181,7 +181,7 @@ watch(activeTab, (tab) => {
   &__header h1 {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 28px;
   }
@@ -191,7 +191,7 @@ watch(activeTab, (tab) => {
     height: 32px;
     padding: 0;
     border: 0;
-    border-radius: 7px;
+    border-radius: var(--el-border-radius-medium);
     place-items: center;
     color: var(--el-text-color-regular);
     background: transparent;
@@ -210,7 +210,7 @@ watch(activeTab, (tab) => {
   }
   &__content :deep(.el-scrollbar__view) {
     min-height: 100%;
-    padding: 18px 22px;
+    padding: var(--el-space-xl) var(--el-space-2xl);
   }
   &__tabs {
     display: flex;
@@ -220,7 +220,7 @@ watch(activeTab, (tab) => {
     flex-direction: column;
   }
   &__tabs :deep(.el-tabs__header) {
-    margin: 0 0 18px;
+    margin: 0 0 var(--el-space-xl);
   }
   &__tabs :deep(.el-tabs__nav-wrap::after) {
     height: 1px;
@@ -228,7 +228,7 @@ watch(activeTab, (tab) => {
   &__tabs :deep(.el-tabs__item) {
     height: 42px;
     color: var(--el-text-color-primary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 42px;
   }
   &__tabs :deep(.el-tabs__item.is-active) {
@@ -250,8 +250,8 @@ watch(activeTab, (tab) => {
 :global(.organization-invite-dialog) {
   --el-dialog-padding-primary: 0;
   width: min(640px, calc(100vw - 24px)) !important;
-  margin-bottom: 24px;
-  border-radius: 18px;
+  margin-bottom: var(--el-space-3xl);
+  border-radius: var(--el-border-radius-round);
   background: var(--el-bg-color-overlay);
 }
 
@@ -264,10 +264,10 @@ watch(activeTab, (tab) => {
 @media (max-width: 720px) {
   .organization-invite-dialog__header {
     height: 56px;
-    padding: 0 20px;
+    padding: 0 var(--el-space-2xl);
   }
   .organization-invite-dialog__header h1 {
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     line-height: 26px;
   }
   .organization-invite-dialog__header button {
@@ -282,10 +282,10 @@ watch(activeTab, (tab) => {
     height: calc(100vh - 140px);
   }
   .organization-invite-dialog__content :deep(.el-scrollbar__view) {
-    padding: 22px 20px;
+    padding: var(--el-space-2xl) var(--el-space-2xl);
   }
   .organization-invite-dialog__tabs :deep(.el-tabs__item) {
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
   }
 }
 </style>

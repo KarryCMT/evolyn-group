@@ -653,7 +653,7 @@ defineExpose({
       box-sizing: border-box;
       width: min(1180px, 100%);
       min-height: 100%;
-      padding-top: var(--gp-space-xl);
+      padding-top: var(--el-space-xl);
       margin: 0 auto;
 
       &--design {

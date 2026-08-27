@@ -68,17 +68,17 @@ const emit = defineEmits<{
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  padding: 20px;
+  padding: var(--el-space-2xl);
   background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgb(42 57 77 / 3%);
+  border-radius: var(--el-border-radius-large);
+  box-shadow: var(--el-box-shadow-light);
 
   &__toolbar {
     display: flex;
     min-height: 44px;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 18px;
+    margin-bottom: var(--el-space-xl);
   }
 
   &__back,
@@ -87,7 +87,7 @@ const emit = defineEmits<{
     display: inline-flex;
     border: 0;
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     background: transparent;
     cursor: pointer;
 
@@ -99,11 +99,11 @@ const emit = defineEmits<{
 
   &__back {
     height: 36px;
-    border: 1px solid #d9dfe7;
-    padding: 0 12px;
+    border: 1px solid var(--el-border-color);
+    padding: 0 var(--el-space-lg);
     color: #2d394b;
-    border-radius: 7px;
-    font-size: 16px;
+    border-radius: var(--el-border-radius-medium);
+    font-size: var(--el-font-size-medium);
 
     &:hover {
       border-color: var(--el-color-primary-light-5);
@@ -115,7 +115,7 @@ const emit = defineEmits<{
   &__add,
   &__remove {
     color: var(--el-color-primary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
 
     &:hover {
       color: var(--el-color-primary-dark-2);
@@ -124,7 +124,7 @@ const emit = defineEmits<{
   }
 
   &__add .el-icon {
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
   }
 
   &__table {
@@ -132,7 +132,7 @@ const emit = defineEmits<{
     min-height: 0;
     flex: 1;
     flex-direction: column;
-    border: 1px solid #edf0f3;
+    border: 1px solid var(--el-border-color-lighter);
   }
 
   &__row {
@@ -140,10 +140,10 @@ const emit = defineEmits<{
     min-height: 58px;
     grid-template-columns: 1fr 1.3fr 1.6fr 0.7fr;
     align-items: center;
-    padding: 0 20px;
+    padding: 0 var(--el-space-2xl);
     color: #445063;
-    border-top: 1px solid #edf0f3;
-    font-size: 15px;
+    border-top: 1px solid var(--el-border-color-lighter);
+    font-size: var(--el-font-size-base);
   }
 
   &__row--header {
@@ -166,13 +166,13 @@ const emit = defineEmits<{
     align-items: center;
     justify-content: center;
     color: #929aa7;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
 }
 
 @media (max-width: 760px) {
   .message-recipient-manager {
-    padding: 14px;
+    padding: var(--el-space-lg);
 
     &__row {
       min-width: 620px;

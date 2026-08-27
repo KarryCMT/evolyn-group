@@ -123,7 +123,7 @@ async function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 20px;
+  margin-bottom: var(--el-space-2xl);
 }
 
 .password-login-form__forgot {

@@ -62,22 +62,22 @@ const emit = defineEmits<{
 
 <style scoped lang="scss">
 .edition-quotas {
-  margin-top: 38px;
+  margin-top: var(--el-space-5xl);
 
   &__section-title {
     display: flex;
-    margin: 0 0 16px;
+    margin: 0 0 var(--el-space-xl);
     align-items: center;
     color: var(--el-text-color-primary);
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     font-weight: 650;
     line-height: 28px;
 
     &::before {
       width: 5px;
       height: 20px;
-      margin-right: 10px;
-      border-radius: 4px;
+      margin-right: var(--el-space-md);
+      border-radius: var(--el-border-radius-base);
       background: var(--el-color-primary);
       content: '';
     }
@@ -86,7 +86,7 @@ const emit = defineEmits<{
   &__grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 20px;
+    gap: var(--el-space-2xl);
   }
 
   &__card {
@@ -94,11 +94,11 @@ const emit = defineEmits<{
     min-height: 220px;
     box-sizing: border-box;
     flex-direction: column;
-    padding: 28px;
+    padding: var(--el-space-3xl);
     border: 1px solid var(--el-border-color-light);
-    border-radius: 14px;
+    border-radius: var(--el-border-radius-large);
     background: var(--el-bg-color);
-    box-shadow: 0 1px 3px rgb(36 51 73 / 5%);
+    box-shadow: var(--el-box-shadow-light);
   }
 
   &__card-header,
@@ -113,18 +113,18 @@ const emit = defineEmits<{
   &__card-header {
     min-height: 34px;
     justify-content: space-between;
-    gap: 10px;
+    gap: var(--el-space-md);
   }
 
   &__title-wrap {
     min-width: 0;
-    gap: 12px;
+    gap: var(--el-space-lg);
 
     h3 {
       overflow: hidden;
       margin: 0;
       color: var(--el-text-color-primary);
-      font-size: 18px;
+      font-size: var(--el-font-size-large);
       font-weight: 650;
       line-height: 28px;
       text-overflow: ellipsis;
@@ -138,7 +138,7 @@ const emit = defineEmits<{
     height: 34px;
     flex: 0 0 34px;
     place-items: center;
-    border-radius: 9px;
+    border-radius: var(--el-border-radius-large);
 
     svg {
       width: 20px;
@@ -173,9 +173,9 @@ const emit = defineEmits<{
 
   &__warning {
     flex: 0 0 auto;
-    gap: 4px;
+    gap: var(--el-space-xs);
     color: #f1a11d;
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 20px;
 
     svg {
@@ -186,9 +186,9 @@ const emit = defineEmits<{
 
   &__progress {
     height: 12px;
-    margin-top: 20px;
+    margin-top: var(--el-space-2xl);
     overflow: hidden;
-    border-radius: 10px;
+    border-radius: var(--el-border-radius-large);
     background: var(--el-fill-color);
 
     i {
@@ -207,17 +207,17 @@ const emit = defineEmits<{
   }
 
   &__metrics {
-    margin-top: 12px;
+    margin-top: var(--el-space-lg);
     justify-content: space-between;
-    gap: 10px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-regular);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 24px;
 
     span:last-child {
       display: inline-flex;
       align-items: center;
-      gap: 3px;
+      gap: var(--el-space-xs);
       text-align: right;
     }
 
@@ -230,9 +230,9 @@ const emit = defineEmits<{
 
   &__note {
     min-height: 20px;
-    margin: 8px 0 0;
+    margin: var(--el-space-md) 0 0;
     color: var(--el-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 20px;
   }
 
@@ -240,15 +240,15 @@ const emit = defineEmits<{
     min-height: 24px;
     margin-top: auto;
     justify-content: flex-end;
-    gap: 24px;
+    gap: var(--el-space-3xl);
 
     button {
-      padding: 4px 0;
+      padding: var(--el-space-xs) 0;
       border: 0;
-      border-radius: 5px;
+      border-radius: var(--el-border-radius-base);
       color: var(--el-color-primary);
       background: transparent;
-      font-size: 15px;
+      font-size: var(--el-font-size-base);
       line-height: 20px;
       cursor: pointer;
       transition: background-color 0.18s ease;
@@ -273,7 +273,7 @@ const emit = defineEmits<{
 
 @media (max-width: 760px) {
   .edition-quotas {
-    margin-top: 28px;
+    margin-top: var(--el-space-3xl);
 
     &__grid {
       grid-template-columns: 1fr;
@@ -281,7 +281,7 @@ const emit = defineEmits<{
 
     &__card {
       min-height: 202px;
-      padding: 22px;
+      padding: var(--el-space-2xl);
     }
 
     &__warning {

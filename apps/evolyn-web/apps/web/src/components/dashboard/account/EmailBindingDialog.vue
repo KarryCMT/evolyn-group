@@ -285,10 +285,10 @@ onBeforeUnmount(() => {
     align-items: center;
     justify-content: space-between;
     height: 56px;
-    padding: 0 24px;
+    padding: 0 var(--el-space-3xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 600;
     line-height: 28px;
   }
@@ -305,7 +305,7 @@ onBeforeUnmount(() => {
     background: transparent;
     color: var(--el-text-color-secondary);
     cursor: pointer;
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
   }
 
   &__header button:hover {
@@ -314,27 +314,27 @@ onBeforeUnmount(() => {
 
   &__body {
     min-height: 316px;
-    padding: 28px 24px 0;
+    padding: var(--el-space-3xl) var(--el-space-3xl) 0;
   }
 
   &__body--email {
-    padding-top: 34px;
+    padding-top: var(--el-space-4xl);
   }
 
   &__description {
-    margin: 0 0 28px;
+    margin: 0 0 var(--el-space-3xl);
     color: var(--el-text-color-regular);
     font-size: var(--el-font-size-base);
     line-height: 24px;
   }
 
   &__field {
-    margin-bottom: 22px;
+    margin-bottom: var(--el-space-2xl);
   }
 
   &__field label {
     display: block;
-    margin-bottom: 8px;
+    margin-bottom: var(--el-space-md);
     color: var(--el-text-color-regular);
     font-size: var(--el-font-size-base);
     line-height: 24px;
@@ -345,7 +345,7 @@ onBeforeUnmount(() => {
   }
 
   &__field :deep(.el-input-group__prepend) {
-    padding: 0 12px;
+    padding: 0 var(--el-space-lg);
     color: var(--el-text-color-secondary);
   }
 
@@ -356,7 +356,7 @@ onBeforeUnmount(() => {
   &__dial-code {
     display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
 
   &__code-button {
@@ -375,8 +375,8 @@ onBeforeUnmount(() => {
 :global(.email-binding-dialog .el-dialog__footer) {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  padding: 12px 24px 22px;
+  gap: var(--el-space-lg);
+  padding: var(--el-space-lg) var(--el-space-3xl) var(--el-space-2xl);
 }
 
 :global(.email-binding-dialog .el-dialog__footer .el-button) {
@@ -394,20 +394,20 @@ onBeforeUnmount(() => {
   .email-binding-dialog {
     &__header {
       height: 52px;
-      padding: 0 20px;
-      font-size: 18px;
+      padding: 0 var(--el-space-2xl);
+      font-size: var(--el-font-size-large);
       line-height: 26px;
     }
 
     &__body {
       min-height: 0;
-      padding: 24px 20px 0;
+      padding: var(--el-space-3xl) var(--el-space-2xl) 0;
     }
   }
 
   :global(.email-binding-dialog .el-dialog__footer) {
-    padding-right: 20px;
-    padding-left: 20px;
+    padding-right: var(--el-space-2xl);
+    padding-left: var(--el-space-2xl);
   }
 }
 </style>

@@ -60,7 +60,7 @@ const modeLabels: Record<ApplicationWorkspaceMode, string> = {
   &__content {
     display: flex;
     max-width: 360px;
-    padding: 32px;
+    padding: var(--el-space-4xl);
     align-items: center;
     flex-direction: column;
     color: var(--el-text-color-secondary);
@@ -68,22 +68,22 @@ const modeLabels: Record<ApplicationWorkspaceMode, string> = {
   }
 
   &__icon {
-    margin-bottom: 16px;
+    margin-bottom: var(--el-space-xl);
     color: var(--el-color-primary-light-5);
     font-size: 56px;
   }
 
   &__title {
-    margin: 0 0 8px;
+    margin: 0 0 var(--el-space-md);
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 28px;
   }
 
   &__description {
     margin: 0;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
   }
 }

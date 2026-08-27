@@ -136,17 +136,17 @@ function queryPushItems() {
   &__header {
     display: flex;
     min-height: 76px;
-    padding: 0 22px;
+    padding: 0 var(--el-space-2xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
+    gap: var(--el-space-2xl);
   }
 
   &__title {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 28px;
   }
@@ -154,24 +154,24 @@ function queryPushItems() {
   &__actions {
     display: flex;
     align-items: center;
-    gap: 20px;
+    gap: var(--el-space-2xl);
 
     :deep(.el-button) {
       height: 40px;
-      padding: 0 16px;
-      font-size: 15px;
+      padding: 0 var(--el-space-xl);
+      font-size: var(--el-font-size-base);
 
       svg {
         width: 18px;
         height: 18px;
-        margin-right: 5px;
+        margin-right: var(--el-space-xs);
       }
     }
   }
 
   &__help {
     display: inline-flex;
-    padding: 7px 4px;
+    padding: var(--el-space-sm) var(--el-space-xs);
     border: 0;
     border-radius: var(--el-border-radius-base);
     align-items: center;
@@ -179,8 +179,8 @@ function queryPushItems() {
     cursor: pointer;
     background: transparent;
     font: inherit;
-    font-size: 15px;
-    gap: 6px;
+    font-size: var(--el-font-size-base);
+    gap: var(--el-space-sm);
 
     svg {
       width: 18px;
@@ -197,7 +197,7 @@ function queryPushItems() {
   .data-push-settings {
     &__header {
       min-height: 64px;
-      padding: 0 14px;
+      padding: 0 var(--el-space-lg);
     }
 
     &__help span {
@@ -205,10 +205,10 @@ function queryPushItems() {
     }
 
     &__actions {
-      gap: 8px;
+      gap: var(--el-space-md);
 
       :deep(.el-button) {
-        padding: 0 10px;
+        padding: 0 var(--el-space-md);
       }
     }
   }

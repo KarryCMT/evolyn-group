@@ -83,7 +83,7 @@ async function submit() {
 <style lang="scss">
 .add-message-recipient-dialog.el-dialog {
   overflow: hidden;
-  border-radius: 12px;
+  border-radius: var(--el-border-radius-large);
 }
 
 .add-message-recipient-dialog .el-dialog__header {
@@ -106,7 +106,7 @@ async function submit() {
 .add-message-recipient-dialog__header .el-dialog__title {
   margin: 0;
   color: #202938;
-  font-size: 18px;
+  font-size: var(--el-font-size-large);
   font-weight: 700;
   line-height: 26px;
 }
@@ -116,9 +116,9 @@ async function submit() {
   width: 32px;
   height: 32px;
   padding: 0;
-  border-radius: 8px;
+  border-radius: var(--el-border-radius-medium);
   color: #4f5969;
-  font-size: 22px;
+  font-size: var(--el-font-size-extra-large);
 }
 
 .add-message-recipient-dialog__close.el-button:hover {
@@ -127,25 +127,26 @@ async function submit() {
 }
 
 .add-message-recipient-dialog .el-dialog__body {
-  padding: 24px 28px 8px;
+  padding: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-md);
 }
 
 .add-message-recipient-dialog .el-form-item {
-  margin-bottom: 18px;
+  margin-bottom: var(--el-space-xl);
 }
 
 .add-message-recipient-dialog .el-form-item__label {
   color: #293445;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 
 .add-message-recipient-dialog .el-input__wrapper {
   min-height: 40px;
-  box-shadow: 0 0 0 1px #d7dde6 inset;
+  box-shadow: 0 0 0 1px var(--el-border-color-dark) inset;
 }
 
 .add-message-recipient-dialog .el-dialog__footer {
-  padding: 14px 28px 18px;
+  padding: var(--el-space-lg) var(--el-space-3xl)
+    var(--el-space-xl);
   border-top: 1px solid var(--el-border-color-lighter);
 }
 

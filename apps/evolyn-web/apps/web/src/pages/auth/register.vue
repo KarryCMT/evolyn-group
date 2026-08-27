@@ -157,8 +157,7 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
     <TenantChoiceStep v-else-if="step === 1" :loading="submitting" @submit="handleTenantSubmit" />
 
     <RegisterProfileStep
-      v-else
-      :default-nickname="maskedPhone"
+      v-else: default-nickname="maskedPhone"
       :loading="submitting"
       @submit="handleProfileSubmit"
     />
@@ -167,12 +166,12 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
 
 <style lang="scss" scoped>
 .register-page__steps {
-  margin-bottom: 30px;
+  margin-bottom: var(--el-space-4xl);
 }
 
 .register-page__login-tip {
   display: block;
-  margin: -18px 0 30px;
+  margin: -18px 0 var(--el-space-4xl);
   font-size: var(--el-font-size-base);
   color: var(--el-text-color-regular);
 }
@@ -189,7 +188,7 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
   }
 
   :deep(.auth-layout__title) {
-    margin-bottom: 24px;
+    margin-bottom: var(--el-space-3xl);
     text-align: left;
   }
 

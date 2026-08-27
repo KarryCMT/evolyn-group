@@ -181,7 +181,7 @@ function handleSendCode() {
 
 // 协议说明位于主按钮上方，窄表单内左对齐显示。
 .account-step__agreement {
-  margin: 24px 0 12px;
+  margin: var(--el-space-3xl) 0 var(--el-space-lg);
   font-size: var(--el-font-size-small);
   line-height: 1.6;
   text-align: left;
@@ -189,14 +189,14 @@ function handleSendCode() {
 }
 
 .account-step__help {
-  margin-top: 12px;
+  margin-top: var(--el-space-lg);
   text-align: left;
 }
 
 .account-step__link {
   color: var(--el-color-primary);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--el-font-size-base);
   &:hover {
     color: var(--el-color-primary-light-3);
   }

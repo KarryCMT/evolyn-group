@@ -107,19 +107,19 @@ function handleAction(key: string) {
 .form-data-page {
   display: flex;
   min-height: 0;
-  margin: 0 8px 8px;
+  margin: 0 var(--el-space-md) var(--el-space-md);
   overflow: hidden;
   flex: 1;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
   box-shadow: var(--el-box-shadow-light);
 }
 
 @media (max-width: 620px) {
   .form-data-page {
-    margin: 0 4px 4px;
-    border-radius: 10px;
+    margin: 0 var(--el-space-xs) var(--el-space-xs);
+    border-radius: var(--el-border-radius-large);
   }
 }
 </style>

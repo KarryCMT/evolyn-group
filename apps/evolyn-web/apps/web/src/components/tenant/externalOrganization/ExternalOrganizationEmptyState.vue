@@ -35,7 +35,7 @@ const emit = defineEmits<{
   box-sizing: border-box;
   height: 100%;
   min-height: 100%;
-  padding: 48px;
+  padding: var(--el-space-6xl);
   place-items: center;
 
   &__content {
@@ -48,20 +48,20 @@ const emit = defineEmits<{
     max-width: 100%;
     height: auto;
     margin: 0 auto;
-    border-radius: 10px;
+    border-radius: var(--el-border-radius-large);
   }
 
   &__description {
-    margin: 20px auto 18px;
-    padding-left: 22px;
+    margin: var(--el-space-2xl) auto var(--el-space-xl);
+    padding-left: var(--el-space-2xl);
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 28px;
   }
 
   &__learn {
-    margin-left: 12px;
-    padding: 0 2px;
+    margin-left: var(--el-space-lg);
+    padding: 0 var(--el-space-xs);
     border: 0;
     border-bottom: 1px solid currentcolor;
     color: var(--el-color-primary);
@@ -80,20 +80,20 @@ const emit = defineEmits<{
     min-width: 112px;
     height: 44px;
     margin: 0 auto;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
 }
 
 @media (max-width: 720px) {
   .external-organization-empty {
-    padding: 28px 20px;
+    padding: var(--el-space-3xl) var(--el-space-2xl);
 
     &__content {
       margin-top: 0;
     }
     &__description {
-      margin-top: 28px;
-      font-size: 14px;
+      margin-top: var(--el-space-3xl);
+      font-size: var(--el-font-size-base);
       line-height: 24px;
     }
   }

@@ -152,7 +152,7 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
       box-sizing: border-box;
       min-width: 160px;
       height: var(--el-space-5xl);
-      padding: var(--gp-space-xs) var(--gp-space-md);
+      padding: var(--el-space-xs) var(--el-space-md);
       border-right: 1px solid var(--el-border-color);
       border-bottom: 1px solid var(--el-border-color);
     }
@@ -197,8 +197,8 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: var(--gp-space-3xl);
-      height: var(--gp-space-3xl);
+      width: var(--el-space-3xl);
+      height: var(--el-space-3xl);
       padding: 0;
       color: var(--el-text-color-secondary);
       cursor: pointer;
@@ -213,12 +213,12 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
 
   &__column-trigger {
     display: flex;
-    gap: var(--gp-space-md);
+    gap: var(--el-space-md);
     align-items: center;
     justify-content: space-between;
     width: 100%;
-    height: var(--gp-space-5xl);
-    padding: 0 var(--gp-space-lg);
+    height: var(--el-space-5xl);
+    padding: 0 var(--el-space-lg);
     font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-primary);
     cursor: pointer;
@@ -227,7 +227,7 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
   }
 
   &__empty {
-    height: var(--gp-space-6xl) !important;
+    height: var(--el-space-6xl) !important;
     font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-secondary);
     text-align: center;

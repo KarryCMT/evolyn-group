@@ -65,14 +65,14 @@ const visibleApplications = computed(() => favoriteApplications.value.slice(0, 4
   display: flex;
   align-items: center;
   height: 100%;
-  gap: 20px;
+  gap: var(--el-space-2xl);
 
   :deep(.el-button + .el-button) {
     margin-left: 0;
   }
 
   &--recent {
-    padding-left: 4px;
+    padding-left: var(--el-space-xs);
   }
   &__recent-item {
     margin: 0;
@@ -94,7 +94,7 @@ const visibleApplications = computed(() => favoriteApplications.value.slice(0, 4
     justify-content: center;
     width: 24px;
     height: 24px;
-    margin-right: 8px;
+    margin-right: var(--el-space-md);
     color: var(--el-color-white);
     border-radius: var(--el-border-radius-small);
 

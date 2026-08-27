@@ -162,7 +162,7 @@ function handleSendCode() {
 
 // 勾选行收紧下边距，贴近主按钮
 .sms-login-form__remember {
-  margin-bottom: 14px;
+  margin-bottom: var(--el-space-lg);
 }
 
 .sms-login-form__submit {

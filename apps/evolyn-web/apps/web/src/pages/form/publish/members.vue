@@ -108,14 +108,14 @@ function notifyUnavailable(action: string) {
 
   &__header {
     min-height: 68px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     justify-content: space-between;
-    gap: 20px;
+    gap: var(--el-space-2xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
   &__heading-row {
-    gap: 16px;
+    gap: var(--el-space-xl);
   }
 
   &__title,
@@ -131,14 +131,14 @@ function notifyUnavailable(action: string) {
   }
 
   &__title {
-    font-size: 19px;
+    font-size: var(--el-font-size-large);
     line-height: 28px;
   }
 
   &__description,
   &__permission-description {
     color: var(--el-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
   }
 
   &__access-link,
@@ -157,8 +157,8 @@ function notifyUnavailable(action: string) {
 
   &__access-link {
     min-height: 32px;
-    padding: 0 8px;
-    gap: 6px;
+    padding: 0 var(--el-space-md);
+    gap: var(--el-space-sm);
     border-radius: var(--el-border-radius-base);
 
     svg {
@@ -169,7 +169,7 @@ function notifyUnavailable(action: string) {
 
   &__body {
     max-width: 1120px;
-    padding: 28px;
+    padding: var(--el-space-3xl);
   }
 
   &__actions {
@@ -191,8 +191,8 @@ function notifyUnavailable(action: string) {
 
   &__add-button {
     height: 40px;
-    padding: 0 16px;
-    gap: 7px;
+    padding: 0 var(--el-space-xl);
+    gap: var(--el-space-sm);
     color: var(--el-color-white);
     background: var(--el-color-primary);
     border-radius: var(--el-border-radius-base);
@@ -209,10 +209,10 @@ function notifyUnavailable(action: string) {
 
   &__disable-button {
     min-height: 32px;
-    padding: 0 8px;
+    padding: 0 var(--el-space-md);
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     color: var(--el-color-danger);
     background: transparent;
     border-radius: var(--el-border-radius-base);
@@ -223,31 +223,31 @@ function notifyUnavailable(action: string) {
   }
 
   &__permission-card {
-    margin-top: 36px;
+    margin-top: var(--el-space-4xl);
   }
 
   &__permission-header {
     justify-content: space-between;
-    gap: 20px;
+    gap: var(--el-space-2xl);
   }
 
   &__permission-title {
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
 
   &__permission-description {
-    margin-top: 6px;
+    margin-top: var(--el-space-sm);
     line-height: 22px;
   }
 
   &__permission-actions {
-    gap: 10px;
+    gap: var(--el-space-md);
     white-space: nowrap;
 
     button {
       min-height: 30px;
-      padding: 0 6px;
+      padding: 0 var(--el-space-sm);
       border-radius: var(--el-border-radius-base);
     }
   }
@@ -264,14 +264,14 @@ function notifyUnavailable(action: string) {
   &__member-picker {
     width: 100%;
     min-height: 120px;
-    margin-top: 10px;
+    margin-top: var(--el-space-md);
     justify-content: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-regular);
     background: transparent;
     border: 1px dashed var(--el-border-color);
     border-radius: var(--el-border-radius-base);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
 
     svg {
       width: 18px;
@@ -290,13 +290,13 @@ function notifyUnavailable(action: string) {
   .form-publish-members-page {
     &__header,
     &__permission-header {
-      padding: 18px;
+      padding: var(--el-space-xl);
       align-items: flex-start;
       flex-direction: column;
     }
 
     &__body {
-      padding: 24px 18px;
+      padding: var(--el-space-3xl) var(--el-space-xl);
     }
 
     &__permission-actions {

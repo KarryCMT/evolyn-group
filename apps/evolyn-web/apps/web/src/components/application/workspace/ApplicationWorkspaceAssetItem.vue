@@ -230,7 +230,7 @@ function handleAction(command: string | number | object) {
     min-width: 0;
     min-height: 42px;
     align-items: center;
-    border-radius: 7px;
+    border-radius: var(--el-border-radius-medium);
 
     /* 仅鼠标移入显示操作态；点击分组后的 DOM 焦点不能留下类似选中态的背景。 */
     &:hover {
@@ -262,11 +262,11 @@ function handleAction(command: string | number | object) {
     display: flex;
     min-width: 0;
     min-height: 42px;
-    padding: 0 4px 0 10px;
+    padding: 0 var(--el-space-xs) 0 var(--el-space-md);
     flex: 1;
     align-items: center;
-    gap: 10px;
-    font-size: 15px;
+    gap: var(--el-space-md);
+    font-size: var(--el-font-size-base);
     text-align: left;
 
     svg {
@@ -314,10 +314,10 @@ function handleAction(command: string | number | object) {
 
   &__actions {
     display: inline-flex;
-    margin-right: 6px;
+    margin-right: var(--el-space-sm);
     flex: 0 0 auto;
     align-items: center;
-    gap: 2px;
+    gap: var(--el-space-xs);
   }
 
   &__action {
@@ -327,9 +327,9 @@ function handleAction(command: string | number | object) {
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-color-white);
-    font-size: 19px;
+    font-size: var(--el-font-size-large);
     opacity: 0;
     transition:
       opacity 0.16s ease,
@@ -352,11 +352,11 @@ function handleAction(command: string | number | object) {
   }
 
   &--depth-1 > &__row &__main {
-    padding-left: 22px;
+    padding-left: var(--el-space-2xl);
   }
 
   &--depth-2 > &__row &__main {
-    padding-left: 34px;
+    padding-left: var(--el-space-4xl);
   }
 }
 </style>
@@ -370,16 +370,16 @@ function handleAction(command: string | number | object) {
 }
 
 .application-workspace-asset-actions__menu.el-dropdown-menu {
-  padding: 6px;
+  padding: var(--el-space-sm);
   --el-dropdown-menuItem-hover-fill: var(--el-fill-color-light);
   --el-dropdown-menuItem-hover-color: var(--el-text-color-primary);
 }
 
 .application-workspace-asset-actions__menu .el-dropdown-menu__item {
   height: 38px;
-  gap: 9px;
-  padding: 0 10px;
-  border-radius: 6px;
+  gap: var(--el-space-md);
+  padding: 0 var(--el-space-md);
+  border-radius: var(--el-border-radius-medium);
   color: var(--el-text-color-primary);
 
   svg {
@@ -406,18 +406,18 @@ function handleAction(command: string | number | object) {
 }
 
 .application-workspace-asset-create-actions__menu.el-dropdown-menu {
-  padding: 6px;
+  padding: var(--el-space-sm);
   --el-dropdown-menuItem-hover-fill: var(--el-fill-color-light);
   --el-dropdown-menuItem-hover-color: var(--el-text-color-primary);
 }
 
 .application-workspace-asset-create-actions__menu .el-dropdown-menu__item {
   height: 42px;
-  gap: 10px;
-  padding: 0 12px;
-  border-radius: 6px;
+  gap: var(--el-space-md);
+  padding: 0 var(--el-space-lg);
+  border-radius: var(--el-border-radius-medium);
   color: var(--el-text-color-primary);
-  font-size: 15px;
+  font-size: var(--el-font-size-base);
 
   svg {
     width: 19px;

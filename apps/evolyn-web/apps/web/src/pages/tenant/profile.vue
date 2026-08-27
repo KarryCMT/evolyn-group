@@ -152,7 +152,7 @@ function saveCompletion(profile: TenantProfileCompletion) {
 .tenant-profile-page {
   box-sizing: border-box;
   min-height: 100%;
-  padding: 30px 28px 48px;
+  padding: var(--el-space-4xl) var(--el-space-3xl) var(--el-space-6xl);
 
   &__name-edit-section {
     min-height: 360px;
@@ -161,9 +161,9 @@ function saveCompletion(profile: TenantProfileCompletion) {
   &__section-title {
     position: relative;
     margin: 0;
-    padding-left: 16px;
+    padding-left: var(--el-space-xl);
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 28px;
 
@@ -173,7 +173,7 @@ function saveCompletion(profile: TenantProfileCompletion) {
       bottom: 4px;
       left: 0;
       width: 4px;
-      border-radius: 999px;
+      border-radius: var(--el-border-radius-half);
       background: var(--el-color-primary);
       content: '';
     }
@@ -181,47 +181,47 @@ function saveCompletion(profile: TenantProfileCompletion) {
 
   &__name-editor-row {
     display: grid;
-    margin-top: 40px;
+    margin-top: var(--el-space-5xl);
     grid-template-columns: 220px minmax(0, 1fr);
   }
 
   &__name-label {
     padding-top: 90px;
     color: var(--el-text-color-regular);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     line-height: 24px;
   }
 
   &__completion {
-    margin-top: 34px;
-    padding-top: 34px;
+    margin-top: var(--el-space-4xl);
+    padding-top: var(--el-space-4xl);
     border-top: 1px solid var(--el-border-color-lighter);
   }
 
   &__completion-banner {
     display: flex;
     min-height: 88px;
-    margin-top: 20px;
-    padding: 18px 20px;
-    border-radius: 8px;
+    margin-top: var(--el-space-2xl);
+    padding: var(--el-space-xl) var(--el-space-2xl);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 22px;
+    gap: var(--el-space-2xl);
     background: var(--el-fill-color-light);
   }
 
   &__completion-banner p {
     margin: 0;
     color: var(--el-text-color-regular);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 24px;
   }
 
   &__completion-action {
     flex: 0 0 auto;
-    padding: 4px 6px;
+    padding: var(--el-space-xs) var(--el-space-sm);
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     color: var(--el-color-primary);
     background: transparent;
     cursor: pointer;
@@ -245,10 +245,10 @@ function saveCompletion(profile: TenantProfileCompletion) {
 
 @media (max-width: 840px) {
   .tenant-profile-page {
-    padding: 24px 20px 36px;
+    padding: var(--el-space-3xl) var(--el-space-2xl) var(--el-space-4xl);
 
     &__name-editor-row {
-      gap: 10px;
+      gap: var(--el-space-md);
       grid-template-columns: 1fr;
     }
 
@@ -259,7 +259,7 @@ function saveCompletion(profile: TenantProfileCompletion) {
     &__completion-banner {
       align-items: flex-start;
       flex-direction: column;
-      gap: 8px;
+      gap: var(--el-space-md);
     }
   }
 }

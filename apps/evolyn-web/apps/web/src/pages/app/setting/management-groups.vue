@@ -76,16 +76,16 @@ async function removeGroup(id: string) {
   &__header {
     display: flex;
     min-height: 76px;
-    padding: 0 22px;
+    padding: 0 var(--el-space-2xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     align-items: center;
     justify-content: space-between;
-    gap: 18px;
+    gap: var(--el-space-xl);
 
     h1 {
       margin: 0;
       color: var(--el-text-color-primary);
-      font-size: 20px;
+      font-size: var(--el-font-size-extra-large);
       font-weight: 650;
       line-height: 28px;
     }
@@ -94,7 +94,7 @@ async function removeGroup(id: string) {
   &__create {
     display: inline-flex;
     min-height: 40px;
-    padding: 0 15px;
+    padding: 0 var(--el-space-xl);
     border: 0;
     border-radius: var(--el-border-radius-base);
     align-items: center;
@@ -102,8 +102,8 @@ async function removeGroup(id: string) {
     cursor: pointer;
     background: var(--el-color-primary);
     font: inherit;
-    font-size: 15px;
-    gap: 5px;
+    font-size: var(--el-font-size-base);
+    gap: var(--el-space-xs);
 
     svg {
       width: 18px;
@@ -125,11 +125,11 @@ async function removeGroup(id: string) {
   .management-groups-page {
     &__header {
       min-height: 64px;
-      padding: 0 14px;
+      padding: 0 var(--el-space-lg);
     }
 
     &__create {
-      padding: 0 10px;
+      padding: 0 var(--el-space-md);
     }
   }
 }

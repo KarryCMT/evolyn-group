@@ -72,7 +72,7 @@ async function handleSubmit() {
 <style scoped lang="scss">
 .mfa-verify-dialog {
   &__hint {
-    margin: 0 0 18px;
+    margin: 0 0 var(--el-space-xl);
     color: var(--el-text-color-secondary);
     line-height: 22px;
   }

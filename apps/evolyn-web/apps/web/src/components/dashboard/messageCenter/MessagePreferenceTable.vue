@@ -97,10 +97,10 @@ function updateChannel(
   flex: 1 1 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid #eef1f4;
+  border: 1px solid var(--el-border-color-lighter);
   background: #fff;
-  border-radius: 10px;
-  box-shadow: 0 4px 16px rgb(42 57 77 / 3%);
+  border-radius: var(--el-border-radius-large);
+  box-shadow: var(--el-box-shadow-light);
 
   &__header,
   &__row {
@@ -113,10 +113,10 @@ function updateChannel(
     flex: 0 0 auto;
     min-height: 68px;
     align-items: center;
-    padding: 0 20px;
+    padding: 0 var(--el-space-2xl);
     color: #202938;
     background: #f6f8fa;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     font-weight: 600;
     line-height: 22px;
   }
@@ -124,8 +124,8 @@ function updateChannel(
   &__row {
     min-height: 148px;
     align-items: center;
-    padding: 0 20px;
-    border-top: 1px solid #e8edf1;
+    padding: 0 var(--el-space-2xl);
+    border-top: 1px solid var(--el-border-color-lighter);
   }
 
   &__body {
@@ -136,9 +136,9 @@ function updateChannel(
   }
 
   &__type {
-    padding-right: 20px;
+    padding-right: var(--el-space-2xl);
     color: #293445;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
 
@@ -146,19 +146,19 @@ function updateChannel(
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 28px;
+    gap: var(--el-space-3xl);
   }
 
   &__channels {
     display: flex;
     min-width: 112px;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--el-space-lg);
 
     :deep(.el-checkbox) {
       margin-right: 0;
       color: #273142;
-      font-size: 16px;
+      font-size: var(--el-font-size-medium);
     }
 
     :deep(.el-checkbox.is-disabled .el-checkbox__label) {
@@ -172,9 +172,9 @@ function updateChannel(
   }
 
   &__hint {
-    margin-left: 3px;
+    margin-left: var(--el-space-xs);
     color: #aab2bf;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     vertical-align: -2px;
   }
 
@@ -184,7 +184,7 @@ function updateChannel(
     flex-wrap: wrap;
     align-items: center;
     justify-content: flex-end;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
 
   &__recipient,
@@ -193,13 +193,13 @@ function updateChannel(
     height: 36px;
     border: 0;
     align-items: center;
-    gap: 6px;
-    padding: 0 10px;
+    gap: var(--el-space-sm);
+    padding: 0 var(--el-space-md);
     color: #344052;
     background: #f4f6f8;
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     cursor: pointer;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
 
     &:hover {
       color: var(--el-color-primary);
@@ -214,7 +214,7 @@ function updateChannel(
 
   &__recipient .el-icon {
     color: var(--el-color-primary);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
 
   &__manage {
@@ -228,7 +228,7 @@ function updateChannel(
     align-items: center;
     justify-content: center;
     color: #929aa7;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
 }
 </style>

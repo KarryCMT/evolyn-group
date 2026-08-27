@@ -64,19 +64,19 @@ async function upload(options: UploadRequestOptions) {
 <style scoped lang="scss">
 .organization-invite-batch {
   &__tips {
-    margin: 0 0 18px;
-    padding: 14px 20px 12px 36px;
-    border-radius: 6px;
+    margin: 0 0 var(--el-space-xl);
+    padding: var(--el-space-lg) var(--el-space-2xl) var(--el-space-lg) var(--el-space-4xl);
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-secondary);
     background: var(--el-fill-color-light);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 24px;
   }
 
   &__tips button {
-    padding: 2px 5px;
+    padding: var(--el-space-xs) var(--el-space-sm);
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     color: var(--el-color-primary);
     background: transparent;
     cursor: pointer;
@@ -103,14 +103,14 @@ async function upload(options: UploadRequestOptions) {
   &__upload :deep(svg) {
     width: 48px;
     height: 48px;
-    margin: 0 auto 16px;
+    margin: 0 auto var(--el-space-xl);
     color: var(--el-color-primary);
   }
 
   &__upload :deep(p) {
-    margin: 0 0 6px;
+    margin: 0 0 var(--el-space-sm);
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
 
   &__upload :deep(p span) {
@@ -119,14 +119,14 @@ async function upload(options: UploadRequestOptions) {
 
   &__upload :deep(small) {
     color: var(--el-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
   }
 
   &__result {
-    margin-top: 22px;
-    padding: 18px 22px;
+    margin-top: var(--el-space-2xl);
+    padding: var(--el-space-xl) var(--el-space-2xl);
     border: 1px solid var(--el-border-color-lighter);
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-regular);
     background: var(--el-fill-color-light);
     line-height: 25px;
@@ -136,7 +136,7 @@ async function upload(options: UploadRequestOptions) {
     color: var(--el-text-color-primary);
   }
   &__result ul {
-    margin: 10px 0 0;
+    margin: var(--el-space-md) 0 0;
     color: var(--el-color-danger);
   }
 }

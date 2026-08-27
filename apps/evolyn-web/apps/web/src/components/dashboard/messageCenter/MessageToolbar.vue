@@ -49,18 +49,18 @@ function updateUnreadOnly(value: boolean | string | number) {
   min-height: 44px;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--el-space-xl);
 
   &__filter,
   &__mark-read {
     display: inline-flex;
     border: 0;
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     color: #202938;
     background: transparent;
     cursor: pointer;
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     line-height: 26px;
 
     &:hover {
@@ -75,27 +75,27 @@ function updateUnreadOnly(value: boolean | string | number) {
 
   &__filter .el-icon {
     color: #626d7d;
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
   }
 
   &__actions {
     display: flex;
     align-items: center;
-    gap: 28px;
+    gap: var(--el-space-3xl);
     color: #202938;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
 
   &__mark-read {
     color: var(--el-color-primary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
 }
 
 @media (max-width: 600px) {
   .message-toolbar {
     &__actions {
-      gap: 12px;
+      gap: var(--el-space-lg);
     }
   }
 }

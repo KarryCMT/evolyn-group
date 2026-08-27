@@ -239,13 +239,13 @@ const ensureSelectedField = () => {
   &__palette {
     display: flex;
     flex-direction: column;
-    gap: var(--gp-space-xs);
+    gap: var(--el-space-xs);
 
     button {
       display: flex;
-      gap: var(--gp-space-sm);
+      gap: var(--el-space-sm);
       align-items: center;
-      padding: var(--gp-space-sm) var(--gp-space-md);
+      padding: var(--el-space-sm) var(--el-space-md);
       color: var(--el-text-color-primary);
       cursor: pointer;
       background-color: transparent;
@@ -259,15 +259,15 @@ const ensureSelectedField = () => {
   }
 
   &__list {
-    min-height: var(--gp-space-xl);
-    margin-top: var(--gp-space-md);
+    min-height: var(--el-space-xl);
+    margin-top: var(--el-space-md);
   }
 
   &__item {
-    gap: var(--gp-space-sm);
-    min-height: var(--gp-space-4xl);
-    padding: 0 var(--gp-space-sm);
-    margin-bottom: var(--gp-space-xs);
+    gap: var(--el-space-sm);
+    min-height: var(--el-space-4xl);
+    padding: 0 var(--el-space-sm);
+    margin-bottom: var(--el-space-xs);
     cursor: pointer;
     border: 1px solid var(--el-border-color);
     border-radius: var(--el-border-radius-base);
@@ -290,8 +290,8 @@ const ensureSelectedField = () => {
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: var(--gp-space-3xl);
-      height: var(--gp-space-3xl);
+      width: var(--el-space-3xl);
+      height: var(--el-space-3xl);
       color: var(--el-text-color-secondary);
       cursor: pointer;
       background-color: transparent;
@@ -316,7 +316,7 @@ const ensureSelectedField = () => {
   }
 
   &__empty {
-    padding: var(--gp-space-xl) 0;
+    padding: var(--el-space-xl) 0;
     font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-secondary);
     text-align: center;

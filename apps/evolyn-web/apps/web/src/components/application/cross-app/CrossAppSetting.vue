@@ -137,11 +137,11 @@ function handleFormToggle(id: string) {
   &__header {
     display: flex;
     min-height: 74px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     align-items: center;
     justify-content: space-between;
-    gap: 20px;
+    gap: var(--el-space-2xl);
   }
 
   &__title,
@@ -151,15 +151,15 @@ function handleFormToggle(id: string) {
 
   &__title {
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 28px;
   }
 
   &__description {
-    margin-top: 2px;
+    margin-top: var(--el-space-xs);
     color: var(--el-text-color-secondary);
-    font-size: 12px;
+    font-size: var(--el-font-size-extra-small);
     line-height: 18px;
   }
 
@@ -172,27 +172,28 @@ function handleFormToggle(id: string) {
   &__body {
     display: flex;
     min-height: 0;
-    padding: 22px 28px 28px;
+    padding: var(--el-space-2xl) var(--el-space-3xl)
+      var(--el-space-3xl);
     overflow: hidden;
     flex: 1;
     flex-direction: column;
-    gap: 14px;
+    gap: var(--el-space-lg);
   }
 
   &__selection {
     min-height: 88px;
-    padding: 12px 14px;
+    padding: var(--el-space-lg) var(--el-space-lg);
     border: 1px dashed var(--el-border-color);
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     background: var(--el-fill-color-blank);
   }
 
   &__selection-heading {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-regular);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 20px;
   }
 
@@ -201,32 +202,32 @@ function handleFormToggle(id: string) {
   }
 
   &__dirty {
-    padding: 0 6px;
-    border-radius: 3px;
+    padding: 0 var(--el-space-sm);
+    border-radius: var(--el-border-radius-small);
     color: var(--el-color-warning);
     background: var(--el-color-warning-light-9);
-    font-size: 11px;
+    font-size: var(--el-font-size-extra-small);
     line-height: 18px;
   }
 
   &__chips {
     display: flex;
-    margin-top: 9px;
+    margin-top: var(--el-space-md);
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
 
   &__chip {
     display: inline-flex;
     min-width: 0;
     height: 32px;
-    padding: 0 4px 0 8px;
-    border-radius: 4px;
+    padding: 0 var(--el-space-xs) 0 var(--el-space-md);
+    border-radius: var(--el-border-radius-base);
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     color: var(--el-text-color-regular);
     background: var(--el-fill-color-light);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 20px;
   }
 
@@ -242,7 +243,7 @@ function handleFormToggle(id: string) {
     height: 24px;
     padding: 0;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     align-items: center;
     justify-content: center;
     color: var(--el-text-color-secondary);
@@ -266,19 +267,19 @@ function handleFormToggle(id: string) {
   }
 
   &__empty-selection {
-    margin: 12px 0 0;
+    margin: var(--el-space-lg) 0 0;
     color: var(--el-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 20px;
   }
 
   &__search {
     display: flex;
     height: 40px;
-    padding: 0 12px;
-    border-radius: 6px;
+    padding: 0 var(--el-space-lg);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-secondary);
     background: var(--el-fill-color-light);
 
@@ -297,7 +298,7 @@ function handleFormToggle(id: string) {
       color: var(--el-text-color-primary);
       background: transparent;
       font: inherit;
-      font-size: 14px;
+      font-size: var(--el-font-size-base);
 
       &::placeholder {
         color: var(--el-text-color-placeholder);
@@ -310,7 +311,7 @@ function handleFormToggle(id: string) {
     min-height: 0;
     flex: 1;
     border: 1px solid var(--el-border-color-lighter);
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     grid-template-columns: minmax(220px, 1fr) minmax(440px, 1.25fr);
     overflow: hidden;
   }
@@ -334,21 +335,21 @@ function handleFormToggle(id: string) {
   &__tree-heading {
     display: flex;
     height: 50px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--el-space-lg);
 
     strong {
       color: var(--el-text-color-primary);
-      font-size: 14px;
+      font-size: var(--el-font-size-base);
       line-height: 20px;
     }
 
     span {
       color: var(--el-text-color-secondary);
-      font-size: 12px;
+      font-size: var(--el-font-size-extra-small);
       line-height: 18px;
     }
   }
@@ -358,18 +359,18 @@ function handleFormToggle(id: string) {
     min-height: 100%;
     place-items: center;
     color: var(--el-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
   }
 }
 
 @media (max-width: 860px) {
   .cross-app-setting {
     &__body {
-      padding: 16px;
+      padding: var(--el-space-xl);
     }
 
     &__header {
-      padding: 0 16px;
+      padding: 0 var(--el-space-xl);
     }
 
     &__picker {

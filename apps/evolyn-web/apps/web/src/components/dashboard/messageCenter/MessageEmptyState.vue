@@ -22,7 +22,7 @@ defineOptions({ name: 'MessageEmptyState' });
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 22px;
+  gap: var(--el-space-2xl);
 
   &__illustration {
     position: relative;
@@ -36,12 +36,14 @@ defineOptions({ name: 'MessageEmptyState' });
       var(--el-color-primary-light-9),
       var(--el-color-primary-light-7)
     );
-    border-radius: 18px 18px 32px 32px;
-    box-shadow: inset 0 0 0 10px rgb(255 255 255 / 38%);
+    border-radius: var(--el-border-radius-round) var(--el-border-radius-round)
+      32px 32px;
+    box-shadow: inset 0 0 0 var(--el-space-md)
+      color-mix(in srgb, var(--el-color-white) 38%, var(--el-color-transparent));
 
     .el-icon {
       color: var(--el-color-primary);
-      font-size: 58px;
+      font-size: 58.0006px;
     }
   }
 
@@ -51,7 +53,7 @@ defineOptions({ name: 'MessageEmptyState' });
     width: 16px;
     height: 16px;
     background: var(--el-color-primary-light-7);
-    border-radius: 50%;
+    border-radius: var(--el-border-radius-half);
 
     &--left {
       left: -25px;
@@ -67,7 +69,7 @@ defineOptions({ name: 'MessageEmptyState' });
   &__text {
     margin: 0;
     color: #8f98a7;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
 }

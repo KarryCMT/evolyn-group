@@ -651,10 +651,10 @@ watch(
   position: relative;
   display: flex;
   height: 136px;
-  margin: 16px 30px 0;
+  margin: var(--el-space-xl) var(--el-space-4xl) 0;
   padding: 0 80px 0 300px;
   overflow: hidden;
-  border-radius: 5px;
+  border-radius: var(--el-border-radius-base);
   align-items: center;
   background: #2f70e9;
 }
@@ -669,7 +669,11 @@ watch(
 .tenant-organization-page__invite-banner strong {
   position: relative;
   color: #fff;
-  font-size: clamp(20px, 1.65vw, 30px);
+  font-size: clamp(
+    var(--el-font-size-extra-large),
+    1.65vw,
+    30.0006px
+  );
   font-weight: 600;
   letter-spacing: 1px;
   white-space: nowrap;
@@ -684,7 +688,7 @@ watch(
   background: #fff;
   cursor: pointer;
   font: inherit;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 .tenant-organization-page__invite-banner
   > button:not(.tenant-organization-page__banner-close):hover {
@@ -700,7 +704,7 @@ watch(
   height: 28px;
   padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--el-border-radius-base);
   align-items: center;
   justify-content: center;
   color: rgb(255 255 255 / 80%);
@@ -719,7 +723,7 @@ watch(
 .tenant-organization-page__role-header {
   display: flex;
   height: 66px;
-  padding: 0 30px;
+  padding: 0 var(--el-space-4xl);
   border-bottom: 1px solid var(--el-border-color-lighter);
   align-items: center;
   justify-content: space-between;
@@ -728,36 +732,36 @@ watch(
 .tenant-organization-page__role-header h1 {
   margin: 0;
   color: var(--el-text-color-primary);
-  font-size: 21px;
+  font-size: var(--el-font-size-extra-large);
   font-weight: 650;
 }
 .tenant-organization-page__role-header > div {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--el-space-lg);
   color: var(--el-border-color);
 }
 .tenant-organization-page__role-header button {
-  padding: 4px 6px;
+  padding: var(--el-space-xs) var(--el-space-sm);
   border: 0;
-  border-radius: 4px;
+  border-radius: var(--el-border-radius-base);
   color: var(--el-color-primary);
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 .tenant-organization-page__role-header button:hover {
   background: var(--el-color-primary-light-9);
 }
 .tenant-organization-page__dialog-prompt {
-  margin: 0 0 14px;
+  margin: 0 0 var(--el-space-lg);
   color: var(--el-text-color-secondary);
 }
 .tenant-organization-page__group-list {
   min-height: 260px;
   border: 1px solid var(--el-border-color);
-  border-radius: 6px;
+  border-radius: var(--el-border-radius-medium);
   overflow: hidden;
 }
 .tenant-organization-page__group-list button {
@@ -765,7 +769,7 @@ watch(
   box-sizing: border-box;
   width: 100%;
   height: 46px;
-  padding: 0 18px;
+  padding: 0 var(--el-space-xl);
   border: 0;
   align-items: center;
   justify-content: space-between;
@@ -797,7 +801,7 @@ watch(
     width: 300px;
   }
   .tenant-organization-page__invite-banner strong {
-    font-size: 21px;
+    font-size: var(--el-font-size-extra-large);
   }
 }
 </style>

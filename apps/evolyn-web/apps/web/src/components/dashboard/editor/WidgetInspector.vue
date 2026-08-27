@@ -132,7 +132,7 @@ function readVariant<TVariant extends string>(
     align-items: center;
     justify-content: space-between;
     min-height: 56px;
-    padding: 0 16px;
+    padding: 0 var(--el-space-xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
@@ -151,7 +151,7 @@ function readVariant<TVariant extends string>(
   }
 
   &__form {
-    padding: 16px;
+    padding: var(--el-space-xl);
   }
 
   &__hint,
@@ -162,7 +162,7 @@ function readVariant<TVariant extends string>(
   }
 
   &__empty {
-    padding: 24px 16px;
+    padding: var(--el-space-3xl) var(--el-space-xl);
   }
 }
 </style>

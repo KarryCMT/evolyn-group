@@ -142,25 +142,25 @@ function selectTab(id: PermissionSubjectType) {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  padding: 28px;
+  padding: var(--el-space-3xl);
   border-right: 1px solid var(--el-border-color);
 }
 .permission-query-explorer__tabs {
   display: grid;
   height: 44px;
-  padding: 3px;
+  padding: var(--el-space-xs);
   grid-template-columns: repeat(4, 1fr);
-  border-radius: 8px;
+  border-radius: var(--el-border-radius-medium);
   background: var(--el-fill-color);
 }
 .permission-query-explorer__tab {
   border: 0;
-  border-radius: 7px;
+  border-radius: var(--el-border-radius-medium);
   color: var(--el-text-color-primary);
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 .permission-query-explorer__tab:hover {
   background: var(--el-fill-color-light);
@@ -173,12 +173,12 @@ function selectTab(id: PermissionSubjectType) {
 .permission-query-explorer__search {
   display: flex;
   height: 44px;
-  margin: 16px 0;
-  padding: 0 12px;
+  margin: var(--el-space-xl) 0;
+  padding: 0 var(--el-space-lg);
   border: 1px solid var(--el-border-color);
-  border-radius: 8px;
+  border-radius: var(--el-border-radius-medium);
   align-items: center;
-  gap: 8px;
+  gap: var(--el-space-md);
 }
 .permission-query-explorer__search svg {
   width: 20px;
@@ -201,21 +201,21 @@ function selectTab(id: PermissionSubjectType) {
 .permission-query-explorer__subject-tree {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--el-space-xs);
 }
 .permission-query-explorer__node {
   display: flex;
   min-height: 40px;
-  padding: 0 12px;
+  padding: 0 var(--el-space-lg);
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--el-border-radius-medium);
   align-items: center;
-  gap: 8px;
+  gap: var(--el-space-md);
   color: var(--el-text-color-primary);
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
   text-align: left;
 }
 .permission-query-explorer__node:hover {
@@ -225,7 +225,7 @@ function selectTab(id: PermissionSubjectType) {
   background: var(--el-color-primary-light-9);
 }
 .permission-query-explorer__node--child {
-  padding-left: 48px;
+  padding-left: var(--el-space-6xl);
 }
 .permission-query-explorer__chevron {
   width: 16px;
@@ -241,29 +241,29 @@ function selectTab(id: PermissionSubjectType) {
   display: flex;
   min-width: 0;
   flex-direction: column;
-  padding: 28px 28px 0;
+  padding: var(--el-space-3xl) var(--el-space-3xl) 0;
 }
 .permission-query-explorer__permissions header {
   display: flex;
   min-height: 56px;
-  padding: 0 18px;
+  padding: 0 var(--el-space-xl);
   align-items: center;
   justify-content: space-between;
   color: var(--el-text-color-primary);
   background: var(--el-fill-color-light);
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
   font-weight: 600;
 }
 .permission-query-explorer__permission-tree {
-  padding-top: 10px;
+  padding-top: var(--el-space-md);
 }
 .permission-query-explorer__permission-node {
   display: flex;
   min-height: 54px;
   align-items: center;
-  gap: 8px;
+  gap: var(--el-space-md);
   color: var(--el-text-color-primary);
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 .permission-query-explorer__permission-node svg {
   width: 20px;
@@ -271,7 +271,7 @@ function selectTab(id: PermissionSubjectType) {
   color: var(--el-color-primary);
 }
 .permission-query-explorer__permission-node--level-1 {
-  padding-left: 28px;
+  padding-left: var(--el-space-3xl);
 }
 .permission-query-explorer__permission-node--level-2 {
   padding-left: 56px;
@@ -282,10 +282,10 @@ function selectTab(id: PermissionSubjectType) {
 .permission-query-explorer__permission-node--level-3 > div {
   display: flex;
   margin-left: auto;
-  gap: 24px;
+  gap: var(--el-space-3xl);
 }
 .permission-query-explorer__permission-node button {
-  padding: 4px;
+  padding: var(--el-space-xs);
   border: 0;
   color: var(--el-color-primary);
   background: transparent;
@@ -293,7 +293,7 @@ function selectTab(id: PermissionSubjectType) {
   font: inherit;
 }
 .permission-query-explorer__permission-node button:hover {
-  border-radius: 4px;
+  border-radius: var(--el-border-radius-base);
   background: var(--el-color-primary-light-9);
 }
 </style>

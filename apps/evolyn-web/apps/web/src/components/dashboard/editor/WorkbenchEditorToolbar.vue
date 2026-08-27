@@ -52,14 +52,14 @@ const emit = defineEmits<{
   align-items: center;
   justify-content: space-between;
   height: 44px;
-  padding: 0 16px;
+  padding: 0 var(--el-space-xl);
   background: var(--el-bg-color);
   border-bottom: 1px solid var(--el-border-color-lighter);
 
   &__actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
 
   &__status {

@@ -294,7 +294,7 @@ function reloadWorkspace() {
     background: transparent;
     border: 0;
     border-radius: var(--el-border-radius-base);
-    font-size: 24px;
+    font-size: var(--el-font-size-extra-large);
 
     &:hover {
       color: var(--el-color-primary);
@@ -311,12 +311,12 @@ function reloadWorkspace() {
     display: inline-flex;
     min-width: 0;
     align-items: center;
-    gap: 10px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-primary);
 
     strong {
       overflow: hidden;
-      font-size: 17px;
+      font-size: var(--el-font-size-medium);
       font-weight: 650;
       line-height: 26px;
       text-overflow: ellipsis;
@@ -333,8 +333,8 @@ function reloadWorkspace() {
     justify-content: center;
     color: var(--el-color-white);
     background: var(--el-color-primary);
-    border-radius: 7px;
-    font-size: 19px;
+    border-radius: var(--el-border-radius-medium);
+    font-size: var(--el-font-size-large);
   }
 
   &__status,

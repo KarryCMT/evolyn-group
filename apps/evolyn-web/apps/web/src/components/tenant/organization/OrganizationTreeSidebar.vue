@@ -426,7 +426,7 @@ function handleRoleTreeDrop(
   width: 100%;
   min-width: 0;
   height: 100%;
-  padding: 28px 28px 20px;
+  padding: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-2xl);
   flex-direction: column;
   background: #fff;
 
@@ -448,13 +448,13 @@ function handleRoleTreeDrop(
     flex-direction: column;
   }
   &__section-label {
-    margin: 23px 0 12px;
+    margin: var(--el-space-3xl) 0 var(--el-space-lg);
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
   &__section-label--department {
-    margin-top: 30px;
+    margin-top: var(--el-space-4xl);
   }
 
   &__quick-item {
@@ -488,10 +488,10 @@ function handleRoleTreeDrop(
 
   &__quick-item {
     height: 56px;
-    gap: 13px;
-    padding: 0 18px;
-    border-radius: 8px;
-    font-size: 16px;
+    gap: var(--el-space-lg);
+    padding: 0 var(--el-space-xl);
+    border-radius: var(--el-border-radius-medium);
+    font-size: var(--el-font-size-medium);
 
     svg {
       width: 22px;
@@ -511,11 +511,11 @@ function handleRoleTreeDrop(
     display: flex;
     box-sizing: border-box;
     height: 46px;
-    padding: 0 13px;
+    padding: 0 var(--el-space-lg);
     border: 1px solid var(--el-border-color);
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 10px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-secondary);
 
     &:focus-within {
@@ -534,7 +534,7 @@ function handleRoleTreeDrop(
       color: var(--el-text-color-primary);
       background: transparent;
       font: inherit;
-      font-size: 16px;
+      font-size: var(--el-font-size-medium);
     }
     input::placeholder {
       color: var(--el-text-color-placeholder);
@@ -542,13 +542,13 @@ function handleRoleTreeDrop(
   }
   &__role-area .organization-tree-sidebar__search {
     // 与分段控制器保留固定间距，避免角色搜索框紧贴切换控件。
-    margin-top: 22px;
+    margin-top: var(--el-space-2xl);
   }
 
   &__department-tree,
   &__role-tree {
     min-height: 0;
-    margin-top: 22px;
+    margin-top: var(--el-space-2xl);
     overflow-y: auto;
   }
   &__department-tree :deep(.el-tree) {
@@ -556,8 +556,8 @@ function handleRoleTreeDrop(
     background: transparent;
   }
   &__department-tree :deep(.el-tree-node__content) {
-    padding-right: 6px;
-    border-radius: 6px;
+    padding-right: var(--el-space-sm);
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-regular);
   }
   &__department-tree :deep(.el-tree-node__content:hover),
@@ -574,7 +574,7 @@ function handleRoleTreeDrop(
   &__department-node-icon {
     width: 20px;
     height: 20px;
-    margin-right: 8px;
+    margin-right: var(--el-space-md);
     flex: 0 0 20px;
     color: var(--el-color-primary);
   }
@@ -588,10 +588,10 @@ function handleRoleTreeDrop(
     display: inline-flex;
     width: 28px;
     height: 28px;
-    margin-left: 4px;
+    margin-left: var(--el-space-xs);
     padding: 0;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     align-items: center;
     justify-content: center;
     color: var(--el-text-color-secondary);
@@ -623,19 +623,19 @@ function handleRoleTreeDrop(
     opacity: 1;
   }
   &__empty {
-    margin: 22px 0 0;
+    margin: var(--el-space-2xl) 0 0;
     color: var(--el-text-color-placeholder);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     text-align: center;
   }
 
   &__roles-heading {
     display: flex;
-    margin-top: 22px;
+    margin-top: var(--el-space-2xl);
     align-items: center;
     justify-content: space-between;
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 36px;
   }
   &__add-button {
@@ -644,7 +644,7 @@ function handleRoleTreeDrop(
     height: 36px;
     padding: 0;
     border: 0;
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     justify-content: center;
     color: #fff;
@@ -667,8 +667,8 @@ function handleRoleTreeDrop(
     background: transparent;
   }
   &__role-tree :deep(.el-tree-node__content) {
-    padding-right: 6px;
-    border-radius: 8px;
+    padding-right: var(--el-space-sm);
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-regular);
   }
   &__role-tree :deep(.el-tree-node__content:hover),
@@ -685,7 +685,7 @@ function handleRoleTreeDrop(
   &__role-node-icon {
     width: 22px;
     height: 22px;
-    margin-right: 9px;
+    margin-right: var(--el-space-md);
     flex: 0 0 22px;
     color: var(--el-color-primary);
   }
@@ -702,10 +702,10 @@ function handleRoleTreeDrop(
     display: inline-flex;
     width: 28px;
     height: 28px;
-    margin-left: 4px;
+    margin-left: var(--el-space-xs);
     padding: 0;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     align-items: center;
     justify-content: center;
     color: var(--el-text-color-secondary);
@@ -734,17 +734,17 @@ function handleRoleTreeDrop(
 
   &__create-menu {
     display: grid;
-    gap: 2px;
+    gap: var(--el-space-xs);
   }
   &__create-menu button {
-    padding: 8px 10px;
+    padding: var(--el-space-md) var(--el-space-md);
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     color: var(--el-text-color-primary);
     background: transparent;
     cursor: pointer;
     font: inherit;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     text-align: left;
   }
   &__create-menu button:hover {

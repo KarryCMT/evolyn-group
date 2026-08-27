@@ -85,12 +85,12 @@ function confirm() {
 <style scoped lang="scss">
 .permission-member-picker-dialog {
   &__intro {
-    margin-bottom: 20px;
-    padding: 10px 12px;
+    margin-bottom: var(--el-space-2xl);
+    padding: var(--el-space-md) var(--el-space-lg);
     border-radius: var(--el-border-radius-base);
     color: var(--el-text-color-secondary);
     background: var(--el-fill-color-light);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 20px;
   }
 
@@ -98,25 +98,25 @@ function confirm() {
     display: grid;
     align-items: center;
     grid-template-columns: 92px minmax(0, 1fr);
-    gap: 12px;
+    gap: var(--el-space-lg);
     color: var(--el-text-color-regular);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
   }
 
   &__subject-list {
     display: grid;
-    margin-top: 20px;
+    margin-top: var(--el-space-2xl);
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
+    gap: var(--el-space-md);
   }
 
   &__subject {
     display: flex;
     min-height: 54px;
-    padding: 10px 12px;
+    padding: var(--el-space-md) var(--el-space-lg);
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--el-space-md);
     border: 1px solid var(--el-border-color-light);
     border-radius: var(--el-border-radius-base);
     color: var(--el-text-color-regular);
@@ -151,7 +151,7 @@ function confirm() {
   &__subject-type {
     flex: 0 0 auto;
     color: var(--el-text-color-secondary);
-    font-size: 12px;
+    font-size: var(--el-font-size-extra-small);
   }
 }
 

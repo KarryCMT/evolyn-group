@@ -43,19 +43,19 @@ const formName = defineModel<string>('formName', { required: true });
 .data-push-filter-bar {
   display: flex;
   min-height: 64px;
-  padding: 14px 28px 0;
+  padding: var(--el-space-lg) var(--el-space-3xl) 0;
   align-items: center;
   flex: 0 0 auto;
-  gap: 30px;
+  gap: var(--el-space-4xl);
 
   &__field {
     display: inline-flex;
     align-items: center;
     color: var(--el-text-color-primary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 32px;
     white-space: nowrap;
-    gap: 12px;
+    gap: var(--el-space-lg);
 
     :deep(.el-select) {
       width: 360px;
@@ -65,14 +65,14 @@ const formName = defineModel<string>('formName', { required: true });
   &__query {
     min-width: 74px;
     height: 40px;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
   }
 }
 
 @media (max-width: 1080px) {
   .data-push-filter-bar {
     flex-wrap: wrap;
-    gap: 10px 20px;
+    gap: var(--el-space-md) var(--el-space-2xl);
 
     &__field :deep(.el-select) {
       width: 250px;

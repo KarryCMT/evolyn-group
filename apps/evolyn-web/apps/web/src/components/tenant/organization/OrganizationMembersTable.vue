@@ -322,22 +322,22 @@ function removeCurrentMember() {
 .organization-members-table__toolbar {
   display: flex;
   min-height: 80px;
-  padding: 0 30px;
+  padding: 0 var(--el-space-4xl);
   border-top: 1px solid var(--el-border-color-lighter);
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--el-space-2xl);
 }
 .organization-members-table__toolbar-left,
 .organization-members-table__toolbar-right,
 .organization-members-table__count {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: var(--el-space-lg);
 }
 .organization-members-table__toolbar-left :deep(.el-button) {
   height: 40px;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 .organization-members-table__toolbar-left :deep(.el-button svg) {
   width: 16px;
@@ -348,11 +348,11 @@ function removeCurrentMember() {
   box-sizing: border-box;
   width: 346px;
   height: 42px;
-  padding: 0 13px;
+  padding: 0 var(--el-space-lg);
   border: 1px solid var(--el-border-color);
-  border-radius: 8px;
+  border-radius: var(--el-border-radius-medium);
   align-items: center;
-  gap: 9px;
+  gap: var(--el-space-md);
   color: var(--el-text-color-secondary);
 }
 .organization-members-table__search:focus-within {
@@ -371,14 +371,14 @@ function removeCurrentMember() {
   background: transparent;
   color: var(--el-text-color-primary);
   font: inherit;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 .organization-members-table__search input::placeholder {
   color: var(--el-text-color-placeholder);
 }
 .organization-members-table__status-label {
   color: var(--el-text-color-regular);
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
   white-space: nowrap;
 }
 .organization-members-table__status-select {
@@ -405,19 +405,19 @@ function removeCurrentMember() {
   right: 57px;
   display: grid;
   min-width: 128px;
-  padding: 8px 0;
-  border-radius: 8px;
+  padding: var(--el-space-md) 0;
+  border-radius: var(--el-border-radius-medium);
   background: #fff;
-  box-shadow: 0 8px 24px rgb(31 41 55 / 15%);
+  box-shadow: var(--el-box-shadow-light);
 }
 .organization-members-table__action-menu-panel button {
-  padding: 9px 18px;
+  padding: var(--el-space-md) var(--el-space-xl);
   border: 0;
   color: var(--el-text-color-primary);
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 15px;
+  font-size: var(--el-font-size-base);
   text-align: left;
 }
 .organization-members-table__action-menu-panel button:hover {
@@ -435,13 +435,13 @@ function removeCurrentMember() {
 .organization-members-table__footer {
   display: flex;
   min-height: 66px;
-  padding: 0 30px;
+  padding: 0 var(--el-space-4xl);
   align-items: center;
   justify-content: space-between;
 }
 .organization-members-table__count {
   color: var(--el-text-color-primary);
-  font-size: 15px;
+  font-size: var(--el-font-size-base);
 }
 .organization-members-table__page-size {
   width: 142px;
@@ -450,7 +450,7 @@ function removeCurrentMember() {
 @media (max-width: 1160px) {
   .organization-members-table__toolbar {
     align-items: flex-start;
-    padding: 18px 22px;
+    padding: var(--el-space-xl) var(--el-space-2xl);
     flex-direction: column;
   }
   .organization-members-table__toolbar-right {

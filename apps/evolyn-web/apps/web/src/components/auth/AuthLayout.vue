@@ -84,12 +84,12 @@ defineProps<{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 20px 32px;
+  padding: var(--el-space-2xl) var(--el-space-4xl);
 }
 
 .auth-layout__logo {
   display: flex;
-  gap: 10px;
+  gap: var(--el-space-md);
   align-items: center;
 }
 
@@ -120,7 +120,7 @@ defineProps<{
 
 .auth-layout__login-brand {
   display: flex;
-  gap: 12px;
+  gap: var(--el-space-lg);
   align-items: center;
 }
 
@@ -133,7 +133,7 @@ defineProps<{
 
 .auth-layout__header-actions {
   display: flex;
-  gap: 20px;
+  gap: var(--el-space-2xl);
   align-items: center;
   position: absolute;
   z-index: 1;
@@ -145,11 +145,11 @@ defineProps<{
   display: grid;
   flex: 1;
   grid-template-columns: 1.1fr 1fr;
-  gap: 48px;
+  gap: var(--el-space-6xl);
   align-items: center;
   width: min(1120px, 100%);
   margin: 0 auto;
-  padding: 24px 32px 64px;
+  padding: var(--el-space-3xl) var(--el-space-4xl) 64px;
 }
 
 .auth-layout__panel {
@@ -158,13 +158,13 @@ defineProps<{
   align-self: stretch;
   align-items: center;
   justify-content: center;
-  gap: 20px;
+  gap: var(--el-space-2xl);
   position: relative;
 }
 
 .auth-layout__card {
   width: min(400px, 100%);
-  padding: 36px 36px 32px;
+  padding: var(--el-space-4xl) var(--el-space-4xl) var(--el-space-4xl);
   background-color: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
   border-radius: var(--el-border-radius-base);
@@ -173,14 +173,14 @@ defineProps<{
 }
 
 .auth-layout__title {
-  margin: 0 0 6px;
+  margin: 0 0 var(--el-space-sm);
   font-size: var(--el-font-size-extra-large);
   font-weight: var(--el-font-weight-bold);
   color: var(--el-text-color-primary);
 }
 
 .auth-layout__subtitle {
-  margin: 0 0 24px;
+  margin: 0 0 var(--el-space-3xl);
   font-size: var(--el-font-size-base);
   color: var(--el-text-color-secondary);
 }
@@ -209,7 +209,7 @@ defineProps<{
     z-index: 1;
     top: 0;
     left: 0;
-    padding: 22px 24px;
+    padding: var(--el-space-2xl) var(--el-space-3xl);
   }
 
   .auth-layout__body {
@@ -232,7 +232,8 @@ defineProps<{
 
   .auth-layout__panel {
     min-height: 100%;
-    padding: 10px 32px 10px 32px;
+    padding: var(--el-space-md) var(--el-space-4xl) var(--el-space-md)
+      var(--el-space-4xl);
     background-color: var(--el-bg-color);
     box-sizing: border-box;
   }
@@ -247,13 +248,13 @@ defineProps<{
   }
 
   .auth-layout__title {
-    margin-bottom: 28px;
+    margin-bottom: var(--el-space-3xl);
     font-size: 28px;
     text-align: center;
   }
 
   .auth-layout__footer {
-    margin-top: 6px;
+    margin-top: var(--el-space-sm);
   }
 }
 
@@ -297,7 +298,7 @@ defineProps<{
 @media (max-width: 576px) {
   .auth-layout--login {
     .auth-layout__header {
-      padding: 16px;
+      padding: var(--el-space-xl);
     }
 
     .auth-layout__logo-image {
@@ -306,7 +307,7 @@ defineProps<{
 
     .auth-layout__panel {
       align-items: stretch;
-      padding: 104px 24px 36px;
+      padding: 104px var(--el-space-3xl) var(--el-space-4xl);
     }
 
     .auth-layout__header-actions {

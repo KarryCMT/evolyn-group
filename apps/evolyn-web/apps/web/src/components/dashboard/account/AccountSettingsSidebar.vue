@@ -46,8 +46,8 @@ function selectTab(tab: AccountSettingsTab) {
   width: 164px;
   flex: 0 0 164px;
   flex-direction: column;
-  gap: 4px;
-  padding: 8px;
+  gap: var(--el-space-xs);
+  padding: var(--el-space-md);
   border-right: 1px solid var(--el-border-color-lighter);
 
   &__item {
@@ -55,8 +55,8 @@ function selectTab(tab: AccountSettingsTab) {
     align-items: center;
     width: 100%;
     height: 38px;
-    gap: 8px;
-    padding: 0 10px;
+    gap: var(--el-space-md);
+    padding: 0 var(--el-space-md);
     border: 0;
     border-radius: var(--el-border-radius-base);
     color: var(--el-text-color-primary);

@@ -120,9 +120,9 @@ const emit = defineEmits<{
   &__title {
     position: relative;
     margin: 0;
-    padding-left: 16px;
+    padding-left: var(--el-space-xl);
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 28px;
 
@@ -132,7 +132,7 @@ const emit = defineEmits<{
       bottom: 4px;
       left: 0;
       width: 4px;
-      border-radius: 999px;
+      border-radius: var(--el-border-radius-half);
       background: var(--el-color-primary);
       content: '';
     }
@@ -140,8 +140,8 @@ const emit = defineEmits<{
 
   &__list {
     display: grid;
-    margin: 40px 0 0;
-    gap: 28px;
+    margin: var(--el-space-5xl) 0 0;
+    gap: var(--el-space-3xl);
   }
 
   &__row {
@@ -157,7 +157,7 @@ const emit = defineEmits<{
 
   &__label {
     color: var(--el-text-color-regular);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     line-height: 24px;
   }
@@ -166,18 +166,18 @@ const emit = defineEmits<{
     display: flex;
     min-width: 0;
     align-items: center;
-    gap: 18px;
+    gap: var(--el-space-xl);
     color: var(--el-text-color-primary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
 
   &__value--name {
-    gap: 16px;
+    gap: var(--el-space-xl);
   }
 
   &__mode-row {
-    gap: 14px;
+    gap: var(--el-space-lg);
   }
 
   &__hint,
@@ -186,7 +186,7 @@ const emit = defineEmits<{
   }
 
   &__url-row {
-    gap: 18px;
+    gap: var(--el-space-xl);
   }
 
   &__url {
@@ -223,8 +223,8 @@ const emit = defineEmits<{
   }
 
   &__text-action {
-    padding: 2px 4px;
-    border-radius: 4px;
+    padding: var(--el-space-xs) var(--el-space-xs);
+    border-radius: var(--el-border-radius-base);
     white-space: nowrap;
   }
 
@@ -233,12 +233,12 @@ const emit = defineEmits<{
     box-sizing: border-box;
     width: min(100%, 680px);
     min-height: 76px;
-    padding: 0 18px 0 26px;
+    padding: 0 var(--el-space-xl) 0 var(--el-space-3xl);
     border: 1px solid var(--el-border-color);
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     justify-content: space-between;
-    gap: 18px;
+    gap: var(--el-space-xl);
     color: var(--el-text-color-regular);
   }
 
@@ -246,7 +246,7 @@ const emit = defineEmits<{
     width: 32px;
     height: 32px;
     flex: 0 0 32px;
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-regular);
 
     svg {
@@ -258,26 +258,26 @@ const emit = defineEmits<{
   &__verification {
     display: grid;
     align-items: start;
-    gap: 14px;
+    gap: var(--el-space-lg);
   }
 
   &__verification-item {
     display: flex;
     min-height: 32px;
     align-items: center;
-    gap: 14px;
+    gap: var(--el-space-lg);
   }
 
   &__verification-badge {
     display: inline-flex;
     min-width: 136px;
     box-sizing: border-box;
-    padding: 5px 14px;
+    padding: var(--el-space-xs) var(--el-space-lg);
     border: 1px dashed var(--el-border-color);
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     justify-content: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     color: var(--el-text-color-regular);
     background: var(--el-fill-color-light);
 
@@ -300,11 +300,11 @@ const emit = defineEmits<{
 
   &__security-note {
     display: inline-flex;
-    margin-top: 28px;
+    margin-top: var(--el-space-3xl);
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     color: var(--el-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 20px;
 
     svg {
@@ -318,12 +318,12 @@ const emit = defineEmits<{
 @media (max-width: 840px) {
   .tenant-profile-basic-info {
     &__row {
-      gap: 10px;
+      gap: var(--el-space-md);
       grid-template-columns: 1fr;
     }
 
     &__list {
-      gap: 22px;
+      gap: var(--el-space-2xl);
     }
 
     &__url-row {

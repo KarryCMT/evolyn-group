@@ -92,16 +92,16 @@ async function submit() {
 :global(.address-book-management-drawer .el-drawer__header) {
   height: 56px;
   margin-bottom: 0;
-  padding: 0 28px;
-  border-bottom: 1px solid #dde2ea;
+  padding: 0 var(--el-space-3xl);
+  border-bottom: 1px solid var(--el-border-color);
 }
 :global(.address-book-management-drawer .el-drawer__body) {
   padding: 0;
 }
 :global(.address-book-management-drawer .el-drawer__footer) {
   height: 70px;
-  padding: 0 28px;
-  border-top: 1px solid #dde2ea;
+  padding: 0 var(--el-space-3xl);
+  border-top: 1px solid var(--el-border-color);
 }
 .address-book-management-drawer {
   &__header {
@@ -113,19 +113,19 @@ async function submit() {
   &__header h2 {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     line-height: 26px;
   }
   &__header button {
     display: inline-flex;
     border: 0;
-    padding: 4px;
+    padding: var(--el-space-xs);
     background: transparent;
     color: var(--el-text-color-secondary);
     cursor: pointer;
   }
   &__header button:hover {
-    border-radius: 5px;
+    border-radius: var(--el-border-radius-base);
     background: var(--el-fill-color-light);
   }
   &__header svg {
@@ -133,28 +133,28 @@ async function submit() {
     height: 22px;
   }
   &__body {
-    padding: 30px 28px;
+    padding: var(--el-space-4xl) var(--el-space-3xl);
   }
   &__section {
-    margin-bottom: 38px;
+    margin-bottom: var(--el-space-5xl);
   }
   &__section h3 {
-    margin: 0 0 22px;
-    padding-left: 14px;
+    margin: 0 0 var(--el-space-2xl);
+    padding-left: var(--el-space-lg);
     border-left: 5px solid var(--el-color-primary);
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
   }
   &__section :deep(.el-checkbox) {
-    margin-right: 32px;
+    margin-right: var(--el-space-4xl);
     color: #4e5868;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
   &__section :deep(.el-checkbox__label) {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    font-size: 17px;
+    gap: var(--el-space-sm);
+    font-size: var(--el-font-size-medium);
   }
 }
 </style>

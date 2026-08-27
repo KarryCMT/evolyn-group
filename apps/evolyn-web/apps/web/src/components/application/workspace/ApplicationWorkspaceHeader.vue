@@ -88,7 +88,7 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
   display: flex;
   height: 64px;
   min-height: 64px;
-  padding: 0 18px;
+  padding: 0 var(--el-space-xl);
   align-items: center;
   justify-content: space-between;
   background: var(--el-fill-color-lighter);
@@ -102,7 +102,7 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
 
   &__modes {
     height: 100%;
-    gap: 4px;
+    gap: var(--el-space-xs);
   }
 
   &__mode,
@@ -120,9 +120,9 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
 
   &__mode {
     height: 36px;
-    padding: 0 12px;
-    gap: 7px;
-    font-size: 16px;
+    padding: 0 var(--el-space-lg);
+    gap: var(--el-space-sm);
+    font-size: var(--el-font-size-medium);
 
     svg {
       width: 19px;
@@ -149,7 +149,7 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
     width: 36px;
     height: 36px;
     padding: 0;
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
 
     &:hover {
       color: var(--el-color-primary);
@@ -163,7 +163,7 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
   }
 
   &__actions {
-    gap: 10px;
+    gap: var(--el-space-md);
   }
 
   &__icon-button {
@@ -171,7 +171,7 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
     width: 32px;
     height: 32px;
     padding: 0;
-    font-size: 21px;
+    font-size: var(--el-font-size-extra-large);
 
     &:hover {
       color: var(--el-color-primary);
@@ -192,7 +192,7 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
     height: 7px;
     background: var(--el-color-danger);
     border: 1px solid var(--el-bg-color);
-    border-radius: 50%;
+    border-radius: var(--el-border-radius-half);
   }
 }
 </style>

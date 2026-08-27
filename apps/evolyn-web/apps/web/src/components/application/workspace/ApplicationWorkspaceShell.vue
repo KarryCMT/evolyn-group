@@ -88,11 +88,12 @@ function toggleSidebar() {
     min-width: 0;
     min-height: 0;
     flex: 1;
-    margin: 10px 10px 10px 0;
+    margin: var(--el-space-md) var(--el-space-md)
+      var(--el-space-md) 0;
     overflow: hidden;
     flex-direction: column;
     background: var(--el-bg-color);
-    border-radius: 14px;
+    border-radius: var(--el-border-radius-large);
     box-shadow: var(--el-box-shadow-light);
   }
 }

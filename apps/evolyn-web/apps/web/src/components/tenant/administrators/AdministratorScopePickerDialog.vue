@@ -124,8 +124,7 @@ function submit() {
           :data="treeData"
           node-key="key"
           show-checkbox
-          default-expand-all
-          :default-checked-keys="defaultCheckedKeys"
+          default-expand-all: default-checked-keys="defaultCheckedKeys"
           :props="{ label: 'label', children: 'children' }"
           :filter-node-method="filterNode"
         />
@@ -143,7 +142,7 @@ function submit() {
 
 <style scoped lang="scss">
 :global(.administrator-scope-picker) {
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
 }
 :global(.administrator-scope-picker .el-dialog__header) {
   display: none;
@@ -155,26 +154,26 @@ function submit() {
   &__header {
     display: flex;
     height: 68px;
-    padding: 0 28px;
-    border-bottom: 1px solid #dde2ea;
+    padding: 0 var(--el-space-3xl);
+    border-bottom: 1px solid var(--el-border-color);
     align-items: center;
     justify-content: space-between;
   }
   &__header h2 {
     margin: 0;
     color: #273142;
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
   }
   &__header button {
     display: inline-flex;
     border: 0;
-    padding: 5px;
+    padding: var(--el-space-xs);
     color: #66707e;
     background: transparent;
     cursor: pointer;
   }
   &__header button:hover {
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     background: var(--el-fill-color-light);
   }
   &__header svg {
@@ -184,11 +183,11 @@ function submit() {
   &__search {
     display: flex;
     height: 44px;
-    margin: 24px 28px 0;
-    padding: 0 12px;
-    border-radius: 7px;
+    margin: var(--el-space-3xl) var(--el-space-3xl) 0;
+    padding: 0 var(--el-space-lg);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     background: #f5f6f8;
     color: #697384;
   }
@@ -206,33 +205,33 @@ function submit() {
   }
   &__body {
     height: 420px;
-    margin: 16px 28px 0;
-    border: 1px solid #e2e6ec;
-    border-radius: 8px;
+    margin: var(--el-space-xl) var(--el-space-3xl) 0;
+    border: 1px solid var(--el-border-color-light);
+    border-radius: var(--el-border-radius-medium);
   }
   &__body :deep(.el-tree) {
     --el-tree-node-content-height: 40px;
-    padding: 8px;
+    padding: var(--el-space-md);
   }
   &__empty {
     margin: 0;
-    padding: 24px;
+    padding: var(--el-space-3xl);
     color: #909aa8;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     text-align: center;
   }
   &__footer {
     display: flex;
     height: 76px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     align-items: center;
     justify-content: flex-end;
-    gap: 12px;
+    gap: var(--el-space-lg);
   }
   &__footer .el-button {
     min-width: 74px;
     height: 42px;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
 }
 </style>

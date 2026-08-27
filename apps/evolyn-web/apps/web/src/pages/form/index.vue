@@ -147,7 +147,7 @@ function notifyUnavailable(action: string) {
     position: relative;
     height: 52px;
     min-height: 52px;
-    padding: 0 20px;
+    padding: 0 var(--el-space-2xl);
     justify-content: space-between;
   }
 
@@ -155,7 +155,7 @@ function notifyUnavailable(action: string) {
   &__global-actions {
     z-index: 1;
     min-width: 260px;
-    gap: 10px;
+    gap: var(--el-space-md);
   }
 
   &__global-actions {
@@ -164,7 +164,7 @@ function notifyUnavailable(action: string) {
 
   &__title {
     overflow: hidden;
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     font-weight: 650;
     line-height: 28px;
     text-overflow: ellipsis;
@@ -220,10 +220,10 @@ function notifyUnavailable(action: string) {
 
   &__navigation-item {
     position: relative;
-    padding: 0 20px;
+    padding: 0 var(--el-space-2xl);
     color: var(--el-text-color-regular);
     background: transparent;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     transition:
       color 0.18s ease,
@@ -263,7 +263,7 @@ function notifyUnavailable(action: string) {
     }
 
     &__navigation-item {
-      padding: 0 14px;
+      padding: 0 var(--el-space-lg);
 
       &::after {
         right: 14px;
@@ -276,7 +276,7 @@ function notifyUnavailable(action: string) {
 @media (max-width: 900px) {
   .form-workspace-shell {
     &__header {
-      padding: 0 12px;
+      padding: 0 var(--el-space-lg);
     }
 
     &__identity {
@@ -300,9 +300,9 @@ function notifyUnavailable(action: string) {
     }
 
     &__navigation-item {
-      padding: 0 12px;
+      padding: 0 var(--el-space-lg);
       flex: 0 0 auto;
-      font-size: 14px;
+      font-size: var(--el-font-size-base);
 
       &::after {
         right: 12px;

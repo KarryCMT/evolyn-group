@@ -90,10 +90,10 @@ onBeforeRouteLeave(async () => {
     flex: 1;
     flex-direction: column;
     min-height: 0;
-    margin: 0 8px 8px;
+    margin: 0 var(--el-space-md) var(--el-space-md);
     overflow: hidden;
     background: var(--el-bg-color);
-    border-radius: 10px;
+    border-radius: var(--el-border-radius-large);
 
     &__loading {
       display: flex;

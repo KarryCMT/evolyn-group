@@ -20,7 +20,7 @@ const entries = ['我发起的', '我处理的', '抄送我的', '发起流程',
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 4px;
+  gap: var(--el-space-xs);
 }
 .todo-widget :deep(.el-button + .el-button) {
   margin-left: 0;

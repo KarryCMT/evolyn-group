@@ -59,7 +59,7 @@ const emit = defineEmits<{
     bottom: 20px;
     left: 22px;
     height: 42px;
-    border-radius: 50% 50% 15% 15%;
+    border-radius: var(--el-border-radius-half) var(--el-border-radius-half) 15% 15%;
     background: linear-gradient(180deg, var(--el-fill-color-light), var(--el-fill-color));
   }
 
@@ -89,7 +89,7 @@ const emit = defineEmits<{
     left: 174px;
     width: 30px;
     height: 30px;
-    border-radius: 50%;
+    border-radius: var(--el-border-radius-half);
     background: var(--el-color-primary-light-8);
   }
 
@@ -100,7 +100,9 @@ const emit = defineEmits<{
     left: 131px;
     width: 58px;
     height: 126px;
-    border-radius: 7px 7px 3px 3px;
+    border-radius: var(--el-border-radius-medium)
+      var(--el-border-radius-medium) var(--el-border-radius-small)
+      var(--el-border-radius-small);
     background:
       linear-gradient(90deg, transparent 46%, rgb(110 132 161 / 13%) 48%, transparent 50%),
       linear-gradient(180deg, #e7eff8, #cbd9e9);
@@ -112,7 +114,7 @@ const emit = defineEmits<{
       left: -9px;
       width: 76px;
       height: 18px;
-      border: 5px solid #9cb2cb;
+      border: 5px solid var(--el-border-color-darker);
       border-bottom-width: 7px;
       content: '';
     }
@@ -123,7 +125,8 @@ const emit = defineEmits<{
       left: 24px;
       width: 10px;
       height: 16px;
-      border-radius: 5px 5px 0 0;
+      border-radius: var(--el-border-radius-base)
+        var(--el-border-radius-base) 0 0;
       background: #9cb2cb;
       content: '';
     }
@@ -135,7 +138,7 @@ const emit = defineEmits<{
     left: 22px;
     width: 14px;
     height: 10px;
-    border-radius: 1px;
+    border-radius: var(--el-border-radius-small);
     background: #fff6cf;
   }
 
@@ -145,7 +148,8 @@ const emit = defineEmits<{
     left: 21px;
     width: 17px;
     height: 25px;
-    border-radius: 9px 9px 0 0;
+    border-radius: var(--el-border-radius-large)
+      var(--el-border-radius-large) 0 0;
     background: #9eb5cf;
   }
 
@@ -155,7 +159,7 @@ const emit = defineEmits<{
     bottom: 43px;
     width: 26px;
     height: 37px;
-    border-radius: 50% 50% 43% 43%;
+    border-radius: var(--el-border-radius-half) var(--el-border-radius-half) 43% 43%;
     background: #c7d5e5;
 
     &::after {
@@ -180,17 +184,17 @@ const emit = defineEmits<{
   }
 
   &__description {
-    margin: 2px 0 0;
+    margin: var(--el-space-xs) 0 0;
     color: var(--el-text-color-secondary);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 24px;
   }
 
   &__create {
     display: inline-flex;
     min-height: 40px;
-    margin-top: 18px;
-    padding: 0 15px;
+    margin-top: var(--el-space-xl);
+    padding: 0 var(--el-space-xl);
     border: 0;
     border-radius: var(--el-border-radius-base);
     align-items: center;
@@ -198,8 +202,8 @@ const emit = defineEmits<{
     cursor: pointer;
     background: var(--el-color-primary);
     font: inherit;
-    font-size: 15px;
-    gap: 5px;
+    font-size: var(--el-font-size-base);
+    gap: var(--el-space-xs);
 
     svg {
       width: 18px;
@@ -224,7 +228,7 @@ const emit = defineEmits<{
     }
 
     &__description {
-      padding: 0 24px;
+      padding: 0 var(--el-space-3xl);
       text-align: center;
     }
   }

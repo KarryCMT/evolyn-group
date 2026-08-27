@@ -35,15 +35,15 @@ const emit = defineEmits<{
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--el-space-xl);
 
   &__retention {
     display: flex;
     align-items: center;
-    gap: 28px;
-    margin: 28px 0 10px;
+    gap: var(--el-space-3xl);
+    margin: var(--el-space-3xl) 0 var(--el-space-md);
     color: #8d95a2;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
     white-space: nowrap;
 

@@ -137,7 +137,7 @@ onMounted(() => {
   display: flex;
   align-items: flex-end;
   height: 100%;
-  gap: 28px;
+  gap: var(--el-space-3xl);
 
   &__empty {
     width: 100%;
@@ -148,7 +148,7 @@ onMounted(() => {
   &__actions {
     display: flex;
     width: 320px;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
 
   &__item {
@@ -178,10 +178,10 @@ onMounted(() => {
     justify-content: center;
     width: 44px;
     height: 44px;
-    margin-bottom: 8px;
+    margin-bottom: var(--el-space-md);
     color: var(--el-color-white);
     border-radius: var(--el-border-radius-base);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
 
     // 颜色键映射主题色变量（后端稳定枚举，禁止字面量色值）
     &--primary {

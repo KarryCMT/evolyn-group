@@ -121,7 +121,7 @@ const visible = defineModel<boolean>({ default: false });
 }
 
 .favorites-dialog__heading {
-  font-size: 18px;
+  font-size: var(--el-font-size-large);
   font-weight: 650;
   line-height: 26px;
 }
@@ -134,7 +134,7 @@ const visible = defineModel<boolean>({ default: false });
   height: 32px;
   padding: 0;
   color: var(--el-text-color-primary);
-  font-size: 22px;
+  font-size: var(--el-font-size-extra-large);
   cursor: pointer;
 
   &:hover {
@@ -144,30 +144,30 @@ const visible = defineModel<boolean>({ default: false });
 }
 
 .favorites-dialog__close.el-button .el-icon {
-  font-size: 22px;
+  font-size: var(--el-font-size-extra-large);
 }
 
 .favorites-dialog__content {
   box-sizing: border-box;
   height: 100%;
-  padding: 24px 32px;
+  padding: var(--el-space-3xl) var(--el-space-4xl);
 }
 
 .favorites-dialog__panel {
   min-height: 248px;
-  padding: 24px 32px;
+  padding: var(--el-space-3xl) var(--el-space-4xl);
   background: var(--el-bg-color);
-  border-radius: 16px;
+  border-radius: var(--el-border-radius-large);
 }
 
 .favorites-dialog__panel-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--el-space-lg);
 }
 
 .favorites-dialog__panel-title {
-  font-size: 22px;
+  font-size: var(--el-font-size-extra-large);
   font-weight: 650;
   line-height: 1.2;
 }
@@ -176,18 +176,18 @@ const visible = defineModel<boolean>({ default: false });
   height: 30px;
   padding: 0;
   color: var(--el-text-color-secondary);
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 
 .favorites-dialog__add .el-icon {
-  font-size: 22px;
+  font-size: var(--el-font-size-extra-large);
 }
 
 .favorites-dialog__grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 28px 20px;
-  padding: 36px 20px 8px;
+  gap: var(--el-space-3xl) var(--el-space-2xl);
+  padding: var(--el-space-4xl) var(--el-space-2xl) var(--el-space-md);
 }
 
 .favorites-dialog__empty {
@@ -196,7 +196,7 @@ const visible = defineModel<boolean>({ default: false });
   align-items: center;
   justify-content: center;
   min-height: 200px;
-  gap: 16px;
+  gap: var(--el-space-xl);
   color: var(--el-text-color-secondary);
 }
 
@@ -224,13 +224,13 @@ const visible = defineModel<boolean>({ default: false });
   justify-content: center;
   width: 40px;
   height: 40px;
-  margin-right: 16px;
+  margin-right: var(--el-space-xl);
   color: var(--el-color-white);
-  border-radius: 9px;
+  border-radius: var(--el-border-radius-large);
 }
 
 .favorites-dialog__application-icon .el-icon {
-  font-size: 22px;
+  font-size: var(--el-font-size-extra-large);
 }
 
 .favorites-dialog__application-icon--blue {
@@ -254,7 +254,7 @@ const visible = defineModel<boolean>({ default: false });
 
 .favorites-dialog__application-name {
   overflow: hidden;
-  font-size: 20px;
+  font-size: var(--el-font-size-extra-large);
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -262,20 +262,20 @@ const visible = defineModel<boolean>({ default: false });
 
 @media (max-width: 960px) {
   .favorites-dialog__content {
-    padding: 24px 16px;
+    padding: var(--el-space-3xl) var(--el-space-xl);
   }
   .favorites-dialog__panel {
-    padding: 28px 24px;
+    padding: var(--el-space-3xl) var(--el-space-3xl);
   }
   .favorites-dialog__grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding-inline: 0;
   }
   .favorites-dialog__application-icon {
-    margin-right: 12px;
+    margin-right: var(--el-space-lg);
   }
   .favorites-dialog__application-name {
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
   }
 }
 </style>

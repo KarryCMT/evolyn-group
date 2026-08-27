@@ -104,7 +104,7 @@ function isGroupIndeterminate(group: CrossAppFormGroup) {
   &__content {
     box-sizing: border-box;
     min-height: 100%;
-    padding: 10px 20px 28px;
+    padding: var(--el-space-md) var(--el-space-2xl) var(--el-space-3xl);
   }
 
   &__group {
@@ -115,10 +115,10 @@ function isGroupIndeterminate(group: CrossAppFormGroup) {
   &__row {
     display: flex;
     min-height: 42px;
-    padding: 0 8px;
-    border-radius: 6px;
+    padding: 0 var(--el-space-md);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-regular);
     cursor: pointer;
     transition: background-color 0.16s ease;
@@ -129,13 +129,13 @@ function isGroupIndeterminate(group: CrossAppFormGroup) {
   }
 
   &__row--group {
-    margin-top: 4px;
+    margin-top: var(--el-space-xs);
     color: var(--el-text-color-primary);
     font-weight: 600;
   }
 
   &__row--form {
-    padding-left: 36px;
+    padding-left: var(--el-space-4xl);
   }
 
   &__icon {
@@ -158,7 +158,7 @@ function isGroupIndeterminate(group: CrossAppFormGroup) {
 
   &__name {
     overflow: hidden;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 20px;
     text-overflow: ellipsis;
     white-space: nowrap;

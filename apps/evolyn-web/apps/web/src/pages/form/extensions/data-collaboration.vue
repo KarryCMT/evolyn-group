@@ -68,9 +68,9 @@ function saveSettings() {
   &__header {
     display: flex;
     min-height: 68px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     align-items: center;
-    gap: 16px;
+    gap: var(--el-space-xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
@@ -81,7 +81,7 @@ function saveSettings() {
   }
 
   &__title {
-    font-size: 19px;
+    font-size: var(--el-font-size-large);
     line-height: 28px;
   }
 
@@ -92,37 +92,37 @@ function saveSettings() {
   }
 
   &__description {
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
   }
 
   &__body {
     max-width: 760px;
-    padding: 32px 28px;
+    padding: var(--el-space-4xl) var(--el-space-3xl);
   }
 
   &__setting-group {
-    padding: 4px 0 26px;
+    padding: var(--el-space-xs) 0 var(--el-space-3xl);
   }
 
   &__setting-title {
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
 
   &__title-mode {
     display: flex;
-    margin-top: 18px;
+    margin-top: var(--el-space-xl);
   }
 
   &__custom-title,
   &__default-title {
     width: min(100%, 480px);
-    margin-top: 14px;
+    margin-top: var(--el-space-lg);
   }
 
   &__default-title {
     height: 42px;
-    padding: 0 14px;
+    padding: 0 var(--el-space-lg);
     display: flex;
     align-items: center;
     color: var(--el-text-color-secondary);
@@ -135,12 +135,12 @@ function saveSettings() {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 24px;
+    gap: var(--el-space-3xl);
   }
 
   &__setting-description {
-    margin-top: 8px;
-    font-size: 14px;
+    margin-top: var(--el-space-md);
+    font-size: var(--el-font-size-base);
     line-height: 22px;
   }
 }
@@ -149,14 +149,14 @@ function saveSettings() {
   .form-data-collaboration-page {
     &__header {
       min-height: auto;
-      padding: 18px;
+      padding: var(--el-space-xl);
       align-items: flex-start;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--el-space-sm);
     }
 
     &__body {
-      padding: 24px 18px;
+      padding: var(--el-space-3xl) var(--el-space-xl);
     }
   }
 }

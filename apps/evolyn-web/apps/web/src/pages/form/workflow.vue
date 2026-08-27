@@ -86,13 +86,13 @@ function notifyUnavailable(action: string) {
 .form-workflow-page {
   display: flex;
   min-height: 0;
-  margin: 0 8px 8px;
+  margin: 0 var(--el-space-md) var(--el-space-md);
   overflow: hidden;
   flex: 1;
   flex-direction: column;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
   box-shadow: var(--el-box-shadow-light);
 
   &__toolbar,
@@ -106,13 +106,13 @@ function notifyUnavailable(action: string) {
   &__toolbar {
     height: 50px;
     min-height: 50px;
-    padding: 0 16px;
+    padding: 0 var(--el-space-xl);
     justify-content: flex-end;
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
   &__toolbar-actions {
-    gap: 8px;
+    gap: var(--el-space-md);
   }
 
   &__icon-button,
@@ -149,28 +149,28 @@ function notifyUnavailable(action: string) {
   }
 
   &__version {
-    margin-right: 8px;
+    margin-right: var(--el-space-md);
     color: var(--el-text-color-primary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     font-weight: 600;
-    gap: 7px;
+    gap: var(--el-space-sm);
 
     i {
       display: block;
       width: 8px;
       height: 8px;
       background: var(--el-color-success);
-      border-radius: 50%;
+      border-radius: var(--el-border-radius-half);
     }
   }
 
   &__action-button {
     height: 32px;
-    padding: 0 10px;
+    padding: 0 var(--el-space-md);
     justify-content: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     color: var(--el-color-primary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     font-weight: 600;
     background: var(--el-bg-color);
     border: 1px solid var(--el-color-primary);
@@ -211,11 +211,11 @@ function notifyUnavailable(action: string) {
 
 @media (max-width: 760px) {
   .form-workflow-page {
-    margin: 0 4px 4px;
-    border-radius: 10px;
+    margin: 0 var(--el-space-xs) var(--el-space-xs);
+    border-radius: var(--el-border-radius-large);
 
     &__toolbar {
-      padding: 0 10px;
+      padding: 0 var(--el-space-md);
     }
 
     &__version,

@@ -41,17 +41,17 @@ function handleSelect(label: string) {
 
 <style lang="scss" scoped>
 .oauth-login-panel {
-  margin-top: 24px;
+  margin-top: var(--el-space-3xl);
 }
 
 .oauth-login-panel__divider {
-  margin: 0 0 20px;
+  margin: 0 0 var(--el-space-2xl);
 }
 
 .oauth-login-panel__list {
   display: flex;
   justify-content: center;
-  gap: 12px;
+  gap: var(--el-space-lg);
 }
 
 .oauth-login-panel__item :deep(.el-icon) {

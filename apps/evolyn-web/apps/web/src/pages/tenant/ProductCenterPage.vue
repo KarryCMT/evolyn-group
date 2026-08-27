@@ -242,12 +242,12 @@ onMounted(loadProducts);
 .product-center-page {
   box-sizing: border-box;
   min-height: 100%;
-  padding: 26px 28px;
+  padding: var(--el-space-3xl) var(--el-space-3xl);
 }
 
 @media (max-width: 640px) {
   .product-center-page {
-    padding: 16px;
+    padding: var(--el-space-xl);
   }
 }
 </style>

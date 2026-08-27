@@ -73,18 +73,18 @@ const routeParams = computed(() => ({
 .form-extensions-layout {
   display: flex;
   min-height: 0;
-  margin: 0 8px 8px;
+  margin: 0 var(--el-space-md) var(--el-space-md);
   overflow: hidden;
   flex: 1;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
   box-shadow: var(--el-box-shadow-light);
 
   &__sidebar {
     width: 254px;
     min-width: 254px;
-    padding: 10px;
+    padding: var(--el-space-md);
     border-right: 1px solid var(--el-border-color-lighter);
   }
 
@@ -93,19 +93,19 @@ const routeParams = computed(() => ({
     height: 100%;
     overflow-y: auto;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--el-space-xs);
   }
 
   &__navigation-item {
     display: flex;
     min-height: 44px;
-    padding: 0 14px;
+    padding: 0 var(--el-space-lg);
     align-items: center;
-    gap: 12px;
+    gap: var(--el-space-lg);
     color: var(--el-text-color-regular);
     border-radius: var(--el-border-radius-base);
     cursor: pointer;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     font-weight: 550;
     text-decoration: none;
     transition:
@@ -135,7 +135,7 @@ const routeParams = computed(() => ({
 
   &__divider {
     height: 1px;
-    margin: 10px 4px;
+    margin: var(--el-space-md) var(--el-space-xs);
     background: var(--el-border-color-lighter);
   }
 
@@ -148,8 +148,8 @@ const routeParams = computed(() => ({
 
 @media (max-width: 760px) {
   .form-extensions-layout {
-    margin: 0 4px 4px;
-    border-radius: 10px;
+    margin: 0 var(--el-space-xs) var(--el-space-xs);
+    border-radius: var(--el-border-radius-large);
 
     &__sidebar {
       width: 196px;

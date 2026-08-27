@@ -475,29 +475,30 @@ async function saveAddressBook(scope: AddressBookScope) {
   &__header {
     display: flex;
     min-height: 68px;
-    padding: 0 30px;
+    padding: 0 var(--el-space-4xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     align-items: center;
   }
   &__header div {
     display: flex;
     align-items: baseline;
-    gap: 14px;
+    gap: var(--el-space-lg);
   }
   &__header h1 {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 21px;
+    font-size: var(--el-font-size-extra-large);
     line-height: 28px;
   }
   &__header p {
     margin: 0;
     color: var(--el-text-color-secondary);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
   &__body {
     position: relative;
-    padding: 26px 30px 80px;
+    padding: var(--el-space-3xl) var(--el-space-4xl)
+      80px;
   }
   &__placeholder {
     display: flex;
@@ -506,7 +507,7 @@ async function saveAddressBook(scope: AddressBookScope) {
     justify-content: center;
     min-height: 200px;
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__row {
     display: grid;
@@ -518,9 +519,9 @@ async function saveAddressBook(scope: AddressBookScope) {
     display: inline-flex;
     margin: 0;
     align-items: center;
-    gap: 5px;
+    gap: var(--el-space-xs);
     color: var(--el-text-color-regular);
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     line-height: 30px;
   }
   &__row h2 svg,
@@ -532,16 +533,16 @@ async function saveAddressBook(scope: AddressBookScope) {
   &__row :deep(.el-checkbox),
   &__row :deep(.el-radio) {
     min-height: 30px;
-    margin-right: 28px;
+    margin-right: var(--el-space-3xl);
     color: var(--el-text-color-regular);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
   &__row :deep(.el-checkbox__label),
   &__row :deep(.el-radio__label) {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    font-size: 17px;
+    gap: var(--el-space-xs);
+    font-size: var(--el-font-size-medium);
   }
   &__row--members {
     align-items: center;
@@ -552,10 +553,10 @@ async function saveAddressBook(scope: AddressBookScope) {
     border: 0;
     padding: 0;
     align-items: center;
-    gap: 5px;
+    gap: var(--el-space-xs);
     color: var(--el-color-primary);
     background: transparent;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     cursor: pointer;
   }
   &__text-action svg {
@@ -573,53 +574,54 @@ async function saveAddressBook(scope: AddressBookScope) {
   &__member {
     display: inline-flex;
     height: 32px;
-    margin-left: 12px;
+    margin-left: var(--el-space-lg);
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     color: var(--el-text-color-regular);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__member i {
     display: inline-flex;
     width: 24px;
     height: 24px;
-    border-radius: 50%;
+    border-radius: var(--el-border-radius-half);
     align-items: center;
     justify-content: center;
     color: #fff;
     background: var(--el-color-primary);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     font-style: normal;
   }
   &__scope-detail {
-    margin: -5px 0 28px 246px;
+    margin: -5px 0 var(--el-space-3xl)
+      246px;
   }
   &__scope-detail :deep(.el-radio) {
     color: var(--el-text-color-regular);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
   &__selection-box {
     display: flex;
     min-height: 92px;
-    margin-top: 18px;
-    padding: 12px;
+    margin-top: var(--el-space-xl);
+    padding: var(--el-space-lg);
     border: 1px dashed var(--el-border-color-light);
-    border-radius: 7px;
+    border-radius: var(--el-border-radius-medium);
     align-content: flex-start;
     align-items: flex-start;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
   &__selection-item {
     display: inline-flex;
     height: 34px;
-    padding: 0 10px;
-    border-radius: 5px;
+    padding: 0 var(--el-space-md);
+    border-radius: var(--el-border-radius-base);
     align-items: center;
-    gap: 5px;
+    gap: var(--el-space-xs);
     color: var(--el-text-color-regular);
     background: var(--el-fill-color-light);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__selection-item svg {
     color: var(--el-color-primary);
@@ -631,40 +633,41 @@ async function saveAddressBook(scope: AddressBookScope) {
   &__app-settings {
     display: flex;
     min-height: 90px;
-    margin: -6px 0 8px 246px;
+    margin: -6px 0 var(--el-space-md) 246px;
     flex-direction: column;
-    gap: 14px;
+    gap: var(--el-space-lg);
   }
   &__app-settings :deep(.el-checkbox) {
     color: var(--el-text-color-regular);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
   &__app-tags {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
   &__app-tags span {
     display: inline-flex;
     height: 34px;
-    padding: 0 10px;
-    border-radius: 5px;
+    padding: 0 var(--el-space-md);
+    border-radius: var(--el-border-radius-base);
     align-items: center;
-    gap: 5px;
+    gap: var(--el-space-xs);
     color: var(--el-text-color-regular);
     background: var(--el-fill-color-light);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
   }
   &__sub-action {
-    margin: -18px 0 28px 246px;
+    margin: -18px 0 var(--el-space-3xl)
+      246px;
   }
   &__row--address-book {
-    margin-top: 12px;
+    margin-top: var(--el-space-lg);
   }
   &__row--address-book p {
-    margin: 0 0 16px;
+    margin: 0 0 var(--el-space-xl);
     color: var(--el-text-color-secondary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__row--address-book p button {
     border: 0;
@@ -680,14 +683,14 @@ async function saveAddressBook(scope: AddressBookScope) {
   &__row--address-book .el-button {
     min-width: 72px;
     height: 42px;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
   &__saved {
     position: absolute;
     top: 365px;
     right: 30px;
     color: var(--el-color-success);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
 }
 .administrator-saved-enter-active,

@@ -46,8 +46,8 @@ const configurableCategories = computed(() =>
   min-height: 54px;
   flex: 0 0 54px;
   align-items: flex-start;
-  gap: 34px;
-  border-bottom: 1px solid #dfe4ea;
+  gap: var(--el-space-4xl);
+  border-bottom: 1px solid var(--el-border-color-light);
 
   &__tab {
     position: relative;
@@ -60,7 +60,7 @@ const configurableCategories = computed(() =>
     color: #202938;
     background: transparent;
     cursor: pointer;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     line-height: 26px;
     white-space: nowrap;
 

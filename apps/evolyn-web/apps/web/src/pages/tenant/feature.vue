@@ -32,10 +32,10 @@ const props = defineProps<TenantFeaturePageProps>();
   /* 高度与内边距合并计算，防止内容未溢出时仍触发父容器滚动。 */
   box-sizing: border-box;
   min-height: 100%;
-  padding: 28px;
+  padding: var(--el-space-3xl);
 
   &__header {
-    margin-bottom: 24px;
+    margin-bottom: var(--el-space-3xl);
   }
 
   &__title,
@@ -45,23 +45,23 @@ const props = defineProps<TenantFeaturePageProps>();
   }
 
   &__title {
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 600;
     line-height: 28px;
   }
 
   &__description {
-    margin: 8px 0 0;
+    margin: var(--el-space-md) 0 0;
     color: var(--el-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
   }
 
   &__card {
     max-width: 840px;
-    padding: 22px 24px;
+    padding: var(--el-space-2xl) var(--el-space-3xl);
     border: 1px solid var(--el-border-color-lighter);
-    border-radius: 10px;
+    border-radius: var(--el-border-radius-large);
     background: var(--el-bg-color);
   }
 
@@ -72,32 +72,32 @@ const props = defineProps<TenantFeaturePageProps>();
   }
 
   &__card-title {
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
 
   &__status {
-    padding: 2px 8px;
-    border-radius: 4px;
+    padding: var(--el-space-xs) var(--el-space-md);
+    border-radius: var(--el-border-radius-base);
     color: var(--el-color-primary);
     background: var(--el-color-primary-light-9);
-    font-size: 12px;
+    font-size: var(--el-font-size-extra-small);
     line-height: 20px;
   }
 
   &__capabilities {
     display: grid;
-    margin: 18px 0 0;
+    margin: var(--el-space-xl) 0 0;
     padding: 0;
-    gap: 10px;
+    gap: var(--el-space-md);
     list-style: none;
   }
 
   &__capabilities li {
     position: relative;
-    padding-left: 18px;
+    padding-left: var(--el-space-xl);
     color: var(--el-text-color-regular);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
 
     &::before {
@@ -106,7 +106,7 @@ const props = defineProps<TenantFeaturePageProps>();
       left: 0;
       width: 6px;
       height: 6px;
-      border-radius: 50%;
+      border-radius: var(--el-border-radius-half);
       background: var(--el-color-primary);
       content: '';
     }

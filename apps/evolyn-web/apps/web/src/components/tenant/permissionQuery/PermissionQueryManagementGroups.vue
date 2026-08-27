@@ -119,11 +119,11 @@ const emit = defineEmits<{
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  padding: 28px;
+  padding: var(--el-space-3xl);
   box-sizing: border-box;
   &__filter {
     display: flex;
-    margin-bottom: 28px;
+    margin-bottom: var(--el-space-3xl);
     gap: 0;
   }
   &__filter :deep(.el-select) {
@@ -143,18 +143,18 @@ const emit = defineEmits<{
     height: 62px;
     color: var(--el-text-color-regular);
     background: var(--el-fill-color-light);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__table :deep(.el-table__cell) {
     height: 78px;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__table :deep(.el-table__inner-wrapper::before) {
     background: var(--el-border-color-lighter);
   }
   &__link,
   &__choose {
-    padding: 4px;
+    padding: var(--el-space-xs);
     border: 0;
     color: var(--el-color-primary);
     background: transparent;
@@ -163,14 +163,14 @@ const emit = defineEmits<{
   }
   &__link:hover,
   &__choose:hover {
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     background: var(--el-color-primary-light-9);
   }
   &__footer {
     display: flex;
     min-height: 54px;
     align-items: flex-end;
-    gap: 12px;
+    gap: var(--el-space-lg);
   }
   &__footer :deep(.el-select) {
     width: 154px;
@@ -189,40 +189,40 @@ const emit = defineEmits<{
   }
   &__drawer-header h2 {
     margin: 0;
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
   }
   &__drawer-header button {
     display: inline-flex;
-    padding: 4px;
+    padding: var(--el-space-xs);
     border: 0;
     background: transparent;
     cursor: pointer;
   }
   &__drawer-header button:hover {
-    border-radius: 5px;
+    border-radius: var(--el-border-radius-base);
     background: var(--el-fill-color-light);
   }
   &__drawer-content {
-    padding: 28px;
+    padding: var(--el-space-3xl);
   }
   &__drawer-content h3 {
     display: flex;
-    margin: 0 0 24px;
+    margin: 0 0 var(--el-space-3xl);
     align-items: center;
-    gap: 10px;
-    font-size: 20px;
+    gap: var(--el-space-md);
+    font-size: var(--el-font-size-extra-large);
   }
   &__drawer-content h3 i {
     width: 5px;
     height: 20px;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     background: var(--el-color-primary);
   }
   &__choose {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    font-size: 16px;
+    gap: var(--el-space-sm);
+    font-size: var(--el-font-size-medium);
   }
   &__choose svg {
     width: 20px;
@@ -230,23 +230,23 @@ const emit = defineEmits<{
   }
   &__manager-list {
     display: flex;
-    margin-top: 20px;
+    margin-top: var(--el-space-2xl);
     flex-wrap: wrap;
-    gap: 10px;
+    gap: var(--el-space-md);
   }
   &__manager-list span {
     display: inline-flex;
-    padding: 7px 10px;
-    border-radius: 6px;
+    padding: var(--el-space-sm) var(--el-space-md);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     background: var(--el-fill-color);
   }
 }
 :global(.permission-query-management-groups__drawer .el-drawer__header) {
   height: 56px;
   margin-bottom: 0;
-  padding: 0 28px;
+  padding: 0 var(--el-space-3xl);
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 :global(.permission-query-management-groups__drawer .el-drawer__body) {
@@ -254,7 +254,7 @@ const emit = defineEmits<{
 }
 :global(.permission-query-management-groups__drawer .el-drawer__footer) {
   height: 70px;
-  padding: 0 28px;
+  padding: 0 var(--el-space-3xl);
   border-top: 1px solid var(--el-border-color-lighter);
 }
 </style>

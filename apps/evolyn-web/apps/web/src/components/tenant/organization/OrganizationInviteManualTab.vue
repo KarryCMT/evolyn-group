@@ -130,12 +130,13 @@ const emit = defineEmits<{
   flex-direction: column;
 
   &__tips {
-    margin: 0 0 24px;
-    padding: 14px 22px 13px 38px;
-    border-radius: 6px;
+    margin: 0 0 var(--el-space-3xl);
+    padding: var(--el-space-lg) var(--el-space-2xl)
+      var(--el-space-lg) var(--el-space-5xl);
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-secondary);
     background: var(--el-fill-color-light);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 24px;
   }
 
@@ -146,15 +147,15 @@ const emit = defineEmits<{
   &__grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    column-gap: 28px;
+    column-gap: var(--el-space-3xl);
   }
 
   &__grid--extended {
-    margin-top: 10px;
+    margin-top: var(--el-space-md);
   }
 
   &__department {
-    margin-top: 6px;
+    margin-top: var(--el-space-sm);
   }
 
   &__department-select {
@@ -174,9 +175,9 @@ const emit = defineEmits<{
   &__department-select :deep(.el-select__placeholder span) {
     display: inline-flex;
     align-items: center;
-    gap: 9px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-regular);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
 
   &__department-select :deep(.el-select__placeholder svg) {
@@ -186,10 +187,10 @@ const emit = defineEmits<{
 
   &__footer {
     display: flex;
-    padding: 24px 0 4px;
+    padding: var(--el-space-3xl) 0 var(--el-space-xs);
     border-top: 1px solid var(--el-border-color-lighter);
     justify-content: flex-end;
-    gap: 20px;
+    gap: var(--el-space-2xl);
   }
 
   &__footer .el-button {

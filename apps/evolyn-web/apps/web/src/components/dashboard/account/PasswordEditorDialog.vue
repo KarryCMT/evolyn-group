@@ -244,7 +244,7 @@ onBeforeUnmount(clearResendTimer);
 :global(.password-editor-dialog) {
   --el-dialog-padding-primary: 0;
 
-  border-radius: 12px;
+  border-radius: var(--el-border-radius-large);
 }
 
 .password-editor-dialog {
@@ -253,10 +253,10 @@ onBeforeUnmount(clearResendTimer);
     align-items: center;
     justify-content: space-between;
     height: 56px;
-    padding: 0 24px;
+    padding: 0 var(--el-space-3xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 600;
     line-height: 28px;
   }
@@ -269,11 +269,11 @@ onBeforeUnmount(clearResendTimer);
     height: 32px;
     padding: 0;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     background: transparent;
     color: var(--el-text-color-secondary);
     cursor: pointer;
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
   }
 
   &__header button:hover {
@@ -282,9 +282,9 @@ onBeforeUnmount(clearResendTimer);
 
   &__description {
     margin: 0;
-    padding: 24px 24px 22px;
+    padding: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-2xl);
     color: var(--el-text-color-regular);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
   }
 
@@ -293,17 +293,17 @@ onBeforeUnmount(clearResendTimer);
   }
 
   &__form {
-    padding: 24px 24px 0;
+    padding: var(--el-space-3xl) var(--el-space-3xl) 0;
   }
 
   &__form :deep(.el-form-item) {
-    margin-bottom: 20px;
+    margin-bottom: var(--el-space-2xl);
   }
 
   &__form :deep(.el-form-item__label) {
-    padding-bottom: 8px;
+    padding-bottom: var(--el-space-md);
     color: var(--el-text-color-primary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 20px;
   }
 
@@ -328,8 +328,8 @@ onBeforeUnmount(clearResendTimer);
 :global(.password-editor-dialog .el-dialog__footer) {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 12px 24px 22px;
+  gap: var(--el-space-md);
+  padding: var(--el-space-lg) var(--el-space-3xl) var(--el-space-2xl);
 }
 
 :global(.password-editor-dialog .el-dialog__footer .el-button) {

@@ -30,19 +30,19 @@ const tabs: TenantRouteTab[] = [
   :deep(.tenant-route-tabs) {
     min-height: 48px;
     flex: 0 0 48px;
-    padding: 0 0 0 8px;
+    padding: 0 0 0 var(--el-space-md);
     border-bottom: 0;
     align-items: flex-start;
-    gap: 4px;
+    gap: var(--el-space-xs);
     background: var(--el-fill-color-light);
   }
 
   :deep(.tenant-route-tabs__item) {
     min-height: 48px;
-    padding: 0 24px;
+    padding: 0 var(--el-space-3xl);
     border-bottom: 0;
-    border-radius: 16px 16px 0 0;
-    font-size: 16px;
+    border-radius: var(--el-border-radius-large) var(--el-border-radius-large) 0 0;
+    font-size: var(--el-font-size-medium);
   }
 
   :deep(.tenant-route-tabs__item:hover) {

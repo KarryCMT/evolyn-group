@@ -49,7 +49,7 @@ function handleChange(value: string | number | object) {
 <style lang="scss" scoped>
 .locale-switch__trigger {
   display: inline-flex;
-  gap: 4px;
+  gap: var(--el-space-xs);
   align-items: center;
   font-size: var(--el-font-size-base);
   color: var(--el-text-color-regular);
@@ -62,6 +62,6 @@ function handleChange(value: string | number | object) {
 }
 
 .locale-switch__arrow {
-  font-size: 12px;
+  font-size: var(--el-font-size-extra-small);
 }
 </style>

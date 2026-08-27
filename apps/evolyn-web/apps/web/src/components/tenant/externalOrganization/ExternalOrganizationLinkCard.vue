@@ -76,7 +76,7 @@ async function remove() {
   width: 528px;
   max-width: 100%;
   border: 1px solid var(--el-border-color-light);
-  border-radius: 10px;
+  border-radius: var(--el-border-radius-large);
   overflow: hidden;
 
   &__header,
@@ -88,20 +88,20 @@ async function remove() {
   }
   &__header {
     height: 56px;
-    padding: 0 16px 0 20px;
+    padding: 0 var(--el-space-xl) 0 var(--el-space-2xl);
     justify-content: space-between;
     background: var(--el-fill-color-lighter);
   }
   &__url {
     overflow: hidden;
     color: var(--el-text-color-regular);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
   &__tools,
   &__actions {
-    gap: 10px;
+    gap: var(--el-space-md);
   }
   &__tools button,
   &__actions button {
@@ -110,7 +110,7 @@ async function remove() {
     height: 28px;
     padding: 0;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     align-items: center;
     justify-content: center;
     color: var(--el-text-color-secondary);
@@ -128,12 +128,12 @@ async function remove() {
     height: 18px;
   }
   &__body {
-    padding: 16px 20px 10px;
+    padding: var(--el-space-xl) var(--el-space-2xl) var(--el-space-md);
   }
   &__body p {
-    margin: 0 0 14px;
+    margin: 0 0 var(--el-space-lg);
     color: var(--el-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 20px;
   }
   &__body dl {
@@ -149,21 +149,21 @@ async function remove() {
   &__body dd {
     margin: 0;
     color: var(--el-text-color-regular);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
   }
   &__body dd {
     color: var(--el-text-color-secondary);
   }
   &__footer {
     height: 58px;
-    margin: 0 20px;
+    margin: 0 var(--el-space-2xl);
     border-top: 1px solid var(--el-border-color-lighter);
     justify-content: space-between;
   }
   &__actions :deep(.el-button) {
     height: 34px;
-    gap: 4px;
-    font-size: 14px;
+    gap: var(--el-space-xs);
+    font-size: var(--el-font-size-base);
   }
 }
 </style>

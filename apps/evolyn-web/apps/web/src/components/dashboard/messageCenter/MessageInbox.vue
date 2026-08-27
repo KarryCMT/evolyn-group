@@ -34,6 +34,6 @@ const emit = defineEmits<{
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  gap: 22px;
+  gap: var(--el-space-2xl);
 }
 </style>

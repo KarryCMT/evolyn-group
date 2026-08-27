@@ -50,8 +50,8 @@ const emit = defineEmits<{
   color: var(--el-text-color-primary);
   cursor: pointer;
   background: var(--el-fill-color-lighter);
-  border: 1px solid transparent;
-  border-radius: 14px;
+  border: 1px solid var(--el-color-transparent);
+  border-radius: var(--el-border-radius-large);
   transition:
     border-color 0.2s ease,
     box-shadow 0.2s ease,
@@ -72,7 +72,7 @@ const emit = defineEmits<{
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 13px;
+    gap: var(--el-space-lg);
     color: var(--el-text-color-regular);
     background: var(--el-fill-color-lighter);
     border-color: var(--el-border-color-lighter);
@@ -91,32 +91,32 @@ const emit = defineEmits<{
     align-items: center;
     justify-content: center;
     color: var(--el-color-primary);
-    font-size: 34px;
+    font-size: 34.0004px;
     line-height: 1;
   }
 
   &__title {
     position: relative;
     z-index: 1;
-    padding: 16px 18px;
+    padding: var(--el-space-xl) var(--el-space-xl);
     color: inherit;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     font-weight: 650;
     line-height: 1.25;
   }
 
   &--blank &__title {
     padding: 0;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     font-weight: 500;
   }
 
   &__arrow {
     position: relative;
     z-index: 1;
-    margin: 16px 12px 0 auto;
+    margin: var(--el-space-xl) var(--el-space-lg) 0 auto;
     color: var(--el-text-color-regular);
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
   }
 }
 
@@ -125,8 +125,8 @@ const emit = defineEmits<{
     min-height: 112px;
 
     &__title {
-      padding: 18px;
-      font-size: 18px;
+      padding: var(--el-space-xl);
+      font-size: var(--el-font-size-large);
     }
   }
 }

@@ -42,9 +42,9 @@ function mergeInvoices() {
   box-sizing: border-box;
   height: 100%;
   min-height: 0;
-  padding: 26px 32px 20px;
+  padding: var(--el-space-3xl) var(--el-space-4xl) var(--el-space-2xl);
   flex-direction: column;
-  gap: 20px;
+  gap: var(--el-space-2xl);
 
   &__table-scroll,
   &__scrollbar {
@@ -61,7 +61,7 @@ function mergeInvoices() {
 
 @media (max-width: 760px) {
   .tenant-orders-page {
-    padding: 20px;
+    padding: var(--el-space-2xl);
   }
 }
 </style>

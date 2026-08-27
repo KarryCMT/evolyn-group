@@ -58,7 +58,7 @@ function isActive(path: string, nestedPath?: string) {
   box-sizing: border-box;
   width: 320px;
   flex: 0 0 320px;
-  padding: 20px 16px;
+  padding: var(--el-space-2xl) var(--el-space-xl);
   overflow-y: auto;
 
   &__nav,
@@ -68,19 +68,19 @@ function isActive(path: string, nestedPath?: string) {
   }
 
   &__group {
-    gap: 4px;
+    gap: var(--el-space-xs);
 
     &:not(:first-child) {
       /* 分组只保留识别间距，避免菜单总高度在常规桌面视口产生滚动。 */
-      margin-top: 14px;
+      margin-top: var(--el-space-lg);
     }
   }
 
   &__group-title {
     margin: 0;
-    padding: 0 6px;
+    padding: 0 var(--el-space-sm);
     color: var(--el-text-color-secondary);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     font-weight: 500;
     line-height: 20px;
   }
@@ -89,11 +89,11 @@ function isActive(path: string, nestedPath?: string) {
     display: flex;
     min-height: 52px;
     align-items: center;
-    gap: 11px;
-    padding: 0 14px;
-    border-radius: 9px;
+    gap: var(--el-space-lg);
+    padding: 0 var(--el-space-lg);
+    border-radius: var(--el-border-radius-large);
     color: var(--el-text-color-regular);
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     text-decoration: none;
     cursor: pointer;
     transition:
@@ -120,7 +120,7 @@ function isActive(path: string, nestedPath?: string) {
     &--active {
       color: var(--el-color-primary);
       background: var(--el-bg-color);
-      box-shadow: 0 2px 8px rgb(15 23 42 / 7%);
+      box-shadow: var(--el-box-shadow-light);
 
       svg {
         color: var(--el-color-primary);
@@ -132,14 +132,14 @@ function isActive(path: string, nestedPath?: string) {
     width: 72px;
     flex-basis: 72px;
     /* 收起后控制按钮位于图标栏顶部，菜单需避开这一独立控制区。 */
-    padding: 62px 10px 16px;
+    padding: 62px var(--el-space-md) var(--el-space-xl);
 
     .tenant-management-sidebar__group {
-      gap: 4px;
+      gap: var(--el-space-xs);
 
       &:not(:first-child) {
-        margin-top: 12px;
-        padding-top: 12px;
+        margin-top: var(--el-space-lg);
+        padding-top: var(--el-space-lg);
         border-top: 1px solid var(--el-border-color-lighter);
       }
     }
@@ -154,7 +154,7 @@ function isActive(path: string, nestedPath?: string) {
       min-height: 48px;
       justify-content: center;
       padding: 0;
-      border-radius: 8px;
+      border-radius: var(--el-border-radius-medium);
     }
   }
 }

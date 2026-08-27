@@ -207,7 +207,7 @@ function confirm() {
   height: 600px;
   margin-bottom: 0;
   overflow: hidden;
-  border-radius: 20px;
+  border-radius: var(--el-border-radius-round);
 
   /* 选择器位于 body 弹层树中，不能依赖工作台容器的主题变量。 */
   --el-color-primary: #1677ff;
@@ -226,13 +226,13 @@ function confirm() {
 .favorite-picker-dialog .el-dialog__body {
   flex: 1;
   min-height: 0;
-  padding: 24px 28px;
+  padding: var(--el-space-3xl) var(--el-space-3xl);
   overflow: hidden;
 }
 
 .favorite-picker-dialog .el-dialog__footer {
   flex: 0 0 auto;
-  padding: 16px 28px;
+  padding: var(--el-space-xl) var(--el-space-3xl);
   border-top: 1px solid var(--el-border-color-lighter);
 }
 
@@ -241,12 +241,12 @@ function confirm() {
   display: flex;
   align-items: center;
   height: 56px;
-  padding: 0 28px;
+  padding: 0 var(--el-space-3xl);
 }
 
 .favorite-picker-dialog__heading {
   margin: 0;
-  font-size: 20px;
+  font-size: var(--el-font-size-extra-large);
   font-weight: 650;
   color: var(--el-text-color-primary);
 }
@@ -259,7 +259,7 @@ function confirm() {
   height: 32px;
   padding: 0;
   color: var(--el-text-color-secondary);
-  font-size: 20px;
+  font-size: var(--el-font-size-extra-large);
 }
 
 .favorite-picker-dialog__body {
@@ -275,24 +275,24 @@ function confirm() {
 
 .favorite-picker-dialog__search .el-input__wrapper {
   min-height: 48px;
-  padding: 0 12px;
+  padding: 0 var(--el-space-lg);
   background: var(--el-fill-color-light);
-  border-radius: 8px;
+  border-radius: var(--el-border-radius-medium);
   box-shadow: none;
 }
 
 .favorite-picker-dialog__search .el-input__inner {
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 
 .favorite-picker-dialog__search .el-input__prefix-inner {
-  font-size: 20px;
+  font-size: var(--el-font-size-extra-large);
 }
 
 .favorite-picker-dialog__list {
   flex: 1;
   min-height: 0;
-  padding: 14px 0;
+  padding: var(--el-space-lg) 0;
   overflow: auto;
   scrollbar-color: var(--el-border-color) transparent;
 }
@@ -301,11 +301,11 @@ function confirm() {
   display: flex;
   align-items: center;
   min-height: 48px;
-  padding-right: 12px;
+  padding-right: var(--el-space-lg);
 }
 
 .favorite-picker-dialog__row--child {
-  padding-left: 34px;
+  padding-left: var(--el-space-4xl);
 }
 
 .favorite-picker-dialog__expander,
@@ -332,9 +332,9 @@ function confirm() {
   justify-content: center;
   width: 32px;
   height: 32px;
-  margin-right: 8px;
+  margin-right: var(--el-space-md);
   color: var(--el-color-white);
-  border-radius: 6px;
+  border-radius: var(--el-border-radius-medium);
 }
 
 .favorite-picker-dialog__app-icon--blue {
@@ -359,7 +359,7 @@ function confirm() {
 .favorite-picker-dialog__name {
   min-width: 0;
   overflow: hidden;
-  font-size: 17px;
+  font-size: var(--el-font-size-medium);
   line-height: 1.4;
   color: var(--el-text-color-primary);
   text-overflow: ellipsis;
@@ -378,8 +378,8 @@ function confirm() {
   color: var(--el-color-white);
   cursor: pointer;
   background: var(--el-bg-color);
-  border: 2px solid #b6bfce;
-  border-radius: 6px;
+  border: 2px solid var(--el-border-color-darker);
+  border-radius: var(--el-border-radius-medium);
 }
 
 .favorite-picker-dialog__checkbox--checked {
@@ -388,21 +388,21 @@ function confirm() {
 }
 
 .favorite-picker-dialog__checkbox .el-icon {
-  font-size: 18px;
+  font-size: var(--el-font-size-large);
 }
 
 .favorite-picker-dialog__footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: var(--el-space-lg);
 }
 
 .favorite-picker-dialog__footer .el-button {
   min-width: 88px;
   height: 44px;
   margin: 0;
-  font-size: 17px;
-  border-radius: 8px;
+  font-size: var(--el-font-size-medium);
+  border-radius: var(--el-border-radius-medium);
 }
 
 @media (max-width: 720px) {
@@ -413,24 +413,24 @@ function confirm() {
     border-radius: 0;
   }
   .favorite-picker-dialog .el-dialog__body {
-    padding: 24px 20px;
+    padding: var(--el-space-3xl) var(--el-space-2xl);
   }
   .favorite-picker-dialog .el-dialog__footer {
-    padding: 16px 20px;
+    padding: var(--el-space-xl) var(--el-space-2xl);
   }
   .favorite-picker-dialog__header {
     height: 76px;
-    padding: 0 20px;
+    padding: 0 var(--el-space-2xl);
   }
   .favorite-picker-dialog__heading {
-    font-size: 24px;
+    font-size: var(--el-font-size-extra-large);
   }
   .favorite-picker-dialog__name {
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
   }
   .favorite-picker-dialog__footer .el-button {
     height: 46px;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
   }
 }
 </style>

@@ -105,7 +105,7 @@ function updateKeyword(event: Event) {
   min-height: 0;
   width: 292px;
   min-width: 292px;
-  padding: 22px 16px;
+  padding: var(--el-space-2xl) var(--el-space-xl);
   overflow: hidden;
   flex-direction: column;
   border-right: 1px solid var(--el-border-color-lighter);
@@ -115,7 +115,7 @@ function updateKeyword(event: Event) {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
+    gap: var(--el-space-lg);
   }
 
   &__step,
@@ -125,9 +125,9 @@ function updateKeyword(event: Event) {
   }
 
   &__step {
-    margin-bottom: 3px;
+    margin-bottom: var(--el-space-xs);
     color: var(--el-color-primary);
-    font-size: 11px;
+    font-size: var(--el-font-size-extra-small);
     font-weight: 700;
     letter-spacing: 0.08em;
     line-height: 16px;
@@ -135,20 +135,20 @@ function updateKeyword(event: Event) {
 
   &__title {
     color: var(--el-text-color-primary);
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     font-weight: 650;
     line-height: 26px;
   }
 
   &__batch {
     min-height: 30px;
-    padding: 0 7px;
+    padding: 0 var(--el-space-sm);
     border: 0;
     border-radius: var(--el-border-radius-small);
     color: var(--el-color-primary);
     cursor: pointer;
     background: transparent;
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
 
     &:hover {
       background: var(--el-color-primary-light-9);
@@ -163,11 +163,11 @@ function updateKeyword(event: Event) {
   &__search {
     display: flex;
     height: 38px;
-    margin-top: 20px;
-    padding: 0 11px;
+    margin-top: var(--el-space-2xl);
+    padding: 0 var(--el-space-lg);
     align-items: center;
-    gap: 8px;
-    border-radius: 7px;
+    gap: var(--el-space-md);
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-placeholder);
     background: var(--el-fill-color-light);
 
@@ -190,7 +190,7 @@ function updateKeyword(event: Event) {
       color: var(--el-text-color-primary);
       background: transparent;
       font: inherit;
-      font-size: 13px;
+      font-size: var(--el-font-size-small);
 
       &::placeholder {
         color: var(--el-text-color-placeholder);
@@ -200,7 +200,7 @@ function updateKeyword(event: Event) {
 
   &__scrollbar {
     height: 0;
-    margin-top: 20px;
+    margin-top: var(--el-space-2xl);
     min-height: 0;
     flex: 1;
   }
@@ -208,19 +208,19 @@ function updateKeyword(event: Event) {
   &__groups {
     display: flex;
     flex-direction: column;
-    gap: 18px;
+    gap: var(--el-space-xl);
   }
 
   &__group {
     display: flex;
     flex-direction: column;
-    gap: 3px;
+    gap: var(--el-space-xs);
   }
 
   &__group-title {
-    padding: 0 9px 5px;
+    padding: 0 var(--el-space-md) var(--el-space-xs);
     color: var(--el-text-color-secondary);
-    font-size: 12px;
+    font-size: var(--el-font-size-extra-small);
     font-weight: 600;
     line-height: 18px;
   }
@@ -228,16 +228,16 @@ function updateKeyword(event: Event) {
   &__asset {
     display: flex;
     min-height: 38px;
-    padding: 0 10px;
+    padding: 0 var(--el-space-md);
     align-items: center;
-    gap: 9px;
+    gap: var(--el-space-md);
     border: 0;
-    border-radius: 7px;
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-regular);
     cursor: pointer;
     background: transparent;
     font: inherit;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     text-align: left;
 
     svg {
@@ -277,7 +277,7 @@ function updateKeyword(event: Event) {
     min-height: 180px;
     place-items: center;
     color: var(--el-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
   }
 }
 

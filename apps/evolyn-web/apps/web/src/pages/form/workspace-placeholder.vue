@@ -21,13 +21,13 @@ defineProps<{
 .form-workspace-placeholder {
   display: flex;
   min-height: 0;
-  margin: 0 8px 8px;
+  margin: 0 var(--el-space-md) var(--el-space-md);
   flex: 1;
   align-items: center;
   justify-content: center;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
   box-shadow: var(--el-box-shadow-light);
 
   &__content {
@@ -41,14 +41,14 @@ defineProps<{
 
   &__title {
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     line-height: 30px;
   }
 
   &__description {
-    margin-top: 8px;
+    margin-top: var(--el-space-md);
     color: var(--el-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
   }
 }
 </style>

@@ -298,7 +298,7 @@ watch(
 .work-handover-dialog__title {
   margin: 0;
   color: var(--el-text-color-primary);
-  font-size: 18px;
+  font-size: var(--el-font-size-large);
   font-weight: 600;
   line-height: 26px;
 }
@@ -333,7 +333,7 @@ watch(
 .work-handover-dialog__main {
   display: flex;
   min-height: 0;
-  padding: 22px;
+  padding: var(--el-space-2xl);
   flex: 1;
   align-items: center;
   justify-content: center;
@@ -355,15 +355,15 @@ watch(
 .work-handover-dialog__summary {
   display: flex;
   min-height: 58px;
-  padding: 0 22px;
+  padding: 0 var(--el-space-2xl);
   border-bottom: 1px solid var(--el-border-color-lighter);
   align-items: center;
   color: var(--el-text-color-primary);
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 
 .work-handover-dialog__summary strong {
-  margin-right: 4px;
+  margin-right: var(--el-space-xs);
   font-weight: 600;
 }
 
@@ -380,14 +380,14 @@ watch(
 }
 
 .work-handover-dialog__category-group {
-  padding: 14px 0 4px;
+  padding: var(--el-space-lg) 0 var(--el-space-xs);
 }
 
 .work-handover-dialog__category-group-title {
   margin: 0;
-  padding: 0 14px 8px;
+  padding: 0 var(--el-space-lg) var(--el-space-md);
   color: var(--el-text-color-secondary);
-  font-size: 14px;
+  font-size: var(--el-font-size-base);
   font-weight: 400;
 }
 
@@ -396,10 +396,10 @@ watch(
   box-sizing: border-box;
   width: 100%;
   min-height: 40px;
-  padding: 0 14px;
+  padding: 0 var(--el-space-lg);
   border: 0;
   align-items: center;
-  gap: 8px;
+  gap: var(--el-space-md);
   color: var(--el-text-color-primary);
   background: transparent;
   cursor: pointer;
@@ -424,15 +424,15 @@ watch(
 }
 
 .work-handover-dialog__details-note {
-  margin: 18px 20px 12px;
+  margin: var(--el-space-xl) var(--el-space-2xl) var(--el-space-lg);
   color: var(--el-text-color-secondary);
-  font-size: 14px;
+  font-size: var(--el-font-size-base);
   line-height: 22px;
 }
 
 .work-handover-dialog__details-scrollbar {
   min-height: 0;
-  margin: 0 10px 12px 20px;
+  margin: 0 var(--el-space-md) var(--el-space-lg) var(--el-space-2xl);
   flex: 1;
 }
 
@@ -447,7 +447,7 @@ watch(
   box-sizing: border-box;
   width: 100%;
   min-height: 42px;
-  padding: 0 14px;
+  padding: 0 var(--el-space-lg);
   border: 0;
   align-items: center;
   justify-content: space-between;
@@ -455,7 +455,7 @@ watch(
   background: var(--el-fill-color-light);
   cursor: pointer;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--el-font-size-base);
   font-weight: 600;
   text-align: left;
 }
@@ -471,18 +471,18 @@ watch(
 
 .work-handover-dialog__role-list {
   display: grid;
-  padding: 4px 0;
+  padding: var(--el-space-xs) 0;
 }
 
 .work-handover-dialog__role-item {
   display: flex;
   min-height: 42px;
-  padding: 0 14px;
+  padding: 0 var(--el-space-lg);
   align-items: center;
-  gap: 8px;
+  gap: var(--el-space-md);
   color: var(--el-text-color-regular);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--el-font-size-base);
 }
 
 .work-handover-dialog__role-item:hover {
@@ -502,13 +502,13 @@ watch(
 .work-handover-dialog__empty-state svg {
   width: 60px;
   height: 60px;
-  margin-bottom: 14px;
+  margin-bottom: var(--el-space-lg);
   color: var(--el-color-primary-light-5);
 }
 
 .work-handover-dialog__empty-state p {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--el-font-size-base);
 }
 
 .work-handover-dialog__footer {
@@ -556,8 +556,8 @@ watch(
   }
 
   .work-handover-dialog__summary {
-    padding: 0 14px;
-    font-size: 14px;
+    padding: 0 var(--el-space-lg);
+    font-size: var(--el-font-size-base);
   }
 }
 </style>

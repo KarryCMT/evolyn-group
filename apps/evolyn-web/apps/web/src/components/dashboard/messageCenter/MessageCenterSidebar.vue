@@ -126,18 +126,18 @@ const categoryIcons = {
   height: 100%;
   box-sizing: border-box;
   flex-direction: column;
-  padding: 34px 20px 20px;
+  padding: var(--el-space-4xl) var(--el-space-2xl) var(--el-space-2xl);
   background: #fff;
-  border-right: 1px solid #edf0f3;
+  border-right: 1px solid var(--el-border-color-lighter);
 
   &__group + &__group {
-    margin-top: 18px;
+    margin-top: var(--el-space-xl);
   }
 
   &__group-label {
-    margin: 0 10px 12px;
+    margin: 0 var(--el-space-md) var(--el-space-lg);
     color: #9299a5;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
   }
 
@@ -148,13 +148,13 @@ const categoryIcons = {
     min-height: 48px;
     border: 0;
     align-items: center;
-    gap: 13px;
-    padding: 0 12px;
+    gap: var(--el-space-lg);
+    padding: 0 var(--el-space-lg);
     color: #202938;
     background: transparent;
-    border-radius: 10px;
+    border-radius: var(--el-border-radius-large);
     cursor: pointer;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
     text-align: left;
     transition:
@@ -180,12 +180,12 @@ const categoryIcons = {
 
   // 分类按钮保持独立卡片感，避免相邻选中态视觉粘连。
   &__category + &__category {
-    margin-top: 4px;
+    margin-top: var(--el-space-xs);
   }
 
   &__category-icon {
     color: #9ba4b3;
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
   }
 
   &__category--active &__category-icon,
@@ -200,26 +200,26 @@ const categoryIcons = {
     margin-left: auto;
     align-items: center;
     justify-content: center;
-    padding: 0 5px;
+    padding: 0 var(--el-space-xs);
     color: #fff;
     background: #f15b5f;
-    border-radius: 9px;
-    font-size: 11px;
+    border-radius: var(--el-border-radius-large);
+    font-size: var(--el-font-size-extra-small);
     line-height: 18px;
   }
 
   &__footer {
     margin-top: auto;
-    padding-top: 20px;
-    border-top: 1px solid #edf0f3;
+    padding-top: var(--el-space-2xl);
+    border-top: 1px solid var(--el-border-color-lighter);
   }
 
   &__settings {
-    gap: 12px;
+    gap: var(--el-space-lg);
 
     .el-icon {
       color: #8f99a8;
-      font-size: 21px;
+      font-size: var(--el-font-size-extra-large);
     }
   }
 }
@@ -228,7 +228,7 @@ const categoryIcons = {
   .message-center-sidebar {
     width: 64px;
     min-width: 64px;
-    padding: 18px 8px 12px;
+    padding: var(--el-space-xl) var(--el-space-md) var(--el-space-lg);
 
     &__group-label,
     &__category > span:not(.message-center-sidebar__unread-count),
@@ -248,8 +248,8 @@ const categoryIcons = {
       top: 5px;
       min-width: 14px;
       height: 14px;
-      padding: 0 2px;
-      font-size: 9px;
+      padding: 0 var(--el-space-xs);
+      font-size: var(--el-font-size-extra-small);
       line-height: 14px;
     }
 

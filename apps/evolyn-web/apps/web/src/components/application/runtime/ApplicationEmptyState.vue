@@ -53,7 +53,7 @@ const emit = defineEmits<{
 .application-empty-state {
   display: grid;
   min-height: 0;
-  padding: 48px 24px 64px;
+  padding: var(--el-space-6xl) var(--el-space-3xl) 64px;
   flex: 1;
   place-items: center;
   background: #f7f8fa;
@@ -64,16 +64,16 @@ const emit = defineEmits<{
 
   &__heading-row {
     display: flex;
-    margin-bottom: 20px;
+    margin-bottom: var(--el-space-2xl);
     align-items: center;
     justify-content: space-between;
-    gap: 24px;
+    gap: var(--el-space-3xl);
   }
 
   &__heading {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 32px;
   }
@@ -85,7 +85,7 @@ const emit = defineEmits<{
     cursor: pointer;
     background: transparent;
     border: 0;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 24px;
 
     &:hover {
@@ -103,21 +103,21 @@ const emit = defineEmits<{
     display: grid;
     grid-template-columns: repeat(3, 270px);
     justify-content: space-between;
-    gap: 24px;
+    gap: var(--el-space-3xl);
   }
 
   &__management {
     display: flex;
     width: fit-content;
-    margin: 42px auto 0;
+    margin: var(--el-space-5xl) auto 0;
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-regular);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
 
     svg {
-      font-size: 20px;
+      font-size: var(--el-font-size-extra-large);
     }
 
     &:hover {
@@ -130,12 +130,12 @@ const emit = defineEmits<{
   .application-empty-state {
     display: block;
     overflow: auto;
-    padding: 32px 16px;
+    padding: var(--el-space-4xl) var(--el-space-xl);
 
     &__heading-row {
       align-items: flex-start;
       flex-direction: column;
-      gap: 6px;
+      gap: var(--el-space-sm);
     }
 
     &__starter-grid {
@@ -144,7 +144,7 @@ const emit = defineEmits<{
     }
 
     &__management {
-      margin-top: 28px;
+      margin-top: var(--el-space-3xl);
     }
   }
 }

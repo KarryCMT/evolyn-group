@@ -975,8 +975,8 @@ const handleSaveTest = () => {
   height: 100%;
   min-height: 0;
   padding-right: var(--el-space-2xl);
-  padding-bottom: var(--gp-space-2xl);
-  padding-left: var(--gp-space-2xl);
+  padding-bottom: var(--el-space-2xl);
+  padding-left: var(--el-space-2xl);
   background-color: var(--el-fill-color-light);
 
   &__workspace {
@@ -1052,7 +1052,7 @@ const handleSaveTest = () => {
 .plugin-design-sidebar-slide-leave-to {
   width: 0;
   opacity: 0;
-  transform: translateX(calc(-1 * var(--gp-space-2xl)));
+  transform: translateX(calc(-1 * var(--el-space-2xl)));
 }
 
 // 同步过渡面板宽度与位置，避免属性面板出现时内容画布瞬间跳动。
@@ -1068,7 +1068,7 @@ const handleSaveTest = () => {
 .plugin-design-auth-property-slide-leave-to {
   width: 0;
   opacity: 0;
-  transform: translateX(var(--gp-space-2xl));
+  transform: translateX(var(--el-space-2xl));
 }
 
 @media (prefers-reduced-motion: reduce) {

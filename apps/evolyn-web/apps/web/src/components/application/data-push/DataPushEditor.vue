@@ -271,7 +271,7 @@ function showExample() {
     position: relative;
     display: flex;
     min-height: 80px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     align-items: center;
     justify-content: center;
@@ -281,7 +281,7 @@ function showExample() {
   &__title {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 30px;
   }
@@ -321,7 +321,7 @@ function showExample() {
   &__canvas {
     box-sizing: border-box;
     min-height: 100%;
-    padding: 28px 24px 44px;
+    padding: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-5xl);
   }
 
   &__form-card {
@@ -329,13 +329,13 @@ function showExample() {
     width: min(100%, 960px);
     min-height: 860px;
     margin: 0 auto;
-    padding: 28px 42px 48px;
-    border-radius: 10px;
+    padding: var(--el-space-3xl) var(--el-space-5xl) var(--el-space-6xl);
+    border-radius: var(--el-border-radius-large);
     background: var(--el-bg-color);
   }
 
   &__field {
-    margin-top: 26px;
+    margin-top: var(--el-space-3xl);
 
     &:first-child {
       margin-top: 0;
@@ -348,9 +348,9 @@ function showExample() {
 
   &__label {
     display: block;
-    margin: 0 0 10px;
+    margin: 0 0 var(--el-space-md);
     color: var(--el-text-color-regular);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
 
@@ -362,7 +362,7 @@ function showExample() {
     display: flex;
     width: 100%;
     align-items: center;
-    gap: 26px;
+    gap: var(--el-space-3xl);
 
     :deep(.el-input) {
       max-width: 635px;
@@ -382,13 +382,13 @@ function showExample() {
   &__types {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 16px;
+    gap: var(--el-space-xl);
   }
 
   &__type-card {
     display: flex;
     min-height: 110px;
-    padding: 20px;
+    padding: var(--el-space-2xl);
     border: 1px solid var(--el-border-color);
     border-radius: var(--el-border-radius-base);
     align-items: center;
@@ -398,16 +398,16 @@ function showExample() {
     background: var(--el-bg-color);
     flex-direction: column;
     font: inherit;
-    gap: 8px;
+    gap: var(--el-space-md);
 
     strong {
-      font-size: 17px;
+      font-size: var(--el-font-size-medium);
       line-height: 24px;
     }
 
     span {
       color: var(--el-text-color-secondary);
-      font-size: 15px;
+      font-size: var(--el-font-size-base);
       line-height: 22px;
     }
 
@@ -423,21 +423,21 @@ function showExample() {
   }
 
   &__events {
-    margin-top: 28px;
+    margin-top: var(--el-space-3xl);
   }
 
   &__event-intro {
     display: flex;
-    margin: 0 0 8px;
+    margin: 0 0 var(--el-space-md);
     align-items: center;
     color: var(--el-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
-    gap: 10px;
+    gap: var(--el-space-md);
 
     strong {
       color: var(--el-text-color-primary);
-      font-size: 16px;
+      font-size: var(--el-font-size-medium);
     }
 
     button,
@@ -457,21 +457,21 @@ function showExample() {
 
   &__event-list {
     display: flex;
-    margin: 0 0 16px;
+    margin: 0 0 var(--el-space-xl);
     flex-direction: column;
     align-items: flex-start;
-    gap: 10px;
+    gap: var(--el-space-md);
 
     :deep(.el-checkbox) {
       height: 24px;
       margin-right: 0;
       color: var(--el-text-color-regular);
-      font-size: 16px;
+      font-size: var(--el-font-size-medium);
     }
   }
 
   &__example-link {
-    margin-left: 8px;
+    margin-left: var(--el-space-md);
   }
 
   &__footer {
@@ -486,15 +486,15 @@ function showExample() {
   &__save {
     min-width: 166px;
     height: 42px;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
 }
 
 @media (max-width: 1000px) {
   .data-push-editor {
     &__form-card {
-      padding-right: 30px;
-      padding-left: 30px;
+      padding-right: var(--el-space-4xl);
+      padding-left: var(--el-space-4xl);
     }
 
     &__inline-control {

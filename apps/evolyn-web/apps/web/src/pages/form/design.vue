@@ -243,13 +243,13 @@ const addSubformDragField = (value: FormDesignDragField & { parentKey: string })
 .form-design-page {
   display: flex;
   min-height: 0;
-  margin: 0 8px 8px;
+  margin: 0 var(--el-space-md) var(--el-space-md);
   overflow: hidden;
   flex: 1;
   flex-direction: column;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
   box-shadow: var(--el-box-shadow-light);
 
   &__toolbar,
@@ -263,7 +263,7 @@ const addSubformDragField = (value: FormDesignDragField & { parentKey: string })
   &__toolbar {
     height: 50px;
     min-height: 50px;
-    padding: 0 16px 0 24px;
+    padding: 0 var(--el-space-xl) 0 var(--el-space-3xl);
     justify-content: space-between;
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
@@ -283,14 +283,14 @@ const addSubformDragField = (value: FormDesignDragField & { parentKey: string })
   &__guide-button,
   &__action-button {
     justify-content: center;
-    gap: 7px;
-    font-size: 14px;
+    gap: var(--el-space-sm);
+    font-size: var(--el-font-size-base);
     font-weight: 600;
   }
 
   &__guide-button {
     height: 32px;
-    padding: 0 10px;
+    padding: 0 var(--el-space-md);
     color: var(--el-text-color-regular);
     background: transparent;
     border-radius: var(--el-border-radius-base);
@@ -308,13 +308,13 @@ const addSubformDragField = (value: FormDesignDragField & { parentKey: string })
   }
 
   &__toolbar-actions {
-    gap: 10px;
+    gap: var(--el-space-md);
   }
 
   &__action-button {
     min-width: 76px;
     height: 32px;
-    padding: 0 12px;
+    padding: 0 var(--el-space-lg);
     border-radius: var(--el-border-radius-base);
 
     svg {
@@ -387,15 +387,15 @@ const addSubformDragField = (value: FormDesignDragField & { parentKey: string })
 
 @media (max-width: 620px) {
   .form-design-page {
-    margin: 0 4px 4px;
-    border-radius: 10px;
+    margin: 0 var(--el-space-xs) var(--el-space-xs);
+    border-radius: var(--el-border-radius-large);
 
     &__toolbar {
-      padding: 0 10px 0 12px;
+      padding: 0 var(--el-space-md) 0 var(--el-space-lg);
     }
 
     &__guide-button {
-      padding: 0 4px;
+      padding: 0 var(--el-space-xs);
     }
 
     &__guide-label,
@@ -404,12 +404,12 @@ const addSubformDragField = (value: FormDesignDragField & { parentKey: string })
     }
 
     &__toolbar-actions {
-      gap: 6px;
+      gap: var(--el-space-sm);
     }
 
     &__action-button {
       min-width: 34px;
-      padding: 0 8px;
+      padding: 0 var(--el-space-md);
     }
   }
 }

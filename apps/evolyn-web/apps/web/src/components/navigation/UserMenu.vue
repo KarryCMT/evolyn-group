@@ -125,7 +125,7 @@ async function handleLogout() {
   transition: box-shadow 0.18s ease;
 
   &:hover {
-    box-shadow: 0 0 0 4px rgb(54 65 82 / 8%);
+    box-shadow: var(--el-box-shadow-light);
   }
 }
 </style>
@@ -135,7 +135,7 @@ async function handleLogout() {
 <style lang="scss">
 .user-menu-popper.el-popper {
   width: 250px;
-  border-radius: 8px;
+  border-radius: var(--el-border-radius-medium);
   border-color: var(--el-border-color-lighter);
   box-shadow: var(--el-box-shadow-light);
 }
@@ -143,8 +143,8 @@ async function handleLogout() {
 .user-menu__profile {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 16px 16px 12px;
+  gap: var(--el-space-lg);
+  padding: var(--el-space-xl) var(--el-space-xl) var(--el-space-lg);
 }
 
 .user-menu__avatar {
@@ -161,12 +161,12 @@ async function handleLogout() {
 .user-menu__name-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--el-space-md);
 }
 
 .user-menu__name {
   overflow: hidden;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
   font-weight: 600;
   color: var(--el-text-color-primary);
   text-overflow: ellipsis;
@@ -175,18 +175,18 @@ async function handleLogout() {
 
 .user-menu__owner-tag {
   flex-shrink: 0;
-  padding: 0 6px;
-  font-size: 12px;
+  padding: 0 var(--el-space-sm);
+  font-size: var(--el-font-size-extra-small);
   line-height: 18px;
   color: var(--el-text-color-secondary);
   background: var(--el-fill-color);
-  border-radius: 4px;
+  border-radius: var(--el-border-radius-base);
 }
 
 .user-menu__tenant {
-  margin: 2px 0 0;
+  margin: var(--el-space-xs) 0 0;
   overflow: hidden;
-  font-size: 12px;
+  font-size: var(--el-font-size-extra-small);
   color: var(--el-text-color-secondary);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -194,12 +194,12 @@ async function handleLogout() {
 
 .user-menu__separator {
   height: 1px;
-  margin: 0 12px;
+  margin: 0 var(--el-space-lg);
   background: var(--el-border-color-lighter);
 }
 
 .user-menu__list.el-dropdown-menu {
-  padding: 6px 8px 8px;
+  padding: var(--el-space-sm) var(--el-space-md) var(--el-space-md);
 
   /* 悬停态对齐设计稿：浅灰底 + 深色字（覆盖 EP 默认的主题蓝悬停） */
   --el-dropdown-menuItem-hover-fill: var(--el-fill-color-light);
@@ -208,9 +208,9 @@ async function handleLogout() {
 
 .user-menu__list .el-dropdown-menu__item {
   height: 40px;
-  gap: 10px;
-  padding: 0 10px;
-  border-radius: 6px;
+  gap: var(--el-space-md);
+  padding: 0 var(--el-space-md);
+  border-radius: var(--el-border-radius-medium);
 }
 
 /* 退出：红色文字/图标 + 红色悬停底，与常规菜单区分；
@@ -222,17 +222,17 @@ async function handleLogout() {
 }
 
 .user-menu__item-icon {
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 
 .user-menu__item-extra {
   margin-left: auto;
-  font-size: 12px;
+  font-size: var(--el-font-size-extra-small);
   color: var(--el-text-color-secondary);
 }
 
 .user-menu__item-arrow {
-  font-size: 14px;
+  font-size: var(--el-font-size-base);
   color: var(--el-text-color-secondary);
 }
 </style>

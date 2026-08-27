@@ -107,7 +107,7 @@ watch(
 :global(.security-reauth-dialog) {
   --el-dialog-padding-primary: 0;
 
-  border-radius: 12px;
+  border-radius: var(--el-border-radius-large);
 }
 
 :global(.security-reauth-dialog .el-dialog__body) {
@@ -117,8 +117,8 @@ watch(
 :global(.security-reauth-dialog .el-dialog__footer) {
   display: flex;
   justify-content: flex-end;
-  gap: 10px;
-  padding: 12px 24px 22px;
+  gap: var(--el-space-md);
+  padding: var(--el-space-lg) var(--el-space-3xl) var(--el-space-2xl);
 }
 
 :global(.security-reauth-dialog .el-dialog__footer .el-button) {
@@ -133,10 +133,10 @@ watch(
     align-items: center;
     justify-content: space-between;
     height: 56px;
-    padding: 0 24px;
+    padding: 0 var(--el-space-3xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     color: var(--el-text-color-primary);
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     font-weight: 600;
     line-height: 26px;
   }
@@ -147,12 +147,12 @@ watch(
     height: 32px;
     padding: 0;
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     place-items: center;
     background: transparent;
     color: var(--el-text-color-regular);
     cursor: pointer;
-    font-size: 22px;
+    font-size: var(--el-font-size-extra-large);
   }
 
   &__header > button:hover {
@@ -163,7 +163,7 @@ watch(
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 24px;
+    padding: var(--el-space-3xl);
     color: var(--el-text-color-regular);
   }
 
@@ -173,12 +173,12 @@ watch(
   }
 
   &__content > p {
-    margin: 0 0 18px;
+    margin: 0 0 var(--el-space-xl);
     line-height: 22px;
   }
 
   &__hero {
-    margin-bottom: 12px;
+    margin-bottom: var(--el-space-lg);
     color: var(--el-color-primary);
     font-size: 42px;
   }

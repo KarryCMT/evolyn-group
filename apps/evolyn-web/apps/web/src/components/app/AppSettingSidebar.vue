@@ -57,7 +57,7 @@ function isActive(routeName: string) {
   min-height: 0;
   width: 236px;
   flex: 0 0 236px;
-  padding: 12px;
+  padding: var(--el-space-lg);
   overflow: hidden;
   flex-direction: column;
 
@@ -73,18 +73,18 @@ function isActive(routeName: string) {
   }
 
   &__group {
-    gap: 2px;
+    gap: var(--el-space-xs);
 
     &:not(:first-child) {
-      margin-top: 10px;
+      margin-top: var(--el-space-md);
     }
   }
 
   &__group-title {
     margin: 0;
-    padding: 0 8px;
+    padding: 0 var(--el-space-md);
     color: var(--el-text-color-secondary);
-    font-size: 12px;
+    font-size: var(--el-font-size-extra-small);
     font-weight: 500;
     line-height: 20px;
   }
@@ -93,12 +93,12 @@ function isActive(routeName: string) {
     display: flex;
     min-height: 36px;
     align-items: center;
-    gap: 8px;
-    padding: 0 10px;
-    border-radius: 6px;
+    gap: var(--el-space-md);
+    padding: 0 var(--el-space-md);
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-regular);
     cursor: pointer;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     text-decoration: none;
     transition:
       color 0.18s ease,
@@ -124,7 +124,7 @@ function isActive(routeName: string) {
     &--active {
       color: var(--el-color-primary);
       background: var(--el-bg-color);
-      box-shadow: 0 2px 8px rgb(15 23 42 / 7%);
+      box-shadow: var(--el-box-shadow-light);
 
       svg {
         color: var(--el-color-primary);
@@ -135,14 +135,14 @@ function isActive(routeName: string) {
   &--collapsed {
     width: 64px;
     flex-basis: 64px;
-    padding: 52px 8px 12px;
+    padding: 52px var(--el-space-md) var(--el-space-lg);
 
     .app-setting-sidebar__group {
-      gap: 4px;
+      gap: var(--el-space-xs);
 
       &:not(:first-child) {
-        margin-top: 12px;
-        padding-top: 12px;
+        margin-top: var(--el-space-lg);
+        padding-top: var(--el-space-lg);
         border-top: 1px solid var(--el-border-color-lighter);
       }
     }
@@ -157,7 +157,7 @@ function isActive(routeName: string) {
       min-height: 42px;
       justify-content: center;
       padding: 0;
-      border-radius: 8px;
+      border-radius: var(--el-border-radius-medium);
     }
   }
 }

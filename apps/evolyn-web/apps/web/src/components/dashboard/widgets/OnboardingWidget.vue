@@ -50,7 +50,7 @@ const steps = [
   align-items: flex-end;
   width: 100%;
   height: 100%;
-  padding: 16px 32px 20px;
+  padding: var(--el-space-xl) var(--el-space-4xl) var(--el-space-2xl);
   background-color: var(--el-bg-color);
   background-position: center bottom;
   background-repeat: no-repeat;
@@ -63,7 +63,7 @@ const steps = [
     position: absolute;
     top: 12px;
     left: 20px;
-    padding: 4px 10px;
+    padding: var(--el-space-xs) var(--el-space-md);
     color: var(--el-color-white);
     font-size: var(--el-font-size-small);
     background: var(--el-color-primary);
@@ -81,10 +81,10 @@ const steps = [
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     width: 100%;
     min-height: 72px;
-    padding: 12px 16px;
+    padding: var(--el-space-lg) var(--el-space-xl);
     color: var(--el-text-color-primary);
     background: var(--el-fill-color-light);
     border-radius: var(--el-border-radius-base);
@@ -100,7 +100,7 @@ const steps = [
     flex: 1;
     flex-direction: column;
     align-items: center;
-    gap: 4px;
+    gap: var(--el-space-xs);
     min-width: 0;
   }
 
@@ -118,7 +118,7 @@ const steps = [
 
     :deep(.el-button) {
       height: auto;
-      padding: 0 4px;
+      padding: 0 var(--el-space-xs);
       font-size: inherit;
       text-decoration: underline;
     }
@@ -128,7 +128,7 @@ const steps = [
 @media (max-width: 768px) {
   .onboarding-widget {
     align-items: center;
-    padding: 12px;
+    padding: var(--el-space-lg);
 
     &__icon {
       width: 40px;

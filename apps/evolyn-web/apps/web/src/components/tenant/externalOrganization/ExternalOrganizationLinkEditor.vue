@@ -88,11 +88,11 @@ function confirm() {
 <style scoped lang="scss">
 .external-organization-link-editor {
   &__form :deep(.el-form-item) {
-    margin-bottom: 24px;
+    margin-bottom: var(--el-space-3xl);
   }
   &__form :deep(.el-form-item__label) {
     color: var(--el-text-color-primary);
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
   }
   &__form :deep(.el-select) {
     width: 100%;
@@ -100,7 +100,7 @@ function confirm() {
   &__form small {
     display: block;
     color: var(--el-text-color-secondary);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     font-weight: 400;
     line-height: 20px;
   }
@@ -119,7 +119,7 @@ function confirm() {
   --el-text-color-secondary: #8a94a6;
   --el-border-color: #dbe1eb;
   --el-border-color-light: #e7eaf0;
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
   background: #ffffff;
   color-scheme: light;
 }
@@ -127,11 +127,11 @@ function confirm() {
   height: 56px;
   box-sizing: border-box;
   margin-right: 0;
-  padding: 15px 28px;
+  padding: var(--el-space-xl) var(--el-space-3xl);
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 :global(.external-organization-link-editor .el-dialog__title) {
-  font-size: 18px;
+  font-size: var(--el-font-size-large);
   font-weight: 650;
   line-height: 26px;
 }
@@ -142,10 +142,10 @@ function confirm() {
   height: 32px;
 }
 :global(.external-organization-link-editor .el-dialog__body) {
-  padding: 28px 28px 8px;
+  padding: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-md);
 }
 :global(.external-organization-link-editor .el-dialog__footer) {
-  padding: 16px 28px;
+  padding: var(--el-space-xl) var(--el-space-3xl);
   border-top: 1px solid var(--el-border-color-lighter);
 }
 :global(.external-organization-link-editor .el-select__wrapper) {

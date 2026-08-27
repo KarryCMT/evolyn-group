@@ -132,14 +132,15 @@ function selectScope(scope: string | number | boolean | undefined) {
 .product-center-card {
   overflow: hidden;
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 12px;
+  border-radius: var(--el-border-radius-large);
   background: var(--el-bg-color);
-  box-shadow: 0 1px 2px rgb(25 36 53 / 4%);
+  box-shadow: var(--el-box-shadow-light);
 
   &__header {
     display: flex;
     min-height: 96px;
-    padding: 24px 22px 10px 26px;
+    padding: var(--el-space-3xl) var(--el-space-2xl) var(--el-space-md)
+      var(--el-space-3xl);
     align-items: flex-start;
     justify-content: space-between;
   }
@@ -153,7 +154,7 @@ function selectScope(scope: string | number | boolean | undefined) {
   }
 
   &__identity {
-    gap: 18px;
+    gap: var(--el-space-xl);
   }
 
   &__mark {
@@ -169,7 +170,8 @@ function selectScope(scope: string | number | boolean | undefined) {
     display: block;
     width: 32px;
     height: 32px;
-    border-radius: 50% 50% 50% 4px;
+    border-radius: var(--el-border-radius-half) var(--el-border-radius-half)
+      var(--el-border-radius-half) var(--el-border-radius-base);
     transform-origin: 50% 100%;
 
     &--left {
@@ -197,19 +199,19 @@ function selectScope(scope: string | number | boolean | undefined) {
   &__name {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 600;
     letter-spacing: 0.01em;
     line-height: 30px;
   }
 
   &__switch {
-    margin-top: 2px;
+    margin-top: var(--el-space-xs);
     --el-switch-on-color: var(--el-color-primary);
   }
 
   &__details {
-    padding: 0 32px 24px;
+    padding: 0 var(--el-space-4xl) var(--el-space-3xl);
   }
 
   &__row {
@@ -218,7 +220,7 @@ function selectScope(scope: string | number | boolean | undefined) {
     margin: 0;
     align-items: center;
     color: var(--el-text-color-regular);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 24px;
   }
 
@@ -233,12 +235,12 @@ function selectScope(scope: string | number | boolean | undefined) {
   }
 
   &__text-button {
-    margin-left: 14px;
-    padding: 3px 8px;
-    border-radius: 5px;
+    margin-left: var(--el-space-lg);
+    padding: var(--el-space-xs) var(--el-space-md);
+    border-radius: var(--el-border-radius-base);
     color: var(--el-color-primary);
     background: transparent;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
     transition: background-color 0.18s ease;
 
@@ -253,26 +255,26 @@ function selectScope(scope: string | number | boolean | undefined) {
   }
 
   &__scope-row {
-    margin-top: 5px;
+    margin-top: var(--el-space-xs);
   }
 
   &__scope-group {
     min-height: 32px;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
 
   &__selection-field {
     display: flex;
     width: calc(100% - 110px);
     min-height: 108px;
-    margin: 8px 0 0 110px;
-    padding: 12px;
+    margin: var(--el-space-md) 0 0 110px;
+    padding: var(--el-space-lg);
     border: 1px dashed var(--el-border-color);
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     flex-wrap: wrap;
     align-content: flex-start;
     align-items: flex-start;
-    gap: 8px;
+    gap: var(--el-space-md);
     background: transparent;
     cursor: pointer;
     transition:
@@ -294,12 +296,12 @@ function selectScope(scope: string | number | boolean | undefined) {
     display: inline-flex;
     min-height: 30px;
     align-items: center;
-    gap: 5px;
-    padding: 0 10px;
-    border-radius: 5px;
+    gap: var(--el-space-xs);
+    padding: 0 var(--el-space-md);
+    border-radius: var(--el-border-radius-base);
     color: var(--el-text-color-primary);
     background: var(--el-fill-color-light);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
 
     svg {
@@ -310,12 +312,12 @@ function selectScope(scope: string | number | boolean | undefined) {
   }
 
   &__member-count {
-    margin-left: 8px;
-    padding: 1px 4px;
-    border-radius: 2px;
+    margin-left: var(--el-space-md);
+    padding: var(--el-space-xs) var(--el-space-xs);
+    border-radius: var(--el-border-radius-small);
     color: var(--el-text-color-regular);
     background: var(--el-fill-color-light);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
   }
 
   &__help {
@@ -327,18 +329,18 @@ function selectScope(scope: string | number | boolean | undefined) {
   &__footer {
     display: flex;
     min-height: 76px;
-    margin: 0 22px;
+    margin: 0 var(--el-space-2xl);
     border-top: 1px solid var(--el-border-color-lighter);
     align-items: center;
   }
 
   &__enter-button {
-    gap: 6px;
-    padding: 6px 10px;
-    border-radius: 6px;
+    gap: var(--el-space-sm);
+    padding: var(--el-space-sm) var(--el-space-md);
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-color-primary);
     background: transparent;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 24px;
     transition:
       background-color 0.18s ease,
@@ -377,11 +379,11 @@ function selectScope(scope: string | number | boolean | undefined) {
   .product-center-card {
     &__header {
       min-height: auto;
-      padding: 20px 18px 14px;
+      padding: var(--el-space-2xl) var(--el-space-xl) var(--el-space-lg);
     }
 
     &__details {
-      padding: 0 20px 20px;
+      padding: 0 var(--el-space-2xl) var(--el-space-2xl);
     }
 
     &__scope-row {
@@ -400,7 +402,7 @@ function selectScope(scope: string | number | boolean | undefined) {
 
     &__footer {
       min-height: 66px;
-      margin: 0 18px;
+      margin: 0 var(--el-space-xl);
     }
   }
 }

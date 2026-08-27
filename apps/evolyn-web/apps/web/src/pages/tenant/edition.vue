@@ -245,7 +245,7 @@ function updateQuotaDialog(visible: boolean) {
   box-sizing: border-box;
   min-width: 1080px;
   min-height: 100%;
-  padding: 28px;
+  padding: var(--el-space-3xl);
   background: var(--el-bg-color);
 
   &__quota-detail {
@@ -254,8 +254,8 @@ function updateQuotaDialog(visible: boolean) {
     div {
       display: grid;
       grid-template-columns: 92px minmax(0, 1fr);
-      gap: 12px;
-      padding: 13px 0;
+      gap: var(--el-space-lg);
+      padding: var(--el-space-lg) 0;
       border-bottom: 1px solid var(--el-border-color-lighter);
 
       &:last-child {
@@ -266,7 +266,7 @@ function updateQuotaDialog(visible: boolean) {
     dt,
     dd {
       margin: 0;
-      font-size: 14px;
+      font-size: var(--el-font-size-base);
       line-height: 22px;
     }
 
@@ -288,7 +288,7 @@ function updateQuotaDialog(visible: boolean) {
 
 @media (max-width: 640px) {
   .tenant-edition-page {
-    padding: 18px 16px 28px;
+    padding: var(--el-space-xl) var(--el-space-xl) var(--el-space-3xl);
   }
 }
 </style>

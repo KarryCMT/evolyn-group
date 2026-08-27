@@ -90,8 +90,8 @@ const features = [
 .brand-panel {
   display: flex;
   flex-direction: column;
-  gap: 32px;
-  padding: 48px 56px;
+  gap: var(--el-space-4xl);
+  padding: var(--el-space-6xl) 56px;
   color: var(--el-color-white);
   background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-light-3));
   border-radius: var(--el-border-radius-base);
@@ -104,8 +104,8 @@ const features = [
 }
 
 .brand-panel__title {
-  margin: 0 0 8px;
-  font-size: 26px;
+  margin: 0 0 var(--el-space-md);
+  font-size: 25.9994px;
   font-weight: var(--el-font-weight-bold);
 }
 
@@ -119,7 +119,7 @@ const features = [
 .brand-panel__features {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--el-space-xl);
   padding: 0;
   margin: 0;
   list-style: none;
@@ -127,21 +127,21 @@ const features = [
 
 .brand-panel__feature {
   display: flex;
-  gap: 12px;
+  gap: var(--el-space-lg);
   align-items: flex-start;
 }
 
 .brand-panel__feature-dot {
   width: 8px;
   height: 8px;
-  margin-top: 6px;
+  margin-top: var(--el-space-sm);
   background-color: var(--el-color-white);
   border-radius: var(--el-border-radius-round);
   opacity: 0.9;
 }
 
 .brand-panel__feature-title {
-  margin: 0 0 2px;
+  margin: 0 0 var(--el-space-xs);
   font-size: var(--el-font-size-medium);
   font-weight: 500;
 }

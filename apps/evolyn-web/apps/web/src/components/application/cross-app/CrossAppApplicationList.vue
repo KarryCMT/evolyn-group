@@ -63,20 +63,20 @@ function selectedCount(application: CrossAppSourceApplication) {
     display: flex;
     box-sizing: border-box;
     min-height: 100%;
-    padding: 10px 14px;
+    padding: var(--el-space-md) var(--el-space-lg);
     flex-direction: column;
-    gap: 2px;
+    gap: var(--el-space-xs);
   }
 
   &__item {
     display: flex;
     min-width: 0;
     height: 38px;
-    padding: 0 10px;
+    padding: 0 var(--el-space-md);
     border: 0;
-    border-radius: 6px;
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: var(--el-text-color-regular);
     cursor: pointer;
     background: transparent;
@@ -109,7 +109,7 @@ function selectedCount(application: CrossAppSourceApplication) {
     display: inline-flex;
     width: 22px;
     height: 22px;
-    border-radius: 5px;
+    border-radius: var(--el-border-radius-base);
     align-items: center;
     justify-content: center;
     color: var(--el-color-primary);
@@ -144,7 +144,7 @@ function selectedCount(application: CrossAppSourceApplication) {
   &__name {
     overflow: hidden;
     flex: 1;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 20px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -152,11 +152,11 @@ function selectedCount(application: CrossAppSourceApplication) {
 
   &__count {
     min-width: 18px;
-    padding: 0 5px;
-    border-radius: 10px;
+    padding: 0 var(--el-space-xs);
+    border-radius: var(--el-border-radius-large);
     color: var(--el-color-primary);
     background: var(--el-color-primary-light-8);
-    font-size: 11px;
+    font-size: var(--el-font-size-extra-small);
     line-height: 18px;
     text-align: center;
   }

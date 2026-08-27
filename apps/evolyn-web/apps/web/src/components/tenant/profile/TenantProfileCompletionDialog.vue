@@ -121,20 +121,20 @@ function save() {
 .tenant-profile-completion-dialog {
   &__scrollbar {
     max-height: min(60vh, 560px);
-    padding-right: 18px;
+    padding-right: var(--el-space-xl);
   }
 
   &__form {
-    padding: 2px 4px 20px;
+    padding: var(--el-space-xs) var(--el-space-xs) var(--el-space-2xl);
 
     :deep(.el-form-item) {
-      margin-bottom: 28px;
+      margin-bottom: var(--el-space-3xl);
     }
 
     :deep(.el-form-item__label) {
-      padding-bottom: 10px;
+      padding-bottom: var(--el-space-md);
       color: var(--el-text-color-primary);
-      font-size: 16px;
+      font-size: var(--el-font-size-medium);
       line-height: 24px;
     }
 
@@ -151,7 +151,7 @@ function save() {
   &__role-list,
   &__needs-list {
     display: flex;
-    gap: 14px 28px;
+    gap: var(--el-space-lg) var(--el-space-3xl);
   }
 
   &__role-list {
@@ -169,7 +169,7 @@ function save() {
 
     :deep(.el-radio-button__inner) {
       width: 100%;
-      padding: 10px 8px;
+      padding: var(--el-space-md) var(--el-space-md);
     }
   }
 
@@ -184,25 +184,25 @@ function save() {
   &__footer {
     display: flex;
     justify-content: flex-end;
-    gap: 10px;
+    gap: var(--el-space-md);
   }
 }
 
 :global(.tenant-profile-completion-dialog) {
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
 }
 
 :global(.tenant-profile-completion-dialog .el-dialog__header) {
   height: 56px;
   box-sizing: border-box;
   margin-right: 0;
-  padding: 15px 40px;
+  padding: var(--el-space-xl) var(--el-space-5xl);
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 :global(.tenant-profile-completion-dialog .el-dialog__title) {
   color: var(--el-text-color-primary);
-  font-size: 18px;
+  font-size: var(--el-font-size-large);
   font-weight: 650;
   line-height: 26px;
 }
@@ -220,11 +220,11 @@ function save() {
 }
 
 :global(.tenant-profile-completion-dialog .el-dialog__body) {
-  padding: 28px 36px 0;
+  padding: var(--el-space-3xl) var(--el-space-4xl) 0;
 }
 
 :global(.tenant-profile-completion-dialog .el-dialog__footer) {
-  padding: 16px 36px 20px;
+  padding: var(--el-space-xl) var(--el-space-4xl) var(--el-space-2xl);
   border-top: 1px solid var(--el-border-color-lighter);
 }
 
@@ -232,27 +232,27 @@ function save() {
   .tenant-profile-completion-dialog {
     &__form {
       :deep(.el-form-item) {
-        margin-bottom: 22px;
+        margin-bottom: var(--el-space-2xl);
       }
     }
 
     &__size-list {
       grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 8px;
+      gap: var(--el-space-md);
     }
   }
 
   :global(.tenant-profile-completion-dialog .el-dialog__header) {
     height: 52px;
-    padding: 13px 24px;
+    padding: var(--el-space-lg) var(--el-space-3xl);
   }
 
   :global(.tenant-profile-completion-dialog .el-dialog__body) {
-    padding: 22px 20px 0;
+    padding: var(--el-space-2xl) var(--el-space-2xl) 0;
   }
 
   :global(.tenant-profile-completion-dialog .el-dialog__footer) {
-    padding: 14px 20px 18px;
+    padding: var(--el-space-lg) var(--el-space-2xl) var(--el-space-xl);
   }
 }
 </style>

@@ -193,7 +193,7 @@ function showNextTemplates() {
   margin-bottom: 0;
   overflow: hidden;
   flex-direction: column;
-  border-radius: 18px;
+  border-radius: var(--el-border-radius-round);
 }
 
 .create-application-dialog .el-dialog__header {
@@ -213,7 +213,7 @@ function showNextTemplates() {
 .create-application-dialog__header {
   display: flex;
   height: 56px;
-  padding: 0 28px 0 40px;
+  padding: 0 var(--el-space-3xl) 0 var(--el-space-5xl);
   align-items: center;
   justify-content: space-between;
 }
@@ -221,7 +221,7 @@ function showNextTemplates() {
 .create-application-dialog__heading {
   margin: 0;
   color: var(--el-text-color-primary);
-  font-size: 24px;
+  font-size: var(--el-font-size-extra-large);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
@@ -243,7 +243,7 @@ function showNextTemplates() {
   height: 32px;
   color: var(--el-text-color-regular);
   border-radius: var(--el-border-radius-base);
-  font-size: 22px;
+  font-size: var(--el-font-size-extra-large);
   transition:
     color 0.2s ease,
     background-color 0.2s ease;
@@ -264,32 +264,32 @@ function showNextTemplates() {
   display: flex;
   height: 100%;
   min-height: 0;
-  padding: 18px 24px;
+  padding: var(--el-space-xl) var(--el-space-3xl);
   flex-direction: column;
-  gap: 18px;
+  gap: var(--el-space-xl);
 }
 
 .create-application-dialog__section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--el-space-md);
 }
 
 .create-application-dialog__section-heading,
 .create-application-dialog__section-title {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--el-space-md);
   color: var(--el-text-color-primary);
 
   > svg {
     color: var(--el-text-color-regular);
-    font-size: 24px;
+    font-size: var(--el-font-size-extra-large);
   }
 
   h3 {
     margin: 0;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     font-weight: 650;
     letter-spacing: -0.01em;
     line-height: 1.3;
@@ -302,15 +302,15 @@ function showNextTemplates() {
 
 .create-application-dialog__refresh {
   height: 32px;
-  padding: 0 5px;
-  gap: 5px;
+  padding: 0 var(--el-space-xs);
+  gap: var(--el-space-xs);
   color: var(--el-color-primary);
   border-radius: var(--el-border-radius-base);
-  font-size: 14px;
+  font-size: var(--el-font-size-base);
   transition: background-color 0.2s ease;
 
   svg {
-    font-size: 21px;
+    font-size: var(--el-font-size-extra-large);
   }
 
   &:hover {
@@ -328,13 +328,13 @@ function showNextTemplates() {
 .create-application-dialog__more-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: var(--el-space-lg);
 }
 
 .create-application-dialog__promotion {
   display: flex;
   min-height: 108px;
-  padding: 18px 22px;
+  padding: var(--el-space-xl) var(--el-space-2xl);
   align-items: flex-start;
   justify-content: space-between;
   color: var(--el-color-white);
@@ -345,8 +345,8 @@ function showNextTemplates() {
   background-repeat: no-repeat;
   background-size: cover;
   border: 0;
-  border-radius: 14px;
-  box-shadow: 0 2px 6px rgb(31 35 41 / 8%);
+  border-radius: var(--el-border-radius-large);
+  box-shadow: var(--el-box-shadow-light);
   transition:
     box-shadow 0.2s ease,
     transform 0.2s ease;
@@ -370,7 +370,7 @@ function showNextTemplates() {
   }
 
   svg {
-    margin-top: 2px;
+    margin-top: var(--el-space-xs);
     font-size: 28px;
   }
 }
@@ -379,16 +379,16 @@ function showNextTemplates() {
   display: flex;
   max-width: 340px;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--el-space-sm);
 
   strong {
-    font-size: 19px;
+    font-size: var(--el-font-size-large);
     font-weight: 700;
     line-height: 1.2;
   }
 
   span {
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 1.5;
   }
 }
@@ -418,54 +418,54 @@ function showNextTemplates() {
 
   .create-application-dialog__header {
     height: 52px;
-    padding: 0 12px 0 20px;
+    padding: 0 var(--el-space-lg) 0 var(--el-space-2xl);
   }
 
   .create-application-dialog__heading {
-    font-size: 18px;
+    font-size: var(--el-font-size-large);
     line-height: 26px;
   }
 
   .create-application-dialog__body {
-    padding: 24px 18px 32px;
-    gap: 30px;
+    padding: var(--el-space-3xl) var(--el-space-xl) var(--el-space-4xl);
+    gap: var(--el-space-4xl);
   }
 
   .create-application-dialog__section {
-    gap: 16px;
+    gap: var(--el-space-xl);
   }
 
   .create-application-dialog__section-heading,
   .create-application-dialog__section-title {
-    gap: 8px;
+    gap: var(--el-space-md);
 
     > svg {
-      font-size: 20px;
+      font-size: var(--el-font-size-extra-large);
     }
 
     h3 {
-      font-size: 18px;
+      font-size: var(--el-font-size-large);
     }
   }
 
   .create-application-dialog__starter-grid,
   .create-application-dialog__template-grid {
     grid-template-columns: 1fr;
-    gap: 14px;
+    gap: var(--el-space-lg);
   }
 
   .create-application-dialog__promotion {
     min-height: 144px;
-    padding: 22px;
+    padding: var(--el-space-2xl);
   }
 
   .create-application-dialog__promotion-content {
     strong {
-      font-size: 20px;
+      font-size: var(--el-font-size-extra-large);
     }
 
     span {
-      font-size: 14px;
+      font-size: var(--el-font-size-base);
     }
   }
 }

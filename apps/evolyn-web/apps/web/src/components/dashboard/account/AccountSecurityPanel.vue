@@ -260,12 +260,12 @@ async function applySecurityAction(reauthToken: string) {
   &__summary {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: var(--el-space-md);
   }
 
   &__summary {
     min-height: 42px;
-    padding: 0 0 10px 162px;
+    padding: 0 0 var(--el-space-md) 162px;
     color: var(--el-text-color-secondary);
   }
 
@@ -274,9 +274,10 @@ async function applySecurityAction(reauthToken: string) {
   }
 
   &__error {
-    margin: -4px 0 10px 162px;
+    margin: -4px 0 var(--el-space-md)
+      162px;
     color: var(--el-color-danger);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
   }
 
   &__row > div,
@@ -287,7 +288,7 @@ async function applySecurityAction(reauthToken: string) {
   }
 
   &__help {
-    margin-left: 4px;
+    margin-left: var(--el-space-xs);
     vertical-align: -2px;
     color: var(--el-text-color-secondary);
     cursor: help;
@@ -295,7 +296,7 @@ async function applySecurityAction(reauthToken: string) {
 
   &__binding {
     align-items: start;
-    padding: 12px 0;
+    padding: var(--el-space-lg) 0;
   }
 
   &__binding-content {
@@ -303,13 +304,13 @@ async function applySecurityAction(reauthToken: string) {
     flex-wrap: wrap;
     align-items: center;
     min-height: 30px;
-    gap: 12px;
+    gap: var(--el-space-lg);
   }
 
   &__provider {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
     color: var(--el-text-color-regular);
   }
 
@@ -321,7 +322,7 @@ async function applySecurityAction(reauthToken: string) {
   &__danger > strong {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: var(--el-space-sm);
   }
 }
 </style>

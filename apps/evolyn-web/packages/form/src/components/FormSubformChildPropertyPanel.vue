@@ -164,7 +164,7 @@ const showDefaultValue = computed(() => Boolean(widgetNameLabelMap.value[props.f
 
   &__label {
     display: block;
-    margin: var(--gp-space-lg) 0 var(--gp-space-xs);
+    margin: var(--el-space-lg) 0 var(--el-space-xs);
     font-size: var(--el-font-size-extra-small);
     font-weight: 600;
     color: var(--el-text-color-primary);
@@ -178,15 +178,15 @@ const showDefaultValue = computed(() => Boolean(widgetNameLabelMap.value[props.f
 
   &__switches {
     flex-wrap: wrap;
-    gap: var(--gp-space-sm);
+    gap: var(--el-space-sm);
   }
 
   &__option {
-    gap: var(--gp-space-xs);
-    margin-bottom: var(--gp-space-sm);
+    gap: var(--el-space-xs);
+    margin-bottom: var(--el-space-sm);
 
     button {
-      width: var(--gp-space-3xl);
+      width: var(--el-space-3xl);
       color: var(--el-text-color-secondary);
       cursor: pointer;
       background: transparent;

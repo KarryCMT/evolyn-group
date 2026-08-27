@@ -45,7 +45,7 @@ const emit = defineEmits<{
 
 <style scoped lang="scss">
 .edition-features {
-  margin-top: 42px;
+  margin-top: var(--el-space-5xl);
 
   &__header,
   &__legend,
@@ -56,22 +56,22 @@ const emit = defineEmits<{
   }
 
   &__header {
-    gap: 18px;
+    gap: var(--el-space-xl);
 
     h2 {
       display: flex;
-      margin: 0 2px 0 0;
+      margin: 0 var(--el-space-xs) 0 0;
       align-items: center;
       color: #1f2937;
-      font-size: 18px;
+      font-size: var(--el-font-size-large);
       font-weight: 650;
       line-height: 28px;
 
       &::before {
         width: 5px;
         height: 20px;
-        margin-right: 10px;
-        border-radius: 4px;
+        margin-right: var(--el-space-md);
+        border-radius: var(--el-border-radius-base);
         background: var(--el-color-primary);
         content: '';
       }
@@ -79,9 +79,9 @@ const emit = defineEmits<{
   }
 
   &__legend {
-    gap: 5px;
+    gap: var(--el-space-xs);
     color: #596577;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 20px;
 
     &::before {
@@ -89,17 +89,17 @@ const emit = defineEmits<{
       height: 16px;
       box-sizing: border-box;
       border: 1.5px solid;
-      border-radius: 50%;
+      border-radius: var(--el-border-radius-half);
       content: '';
     }
 
     &--available::before {
-      border-color: #12b6e9;
+      border-color: var(--el-color-primary);
       background: #ebfaff;
     }
 
     &--disabled::before {
-      border-color: #7f8999;
+      border-color: var(--el-text-color-secondary);
       background: #f4f5f7;
     }
   }
@@ -107,37 +107,38 @@ const emit = defineEmits<{
   &__grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 20px;
-    margin-top: 16px;
+    gap: var(--el-space-2xl);
+    margin-top: var(--el-space-xl);
     align-items: start;
   }
 
   &__group {
     overflow: hidden;
-    border: 1px solid #e8ebf0;
-    border-radius: 14px;
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: var(--el-border-radius-large);
     background: #fff;
-    box-shadow: 0 1px 3px rgb(36 51 73 / 5%);
+    box-shadow: var(--el-box-shadow-light);
 
     h3 {
       margin: 0;
-      padding: 23px 28px 13px;
+      padding: var(--el-space-3xl) var(--el-space-3xl)
+        var(--el-space-lg);
       color: #596577;
-      font-size: 17px;
+      font-size: var(--el-font-size-medium);
       font-weight: 650;
       line-height: 28px;
     }
 
     ul {
       margin: 0;
-      padding: 0 28px;
+      padding: 0 var(--el-space-3xl);
       list-style: none;
     }
 
     li {
       min-height: 84px;
-      gap: 18px;
-      border-bottom: 1px solid #edf0f4;
+      gap: var(--el-space-xl);
+      border-bottom: 1px solid var(--el-border-color-lighter);
     }
   }
 
@@ -147,7 +148,7 @@ const emit = defineEmits<{
     height: 46px;
     flex: 0 0 46px;
     place-items: center;
-    border-radius: 50%;
+    border-radius: var(--el-border-radius-half);
     color: #10b7e4;
     background: #eaf9fd;
 
@@ -160,7 +161,7 @@ const emit = defineEmits<{
   &__group strong {
     min-width: 0;
     color: #202c3f;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     line-height: 26px;
   }
@@ -168,7 +169,7 @@ const emit = defineEmits<{
   &__item-meta {
     margin-left: auto;
     color: #6e7888;
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     line-height: 24px;
     text-align: right;
   }
@@ -187,21 +188,21 @@ const emit = defineEmits<{
 
   &__group-footer {
     min-height: 70px;
-    padding: 0 28px;
+    padding: 0 var(--el-space-3xl);
     justify-content: space-between;
-    gap: 16px;
+    gap: var(--el-space-xl);
     color: #5f6a7b;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
 
     button {
       flex: 0 0 auto;
-      padding: 5px 8px;
+      padding: var(--el-space-xs) var(--el-space-md);
       border: 0;
-      border-radius: 5px;
+      border-radius: var(--el-border-radius-base);
       color: var(--el-color-primary);
       background: transparent;
-      font-size: 15px;
+      font-size: var(--el-font-size-base);
       cursor: pointer;
 
       &:hover {
@@ -224,11 +225,11 @@ const emit = defineEmits<{
 
 @media (max-width: 640px) {
   .edition-features {
-    margin-top: 32px;
+    margin-top: var(--el-space-4xl);
 
     &__header {
       flex-wrap: wrap;
-      gap: 8px 14px;
+      gap: var(--el-space-md) var(--el-space-lg);
 
       h2 {
         width: 100%;
@@ -236,16 +237,16 @@ const emit = defineEmits<{
     }
 
     &__group h3 {
-      padding: 20px 20px 8px;
+      padding: var(--el-space-2xl) var(--el-space-2xl) var(--el-space-md);
     }
 
     &__group ul {
-      padding: 0 20px;
+      padding: 0 var(--el-space-2xl);
     }
 
     &__group li {
       min-height: 72px;
-      gap: 12px;
+      gap: var(--el-space-lg);
     }
 
     &__item-icon {
@@ -255,15 +256,15 @@ const emit = defineEmits<{
     }
 
     &__group strong {
-      font-size: 15px;
+      font-size: var(--el-font-size-base);
     }
 
     &__item-meta {
-      font-size: 13px;
+      font-size: var(--el-font-size-small);
     }
 
     &__group-footer {
-      padding: 10px 20px;
+      padding: var(--el-space-md) var(--el-space-2xl);
     }
   }
 }

@@ -96,14 +96,14 @@ const {
 }
 .permission-query-panel__workspace-tabs button {
   min-width: 120px;
-  padding: 0 26px;
+  padding: 0 var(--el-space-3xl);
   border: 0;
-  border-radius: 0 0 20px 0;
+  border-radius: 0 0 var(--el-border-radius-round) 0;
   color: var(--el-text-color-primary);
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 .permission-query-panel__workspace-tabs button:hover {
   color: var(--el-color-primary);
@@ -117,21 +117,21 @@ const {
 .permission-query-panel__view-tabs {
   display: flex;
   min-height: 52px;
-  padding: 0 28px;
+  padding: 0 var(--el-space-3xl);
   border-bottom: 1px solid var(--el-border-color-lighter);
   align-items: flex-end;
-  gap: 16px;
+  gap: var(--el-space-xl);
 }
 .permission-query-panel__view-tabs button {
   min-height: 52px;
-  padding: 0 2px;
+  padding: 0 var(--el-space-xs);
   border: 0;
-  border-bottom: 3px solid transparent;
+  border-bottom: 3px solid var(--el-color-transparent);
   color: var(--el-text-color-regular);
   background: transparent;
   cursor: pointer;
   font: inherit;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
 }
 .permission-query-panel__view-tabs button:hover {
   color: var(--el-color-primary);

@@ -191,8 +191,8 @@ function handleAvatarChange(event: Event) {
     display: flex;
     align-items: center;
     min-height: 40px;
-    gap: 10px;
-    margin-bottom: 22px;
+    gap: var(--el-space-md);
+    margin-bottom: var(--el-space-2xl);
     color: var(--el-text-color-primary);
   }
 
@@ -201,7 +201,7 @@ function handleAvatarChange(event: Event) {
   }
 
   &__list--security {
-    padding-top: 4px;
+    padding-top: var(--el-space-xs);
   }
 
   &__row {
@@ -221,7 +221,7 @@ function handleAvatarChange(event: Event) {
     align-items: center;
     min-width: 0;
     margin: 0;
-    gap: 12px;
+    gap: var(--el-space-lg);
     color: var(--el-text-color-regular);
   }
 
@@ -231,14 +231,14 @@ function handleAvatarChange(event: Event) {
 
   &__contact-name-editor {
     width: min(100%, 520px);
-    padding: 10px 0;
+    padding: var(--el-space-md) 0;
   }
 
   &__contact-name-tips {
     display: flex;
     flex-direction: column;
-    gap: 4px;
-    margin-bottom: 8px;
+    gap: var(--el-space-xs);
+    margin-bottom: var(--el-space-md);
     color: var(--el-color-success);
     font-size: var(--el-font-size-small);
   }
@@ -246,13 +246,13 @@ function handleAvatarChange(event: Event) {
   &__contact-name-tips span {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: var(--el-space-xs);
   }
 
   &__contact-name-actions {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--el-space-md);
   }
 
   &__contact-name-actions :deep(.el-input) {

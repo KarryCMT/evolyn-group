@@ -48,21 +48,21 @@ const emit = defineEmits<{
 
   &__content {
     display: grid;
-    padding: 24px;
+    padding: var(--el-space-3xl);
     grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
-    gap: 16px;
+    gap: var(--el-space-xl);
   }
 
   &__card {
     display: flex;
     min-height: 118px;
-    padding: 18px;
+    padding: var(--el-space-xl);
     border: 1px solid var(--el-border-color-lighter);
-    border-radius: 10px;
+    border-radius: var(--el-border-radius-large);
     align-items: flex-start;
-    gap: 12px;
+    gap: var(--el-space-lg);
     background: var(--el-fill-color-blank);
-    box-shadow: 0 4px 14px rgb(15 23 42 / 4%);
+    box-shadow: var(--el-box-shadow-light);
   }
 
   &__icon {
@@ -70,7 +70,7 @@ const emit = defineEmits<{
     width: 36px;
     height: 36px;
     flex: 0 0 auto;
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
     place-items: center;
     color: var(--el-color-primary);
     background: var(--el-color-primary-light-9);
@@ -95,7 +95,7 @@ const emit = defineEmits<{
 
     h2 {
       color: var(--el-text-color-primary);
-      font-size: 16px;
+      font-size: var(--el-font-size-medium);
       font-weight: 600;
       line-height: 24px;
     }
@@ -104,16 +104,16 @@ const emit = defineEmits<{
     span {
       display: block;
       color: var(--el-text-color-secondary);
-      font-size: 13px;
+      font-size: var(--el-font-size-small);
       line-height: 20px;
     }
 
     p {
-      margin-top: 3px;
+      margin-top: var(--el-space-xs);
     }
 
     span {
-      margin-top: 7px;
+      margin-top: var(--el-space-sm);
       color: var(--el-text-color-placeholder);
     }
   }

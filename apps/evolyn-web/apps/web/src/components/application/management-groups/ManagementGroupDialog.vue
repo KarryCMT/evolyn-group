@@ -421,10 +421,10 @@ watch(visible, (isVisible) => {
   display: flex;
   max-width: calc(100vw - 32px);
   height: min(860px, calc(100vh - 44px));
-  margin: 22px auto;
+  margin: var(--el-space-2xl) auto;
   overflow: hidden;
   flex-direction: column;
-  border-radius: 14px;
+  border-radius: var(--el-border-radius-large);
 }
 
 .management-group-dialog .el-dialog__header,
@@ -453,14 +453,14 @@ watch(visible, (isVisible) => {
 .management-group-dialog__header {
   display: flex;
   height: 56px;
-  padding: 0 16px 0 28px;
+  padding: 0 var(--el-space-xl) 0 var(--el-space-3xl);
   align-items: center;
   justify-content: space-between;
 
   h2 {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
     font-weight: 650;
     line-height: 26px;
   }
@@ -494,21 +494,21 @@ watch(visible, (isVisible) => {
   display: flex;
   box-sizing: border-box;
   min-width: 0;
-  padding: 26px 28px;
+  padding: var(--el-space-3xl) var(--el-space-3xl);
   flex-direction: column;
-  gap: 18px;
+  gap: var(--el-space-xl);
 }
 
 .management-group-dialog__field {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--el-space-md);
   color: var(--el-text-color-primary);
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
   line-height: 24px;
 
   span i {
-    margin-left: 2px;
+    margin-left: var(--el-space-xs);
     color: var(--el-color-danger);
     font-style: normal;
   }
@@ -523,7 +523,7 @@ watch(visible, (isVisible) => {
   }
 
   .el-textarea__inner {
-    padding: 10px 12px;
+    padding: var(--el-space-md) var(--el-space-lg);
     resize: none;
   }
 }
@@ -533,7 +533,7 @@ watch(visible, (isVisible) => {
   min-height: 0;
   flex: 1;
   border: 1px solid var(--el-border-color);
-  border-radius: 9px;
+  border-radius: var(--el-border-radius-large);
   overflow: hidden;
 }
 
@@ -547,14 +547,14 @@ watch(visible, (isVisible) => {
 
 .management-group-dialog__step {
   min-height: 56px;
-  padding: 0 24px;
+  padding: 0 var(--el-space-3xl);
   border: 0;
-  border-left: 4px solid transparent;
+  border-left: 4px solid var(--el-color-transparent);
   color: var(--el-text-color-primary);
   cursor: pointer;
   background: transparent;
   font: inherit;
-  font-size: 16px;
+  font-size: var(--el-font-size-medium);
   text-align: left;
 
   &:hover {
@@ -572,7 +572,7 @@ watch(visible, (isVisible) => {
 
 .management-group-dialog__panel {
   min-width: 0;
-  padding: 26px;
+  padding: var(--el-space-3xl);
   flex: 1;
 
   h3,
@@ -583,7 +583,7 @@ watch(visible, (isVisible) => {
 
   h3 {
     color: var(--el-text-color-primary);
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     line-height: 26px;
   }
@@ -593,14 +593,14 @@ watch(visible, (isVisible) => {
   display: flex;
   width: 100%;
   min-height: 112px;
-  margin-top: 12px;
-  padding: 14px;
+  margin-top: var(--el-space-lg);
+  padding: var(--el-space-lg);
   border: 1px dashed var(--el-border-color);
   border-radius: var(--el-border-radius-base);
   align-content: flex-start;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--el-space-md);
   color: var(--el-text-color-regular);
   cursor: pointer;
   background: var(--el-fill-color-blank);
@@ -620,7 +620,7 @@ watch(visible, (isVisible) => {
   align-items: center;
   justify-content: center;
   color: var(--el-text-color-secondary);
-  gap: 6px;
+  gap: var(--el-space-sm);
 }
 
 .management-group-dialog__member-tag,
@@ -628,13 +628,13 @@ watch(visible, (isVisible) => {
 .management-group-dialog__asset-tag {
   display: inline-flex;
   min-height: 34px;
-  padding: 0 9px;
+  padding: 0 var(--el-space-md);
   border-radius: var(--el-border-radius-small);
   align-items: center;
   color: var(--el-text-color-primary);
   background: var(--el-fill-color-light);
-  font-size: 14px;
-  gap: 6px;
+  font-size: var(--el-font-size-base);
+  gap: var(--el-space-sm);
 }
 
 .management-group-dialog__member-tag {
@@ -642,11 +642,11 @@ watch(visible, (isVisible) => {
     display: grid;
     width: 22px;
     height: 22px;
-    border-radius: 50%;
+    border-radius: var(--el-border-radius-half);
     place-items: center;
     color: var(--el-color-white);
     background: var(--el-color-danger);
-    font-size: 12px;
+    font-size: var(--el-font-size-extra-small);
     font-style: normal;
   }
 
@@ -664,13 +664,13 @@ watch(visible, (isVisible) => {
 
 .management-group-dialog__permission-select {
   width: 100%;
-  margin-top: 12px;
+  margin-top: var(--el-space-lg);
 }
 
 .management-group-dialog__asset-picker {
   display: grid;
   min-height: 260px;
-  margin-top: 12px;
+  margin-top: var(--el-space-lg);
   border: 1px solid var(--el-border-color);
   border-radius: var(--el-border-radius-base);
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -679,21 +679,21 @@ watch(visible, (isVisible) => {
 .management-group-dialog__asset-options {
   display: flex;
   min-height: 0;
-  padding: 16px;
+  padding: var(--el-space-xl);
   flex-direction: column;
-  gap: 14px;
+  gap: var(--el-space-lg);
   border-right: 1px solid var(--el-border-color);
 
   .el-checkbox {
     margin-right: 0;
     color: var(--el-text-color-primary);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
   }
 
   .el-checkbox__label {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: var(--el-space-sm);
   }
 
   svg {
@@ -705,11 +705,11 @@ watch(visible, (isVisible) => {
 
 .management-group-dialog__selected-assets {
   display: flex;
-  padding: 16px;
+  padding: var(--el-space-xl);
   align-content: flex-start;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--el-space-md);
 }
 
 .management-group-dialog__asset-tag {
@@ -722,29 +722,29 @@ watch(visible, (isVisible) => {
 
 .management-group-dialog__empty-selection {
   color: var(--el-text-color-placeholder);
-  font-size: 14px;
+  font-size: var(--el-font-size-base);
 }
 
 .management-group-dialog__scope-heading {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--el-space-lg);
 
   p {
     color: var(--el-text-color-secondary);
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
     line-height: 22px;
   }
 
   button {
-    padding: 4px;
+    padding: var(--el-space-xs);
     border: 0;
     border-radius: var(--el-border-radius-small);
     color: var(--el-color-primary);
     cursor: pointer;
     background: transparent;
     font: inherit;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
 
     &:hover {
       background: var(--el-color-primary-light-9);
@@ -753,11 +753,11 @@ watch(visible, (isVisible) => {
 }
 
 .management-group-dialog__scope-section {
-  margin-top: 26px;
+  margin-top: var(--el-space-3xl);
 
   h4 {
     color: var(--el-text-color-secondary);
-    font-size: 15px;
+    font-size: var(--el-font-size-base);
     font-weight: 500;
     line-height: 22px;
   }
@@ -775,20 +775,20 @@ watch(visible, (isVisible) => {
 .management-group-dialog__footer {
   display: flex;
   height: 66px;
-  padding: 0 28px;
+  padding: 0 var(--el-space-3xl);
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
+  gap: var(--el-space-md);
 }
 
 @media (max-width: 720px) {
   .management-group-dialog.el-dialog {
     height: calc(100vh - 20px);
-    margin: 10px auto;
+    margin: var(--el-space-md) auto;
   }
 
   .management-group-dialog__body {
-    padding: 18px;
+    padding: var(--el-space-xl);
   }
 
   .management-group-dialog__editor {
@@ -805,10 +805,10 @@ watch(visible, (isVisible) => {
 
   .management-group-dialog__step {
     min-height: 46px;
-    padding: 0 12px;
-    border-bottom: 3px solid transparent;
+    padding: 0 var(--el-space-lg);
+    border-bottom: 3px solid var(--el-color-transparent);
     border-left: 0;
-    font-size: 14px;
+    font-size: var(--el-font-size-base);
 
     &--active {
       border-bottom-color: var(--el-color-primary);
@@ -816,7 +816,7 @@ watch(visible, (isVisible) => {
   }
 
   .management-group-dialog__panel {
-    padding: 18px;
+    padding: var(--el-space-xl);
   }
 
   .management-group-dialog__asset-picker {

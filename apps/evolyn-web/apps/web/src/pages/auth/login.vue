@@ -231,7 +231,7 @@ function goNext() {
 
 <style lang="scss" scoped>
 .login-page__switch-row {
-  margin-top: 16px;
+  margin-top: var(--el-space-xl);
   text-align: center;
 }
 
@@ -256,14 +256,14 @@ function goNext() {
 .login-page__tenant-list {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: var(--el-space-md);
 }
 
 .login-page__tenant-item {
   display: flex;
-  gap: 12px;
+  gap: var(--el-space-lg);
   align-items: center;
-  padding: 12px 16px;
+  padding: var(--el-space-lg) var(--el-space-xl);
   text-align: left;
   background-color: var(--el-fill-color-light);
   border: 1px solid var(--el-border-color-lighter);

@@ -106,8 +106,8 @@ function handleAction(command: 'rename' | 'create-child') {
     display: flex;
     box-sizing: border-box;
     height: 44px;
-    padding-right: 6px;
-    border-radius: 6px;
+    padding-right: var(--el-space-sm);
+    border-radius: var(--el-border-radius-medium);
     align-items: center;
     color: var(--el-text-color-regular);
 
@@ -144,7 +144,7 @@ function handleAction(command: 'rename' | 'create-child') {
     height: 28px;
     padding: 0;
     border: 0;
-    border-radius: 4px;
+    border-radius: var(--el-border-radius-base);
     flex: 0 0 28px;
     align-items: center;
     justify-content: center;
@@ -175,7 +175,7 @@ function handleAction(command: 'rename' | 'create-child') {
   &__icon {
     width: 20px;
     height: 20px;
-    margin-right: 8px;
+    margin-right: var(--el-space-md);
     flex: 0 0 20px;
     color: var(--el-color-primary);
   }
@@ -186,7 +186,7 @@ function handleAction(command: 'rename' | 'create-child') {
     white-space: nowrap;
   }
   &__more {
-    margin-left: 4px;
+    margin-left: var(--el-space-xs);
     opacity: 0;
     transition:
       opacity 0.18s ease,

@@ -37,9 +37,9 @@ const props = withDefaults(
   /* 卡片高度跟随网格内容区，头像不会因网格边距被裁切。 */
   height: 100%;
   /* 与工作台卡片左侧保持 16px 的视觉留白。 */
-  padding: 0 0 0 16px;
+  padding: 0 0 0 var(--el-space-xl);
   overflow: hidden;
-  gap: 16px;
+  gap: var(--el-space-xl);
   color: var(--el-text-color-primary);
   background: var(--el-bg-color);
   border: 0;
@@ -52,7 +52,7 @@ const props = withDefaults(
     width: 40px;
     height: 40px;
     overflow: hidden;
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
   }
 
   &__avatar-image {
@@ -60,7 +60,7 @@ const props = withDefaults(
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 8px;
+    border-radius: var(--el-border-radius-medium);
   }
 
   &__avatar-settings {
@@ -93,7 +93,7 @@ const props = withDefaults(
   &__content {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--el-space-xs);
     font-size: var(--el-font-size-base);
 
     strong {

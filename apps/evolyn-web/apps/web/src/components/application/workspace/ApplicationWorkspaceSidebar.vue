@@ -202,7 +202,8 @@ function handleCreateAsset(command: string | number | object) {
   display: flex;
   width: 280px;
   min-width: 280px;
-  padding: 14px 14px 18px;
+  padding: var(--el-space-lg) var(--el-space-lg)
+    var(--el-space-xl);
   overflow: hidden;
   flex-direction: column;
   color: var(--el-color-white);
@@ -239,7 +240,7 @@ function handleCreateAsset(command: string | number | object) {
 
   &__header {
     min-height: 44px;
-    gap: 10px;
+    gap: var(--el-space-md);
   }
 
   &__back,
@@ -263,8 +264,8 @@ function handleCreateAsset(command: string | number | object) {
     flex: 0 0 auto;
     align-items: center;
     justify-content: center;
-    border-radius: 7px;
-    font-size: 23px;
+    border-radius: var(--el-border-radius-medium);
+    font-size: var(--el-font-size-extra-large);
 
     &:hover {
       background: rgb(255 255 255 / 14%);
@@ -290,13 +291,13 @@ function handleCreateAsset(command: string | number | object) {
     justify-content: center;
     color: var(--el-color-primary);
     background: var(--el-color-white);
-    border-radius: 7px;
-    font-size: 19px;
+    border-radius: var(--el-border-radius-medium);
+    font-size: var(--el-font-size-large);
   }
 
   &__app-name {
     overflow: hidden;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     font-weight: 650;
     line-height: 24px;
     text-overflow: ellipsis;
@@ -305,7 +306,7 @@ function handleCreateAsset(command: string | number | object) {
 
   &__collapse {
     margin-left: auto;
-    font-size: 20px;
+    font-size: var(--el-font-size-extra-large);
   }
 
   &__personal-nav,
@@ -315,17 +316,17 @@ function handleCreateAsset(command: string | number | object) {
   }
 
   &__personal-nav {
-    margin: 20px 0 22px;
-    gap: 3px;
+    margin: var(--el-space-2xl) 0 var(--el-space-2xl);
+    gap: var(--el-space-xs);
   }
 
   &__nav-item,
   &__management {
     min-height: 42px;
-    padding: 0 10px;
-    gap: 10px;
-    border-radius: 7px;
-    font-size: 15px;
+    padding: 0 var(--el-space-md);
+    gap: var(--el-space-md);
+    border-radius: var(--el-border-radius-medium);
+    font-size: var(--el-font-size-base);
     text-align: left;
 
     svg {
@@ -345,15 +346,16 @@ function handleCreateAsset(command: string | number | object) {
   }
 
   &__asset-tools {
-    padding-top: 14px;
-    border-top: 1px solid rgb(255 255 255 / 30%);
-    gap: 8px;
+    padding-top: var(--el-space-lg);
+    border-top: 1px solid
+      color-mix(in srgb, var(--el-color-white) 30%, var(--el-color-transparent));
+    gap: var(--el-space-md);
   }
 
   &__search {
     min-width: 0;
     flex: 1;
-    gap: 8px;
+    gap: var(--el-space-md);
     color: rgb(255 255 255 / 78%);
 
     input {
@@ -373,13 +375,13 @@ function handleCreateAsset(command: string | number | object) {
   }
 
   &__asset-nav {
-    gap: 3px;
+    gap: var(--el-space-xs);
   }
 
   &__asset-scrollbar {
     min-height: 0;
     flex: 1;
-    margin-top: 12px;
+    margin-top: var(--el-space-lg);
 
     :deep(.el-scrollbar__wrap) {
       overflow-x: hidden;
@@ -387,17 +389,18 @@ function handleCreateAsset(command: string | number | object) {
   }
 
   &__menu-tip {
-    margin: 6px 10px;
+    margin: var(--el-space-sm) var(--el-space-md);
     color: rgb(255 255 255 / 72%);
-    font-size: 13px;
+    font-size: var(--el-font-size-small);
     line-height: 20px;
   }
 
   &__footer {
-    padding-top: 14px;
+    padding-top: var(--el-space-lg);
     flex: 0 0 auto;
     margin-top: auto;
-    border-top: 1px solid rgb(255 255 255 / 30%);
+    border-top: 1px solid
+      color-mix(in srgb, var(--el-color-white) 30%, var(--el-color-transparent));
   }
 
   &__management {
@@ -445,18 +448,18 @@ function handleCreateAsset(command: string | number | object) {
 }
 
 .application-workspace-root-create-actions__menu.el-dropdown-menu {
-  padding: 6px;
+  padding: var(--el-space-sm);
   --el-dropdown-menuItem-hover-fill: var(--el-fill-color-light);
   --el-dropdown-menuItem-hover-color: var(--el-text-color-primary);
 }
 
 .application-workspace-root-create-actions__menu .el-dropdown-menu__item {
   height: 42px;
-  gap: 10px;
-  padding: 0 12px;
-  border-radius: 6px;
+  gap: var(--el-space-md);
+  padding: 0 var(--el-space-lg);
+  border-radius: var(--el-border-radius-medium);
   color: var(--el-text-color-primary);
-  font-size: 15px;
+  font-size: var(--el-font-size-base);
 
   svg {
     width: 19px;
@@ -466,6 +469,6 @@ function handleCreateAsset(command: string | number | object) {
 }
 
 .application-workspace-root-create-actions__guide.el-dropdown-menu__item {
-  margin-top: 2px;
+  margin-top: var(--el-space-xs);
 }
 </style>

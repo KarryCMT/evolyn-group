@@ -31,16 +31,16 @@ const emit = defineEmits<{
   display: flex;
   width: 100%;
   min-height: 120px;
-  border: 1px solid #edf0f3;
+  border: 1px solid var(--el-border-color-lighter);
   flex-direction: column;
   align-items: flex-start;
   justify-content: center;
-  gap: 13px;
-  padding: 22px 28px;
+  gap: var(--el-space-lg);
+  padding: var(--el-space-2xl) var(--el-space-3xl);
   color: #747d8d;
   background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 5px 14px rgb(37 50 69 / 3%);
+  border-radius: var(--el-border-radius-large);
+  box-shadow: var(--el-box-shadow-light);
   cursor: pointer;
   text-align: left;
   transition:
@@ -50,7 +50,7 @@ const emit = defineEmits<{
 
   &:hover {
     border-color: var(--el-color-primary-light-7);
-    box-shadow: 0 9px 22px rgb(22 119 255 / 10%);
+    box-shadow: var(--el-box-shadow-light);
     transform: translateY(-1px);
   }
 
@@ -61,7 +61,7 @@ const emit = defineEmits<{
 
   &__time {
     color: #929aa7;
-    font-size: 16px;
+    font-size: var(--el-font-size-medium);
     line-height: 22px;
   }
 
@@ -69,7 +69,7 @@ const emit = defineEmits<{
     overflow: hidden;
     width: 100%;
     color: #8b94a2;
-    font-size: 17px;
+    font-size: var(--el-font-size-medium);
     line-height: 26px;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -87,7 +87,7 @@ const emit = defineEmits<{
     right: 26px;
     width: 7px;
     height: 7px;
-    border-radius: 50%;
+    border-radius: var(--el-border-radius-half);
     background: #f15b5f;
   }
 }
