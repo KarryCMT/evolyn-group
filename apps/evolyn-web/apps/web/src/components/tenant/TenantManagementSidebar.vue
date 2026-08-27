@@ -87,13 +87,13 @@ function isActive(path: string, nestedPath?: string) {
 
   &__item {
     display: flex;
-    min-height: 52px;
+    min-height: 40px;
     align-items: center;
     gap: var(--el-space-lg);
     padding: 0 var(--el-space-lg);
     border-radius: var(--el-border-radius-large);
     color: var(--el-text-color-regular);
-    font-size: var(--el-font-size-large);
+    font-size: var(--el-font-size-base);
     text-decoration: none;
     cursor: pointer;
     transition:
@@ -151,7 +151,7 @@ function isActive(path: string, nestedPath?: string) {
 
     .tenant-management-sidebar__item {
       width: 52px;
-      min-height: 48px;
+      min-height: 40px;
       justify-content: center;
       padding: 0;
       border-radius: var(--el-border-radius-medium);
