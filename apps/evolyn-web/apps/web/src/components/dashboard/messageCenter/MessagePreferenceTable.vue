@@ -98,7 +98,7 @@ function updateChannel(
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--el-border-color-lighter);
-  background: #fff;
+  background: var(--el-bg-color);
   border-radius: var(--el-border-radius-large);
   box-shadow: var(--el-box-shadow-light);
 
@@ -114,8 +114,8 @@ function updateChannel(
     min-height: 68px;
     align-items: center;
     padding: 0 var(--el-space-2xl);
-    color: #202938;
-    background: #f6f8fa;
+    color: var(--el-text-color-primary);
+    background: var(--el-fill-color-light);
     font-size: var(--el-font-size-base);
     font-weight: 600;
     line-height: 22px;
@@ -137,7 +137,7 @@ function updateChannel(
 
   &__type {
     padding-right: var(--el-space-2xl);
-    color: #293445;
+    color: var(--el-text-color-primary);
     font-size: var(--el-font-size-medium);
     line-height: 24px;
   }
@@ -157,12 +157,12 @@ function updateChannel(
 
     :deep(.el-checkbox) {
       margin-right: 0;
-      color: #273142;
+      color: var(--el-text-color-primary);
       font-size: var(--el-font-size-medium);
     }
 
     :deep(.el-checkbox.is-disabled .el-checkbox__label) {
-      color: #9aa3b0;
+      color: var(--el-text-color-disabled);
     }
 
     :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
@@ -173,7 +173,7 @@ function updateChannel(
 
   &__hint {
     margin-left: var(--el-space-xs);
-    color: #aab2bf;
+    color: var(--el-text-color-placeholder);
     font-size: var(--el-font-size-base);
     vertical-align: -2px;
   }
@@ -195,8 +195,8 @@ function updateChannel(
     align-items: center;
     gap: var(--el-space-sm);
     padding: 0 var(--el-space-md);
-    color: #344052;
-    background: #f4f6f8;
+    color: var(--el-text-color-regular);
+    background: var(--el-fill-color-light);
     border-radius: var(--el-border-radius-medium);
     cursor: pointer;
     font-size: var(--el-font-size-base);
@@ -227,7 +227,7 @@ function updateChannel(
     min-height: 280px;
     align-items: center;
     justify-content: center;
-    color: #929aa7;
+    color: var(--el-text-color-secondary);
     font-size: var(--el-font-size-medium);
   }
 }

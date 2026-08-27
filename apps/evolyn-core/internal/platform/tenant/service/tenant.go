@@ -466,6 +466,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 成员信息管理（字段设置/卡片展示）：租户管理员全量；
 			// 存量租户由 000031 补齐
 			{Resource: iammodel.MemberFieldSettingResource, Operation: iammodel.AllOperation},
+			// 权限中心-管理员模块：租户创建者须能读取并维护内置系统管理员组；
+			// 存量租户由 000032/000035 补齐，新租户必须在基线中直接具备该权限。
+			{Resource: iammodel.AdminGroupResource, Operation: iammodel.AllOperation},
 			// 产品中心（内置产品启停/可用范围）：view 展开 get+list 覆盖
 			// 卡片列表，update 覆盖启停与范围替换两条 PUT 子资源路径；
 			// 存量租户由 000033 补齐

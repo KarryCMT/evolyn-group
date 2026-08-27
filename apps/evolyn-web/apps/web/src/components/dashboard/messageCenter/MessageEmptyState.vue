@@ -36,8 +36,7 @@ defineOptions({ name: 'MessageEmptyState' });
       var(--el-color-primary-light-9),
       var(--el-color-primary-light-7)
     );
-    border-radius: var(--el-border-radius-round) var(--el-border-radius-round)
-      32px 32px;
+    border-radius: var(--el-border-radius-round) var(--el-border-radius-round) 32px 32px;
     box-shadow: inset 0 0 0 var(--el-space-md)
       color-mix(in srgb, var(--el-color-white) 38%, var(--el-color-transparent));
 
@@ -68,7 +67,7 @@ defineOptions({ name: 'MessageEmptyState' });
 
   &__text {
     margin: 0;
-    color: #8f98a7;
+    color: var(--el-text-color-secondary);
     font-size: var(--el-font-size-medium);
     line-height: 24px;
   }

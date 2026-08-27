@@ -502,6 +502,7 @@ func TestTXTenant005HappyPathBaselineComplete(t *testing.T) {
 	assert.Equal(t, TenantAdminRole, boundRole.Name)
 	assert.Equal(t, tenant.ID, boundRole.TenantID, "owner 不得绑定其他租户的角色")
 	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.MemberResource, Operation: iammodel.AllOperation}, "创建者必须拥有成员管理权限")
+	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.AdminGroupResource, Operation: iammodel.AllOperation}, "创建者必须拥有管理组权限")
 
 	for _, role := range store.roles {
 		assert.Equal(t, tenant.ID, role.TenantID)

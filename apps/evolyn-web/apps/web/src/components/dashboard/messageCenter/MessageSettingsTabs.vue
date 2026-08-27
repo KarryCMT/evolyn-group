@@ -57,7 +57,7 @@ const configurableCategories = computed(() =>
     flex: 0 0 auto;
     align-items: center;
     padding: 0;
-    color: #202938;
+    color: var(--el-text-color-primary);
     background: transparent;
     cursor: pointer;
     font-size: var(--el-font-size-medium);

@@ -127,7 +127,7 @@ const categoryIcons = {
   box-sizing: border-box;
   flex-direction: column;
   padding: var(--el-space-4xl) var(--el-space-2xl) var(--el-space-2xl);
-  background: #fff;
+  background: var(--el-bg-color);
   border-right: 1px solid var(--el-border-color-lighter);
 
   &__group + &__group {
@@ -136,7 +136,7 @@ const categoryIcons = {
 
   &__group-label {
     margin: 0 var(--el-space-md) var(--el-space-lg);
-    color: #9299a5;
+    color: var(--el-text-color-secondary);
     font-size: var(--el-font-size-base);
     line-height: 22px;
   }
@@ -150,7 +150,7 @@ const categoryIcons = {
     align-items: center;
     gap: var(--el-space-lg);
     padding: 0 var(--el-space-lg);
-    color: #202938;
+    color: var(--el-text-color-primary);
     background: transparent;
     border-radius: var(--el-border-radius-large);
     cursor: pointer;
@@ -184,7 +184,7 @@ const categoryIcons = {
   }
 
   &__category-icon {
-    color: #9ba4b3;
+    color: var(--el-text-color-placeholder);
     font-size: var(--el-font-size-extra-large);
   }
 
@@ -201,8 +201,8 @@ const categoryIcons = {
     align-items: center;
     justify-content: center;
     padding: 0 var(--el-space-xs);
-    color: #fff;
-    background: #f15b5f;
+    color: var(--el-color-white);
+    background: var(--el-color-danger);
     border-radius: var(--el-border-radius-large);
     font-size: var(--el-font-size-extra-small);
     line-height: 18px;
@@ -218,7 +218,7 @@ const categoryIcons = {
     gap: var(--el-space-lg);
 
     .el-icon {
-      color: #8f99a8;
+      color: var(--el-text-color-secondary);
       font-size: var(--el-font-size-extra-large);
     }
   }

@@ -126,8 +126,8 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
   display: flex;
   height: 100%;
   flex-direction: column;
-  color: #202938;
-  background: #f5f7f9;
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color-page);
 
   &__header {
     display: flex;
@@ -137,13 +137,13 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
     align-items: center;
     justify-content: space-between;
     padding: 0 var(--el-space-xl) 0 var(--el-space-2xl);
-    background: #fff;
+    background: var(--el-bg-color);
     border-bottom: 1px solid var(--el-border-color-light);
   }
 
   &__title {
     margin: 0;
-    color: #1d2737;
+    color: var(--el-text-color-primary);
     font-size: var(--el-font-size-large);
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -157,7 +157,7 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
     border: 0;
     align-items: center;
     justify-content: center;
-    color: #202938;
+    color: var(--el-text-color-primary);
     background: transparent;
     border-radius: var(--el-border-radius-medium);
     cursor: pointer;
@@ -192,8 +192,7 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
     min-height: 0;
     flex: 1;
     flex-direction: column;
-    padding: var(--el-space-4xl) var(--el-space-4xl)
-      var(--el-space-3xl);
+    padding: var(--el-space-4xl) var(--el-space-4xl) var(--el-space-3xl);
   }
 }
 

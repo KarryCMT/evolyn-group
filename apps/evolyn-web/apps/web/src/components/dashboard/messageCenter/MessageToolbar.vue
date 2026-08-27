@@ -57,7 +57,7 @@ function updateUnreadOnly(value: boolean | string | number) {
     border: 0;
     align-items: center;
     gap: var(--el-space-sm);
-    color: #202938;
+    color: var(--el-text-color-primary);
     background: transparent;
     cursor: pointer;
     font-size: var(--el-font-size-large);
@@ -74,7 +74,7 @@ function updateUnreadOnly(value: boolean | string | number) {
   }
 
   &__filter .el-icon {
-    color: #626d7d;
+    color: var(--el-text-color-regular);
     font-size: var(--el-font-size-large);
   }
 
@@ -82,7 +82,7 @@ function updateUnreadOnly(value: boolean | string | number) {
     display: flex;
     align-items: center;
     gap: var(--el-space-3xl);
-    color: #202938;
+    color: var(--el-text-color-primary);
     font-size: var(--el-font-size-medium);
   }
 

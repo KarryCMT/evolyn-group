@@ -129,11 +129,8 @@ const tenantRoutes: RouteRecordRaw[] = [
       {
         path: 'usage',
         name: 'tenant-usage',
-        ...featurePage({
-          title: '使用统计',
-          description: '从成员、产品与时间范围分析租户使用情况。',
-          capabilities: ['访问和活跃趋势', '功能使用分布', '统计报表导出'],
-        }),
+        component: () => import('~/pages/tenant/UsageStatisticsPage.vue'),
+        meta: { title: '使用统计' },
       },
       {
         path: 'enterprise-logs',
@@ -144,11 +141,8 @@ const tenantRoutes: RouteRecordRaw[] = [
       {
         path: 'product-logs',
         name: 'tenant-product-logs',
-        ...featurePage({
-          title: '产品日志',
-          description: '查看产品模块内的重要事件和运行记录。',
-          capabilities: ['产品事件查询', '异常事件筛选', '日志导出'],
-        }),
+        component: () => import('~/pages/tenant/product-logs.vue'),
+        meta: { title: '产品日志' },
       },
     ],
   },

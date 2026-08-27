@@ -42,7 +42,7 @@ const emit = defineEmits<{
     align-items: center;
     gap: var(--el-space-3xl);
     margin: var(--el-space-3xl) 0 var(--el-space-md);
-    color: #8d95a2;
+    color: var(--el-text-color-secondary);
     font-size: var(--el-font-size-base);
     line-height: 22px;
     white-space: nowrap;
@@ -52,7 +52,7 @@ const emit = defineEmits<{
       display: block;
       width: 100%;
       height: 1px;
-      background: #e2e6eb;
+      background: var(--el-border-color-light);
       content: '';
     }
   }

@@ -37,8 +37,8 @@ const emit = defineEmits<{
   justify-content: center;
   gap: var(--el-space-lg);
   padding: var(--el-space-2xl) var(--el-space-3xl);
-  color: #747d8d;
-  background: #fff;
+  color: var(--el-text-color-regular);
+  background: var(--el-bg-color);
   border-radius: var(--el-border-radius-large);
   box-shadow: var(--el-box-shadow-light);
   cursor: pointer;
@@ -60,7 +60,7 @@ const emit = defineEmits<{
   }
 
   &__time {
-    color: #929aa7;
+    color: var(--el-text-color-secondary);
     font-size: var(--el-font-size-medium);
     line-height: 22px;
   }
@@ -68,7 +68,7 @@ const emit = defineEmits<{
   &__content {
     overflow: hidden;
     width: 100%;
-    color: #8b94a2;
+    color: var(--el-text-color-secondary);
     font-size: var(--el-font-size-medium);
     line-height: 26px;
     text-overflow: ellipsis;
@@ -77,7 +77,7 @@ const emit = defineEmits<{
 
   &--unread &__time,
   &--unread &__content {
-    color: #586273;
+    color: var(--el-text-color-primary);
     font-weight: 500;
   }
 
@@ -88,7 +88,7 @@ const emit = defineEmits<{
     width: 7px;
     height: 7px;
     border-radius: var(--el-border-radius-half);
-    background: #f15b5f;
+    background: var(--el-color-danger);
   }
 }
 </style>

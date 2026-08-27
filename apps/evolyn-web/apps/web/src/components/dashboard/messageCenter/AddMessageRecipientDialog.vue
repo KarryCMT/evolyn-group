@@ -105,7 +105,7 @@ async function submit() {
 
 .add-message-recipient-dialog__header .el-dialog__title {
   margin: 0;
-  color: #202938;
+  color: var(--el-text-color-primary);
   font-size: var(--el-font-size-large);
   font-weight: 700;
   line-height: 26px;
@@ -117,7 +117,7 @@ async function submit() {
   height: 32px;
   padding: 0;
   border-radius: var(--el-border-radius-medium);
-  color: #4f5969;
+  color: var(--el-text-color-regular);
   font-size: var(--el-font-size-extra-large);
 }
 
@@ -135,7 +135,7 @@ async function submit() {
 }
 
 .add-message-recipient-dialog .el-form-item__label {
-  color: #293445;
+  color: var(--el-text-color-primary);
   font-size: var(--el-font-size-medium);
 }
 
@@ -145,8 +145,7 @@ async function submit() {
 }
 
 .add-message-recipient-dialog .el-dialog__footer {
-  padding: var(--el-space-lg) var(--el-space-3xl)
-    var(--el-space-xl);
+  padding: var(--el-space-lg) var(--el-space-3xl) var(--el-space-xl);
   border-top: 1px solid var(--el-border-color-lighter);
 }
 

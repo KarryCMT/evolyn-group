@@ -69,7 +69,7 @@ const emit = defineEmits<{
   flex: 1;
   flex-direction: column;
   padding: var(--el-space-2xl);
-  background: #fff;
+  background: var(--el-bg-color);
   border-radius: var(--el-border-radius-large);
   box-shadow: var(--el-box-shadow-light);
 
@@ -101,7 +101,7 @@ const emit = defineEmits<{
     height: 36px;
     border: 1px solid var(--el-border-color);
     padding: 0 var(--el-space-lg);
-    color: #2d394b;
+    color: var(--el-text-color-primary);
     border-radius: var(--el-border-radius-medium);
     font-size: var(--el-font-size-medium);
 
@@ -141,7 +141,7 @@ const emit = defineEmits<{
     grid-template-columns: 1fr 1.3fr 1.6fr 0.7fr;
     align-items: center;
     padding: 0 var(--el-space-2xl);
-    color: #445063;
+    color: var(--el-text-color-regular);
     border-top: 1px solid var(--el-border-color-lighter);
     font-size: var(--el-font-size-base);
   }
@@ -149,8 +149,8 @@ const emit = defineEmits<{
   &__row--header {
     min-height: 68px;
     border-top: 0;
-    color: #202938;
-    background: #f6f8fa;
+    color: var(--el-text-color-primary);
+    background: var(--el-fill-color-light);
     font-weight: 600;
   }
 
@@ -165,7 +165,7 @@ const emit = defineEmits<{
     flex: 1;
     align-items: center;
     justify-content: center;
-    color: #929aa7;
+    color: var(--el-text-color-secondary);
     font-size: var(--el-font-size-medium);
   }
 }
