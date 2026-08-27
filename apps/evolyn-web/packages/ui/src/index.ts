@@ -1,14 +1,21 @@
 import type { App } from 'vue';
 import {
+  EvolynButton,
+  EvolynChart,
   EvolynGrid,
   EvolynMemberDepartmentRolePicker,
   EvolynTable,
-  EvolynButton,
 } from './components';
 
 export { version } from './version';
 
-const components = [EvolynButton, EvolynGrid, EvolynMemberDepartmentRolePicker, EvolynTable];
+const components = [
+  EvolynButton,
+  EvolynChart,
+  EvolynGrid,
+  EvolynMemberDepartmentRolePicker,
+  EvolynTable,
+];
 
 function install(app: App) {
   components.forEach((component) => {

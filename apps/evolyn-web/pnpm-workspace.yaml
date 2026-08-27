@@ -37,6 +37,7 @@ catalogs:
     '@logicflow/vue-node-registry': ^1.2.5
     '@visactor/vtable': ^1.26.6
     '@visactor/vue-vtable': ^1.26.6
+    '@visactor/vchart': ^2.1.6
     'qrcode': ^1.5.4
     gridstack: ^13.2.0
     pinia: ^4.0.3

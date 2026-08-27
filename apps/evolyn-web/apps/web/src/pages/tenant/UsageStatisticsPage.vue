@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { EvolynTableColumn } from '@evolyn.do/ui';
-import { EvolynTable } from '@evolyn.do/ui';
+import type { EvolynChartSpec, EvolynTableColumn } from '@evolyn.do/ui';
+import { EvolynChart, EvolynTable } from '@evolyn.do/ui';
 import {
   RiBarChartFill,
   RiDatabase2Fill,
@@ -25,7 +25,6 @@ type UsageRecord = Record<string, string | number>;
 
 interface TrendSeries {
   label: string;
-  color: 'primary' | 'success';
   values: number[];
 }
 
@@ -172,25 +171,41 @@ const loginRows: UsageRecord[] = [
 const days = Array.from({ length: 15 }, (_, index) => `08-${String(index + 12).padStart(2, '0')}`);
 const trendByTab: Record<Exclude<UsageTab, 'resource' | 'efficiency'>, TrendSeries[]> = {
   administrator: [
-    { label: '人数', color: 'primary', values: [0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1] },
-    { label: '次数', color: 'success', values: [0, 0, 0, 0, 0, 0, 1, 0, 0, 3, 5, 2, 1, 0, 2] },
+    { label: '人数', values: [0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1] },
+    { label: '次数', values: [0, 0, 0, 0, 0, 0, 1, 0, 0, 3, 5, 2, 1, 0, 2] },
   ],
   member: [
-    { label: '人数', color: 'primary', values: [0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1] },
-    { label: '次数', color: 'success', values: [0, 0, 0, 0, 0, 0, 2, 1, 0, 5, 8, 4, 2, 0, 3] },
+    { label: '人数', values: [0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 1, 1, 0, 0, 1] },
+    { label: '次数', values: [0, 0, 0, 0, 0, 0, 2, 1, 0, 5, 8, 4, 2, 0, 3] },
   ],
   login: [
-    { label: '人数', color: 'primary', values: [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1] },
-    { label: '次数', color: 'success', values: [0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 0, 0, 0, 0, 2] },
+    { label: '人数', values: [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0, 0, 0, 1] },
+    { label: '次数', values: [0, 0, 0, 0, 0, 0, 0, 2, 1, 2, 0, 0, 0, 0, 2] },
   ],
 };
 
-const trendMax = computed(() => {
-  const series =
-    activeTab.value === 'resource' || activeTab.value === 'efficiency'
-      ? []
-      : trendByTab[activeTab.value];
-  return Math.max(1, ...series.flatMap((item) => item.values));
+/** 图表配置只描述业务数据，颜色、字体、明暗主题均由 EvolynChart 统一接管。 */
+const trendSpec = computed<EvolynChartSpec>(() => {
+  const tab = activeTab.value as Exclude<UsageTab, 'resource' | 'efficiency'>;
+  const values = trendByTab[tab].flatMap((series) =>
+    series.values.map((value, index) => ({ date: days[index], metric: series.label, value })),
+  );
+  return {
+    type: 'line',
+    data: [{ id: 'usage-trend', values }],
+    xField: 'date',
+    yField: 'value',
+    seriesField: 'metric',
+    padding: [12, 20, 24, 36],
+    animation: false,
+    point: { visible: false },
+    axes: [
+      { orient: 'bottom', type: 'band', label: { visible: true }, tick: { visible: false } },
+      { orient: 'left', type: 'linear', grid: { visible: true }, tick: { visible: false } },
+    ],
+    legends: { visible: true, orient: 'bottom' },
+    tooltip: { visible: true, mark: { title: { visible: true } } },
+  };
 });
 
 const resourceCards = computed<MetricCard[]>(() => [
@@ -328,17 +343,6 @@ function exportData() {
   anchor.click();
   URL.revokeObjectURL(url);
   ElMessage.success(`已导出 ${filteredRows.value.length} 条展示数据`);
-}
-
-function chartPoints(values: number[]) {
-  const max = trendMax.value;
-  return values
-    .map((value, index) => {
-      const x = values.length === 1 ? 0 : (index / (values.length - 1)) * 100;
-      const y = 100 - (value / max) * 86 - 7;
-      return `${x},${y}`;
-    })
-    .join(' ');
 }
 </script>
 
@@ -532,38 +536,12 @@ function chartPoints(values: number[]) {
             <span>可查看最近一年数据</span>
           </div>
           <div class="usage-statistics-page__chart">
-            <div class="usage-statistics-page__chart-grid" aria-hidden="true">
-              <i v-for="line in 4" :key="line" />
-            </div>
-            <svg
-              viewBox="0 0 100 100"
-              preserveAspectRatio="none"
-              role="img"
+            <EvolynChart
+              :spec="trendSpec"
+              :theme="isDark ? 'dark' : 'light'"
+              height="230px"
               :aria-label="`${sectionTitle}趋势图`"
-            >
-              <polyline
-                v-for="series in trendByTab[
-                  activeTab as Exclude<UsageTab, 'resource' | 'efficiency'>
-                ]"
-                :key="series.label"
-                :points="chartPoints(series.values)"
-                :class="`usage-statistics-page__line usage-statistics-page__line--${series.color}`"
-              />
-            </svg>
-            <div class="usage-statistics-page__chart-labels">
-              <span v-for="day in days" :key="day">{{ day }}</span>
-            </div>
-            <div class="usage-statistics-page__legend">
-              <span
-                v-for="series in trendByTab[
-                  activeTab as Exclude<UsageTab, 'resource' | 'efficiency'>
-                ]"
-                :key="series.label"
-                ><i :class="`usage-statistics-page__legend-dot--${series.color}`" />{{
-                  series.label
-                }}</span
-              >
-            </div>
+            />
           </div>
         </section>
       </template>
@@ -888,79 +866,7 @@ function chartPoints(values: number[]) {
   gap: var(--el-space-xl);
 }
 .usage-statistics-page__chart {
-  position: relative;
   height: 230px;
-  padding: var(--el-space-lg) 0 0;
-}
-.usage-statistics-page__chart-grid {
-  position: absolute;
-  right: 0;
-  bottom: 40px;
-  left: 0;
-  display: grid;
-  height: 154px;
-  grid-template-rows: repeat(4, 1fr);
-}
-.usage-statistics-page__chart-grid i {
-  border-top: 1px dashed var(--el-border-color-lighter);
-}
-.usage-statistics-page__chart svg {
-  position: absolute;
-  right: 0;
-  bottom: 40px;
-  left: 0;
-  width: 100%;
-  height: 154px;
-  overflow: visible;
-}
-.usage-statistics-page__line {
-  fill: none;
-  stroke-width: 1.5;
-  vector-effect: non-scaling-stroke;
-}
-.usage-statistics-page__line--primary {
-  stroke: var(--el-color-primary);
-}
-.usage-statistics-page__line--success {
-  stroke: var(--el-color-success);
-}
-.usage-statistics-page__chart-labels {
-  position: absolute;
-  right: 0;
-  bottom: 18px;
-  left: 0;
-  display: flex;
-  justify-content: space-between;
-  color: var(--el-text-color-secondary);
-  font-size: 10px;
-  transform: rotate(-24deg);
-  transform-origin: center;
-}
-.usage-statistics-page__legend {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  display: flex;
-  justify-content: center;
-  gap: var(--el-space-xl);
-  color: var(--el-text-color-secondary);
-  font-size: var(--el-font-size-extra-small);
-}
-.usage-statistics-page__legend span {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--el-space-xs);
-}
-.usage-statistics-page__legend i {
-  width: 8px;
-  height: 2px;
-}
-.usage-statistics-page__legend-dot--primary {
-  background: var(--el-color-primary);
-}
-.usage-statistics-page__legend-dot--success {
-  background: var(--el-color-success);
 }
 .usage-statistics-page__details {
   display: flex;

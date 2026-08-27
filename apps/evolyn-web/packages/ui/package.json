@@ -57,6 +57,7 @@
     "@remixicon/vue": "catalog:ui",
     "@tanstack/vue-virtual": "catalog:ui",
     "@visactor/vtable": "catalog:frontend",
+    "@visactor/vchart": "catalog:frontend",
     "gridstack": "catalog:frontend"
   }
 }
