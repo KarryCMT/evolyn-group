@@ -2,7 +2,7 @@
 
 $--colors: (
   'primary': (
-    'base': #1677ff,
+    'base': #1668dc,
   ),
 );
 
@@ -12,7 +12,6 @@ $--colors: (
 
 // 登录页视觉区在暗黑模式下覆盖全局背景变量，避免出现高亮色块。
 html.dark {
-  --evolyn-auth-login-visual-bg: #172033;
+  --el-banner-bg-color: #172033;
   /* 页面背景灰色在暗黑模式下使用深色表面。 */
-  --gp-color-bg-page: #141414;
 }

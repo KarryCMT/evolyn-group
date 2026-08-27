@@ -134,7 +134,7 @@ function notifyUnavailable(action: string) {
   overflow: hidden;
   flex-direction: column;
   color: var(--el-text-color-primary);
-  background: var(--gp-color-bg-page);
+  background: var(--el-bg-color-page);
 
   &__header,
   &__identity,

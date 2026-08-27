@@ -133,7 +133,7 @@ async function handleAccountCancelled() {
   min-height: 720px;
   flex-direction: column;
   overflow: auto;
-  background: var(--gp-color-bg-page);
+  background: var(--el-bg-color-page);
 
   &__main {
     display: flex;

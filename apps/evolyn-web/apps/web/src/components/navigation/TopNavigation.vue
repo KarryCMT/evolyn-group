@@ -182,7 +182,7 @@ function notifyUnavailable() {}
   align-items: center;
   justify-content: space-between;
   color: #202938;
-  background: var(--gp-color-bg-page);
+  background: var(--el-bg-color-page);
   font-size: 16px;
 
   &--surface {

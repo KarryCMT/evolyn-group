@@ -138,8 +138,8 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
 .form-subform-table {
   width: 100%;
   overflow-x: auto;
-  border: 1px solid var(--gp-border-color-sm);
-  border-radius: var(--gp-radius-sm);
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-base);
 
   &__content {
     width: max-content;
@@ -151,15 +151,15 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
     td {
       box-sizing: border-box;
       min-width: 160px;
-      height: var(--gp-space-5xl);
+      height: var(--el-space-5xl);
       padding: var(--gp-space-xs) var(--gp-space-md);
-      border-right: 1px solid var(--gp-border-color-sm);
-      border-bottom: 1px solid var(--gp-border-color-sm);
+      border-right: 1px solid var(--el-border-color);
+      border-bottom: 1px solid var(--el-border-color);
     }
 
     th {
       padding: 0;
-      font-size: var(--gp-text-xs);
+      font-size: var(--el-font-size-extra-small);
       font-weight: 500;
       color: var(--el-text-color-primary);
       text-align: left;
@@ -219,7 +219,7 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
     width: 100%;
     height: var(--gp-space-5xl);
     padding: 0 var(--gp-space-lg);
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-primary);
     cursor: pointer;
     background: transparent;
@@ -228,7 +228,7 @@ const updateCell = (rowKey: string, fieldKey: string, value: FormSubformCellBind
 
   &__empty {
     height: var(--gp-space-6xl) !important;
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-secondary);
     text-align: center;
   }

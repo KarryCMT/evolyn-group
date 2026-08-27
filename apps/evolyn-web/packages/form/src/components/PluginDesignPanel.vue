@@ -974,7 +974,7 @@ const handleSaveTest = () => {
   flex-direction: column;
   height: 100%;
   min-height: 0;
-  padding-right: var(--gp-space-2xl);
+  padding-right: var(--el-space-2xl);
   padding-bottom: var(--gp-space-2xl);
   padding-left: var(--gp-space-2xl);
   background-color: var(--el-fill-color-light);
@@ -999,7 +999,7 @@ const handleSaveTest = () => {
     // 身份验证和返回参数没有控件面板与画布组件，由内容容器补齐完整边框。
     &--bordered {
       box-sizing: border-box;
-      border: 1px solid var(--gp-border-color-sm);
+      border: 1px solid var(--el-border-color);
     }
   }
 

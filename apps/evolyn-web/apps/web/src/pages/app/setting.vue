@@ -57,7 +57,7 @@ function toggleSidebar() {
   min-width: 0;
   overflow: hidden;
   flex-direction: column;
-  background: var(--gp-color-bg-page);
+  background: var(--el-bg-color-page);
 
   &__main {
     position: relative;

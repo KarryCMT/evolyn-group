@@ -134,24 +134,24 @@ const selectedChildFieldKey = computed({
   box-sizing: border-box;
   flex-shrink: 0;
   width: 280px;
-  padding: var(--gp-space-3xl);
+  padding: var(--el-space-3xl);
   overflow: auto;
   background-color: var(--el-fill-color-light);
-  // border-top: 1px solid var(--gp-border-color-xs);
-  // border-right: 1px solid var(--gp-border-color-xs);
-  // border-bottom: 1px solid var(--gp-border-color-xs);
-  // border-left: 1px solid var(--gp-border-color-xs);
+  // border-top: 1px solid var(--el-border-color-lighter);
+  // border-right: 1px solid var(--el-border-color-lighter);
+  // border-bottom: 1px solid var(--el-border-color-lighter);
+  // border-left: 1px solid var(--el-border-color-lighter);
 
   h3 {
     margin: 0 0 var(--gp-space-2xl);
-    font-size: var(--gp-text-md);
+    font-size: var(--el-font-size-medium);
     color: var(--el-text-color-primary);
   }
 
   &__label {
     display: block;
     margin: var(--gp-space-xl) 0 var(--gp-space-sm);
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     font-weight: 600;
     color: var(--el-text-color-primary);
 
@@ -163,14 +163,14 @@ const selectedChildFieldKey = computed({
   }
 
   &__help-icon {
-    font-size: var(--gp-icon-size-xs);
+    font-size: var(--el-font-size-base);
     color: var(--el-text-color-secondary);
     cursor: help;
   }
 
   &__id-help {
     width: 220px;
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     line-height: 1.5;
     color: var(--el-text-color-primary);
   }
@@ -181,7 +181,7 @@ const selectedChildFieldKey = computed({
     justify-content: center;
     height: 100%;
     min-height: 320px;
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-secondary);
   }
 

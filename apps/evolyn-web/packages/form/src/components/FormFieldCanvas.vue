@@ -186,10 +186,10 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
   flex: 1;
   flex-direction: column;
   min-height: 100%;
-  padding: var(--gp-space-2xl);
-  border-top: 1px solid var(--gp-border-color-sm);
-  border-right: 1px solid var(--gp-border-color-sm);
-  border-bottom: 1px solid var(--gp-border-color-sm);
+  padding: var(--el-space-2xl);
+  border-top: 1px solid var(--el-border-color);
+  border-right: 1px solid var(--el-border-color);
+  border-bottom: 1px solid var(--el-border-color);
   border-top-right-radius: var(--gp-radius-md);
   border-bottom-right-radius: var(--gp-radius-md);
 
@@ -214,7 +214,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
       color: transparent;
       background-color: transparent;
       border: 1px dashed var(--el-color-primary);
-      border-radius: var(--gp-radius-sm);
+      border-radius: var(--el-border-radius-base);
       box-shadow: none;
       opacity: 1;
     }
@@ -234,7 +234,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     align-items: center;
     justify-content: center;
     min-height: 0;
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-secondary);
     pointer-events: none;
   }
@@ -245,7 +245,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     height: 150px;
     margin-bottom: var(--gp-space-lg);
     background-color: var(--el-fill-color-lighter);
-    border: 1px solid var(--gp-border-color-xs);
+    border: 1px solid var(--el-border-color-lighter);
     border-radius: var(--gp-radius-md);
   }
 
@@ -257,7 +257,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     height: 36px;
     background-color: var(--el-bg-color);
     border: 1px solid var(--el-color-primary);
-    border-radius: var(--gp-radius-sm);
+    border-radius: var(--el-border-radius-base);
   }
 
   &__empty-row {
@@ -266,7 +266,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     width: 110px;
     height: 16px;
     background-color: var(--el-fill-color-light);
-    border-radius: var(--gp-radius-sm);
+    border-radius: var(--el-border-radius-base);
 
     &.is-active {
       top: 34px;
@@ -284,7 +284,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     cursor: grab;
     background-color: transparent;
     border: 1px solid transparent;
-    border-radius: var(--gp-radius-sm);
+    border-radius: var(--el-border-radius-base);
     transition:
       background-color 0.16s ease,
       border-color 0.16s ease;
@@ -298,8 +298,8 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     }
 
     &.is-active {
-      background-color: var(--gp-color-primary-light-1);
-      border-color: var(--gp-color-primary-light-2);
+      background-color: var(--el-color-primary-light-1);
+      border-color: var(--el-color-primary-light-2);
     }
 
     // 空名称仍为顶部操作区预留按钮高度，保持操作按钮原有位置并避免覆盖控件。
@@ -334,7 +334,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     min-height: var(--gp-space-3xl);
     padding-right: var(--gp-space-6xl);
     margin-bottom: var(--gp-space-xs);
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     font-weight: 600;
     color: var(--el-text-color-primary);
   }
@@ -366,7 +366,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
     overflow: hidden;
     pointer-events: none;
     background-color: var(--el-bg-color);
-    border-radius: var(--gp-radius-sm);
+    border-radius: var(--el-border-radius-base);
     box-shadow: var(--el-box-shadow);
     opacity: 0;
     transition: opacity 0.16s ease;
@@ -383,7 +383,7 @@ const getSubformFields = (field: FormDesignField): FormDesignTemplateField[] => 
       border: 0;
 
       & + button {
-        border-left: 1px solid var(--gp-border-color-sm);
+        border-left: 1px solid var(--el-border-color);
       }
 
       &:hover {

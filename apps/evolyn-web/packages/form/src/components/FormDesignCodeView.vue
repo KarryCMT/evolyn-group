@@ -170,7 +170,7 @@ defineExpose({
 
       .plugin-design-code__schema {
         opacity: 0;
-        transform: translateX(var(--gp-space-md));
+        transform: translateX(var(--el-space-md));
       }
     }
   }
@@ -189,13 +189,13 @@ defineExpose({
     color: var(--el-text-color-primary);
     cursor: pointer;
     background-color: var(--el-bg-color);
-    border: 1px solid var(--gp-border-color-xs);
+    border: 1px solid var(--el-border-color-lighter);
     border-right: 0;
-    border-radius: var(--gp-radius-sm) 0 0 var(--gp-radius-sm);
+    border-radius: var(--el-border-radius-base) 0 0 var(--el-border-radius-base);
     box-shadow: var(--el-box-shadow);
 
     .el-icon {
-      font-size: var(--gp-icon-size-sm);
+      font-size: var(--el-font-size-medium);
     }
   }
 
@@ -204,7 +204,7 @@ defineExpose({
     height: 100%;
     overflow: hidden;
     background-color: var(--el-bg-color);
-    border-left: 1px solid var(--gp-border-color-xs);
+    border-left: 1px solid var(--el-border-color-lighter);
   }
 
   &__schema {
@@ -222,7 +222,7 @@ defineExpose({
 
   &__schema-title {
     margin-bottom: var(--gp-space-lg);
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     font-weight: 600;
     color: var(--el-text-color-primary);
   }
@@ -231,7 +231,7 @@ defineExpose({
     display: flex;
     justify-content: space-between;
     margin-bottom: var(--gp-space-sm);
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-primary);
 
     &.is-child {

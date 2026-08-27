@@ -157,7 +157,7 @@ const showDefaultValue = computed(() => Boolean(widgetNameLabelMap.value[props.f
 <style lang="scss">
 .form-subform-child-property {
   h3 {
-    margin: 0 0 var(--gp-space-lg);
+    margin: 0 0 var(--el-space-lg);
     font-size: var(--el-font-size-base);
     color: var(--el-text-color-primary);
   }
@@ -165,7 +165,7 @@ const showDefaultValue = computed(() => Boolean(widgetNameLabelMap.value[props.f
   &__label {
     display: block;
     margin: var(--gp-space-lg) 0 var(--gp-space-xs);
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     font-weight: 600;
     color: var(--el-text-color-primary);
   }

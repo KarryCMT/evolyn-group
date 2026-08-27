@@ -221,7 +221,7 @@ const ensureSelectedField = () => {
 
 <style lang="scss">
 .form-subform-field-panel {
-  margin-top: var(--gp-space-xl);
+  margin-top: var(--el-space-xl);
 
   &__header,
   &__item {
@@ -231,7 +231,7 @@ const ensureSelectedField = () => {
 
   &__header {
     justify-content: space-between;
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-smallze-extra-small);
     font-weight: 600;
     color: var(--el-text-color-primary);
   }
@@ -250,7 +250,7 @@ const ensureSelectedField = () => {
       cursor: pointer;
       background-color: transparent;
       border: 0;
-      border-radius: var(--gp-radius-sm);
+      border-radius: var(--el-border-radius-base);
 
       &:hover {
         background-color: var(--el-fill-color-light);
@@ -269,11 +269,11 @@ const ensureSelectedField = () => {
     padding: 0 var(--gp-space-sm);
     margin-bottom: var(--gp-space-xs);
     cursor: pointer;
-    border: 1px solid var(--gp-border-color-sm);
-    border-radius: var(--gp-radius-sm);
+    border: 1px solid var(--el-border-color);
+    border-radius: var(--el-border-radius-base);
 
     &.is-active {
-      background-color: var(--gp-color-primary-light-1);
+      background-color: var(--el-color-primary-light-1);
       border-color: var(--el-color-primary);
     }
 
@@ -311,13 +311,13 @@ const ensureSelectedField = () => {
   &__item-label {
     flex: 1;
     min-width: 0;
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-primary);
   }
 
   &__empty {
     padding: var(--gp-space-xl) 0;
-    font-size: var(--gp-text-xs);
+    font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-secondary);
     text-align: center;
   }

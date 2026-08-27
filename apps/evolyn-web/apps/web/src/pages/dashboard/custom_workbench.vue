@@ -84,7 +84,7 @@ onBeforeRouteLeave(async () => {
   overflow: hidden;
 
   /* 页面整体背景：与工作台页面统一的设计浅灰底 */
-  background: var(--gp-color-bg-page);
+  background: var(--el-bg-color-page);
   .custom-dashboard-setting {
     display: flex;
     flex: 1;

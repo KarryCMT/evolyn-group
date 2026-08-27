@@ -49,11 +49,11 @@ const clonePaletteItem = (item: FormDesignPaletteItem) => ({
   flex-shrink: 0;
   // 收窄控件面板及横向留白，为中间画布保留更多设计空间。
   width: 152px;
-  padding: var(--gp-space-xl) var(--gp-space-lg);
+  padding: var(--el-space-xl) var(--gp-space-lg);
   background-color: var(--el-bg-color);
-  border-top: 1px solid var(--gp-border-color-sm);
-  border-bottom: 1px solid var(--gp-border-color-sm);
-  border-left: 1px solid var(--gp-border-color-sm);
+  border-top: 1px solid var(--el-border-color);
+  border-bottom: 1px solid var(--el-border-color);
+  border-left: 1px solid var(--el-border-color);
   border-top-left-radius: var(--gp-radius-md);
   border-bottom-left-radius: var(--gp-radius-md);
 
@@ -74,7 +74,7 @@ const clonePaletteItem = (item: FormDesignPaletteItem) => ({
     color: var(--el-text-color-primary);
     cursor: pointer;
     background-color: var(--el-bg-color);
-    border: 1px solid var(--gp-border-color-xs);
+    border: 1px solid var(--el-border-color-lighter);
     border-radius: var(--gp-radius-md);
     transition:
       background-color 0.16s ease,
@@ -83,8 +83,8 @@ const clonePaletteItem = (item: FormDesignPaletteItem) => ({
     &:hover {
       color: var(--el-color-primary);
       cursor: move;
-      background-color: var(--gp-color-primary-light-1);
-      border-color: var(--gp-color-primary-light-3);
+      background-color: var(--el-color-primary-light-1);
+      border-color: var(--el-color-primary-light-3);
 
       .el-icon {
         color: var(--el-color-primary);
@@ -93,7 +93,7 @@ const clonePaletteItem = (item: FormDesignPaletteItem) => ({
 
     .el-icon {
       flex-shrink: 0;
-      font-size: var(--gp-icon-size-sm);
+      font-size: var(--el-font-size-medium);
       color: var(--el-text-color-regular);
     }
   }

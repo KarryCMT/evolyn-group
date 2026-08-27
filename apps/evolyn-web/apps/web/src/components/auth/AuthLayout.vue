@@ -218,13 +218,13 @@ defineProps<{
     gap: 0;
     width: 100%;
     min-height: 100vh;
-    background-color: var(--evolyn-auth-login-visual-bg);
+    background-color: var(--el-banner-bg-color);
     padding: 0;
   }
 
   .auth-layout__visual {
     min-height: 36%;
-    background-color: var(--evolyn-auth-login-visual-bg);
+    background-color: var(--el-banner-bg-color);
     background-repeat: no-repeat;
     background-position: 55% 56%;
     background-size: contain;

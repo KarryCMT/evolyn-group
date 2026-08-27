@@ -252,6 +252,7 @@ pnpm -F @evolyn.do/web build        # 生产构建
 - 前端界面还原必须优先使用element-plus组件库提供的组件，utils方法。
 - 前端在进行页面开发时，需要善于发现某些组件可以复用就做成通用组件，并放到@evolyn.do/ui里面，统一管理维护。
 - 前端在进行页面开发时，必须需要适配暗黑主题模式，避免出现写死的颜色值。
+- 前端在进行页面开发时，页面样式中文本边框、填充、基础、背景、字体大小、间距、圆角，必须从`docs/低代码平台/前端中性色变量/变量表.md`取对应值CSS变量。
 - 代码统一以 Prettier 格式化（约束）：以 `apps/evolyn-web/prettier.config.mjs`
   （复用 `@evolyn.do/prettier-config`）为准，改完前端代码在 `apps/evolyn-web`
   内执行 `pnpm run lint:format`（等价于编辑器 Prettier - Code formatter 插件
