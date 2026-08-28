@@ -14,14 +14,22 @@ func TestRegisterRouteNoConflict(t *testing.T) {
 	r := gin.New()
 	// 仅验证路由树注册，handler 不会被调用，service 传 nil 安全
 	NewApplicationController(nil).RegisterRoute(r.Group("/api/v1"))
+	NewMenuController(nil).RegisterRoute(r.Group("/api/v1"))
 
 	codeRouted := false
+	createGroupRouted := false
 	for _, route := range r.Routes() {
 		if route.Path == "/api/v1/applications/code/:code" {
 			codeRouted = true
 		}
+		if route.Method == "POST" && route.Path == "/api/v1/applications/code/:code/menu/groups" {
+			createGroupRouted = true
+		}
 	}
 	if !codeRouted {
 		t.Fatal("按 code 查询路由未注册")
+	}
+	if !createGroupRouted {
+		t.Fatal("菜单分组创建路由未注册")
 	}
 }

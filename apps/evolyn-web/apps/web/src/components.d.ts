@@ -100,6 +100,7 @@ declare module 'vue' {
     FavoritesDialog: typeof import('./components/dashboard/favorites/FavoritesDialog.vue')['default']
     FavoritesWidget: typeof import('./components/dashboard/widgets/FavoritesWidget.vue')['default']
     FavoritesWorkspaceDialog: typeof import('./components/dashboard/favorites/FavoritesWorkspaceDialog.vue')['default']
+    FormWorkspaceTitleEditor: typeof import('./components/form/FormWorkspaceTitleEditor.vue')['default']
     GreetingWidget: typeof import('./components/dashboard/widgets/GreetingWidget.vue')['default']
     LocaleSwitch: typeof import('./components/auth/LocaleSwitch.vue')['default']
     LoginLogDrawer: typeof import('./components/dashboard/account/LoginLogDrawer.vue')['default']

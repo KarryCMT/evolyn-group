@@ -31,10 +31,13 @@ type ApplicationService interface {
 	Delete(ctx context.Context, member *iammodel.User, id uint) error
 }
 
-// ApplicationMenuService 应用菜单服务（M2-菜单-1 只读骨架）：读取当前
-// 成员可见的菜单快照；分组/重排写接口随 M2-菜单-3 扩展
+// ApplicationMenuService 应用菜单服务：读取当前成员可见的菜单快照，并
+// 提供以 menuRevision 乐观锁保护的分组创建能力。
 type ApplicationMenuService interface {
 	// GetMenu 按应用编码读取菜单（GET /applications/code/:code/menu）：
 	// 应用不存在/跨租户/无读取权限统一 APP_NOT_FOUND；空菜单为合法结果
 	GetMenu(ctx context.Context, member *iammodel.User, code string) (*model.MenuSnapshot, error)
+	// CreateGroup 创建根分组或二级子分组；应用、父节点、层级、状态和修订号
+	// 均由服务端复核，成功后返回新节点编码与推进后的菜单修订号。
+	CreateGroup(ctx context.Context, member *iammodel.User, code string, req *model.CreateMenuGroupRequest) (*model.MenuGroupMutation, error)
 }

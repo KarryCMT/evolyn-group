@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 
 	apperrors "evolyn/internal/platform/application"
@@ -19,6 +20,8 @@ import (
 // fakeMenuRepo 菜单仓储桩：按编码返回可注入快照
 type fakeMenuRepo struct {
 	snapshots map[string]*repository.MenuSnapshot
+	created   []*model.MenuEntry
+	nextID    uint
 }
 
 func (f *fakeMenuRepo) GetSnapshot(ctx context.Context, tenantID uint, code string) (*repository.MenuSnapshot, error) {
@@ -30,6 +33,14 @@ func (f *fakeMenuRepo) GetSnapshot(ctx context.Context, tenantID uint, code stri
 }
 
 func (f *fakeMenuRepo) Migrate() error { return nil }
+
+func (f *fakeMenuRepo) CreateGroupEntry(ctx context.Context, entry *model.MenuEntry) (*model.MenuEntry, error) {
+	f.nextID++
+	entry.ID = f.nextID
+	entry.Code = fmt.Sprintf("menu_created_%d", f.nextID)
+	f.created = append(f.created, entry)
+	return entry, nil
+}
 
 // M2-资产-1 写路径桩（菜单维护用例见 menu_maintenance_test.go；只读用例不触达）
 func (f *fakeMenuRepo) CreateFormEntry(ctx context.Context, entry *model.MenuEntry) (*model.MenuEntry, error) {
@@ -49,6 +60,16 @@ func (f *fakeMenuRepo) FindByCode(ctx context.Context, applicationID uint, code 
 }
 func (f *fakeMenuRepo) BumpMenuRevision(ctx context.Context, applicationID uint) error {
 	return nil
+}
+func (f *fakeMenuRepo) BumpMenuRevisionFrom(ctx context.Context, applicationID uint, baseRevision int64) (bool, error) {
+	for _, snapshot := range f.snapshots {
+		if snapshot.ApplicationID != applicationID || snapshot.MenuRevision != baseRevision {
+			continue
+		}
+		snapshot.MenuRevision++
+		return true, nil
+	}
+	return false, nil
 }
 
 // menuEntryFixture 构造菜单节点（测试内联便捷函数）
@@ -70,7 +91,7 @@ func menuEntryFixture(id uint, code string, parent *uint, entryType string, sort
 func ptrUint(v uint) *uint { return &v }
 
 func newMenuTestService(repo repository.MenuRepository, perms map[string]bool) ApplicationMenuService {
-	return NewMenuService(repo, fakeAccess{perms: perms})
+	return NewMenuService(passThroughTx{}, repo, nil, fakeAccess{perms: perms})
 }
 
 // emptySnapshot 空菜单快照（应用就绪、无节点——M2-菜单-1 的常态）
@@ -116,6 +137,63 @@ func TestMenuGetNotFound(t *testing.T) {
 	})
 }
 
+func TestMenuCreateGroup(t *testing.T) {
+	repo := &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": emptySnapshot("app_a")}}
+	audit := &fakeAudit{}
+	svc := NewMenuService(passThroughTx{}, repo, audit, fakeAccess{perms: fullPerms()})
+
+	created, err := svc.CreateGroup(alphaCtx(), alphaMember(), "app_a", &model.CreateMenuGroupRequest{
+		Name:             " 订单管理 ",
+		BaseMenuRevision: 1,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, "订单管理", created.Name)
+	assert.Equal(t, int64(2), created.MenuRevision)
+	assert.Nil(t, created.ParentEntryID)
+	assert.Len(t, repo.created, 1)
+	assert.Equal(t, model.MenuEntryTypeGroup, repo.created[0].EntryType)
+	assert.Nil(t, repo.created[0].TargetID)
+	assert.Len(t, audit.entries, 1)
+}
+
+func TestMenuCreateGroupValidatesParentDepthAndRevision(t *testing.T) {
+	root := menuEntryFixture(10, "menu_root", nil, model.MenuEntryTypeGroup, 1024)
+	child := menuEntryFixture(11, "menu_child", ptrUint(10), model.MenuEntryTypeGroup, 1024)
+	form := menuEntryFixture(12, "menu_form", nil, model.MenuEntryTypeForm, 2048)
+
+	tests := []struct {
+		name    string
+		parent  *string
+		base    int64
+		wantErr error
+	}{
+		{name: "允许根分组下创建二级分组", parent: ptrString("menu_root"), base: 1},
+		{name: "拒绝三级分组", parent: ptrString("menu_child"), base: 1, wantErr: apperrors.ErrMenuDepthExceeded},
+		{name: "拒绝资产作为父节点", parent: ptrString("menu_form"), base: 1, wantErr: apperrors.ErrMenuParentInvalid},
+		{name: "拒绝陈旧修订号", base: 9, wantErr: apperrors.ErrMenuVersionConflict},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			snap := emptySnapshot("app_a")
+			snap.Entries = []model.MenuEntry{root, child, form}
+			repo := &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": snap}}
+			svc := newMenuTestService(repo, fullPerms())
+			created, err := svc.CreateGroup(alphaCtx(), alphaMember(), "app_a", &model.CreateMenuGroupRequest{
+				Name: "分组", ParentEntryID: tc.parent, BaseMenuRevision: tc.base,
+			})
+			if tc.wantErr != nil {
+				assert.True(t, errors.Is(err, tc.wantErr))
+				assert.Nil(t, created)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.parent, created.ParentEntryID)
+		})
+	}
+}
+
+func ptrString(v string) *string { return &v }
+
 func TestMenuSnapshotVisibilityAndOrdering(t *testing.T) {
 	// 资产域落地前资产节点默认出网（target 为 null），构造「分组 → 资产」
 	// 树验证裁剪与排序（不可见资产的裁剪回归见 TestMenuAssetInvisiblePruning）
@@ -134,10 +212,10 @@ func TestMenuSnapshotVisibilityAndOrdering(t *testing.T) {
 
 	menu, err := svc.GetMenu(alphaCtx(), alphaMember(), "app_a")
 	assert.NoError(t, err)
-	// 根顺序：sortOrder ASC（512 先于 1024）；空分组被裁剪不出现
-	assert.Equal(t, []string{"menu_root3", "menu_root2"}, menu.RootEntryIDs)
-	// 空分组与不可见节点不进 entryMap；其余节点齐备且父子编码正确
-	assert.NotContains(t, menu.EntryMap, "menu_empty")
+	// 管理成员可见空分组，以便创建后继续向其中添加资产；根顺序仍按
+	// sortOrder ASC（0、512、1024）稳定输出。
+	assert.Equal(t, []string{"menu_empty", "menu_root3", "menu_root2"}, menu.RootEntryIDs)
+	assert.Contains(t, menu.EntryMap, "menu_empty")
 	assert.Contains(t, menu.EntryMap, "menu_form1")
 	assert.Contains(t, menu.EntryMap, "menu_child")
 	assert.Contains(t, menu.EntryMap, "menu_dash2")
@@ -158,7 +236,8 @@ func TestMenuAssetInvisiblePruning(t *testing.T) {
 	snap.Entries = []model.MenuEntry{root, form}
 
 	repo := &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": snap}}
-	svc := newMenuTestService(repo, fullPerms()).(*menuService)
+	// 只读成员看不到无可见资产后代的分组；管理成员则保留空分组。
+	svc := newMenuTestService(repo, map[string]bool{"applications:get": true}).(*menuService)
 	svc.UseFormDirectory(fakeFormDirectory{existing: map[uint]FormTargetProjection{}})
 
 	menu, err := svc.GetMenu(alphaCtx(), alphaMember(), "app_a")

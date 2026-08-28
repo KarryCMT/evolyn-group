@@ -5,6 +5,7 @@ import (
 	"errors"
 	"testing"
 
+	"evolyn/internal/infrastructure"
 	apperrors "evolyn/internal/platform/application"
 	"evolyn/internal/platform/application/model"
 	"evolyn/internal/platform/application/repository"
@@ -33,7 +34,7 @@ func newMenuEnv(t *testing.T) *menuEnv {
 	return &menuEnv{
 		appEnv:   base,
 		menuRepo: menuRepo,
-		menuSvc:  NewMenuService(menuRepo, NewRBACAccessEvaluator(base.iamRepo.User(), base.iamRepo.Group())),
+		menuSvc:  NewMenuService(infrastructure.NewTxManager(base.db), menuRepo, nil, NewRBACAccessEvaluator(base.iamRepo.User(), base.iamRepo.Group())),
 	}
 }
 
@@ -58,6 +59,33 @@ func TestSECMENU001EmptyMenu(t *testing.T) {
 	assert.Empty(t, menu.RootEntryIDs)
 	assert.Empty(t, menu.EntryMap)
 	assert.False(t, menu.Features.Workflow)
+}
+
+// SEC-MENU-007：分组创建推进修订号，且菜单管理成员可在读取快照中看到空分组。
+func TestSECMENU007CreateGroup(t *testing.T) {
+	env := newMenuEnv(t)
+	ctx := appCtx(env.alpha.ID)
+	createdApp, err := env.appSvc.CreateBlank(ctx, env.alphaMember, blankReq("分组创建应用"))
+	assert.NoError(t, err)
+
+	group, err := env.menuSvc.CreateGroup(ctx, env.alphaMember, createdApp.Code, &model.CreateMenuGroupRequest{
+		Name:             "订单管理",
+		BaseMenuRevision: 1,
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), group.MenuRevision)
+
+	menu, err := env.menuSvc.GetMenu(ctx, env.alphaMember, createdApp.Code)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(2), menu.MenuRevision)
+	assert.Equal(t, []string{group.EntryID}, menu.RootEntryIDs)
+	assert.Equal(t, "订单管理", menu.EntryMap[group.EntryID].Name)
+
+	_, err = env.menuSvc.CreateGroup(ctx, env.alphaMember, createdApp.Code, &model.CreateMenuGroupRequest{
+		Name:             "陈旧写入",
+		BaseMenuRevision: 1,
+	})
+	assert.True(t, errors.Is(err, apperrors.ErrMenuVersionConflict))
 }
 
 // SEC-MENU-002：租户 A 上下文读取租户 B 的应用菜单 → NotFound；

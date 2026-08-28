@@ -5,11 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
+	"unicode/utf8"
 
 	"evolyn/internal/contextx"
 	apperrors "evolyn/internal/platform/application"
 	"evolyn/internal/platform/application/model"
 	"evolyn/internal/platform/application/repository"
+	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/httpx"
 	iammodel "evolyn/internal/platform/iam/model"
 
@@ -17,19 +20,20 @@ import (
 	"gorm.io/gorm"
 )
 
-// menuService 应用菜单服务（M2-菜单-1 只读骨架，方案 §6）：读取快照 →
-// 树完整性校验 → 可见性裁剪 → capabilities 派生。写路径（分组创建/移动/
-// 重排/删除与 baseMenuRevision 条件递增）随 M2-菜单-3 落地
+// menuService 应用菜单服务：读取快照 → 树完整性校验 → 可见性裁剪 →
+// capabilities 派生；分组创建通过统一事务和 menuRevision 条件更新串行化。
 type menuService struct {
+	tx      TxManager
 	repo    repository.MenuRepository
+	audit   auditservice.Recorder
 	access  ApplicationAccessEvaluator
 	formDir FormDirectory
 }
 
 // NewMenuService 构造菜单服务；访问判定与鉴权中间件同源（复用应用域
 // ApplicationAccessEvaluator，§6.1：Service 复核不能仅依赖中间件）
-func NewMenuService(repo repository.MenuRepository, access ApplicationAccessEvaluator) ApplicationMenuService {
-	return &menuService{repo: repo, access: access}
+func NewMenuService(tx TxManager, repo repository.MenuRepository, audit auditservice.Recorder, access ApplicationAccessEvaluator) ApplicationMenuService {
+	return &menuService{tx: tx, repo: repo, audit: audit, access: access}
 }
 
 // UseFormDirectory 注入表单目录窄端口（装配期一次性调用，M2-资产-1）：
@@ -90,6 +94,137 @@ func (s *menuService) GetMenu(ctx context.Context, member *iammodel.User, code s
 	return buildMenuSnapshot(perms, snap, existingFormTargets)
 }
 
+// CreateGroup 创建根分组或二级子分组。条件递增修订号是事务内第一项菜单
+// 写操作：它既拒绝陈旧客户端，也锁住应用行，使后续父节点与排序校验基于
+// 稳定菜单版本；任一步失败都会连同修订号递增一起回滚。
+func (s *menuService) CreateGroup(ctx context.Context, member *iammodel.User, code string, req *model.CreateMenuGroupRequest) (*model.MenuGroupMutation, error) {
+	tenantID, ok := contextx.TenantIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("tenant context required")
+	}
+	if req == nil {
+		return nil, httpx.Wrap(apperrors.ErrMenuNameInvalid, errors.New("create menu group request is nil"))
+	}
+	if member == nil || member.ID == 0 || member.TenantID != tenantID {
+		return nil, httpx.Wrap(apperrors.ErrMemberInvalid,
+			fmt.Errorf("member %d (tenant %d) not in tenant %d", memberID(member), memberTenant(member), tenantID))
+	}
+	perms := s.access.Permissions(ctx, member)
+	if !perms["applications:create"] {
+		return nil, httpx.Wrap(apperrors.ErrForbidden,
+			fmt.Errorf("member %d cannot create menu group in application %s", member.ID, code))
+	}
+
+	name := strings.TrimSpace(req.Name)
+	if name == "" || utf8.RuneCountInString(name) > 128 {
+		return nil, httpx.Wrap(apperrors.ErrMenuNameInvalid,
+			fmt.Errorf("menu group name rune count %d", utf8.RuneCountInString(name)))
+	}
+	var parentCode *string
+	if req.ParentEntryID != nil {
+		trimmed := strings.TrimSpace(*req.ParentEntryID)
+		if trimmed == "" {
+			return nil, httpx.Wrap(apperrors.ErrMenuParentInvalid, errors.New("parent entry id is blank"))
+		}
+		parentCode = &trimmed
+	}
+
+	var created *model.MenuEntry
+	if s.tx == nil {
+		return nil, errors.New("application menu transaction manager is required")
+	}
+	err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		snap, err := s.repo.GetSnapshot(tctx, tenantID, code)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return httpx.Wrap(apperrors.ErrNotFound, err)
+			}
+			return err
+		}
+		if provisionStatus(snap.ProvisionStatus) {
+			return httpx.Wrap(apperrors.ErrProvisioning,
+				fmt.Errorf("application %d provisioning (%s)", snap.ApplicationID, snap.ProvisionStatus))
+		}
+		if snap.Status != model.ApplicationStatusActive {
+			return httpx.Wrap(apperrors.ErrStatusInvalid,
+				fmt.Errorf("application %d status %s", snap.ApplicationID, snap.Status))
+		}
+
+		advanced, err := s.repo.BumpMenuRevisionFrom(tctx, snap.ApplicationID, req.BaseMenuRevision)
+		if err != nil {
+			return err
+		}
+		if !advanced {
+			return httpx.Wrap(apperrors.ErrMenuVersionConflict,
+				fmt.Errorf("application %d menu revision changed from base %d", snap.ApplicationID, req.BaseMenuRevision))
+		}
+
+		var parentEntryID *uint
+		if parentCode != nil {
+			parent, err := menuEntryByCode(snap.Entries, *parentCode)
+			if err != nil || parent.EntryType != model.MenuEntryTypeGroup {
+				return httpx.Wrap(apperrors.ErrMenuParentInvalid,
+					fmt.Errorf("parent entry %q is missing or not a group", *parentCode))
+			}
+			// 根分组为第一级；其子分组为第二级。第二级下不再允许创建分组。
+			if parent.ParentEntryID != nil {
+				return httpx.Wrap(apperrors.ErrMenuDepthExceeded,
+					fmt.Errorf("parent entry %q is already a nested group", *parentCode))
+			}
+			parentEntryID = &parent.ID
+		}
+
+		sortOrder, err := s.repo.MaxSortOrder(tctx, snap.ApplicationID, parentEntryID)
+		if err != nil {
+			return err
+		}
+		created, err = s.repo.CreateGroupEntry(tctx, &model.MenuEntry{
+			TenantID:      tenantID,
+			ApplicationID: snap.ApplicationID,
+			ParentEntryID: parentEntryID,
+			EntryType:     model.MenuEntryTypeGroup,
+			Name:          name,
+			SortOrder:     sortOrder + 1024,
+		})
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := &model.MenuGroupMutation{
+		EntryID:       created.Code,
+		ParentEntryID: parentCode,
+		Name:          name,
+		MenuRevision:  req.BaseMenuRevision + 1,
+	}
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "application", Action: "create", ResourceType: "application_menu_entry",
+			ResourceID: created.Code,
+			After: map[string]any{
+				"applicationCode": code,
+				"entryCode":       created.Code,
+				"entryType":       model.MenuEntryTypeGroup,
+				"parentEntryId":   parentCode,
+				"name":            name,
+			},
+		})
+	}
+	return result, nil
+}
+
+// menuEntryByCode 在已与 menuRevision 同快照读取的节点集合中定位父节点，
+// 避免条件递增前后再发起一次可能读到不同版本的查询。
+func menuEntryByCode(entries []model.MenuEntry, code string) (*model.MenuEntry, error) {
+	for i := range entries {
+		if entries[i].Code == code {
+			return &entries[i], nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
 // assetVisible 资产节点可见性判定（M2-资产-1 起按目录端口注入的存在集
 // 执行）：form 节点在表单软删/不存在时不可见；目录未接入（existingFormTargets
 // 为 nil）时保持旧行为——按节点存在性出网。仪表盘/页面域落地后在此扩展。
@@ -132,16 +267,17 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 		}
 	}
 
-	// 可见性裁剪（方案 §6.3）：资产节点按 assetVisible 判定（资产域落地
-	// 前默认可见，见钩子注释），随后自底向上裁掉没有可见后代的分组
-	//（含空分组）
+	// 可见性裁剪：资产节点按 assetVisible 判定；可管理菜单的成员还需看到
+	// 刚创建的空分组才能继续向其中添加资产，只读成员仍只看到有可见后代
+	// 的分组，避免泄露无内容的管理结构。
+	canManageMenu := perms["applications:create"] || perms["applications:patch"]
 	visible := make(map[uint]bool, len(snap.Entries))
 	groupMemo := make(map[uint]bool, len(snap.Entries))
 	for i := range snap.Entries {
 		entry := &snap.Entries[i]
 		switch entry.EntryType {
 		case model.MenuEntryTypeGroup:
-			visible[entry.ID] = hasVisibleDescendant(byID, entry, groupMemo, existingFormTargets)
+			visible[entry.ID] = canManageMenu || hasVisibleDescendant(byID, entry, groupMemo, existingFormTargets)
 		default:
 			visible[entry.ID] = assetVisible(entry, existingFormTargets)
 		}

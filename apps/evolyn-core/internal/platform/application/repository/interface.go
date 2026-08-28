@@ -56,13 +56,14 @@ type MenuSnapshot struct {
 	Entries         []model.MenuEntry
 }
 
-// MenuRepository 应用菜单仓储（M2-菜单-1 只读骨架；分组管理/重排写路径
-// 随 M2-菜单-3 落地；M2-资产-1 起承载表单资产的节点维护写方法，全部
-// 在调用方（表单域）事务内执行）
+// MenuRepository 应用菜单仓储。所有写方法都经 ResolveDB 加入调用方事务；
+// 菜单管理写入先条件推进修订号，再在同一事务内修改节点。
 type MenuRepository interface {
 	// GetSnapshot 按租户与应用编码读取「应用元信息 + 未软删菜单节点」的
 	// 一致性快照；应用不存在/跨租户返回 gorm.ErrRecordNotFound
 	GetSnapshot(ctx context.Context, tenantID uint, code string) (*MenuSnapshot, error)
+	// CreateGroupEntry 创建不绑定资产的 group 节点；code 由仓储生成。
+	CreateGroupEntry(ctx context.Context, entry *model.MenuEntry) (*model.MenuEntry, error)
 	// CreateFormEntry 在表单创建事务内插入 form 资产节点：code 服务端生成，
 	// sort_order 取同父（根级或指定分组）最大值 + 1024（首个 1024）
 	CreateFormEntry(ctx context.Context, entry *model.MenuEntry) (*model.MenuEntry, error)
@@ -76,6 +77,9 @@ type MenuRepository interface {
 	FindByCode(ctx context.Context, applicationID uint, code string) (*model.MenuEntry, error)
 	// BumpMenuRevision 同事务递增应用菜单修订号（菜单写入的并发口令）
 	BumpMenuRevision(ctx context.Context, applicationID uint) error
+	// BumpMenuRevisionFrom 仅当当前修订号等于 baseRevision 时递增；false
+	// 表示并发写入已抢先提交，调用方应返回 APP_MENU_VERSION_CONFLICT。
+	BumpMenuRevisionFrom(ctx context.Context, applicationID uint, baseRevision int64) (bool, error)
 	// Migrate 开发/测试 AutoMigrate 路径（生产只走 SQL 迁移）
 	Migrate() error
 }

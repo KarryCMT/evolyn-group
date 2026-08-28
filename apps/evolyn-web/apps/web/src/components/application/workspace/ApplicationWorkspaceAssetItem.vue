@@ -51,6 +51,8 @@ const hasActions = computed(
     props.asset.capabilities.delete,
 );
 const canCreateChild = computed(() => isFolder.value && props.asset.capabilities.manage);
+// 分组最多两级：二级分组仍可创建资产，但不再展示“新建子分组”。
+const canCreateNestedGroup = computed(() => canCreateChild.value && props.depth < 1);
 
 const actionItems = computed(() => {
   const items: Array<{
@@ -193,7 +195,7 @@ function handleAction(command: string | number | object) {
                 <RiBarChartBoxFill aria-hidden="true" />
                 <span>新建仪表盘</span>
               </el-dropdown-item>
-              <el-dropdown-item command="folder" divided>
+              <el-dropdown-item v-if="canCreateNestedGroup" command="folder" divided>
                 <RiFolderAddFill aria-hidden="true" />
                 <span>新建子分组</span>
               </el-dropdown-item>

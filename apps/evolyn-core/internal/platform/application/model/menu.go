@@ -87,3 +87,20 @@ type MenuSnapshot struct {
 	EntryMap        map[string]MenuEntryDetail `json:"entryMap"`
 	Features        MenuFeatures               `json:"features"`
 }
+
+// CreateMenuGroupRequest 创建菜单分组请求。parentEntryId 为空时创建根分组；
+// baseMenuRevision 是客户端最近一次读取到的菜单修订号，用于阻止陈旧写入。
+type CreateMenuGroupRequest struct {
+	Name             string  `json:"name" binding:"required" example:"订单管理"`
+	ParentEntryID    *string `json:"parentEntryId" example:"menu_0123456789abcdef"`
+	BaseMenuRevision int64   `json:"baseMenuRevision" binding:"required,min=1" example:"1"`
+}
+
+// MenuGroupMutation 创建分组后的最小增量结果；客户端以 menuRevision 更新
+// 乐观锁口令，并重新读取菜单快照获得服务端排序后的完整树。
+type MenuGroupMutation struct {
+	EntryID       string  `json:"entryId"`
+	ParentEntryID *string `json:"parentEntryId"`
+	Name          string  `json:"name"`
+	MenuRevision  int64   `json:"menuRevision"`
+}

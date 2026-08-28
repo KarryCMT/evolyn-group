@@ -20,9 +20,10 @@ import {
   RiContactsBook3Fill,
   RiPieChart2Fill,
 } from '@remixicon/vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, markRaw, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { createApplicationMenuGroup } from '~/api/applications';
 import { createForm } from '~/api/form';
 import ApplicationEmptyState from '~/components/application/runtime/ApplicationEmptyState.vue';
 import ApplicationWorkspaceShell from '~/components/application/workspace/ApplicationWorkspaceShell.vue';
@@ -50,6 +51,7 @@ watch(
 // 工作区侧栏资产树：来自应用菜单接口（M2-菜单-2），替换硬编码预览数据
 const {
   assets: menuAssets,
+  menuRevision,
   status: menuStatus,
   errorMessage: menuErrorMessage,
   reload: reloadMenu,
@@ -69,6 +71,8 @@ const applicationIcon = computed(
     iconByKey.bookmark,
 );
 const workspacePreviewEnabled = computed(() => route.query.workspace === 'form');
+// 设计器返回时携带表单公开编码，应用菜单加载完成后据此恢复对应节点选中态。
+const requestedFormCode = computed(() => String(route.params.formCode ?? ''));
 const hasMenuAssets = computed(() => menuAssets.value.length > 0);
 // 菜单资产是应用已进入运行态的直接事实：即使历史应用 homeMode 尚未回填，
 // 只要菜单接口返回可见节点也必须展示工作区，不能继续落入默认创建引导。
@@ -83,6 +87,8 @@ const workspaceMode = shallowRef<ApplicationWorkspaceMode>('fill');
 const DEFAULT_FORM_NAME = '未命名表单';
 /** 创建请求期间锁住所有入口，避免网络延迟下重复创建同一资产。 */
 const creatingAssetType = shallowRef<ApplicationAssetType | null>(null);
+/** 分组创建单独加锁，避免 Prompt 关闭后的请求窗口内再次提交。 */
+const creatingGroup = shallowRef(false);
 
 /** 递归按编码定位资产节点；菜单为空或未选中时为 null（内容区渲染空态） */
 function findAsset(
@@ -93,6 +99,21 @@ function findAsset(
     if (asset.code === code) return asset;
     if (asset.children?.length) {
       const matched = findAsset(asset.children, code);
+      if (matched) return matched;
+    }
+  }
+  return null;
+}
+
+/** 递归按表单公开编码定位菜单节点，分组与其他资产不会参与匹配。 */
+function findFormAsset(
+  assets: ApplicationWorkspaceAsset[],
+  formCode: string,
+): ApplicationWorkspaceAsset | null {
+  for (const asset of assets) {
+    if (asset.type === 'form' && asset.targetCode === formCode) return asset;
+    if (asset.children?.length) {
+      const matched = findFormAsset(asset.children, formCode);
       if (matched) return matched;
     }
   }
@@ -114,8 +135,13 @@ function firstSelectableAsset(
 }
 
 watch(
-  menuAssets,
-  (assets) => {
+  [menuAssets, requestedFormCode],
+  ([assets, formCode]) => {
+    const requestedAsset = findFormAsset(assets, formCode);
+    if (requestedAsset) {
+      activeAssetCode.value = requestedAsset.code;
+      return;
+    }
     if (findAsset(assets, activeAssetCode.value)) return;
     activeAssetCode.value = firstSelectableAsset(assets)?.code ?? '';
   },
@@ -212,6 +238,13 @@ function openApplicationManagement() {
 function selectWorkspaceAsset(asset: ApplicationWorkspaceAsset) {
   activeAssetCode.value = asset.code;
   workspaceMode.value = 'fill';
+
+  const formCode = asset.type === 'form' ? asset.targetCode : null;
+  if (requestedFormCode.value === (formCode ?? '')) return;
+  void router.replace({
+    name: 'App',
+    params: { appCode: appCode.value, formCode: formCode ?? '' },
+  });
 }
 
 /** 顶栏“编辑”只对当前表单生效，并携带菜单目标资产的公开 formCode 进入设计器。 */
@@ -234,9 +267,74 @@ function updateWorkspaceMode(mode: ApplicationWorkspaceMode) {
 }
 
 /**
- * 顶层与分组创建菜单共用同一处理链：表单先复用现有设计器，父级编码随路由携带；
- * 仪表盘与分组尚无菜单写接口时只提示，不在前端伪造菜单数据。
+ * 顶层与分组创建菜单共用同一处理链：表单复用现有设计器，分组通过
+ * menuRevision 乐观锁持久化；仪表盘尚无资产接口时明确提示。
  */
+async function createMenuGroup(parent?: ApplicationWorkspaceAsset) {
+  if (creatingGroup.value) return;
+  if (menuStatus.value !== 'ready' || menuRevision.value < 1) {
+    ElMessage.warning('应用菜单尚未加载完成，请稍后重试');
+    return;
+  }
+
+  let name = '';
+  try {
+    const result = await ElMessageBox.prompt(
+      '',
+      parent ? `在「${parent.label}」中新建分组` : '新建分组',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        inputPlaceholder: '请输入分组名称',
+        inputValidator: (value) => {
+          const normalized = value.trim();
+          if (!normalized) return '请输入分组名称';
+          if (Array.from(normalized).length > 128) return '分组名称不能超过 128 个字符';
+          return true;
+        },
+        closeOnClickModal: false,
+        showClose: false,
+      },
+    );
+    name = result.value.trim();
+  } catch {
+    // 取消或关闭 Prompt 属于正常交互，不显示错误提示。
+    return;
+  }
+
+  creatingGroup.value = true;
+  try {
+    await createApplicationMenuGroup(appCode.value, {
+      name,
+      parentEntryId: parent?.code,
+      baseMenuRevision: menuRevision.value,
+    });
+    await reloadMenu();
+    ElMessage.success('分组创建成功');
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'APP_MENU_VERSION_CONFLICT') {
+      ElMessage.warning('应用菜单已更新，已为你刷新，请重新创建分组');
+      await reloadMenu();
+    } else if (error instanceof ApiError && error.errCode === 'APP_MENU_DEPTH_EXCEEDED') {
+      ElMessage.error('分组最多支持两级，无法继续新建子分组');
+    } else if (error instanceof ApiError && error.errCode === 'APP_MENU_PARENT_INVALID') {
+      ElMessage.error('目标分组不存在或已删除，已为你刷新菜单');
+      await reloadMenu();
+    } else if (error instanceof ApiError && error.errCode === 'APP_MENU_NAME_INVALID') {
+      ElMessage.error('分组名称不符合要求，请修改后重试');
+    } else if (
+      error instanceof ApiError &&
+      (error.errCode === 'APP_STATUS_INVALID' || error.errCode === 'APP_PROVISIONING')
+    ) {
+      ElMessage.error('当前应用状态不支持新建分组');
+    } else {
+      ElMessage.error('创建分组失败，请稍后重试');
+    }
+  } finally {
+    creatingGroup.value = false;
+  }
+}
+
 function createWorkspaceAsset(payload: {
   parent?: ApplicationWorkspaceAsset;
   type: ApplicationWorkspaceCreateAssetType;
@@ -249,8 +347,12 @@ function createWorkspaceAsset(payload: {
     void startNewForm('workflow-form', payload.parent?.code);
     return;
   }
+  if (payload.type === 'folder') {
+    void createMenuGroup(payload.parent);
+    return;
+  }
 
-  const assetLabel = payload.type === 'dashboard' ? '仪表盘' : payload.parent ? '子分组' : '分组';
+  const assetLabel = '仪表盘';
   const location = payload.parent ? `在「${payload.parent.label}」中` : '';
   ElMessage.info(`${location}新建${assetLabel}的能力将在后续版本接入`);
 }

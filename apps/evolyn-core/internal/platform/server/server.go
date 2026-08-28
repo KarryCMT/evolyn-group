@@ -345,9 +345,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	if injector, ok := tenantService.(tenantservice.NotificationSettingSeederInjector); ok {
 		injector.UseNotificationSeeder(notificationSettingService)
 	}
-	// 应用菜单服务（M2-菜单-1 只读）：访问判定复用应用域评估器，与鉴权
-	// 中间件同源；菜单写路径随 M2-菜单-3 落地
-	menuService := applicationservice.NewMenuService(menuRepo, appAccess)
+	// 应用菜单服务：读取与分组创建复用应用域权限评估器；分组写入经统一
+	// 事务、menuRevision 乐观锁和提交后审计保证一致性。
+	menuService := applicationservice.NewMenuService(txManager, menuRepo, auditSvc, appAccess)
 	var storageStore objectstore.Store
 	if conf.Storage.Enabled {
 		storageStore, err = objectstore.NewRustFS(conf.Storage)

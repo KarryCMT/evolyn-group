@@ -174,6 +174,20 @@ func (r *menuRepository) CreateFormEntry(ctx context.Context, entry *model.MenuE
 	return entry, nil
 }
 
+// CreateGroupEntry 创建菜单分组；group 不携带 target，数据库 CHECK 约束与
+// 服务层类型常量共同保证分组不会伪装成资产节点。
+func (r *menuRepository) CreateGroupEntry(ctx context.Context, entry *model.MenuEntry) (*model.MenuEntry, error) {
+	code, err := newMenuEntryCode()
+	if err != nil {
+		return nil, err
+	}
+	entry.Code = code
+	if err := infrastructure.ResolveDB(ctx, r.db).Create(entry).Error; err != nil {
+		return nil, err
+	}
+	return entry, nil
+}
+
 // UpdateNameByFormTarget 表单改名事务内同步节点展示名。
 func (r *menuRepository) UpdateNameByFormTarget(ctx context.Context, applicationID, formID uint, name string) error {
 	return infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuEntry{}).
@@ -194,6 +208,16 @@ func (r *menuRepository) BumpMenuRevision(ctx context.Context, applicationID uin
 	return infrastructure.ResolveDB(ctx, r.db).Model(&model.Application{}).
 		Where("id = ?", applicationID).
 		Update("menu_revision", gorm.Expr("menu_revision + 1")).Error
+}
+
+// BumpMenuRevisionFrom 通过 WHERE menu_revision = baseRevision 原子占用下一
+// 个修订号。所有菜单管理写路径先执行本方法，因此成功更新应用行后也获得
+// 行锁，后续节点校验和写入不会与另一菜单写事务交错。
+func (r *menuRepository) BumpMenuRevisionFrom(ctx context.Context, applicationID uint, baseRevision int64) (bool, error) {
+	result := infrastructure.ResolveDB(ctx, r.db).Model(&model.Application{}).
+		Where("id = ? AND menu_revision = ?", applicationID, baseRevision).
+		Update("menu_revision", gorm.Expr("menu_revision + 1"))
+	return result.RowsAffected == 1, result.Error
 }
 
 // Migrate 开发/测试路径：AutoMigrate 建表 + 补齐 GORM 标签表达不了的

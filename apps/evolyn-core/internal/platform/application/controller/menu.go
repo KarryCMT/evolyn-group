@@ -4,6 +4,8 @@
 package controller
 
 import (
+	"net/http"
+
 	appmodel "evolyn/internal/platform/application/model"
 	"evolyn/internal/platform/application/service"
 	platformcontroller "evolyn/internal/platform/controller"
@@ -16,6 +18,39 @@ import (
 // MenuController 应用菜单（/applications/code/:code/menu）
 type MenuController struct {
 	menuService service.ApplicationMenuService
+}
+
+// CreateGroup 创建菜单分组
+// @Summary 创建应用菜单分组
+// @Description 在应用根级或一级分组下创建分组；请求携带最近读取到的 menuRevision，发生并发更新时返回冲突并要求客户端刷新菜单
+// @Accept json
+// @Produce json
+// @Tags 应用管理
+// @Security JWT
+// @Param code path string true "应用编码（app_ 前缀）"
+// @Param group body appmodel.CreateMenuGroupRequest true "分组名称、父节点与菜单修订号"
+// @Success 201 {object} httpx.Response{data=appmodel.MenuGroupMutation}
+// @Failure 400 {object} httpx.Response "errCode=APP_MENU_NAME_INVALID/APP_MENU_PARENT_INVALID/APP_MENU_DEPTH_EXCEEDED"
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
+// @Failure 404 {object} httpx.Response "errCode=APP_NOT_FOUND"
+// @Failure 409 {object} httpx.Response "errCode=APP_MENU_VERSION_CONFLICT/APP_STATUS_INVALID/APP_PROVISIONING"
+// @Router /api/v1/applications/code/{code}/menu/groups [post]
+func (a *MenuController) CreateGroup(c *gin.Context) {
+	code, ok := codeFromParam(c)
+	if !ok {
+		return
+	}
+	var req appmodel.CreateMenuGroupRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	created, err := a.menuService.CreateGroup(c.Request.Context(), ginctx.GetUser(c), code, &req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.NewResponse(c, http.StatusCreated, created, "创建成功")
 }
 
 func NewMenuController(menuService service.ApplicationMenuService) platformcontroller.Controller {
@@ -54,6 +89,8 @@ func (a *MenuController) RegisterRoute(api *gin.RouterGroup) {
 	// 不会被 /applications/:id 捕获）；URL 鉴权解析为 resource=applications
 	// verb=get，即 applications:get
 	api.GET("/applications/code/:code/menu", a.GetMenu)
+	// POST 映射 applications:create；Service 内再次复核相同权限。
+	api.POST("/applications/code/:code/menu/groups", a.CreateGroup)
 }
 
 func (a *MenuController) Name() string {

@@ -107,6 +107,7 @@ export const ERROR_CODES = {
 
   // 应用菜单域（M2-菜单）：MENU_INVALID 已随只读接口启用，其余随分组/
   // 重排管理接口（M2-菜单-3）落地启用，与后端 application/errors.go 对齐
+  APP_MENU_NAME_INVALID: 'APP_MENU_NAME_INVALID',
   APP_MENU_NOT_FOUND: 'APP_MENU_NOT_FOUND',
   APP_MENU_PARENT_INVALID: 'APP_MENU_PARENT_INVALID',
   APP_MENU_TARGET_INVALID: 'APP_MENU_TARGET_INVALID',

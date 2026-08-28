@@ -423,6 +423,21 @@ export interface ApplicationMenu {
   features: { workflow: boolean };
 }
 
+/** 创建应用菜单分组请求：parentEntryId 为空时创建根分组。 */
+export interface CreateApplicationMenuGroupPayload {
+  name: string;
+  parentEntryId?: string;
+  baseMenuRevision: number;
+}
+
+/** 分组创建后的增量结果；完整树仍以重新读取菜单快照为准。 */
+export interface ApplicationMenuGroupMutation {
+  entryId: string;
+  parentEntryId: string | null;
+  name: string;
+  menuRevision: number;
+}
+
 // ---- 版本信息（管理后台「版本信息」页，一期：真实订阅与资源概览）----
 
 /** 订阅状态：active 活动 / expired 已到期（读时投影）/ legacy_pending_review 有效期待确认 */

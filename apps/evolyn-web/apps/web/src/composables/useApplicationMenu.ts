@@ -89,6 +89,7 @@ export function useApplicationMenu(appCode: Readonly<Ref<string>>) {
   const assets = shallowRef<ApplicationWorkspaceAsset[]>([]);
   const status = shallowRef<ApplicationMenuStatus>('loading');
   const errorMessage = shallowRef('');
+  const menuRevision = shallowRef(0);
   let requestVersion = 0;
 
   async function load(code = appCode.value) {
@@ -108,6 +109,7 @@ export function useApplicationMenu(appCode: Readonly<Ref<string>>) {
       if (version !== requestVersion) return;
 
       assets.value = buildAssets(menu);
+      menuRevision.value = menu.menuRevision;
       status.value = 'ready';
     } catch (error) {
       if (version !== requestVersion) return;
@@ -130,8 +132,9 @@ export function useApplicationMenu(appCode: Readonly<Ref<string>>) {
   // 数据源由本 composable 整体重建，外部无 mutate 场景
   return {
     assets,
+    menuRevision: readonly(menuRevision),
     status: readonly(status),
     errorMessage: readonly(errorMessage),
-    reload: () => void load(),
+    reload: () => load(),
   };
 }

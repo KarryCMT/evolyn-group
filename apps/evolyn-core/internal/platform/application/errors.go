@@ -43,10 +43,12 @@ var (
 	ErrProvisioning = httpx.NewBiz("APP_PROVISIONING", "应用正在初始化，请稍后重试", http.StatusConflict)
 )
 
-// 应用菜单稳定错误码（M2-菜单，方案 §9）：M2-菜单-1 只读骨架仅启用
-// ErrMenuInvalid（读取路径树完整性故障）；其余随 M2-菜单-3 分组/重排
-// 管理接口落地启用，先集中定义保证前后端错误码表一次对齐
+// 应用菜单稳定错误码（M2-菜单，方案 §9）：读取与分组创建已启用对应
+// 错误；重排、移动、删除接口继续复用本组稳定码。
 var (
+	// ErrMenuNameInvalid 分组名称不符合要求（去首尾空格后 1–128 字符）
+	ErrMenuNameInvalid = httpx.NewBiz("APP_MENU_NAME_INVALID", "分组名称不符合要求", http.StatusBadRequest)
+
 	// ErrMenuNotFound 菜单节点不存在或无权访问（管理接口路径参数定位节点）
 	ErrMenuNotFound = httpx.NewBiz("APP_MENU_NOT_FOUND", "菜单节点不存在或无权访问", http.StatusNotFound)
 

@@ -179,7 +179,8 @@ watch(
 function returnToApplication() {
   void router.push({
     name: 'App',
-    params: { appCode: appCode.value },
+    // 继续使用 formCode 路由参数，应用页据此恢复当前表单菜单选中态。
+    params: { appCode: appCode.value, formCode: formCode.value === 'new' ? '' : formCode.value },
     query: formCode.value === 'new' ? { workspace: 'form' } : undefined,
   });
 }

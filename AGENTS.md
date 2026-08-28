@@ -127,8 +127,9 @@ internal/
                       应用菜单只读接口 GET /applications/code/:code/menu
                       （M2-菜单-1，迁移 000016：application_menu_entries
                       节点表 + applications.menu_revision 菜单乐观并发口令，
-                      读取走单条 SQL 快照保证修订号与节点同快照；菜单写
-                      管理接口随 M2-菜单-3 落地）
+                      读取走单条 SQL 快照保证修订号与节点同快照；分组创建
+                      POST /applications/code/:code/menu/groups 已接入事务、
+                      乐观锁、层级校验与审计，其余菜单写管理接口随 M2-菜单-3 落地）
     edition/          版本信息域（一期，小三层，docs/低代码平台/版本信息/）：
                       套餐目录/不可变套餐版本快照/租户订阅/特批权益覆盖
                       （迁移 000030，四表 + 三档 seed + 存量回填）；活动订阅

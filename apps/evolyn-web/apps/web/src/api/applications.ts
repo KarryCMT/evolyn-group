@@ -2,7 +2,9 @@ import type {
   ApplicationItem,
   ApplicationListQuery,
   ApplicationMenu,
+  ApplicationMenuGroupMutation,
   ApplicationPage,
+  CreateApplicationMenuGroupPayload,
   CreateBlankApplicationPayload,
   UpdateApplicationPayload,
 } from '~/types';
@@ -50,6 +52,14 @@ export function getApplicationByCode(code: string): Promise<ApplicationItem> {
  */
 export function getApplicationMenuByCode(code: string): Promise<ApplicationMenu> {
   return http.get(`/applications/code/${code}/menu`);
+}
+
+/** 创建根分组或二级子分组；baseMenuRevision 用于拒绝陈旧菜单写入。 */
+export function createApplicationMenuGroup(
+  code: string,
+  payload: CreateApplicationMenuGroupPayload,
+): Promise<ApplicationMenuGroupMutation> {
+  return http.post(`/applications/code/${code}/menu/groups`, payload);
 }
 
 /**
