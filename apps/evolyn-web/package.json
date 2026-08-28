@@ -50,6 +50,8 @@
   "devDependencies": {
     "@changesets/cli": "catalog:dev",
     "@commitlint/cli": "catalog:lint",
+    "@emnapi/core": "catalog:build",
+    "@emnapi/runtime": "catalog:build",
     "@evolyn.do/commitlint-config": "workspace:*",
     "@evolyn.do/directives": "workspace:*",
     "@evolyn.do/eslint-config": "workspace:*",
@@ -59,15 +61,15 @@
     "@evolyn.do/typescript-config": "workspace:*",
     "@evolyn.do/ui": "workspace:*",
     "@evolyn.do/utils": "workspace:*",
-    "@emnapi/core": "catalog:build",
-    "@emnapi/runtime": "catalog:build",
     "esbuild": "catalog:build",
     "esbuild-register": "catalog:build",
     "eslint": "catalog:lint",
     "gulp": "catalog:build",
     "husky": "catalog:lint",
+    "kill-port": "catalog:build",
     "lint-staged": "catalog:lint",
     "prettier": "catalog:lint",
+    "rimraf": "catalog:dev",
     "rolldown": "catalog:build",
     "rolldown-plugin-dts": "catalog:build",
     "stylelint": "catalog:lint",
@@ -76,8 +78,7 @@
     "typescript": "catalog:types",
     "unplugin-vue": "catalog:build",
     "vue": "catalog:frontend",
-    "vue-tsc": "catalog:build",
-    "rimraf": "catalog:dev"
+    "vue-tsc": "catalog:build"
   },
   "engines": {
     "node": ">=22",

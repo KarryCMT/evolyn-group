@@ -8,8 +8,8 @@
     "dev:core-mac": "npm run stop:core && cd apps/evolyn-core && make run-mac",
     "build:web": "npm --prefix apps/evolyn-web run build",
     "test:core": "cd apps/evolyn-core && make test",
-    "stop:web": "lsof -ti tcp:5173 | xargs kill",
-    "stop:core": "lsof -ti tcp:8080 | xargs kill",
-    "stop:services": "npm run stop:web && npm run stop:core"
+    "stop:web": "kill-port 11000",
+    "stop:core": "kill-port 8080",
+    "stop": "pnpm stop:web && pnpm stop:core"
   }
 }
