@@ -3,9 +3,7 @@ import {
   RiArrowDownBoxFill,
   RiCalendarScheduleFill,
   RiCheckDoubleFill,
-  RiCloseFill,
   RiCheckboxMultipleFill,
-  RiComputerFill,
   RiEyeFill,
   RiFileTextFill,
   RiHashtag,
@@ -14,7 +12,6 @@ import {
   RiRadioButtonFill,
   RiSave3Fill,
   RiShareForwardFill,
-  RiSmartphoneFill,
   RiText,
   RiUploadCloud2Fill,
 } from '@remixicon/vue';
@@ -31,16 +28,15 @@ import {
   WIDGET_SPECS,
   type FormWidgetType,
 } from '@evolyn.do/form/designer';
-import { FormRenderer, type FormRuntimeAdapter } from '@evolyn.do/form/runtime';
+import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime';
 import { ApiError } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getApplicationByCode } from '~/api/applications';
 import { createForm, publishForm, saveFormDraft } from '~/api/form';
+import FormDesignPreviewDrawer from '~/components/form/FormDesignPreviewDrawer.vue';
 import { useFormWorkspaceContext } from './workspace-context';
-// 设计器内预览按运行时独立样式加载，避免依赖设计器样式副作用。
-import '@evolyn.do/form/runtime/style.css';
 
 defineOptions({ name: 'FormDesignPage' });
 
@@ -66,9 +62,7 @@ const loading = ref(true);
 const saving = ref(false);
 const publishing = ref(false);
 const renaming = computed(() => workspace.renaming.value);
-const previewVisible = ref(false);
-/** 预览画布设备：用真实宽度和栅格切换校验不同终端的填写体验。 */
-const previewViewport = ref<'desktop' | 'mobile'>('desktop');
+const previewVisible = shallowRef(false);
 const unsupportedPreviewTypes = new Set<string>();
 
 // 外壳是详情接口的唯一请求方；设计页仅消费共享响应，避免相同详情重复调用。
@@ -203,10 +197,6 @@ function openPreview(): void {
     return;
   }
   previewVisible.value = true;
-}
-
-function setPreviewViewport(viewport: 'desktop' | 'mobile'): void {
-  previewViewport.value = viewport;
 }
 
 /** 设计器预览不写入记录，仅模拟完成提交，方便即时验证字段交互。 */
@@ -402,71 +392,14 @@ function notifyUnavailable(action: string) {
       />
     </div>
 
-    <el-drawer
+    <FormDesignPreviewDrawer
       v-model="previewVisible"
-      append-to-body
-      direction="btt"
-      size="calc(100% - 40px)"
-      :with-header="false"
-      body-class="form-design-preview-drawer__body"
-      class="form-design-preview-drawer"
-    >
-      <section class="form-design-preview" aria-label="表单预览">
-        <header class="form-design-preview__header">
-          <div class="form-design-preview__header-spacer" aria-hidden="true" />
-          <div class="form-design-preview__viewport-switch" role="group" aria-label="预览设备">
-            <button
-              class="form-design-preview__viewport-button"
-              :class="{
-                'form-design-preview__viewport-button--active': previewViewport === 'desktop',
-              }"
-              type="button"
-              :aria-pressed="previewViewport === 'desktop'"
-              @click="setPreviewViewport('desktop')"
-            >
-              <RiComputerFill />
-              <span>桌面端</span>
-            </button>
-            <button
-              class="form-design-preview__viewport-button"
-              :class="{
-                'form-design-preview__viewport-button--active': previewViewport === 'mobile',
-              }"
-              type="button"
-              :aria-pressed="previewViewport === 'mobile'"
-              @click="setPreviewViewport('mobile')"
-            >
-              <RiSmartphoneFill />
-              <span>移动端</span>
-            </button>
-          </div>
-          <button
-            class="form-design-preview__close"
-            type="button"
-            aria-label="关闭预览"
-            @click="previewVisible = false"
-          >
-            <RiCloseFill />
-          </button>
-        </header>
-        <el-scrollbar class="form-design-preview__body">
-          <div
-            class="form-design-preview__canvas"
-            :class="`form-design-preview__canvas--${previewViewport}`"
-          >
-            <FormRenderer
-              class="form-design-preview__runtime"
-              :class="`form-design-preview__runtime--${previewViewport}`"
-              :schema="document"
-              :form-id="formCode"
-              :adapter="previewAdapter"
-              @unsupported-field="onUnsupportedPreviewField"
-              @submit-success="onPreviewSubmitSuccess"
-            />
-          </div>
-        </el-scrollbar>
-      </section>
-    </el-drawer>
+      :schema="document"
+      :form-id="formCode"
+      :adapter="previewAdapter"
+      @unsupported-field="onUnsupportedPreviewField"
+      @submit-success="onPreviewSubmitSuccess"
+    />
   </section>
 </template>
 
@@ -654,169 +587,6 @@ function notifyUnavailable(action: string) {
   }
 }
 
-// Drawer 传送到 body，使用唯一块类约束局部覆盖，避免影响其他抽屉。
-:global(.form-design-preview-drawer) {
-  border-radius: var(--el-border-radius-large) var(--el-border-radius-large) 0 0;
-}
-
-:global(.form-design-preview-drawer__body) {
-  display: flex;
-  min-height: 0;
-  padding: 0;
-  overflow: hidden;
-}
-
-.form-design-preview {
-  display: flex;
-  height: 100%;
-  min-height: 0;
-  flex-direction: column;
-  background: var(--el-bg-color-page);
-
-  &__header {
-    display: grid;
-    height: 56px;
-    min-height: 56px;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    padding: 0 var(--el-space-3xl);
-    background: var(--el-bg-color);
-    border-bottom: 1px solid var(--el-border-color-lighter);
-  }
-
-  &__viewport-switch {
-    display: inline-flex;
-    gap: var(--el-space-xs);
-    padding: var(--el-space-xs);
-    background: var(--el-fill-color-light);
-    border-radius: var(--el-border-radius-base);
-  }
-
-  &__viewport-button {
-    display: inline-flex;
-    height: 28px;
-    align-items: center;
-    justify-content: center;
-    gap: var(--el-space-sm);
-    padding: 0 var(--el-space-lg);
-    color: var(--el-text-color-secondary);
-    font-size: var(--el-font-size-small);
-    background: transparent;
-    border: 0;
-    border-radius: var(--el-border-radius-small);
-    cursor: pointer;
-
-    svg {
-      width: 16px;
-      height: 16px;
-    }
-
-    &:hover {
-      color: var(--el-color-primary);
-      background: var(--el-color-primary-light-9);
-    }
-
-    &--active {
-      color: var(--el-color-primary);
-      background: var(--el-bg-color);
-      box-shadow: var(--el-box-shadow-lighter);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--el-color-primary);
-      outline-offset: 2px;
-    }
-  }
-
-  &__close {
-    display: inline-flex;
-    width: 32px;
-    height: 32px;
-    margin-left: auto;
-    padding: 0;
-    align-items: center;
-    justify-content: center;
-    color: var(--el-text-color-regular);
-    background: transparent;
-    border: 0;
-    border-radius: var(--el-border-radius-base);
-    cursor: pointer;
-
-    svg {
-      width: 22px;
-      height: 22px;
-    }
-
-    &:hover {
-      color: var(--el-color-primary);
-      background: var(--el-color-primary-light-9);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--el-color-primary);
-      outline-offset: 2px;
-    }
-  }
-
-  &__body {
-    min-height: 0;
-    flex: 1;
-  }
-
-  &__canvas {
-    width: 704px;
-    max-width: calc(100% - var(--el-space-4xl));
-    min-height: 100%;
-    margin: 0 auto;
-    padding: var(--el-space-3xl) var(--el-space-md) var(--el-space-4xl);
-
-    &--mobile {
-      width: 375px;
-    }
-  }
-
-  // 运行时主题映射到宿主 Element Plus 变量，暗色模式自动跟随。
-  &__runtime {
-    --evf-color-text: var(--el-text-color-primary);
-    --evf-color-text-regular: var(--el-text-color-regular);
-    --evf-color-text-secondary: var(--el-text-color-secondary);
-    --evf-color-text-placeholder: var(--el-text-color-placeholder);
-    --evf-color-text-disabled: var(--el-text-color-disabled);
-    --evf-color-border: var(--el-border-color);
-    --evf-color-border-light: var(--el-border-color-light);
-    --evf-color-border-lighter: var(--el-border-color-lighter);
-    --evf-color-fill-light: var(--el-fill-color-light);
-    --evf-color-bg: var(--el-bg-color);
-    --evf-color-primary: var(--el-color-primary);
-    --evf-color-danger: var(--el-color-danger);
-    --evf-font-size-base: var(--el-font-size-base);
-    --evf-font-size-small: var(--el-font-size-small);
-    --evf-font-size-extra-small: var(--el-font-size-extra-small);
-    --evf-space-sm: var(--el-space-sm);
-    --evf-space-md: var(--el-space-md);
-    --evf-space-lg: var(--el-space-lg);
-    --evf-space-xl: var(--el-space-xl);
-    --evf-space-3xl: var(--el-space-3xl);
-    --evf-radius-base: var(--el-border-radius-base);
-    --evf-radius-medium: var(--el-border-radius-medium);
-    display: flex;
-    min-height: calc(100vh - 144px);
-    flex-direction: column;
-    background: var(--el-bg-color);
-    border-radius: var(--el-border-radius-large);
-    box-shadow: var(--el-box-shadow-light);
-
-    :deep(.evf-form__body) {
-      flex: 1;
-    }
-
-    &--mobile {
-      --evf-columns: 1;
-      --evf-control-height: 44px;
-    }
-  }
-}
-
 @media (max-width: 620px) {
   .form-design-page {
     margin: 0 var(--el-space-xs) var(--el-space-xs);
@@ -842,36 +612,6 @@ function notifyUnavailable(action: string) {
     &__action-button {
       min-width: 34px;
       padding: 0 var(--el-space-md);
-    }
-  }
-
-  .form-design-preview {
-    &__header {
-      height: 52px;
-      min-height: 52px;
-      padding: 0 var(--el-space-lg);
-    }
-
-    &__viewport-button {
-      padding: 0 var(--el-space-md);
-
-      span {
-        display: none;
-      }
-    }
-
-    &__canvas {
-      padding: var(--el-space-lg) var(--el-space-xs) var(--el-space-3xl);
-
-      &--desktop,
-      &--mobile {
-        width: 100%;
-        max-width: 100%;
-      }
-    }
-
-    &__runtime {
-      min-height: calc(100vh - 124px);
     }
   }
 }
