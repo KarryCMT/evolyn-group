@@ -142,7 +142,7 @@ watch(visible, (isVisible) => {
             :data="departments"
             node-key="id"
             default-expand-all
-            highlight-current:
+            highlight-current
             :expand-on-click-node="false"
             :props="{ label: 'name', children: 'children' }"
             @node-click="onNodeClick"
