@@ -277,7 +277,7 @@ ALTER TABLE roles ADD CONSTRAINT fk_roles_role_group
 
 INSERT INTO roles (name, scope, rules) VALUES
     ('平台管理员', 'cluster', '[{"resource": "*", "operation": "*"}]'),
-    ('已认证用户', 'cluster', '[{"resource": "users", "operation": "*"},{"resource": "auth", "operation": "*"},{"resource": "accounts", "operation": "*"},{"resource": "applications", "operation": "view"},{"resource": "files", "operation": "edit"}]'),
+    ('已认证用户', 'cluster', '[{"resource": "users", "operation": "*"},{"resource": "auth", "operation": "*"},{"resource": "accounts", "operation": "*"},{"resource": "applications", "operation": "view"},{"resource": "files", "operation": "edit"},{"resource": "form-records", "operation": "create"},{"resource": "notifications", "operation": "view"},{"resource": "notifications", "operation": "update"}]'),
     ('未认证用户', 'cluster', '[{"resource": "auth", "operation": "create"}]') ON CONFLICT DO NOTHING;
 
 -- 租户管理员可更新组织根节点（租户名称）；存量数据库由迁移 000022 同步。
@@ -1788,7 +1788,12 @@ WHERE deleted_at IS NULL
 -- 授 form-records:create；填写提交与表单设计权限（forms）彻底分离
 UPDATE roles
 SET rules = (rules::jsonb || '[{"resource": "form-records", "operation": "create"}]'::jsonb)::json
-WHERE name = 'authenticated'
+WHERE id IN (
+      SELECT gr.role_id
+      FROM group_roles gr
+      INNER JOIN groups g ON g.id = gr.group_id
+      WHERE g.name = 'system:authenticated' AND g.kind = 'system'
+  )
   AND deleted_at IS NULL
   AND NOT EXISTS (
       SELECT 1 FROM json_array_elements_text(rules) AS e
@@ -1815,7 +1820,12 @@ SET rules = (
     rules::jsonb
     || '[{"resource": "notifications", "operation": "view"}, {"resource": "notifications", "operation": "update"}]'::jsonb
 )::json
-WHERE name = 'authenticated'
+WHERE id IN (
+      SELECT gr.role_id
+      FROM group_roles gr
+      INNER JOIN groups g ON g.id = gr.group_id
+      WHERE g.name = 'system:authenticated' AND g.kind = 'system'
+  )
   AND deleted_at IS NULL
   AND NOT EXISTS (
       SELECT 1 FROM json_array_elements_text(rules) AS e

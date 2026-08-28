@@ -2,14 +2,14 @@
   "private": true,
   "name": "evolyn-group",
   "scripts": {
-    "dev:web": "npm run stop:web && npm --prefix apps/evolyn-web run dev",
-    "dev:core": "npm run stop:core && cd apps/evolyn-core && make run",
+    "dev:web": "pnpm run stop:web && pnpm --dir apps/evolyn-web run dev:web",
+    "dev:core": "pnpm run stop:core && cd apps/evolyn-core && make run",
     "dev:core-windows": "npm run stop:core && cd apps/evolyn-core && make run-windows",
     "dev:core-mac": "npm run stop:core && cd apps/evolyn-core && make run-mac",
-    "build:web": "npm --prefix apps/evolyn-web run build",
+    "build:web": "pnpm --dir apps/evolyn-web run build",
     "test:core": "cd apps/evolyn-core && make test",
-    "stop:web": "kill-port 11000",
-    "stop:core": "kill-port 8080",
+    "stop:web": "pnpm --dir apps/evolyn-web exec kill-port 11000",
+    "stop:core": "pnpm --dir apps/evolyn-web exec kill-port 8080",
     "stop": "pnpm stop:web && pnpm stop:core"
   }
 }
