@@ -518,6 +518,9 @@ func normalizeIcon(icon *model.ApplicationIcon) (model.ApplicationIcon, error) {
 	}
 	switch payload.Type {
 	case "remix":
+		payload.Background = strings.Join(strings.FieldsFunc(payload.Background, func(r rune) bool {
+			return r == ',' || r == ' ' || r == '\t' || r == '\n' || r == '\r'
+		}), ",")
 		if payload.Name == "" || len(payload.Name) > 64 || !strings.Contains(payload.Background, ",") {
 			return model.ApplicationIcon{}, httpx.Wrap(apperrors.ErrIconInvalid, fmt.Errorf("invalid remix icon"))
 		}

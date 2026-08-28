@@ -401,7 +401,7 @@ CREATE TABLE IF NOT EXISTS applications (
     tenant_id BIGINT NOT NULL DEFAULT 1,
     code varchar(64) NOT NULL,
     name varchar(128) NOT NULL,
-    icon jsonb NOT NULL DEFAULT '{"type":"remix","name":"bookmark","background":"#f7be54, #eda426"}'::jsonb,
+    icon jsonb NOT NULL DEFAULT '{"type":"remix","name":"bookmark","background":"#f7be54,#eda426"}'::jsonb,
     color varchar(32) NOT NULL DEFAULT 'primary',
     owner_member_id BIGINT NOT NULL,
     creator_member_id BIGINT NOT NULL,
