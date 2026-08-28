@@ -7,8 +7,10 @@ export interface FormWorkspaceContext {
   detail: Readonly<ShallowRef<FormDetail | null>>;
   loading: Readonly<ShallowRef<boolean>>;
   loadFailed: Readonly<ShallowRef<boolean>>;
+  renaming: Readonly<ShallowRef<boolean>>;
   setDetail: (detail: FormDetail) => void;
   patchDetail: (patch: Partial<FormDetail>) => void;
+  rename: (name: string) => Promise<boolean>;
   reload: () => Promise<FormDetail | null>;
 }
 

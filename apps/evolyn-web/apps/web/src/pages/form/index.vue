@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import type { FormDetail } from '~/types';
+import { ApiError } from '@evolyn.do/utils';
 import { RiArrowLeftFill, RiNotification3Fill, RiQuestionFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, provide, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getForm } from '~/api/form';
+import { getForm, updateFormName } from '~/api/form';
+import FormWorkspaceTitleEditor from '~/components/form/FormWorkspaceTitleEditor.vue';
 import UserMenu from '~/components/navigation/UserMenu.vue';
 import { formWorkspaceContextKey } from './workspace-context';
 
@@ -29,6 +31,7 @@ const router = useRouter();
 const formDetail = shallowRef<FormDetail | null>(null);
 const detailLoading = shallowRef(false);
 const detailLoadFailed = shallowRef(false);
+const renaming = shallowRef(false);
 const formTitle = computed(() => formDetail.value?.name ?? '未命名表单');
 const formType = computed(() => formDetail.value?.formType ?? null);
 const allNavigationItems: FormNavigationItem[] = [
@@ -88,12 +91,49 @@ function reloadDetail(): Promise<FormDetail | null> {
   return formCode.value.startsWith('form_') ? loadDetail(formCode.value) : Promise.resolve(null);
 }
 
+/**
+ * 名称属于表单资产，由工作区外壳统一提交并刷新共享详情；设计页只消费结果，
+ * 不重新装载草稿，避免改名时覆盖画布中尚未保存的字段修改。
+ */
+async function renameForm(name: string): Promise<boolean> {
+  const current = formDetail.value;
+  const normalizedName = name.trim();
+  if (!current || renaming.value || !normalizedName || normalizedName === current.name)
+    return false;
+
+  renaming.value = true;
+  try {
+    const detail = await updateFormName(current.code, normalizedName);
+    // 路由可能在请求期间切换到另一张表单，旧响应不能覆盖新工作区详情。
+    if (formCode.value === current.code) setDetail(detail);
+    ElMessage.success('表单名称已更新');
+    return true;
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'FORM_NAME_INVALID') {
+      ElMessage.error('表单名称不能为空，且不能超过128个字符');
+    } else if (error instanceof ApiError && error.errCode === 'FORBIDDEN') {
+      ElMessage.error('没有修改表单名称的权限');
+    } else {
+      ElMessage.error('表单名称更新失败，请稍后重试');
+    }
+    return false;
+  } finally {
+    renaming.value = false;
+  }
+}
+
+async function submitTitleRename(name: string, onSuccess: () => void): Promise<void> {
+  if (await renameForm(name)) onSuccess();
+}
+
 provide(formWorkspaceContextKey, {
   detail: formDetail,
   loading: detailLoading,
   loadFailed: detailLoadFailed,
+  renaming,
   setDetail,
   patchDetail,
+  rename: renameForm,
   reload: reloadDetail,
 });
 
@@ -170,7 +210,13 @@ function notifyUnavailable(action: string) {
         >
           <RiArrowLeftFill />
         </button>
-        <strong class="form-workspace-shell__title">{{ formTitle }}</strong>
+        <FormWorkspaceTitleEditor
+          :key="formCode"
+          :name="formTitle"
+          :disabled="!formDetail || detailLoading || detailLoadFailed"
+          :saving="renaming"
+          @submit="submitTitleRename"
+        />
       </div>
 
       <nav class="form-workspace-shell__navigation" aria-label="表单管理导航">
@@ -250,15 +296,6 @@ function notifyUnavailable(action: string) {
 
   &__global-actions {
     justify-content: flex-end;
-  }
-
-  &__title {
-    overflow: hidden;
-    font-size: var(--el-font-size-large);
-    font-weight: 650;
-    line-height: 28px;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   &__icon-button,

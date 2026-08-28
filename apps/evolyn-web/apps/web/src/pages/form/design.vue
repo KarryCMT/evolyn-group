@@ -37,7 +37,7 @@ import { ElMessage } from 'element-plus';
 import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getApplicationByCode } from '~/api/applications';
-import { createForm, publishForm, saveFormDraft, updateFormName } from '~/api/form';
+import { createForm, publishForm, saveFormDraft } from '~/api/form';
 import { useFormWorkspaceContext } from './workspace-context';
 // 设计器内预览按运行时独立样式加载，避免依赖设计器样式副作用。
 import '@evolyn.do/form/runtime/style.css';
@@ -59,13 +59,13 @@ const formCode = computed(() => (rawFormCode.value.startsWith('form_') ? rawForm
 
 /** 草稿口令与表单元信息：保存/发布回传后同步刷新。 */
 const draftRevision = ref(0);
-const formName = ref('');
+const formName = computed(() => workspace.detail.value?.name ?? '');
 const publishedVersion = ref(0);
 const loadFailed = ref(false);
 const loading = ref(true);
 const saving = ref(false);
 const publishing = ref(false);
-const renaming = ref(false);
+const renaming = computed(() => workspace.renaming.value);
 const previewVisible = ref(false);
 /** 预览画布设备：用真实宽度和栅格切换校验不同终端的填写体验。 */
 const previewViewport = ref<'desktop' | 'mobile'>('desktop');
@@ -152,7 +152,6 @@ function adoptDetail(detail: NonNullable<(typeof workspace.detail)['value']>): v
   }
   editor.replaceDocument(result.document!);
   draftRevision.value = detail.draftRevision;
-  formName.value = detail.name;
   publishedVersion.value = detail.publishedVersion;
   loadFailed.value = false;
 }
@@ -194,18 +193,7 @@ function onAddDragField(value: { type: string; index: number }): void {
 
 /** 表单属性面板改名：名称属于表单资产，而非草稿协议内容。 */
 async function onUpdateFormName(name: string): Promise<void> {
-  if (!formCode.value) return;
-  renaming.value = true;
-  try {
-    const detail = await updateFormName(formCode.value, name);
-    workspace.setDetail(detail);
-    formName.value = detail.name;
-    ElMessage.success('表单名称已更新');
-  } catch {
-    ElMessage.error('表单名称更新失败，请稍后重试');
-  } finally {
-    renaming.value = false;
-  }
+  await workspace.rename(name);
 }
 
 /** 预览直接在当前工作台底部抽屉中打开，始终使用画布中的最新草稿。 */
