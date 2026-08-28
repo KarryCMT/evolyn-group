@@ -10,6 +10,7 @@ import {
 } from '@remixicon/vue';
 import { markRaw, type Component } from 'vue';
 import { computed, shallowRef, watch } from 'vue';
+import { getApplicationIconName } from '~/types';
 import type { AdministratorApplication } from './administrator.types';
 
 defineOptions({ name: 'AdministratorApplicationPickerDialog' });
@@ -95,7 +96,9 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
           <el-checkbox-group v-model="draftIds" class="administrator-application-picker__list">
             <el-checkbox v-for="app in filteredApplications" :key="app.id" :value="app.id"
               ><i class="administrator-application-picker__app-icon">
-                <component :is="iconByKey[app.icon] ?? iconByKey.bookmark" /> </i
+                <component
+                  :is="iconByKey[getApplicationIconName(app.icon)] ?? iconByKey.bookmark"
+                /> </i
               >{{ app.name }}</el-checkbox
             >
           </el-checkbox-group>
@@ -107,7 +110,9 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
           :key="app.id"
           class="administrator-application-picker__tag"
           ><i class="administrator-application-picker__app-icon">
-            <component :is="iconByKey[app.icon] ?? iconByKey.bookmark" /> </i
+            <component
+              :is="iconByKey[getApplicationIconName(app.icon)] ?? iconByKey.bookmark"
+            /> </i
           >{{ app.name }}<RiCloseFill @click="remove(app.id)"
         /></span>
       </div>

@@ -1,15 +1,9 @@
 <script setup lang="ts">
-import type { Component } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import {
-  RiBookmark3Fill,
-  RiBriefcase4Fill,
-  RiCheckboxCircleFill,
-  RiCloseFill,
-  RiContactsBook3Fill,
-  RiPieChart2Fill,
-} from '@remixicon/vue';
+import type { EvolynIconPickerValue } from '@evolyn.do/ui';
+import { RiCloseFill } from '@remixicon/vue';
 import { reactive, shallowRef, watch } from 'vue';
+import ApplicationIconPicker from '../ApplicationIconPicker.vue';
 
 defineOptions({ name: 'BlankApplicationDialog' });
 
@@ -18,21 +12,7 @@ export interface BlankApplicationDraft {
   icon: BlankApplicationIcon;
 }
 
-export type BlankApplicationIcon = 'bookmark' | 'briefcase' | 'contacts' | 'chart' | 'check';
-
-interface ApplicationIconOption {
-  value: BlankApplicationIcon;
-  label: string;
-  icon: Component;
-}
-
-const iconOptions: ApplicationIconOption[] = [
-  { value: 'bookmark', label: '书签', icon: RiBookmark3Fill },
-  { value: 'briefcase', label: '公文包', icon: RiBriefcase4Fill },
-  { value: 'contacts', label: '通讯录', icon: RiContactsBook3Fill },
-  { value: 'chart', label: '图表', icon: RiPieChart2Fill },
-  { value: 'check', label: '完成', icon: RiCheckboxCircleFill },
-];
+export type BlankApplicationIcon = EvolynIconPickerValue;
 
 const props = defineProps<{
   /** 异步提交处理：resolve true 表示创建成功（父级随后关闭弹窗）；false 表示失败，保持弹窗开启以保留填写内容 */
@@ -49,7 +29,12 @@ const formRef = shallowRef<FormInstance>();
 const submitting = shallowRef(false);
 const form = reactive<BlankApplicationDraft>({
   name: '',
-  icon: 'bookmark',
+  icon: { type: 'remix', name: 'bookmark', background: '#f7be54,#eda426' },
+});
+const iconValue = shallowRef<EvolynIconPickerValue>({
+  type: 'remix',
+  name: 'bookmark',
+  background: '#f7be54,#eda426',
 });
 const rules: FormRules<BlankApplicationDraft> = {
   name: [
@@ -62,7 +47,8 @@ const rules: FormRules<BlankApplicationDraft> = {
 watch(visible, (isVisible) => {
   if (!isVisible) return;
   form.name = '';
-  form.icon = 'bookmark';
+  iconValue.value = { type: 'remix', name: 'bookmark', background: '#f7be54,#eda426' };
+  form.icon = iconValue.value;
   formRef.value?.clearValidate();
 });
 
@@ -74,8 +60,10 @@ async function submit() {
   try {
     // 等待创建请求完成才决定去留：失败时保持弹窗开启并保留填写内容，
     // 错误提示由父级处理函数负责（按 errCode 分支）
-    const ok = await props.submit({ name: form.name.trim(), icon: form.icon });
-    if (ok) emit('success', { name: form.name.trim(), icon: form.icon });
+    form.icon = iconValue.value;
+    const draft = { name: form.name.trim(), icon: iconValue.value };
+    const ok = await props.submit(draft);
+    if (ok) emit('success', draft);
   } finally {
     submitting.value = false;
   }
@@ -126,23 +114,7 @@ async function submit() {
       </el-form-item>
 
       <el-form-item label="图标" prop="icon">
-        <div class="blank-application-dialog__icon-list" role="radiogroup" aria-label="应用图标">
-          <button
-            v-for="option in iconOptions"
-            :key="option.value"
-            class="blank-application-dialog__icon-option"
-            :class="{
-              'blank-application-dialog__icon-option--selected': form.icon === option.value,
-            }"
-            type="button"
-            role="radio"
-            :aria-checked="form.icon === option.value"
-            :aria-label="`选择${option.label}图标`"
-            @click="form.icon = option.value"
-          >
-            <component :is="option.icon" />
-          </button>
-        </div>
+        <ApplicationIconPicker v-model="iconValue" />
       </el-form-item>
     </el-form>
 

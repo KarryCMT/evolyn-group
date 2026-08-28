@@ -7,7 +7,13 @@ import {
   RiPieChart2Fill,
 } from '@remixicon/vue';
 import { computed, markRaw, shallowRef, watch, type Component } from 'vue';
-import type { ApplicationIcon, ApplicationItem, UpdateApplicationPayload } from '~/types';
+import {
+  DEFAULT_APPLICATION_ICON,
+  getApplicationIconName,
+  type ApplicationIconKey,
+  type ApplicationItem,
+  type UpdateApplicationPayload,
+} from '~/types';
 
 defineOptions({ name: 'ApplicationBasicSettingsPanel' });
 
@@ -24,7 +30,7 @@ const emit = defineEmits<{
   configureUrl: [];
 }>();
 
-const iconByKey: Record<ApplicationIcon, Component> = {
+const iconByKey: Record<ApplicationIconKey, Component> = {
   bookmark: markRaw(RiBookmark3Fill),
   briefcase: markRaw(RiBriefcase4Fill),
   contacts: markRaw(RiContactsBook3Fill),
@@ -32,7 +38,7 @@ const iconByKey: Record<ApplicationIcon, Component> = {
   check: markRaw(RiCheckboxCircleFill),
 };
 
-const iconOptions: { key: ApplicationIcon; label: string; icon: Component }[] = [
+const iconOptions: { key: ApplicationIconKey; label: string; icon: Component }[] = [
   { key: 'bookmark', label: '书签', icon: iconByKey.bookmark },
   { key: 'briefcase', label: '公文包', icon: iconByKey.briefcase },
   { key: 'contacts', label: '通讯录', icon: iconByKey.contacts },
@@ -46,7 +52,11 @@ const nameDraft = shallowRef(props.application.name);
 // 当前接口只支持名称和图标持久化；两个开关保留为可交互的界面预览状态。
 const watermarkEnabled = shallowRef(false);
 const attachmentRestricted = shallowRef(false);
-const applicationIcon = computed(() => iconByKey[props.application.icon]);
+const applicationIcon = computed(
+  () =>
+    iconByKey[getApplicationIconName(props.application.icon) as ApplicationIconKey] ??
+    iconByKey.bookmark,
+);
 
 watch(
   () => props.application.name,
@@ -75,9 +85,11 @@ function submitNameEdit() {
   emit('update', { name });
 }
 
-function selectIcon(icon: ApplicationIcon) {
+function selectIcon(icon: ApplicationIconKey) {
   iconPickerVisible.value = false;
-  if (icon !== props.application.icon) emit('update', { icon });
+  if (icon !== getApplicationIconName(props.application.icon)) {
+    emit('update', { icon: { ...DEFAULT_APPLICATION_ICON, name: icon } });
+  }
 }
 </script>
 
@@ -155,11 +167,11 @@ function selectIcon(icon: ApplicationIcon) {
                   class="application-basic-settings__icon-option"
                   :class="{
                     'application-basic-settings__icon-option--active':
-                      option.key === props.application.icon,
+                      option.key === getApplicationIconName(props.application.icon),
                   }"
                   type="button"
                   :aria-label="`选择${option.label}图标`"
-                  :aria-selected="option.key === props.application.icon"
+                  :aria-selected="option.key === getApplicationIconName(props.application.icon)"
                   role="option"
                   @click="selectIcon(option.key)"
                 >

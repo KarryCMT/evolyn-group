@@ -315,8 +315,8 @@ function removeOption(index: number): void {
   border-top: 1px solid var(--el-border-color);
   border-right: 1px solid var(--el-border-color);
   border-bottom: 1px solid var(--el-border-color);
-  border-top-right-radius: var(--gp-radius-md);
-  border-bottom-right-radius: var(--gp-radius-md);
+  border-top-right-radius: var(--el-border-radius-medium);
+  border-bottom-right-radius: var(--el-border-radius-medium);
 
   &__empty {
     display: flex;

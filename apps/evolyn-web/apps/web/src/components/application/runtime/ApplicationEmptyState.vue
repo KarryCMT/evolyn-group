@@ -56,7 +56,7 @@ const emit = defineEmits<{
   padding: var(--el-space-6xl) var(--el-space-3xl) 64px;
   flex: 1;
   place-items: center;
-  background: #f7f8fa;
+  background: var(--el-bg-color-page);
 
   &__content {
     width: min(100%, 1140px);

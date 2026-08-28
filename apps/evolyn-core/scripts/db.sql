@@ -401,7 +401,7 @@ CREATE TABLE IF NOT EXISTS applications (
     tenant_id BIGINT NOT NULL DEFAULT 1,
     code varchar(64) NOT NULL,
     name varchar(128) NOT NULL,
-    icon varchar(32) NOT NULL DEFAULT 'bookmark',
+    icon jsonb NOT NULL DEFAULT '{"type":"remix","name":"bookmark","background":"#f7be54, #eda426"}'::jsonb,
     color varchar(32) NOT NULL DEFAULT 'primary',
     owner_member_id BIGINT NOT NULL,
     creator_member_id BIGINT NOT NULL,
@@ -918,7 +918,7 @@ COMMENT ON COLUMN applications.id IS '自增主键';
 COMMENT ON COLUMN applications.tenant_id IS '所属租户 ID';
 COMMENT ON COLUMN applications.code IS '服务端生成的应用编码，租户内唯一（uk_applications_tenant_code，软删行释放），供 URL/外部引用/日志使用，创建后不可修改';
 COMMENT ON COLUMN applications.name IS '展示名称，允许同租户重名，不作业务主键';
-COMMENT ON COLUMN applications.icon IS '稳定图标键（bookmark/briefcase/contacts/chart/check），不存前端组件名';
+COMMENT ON COLUMN applications.icon IS '应用图标 JSONB：remix 为 type/name/background，自定义图标为 type/name';
 COMMENT ON COLUMN applications.color IS '稳定颜色键（primary），不存 CSS 字面值';
 COMMENT ON COLUMN applications.owner_member_id IS '应用所有者（租户成员 ID），同租户约束由服务层校验';
 COMMENT ON COLUMN applications.creator_member_id IS '创建者（租户成员 ID），成员删除后保留 ID 审计语义';

@@ -26,6 +26,7 @@ declare module 'vue' {
     ApplicationBasicSettingsPanel: typeof import('./components/application/setting/ApplicationBasicSettingsPanel.vue')['default']
     ApplicationContentPlaceholder: typeof import('./components/application/workspace/ApplicationContentPlaceholder.vue')['default']
     ApplicationEmptyState: typeof import('./components/application/runtime/ApplicationEmptyState.vue')['default']
+    ApplicationIconPicker: typeof import('./components/application/ApplicationIconPicker.vue')['default']
     ApplicationStarterCard: typeof import('./components/application/create/ApplicationStarterCard.vue')['default']
     ApplicationTemplateCard: typeof import('./components/application/create/ApplicationTemplateCard.vue')['default']
     ApplicationWorkspaceAssetItem: typeof import('./components/application/workspace/ApplicationWorkspaceAssetItem.vue')['default']

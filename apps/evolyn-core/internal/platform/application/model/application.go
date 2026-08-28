@@ -43,21 +43,21 @@ const (
 // Callback 过滤（嵌入 TenantBaseModel）。owner/creator 引用租户成员，
 // 同租户约束由 Service 层加载校验，禁止裸 ID 写入（§9.3）
 type Application struct {
-	ID                uint   `json:"id" gorm:"autoIncrement;primaryKey"`
-	Code              string `json:"code" gorm:"size:64;not null"`  // 服务端生成，租户内唯一（部分唯一索引兜底）
-	Name              string `json:"name" gorm:"size:128;not null"` // 展示名，允许同租户重名
-	Icon              string `json:"icon" gorm:"size:32;not null;default:bookmark"`
-	Color             string `json:"color" gorm:"size:32;not null;default:primary"`
-	OwnerMemberID     uint   `json:"ownerMemberId" gorm:"not null"` // 应用所有者（租户成员）
-	CreatorMemberID   uint   `json:"creatorMemberId" gorm:"not null"`
-	SourceType        string `json:"sourceType" gorm:"size:16;not null"`            // blank / template
-	Status            string `json:"status" gorm:"size:16;not null;default:active"` // active / archived
-	ProvisionStatus   string `json:"provisionStatus" gorm:"size:16;not null;default:ready"`
-	HomeMode          string `json:"homeMode" gorm:"size:16;not null;default:builder"` // builder / application
-	DefinitionVersion int    `json:"definitionVersion" gorm:"not null;default:1"`      // 应用定义版本，非乐观锁
-	MenuRevision      int64  `json:"menuRevision" gorm:"not null;default:1"`           // 菜单修订号：菜单写入乐观并发口令（000016），与发布演进独立
-	SortOrder         int64  `json:"sortOrder" gorm:"not null;default:0"`
-	Config            Config `json:"config" gorm:"type:jsonb;not null;default:'{}'"` // 小型应用级配置
+	ID                uint            `json:"id" gorm:"autoIncrement;primaryKey"`
+	Code              string          `json:"code" gorm:"size:64;not null"`  // 服务端生成，租户内唯一（部分唯一索引兜底）
+	Name              string          `json:"name" gorm:"size:128;not null"` // 展示名，允许同租户重名
+	Icon              ApplicationIcon `json:"icon" gorm:"type:jsonb;not null"`
+	Color             string          `json:"color" gorm:"size:32;not null;default:primary"`
+	OwnerMemberID     uint            `json:"ownerMemberId" gorm:"not null"` // 应用所有者（租户成员）
+	CreatorMemberID   uint            `json:"creatorMemberId" gorm:"not null"`
+	SourceType        string          `json:"sourceType" gorm:"size:16;not null"`            // blank / template
+	Status            string          `json:"status" gorm:"size:16;not null;default:active"` // active / archived
+	ProvisionStatus   string          `json:"provisionStatus" gorm:"size:16;not null;default:ready"`
+	HomeMode          string          `json:"homeMode" gorm:"size:16;not null;default:builder"` // builder / application
+	DefinitionVersion int             `json:"definitionVersion" gorm:"not null;default:1"`      // 应用定义版本，非乐观锁
+	MenuRevision      int64           `json:"menuRevision" gorm:"not null;default:1"`           // 菜单修订号：菜单写入乐观并发口令（000016），与发布演进独立
+	SortOrder         int64           `json:"sortOrder" gorm:"not null;default:0"`
+	Config            Config          `json:"config" gorm:"type:jsonb;not null;default:'{}'"` // 小型应用级配置
 
 	kernel.TenantBaseModel
 }

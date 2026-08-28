@@ -24,7 +24,7 @@ import type {
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { useApplicationHome } from '~/composables/useApplicationHome';
 import { useApplicationMenu } from '~/composables/useApplicationMenu';
-import type { ApplicationIcon } from '~/types';
+import { DEFAULT_APPLICATION_ICON, getApplicationIconName, type ApplicationIconKey } from '~/types';
 
 defineOptions({ name: 'ApplicationHomePage' });
 
@@ -50,7 +50,7 @@ const {
   reload: reloadMenu,
 } = useApplicationMenu(appCode);
 
-const iconByKey: Record<ApplicationIcon, Component> = {
+const iconByKey: Record<ApplicationIconKey, Component> = {
   bookmark: markRaw(RiBookmark3Fill),
   briefcase: markRaw(RiBriefcase4Fill),
   contacts: markRaw(RiContactsBook3Fill),
@@ -58,7 +58,11 @@ const iconByKey: Record<ApplicationIcon, Component> = {
   check: markRaw(RiCheckboxCircleFill),
 };
 
-const applicationIcon = computed(() => iconByKey[application.value?.icon ?? 'bookmark']);
+const applicationIcon = computed(
+  () =>
+    iconByKey[getApplicationIconName(application.value?.icon) as ApplicationIconKey] ??
+    iconByKey.bookmark,
+);
 const workspacePreviewEnabled = computed(() => route.query.workspace === 'form');
 // 首页形态以应用持久化状态为准；workspace 查询参数仅保留给当前表单设计器
 // 的回跳预览。当前成员无菜单权限时仍保留运行时壳，不会退回构建引导。
@@ -253,7 +257,7 @@ function reloadWorkspace() {
       <ApplicationWorkspaceShell
         v-else
         :application-name="applicationName"
-        :application-icon="application?.icon ?? 'bookmark'"
+        :application-icon="application?.icon ?? DEFAULT_APPLICATION_ICON"
         :assets="menuAssets"
         :active-asset="activeWorkspaceAsset"
         :mode="workspaceMode"

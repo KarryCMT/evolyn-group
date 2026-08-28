@@ -1,27 +1,60 @@
 package model
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
+
 	kernel "evolyn/internal/model"
 )
 
+// ApplicationIcon 是应用图标的 JSONB 载体。
+type ApplicationIcon struct {
+	Type       string `json:"type"`
+	Name       string `json:"name"`
+	Background string `json:"background,omitempty"`
+}
+
+// Value/Scan 让 GORM 将图标对象直接读写为 PostgreSQL JSONB。
+func (i ApplicationIcon) Value() (driver.Value, error) {
+	return json.Marshal(i)
+}
+
+func (i *ApplicationIcon) Scan(value any) error {
+	if value == nil {
+		*i = ApplicationIcon{}
+		return nil
+	}
+	var data []byte
+	switch raw := value.(type) {
+	case []byte:
+		data = raw
+	case string:
+		data = []byte(raw)
+	default:
+		return fmt.Errorf("unsupported application icon database value %T", value)
+	}
+	return json.Unmarshal(data, i)
+}
+
 // CreateBlankRequest 创建空白应用请求（POST /applications，§8.1）。
-// icon/color 为稳定枚举键，可省略由服务端取默认；租户/owner/code 等
+// icon/color 可省略由服务端取默认；租户/owner/code 等
 // 服务端字段一律不由客户端传入
 type CreateBlankRequest struct {
-	Name  string `json:"name" binding:"required" example:"测试应用"`
-	Icon  string `json:"icon" example:"bookmark"`
-	Color string `json:"color" example:"primary"`
+	Name  string           `json:"name" binding:"required" example:"测试应用"`
+	Icon  *ApplicationIcon `json:"icon"`
+	Color string           `json:"color" example:"primary"`
 }
 
 // UpdateApplicationRequest 更新应用请求（PATCH /applications/:id，§8.3）：
 // 白名单字段 name/icon/color/sortOrder/status，指针区分「未传」与「传空」。
 // status 仅允许 active↔archived 互转（归档/恢复，§5.4 复用 patch 动词）
 type UpdateApplicationRequest struct {
-	Name      *string `json:"name"`
-	Icon      *string `json:"icon"`
-	Color     *string `json:"color"`
-	SortOrder *int64  `json:"sortOrder"`
-	Status    *string `json:"status"`
+	Name      *string          `json:"name"`
+	Icon      *ApplicationIcon `json:"icon"`
+	Color     *string          `json:"color"`
+	SortOrder *int64           `json:"sortOrder"`
+	Status    *string          `json:"status"`
 }
 
 // ApplicationSource 来源摘要（出网子对象，§8.1）
@@ -43,7 +76,7 @@ type ApplicationDetail struct {
 	ID              uint                    `json:"id"`
 	Code            string                  `json:"code"`
 	Name            string                  `json:"name"`
-	Icon            string                  `json:"icon"`
+	Icon            ApplicationIcon         `json:"icon"`
 	Color           string                  `json:"color"`
 	Source          ApplicationSource       `json:"source"`
 	Status          string                  `json:"status"`

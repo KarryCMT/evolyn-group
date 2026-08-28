@@ -103,7 +103,7 @@ func (f *fakeAppRepo) setField(app *model.Application, key string, value interfa
 	case "name":
 		app.Name = value.(string)
 	case "icon":
-		app.Icon = value.(string)
+		app.Icon = value.(model.ApplicationIcon)
 	case "color":
 		app.Color = value.(string)
 	case "status":
@@ -312,7 +312,7 @@ func TestCreateBlankValidation(t *testing.T) {
 	}{
 		{"空名称", model.CreateBlankRequest{Name: "  "}, apperrors.ErrNameInvalid},
 		{"名称超长", model.CreateBlankRequest{Name: string(make([]byte, 129))}, apperrors.ErrNameInvalid},
-		{"非法图标", model.CreateBlankRequest{Name: "应用", Icon: "RiBookmarkFill"}, apperrors.ErrIconInvalid},
+		{"非法图标", model.CreateBlankRequest{Name: "应用", Icon: &model.ApplicationIcon{Type: "remix", Name: "RiBookmarkFill"}}, apperrors.ErrIconInvalid},
 		{"非法颜色", model.CreateBlankRequest{Name: "应用", Color: "#409eff"}, apperrors.ErrColorInvalid},
 	}
 	for _, tc := range cases {
@@ -344,13 +344,13 @@ func TestCreateBlankSuccess(t *testing.T) {
 	audit := &fakeAudit{}
 	svc := newTestService(repo, fakeQuota{}, audit, fakeAccess{perms: fullPerms()})
 
-	detail, err := svc.CreateBlank(alphaCtx(), alphaMember(), &model.CreateBlankRequest{Name: " 客户管理 ", Icon: "", Color: ""})
+	detail, err := svc.CreateBlank(alphaCtx(), alphaMember(), &model.CreateBlankRequest{Name: " 客户管理 ", Color: ""})
 	assert.NoError(t, err)
 
 	// 应用记录：blank/self 语义 + 同步 ready；名称去空格、外观取默认
 	assert.NotEmpty(t, detail.ID)
 	assert.Equal(t, "客户管理", detail.Name)
-	assert.Equal(t, "bookmark", detail.Icon)
+	assert.Equal(t, model.ApplicationIcon{Type: "remix", Name: "bookmark", Background: "#f7be54,#eda426"}, detail.Icon)
 	assert.Equal(t, "primary", detail.Color)
 	assert.Equal(t, model.SourceTypeBlank, detail.Source.Type)
 	assert.Equal(t, model.InstallChannelSelf, detail.Source.Channel)

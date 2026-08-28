@@ -5,7 +5,8 @@ interface UploadSession {
   upload: { method: string; url: string; headers: Record<string, string> };
 }
 
-export async function uploadAvatar(file: File): Promise<string> {
+/** 上传通用私有文件并返回统一内容地址。 */
+export async function uploadFile(file: File): Promise<string> {
   const session = await http.post<UploadSession>('/files/uploads', {
     filename: file.name,
     contentType: file.type,
@@ -16,7 +17,12 @@ export async function uploadAvatar(file: File): Promise<string> {
     headers: session.upload.headers,
     body: file,
   });
-  if (!response.ok) throw new Error('头像文件上传失败');
+  if (!response.ok) throw new Error('文件上传失败');
   await http.post(`/files/${session.fileId}/complete`);
   return `/api/v1/files/${session.fileId}/content`;
+}
+
+/** 兼容既有账号头像调用。 */
+export function uploadAvatar(file: File): Promise<string> {
+  return uploadFile(file);
 }

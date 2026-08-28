@@ -33,16 +33,17 @@ const (
 	defaultListLimit = 20
 	maxListLimit     = 100
 	maxNameRunes     = 128
+	maxIconLength    = 512
 
-	defaultIcon  = "bookmark"
-	defaultColor = "primary"
+	defaultIcon           = "bookmark"
+	defaultIconBackground = "#f7be54,#eda426"
+	defaultColor          = "primary"
 )
 
 // 稳定外观枚举（§15）：图标/颜色键是应用域领域值，服务端白名单校验，
 // 空值取默认。图标集对齐前端空白应用弹窗首期选项；扩展键属于服务端
 // 演进决策，前端只回传键值不自造
 var (
-	applicationIcons  = set.NewString("bookmark", "briefcase", "contacts", "chart", "check")
 	applicationColors = set.NewString("primary")
 )
 
@@ -140,7 +141,7 @@ func (s *applicationService) CreateBlank(ctx context.Context, member *iammodel.U
 // 先锁租户行再判 apps 限额，通过后 fn 于同一事务写入应用与安装记录，
 // 任一步失败由外层整体回滚（不留配额占位或半写状态）
 func (s *applicationService) provisionBlank(
-	ctx context.Context, tenantID uint, member *iammodel.User, name, icon, color string,
+	ctx context.Context, tenantID uint, member *iammodel.User, name string, icon model.ApplicationIcon, color string,
 ) (*model.Application, *model.Installation, error) {
 	var (
 		app  *model.Application
@@ -315,10 +316,11 @@ func (s *applicationService) Update(ctx context.Context, member *iammodel.User, 
 		fields["name"] = name
 	}
 	if req.Icon != nil {
-		if !applicationIcons.Has(*req.Icon) {
-			return nil, httpx.Wrap(apperrors.ErrIconInvalid, fmt.Errorf("unknown icon %q", *req.Icon))
+		icon, err := normalizeIcon(req.Icon)
+		if err != nil {
+			return nil, err
 		}
-		fields["icon"] = *req.Icon
+		fields["icon"] = icon
 	}
 	if req.Color != nil {
 		if !applicationColors.Has(*req.Color) {
@@ -488,25 +490,53 @@ func isProvisioning(app *model.Application) bool {
 }
 
 // normalizeAppearance 创建期外观校验：name 去空格后 1–128 字符（按字符
-// 数计，CJK 安全）；icon/color 空值取默认、非空必须命中枚举
-func normalizeAppearance(name, icon, color string) (string, string, string, error) {
+// 数计，CJK 安全）；icon/color 空值取默认、图标按对象协议校验
+func normalizeAppearance(name string, icon *model.ApplicationIcon, color string) (string, model.ApplicationIcon, string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" || utf8.RuneCountInString(name) > maxNameRunes {
-		return "", "", "", httpx.Wrap(apperrors.ErrNameInvalid, fmt.Errorf("invalid name length"))
+		return "", model.ApplicationIcon{}, "", httpx.Wrap(apperrors.ErrNameInvalid, fmt.Errorf("invalid name length"))
 	}
-	if icon == "" {
-		icon = defaultIcon
-	}
-	if !applicationIcons.Has(icon) {
-		return "", "", "", httpx.Wrap(apperrors.ErrIconInvalid, fmt.Errorf("unknown icon %q", icon))
+	storedIcon, err := normalizeIcon(icon)
+	if err != nil {
+		return "", model.ApplicationIcon{}, "", err
 	}
 	if color == "" {
 		color = defaultColor
 	}
 	if !applicationColors.Has(color) {
-		return "", "", "", httpx.Wrap(apperrors.ErrColorInvalid, fmt.Errorf("unknown color %q", color))
+		return "", model.ApplicationIcon{}, "", httpx.Wrap(apperrors.ErrColorInvalid, fmt.Errorf("unknown color %q", color))
 	}
-	return name, icon, color, nil
+	return name, storedIcon, color, nil
+}
+
+// normalizeIcon 校验图标对象。系统图标的 name 是静态 Remix 图标键；
+// 自定义图标的 name 是既有文件服务内容地址。
+func normalizeIcon(icon *model.ApplicationIcon) (model.ApplicationIcon, error) {
+	payload := defaultIconPayload()
+	if icon != nil {
+		payload = *icon
+	}
+	switch payload.Type {
+	case "remix":
+		if payload.Name == "" || len(payload.Name) > 64 || !strings.Contains(payload.Background, ",") {
+			return model.ApplicationIcon{}, httpx.Wrap(apperrors.ErrIconInvalid, fmt.Errorf("invalid remix icon"))
+		}
+	case "custom":
+		if !strings.HasPrefix(payload.Name, "/api/v1/files/") || !strings.HasSuffix(payload.Name, "/content") {
+			return model.ApplicationIcon{}, httpx.Wrap(apperrors.ErrIconInvalid, fmt.Errorf("invalid custom icon"))
+		}
+	default:
+		return model.ApplicationIcon{}, httpx.Wrap(apperrors.ErrIconInvalid, fmt.Errorf("unknown icon type"))
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil || len(encoded) > maxIconLength {
+		return model.ApplicationIcon{}, httpx.Wrap(apperrors.ErrIconInvalid, fmt.Errorf("icon too long"))
+	}
+	return payload, nil
+}
+
+func defaultIconPayload() model.ApplicationIcon {
+	return model.ApplicationIcon{Type: "remix", Name: defaultIcon, Background: defaultIconBackground}
 }
 
 // memberID/memberTenant 安全取值（member 可能为 nil）

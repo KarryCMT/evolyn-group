@@ -279,8 +279,22 @@ export interface AppConf {
 
 // ---------- 应用管理域 API 契约（M2-A，与 evolyn-core application 域对齐） ----------
 
-/** 应用稳定图标键（服务端枚举，与空白应用弹窗图标集一致） */
-export type ApplicationIcon = 'bookmark' | 'briefcase' | 'contacts' | 'chart' | 'check';
+/** 历史图标键，仅用于旧页面的回退渲染。 */
+export type ApplicationIconKey = 'bookmark' | 'briefcase' | 'contacts' | 'chart' | 'check';
+
+/** 应用图标：系统 Remix 图标或自定义文件地址。 */
+export type ApplicationIcon = EvolynIconPickerValue;
+
+export const DEFAULT_APPLICATION_ICON: ApplicationIcon = {
+  type: 'remix',
+  name: 'bookmark',
+  background: '#f7be54,#eda426',
+};
+
+/** 旧图标展示入口使用该键回退，完整图标渲染由 ApplicationIconPicker 负责。 */
+export function getApplicationIconName(icon: ApplicationIcon | undefined): string {
+  return icon?.type === 'remix' ? icon.name : 'bookmark';
+}
 
 /** 应用稳定颜色键（服务端枚举，渲染时映射主题色变量） */
 export type ApplicationColor = 'primary';
@@ -515,3 +529,4 @@ export interface FormRuntimeBootstrap {
 export interface FormRecordSubmitResult {
   recordId: number;
 }
+import type { EvolynIconPickerValue } from '@evolyn.do/ui';

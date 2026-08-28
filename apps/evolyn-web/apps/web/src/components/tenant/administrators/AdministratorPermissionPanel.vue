@@ -6,6 +6,7 @@ import { getDepartmentTree, type DepartmentDto } from '~/api/department';
 import { listMembers } from '~/api/member';
 import { getOrganizationRoleTree } from '~/api/role';
 import { useAuth } from '~/composables/auth';
+import type { ApplicationIcon } from '~/types';
 import AddressBookManagementDrawer from './AddressBookManagementDrawer.vue';
 import AdministratorApplicationPickerDialog from './AdministratorApplicationPickerDialog.vue';
 import AdministratorMemberPickerDialog from './AdministratorMemberPickerDialog.vue';
@@ -43,7 +44,7 @@ const tenantOwnerAccountId = computed(() => userInfo.value?.tenant.ownerAccountI
 const members = shallowRef<AdministratorPickerMember[]>([]);
 const departments = shallowRef<DepartmentDto[]>([]);
 const roles = shallowRef<{ id: number; name: string }[]>([]);
-const applications = shallowRef<{ id: number; name: string; icon: string }[]>([]);
+const applications = shallowRef<{ id: number; name: string; icon: ApplicationIcon }[]>([]);
 
 /** 部门/角色 ID → 名称（清单 chip 展示用）。 */
 const departmentNameById = computed(() => {

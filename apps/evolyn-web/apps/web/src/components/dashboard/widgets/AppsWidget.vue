@@ -17,7 +17,7 @@ import { createBlankApplication, listApplications } from '~/api/applications';
 import CreateApplicationDialog from '~/components/application/create/CreateApplicationDialog.vue';
 import type { BlankApplicationDraft } from '~/components/application/create/BlankApplicationDialog.vue';
 import type { DashboardWidgetContent } from '~/types/dashboard';
-import type { ApplicationIcon, ApplicationItem } from '~/types';
+import { getApplicationIconName, type ApplicationIconKey, type ApplicationItem } from '~/types';
 
 defineOptions({ name: 'AppsWidget' });
 const props = withDefaults(
@@ -30,7 +30,7 @@ const props = withDefaults(
 const router = useRouter();
 
 // 图标键 → Remix Fill 图标（键值与后端服务端枚举一致，不存组件名）
-const iconByKey: Record<ApplicationIcon, Component> = {
+const iconByKey: Record<ApplicationIconKey, Component> = {
   bookmark: markRaw(RiBookmark3Fill),
   briefcase: markRaw(RiBriefcase4Fill),
   contacts: markRaw(RiContactsBook3Fill),
@@ -123,7 +123,12 @@ onMounted(() => {
         @click="openApplication(app)"
       >
         <span class="apps-widget__icon" :class="`apps-widget__icon--${app.color}`">
-          <component :is="iconByKey[app.icon] ?? iconByKey.bookmark" />
+          <component
+            :is="
+              iconByKey[getApplicationIconName(app.icon) as ApplicationIconKey] ??
+              iconByKey.bookmark
+            "
+          />
         </span>
         <span class="apps-widget__item-name" :title="app.name">{{ app.name }}</span>
       </el-button>

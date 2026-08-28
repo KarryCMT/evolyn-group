@@ -58,6 +58,7 @@
     "@tanstack/vue-virtual": "catalog:ui",
     "@visactor/vtable": "catalog:frontend",
     "@visactor/vchart": "catalog:frontend",
+    "cropperjs": "catalog:frontend",
     "gridstack": "catalog:frontend"
   }
 }

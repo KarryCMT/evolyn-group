@@ -71,8 +71,8 @@ const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
   border-top: 1px solid var(--el-border-color);
   border-bottom: 1px solid var(--el-border-color);
   border-left: 1px solid var(--el-border-color);
-  border-top-left-radius: var(--gp-radius-md);
-  border-bottom-left-radius: var(--gp-radius-md);
+  border-top-left-radius: var(--el-border-radius-medium);
+  border-bottom-left-radius: var(--el-border-radius-medium);
 
   &__group-title {
     margin: 0 0 var(--el-space-md);
@@ -99,7 +99,7 @@ const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
     cursor: pointer;
     background-color: var(--el-bg-color);
     border: 1px solid var(--el-border-color-lighter);
-    border-radius: var(--gp-radius-md);
+    border-radius: var(--el-border-radius-medium);
     transition:
       background-color 0.16s ease,
       border-color 0.16s ease;

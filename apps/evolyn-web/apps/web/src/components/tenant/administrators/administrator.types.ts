@@ -4,6 +4,7 @@ import type {
   AdminGroupSummaryDto,
   AdminScopeMode,
 } from '~/api/adminGroup';
+import type { ApplicationIcon } from '~/types';
 
 /** 管理组类型：system=系统管理员页，application=灵衍云管理员页。 */
 export type AdministratorScope = 'system' | 'application';
@@ -40,5 +41,5 @@ export type AdministratorScopeTarget = 'department' | 'role';
 export interface AdministratorApplication {
   id: number;
   name: string;
-  icon: string;
+  icon: ApplicationIcon;
 }

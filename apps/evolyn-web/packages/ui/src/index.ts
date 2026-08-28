@@ -2,8 +2,11 @@ import type { App } from 'vue';
 import {
   EvolynButton,
   EvolynChart,
+  EvolynDialog,
   EvolynGrid,
+  EvolynIconPicker,
   EvolynMemberDepartmentRolePicker,
+  EvolynScrollbar,
   EvolynTable,
 } from './components';
 
@@ -12,8 +15,11 @@ export { version } from './version';
 const components = [
   EvolynButton,
   EvolynChart,
+  EvolynDialog,
   EvolynGrid,
+  EvolynIconPicker,
   EvolynMemberDepartmentRolePicker,
+  EvolynScrollbar,
   EvolynTable,
 ];
 
