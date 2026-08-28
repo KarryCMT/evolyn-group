@@ -171,7 +171,6 @@ function notifyUnavailable() {}
     </div>
   </header>
   <MessageCenterDrawer v-model="messageCenterVisible" />
-  />
 </template>
 
 <style scoped lang="scss">

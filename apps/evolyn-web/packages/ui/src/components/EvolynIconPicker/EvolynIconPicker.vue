@@ -14,6 +14,8 @@ import type {
 defineOptions({ name: 'EvolynIconPicker' });
 
 const props = withDefaults(defineProps<EvolynIconPickerProps>(), {
+  displayOnly: false,
+  size: 56,
   systemIcons: () => defaultSystemIcons,
   colors: () => defaultIconColors,
   outputSize: 200,
@@ -31,6 +33,27 @@ const objectUrl = shallowRef('');
 const imageInput = useTemplateRef<HTMLInputElement>('imageInput');
 const cropImage = useTemplateRef<HTMLImageElement>('cropImage');
 const selectedBackground = computed(() => `linear-gradient(135deg, ${activeBackground.value})`);
+const displayValue = computed<EvolynIconPickerValue | undefined>(() => {
+  if (modelValue.value) return modelValue.value;
+  const defaultIcon = props.systemIcons[0];
+  const defaultBackground = props.colors[0]?.background;
+  if (!defaultIcon || !defaultBackground) return undefined;
+  return { type: 'remix', name: defaultIcon.name, background: defaultBackground };
+});
+const displaySystemIcon = computed(() => {
+  if (displayValue.value?.type !== 'remix') return undefined;
+  return props.systemIcons.find((option) => option.name === displayValue.value?.name)?.icon;
+});
+const displayStyle = computed(() => {
+  const size = typeof props.size === 'number' ? `${props.size}px` : props.size;
+  return displayValue.value?.type === 'remix'
+    ? {
+        width: size,
+        height: size,
+        backgroundImage: `linear-gradient(135deg, ${displayValue.value.background})`,
+      }
+    : { width: size, height: size };
+});
 
 function revokePreview() {
   cropper.value?.destroy();
@@ -149,7 +172,17 @@ onBeforeUnmount(revokePreview);
 </script>
 
 <template>
-  <section class="evolyn-icon-picker" aria-label="应用图标选择器">
+  <div
+    v-if="props.displayOnly"
+    class="evolyn-icon-picker__display"
+    :style="displayStyle"
+    role="img"
+    aria-label="应用图标"
+  >
+    <img v-if="displayValue?.type === 'custom'" :src="displayValue.name" alt="" />
+    <component v-else-if="displaySystemIcon" :is="displaySystemIcon" aria-hidden="true" />
+  </div>
+  <section v-else class="evolyn-icon-picker" aria-label="应用图标选择器">
     <div class="evolyn-icon-picker__tabs" role="tablist" aria-label="图标类型">
       <button
         class="evolyn-icon-picker__tab"

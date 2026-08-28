@@ -1,23 +1,16 @@
 <script setup lang="ts">
-import {
-  RiAddFill,
-  RiBookmark3Fill,
-  RiBriefcase4Fill,
-  RiCheckboxCircleFill,
-  RiContactsBook3Fill,
-  RiPieChart2Fill,
-  RiSearchFill,
-} from '@remixicon/vue';
+import { RiAddFill, RiSearchFill } from '@remixicon/vue';
 import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
+import { EvolynIconPicker } from '@evolyn.do/ui';
 import { ApiError, ERROR_CODES } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
-import { computed, markRaw, onMounted, ref, shallowRef, type Component } from 'vue';
+import { computed, onMounted, ref, shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
 import { createBlankApplication, listApplications } from '~/api/applications';
 import CreateApplicationDialog from '~/components/application/create/CreateApplicationDialog.vue';
 import type { BlankApplicationDraft } from '~/components/application/create/BlankApplicationDialog.vue';
 import type { DashboardWidgetContent } from '~/types/dashboard';
-import { getApplicationIconName, type ApplicationIconKey, type ApplicationItem } from '~/types';
+import type { ApplicationItem } from '~/types';
 
 defineOptions({ name: 'AppsWidget' });
 const props = withDefaults(
@@ -28,15 +21,6 @@ const props = withDefaults(
   { editorMode: false },
 );
 const router = useRouter();
-
-// 图标键 → Remix Fill 图标（键值与后端服务端枚举一致，不存组件名）
-const iconByKey: Record<ApplicationIconKey, Component> = {
-  bookmark: markRaw(RiBookmark3Fill),
-  briefcase: markRaw(RiBriefcase4Fill),
-  contacts: markRaw(RiContactsBook3Fill),
-  chart: markRaw(RiPieChart2Fill),
-  check: markRaw(RiCheckboxCircleFill),
-};
 
 const apps = ref<ApplicationItem[]>([]);
 const loading = shallowRef(false);
@@ -115,23 +99,22 @@ onMounted(() => {
         description="暂无应用，点击「新建应用」开始"
         :image-size="56"
       />
-      <el-button
+      <!-- 原生按钮避免 Element Plus 包装插槽内容，保证图标与名称的固定纵向布局。 -->
+      <button
         v-for="app in filteredApps"
         :key="app.id"
         class="apps-widget__item"
-        text
+        type="button"
         @click="openApplication(app)"
       >
-        <span class="apps-widget__icon" :class="`apps-widget__icon--${app.color}`">
-          <component
-            :is="
-              iconByKey[getApplicationIconName(app.icon) as ApplicationIconKey] ??
-              iconByKey.bookmark
-            "
-          />
-        </span>
+        <EvolynIconPicker
+          class="apps-widget__icon"
+          :model-value="app.icon"
+          display-only
+          :size="48"
+        />
         <span class="apps-widget__item-name" :title="app.name">{{ app.name }}</span>
-      </el-button>
+      </button>
     </div>
   </DashboardWidgetFrame>
   <CreateApplicationDialog v-model="createApplicationVisible" :submit-blank="handleCreateBlank" />
@@ -139,10 +122,11 @@ onMounted(() => {
 
 <style scoped lang="scss">
 .apps-widget {
-  display: flex;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  align-content: start;
   height: 100%;
-  gap: var(--el-space-3xl);
+  gap: var(--el-space-4xl) var(--el-space-2xl);
 
   &__empty {
     width: 100%;
@@ -152,21 +136,40 @@ onMounted(() => {
 
   &__actions {
     display: flex;
-    width: 320px;
+    width: min(320px, calc(100vw - 132px));
+    min-width: 0;
     gap: var(--el-space-md);
+
+    :deep(.el-input) {
+      min-width: 0;
+    }
+
+    :deep(.el-button) {
+      flex: none;
+    }
   }
 
   &__item {
-    display: inline-flex;
-    max-width: 120px;
+    display: flex;
+    box-sizing: border-box;
+    width: 100%;
+    height: 96px;
+    min-width: 0;
     flex-direction: column;
-    height: auto;
-    margin: 0;
+    align-items: center;
+    justify-content: flex-start;
+    padding: var(--el-space-md);
+    border: 0;
     color: var(--el-text-color-primary);
     line-height: 1.5;
+    border-radius: var(--el-border-radius-base);
+    cursor: pointer;
+    background: transparent;
+    font: inherit;
 
     &:hover {
       color: var(--el-color-primary);
+      background: var(--el-color-primary-light-9);
     }
   }
 
@@ -178,20 +181,29 @@ onMounted(() => {
   }
 
   &__icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
+    flex: 0 0 48px;
     margin-bottom: var(--el-space-md);
-    color: var(--el-color-white);
-    border-radius: var(--el-border-radius-base);
-    font-size: var(--el-font-size-medium);
+  }
+}
 
-    // 颜色键映射主题色变量（后端稳定枚举，禁止字面量色值）
-    &--primary {
-      background: var(--el-color-primary);
+@media (max-width: 640px) {
+  .apps-widget {
+    grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+    gap: var(--el-space-3xl) var(--el-space-lg);
+
+    &__item {
+      height: 88px;
+      padding: var(--el-space-sm);
+    }
+
+    &__icon {
+      margin-bottom: var(--el-space-sm);
     }
   }
+}
+
+// 暗黑主题下主色浅阶未必是深色表面，悬停改用随主题切换的中性填充色。
+:global(html.dark) .apps-widget__item:hover {
+  background: var(--el-fill-color-light);
 }
 </style>

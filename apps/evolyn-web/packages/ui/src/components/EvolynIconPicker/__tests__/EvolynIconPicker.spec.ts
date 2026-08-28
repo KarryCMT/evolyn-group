@@ -20,4 +20,14 @@ describe('EvolynIconPicker', () => {
 
     expect(wrapper.find('.evolyn-icon-picker__upload-empty').exists()).toBe(true);
   });
+
+  it('仅展示模式不渲染任何选择交互，并使用默认图标兜底', () => {
+    const wrapper = mount(EvolynIconPicker, { props: { displayOnly: true, size: 40 } });
+
+    expect(wrapper.find('.evolyn-icon-picker__display').attributes('style')).toContain(
+      'width: 40px',
+    );
+    expect(wrapper.find('.evolyn-icon-picker__tabs').exists()).toBe(false);
+    expect(wrapper.find('.evolyn-icon-picker__display svg').exists()).toBe(true);
+  });
 });

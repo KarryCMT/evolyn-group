@@ -81,7 +81,6 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
     </div>
   </header>
   <MessageCenterDrawer v-model="messageCenterVisible" />
-  />
 </template>
 
 <style scoped lang="scss">

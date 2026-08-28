@@ -19,6 +19,10 @@ export type EvolynIconPickerValue =
   | { type: 'custom'; name: string };
 
 export interface EvolynIconPickerProps {
+  /** 仅展示图标，不提供选择、上传或裁剪等交互；未传值时展示内置默认图标。 */
+  displayOnly?: boolean;
+  /** 仅展示模式下图标的边长，数字按 px 处理，默认 56。 */
+  size?: number | string;
   /** 可选的系统图标；默认提供常用的 Remix Fill 图标。 */
   systemIcons?: EvolynIconPickerSystemIcon[];
   /** 图标卡片可选背景；默认提供六组产品内置渐变。 */
