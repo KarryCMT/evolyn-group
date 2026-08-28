@@ -1,5 +1,5 @@
 <template>
-  <div class="form-schema-canvas">
+  <EvolynScrollbar class="form-schema-canvas">
     <Draggable
       :list="items"
       :group="{ name: FORM_SCHEMA_DRAG_GROUP, pull: true, put: true }"
@@ -78,10 +78,11 @@
     <div v-if="items.length === 0" class="form-schema-canvas__empty" role="status">
       从左侧选择字段或将字段拖入画布
     </div>
-  </div>
+  </EvolynScrollbar>
 </template>
 
 <script setup lang="ts">
+import { EvolynScrollbar } from '@evolyn.do/ui';
 import { ElIcon, ElPopconfirm } from 'element-plus';
 import { CopyDocument, Delete } from '@element-plus/icons-vue';
 import Draggable from 'vuedraggable';
@@ -155,20 +156,16 @@ const fieldSpanStyle = (item: FormItem) => {
   display: flex;
   flex: 1;
   flex-direction: column;
-  min-height: 100%;
+  min-height: 0;
   padding: var(--el-space-2xl);
-  overflow-y: auto;
   border-top: 1px solid var(--el-border-color);
-  border-bottom: 1px solid var(--el-border-color);
-  border-top-right-radius: var(--el-border-radius-medium);
-  border-bottom-right-radius: var(--el-border-radius-medium);
 
   &__list {
     display: flex;
     flex: 1;
     flex-direction: column;
     align-items: flex-start;
-    min-height: 100%;
+    min-height: 0;
     padding-bottom: var(--el-space-4xl);
 
     // 单层虚线投影明确提示字段最终插入位置。
@@ -233,8 +230,8 @@ const fieldSpanStyle = (item: FormItem) => {
     }
 
     &.is-active {
-      background-color: var(--el-color-primary-light-1);
-      border-color: var(--el-color-primary-light-2);
+      background-color: var(--el-color-primary-light-3);
+      border-color: var(--el-color-primary);
     }
 
     &.is-label-empty .form-schema-canvas__item-header {

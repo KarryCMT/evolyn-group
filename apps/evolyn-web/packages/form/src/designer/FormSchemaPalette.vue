@@ -1,5 +1,5 @@
 <template>
-  <aside class="form-schema-palette" aria-label="字段素材面板">
+  <EvolynScrollbar class="form-schema-palette" aria-label="字段素材面板">
     <section v-for="group in groups" :key="group.key" class="form-schema-palette__group">
       <p class="form-schema-palette__group-title">{{ group.title }}</p>
       <Draggable
@@ -25,10 +25,11 @@
         </template>
       </Draggable>
     </section>
-  </aside>
+  </EvolynScrollbar>
 </template>
 
 <script setup lang="ts">
+import { EvolynScrollbar } from '@evolyn.do/ui';
 import { ElIcon } from 'element-plus';
 import Draggable from 'vuedraggable';
 import { FORM_SCHEMA_DRAG_GROUP, type FormSchemaPaletteDrag } from './palette';
@@ -66,13 +67,9 @@ const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
   gap: var(--el-space-lg);
   width: 152px;
   padding: var(--el-space-xl) var(--el-space-lg);
-  overflow-y: auto;
   background-color: var(--el-bg-color);
   border-top: 1px solid var(--el-border-color);
-  border-bottom: 1px solid var(--el-border-color);
-  border-left: 1px solid var(--el-border-color);
-  border-top-left-radius: var(--el-border-radius-medium);
-  border-bottom-left-radius: var(--el-border-radius-medium);
+  border-right: 1px solid var(--el-border-color);
 
   &__group-title {
     margin: 0 0 var(--el-space-md);

@@ -391,7 +391,6 @@ function notifyUnavailable(action: string) {
     min-height: 50px;
     padding: 0 var(--el-space-xl) 0 var(--el-space-3xl);
     justify-content: space-between;
-    border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
   &__title {

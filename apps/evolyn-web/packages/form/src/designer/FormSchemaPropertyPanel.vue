@@ -9,7 +9,7 @@
       <span class="form-schema-property__title">{{ item.label || typeLabel }}</span>
     </header>
 
-    <el-scrollbar class="form-schema-property__body">
+    <EvolynScrollbar class="form-schema-property__body">
       <el-form label-position="top" size="default" @submit.prevent>
         <!-- —— 公共属性（字段字典 §2） —— -->
         <el-form-item label="字段名称">
@@ -240,13 +240,14 @@
           该控件的专属配置已按协议保存，运行能力随后续版本开放。
         </p>
       </el-form>
-    </el-scrollbar>
+    </EvolynScrollbar>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
 import { RiAddFill, RiDeleteBin6Fill } from '@remixicon/vue';
+import { EvolynScrollbar } from '@evolyn.do/ui';
 import {
   ElButton,
   ElForm,
@@ -256,7 +257,6 @@ import {
   ElOption,
   ElRadioButton,
   ElRadioGroup,
-  ElScrollbar,
   ElSelect,
   ElSwitch,
 } from 'element-plus';
@@ -313,10 +313,7 @@ function removeOption(index: number): void {
   width: 264px;
   background-color: var(--el-bg-color);
   border-top: 1px solid var(--el-border-color);
-  border-right: 1px solid var(--el-border-color);
-  border-bottom: 1px solid var(--el-border-color);
-  border-top-right-radius: var(--el-border-radius-medium);
-  border-bottom-right-radius: var(--el-border-radius-medium);
+  border-left: 1px solid var(--el-border-color);
 
   &__empty {
     display: flex;
