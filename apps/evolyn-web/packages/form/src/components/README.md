@@ -11,7 +11,7 @@
 | `FormSchemaPalette.vue`       | 字段素材面板  | 按分组展示控件入口（P2 仅基础 9 类可添加，其余分组置灰），支持点击添加与拖拽克隆到画布。                  |
 | `FormSchemaCanvas.vue`        | 字段设计画布  | 目标协议 items 的拖拽排序、选择、复制、删除与落点插入；预览态按 lineWidth 收敛宽度。                      |
 | `FormSchemaItemPreview.vue`   | 字段预览控件  | 按 widget.type 渲染画布内禁用态预览（Element Plus 控件）。                                                |
-| `FormSchemaPropertyPanel.vue` | 字段属性面板  | 编辑公共属性（label/description/allowBlank/enable/visible/labelHidden/lineWidth）与按类型分派的专属配置。 |
+| `FormSchemaPropertyPanel.vue` | 属性配置面板  | 通过「字段属性 / 表单属性」切换：字段页编辑公共属性（label/description/allowBlank/enable/visible/labelHidden/lineWidth）与按类型分派的专属配置；表单页编辑资产名称。 |
 | `useFormSchemaEditor.ts`      | 编辑状态 hook | 页面唯一持有 content.items；增删/复制/选中/重命名动作收口；持久化由页面接草稿接口。                       |
 | `palette.ts`                  | 拖拽契约      | 素材面板与画布共享的拖拽分组名与临时对象标记。                                                            |
 

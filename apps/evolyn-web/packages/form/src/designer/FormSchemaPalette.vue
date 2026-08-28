@@ -65,7 +65,7 @@ const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
   display: flex;
   flex-direction: column;
   gap: var(--el-space-lg);
-  width: 152px;
+  width: 264px;
   padding: var(--el-space-xl) var(--el-space-lg);
   background-color: var(--el-bg-color);
   border-top: 1px solid var(--el-border-color);
@@ -79,7 +79,9 @@ const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
   }
 
   &__list {
-    min-height: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--el-space-md);
   }
 
   &__item {
@@ -88,10 +90,10 @@ const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
     align-items: center;
     justify-content: flex-start;
     width: 100%;
-    min-height: 34px;
-    padding: 0 var(--el-space-xl);
-    margin-bottom: var(--el-space-lg);
-    font-size: var(--el-font-size-base);
+    min-height: 32px;
+    padding: 0 var(--el-space-lg);
+    margin-bottom: 0;
+    font-size: var(--el-font-size-extra-small);
     color: var(--el-text-color-primary);
     cursor: pointer;
     background-color: var(--el-bg-color);
@@ -104,8 +106,8 @@ const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
     &:hover:not(:disabled) {
       color: var(--el-color-primary);
       cursor: move;
-      background-color: var(--el-color-primary-light-1);
-      border-color: var(--el-color-primary-light-3);
+      background-color: var(--el-color-primary-light-3);
+      border-color: var(--el-color-primary);
 
       .el-icon {
         color: var(--el-color-primary);
