@@ -161,7 +161,7 @@ function emitSchema(widgets: DashboardWidget<TType>[]) {
   width: 100%;
   min-height: 0;
   overflow: hidden;
-  background: #f3f3f8;
+  background: var(--el-bg-color-page);
 
   &__scroll {
     width: 100%;

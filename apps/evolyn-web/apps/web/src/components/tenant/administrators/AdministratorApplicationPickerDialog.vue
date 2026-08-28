@@ -189,7 +189,7 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
     align-items: center;
     gap: var(--el-space-md);
     color: #687383;
-    background: #f5f6f8;
+    background: var(--el-bg-color-page);
   }
   &__search svg {
     width: 20px;

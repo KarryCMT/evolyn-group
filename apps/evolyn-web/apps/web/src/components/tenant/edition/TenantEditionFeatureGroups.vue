@@ -95,12 +95,12 @@ const emit = defineEmits<{
 
     &--available::before {
       border-color: var(--el-color-primary);
-      background: #ebfaff;
+      background: var(--el-bg-color-page);
     }
 
     &--disabled::before {
       border-color: var(--el-text-color-secondary);
-      background: #f4f5f7;
+      background: var(--el-bg-color-page);
     }
   }
 
@@ -149,7 +149,7 @@ const emit = defineEmits<{
     place-items: center;
     border-radius: var(--el-border-radius-half);
     color: #10b7e4;
-    background: #eaf9fd;
+    background: var(--el-bg-color-page);
 
     svg {
       width: 22px;

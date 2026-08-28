@@ -175,7 +175,7 @@ function save() {
   height: 52px;
   place-items: center;
   border-radius: var(--el-border-radius-half);
-  color: #fff;
+  color: var(--el-bg-color);
   background: #f25555;
   font-size: var(--el-font-size-medium);
 }
@@ -191,8 +191,8 @@ function save() {
 }
 .organization-member-drawer__tags :deep(.el-tag) {
   border: 0;
-  color: #fff;
-  background: #377ff5;
+  color: var(--el-bg-color);
+  background: var(--el-color-primary);
 }
 .organization-member-drawer__tags :deep(.el-tag--success) {
   background: var(--el-color-success);

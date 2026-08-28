@@ -86,7 +86,6 @@ const visible = defineModel<boolean>({ default: false });
   box-shadow: none;
 
   /* 弹层已传送至 body，显式继承项目品牌蓝。 */
-  --el-color-primary: #1677ff;
   --el-color-primary-light-3: #5ca0ff;
   --el-color-primary-light-7: #b9d6ff;
   --el-color-primary-light-9: #e8f1ff;

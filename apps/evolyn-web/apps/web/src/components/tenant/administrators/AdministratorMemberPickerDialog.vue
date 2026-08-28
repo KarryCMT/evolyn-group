@@ -279,7 +279,7 @@ watch(visible, (isVisible) => {
     border-radius: var(--el-border-radius-medium);
     align-items: center;
     gap: var(--el-space-md);
-    background: #f5f6f8;
+    background: var(--el-bg-color-page);
     color: #697384;
   }
   &__search svg {
