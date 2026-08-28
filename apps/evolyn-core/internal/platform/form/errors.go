@@ -17,6 +17,9 @@ var (
 	// ErrFormNameInvalid 表单名称不符合要求（trim 后 1–128 字符）
 	ErrFormNameInvalid = httpx.NewBiz("FORM_NAME_INVALID", "表单名称不符合要求", http.StatusBadRequest)
 
+	// ErrFormTypeInvalid 表单类型不是 standard/workflow 稳定枚举
+	ErrFormTypeInvalid = httpx.NewBiz("FORM_TYPE_INVALID", "表单类型不符合要求", http.StatusBadRequest)
+
 	// ErrFormAppInvalid 应用无效：不存在/跨租户/已归档，或表单不归属该应用
 	ErrFormAppInvalid = httpx.NewBiz("FORM_APP_INVALID", "应用不存在或不可用", http.StatusBadRequest)
 

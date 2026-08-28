@@ -64,7 +64,8 @@ function buildAssets(menu: ApplicationMenu): ApplicationWorkspaceAsset[] {
       icon: resolveIcon(entry),
       type,
       // 菜单 entryId 仅用于树节点定位；设计器路由必须使用资产公开编码。
-      targetId: entry.target?.id ?? null,
+      targetCode: entry.target?.code ?? null,
+      formType: entry.target?.type === 'form' ? entry.target.formType : null,
       capabilities: entry.capabilities,
     };
     if (entry.type === 'group') {

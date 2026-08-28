@@ -683,8 +683,19 @@ type formMenuDirectory struct {
 	forms formrepository.FormRepository
 }
 
-func (d formMenuDirectory) ExistingFormIDs(ctx context.Context, ids []uint) (map[uint]bool, error) {
-	return d.forms.ExistingFormIDs(ctx, ids)
+func (d formMenuDirectory) ExistingFormTargets(ctx context.Context, ids []uint) (map[uint]applicationservice.FormTargetProjection, error) {
+	forms, err := d.forms.ExistingFormTargets(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	targets := make(map[uint]applicationservice.FormTargetProjection, len(forms))
+	for id, form := range forms {
+		targets[id] = applicationservice.FormTargetProjection{
+			Code:     form.Code,
+			FormType: string(form.FormType),
+		}
+	}
+	return targets, nil
 }
 
 // formApplicationDirectory 表单域的应用只读目录窄端口适配：form 域不直接依赖

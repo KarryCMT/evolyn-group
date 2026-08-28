@@ -1,4 +1,11 @@
 <script setup lang="ts">
+import type {
+  ApplicationWorkspaceAsset,
+  ApplicationWorkspaceAssetAction,
+  ApplicationWorkspaceCreateAssetType,
+} from './applicationWorkspace.types';
+import type { ApplicationIcon } from '~/types';
+import { EvolynIconPicker } from '@evolyn.do/ui';
 import {
   RiAddFill,
   RiArrowLeftDoubleFill,
@@ -12,13 +19,7 @@ import {
   RiSettings3Fill,
 } from '@remixicon/vue';
 import { computed } from 'vue';
-import type { ApplicationIcon } from '~/types';
 import ApplicationWorkspaceAssetItem from './ApplicationWorkspaceAssetItem.vue';
-import type {
-  ApplicationWorkspaceAsset,
-  ApplicationWorkspaceAssetAction,
-  ApplicationWorkspaceCreateAssetType,
-} from './applicationWorkspace.types';
 import { applicationPersonalNavigation } from './applicationWorkspacePreview';
 
 defineOptions({ name: 'ApplicationWorkspaceSidebar' });
@@ -78,8 +79,9 @@ function handleCreateAsset(command: string | number | object) {
         >
           <RiArrowLeftSLine />
         </button>
+        <!-- applicationIcon 是可持久化描述值，必须经展示组件解析，不能直接作为动态组件。 -->
         <span class="application-workspace-sidebar__app-icon" aria-hidden="true">
-          <component :is="props.applicationIcon" />
+          <EvolynIconPicker :model-value="props.applicationIcon" display-only :size="30" />
         </span>
         <strong class="application-workspace-sidebar__app-name">{{ props.applicationName }}</strong>
         <button

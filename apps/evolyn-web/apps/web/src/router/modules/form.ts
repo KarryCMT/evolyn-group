@@ -36,13 +36,13 @@ function publishFeature(props: FormFeatureProps) {
 const formRoutes: RouteRecordRaw[] = [
   // 预览页独立于表单工作台壳：以最终用户填写视角全屏渲染，复用同一运行时。
   {
-    path: '/app/:appCode/form/:formId/preview',
+    path: '/app/:appCode/form/:formCode/preview',
     name: 'form-preview',
     component: () => import('~/pages/form/preview.vue'),
     meta: { public: false, title: '表单预览' },
   },
   {
-    path: '/app/:appCode/form/:formId',
+    path: '/app/:appCode/form/:formCode',
     name: 'form',
     component: () => import('~/pages/form/index.vue'),
     meta: { public: false, title: '表单' },

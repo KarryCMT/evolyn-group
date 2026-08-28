@@ -2,11 +2,12 @@ package service
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -103,6 +104,10 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 	if name == "" || utf8.RuneCountInString(name) > maxFormNameRunes {
 		return nil, httpx.Wrap(apperrors.ErrFormNameInvalid, fmt.Errorf("invalid form name length"))
 	}
+	if !req.FormType.Valid() {
+		return nil, httpx.Wrap(apperrors.ErrFormTypeInvalid,
+			fmt.Errorf("invalid form type %q", req.FormType))
+	}
 	app, notFound, err := s.apps.ApplicationByID(ctx, req.ApplicationID)
 	if err != nil {
 		return nil, err
@@ -113,11 +118,15 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 	if app.Status != applicationStatusActive {
 		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid, fmt.Errorf("application %d status %s", app.ID, app.Status))
 	}
+	code, err := newFormCode()
+	if err != nil {
+		return nil, err
+	}
 
 	var created *model.Form
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
 		var err error
-		created, err = s.provision(tctx, tenantID, member, req.ApplicationID, name,
+		created, err = s.provision(tctx, tenantID, member, req.ApplicationID, code, name, req.FormType,
 			strings.TrimSpace(req.ParentEntryCode))
 		return err
 	}); err != nil {
@@ -127,8 +136,11 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 	if s.audit != nil {
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "create", ResourceType: "form",
-			ResourceID: strconv.FormatUint(uint64(created.ID), 10),
-			After:      map[string]any{"name": created.Name, "applicationId": created.ApplicationID},
+			ResourceID: created.Code,
+			After: map[string]any{
+				"name": created.Name, "formType": created.FormType,
+				"applicationId": created.ApplicationID,
+			},
 		})
 	}
 	return detailOf(created), nil
@@ -139,13 +151,16 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 // 应用根级菜单，非空挂指定分组下（合法性由菜单维护端口校验，非法分组随
 // 整个创建事务回滚）。
 func (s *formService) provision(
-	ctx context.Context, tenantID uint, member *iammodel.User, applicationID uint, name, parentEntryCode string,
+	ctx context.Context, tenantID uint, member *iammodel.User, applicationID uint,
+	code, name string, formType model.FormType, parentEntryCode string,
 ) (*model.Form, error) {
 	var created *model.Form
 	err := s.quota.CheckAndReserve(ctx, tenantID, tenantmodel.QuotaForms, func(tctx context.Context) error {
 		draft := &model.Form{
 			ApplicationID:   applicationID,
+			Code:            code,
 			Name:            name,
+			FormType:        formType,
 			DraftContent:    emptyFormDocument,
 			DraftRevision:   1,
 			ProtocolVersion: 1,
@@ -210,24 +225,24 @@ func (s *formService) List(ctx context.Context, member *iammodel.User, query mod
 	return page, nil
 }
 
-func (s *formService) Get(ctx context.Context, member *iammodel.User, id uint) (*model.FormDetail, error) {
-	form, err := s.load(ctx, id)
+func (s *formService) Get(ctx context.Context, member *iammodel.User, code string) (*model.FormDetail, error) {
+	form, err := s.loadByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
 	if !s.access.Permissions(ctx, member)["forms:get"] {
-		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot get form %d", id))
+		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot get form %s", code))
 	}
 	return detailOf(form), nil
 }
 
 // ---- 更新与删除 ----
 
-func (s *formService) Update(ctx context.Context, member *iammodel.User, id uint, req *model.UpdateFormRequest) (*model.FormDetail, error) {
+func (s *formService) Update(ctx context.Context, member *iammodel.User, code string, req *model.UpdateFormRequest) (*model.FormDetail, error) {
 	if !s.access.Permissions(ctx, member)["forms:patch"] {
-		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot update form %d", id))
+		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot update form %s", code))
 	}
-	form, err := s.load(ctx, id)
+	form, err := s.loadByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
@@ -240,11 +255,11 @@ func (s *formService) Update(ctx context.Context, member *iammodel.User, id uint
 			before := form.Name
 			// 改名与菜单节点名同步同一事务（M2-资产-1）
 			if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
-				if err := s.repo.UpdateName(tctx, id, name); err != nil {
+				if err := s.repo.UpdateName(tctx, form.ID, name); err != nil {
 					return err
 				}
 				if s.menu != nil {
-					return s.menu.SyncFormEntryName(tctx, form.ApplicationID, id, name)
+					return s.menu.SyncFormEntryName(tctx, form.ApplicationID, form.ID, name)
 				}
 				return nil
 			}); err != nil {
@@ -253,14 +268,14 @@ func (s *formService) Update(ctx context.Context, member *iammodel.User, id uint
 			if s.audit != nil {
 				s.audit.Record(ctx, auditservice.Entry{
 					Module: "form", Action: "update", ResourceType: "form",
-					ResourceID: strconv.FormatUint(uint64(id), 10),
+					ResourceID: form.Code,
 					Before:     map[string]any{"name": before},
 					After:      map[string]any{"name": name},
 				})
 			}
 		}
 	}
-	updated, err := s.load(ctx, id)
+	updated, err := s.loadByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
@@ -268,11 +283,11 @@ func (s *formService) Update(ctx context.Context, member *iammodel.User, id uint
 }
 
 // Delete 软删表单：发布版本行保留（历史记录可追溯），配额随软删释放。
-func (s *formService) Delete(ctx context.Context, member *iammodel.User, id uint) error {
+func (s *formService) Delete(ctx context.Context, member *iammodel.User, code string) error {
 	if !s.access.Permissions(ctx, member)["forms:delete"] {
-		return httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot delete form %d", id))
+		return httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot delete form %s", code))
 	}
-	form, err := s.load(ctx, id)
+	form, err := s.loadByCode(ctx, code)
 	if err != nil {
 		return err
 	}
@@ -282,7 +297,7 @@ func (s *formService) Delete(ctx context.Context, member *iammodel.User, id uint
 			return err
 		}
 		if s.menu != nil {
-			return s.menu.DetachFormEntry(tctx, form.ApplicationID, id)
+			return s.menu.DetachFormEntry(tctx, form.ApplicationID, form.ID)
 		}
 		return nil
 	}); err != nil {
@@ -291,7 +306,7 @@ func (s *formService) Delete(ctx context.Context, member *iammodel.User, id uint
 	if s.audit != nil {
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "delete", ResourceType: "form",
-			ResourceID: strconv.FormatUint(uint64(id), 10),
+			ResourceID: form.Code,
 			After:      map[string]any{"name": form.Name},
 		})
 	}
@@ -302,35 +317,35 @@ func (s *formService) Delete(ctx context.Context, member *iammodel.User, id uint
 
 // SaveDraft 保存草稿：先按字段字典严格校验（失败携带 JSON Path issues），再经乐观锁
 // 条件更新；0 行影响即修订口令过期。草稿原文原样落库（未编辑属性不丢失）。
-func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, id uint, req *model.SaveDraftRequest) (*model.SaveDraftResult, error) {
+func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code string, req *model.SaveDraftRequest) (*model.SaveDraftResult, error) {
 	if !s.access.Permissions(ctx, member)["forms:update"] {
-		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot save form %d draft", id))
+		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot save form %s draft", code))
 	}
-	form, err := s.load(ctx, id)
+	form, err := s.loadByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
 	issues := ValidateFormSchema([]byte(req.Content))
 	if len(issues) > 0 {
 		return nil, httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": issues}),
-			fmt.Errorf("form %d draft invalid: %s", id, issues[0].Path))
+			fmt.Errorf("form %s draft invalid: %s", code, issues[0].Path))
 	}
 	if req.DraftRevision != form.DraftRevision {
 		return nil, httpx.Wrap(apperrors.ErrRevisionConflict,
-			fmt.Errorf("form %d draft revision %d != %d", id, req.DraftRevision, form.DraftRevision))
+			fmt.Errorf("form %s draft revision %d != %d", code, req.DraftRevision, form.DraftRevision))
 	}
-	updated, err := s.repo.UpdateDraft(ctx, id, req.DraftRevision, req.Content)
+	updated, err := s.repo.UpdateDraft(ctx, form.ID, req.DraftRevision, req.Content)
 	if err != nil {
 		return nil, err
 	}
 	if !updated {
 		return nil, httpx.Wrap(apperrors.ErrRevisionConflict,
-			fmt.Errorf("form %d draft revision %d stale", id, req.DraftRevision))
+			fmt.Errorf("form %s draft revision %d stale", code, req.DraftRevision))
 	}
 	if s.audit != nil {
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "update-draft", ResourceType: "form",
-			ResourceID: strconv.FormatUint(uint64(id), 10),
+			ResourceID: form.Code,
 			After:      map[string]any{"draftRevision": req.DraftRevision + 1},
 		})
 	}
@@ -339,10 +354,10 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, id u
 
 // ---- 助手 ----
 
-// load 按 ID 加载：跨租户表现为 NotFound（租户 Callback 过滤）；仅「确实无此行」
+// loadByCode 按稳定公开编码加载：跨租户表现为 NotFound（租户 Callback 过滤）；仅「确实无此行」
 // 包装 FORM_NOT_FOUND，基础设施错误原样上抛。
-func (s *formService) load(ctx context.Context, id uint) (*model.Form, error) {
-	form, err := s.repo.GetByID(ctx, id)
+func (s *formService) loadByCode(ctx context.Context, code string) (*model.Form, error) {
+	form, err := s.repo.GetByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, httpx.Wrap(apperrors.ErrFormNotFound, err)
@@ -352,11 +367,21 @@ func (s *formService) load(ctx context.Context, id uint) (*model.Form, error) {
 	return form, nil
 }
 
+// newFormCode 生成表单公开编码：form_ + 16 位随机 hex；租户内唯一索引兜底。
+func newFormCode() (string, error) {
+	buf := make([]byte, 8)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("generate form code: %w", err)
+	}
+	return "form_" + hex.EncodeToString(buf), nil
+}
+
 func detailOf(form *model.Form) *model.FormDetail {
 	return &model.FormDetail{
-		ID:               form.ID,
 		ApplicationID:    form.ApplicationID,
+		Code:             form.Code,
 		Name:             form.Name,
+		FormType:         form.FormType,
 		DraftRevision:    form.DraftRevision,
 		PublishedVersion: form.PublishedVersion,
 		Draft:            form.DraftContent,
@@ -367,9 +392,10 @@ func detailOf(form *model.Form) *model.FormDetail {
 
 func summaryOf(form *model.Form) model.FormSummary {
 	return model.FormSummary{
-		ID:               form.ID,
 		ApplicationID:    form.ApplicationID,
+		Code:             form.Code,
 		Name:             form.Name,
+		FormType:         form.FormType,
 		PublishedVersion: form.PublishedVersion,
 		UpdatedAt:        form.UpdatedAt,
 	}

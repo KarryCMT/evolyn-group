@@ -1,4 +1,17 @@
 <script setup lang="ts">
+import type { Component } from 'vue';
+import type {
+  ApplicationAssetStarter,
+  ApplicationAssetType,
+} from '~/components/application/runtime/applicationAssetCatalog';
+import type {
+  ApplicationWorkspaceAsset,
+  ApplicationWorkspaceAssetAction,
+  ApplicationWorkspaceCreateAssetType,
+  ApplicationWorkspaceMode,
+} from '~/components/application/workspace/applicationWorkspace.types';
+import type { ApplicationIconKey, FormType } from '~/types';
+import { ApiError } from '@evolyn.do/utils';
 import {
   RiArrowLeftLine,
   RiBookmark3Fill,
@@ -7,24 +20,16 @@ import {
   RiContactsBook3Fill,
   RiPieChart2Fill,
 } from '@remixicon/vue';
-import { ApiError } from '@evolyn.do/utils';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { computed, markRaw, shallowRef, watch, type Component } from 'vue';
+import { ElMessage } from 'element-plus';
+import { computed, markRaw, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { createForm } from '~/api/form';
 import ApplicationEmptyState from '~/components/application/runtime/ApplicationEmptyState.vue';
-import type { ApplicationAssetStarter } from '~/components/application/runtime/applicationAssetCatalog';
 import ApplicationWorkspaceShell from '~/components/application/workspace/ApplicationWorkspaceShell.vue';
-import type {
-  ApplicationWorkspaceAsset,
-  ApplicationWorkspaceAssetAction,
-  ApplicationWorkspaceCreateAssetType,
-  ApplicationWorkspaceMode,
-} from '~/components/application/workspace/applicationWorkspace.types';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { useApplicationHome } from '~/composables/useApplicationHome';
 import { useApplicationMenu } from '~/composables/useApplicationMenu';
-import { DEFAULT_APPLICATION_ICON, getApplicationIconName, type ApplicationIconKey } from '~/types';
+import { DEFAULT_APPLICATION_ICON, getApplicationIconName } from '~/types';
 
 defineOptions({ name: 'ApplicationHomePage' });
 
@@ -64,13 +69,20 @@ const applicationIcon = computed(
     iconByKey.bookmark,
 );
 const workspacePreviewEnabled = computed(() => route.query.workspace === 'form');
-// 首页形态以应用持久化状态为准；workspace 查询参数仅保留给当前表单设计器
-// 的回跳预览。当前成员无菜单权限时仍保留运行时壳，不会退回构建引导。
+const hasMenuAssets = computed(() => menuAssets.value.length > 0);
+// 菜单资产是应用已进入运行态的直接事实：即使历史应用 homeMode 尚未回填，
+// 只要菜单接口返回可见节点也必须展示工作区，不能继续落入默认创建引导。
 const showApplicationWorkspace = computed(
-  () => application.value?.homeMode === 'application' || workspacePreviewEnabled.value,
+  () =>
+    application.value?.homeMode === 'application' ||
+    workspacePreviewEnabled.value ||
+    hasMenuAssets.value,
 );
 const activeAssetCode = shallowRef('');
 const workspaceMode = shallowRef<ApplicationWorkspaceMode>('fill');
+const DEFAULT_FORM_NAME = '未命名表单';
+/** 创建请求期间锁住所有入口，避免网络延迟下重复创建同一资产。 */
+const creatingAssetType = shallowRef<ApplicationAssetType | null>(null);
 
 /** 递归按编码定位资产节点；菜单为空或未选中时为 null（内容区渲染空态） */
 function findAsset(
@@ -89,45 +101,58 @@ function findAsset(
 
 const activeWorkspaceAsset = computed(() => findAsset(menuAssets.value, activeAssetCode.value));
 
+/** 菜单首次加载或当前选中节点消失时，默认选中第一项可操作资产。 */
+function firstSelectableAsset(
+  assets: ApplicationWorkspaceAsset[],
+): ApplicationWorkspaceAsset | null {
+  for (const asset of assets) {
+    if (asset.type !== 'folder') return asset;
+    const child = firstSelectableAsset(asset.children ?? []);
+    if (child) return child;
+  }
+  return null;
+}
+
+watch(
+  menuAssets,
+  (assets) => {
+    if (findAsset(assets, activeAssetCode.value)) return;
+    activeAssetCode.value = firstSelectableAsset(assets)?.code ?? '';
+  },
+  { immediate: true },
+);
+
 function returnToDashboard() {
   void router.push({ name: 'dashboard' });
 }
 
 /**
- * 新建表单（入口即创建）：命名 → 以当前应用调 POST /forms 创建资产与空草稿
+ * 新建表单（入口即创建）：以默认名称调 POST /forms 创建资产与空草稿
  * （后端同事务在应用菜单挂 form 节点，parentEntryCode 存在时挂到指定分组下）
- * → 携真实 formId 跳转设计器继续编辑。流程表单通过 query 标记类型，
- * 供设计器展示流程设计入口。
+ * → 携稳定 formCode 跳转设计器继续编辑。表单类型随创建请求持久化，设计器
+ * 后续只从详情接口读取；表单名称进入设计器后通过属性面板修改。
  */
-async function startNewForm(workflow = false, parentEntryCode?: string) {
+async function startNewForm(
+  assetType: Extract<ApplicationAssetType, 'form' | 'workflow-form'>,
+  parentEntryCode?: string,
+) {
+  if (creatingAssetType.value) return;
+
   const app = application.value;
   if (!app) {
     ElMessage.error('应用信息尚未就绪，请稍后重试');
     return;
   }
 
-  let name: string;
+  const formType: FormType = assetType === 'workflow-form' ? 'workflow' : 'standard';
+  creatingAssetType.value = assetType;
+  let detail: Awaited<ReturnType<typeof createForm>>;
   try {
-    const { value } = await ElMessageBox.prompt('请输入表单名称', '新建表单', {
-      inputValue: '未命名表单',
-      inputValidator: (input: string) =>
-        input && input.trim() ? true : '请输入 1–128 个字符的表单名称',
-      confirmButtonText: '创建并设计',
-      cancelButtonText: '取消',
-      closeOnClickModal: false,
-    });
-    name = value.trim();
-  } catch {
-    // 取消命名即放弃创建，停留在应用工作台。
-    return;
-  }
-
-  try {
-    const detail = await createForm({ applicationId: app.id, name, parentEntryCode });
-    void router.push({
-      name: 'form-design',
-      params: { appCode: appCode.value, formId: String(detail.id) },
-      query: workflow ? { type: 'workflow' } : undefined,
+    detail = await createForm({
+      applicationId: app.id,
+      name: DEFAULT_FORM_NAME,
+      formType,
+      parentEntryCode,
     });
   } catch (error) {
     if (error instanceof ApiError && error.errCode === 'QUOTA_EXCEEDED') {
@@ -139,17 +164,31 @@ async function startNewForm(workflow = false, parentEntryCode?: string) {
     } else {
       ElMessage.error('创建表单失败，请稍后重试');
     }
+    creatingAssetType.value = null;
+    return;
+  }
+
+  try {
+    await router.push({
+      name: 'form-design',
+      params: { appCode: appCode.value, formCode: detail.code },
+    });
+  } catch {
+    // 资产已经创建成功，导航异常时不能提示“创建失败”，避免用户重试产生重复表单。
+    ElMessage.error('表单已创建，但打开设计器失败，请从应用菜单重新进入');
+  } finally {
+    creatingAssetType.value = null;
   }
 }
 
 function openAssetStarter(starter: ApplicationAssetStarter) {
   if (starter.type === 'form') {
-    startNewForm();
+    void startNewForm('form');
     return;
   }
 
   if (starter.type === 'workflow-form') {
-    startNewForm(true);
+    void startNewForm('workflow-form');
     return;
   }
 
@@ -175,7 +214,7 @@ function selectWorkspaceAsset(asset: ApplicationWorkspaceAsset) {
   workspaceMode.value = 'fill';
 }
 
-/** 顶栏“编辑”只对当前表单生效，并携带菜单目标资产的公开 formId 进入设计器。 */
+/** 顶栏“编辑”只对当前表单生效，并携带菜单目标资产的公开 formCode 进入设计器。 */
 function updateWorkspaceMode(mode: ApplicationWorkspaceMode) {
   if (mode !== 'design') {
     workspaceMode.value = mode;
@@ -183,14 +222,14 @@ function updateWorkspaceMode(mode: ApplicationWorkspaceMode) {
   }
 
   const asset = activeWorkspaceAsset.value;
-  if (!asset || asset.type !== 'form' || !asset.targetId) {
+  if (!asset || asset.type !== 'form' || !asset.targetCode) {
     ElMessage.info('请先从左侧选择要编辑的表单');
     return;
   }
 
   void router.push({
     name: 'form-design',
-    params: { appCode: appCode.value, formId: asset.targetId },
+    params: { appCode: appCode.value, formCode: asset.targetCode },
   });
 }
 
@@ -203,11 +242,11 @@ function createWorkspaceAsset(payload: {
   type: ApplicationWorkspaceCreateAssetType;
 }) {
   if (payload.type === 'form') {
-    startNewForm(false, payload.parent?.code);
+    void startNewForm('form', payload.parent?.code);
     return;
   }
   if (payload.type === 'workflow-form') {
-    startNewForm(true, payload.parent?.code);
+    void startNewForm('workflow-form', payload.parent?.code);
     return;
   }
 
@@ -323,6 +362,7 @@ function reloadWorkspace() {
       <!-- 空应用维持独立引导；表单运行时由后续 @evolyn.do/form 包承接。 -->
       <ApplicationEmptyState
         v-else
+        :creating-asset-type="creatingAssetType"
         @select-asset="openAssetStarter"
         @learn-more="showAssetGuide"
         @open-management="openApplicationManagement"

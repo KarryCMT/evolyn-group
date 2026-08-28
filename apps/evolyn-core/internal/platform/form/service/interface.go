@@ -49,18 +49,18 @@ type FormService interface {
 	Create(ctx context.Context, member *iammodel.User, req *model.CreateFormRequest) (*model.FormDetail, error)
 	// List 应用内表单游标分页
 	List(ctx context.Context, member *iammodel.User, query model.ListFormsQuery) (*model.FormPage, error)
-	// Get 表单详情（含草稿全文与修订口令）
-	Get(ctx context.Context, member *iammodel.User, id uint) (*model.FormDetail, error)
+	// Get 按公开编码读取表单详情（含草稿全文与修订口令）
+	Get(ctx context.Context, member *iammodel.User, code string) (*model.FormDetail, error)
 	// Update 白名单改名
-	Update(ctx context.Context, member *iammodel.User, id uint, req *model.UpdateFormRequest) (*model.FormDetail, error)
+	Update(ctx context.Context, member *iammodel.User, code string, req *model.UpdateFormRequest) (*model.FormDetail, error)
 	// SaveDraft 保存草稿：严格协议校验 + 乐观锁条件更新
-	SaveDraft(ctx context.Context, member *iammodel.User, id uint, req *model.SaveDraftRequest) (*model.SaveDraftResult, error)
+	SaveDraft(ctx context.Context, member *iammodel.User, code string, req *model.SaveDraftRequest) (*model.SaveDraftResult, error)
 	// Delete 软删表单（发布版本保留）
-	Delete(ctx context.Context, member *iammodel.User, id uint) error
+	Delete(ctx context.Context, member *iammodel.User, code string) error
 	// Publish 发布：白名单 + 严格校验 → 事务内创建不可变快照并回写 latest
-	Publish(ctx context.Context, member *iammodel.User, id uint, req *model.PublishRequest) (*model.PublishResult, error)
+	Publish(ctx context.Context, member *iammodel.User, code string, req *model.PublishRequest) (*model.PublishResult, error)
 	// GetRuntime 运行时 bootstrap（appCode 归属 + 已发布校验；普通成员可读）
-	GetRuntime(ctx context.Context, appCode string, formID uint) (*model.FormRuntime, error)
+	GetRuntime(ctx context.Context, appCode, formCode string) (*model.FormRuntime, error)
 	// SubmitRecord 提交记录：按 (publishedVersion, schemaRevision) 定位快照并按其终审
 	SubmitRecord(ctx context.Context, member *iammodel.User, req *model.SubmitRecordRequest) (*model.SubmitRecordResult, error)
 }

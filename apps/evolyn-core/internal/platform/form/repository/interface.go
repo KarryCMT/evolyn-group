@@ -16,12 +16,18 @@ type ListParams struct {
 	AfterID       uint // 游标行 ID（取 id 严格小于该值的下一页）
 }
 
+// FormMenuTarget 是表单仓储供应用菜单读侧消费的最小投影。
+type FormMenuTarget struct {
+	Code     string
+	FormType model.FormType
+}
+
 // FormRepository 表单资产仓储。
 type FormRepository interface {
 	// Create 创建表单（TenantID 由调用方显式赋值，租户 Callback 兜底）
 	Create(ctx context.Context, form *model.Form) (*model.Form, error)
-	// GetByID 加载（ctx 携带租户时自动过滤，跨租户 ID 即 NotFound）
-	GetByID(ctx context.Context, id uint) (*model.Form, error)
+	// GetByCode 按公开编码加载（ctx 携带租户时自动过滤，跨租户编码即 NotFound）
+	GetByCode(ctx context.Context, code string) (*model.Form, error)
 	// List 应用内游标分页；返回当页数据与是否还有下一页（limit+1 探测）
 	List(ctx context.Context, params ListParams) ([]model.Form, bool, error)
 	// UpdateName 改名（白名单字段）
@@ -36,9 +42,9 @@ type FormRepository interface {
 	SoftDelete(ctx context.Context, form *model.Form) error
 	// CountBillableFormsByTenant 计费表单数（deleted_at IS NULL 全量）
 	CountBillableFormsByTenant(ctx context.Context, tenantID uint) (int64, error)
-	// ExistingFormIDs 返回 ids 中存在且未软删的表单 ID 集合（M2-资产-1
-	// 菜单读侧存在性判定；租户过滤由 ctx 承载，跨租户 ID 自然不在结果中）
-	ExistingFormIDs(ctx context.Context, ids []uint) (map[uint]bool, error)
+	// ExistingFormTargets 返回 ids 中存在且未软删表单的菜单目标投影（M2-资产-1
+	// 菜单读侧存在性判定与 target 投影；租户过滤由 ctx 承载）
+	ExistingFormTargets(ctx context.Context, ids []uint) (map[uint]FormMenuTarget, error)
 	// Migrate 开发/测试 AutoMigrate 路径（FIX-009：生产只走 SQL 迁移）
 	Migrate() error
 }

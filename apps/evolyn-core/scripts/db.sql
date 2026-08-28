@@ -494,13 +494,16 @@ CREATE INDEX IF NOT EXISTS idx_application_menu_entries_app_target
     ON application_menu_entries (tenant_id, application_id, target_type, target_id)
     WHERE deleted_at IS NULL AND target_id IS NOT NULL;
 
--- 表单资产与草稿（000037，ADR-010）：draft_content 为目标保存协议草稿全文
+-- 表单资产与草稿（000037/000044/000045，ADR-010）：code 为稳定公开编码，
+-- draft_content 为目标保存协议草稿全文
 --（content.items 两层结构，保存前经字段字典严格校验），draft_revision 乐观锁
 CREATE TABLE IF NOT EXISTS forms (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     tenant_id BIGINT NOT NULL DEFAULT 1,
     application_id BIGINT NOT NULL,
+    code varchar(64) NOT NULL,
     name varchar(128) NOT NULL,
+    form_type varchar(16) NOT NULL DEFAULT 'standard',
     draft_content JSONB NOT NULL,
     draft_revision BIGINT NOT NULL DEFAULT 1,
     protocol_version INTEGER NOT NULL DEFAULT 1,
@@ -510,11 +513,16 @@ CREATE TABLE IF NOT EXISTS forms (
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     deleted_at timestamp with time zone,
-    CONSTRAINT chk_forms_content_object CHECK (jsonb_typeof(draft_content) = 'object')
+    CONSTRAINT chk_forms_content_object CHECK (jsonb_typeof(draft_content) = 'object'),
+    CONSTRAINT chk_forms_form_type CHECK (form_type IN ('standard', 'workflow'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_forms_tenant_app
     ON forms (tenant_id, application_id, id DESC)
+    WHERE deleted_at IS NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_forms_tenant_code
+    ON forms (tenant_id, code)
     WHERE deleted_at IS NULL;
 
 -- 发布快照（000037）：不可变、追加写；(form_id, version_no) 唯一，
@@ -968,7 +976,9 @@ COMMENT ON TABLE forms IS '表单资产（租户内从属于应用，ADR-010）�
 COMMENT ON COLUMN forms.id IS '自增主键（菜单 target_id 引用值）';
 COMMENT ON COLUMN forms.tenant_id IS '所属租户 ID';
 COMMENT ON COLUMN forms.application_id IS '所属应用 ID（同租户，服务层归属校验，禁止裸 ID 写入）';
+COMMENT ON COLUMN forms.code IS '表单稳定公开编码（form_ 前缀）；路由、API 与菜单 target 使用，禁止暴露自增主键';
 COMMENT ON COLUMN forms.name IS '表单名称（trim 后 1–128 字符）；表单名称不进入协议 content';
+COMMENT ON COLUMN forms.form_type IS '表单类型：standard 标准表单 / workflow 流程表单；创建后不可变，设计器能力以此字段为准';
 COMMENT ON COLUMN forms.draft_content IS '目标保存协议草稿全文 JSONB：根结构 {content:{type:"form",items:[]}}，原样字节存取保证未编辑属性不丢失';
 COMMENT ON COLUMN forms.draft_revision IS '草稿乐观锁口令：每次草稿保存条件递增，客户端原样回传，过期返回 FORM_REVISION_CONFLICT';
 COMMENT ON COLUMN forms.protocol_version IS '协议版本外部承载（协议文档内不携带版本字段，字典 1.3），当前固定 1';

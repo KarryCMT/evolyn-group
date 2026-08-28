@@ -8,16 +8,16 @@ import type { FormSchemaDocument } from '@evolyn.do/form/schema';
  */
 const STORAGE_PREFIX = 'evolyn.form.preview.';
 
-export function formPreviewStorageKey(formId: string): string {
-  return `${STORAGE_PREFIX}${formId}`;
+export function formPreviewStorageKey(formCode: string): string {
+  return `${STORAGE_PREFIX}${formCode}`;
 }
 
-export function saveFormPreviewDocument(formId: string, document: FormSchemaDocument): void {
-  sessionStorage.setItem(formPreviewStorageKey(formId), JSON.stringify(document));
+export function saveFormPreviewDocument(formCode: string, document: FormSchemaDocument): void {
+  sessionStorage.setItem(formPreviewStorageKey(formCode), JSON.stringify(document));
 }
 
-export function loadFormPreviewDocument(formId: string): FormSchemaDocument | null {
-  const raw = sessionStorage.getItem(formPreviewStorageKey(formId));
+export function loadFormPreviewDocument(formCode: string): FormSchemaDocument | null {
+  const raw = sessionStorage.getItem(formPreviewStorageKey(formCode));
   if (!raw) return null;
   try {
     return JSON.parse(raw) as FormSchemaDocument;

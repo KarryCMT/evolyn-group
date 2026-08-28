@@ -17,7 +17,7 @@ const columns: EvolynTableColumn[] = [
   { field: 'name', title: '数据推送名称', width: 200 },
   { field: 'serverAddress', title: '服务器地址', width: 380 },
   { field: 'formName', title: '推送表单', width: 200 },
-  { field: 'events', title: '推送事件', width: 340, cellType: 'multilinetext' },
+  { field: 'events', title: '推送事件', width: 340, cellType: 'text' },
   { field: 'remark', title: '备注', width: 250 },
   { field: 'operation', title: '操作', width: 310 },
 ];

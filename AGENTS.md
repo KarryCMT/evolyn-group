@@ -150,7 +150,10 @@ internal/
                       纵切：创建/改名/删除同事务维护 application_menu_entries
                       的 form 节点并递增 menu_revision，菜单读侧经 FormDirectory
                       窄端口做存在性裁剪与 target 投影（跨域双向窄端口装配）；
-                      迁移 000037/000038
+                      000044 将 form_type（standard/workflow）固化为创建后不可变
+                      的表单类型事实源；000045 将 form_ 前缀 code 固化为路由/API/
+                      菜单 target 的稳定公开标识，内部自增 ID 不出网；迁移
+                      000037/000038/000044/000045
   tenantproduct/    产品中心域（一期，小三层，docs/低代码平台/产品中心/）：
                       平台产品目录/租户产品配置/部门与成员范围关联（迁移
                       000033，四表 + lingyanyun seed + 存量租户回填，目录是
@@ -323,6 +326,7 @@ pnpm -F @evolyn.do/web build        # 生产构建
 
 - 使用 Composition API（`<script setup>`）+ TypeScript；`typecheck` 必须通过。
 - 前端界面还原截图时，统一以 1080P（1920×1080）画布尺寸为基准进行还原。
+- 前端代码调整时，不进行任何build，由用户手动执行，只检查类型语法代码错误。
 - 前端界面还原必须优先使用element-plus组件库提供的组件，utils方法。
 - 前端在进行页面开发时，需要善于发现某些组件可以复用就做成通用组件，并放到@evolyn.do/ui里面，统一管理维护。
 - 前端在进行页面开发时，必须需要适配暗黑主题模式，避免出现写死的颜色值。

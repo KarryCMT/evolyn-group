@@ -39,11 +39,12 @@ type MenuEntry struct {
 
 func (*MenuEntry) TableName() string { return "application_menu_entries" }
 
-// MenuEntryTarget 出网资产引用：id 为资产域稳定公开编码（由资产查询投影），
-// 不是数据库自增主键；资产域未落地前菜单中不出现资产节点
+// MenuEntryTarget 出网资产引用：code 为资产域稳定公开编码（由资产查询投影），
+// 不是数据库自增主键；formType 仅在 form 目标上返回，其他资产类型省略。
 type MenuEntryTarget struct {
-	Type string `json:"type"`
-	ID   string `json:"id"`
+	Type     string `json:"type"`
+	Code     string `json:"code"`
+	FormType string `json:"formType,omitempty"`
 }
 
 // MenuEntryCapabilities 当前成员对节点的运行时能力（方案 §6.2）：读取时由

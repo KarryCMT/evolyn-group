@@ -4,21 +4,22 @@ import (
 	kernel "evolyn/internal/model"
 )
 
-// CreateFormRequest 创建表单（POST /forms）：草稿初始化为空协议文档。
+// CreateFormRequest 创建表单（POST /forms）：formType 在创建时固化，草稿初始化为空协议文档。
 // ParentEntryCode 可选：应用菜单中目标分组的节点编码（侧栏资产 code），
 // 传入时表单菜单节点挂到该分组下，否则挂应用根级。
 type CreateFormRequest struct {
-	ApplicationID   uint   `json:"applicationId" binding:"required" example:"1"`
-	Name            string `json:"name" binding:"required" example:"报名表"`
-	ParentEntryCode string `json:"parentEntryCode" example:"menu_ab12cd34ef56ab12"`
+	ApplicationID   uint     `json:"applicationId" binding:"required" example:"1"`
+	Name            string   `json:"name" binding:"required" example:"报名表"`
+	FormType        FormType `json:"formType" example:"workflow"`
+	ParentEntryCode string   `json:"parentEntryCode" example:"menu_ab12cd34ef56ab12"`
 }
 
-// UpdateFormRequest 白名单改名（PATCH /forms/:id）。
+// UpdateFormRequest 白名单改名（PATCH /forms/:code）。
 type UpdateFormRequest struct {
 	Name *string `json:"name"`
 }
 
-// SaveDraftRequest 保存草稿（PUT /forms/:id/draft）：全量替换 + 乐观锁口令。
+// SaveDraftRequest 保存草稿（PUT /forms/:code/draft）：全量替换 + 乐观锁口令。
 // content 为目标保存协议根结构；校验失败返回 FORM_SCHEMA_INVALID + issues。
 type SaveDraftRequest struct {
 	DraftRevision int64       `json:"draftRevision" binding:"required"`
@@ -30,7 +31,7 @@ type SaveDraftResult struct {
 	DraftRevision int64 `json:"draftRevision"`
 }
 
-// PublishRequest 发布（POST /forms/:id/publish）：携带草稿口令防止发布并发旧草稿。
+// PublishRequest 发布（POST /forms/:code/publish）：携带草稿口令防止发布并发旧草稿。
 type PublishRequest struct {
 	DraftRevision int64 `json:"draftRevision" binding:"required"`
 }
@@ -43,9 +44,10 @@ type PublishResult struct {
 
 // FormDetail 表单详情出网（含草稿全文与修订口令）。
 type FormDetail struct {
-	ID               uint            `json:"id"`
 	ApplicationID    uint            `json:"applicationId"`
+	Code             string          `json:"code"`
 	Name             string          `json:"name"`
+	FormType         FormType        `json:"formType"`
 	DraftRevision    int64           `json:"draftRevision"`
 	PublishedVersion int             `json:"publishedVersion"`
 	Draft            JSONContent     `json:"draft"`
@@ -55,9 +57,10 @@ type FormDetail struct {
 
 // FormSummary 列表条目（不含草稿全文）。
 type FormSummary struct {
-	ID               uint            `json:"id"`
 	ApplicationID    uint            `json:"applicationId"`
+	Code             string          `json:"code"`
 	Name             string          `json:"name"`
+	FormType         FormType        `json:"formType"`
 	PublishedVersion int             `json:"publishedVersion"`
 	UpdatedAt        kernel.JSONTime `json:"updatedAt"`
 }
@@ -78,7 +81,7 @@ type FormPage struct {
 
 // FormRuntime 运行时 bootstrap 出网（后端契约 §2.2）：已发布快照 + 双口令。
 type FormRuntime struct {
-	FormID           uint        `json:"formId"`
+	FormCode         string      `json:"formCode"`
 	Name             string      `json:"name"`
 	PublishedVersion int         `json:"publishedVersion"`
 	SchemaRevision   string      `json:"schemaRevision"`
@@ -87,7 +90,7 @@ type FormRuntime struct {
 
 // SubmitRecordRequest 提交记录（POST /form-records）：双口令定位发布快照。
 type SubmitRecordRequest struct {
-	FormID           uint                   `json:"formId" binding:"required"`
+	FormCode         string                 `json:"formCode" binding:"required"`
 	PublishedVersion int                    `json:"publishedVersion" binding:"required"`
 	SchemaRevision   string                 `json:"schemaRevision" binding:"required"`
 	Values           map[string]JSONContent `json:"values" binding:"required"`

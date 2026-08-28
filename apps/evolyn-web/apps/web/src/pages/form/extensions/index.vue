@@ -42,7 +42,7 @@ const extensionNavigationItems: ExtensionNavigationItem[] = [
 
 const routeParams = computed(() => ({
   appCode: String(route.params.appCode ?? ''),
-  formId: String(route.params.formId ?? ''),
+  formCode: String(route.params.formCode ?? ''),
 }));
 </script>
 

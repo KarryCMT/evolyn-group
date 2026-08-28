@@ -1,9 +1,14 @@
 <script setup lang="ts">
+import type { ApplicationAssetStarter } from './applicationAssetCatalog';
 import { RiSettings3Fill } from '@remixicon/vue';
+import { applicationAssetStarters } from './applicationAssetCatalog';
 import ApplicationAssetStarterCard from './ApplicationAssetStarterCard.vue';
-import { applicationAssetStarters, type ApplicationAssetStarter } from './applicationAssetCatalog';
 
 defineOptions({ name: 'ApplicationEmptyState' });
+
+defineProps<{
+  creatingAssetType: ApplicationAssetStarter['type'] | null;
+}>();
 
 const emit = defineEmits<{
   selectAsset: [starter: ApplicationAssetStarter];
@@ -33,6 +38,8 @@ const emit = defineEmits<{
           v-for="starter in applicationAssetStarters"
           :key="starter.type"
           :starter="starter"
+          :disabled="creatingAssetType !== null"
+          :loading="creatingAssetType === starter.type"
           @select="emit('selectAsset', $event)"
         />
       </div>

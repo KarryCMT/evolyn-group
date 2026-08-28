@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	platformcontroller "evolyn/internal/platform/controller"
 	formmodel "evolyn/internal/platform/form/model"
@@ -39,14 +40,14 @@ func responseError(c *gin.Context, err error) {
 	httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 }
 
-// idFromParam 解析路径参数中的表单 ID，非法直接回 400
-func idFromParam(c *gin.Context, name string) (uint, bool) {
-	id, err := strconv.ParseUint(c.Param(name), 10, 64)
-	if err != nil || id == 0 {
-		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的表单 ID：%s", c.Param(name)))
-		return 0, false
+// formCodeFromParam 解析稳定表单公开编码，非法直接回 400。
+func formCodeFromParam(c *gin.Context, name string) (string, bool) {
+	code := strings.TrimSpace(c.Param(name))
+	if !strings.HasPrefix(code, "form_") || len(code) <= len("form_") {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的表单编码：%s", code))
+		return "", false
 	}
-	return uint(id), true
+	return code, true
 }
 
 // @Summary 创建表单
@@ -55,9 +56,9 @@ func idFromParam(c *gin.Context, name string) (uint, bool) {
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
-// @Param form body formmodel.CreateFormRequest true "应用 ID、表单名称与可选父分组编码"
+// @Param form body formmodel.CreateFormRequest true "应用 ID、表单名称、表单类型与可选父分组编码"
 // @Success 201 {object} httpx.Response{data=formmodel.FormDetail}
-// @Failure 400 {object} httpx.Response "errCode=FORM_NAME_INVALID/FORM_APP_INVALID/APP_MENU_PARENT_INVALID"
+// @Failure 400 {object} httpx.Response "errCode=FORM_NAME_INVALID/FORM_TYPE_INVALID/FORM_APP_INVALID/APP_MENU_PARENT_INVALID"
 // @Failure 403 {object} httpx.Response "errCode=QUOTA_EXCEEDED/FORBIDDEN"
 // @Router /api/v1/forms [post]
 func (f *FormController) Create(c *gin.Context) {
@@ -105,20 +106,20 @@ func (f *FormController) List(c *gin.Context) {
 }
 
 // @Summary 表单详情
-// @Description 按 ID 查询表单详情，含目标协议草稿全文与草稿修订口令（draftRevision）、最新发布号
+// @Description 按公开编码查询表单详情，含表单类型、目标协议草稿全文、草稿修订口令（draftRevision）与最新发布号
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
-// @Param id path int true "表单 ID"
+// @Param code path string true "表单编码（form_ 前缀）"
 // @Success 200 {object} httpx.Response{data=formmodel.FormDetail}
 // @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND"
-// @Router /api/v1/forms/{id} [get]
+// @Router /api/v1/forms/{code} [get]
 func (f *FormController) Get(c *gin.Context) {
-	id, ok := idFromParam(c, "id")
+	code, ok := formCodeFromParam(c, "code")
 	if !ok {
 		return
 	}
-	detail, err := f.formService.Get(c.Request.Context(), ginctx.GetUser(c), id)
+	detail, err := f.formService.Get(c.Request.Context(), ginctx.GetUser(c), code)
 	if err != nil {
 		responseError(c, err)
 		return
@@ -132,14 +133,14 @@ func (f *FormController) Get(c *gin.Context) {
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
-// @Param id path int true "表单 ID"
+// @Param code path string true "表单编码（form_ 前缀）"
 // @Param form body formmodel.UpdateFormRequest true "更新字段（仅白名单）"
 // @Success 200 {object} httpx.Response{data=formmodel.FormDetail}
 // @Failure 400 {object} httpx.Response "errCode=FORM_NAME_INVALID"
 // @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND"
-// @Router /api/v1/forms/{id} [patch]
+// @Router /api/v1/forms/{code} [patch]
 func (f *FormController) Update(c *gin.Context) {
-	id, ok := idFromParam(c, "id")
+	code, ok := formCodeFromParam(c, "code")
 	if !ok {
 		return
 	}
@@ -148,7 +149,7 @@ func (f *FormController) Update(c *gin.Context) {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	detail, err := f.formService.Update(c.Request.Context(), ginctx.GetUser(c), id, req)
+	detail, err := f.formService.Update(c.Request.Context(), ginctx.GetUser(c), code, req)
 	if err != nil {
 		responseError(c, err)
 		return
@@ -162,14 +163,14 @@ func (f *FormController) Update(c *gin.Context) {
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
-// @Param id path int true "表单 ID"
+// @Param code path string true "表单编码（form_ 前缀）"
 // @Param draft body formmodel.SaveDraftRequest true "草稿口令与协议全文"
 // @Success 200 {object} httpx.Response{data=formmodel.SaveDraftResult}
 // @Failure 400 {object} httpx.Response "errCode=FORM_SCHEMA_INVALID（data.issues 为 JSON Path 级问题清单）"
 // @Failure 409 {object} httpx.Response "errCode=FORM_REVISION_CONFLICT"
-// @Router /api/v1/forms/{id}/draft [put]
+// @Router /api/v1/forms/{code}/draft [put]
 func (f *FormController) SaveDraft(c *gin.Context) {
-	id, ok := idFromParam(c, "id")
+	code, ok := formCodeFromParam(c, "code")
 	if !ok {
 		return
 	}
@@ -178,7 +179,7 @@ func (f *FormController) SaveDraft(c *gin.Context) {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	result, err := f.formService.SaveDraft(c.Request.Context(), ginctx.GetUser(c), id, req)
+	result, err := f.formService.SaveDraft(c.Request.Context(), ginctx.GetUser(c), code, req)
 	if err != nil {
 		responseError(c, err)
 		return
@@ -191,16 +192,16 @@ func (f *FormController) SaveDraft(c *gin.Context) {
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
-// @Param id path int true "表单 ID"
+// @Param code path string true "表单编码（form_ 前缀）"
 // @Success 200 {object} httpx.Response
 // @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND"
-// @Router /api/v1/forms/{id} [delete]
+// @Router /api/v1/forms/{code} [delete]
 func (f *FormController) Delete(c *gin.Context) {
-	id, ok := idFromParam(c, "id")
+	code, ok := formCodeFromParam(c, "code")
 	if !ok {
 		return
 	}
-	if err := f.formService.Delete(c.Request.Context(), ginctx.GetUser(c), id); err != nil {
+	if err := f.formService.Delete(c.Request.Context(), ginctx.GetUser(c), code); err != nil {
 		responseError(c, err)
 		return
 	}
@@ -213,14 +214,14 @@ func (f *FormController) Delete(c *gin.Context) {
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
-// @Param id path int true "表单 ID"
+// @Param code path string true "表单编码（form_ 前缀）"
 // @Param publish body formmodel.PublishRequest true "发布所依据的草稿口令"
 // @Success 200 {object} httpx.Response{data=formmodel.PublishResult}
 // @Failure 400 {object} httpx.Response "errCode=FORM_PUBLISH_UNSUPPORTED_FIELD/FORM_SCHEMA_INVALID"
 // @Failure 409 {object} httpx.Response "errCode=FORM_REVISION_CONFLICT"
-// @Router /api/v1/forms/{id}/publish [post]
+// @Router /api/v1/forms/{code}/publish [post]
 func (f *FormController) Publish(c *gin.Context) {
-	id, ok := idFromParam(c, "id")
+	code, ok := formCodeFromParam(c, "code")
 	if !ok {
 		return
 	}
@@ -229,7 +230,7 @@ func (f *FormController) Publish(c *gin.Context) {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	result, err := f.formService.Publish(c.Request.Context(), ginctx.GetUser(c), id, req)
+	result, err := f.formService.Publish(c.Request.Context(), ginctx.GetUser(c), code, req)
 	if err != nil {
 		responseError(c, err)
 		return
@@ -238,15 +239,15 @@ func (f *FormController) Publish(c *gin.Context) {
 }
 
 // @Summary 表单运行时引导
-// @Description 按应用编码与表单 ID 返回已发布快照与双口令（publishedVersion/schemaRevision），供最终渲染器初始化；全体成员可读（与菜单同口径），未发布返回 FORM_NOT_PUBLISHED
+// @Description 按应用编码与表单编码返回已发布快照与双口令（publishedVersion/schemaRevision），供最终渲染器初始化；全体成员可读（与菜单同口径），未发布返回 FORM_NOT_PUBLISHED
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
 // @Param code path string true "应用编码（app_ 前缀）"
-// @Param formId path int true "表单 ID"
+// @Param formCode path string true "表单编码（form_ 前缀）"
 // @Success 200 {object} httpx.Response{data=formmodel.FormRuntime}
 // @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND/FORM_NOT_PUBLISHED/FORM_APP_INVALID"
-// @Router /api/v1/applications/code/{code}/forms/{formId}/runtime [get]
+// @Router /api/v1/applications/code/{code}/forms/{formCode}/runtime [get]
 func (f *FormController) GetRuntime(c *gin.Context) {
 	// 参数名与既有 /applications/code/:code 系列保持一致（gin 同位置通配符必须同名，
 	// 否则路由注册 panic）。
@@ -255,11 +256,11 @@ func (f *FormController) GetRuntime(c *gin.Context) {
 		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的应用编码"))
 		return
 	}
-	formID, ok := idFromParam(c, "formId")
+	formCode, ok := formCodeFromParam(c, "formCode")
 	if !ok {
 		return
 	}
-	runtime, err := f.formService.GetRuntime(c.Request.Context(), appCode, formID)
+	runtime, err := f.formService.GetRuntime(c.Request.Context(), appCode, formCode)
 	if err != nil {
 		responseError(c, err)
 		return
@@ -273,7 +274,7 @@ func (f *FormController) GetRuntime(c *gin.Context) {
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
-// @Param record body formmodel.SubmitRecordRequest true "表单 ID、发布双口令与字段值（键=widgetName）"
+// @Param record body formmodel.SubmitRecordRequest true "表单编码、发布双口令与字段值（键=widgetName）"
 // @Success 200 {object} httpx.Response{data=formmodel.SubmitRecordResult}
 // @Failure 400 {object} httpx.Response "errCode=FORM_RECORD_INVALID（data.fieldErrors 按字段键回填）"
 // @Failure 409 {object} httpx.Response "errCode=FORM_VERSION_CONFLICT"
@@ -296,15 +297,15 @@ func (f *FormController) SubmitRecord(c *gin.Context) {
 func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/forms", f.Create)
 	api.GET("/forms", f.List)
-	api.GET("/forms/:id", f.Get)
-	api.PATCH("/forms/:id", f.Update)
-	api.PUT("/forms/:id/draft", f.SaveDraft)
-	api.DELETE("/forms/:id", f.Delete)
-	api.POST("/forms/:id/publish", f.Publish)
+	api.GET("/forms/:code", f.Get)
+	api.PATCH("/forms/:code", f.Update)
+	api.PUT("/forms/:code/draft", f.SaveDraft)
+	api.DELETE("/forms/:code", f.Delete)
+	api.POST("/forms/:code/publish", f.Publish)
 	api.POST("/form-records", f.SubmitRecord)
 	// 与 /applications/code/:code 系列同前缀且通配符同名（gin radix tree 要求同
 	// 位置同名，静态段 code 优先），鉴权解析为 applications:get，普通成员可读。
-	api.GET("/applications/code/:code/forms/:formId/runtime", f.GetRuntime)
+	api.GET("/applications/code/:code/forms/:formCode/runtime", f.GetRuntime)
 }
 
 func (f *FormController) Name() string {

@@ -23,22 +23,22 @@ import (
 
 // Publish 发布：草稿口令复核 → 白名单校验 → 严格字典校验 → 事务内创建不可变快照
 // 并回写 forms.latest_version_id/published_version。历史版本不被触碰。
-func (s *formService) Publish(ctx context.Context, member *iammodel.User, id uint, req *model.PublishRequest) (*model.PublishResult, error) {
+func (s *formService) Publish(ctx context.Context, member *iammodel.User, code string, req *model.PublishRequest) (*model.PublishResult, error) {
 	if !s.access.Permissions(ctx, member)["forms:create"] {
-		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot publish form %d", id))
+		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot publish form %s", code))
 	}
-	form, err := s.load(ctx, id)
+	form, err := s.loadByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
 	if req.DraftRevision != form.DraftRevision {
 		return nil, httpx.Wrap(apperrors.ErrRevisionConflict,
-			fmt.Errorf("form %d draft revision %d != %d on publish", id, req.DraftRevision, form.DraftRevision))
+			fmt.Errorf("form %s draft revision %d != %d on publish", code, req.DraftRevision, form.DraftRevision))
 	}
 	// 白名单先行：给出比结构错误更明确的能力提示（FORM_PUBLISH_UNSUPPORTED_FIELD）。
 	if issues := ValidatePublishable([]byte(form.DraftContent)); len(issues) > 0 {
 		return nil, httpx.Wrap(apperrors.ErrPublishUnsupportedField.WithData(map[string]any{"issues": issues}),
-			fmt.Errorf("form %d publish blocked: %s", id, issues[0].Path))
+			fmt.Errorf("form %s publish blocked: %s", code, issues[0].Path))
 	}
 
 	tenantID, ok := contextx.TenantIDFromContext(ctx)
@@ -52,7 +52,7 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, id uin
 	var result *model.PublishResult
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
 		// 发布号在事务内取 max+1；(form_id, version_no) 唯一约束兜底并发发布。
-		nextNo, err := s.versions.MaxVersionNo(tctx, id)
+		nextNo, err := s.versions.MaxVersionNo(tctx, form.ID)
 		if err != nil {
 			return err
 		}
@@ -68,7 +68,7 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, id uin
 		}
 
 		version := &model.FormVersion{
-			FormID:              id,
+			FormID:              form.ID,
 			VersionNo:           nextNo,
 			Content:             form.DraftContent,
 			FieldKeys:           model.JSONContent(fieldKeys),
@@ -86,7 +86,7 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, id uin
 			return err
 		}
 		// 回写资产行的最新发布指针（草稿不被覆盖）。
-		if err := s.repo.MarkPublished(tctx, id, created.ID, nextNo); err != nil {
+		if err := s.repo.MarkPublished(tctx, form.ID, created.ID, nextNo); err != nil {
 			return err
 		}
 		result = &model.PublishResult{
@@ -101,7 +101,7 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, id uin
 	if s.audit != nil {
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "publish", ResourceType: "form",
-			ResourceID: strconv.FormatUint(uint64(id), 10),
+			ResourceID: form.Code,
 			After: map[string]any{
 				"publishedVersion": result.PublishedVersion,
 				"schemaRevision":   result.SchemaRevision,
@@ -115,7 +115,7 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, id uin
 
 // GetRuntime 运行时 bootstrap：appCode 归属复核 + 应用 active + 表单已发布；
 // 普通成员可读（路由经 applications:get，与菜单同口径），无 forms 管理权限要求。
-func (s *formService) GetRuntime(ctx context.Context, appCode string, formID uint) (*model.FormRuntime, error) {
+func (s *formService) GetRuntime(ctx context.Context, appCode, formCode string) (*model.FormRuntime, error) {
 	app, notFound, err := s.apps.ApplicationByCode(ctx, appCode)
 	if err != nil {
 		return nil, err
@@ -127,16 +127,16 @@ func (s *formService) GetRuntime(ctx context.Context, appCode string, formID uin
 		return nil, httpx.Wrap(apperrors.ErrFormNotFound, fmt.Errorf("application %s status %s", appCode, app.Status))
 	}
 
-	form, err := s.load(ctx, formID)
+	form, err := s.loadByCode(ctx, formCode)
 	if err != nil {
 		return nil, err
 	}
 	if form.ApplicationID != app.ID {
 		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid,
-			fmt.Errorf("form %d not in application %s", formID, appCode))
+			fmt.Errorf("form %s not in application %s", formCode, appCode))
 	}
 	if form.LatestVersionID == nil {
-		return nil, httpx.Wrap(apperrors.ErrNotPublished, fmt.Errorf("form %d not published", formID))
+		return nil, httpx.Wrap(apperrors.ErrNotPublished, fmt.Errorf("form %s not published", formCode))
 	}
 	version, err := s.versions.GetByID(ctx, *form.LatestVersionID)
 	if err != nil {
@@ -146,7 +146,7 @@ func (s *formService) GetRuntime(ctx context.Context, appCode string, formID uin
 		return nil, err
 	}
 	return &model.FormRuntime{
-		FormID:           form.ID,
+		FormCode:         form.Code,
 		Name:             form.Name,
 		PublishedVersion: version.VersionNo,
 		SchemaRevision:   strconv.FormatInt(version.SchemaRevision, 10),
@@ -171,7 +171,7 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot submit form records"))
 	}
 
-	form, err := s.load(ctx, req.FormID)
+	form, err := s.loadByCode(ctx, req.FormCode)
 	if err != nil {
 		return nil, err
 	}
@@ -184,17 +184,17 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid,
 			fmt.Errorf("application %d unavailable for submit", form.ApplicationID))
 	}
-	version, err := s.versions.GetByFormAndVersionNo(ctx, req.FormID, req.PublishedVersion)
+	version, err := s.versions.GetByFormAndVersionNo(ctx, form.ID, req.PublishedVersion)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, httpx.Wrap(apperrors.ErrVersionConflict,
-				fmt.Errorf("form %d version %d not found", req.FormID, req.PublishedVersion))
+				fmt.Errorf("form %s version %d not found", req.FormCode, req.PublishedVersion))
 		}
 		return nil, err
 	}
 	if strconv.FormatInt(version.SchemaRevision, 10) != req.SchemaRevision {
 		return nil, httpx.Wrap(apperrors.ErrVersionConflict,
-			fmt.Errorf("form %d version %d revision mismatch", req.FormID, req.PublishedVersion))
+			fmt.Errorf("form %s version %d revision mismatch", req.FormCode, req.PublishedVersion))
 	}
 
 	content := make(map[string]any)
@@ -208,7 +208,7 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 	cleaned, fieldErrors := ValidateRecordValues(content, rawValues)
 	if len(fieldErrors) > 0 {
 		return nil, httpx.Wrap(apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": fieldErrors}),
-			fmt.Errorf("form %d record invalid: %d field(s) rejected", req.FormID, len(fieldErrors)))
+			fmt.Errorf("form %s record invalid: %d field(s) rejected", req.FormCode, len(fieldErrors)))
 	}
 
 	valuesJSON, err := json.Marshal(cleaned)
@@ -218,7 +218,7 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 	var record *model.FormRecord
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
 		draft := &model.FormRecord{
-			FormID:              req.FormID,
+			FormID:              form.ID,
 			FormVersionID:       version.ID,
 			Values:              model.JSONContent(valuesJSON),
 			SubmittedByMemberID: member.ID,
@@ -240,7 +240,7 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 			Module: "form", Action: "submit", ResourceType: "form_record",
 			ResourceID: strconv.FormatUint(uint64(record.ID), 10),
 			After: map[string]any{
-				"formId":           req.FormID,
+				"formCode":         req.FormCode,
 				"publishedVersion": req.PublishedVersion,
 			},
 		})

@@ -23,7 +23,7 @@ const router = useRouter();
  *   字段错误按 widgetName 回填）；
  * - 未发布（设计器预览入口）：回退 sessionStorage 草稿本地回放，提交不落库。
  */
-const formId = computed(() => String(route.params.formId ?? ''));
+const formCode = computed(() => String(route.params.formCode ?? ''));
 const appCode = computed(() => String(route.params.appCode ?? ''));
 
 // 协议文档含递归 JSON 类型，shallowRef 避免深层 UnwrapRef 实例化（TS2589）。
@@ -46,15 +46,14 @@ void (async () => {
     documentRef.value = raw as FormSchemaDocument;
   };
 
-  // 路由参数防御：非正整数（如新建态残留）不打 bootstrap，直接走草稿回放。
-  const numericFormId = Number(formId.value);
-  const canBootstrap = Number.isInteger(numericFormId) && numericFormId > 0;
+  // 路由参数防御：非 form_ 编码（如新建态残留）不打 bootstrap，直接走草稿回放。
+  const canBootstrap = formCode.value.startsWith('form_');
 
   try {
     if (!canBootstrap) {
       throw new ApiError('未发布', 0, 'FORM_NOT_PUBLISHED');
     }
-    const bootstrap = await getFormRuntime(appCode.value, numericFormId);
+    const bootstrap = await getFormRuntime(appCode.value, formCode.value);
     runtimeInfo.value = {
       name: bootstrap.name,
       publishedVersion: bootstrap.publishedVersion,
@@ -64,7 +63,7 @@ void (async () => {
   } catch (error) {
     if (error instanceof ApiError && error.errCode === 'FORM_NOT_PUBLISHED') {
       // 未发布：回退设计器传递的草稿本地回放
-      const draft = loadFormPreviewDocument(formId.value);
+      const draft = loadFormPreviewDocument(formCode.value);
       if (draft) {
         const migrated = migrateFormSchema(draft);
         adopt(migrated.document, migrated.issues);
@@ -91,7 +90,7 @@ const runtimeAdapter: FormRuntimeAdapter = {
     }
     try {
       await submitFormRecord({
-        formId: Number(payload.formId),
+        formCode: payload.formId,
         publishedVersion: payload.publishedVersion,
         schemaRevision: payload.schemaRevision,
         values: payload.values,
@@ -125,7 +124,7 @@ function onSubmitSuccess(): void {
 function goBack(): void {
   router.push({
     name: 'form-design',
-    params: { appCode: route.params.appCode, formId: formId.value },
+    params: { appCode: route.params.appCode, formCode: formCode.value },
   });
 }
 </script>
@@ -160,7 +159,7 @@ function goBack(): void {
             v-else
             class="form-preview-page__runtime"
             :schema="documentRef"
-            :form-id="formId"
+            :form-id="formCode"
             :published-version="runtimeInfo?.publishedVersion ?? 0"
             :schema-revision="runtimeInfo?.schemaRevision ?? ''"
             :adapter="runtimeAdapter"

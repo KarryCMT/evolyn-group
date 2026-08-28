@@ -33,11 +33,12 @@ import {
 } from '@evolyn.do/form/designer';
 import { FormRenderer, type FormRuntimeAdapter } from '@evolyn.do/form/runtime';
 import { ApiError } from '@evolyn.do/utils';
-import { ElMessage, ElMessageBox } from 'element-plus';
-import { computed, onMounted, ref } from 'vue';
+import { ElMessage } from 'element-plus';
+import { computed, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getApplicationByCode } from '~/api/applications';
-import { createForm, getForm, publishForm, saveFormDraft, updateFormName } from '~/api/form';
+import { createForm, publishForm, saveFormDraft, updateFormName } from '~/api/form';
+import { useFormWorkspaceContext } from './workspace-context';
 // 设计器内预览按运行时独立样式加载，避免依赖设计器样式副作用。
 import '@evolyn.do/form/runtime/style.css';
 
@@ -45,18 +46,16 @@ defineOptions({ name: 'FormDesignPage' });
 
 const route = useRoute();
 const router = useRouter();
+const workspace = useFormWorkspaceContext();
 
 /** 编辑器状态：页面唯一持有 content.items（目标保存协议，ADR-010）。 */
 const editor = useFormSchemaEditor();
 const { document, items, selectedKey, selectedItem } = editor;
 
-/** 路由参数：'new' 为工作台新建态（先创建资产再替换为真实 ID）；其余须为正整数。 */
-const rawFormId = computed(() => String(route.params.formId ?? ''));
-const isNewForm = computed(() => rawFormId.value === 'new');
-const formId = computed(() => {
-  const id = Number(rawFormId.value);
-  return Number.isInteger(id) && id > 0 ? id : 0;
-});
+/** 路由参数：'new' 为历史兜底新建态；其余使用 form_ 前缀稳定公开编码。 */
+const rawFormCode = computed(() => String(route.params.formCode ?? ''));
+const isNewForm = computed(() => rawFormCode.value === 'new');
+const formCode = computed(() => (rawFormCode.value.startsWith('form_') ? rawFormCode.value : ''));
 
 /** 草稿口令与表单元信息：保存/发布回传后同步刷新。 */
 const draftRevision = ref(0);
@@ -72,57 +71,61 @@ const previewVisible = ref(false);
 const previewViewport = ref<'desktop' | 'mobile'>('desktop');
 const unsupportedPreviewTypes = new Set<string>();
 
-onMounted(() => {
-  if (isNewForm.value) {
-    void startNewForm();
-    return;
-  }
-  if (!formId.value) {
-    // 非法路由参数（NaN/0/负数）不发请求，直接进入受控错误态。
-    loadFailed.value = true;
-    loading.value = false;
-    return;
-  }
-  void loadDraft();
-});
+// 外壳是详情接口的唯一请求方；设计页仅消费共享响应，避免相同详情重复调用。
+watch(
+  [() => workspace.detail.value?.code, workspace.loading, workspace.loadFailed],
+  ([loadedCode, workspaceLoading, workspaceFailed]) => {
+    if (isNewForm.value) {
+      if (!workspaceLoading && !loadedCode) void startNewForm();
+      return;
+    }
+    if (!formCode.value) {
+      loadFailed.value = true;
+      loading.value = false;
+      return;
+    }
+    loading.value = workspaceLoading;
+    if (workspaceFailed) {
+      loadFailed.value = true;
+      loading.value = false;
+      return;
+    }
+    const detail = workspace.detail.value;
+    if (detail && detail.code === formCode.value) {
+      adoptDetail(detail);
+      loading.value = false;
+    }
+  },
+  { immediate: true },
+);
 
 /**
- * 新建表单兜底：主入口已前移到应用工作台（点「新建表单/新建流程表单」即调
- * POST /forms 拿真实 ID 后携 ID 跳转设计器）；此处仅防御直接落地的
- * `/form/new/design` 路由——命名 → 解析应用 ID → 创建资产与空草稿 →
- * 以真实 ID 替换路由。query 中的 parentEntryCode（目标分组编码）随创建
- * 请求消费，路由替换后不再携带。
+ * 新建表单兜底：主入口已前移到应用工作台（点「新建表单/新建流程表单」直接
+ * 使用「未命名表单」和持久化 formType 调 POST /forms，拿稳定 code 后跳转设计器，
+ * 再在属性面板改名）；
+ * 此处仅防御直接落地的 `/form/new/design` 路由——解析应用 ID → 使用默认名称创建资产与空草稿 →
+ * 以稳定 code 替换路由。query 中的 parentEntryCode（目标分组编码）随创建
+ * 请求消费；旧版 type 临时标记仅清理，不再参与类型判断。
  */
 async function startNewForm(): Promise<void> {
-  let name: string;
-  try {
-    const { value } = await ElMessageBox.prompt('请输入表单名称', '新建表单', {
-      inputValue: '未命名表单',
-      inputValidator: (input: string) =>
-        input && input.trim() ? true : '请输入 1–128 个字符的表单名称',
-      confirmButtonText: '创建',
-      cancelButtonText: '取消',
-      closeOnClickModal: false,
-    });
-    name = value.trim();
-  } catch {
-    // 取消命名即放弃创建，返回来源页（应用工作台）。
-    void router.push({ name: 'App', params: { appCode: route.params.appCode } });
-    return;
-  }
-
   loading.value = true;
   try {
     const app = await getApplicationByCode(String(route.params.appCode ?? ''));
-    // 兜底入口允许经 query 携带目标分组编码（type=workflow 等其余 query 原样保留）
+    // 兜底入口仅消费目标分组编码；表单类型不再从 query 推断。
     const parentEntryCode =
       typeof route.query.parentEntryCode === 'string' ? route.query.parentEntryCode : undefined;
-    const detail = await createForm({ applicationId: app.id, name, parentEntryCode });
+    const detail = await createForm({
+      applicationId: app.id,
+      name: '未命名表单',
+      formType: 'standard',
+      parentEntryCode,
+    });
+    workspace.setDetail(detail);
     adoptDetail(detail);
-    const { parentEntryCode: _consumed, ...restQuery } = route.query;
+    const { parentEntryCode: _parentEntryCode, type: _legacyType, ...restQuery } = route.query;
     await router.replace({
       name: 'form-design',
-      params: { ...route.params, formId: String(detail.id) },
+      params: { ...route.params, formCode: detail.code },
       query: restQuery,
     });
   } catch (error) {
@@ -140,7 +143,7 @@ async function startNewForm(): Promise<void> {
 }
 
 /** 以详情响应填充编辑态（加载与新建共用；草稿读取侧完成协议校验）。 */
-function adoptDetail(detail: Awaited<ReturnType<typeof getForm>>): void {
+function adoptDetail(detail: NonNullable<(typeof workspace.detail)['value']>): void {
   const result = validateFormSchema(detail.draft);
   if (!result.valid) {
     showIssues(result.issues);
@@ -152,18 +155,6 @@ function adoptDetail(detail: Awaited<ReturnType<typeof getForm>>): void {
   formName.value = detail.name;
   publishedVersion.value = detail.publishedVersion;
   loadFailed.value = false;
-}
-
-/** 加载草稿：读取侧完成校验，无效配置进入受控错误态。 */
-async function loadDraft(): Promise<void> {
-  loading.value = true;
-  try {
-    adoptDetail(await getForm(formId.value));
-  } catch {
-    loadFailed.value = true;
-  } finally {
-    loading.value = false;
-  }
 }
 
 /** 素材面板分组：基础字段可添加，其余分组置灰展示（后续阶段开放）。 */
@@ -203,10 +194,11 @@ function onAddDragField(value: { type: string; index: number }): void {
 
 /** 表单属性面板改名：名称属于表单资产，而非草稿协议内容。 */
 async function onUpdateFormName(name: string): Promise<void> {
-  if (!formId.value) return;
+  if (!formCode.value) return;
   renaming.value = true;
   try {
-    const detail = await updateFormName(formId.value, name);
+    const detail = await updateFormName(formCode.value, name);
+    workspace.setDetail(detail);
     formName.value = detail.name;
     ElMessage.success('表单名称已更新');
   } catch {
@@ -255,8 +247,9 @@ async function saveDraft(): Promise<void> {
   }
   saving.value = true;
   try {
-    const result = await saveFormDraft(formId.value, draftRevision.value, document.value);
+    const result = await saveFormDraft(formCode.value, draftRevision.value, document.value);
     draftRevision.value = result.draftRevision;
+    workspace.patchDetail({ draftRevision: result.draftRevision, draft: document.value });
     ElMessage.success('保存成功');
   } catch (error) {
     handleSaveError(error);
@@ -275,10 +268,15 @@ async function publish(): Promise<void> {
   publishing.value = true;
   try {
     // 发布前先落草稿，保证发布的就是当前画布内容（口令以保存结果为准）。
-    const saved = await saveFormDraft(formId.value, draftRevision.value, document.value);
-    const result = await publishForm(formId.value, saved.draftRevision);
+    const saved = await saveFormDraft(formCode.value, draftRevision.value, document.value);
+    const result = await publishForm(formCode.value, saved.draftRevision);
     draftRevision.value = saved.draftRevision;
     publishedVersion.value = result.publishedVersion;
+    workspace.patchDetail({
+      draftRevision: saved.draftRevision,
+      draft: document.value,
+      publishedVersion: result.publishedVersion,
+    });
     ElMessage.success(`发布成功（版本 ${result.publishedVersion}）`);
   } catch (error) {
     handleSaveError(error);
@@ -300,7 +298,9 @@ function handleSaveError(error: unknown): void {
     }
     if (error.errCode === 'FORM_REVISION_CONFLICT') {
       ElMessage.warning('表单已被他人更新，正在重新加载');
-      void loadDraft();
+      void workspace.reload().then((detail) => {
+        if (detail) adoptDetail(detail);
+      });
       return;
     }
   }
@@ -470,7 +470,7 @@ function notifyUnavailable(action: string) {
               class="form-design-preview__runtime"
               :class="`form-design-preview__runtime--${previewViewport}`"
               :schema="document"
-              :form-id="String(formId)"
+              :form-id="formCode"
               :adapter="previewAdapter"
               @unsupported-field="onUnsupportedPreviewField"
               @submit-success="onPreviewSubmitSuccess"

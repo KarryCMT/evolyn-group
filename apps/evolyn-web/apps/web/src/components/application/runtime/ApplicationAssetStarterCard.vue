@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import applicationTypeBackground from '~/assets/images/app-type-bg.png';
 import type { ApplicationAssetStarter } from './applicationAssetCatalog';
+import { RiLoader4Fill } from '@remixicon/vue';
+import applicationTypeBackground from '~/assets/images/app-type-bg.png';
 
 defineOptions({ name: 'ApplicationAssetStarterCard' });
 
 const props = defineProps<{
   starter: ApplicationAssetStarter;
+  disabled?: boolean;
+  loading?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -17,6 +20,8 @@ const emit = defineEmits<{
   <button
     class="application-asset-starter-card"
     type="button"
+    :aria-busy="props.loading || undefined"
+    :disabled="props.disabled"
     @click="emit('select', props.starter)"
   >
     <span
@@ -31,7 +36,13 @@ const emit = defineEmits<{
       />
       <strong class="application-asset-starter-card__title">{{ props.starter.title }}</strong>
     </span>
-    <span class="application-asset-starter-card__description">{{ props.starter.description }}</span>
+    <span v-if="props.loading" class="application-asset-starter-card__loading" role="status">
+      <RiLoader4Fill aria-hidden="true" />
+      正在创建并打开设计器…
+    </span>
+    <span v-else class="application-asset-starter-card__description">
+      {{ props.starter.description }}
+    </span>
   </button>
 </template>
 
@@ -57,7 +68,15 @@ const emit = defineEmits<{
     box-shadow 0.18s ease,
     transform 0.18s ease;
 
-  &:hover {
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  &:disabled:not([aria-busy='true']) {
+    opacity: 0.62;
+  }
+
+  &:not(:disabled):hover {
     border-color: var(--el-color-primary-light-5);
     box-shadow: var(--el-box-shadow-light);
     transform: translateY(-2px);
@@ -130,6 +149,34 @@ const emit = defineEmits<{
     line-height: 22px;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
+  }
+
+  &__loading {
+    display: inline-flex;
+    gap: var(--el-space-sm);
+    align-items: center;
+    margin-top: var(--el-space-md);
+    font-size: var(--el-font-size-small);
+    line-height: 18px;
+    color: var(--el-color-primary);
+
+    svg {
+      width: 16px;
+      height: 16px;
+      animation: application-asset-starter-card-spin 0.8s linear infinite;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .application-asset-starter-card__loading svg {
+    animation: none;
+  }
+}
+
+@keyframes application-asset-starter-card-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 

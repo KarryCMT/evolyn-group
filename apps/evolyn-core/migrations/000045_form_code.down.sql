@@ -1,0 +1,2 @@
+DROP INDEX IF EXISTS uk_forms_tenant_code;
+ALTER TABLE forms DROP COLUMN IF EXISTS code;

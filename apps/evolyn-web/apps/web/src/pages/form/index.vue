@@ -1,10 +1,12 @@
 <script setup lang="ts">
+import type { FormDetail } from '~/types';
 import { RiArrowLeftFill, RiNotification3Fill, RiQuestionFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
-import { computed, ref, watch } from 'vue';
+import { computed, provide, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import UserMenu from '~/components/navigation/UserMenu.vue';
 import { getForm } from '~/api/form';
+import UserMenu from '~/components/navigation/UserMenu.vue';
+import { formWorkspaceContextKey } from './workspace-context';
 
 defineOptions({ name: 'FormWorkspaceShell' });
 
@@ -23,9 +25,13 @@ interface FormNavigationItem {
 const route = useRoute();
 const router = useRouter();
 
-/** 表单名称：详情接口回填；新建态（formId=new）与加载前保持默认文案。 */
-const formTitle = ref('未命名表单');
-const standardNavigationItems: FormNavigationItem[] = [
+/** 工作区外壳是详情请求的唯一所有者，所有子路由通过上下文复用同一响应。 */
+const formDetail = shallowRef<FormDetail | null>(null);
+const detailLoading = shallowRef(false);
+const detailLoadFailed = shallowRef(false);
+const formTitle = computed(() => formDetail.value?.name ?? '未命名表单');
+const formType = computed(() => formDetail.value?.formType ?? null);
+const allNavigationItems: FormNavigationItem[] = [
   { name: 'form-design', label: '表单设计' },
   { name: 'form-workflow-design', label: '流程设计' },
   { name: 'form-extensions', label: '扩展功能' },
@@ -34,9 +40,13 @@ const standardNavigationItems: FormNavigationItem[] = [
 ];
 
 const appCode = computed(() => String(route.params.appCode ?? ''));
-const formId = computed(() => String(route.params.formId ?? ''));
-// 流程设计作为统一的一级工作区显示；后续由表单详情和权限控制其可访问性。
-const navigationItems = computed<FormNavigationItem[]>(() => standardNavigationItems);
+const formCode = computed(() => String(route.params.formCode ?? ''));
+// 流程设计只属于流程表单；详情未加载时也不提前展示，避免标准表单入口闪现。
+const navigationItems = computed<FormNavigationItem[]>(() =>
+  allNavigationItems.filter(
+    (item) => item.name !== 'form-workflow-design' || formType.value === 'workflow',
+  ),
+);
 const activeNavigationName = computed<FormRouteName>(() => {
   const active = navigationItems.value.find((item) =>
     route.matched.some((record) => record.name === item.name),
@@ -44,20 +54,84 @@ const activeNavigationName = computed<FormRouteName>(() => {
   return active?.name ?? 'form-design';
 });
 
-// 设计器新建表单成功后会以真实 ID 替换路由参数（同组件不重挂载），watch 跟进标题。
+function setDetail(detail: FormDetail): void {
+  formDetail.value = detail;
+  detailLoadFailed.value = false;
+}
+
+function patchDetail(patch: Partial<FormDetail>): void {
+  if (!formDetail.value) return;
+  formDetail.value = { ...formDetail.value, ...patch };
+}
+
+let detailRequestVersion = 0;
+
+async function loadDetail(code: string): Promise<FormDetail | null> {
+  const requestVersion = ++detailRequestVersion;
+  detailLoading.value = true;
+  detailLoadFailed.value = false;
+  try {
+    const detail = await getForm(code);
+    if (requestVersion !== detailRequestVersion || formCode.value !== code) return null;
+    setDetail(detail);
+    return detail;
+  } catch {
+    if (requestVersion !== detailRequestVersion) return null;
+    detailLoadFailed.value = true;
+    return null;
+  } finally {
+    if (requestVersion === detailRequestVersion) detailLoading.value = false;
+  }
+}
+
+function reloadDetail(): Promise<FormDetail | null> {
+  return formCode.value.startsWith('form_') ? loadDetail(formCode.value) : Promise.resolve(null);
+}
+
+provide(formWorkspaceContextKey, {
+  detail: formDetail,
+  loading: detailLoading,
+  loadFailed: detailLoadFailed,
+  setDetail,
+  patchDetail,
+  reload: reloadDetail,
+});
+
+// 同一路由切换 formCode 时组件会复用；watch 同时覆盖首次进入和参数变化。
 watch(
-  formId,
-  async (value) => {
-    const id = Number(value);
-    if (!Number.isInteger(id) || id <= 0) {
-      formTitle.value = '未命名表单';
+  formCode,
+  (value) => {
+    detailRequestVersion += 1;
+    if (value === 'new') {
+      formDetail.value = null;
+      detailLoading.value = false;
+      detailLoadFailed.value = false;
       return;
     }
-    try {
-      formTitle.value = (await getForm(id)).name;
-    } catch {
-      formTitle.value = '未命名表单';
+    if (!value.startsWith('form_')) {
+      formDetail.value = null;
+      detailLoading.value = false;
+      detailLoadFailed.value = true;
+      return;
     }
+    // 兜底新建页已持有创建响应时，路由替换不再重复请求详情。
+    if (formDetail.value?.code === value) return;
+
+    formDetail.value = null;
+    void loadDetail(value);
+  },
+  { immediate: true },
+);
+
+// 标准表单即使通过旧书签直达流程路由，也按详情事实重定向到表单设计。
+watch(
+  [formType, () => route.name],
+  ([currentFormType, routeName]) => {
+    if (currentFormType !== 'standard' || routeName !== 'form-workflow-design') return;
+    void router.replace({
+      name: 'form-design',
+      params: { appCode: appCode.value, formCode: formCode.value },
+    });
   },
   { immediate: true },
 );
@@ -66,7 +140,7 @@ function returnToApplication() {
   void router.push({
     name: 'App',
     params: { appCode: appCode.value },
-    query: formId.value === 'new' ? { workspace: 'form' } : undefined,
+    query: formCode.value === 'new' ? { workspace: 'form' } : undefined,
   });
 }
 
@@ -75,8 +149,7 @@ function navigateTo(name: FormRouteName) {
 
   void router.push({
     name,
-    params: { appCode: appCode.value, formId: formId.value },
-    query: route.query,
+    params: { appCode: appCode.value, formCode: formCode.value },
   });
 }
 

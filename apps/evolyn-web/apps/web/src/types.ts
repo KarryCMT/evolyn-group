@@ -372,11 +372,21 @@ export interface ApplicationListQuery {
 /** 应用菜单节点类型：group 分组无资产引用，其余为可打开的资产节点 */
 export type ApplicationMenuEntryType = 'group' | 'form' | 'dashboard' | 'page';
 
-/** 菜单节点资产引用：id 为资产域稳定公开编码（非数据库自增主键） */
-export interface ApplicationMenuTarget {
-  type: Exclude<ApplicationMenuEntryType, 'group'>;
-  id: string;
-}
+/** 菜单节点资产引用：code 为稳定公开编码；formType 仅属于表单目标。 */
+export type ApplicationMenuTarget =
+  | {
+      type: 'form';
+      code: string;
+      formType: FormType;
+    }
+  | {
+      type: 'dashboard';
+      code: string;
+    }
+  | {
+      type: 'page';
+      code: string;
+    };
 
 /** 菜单节点运行时能力（后端按当前成员权限与应用状态读取时派生，不落库） */
 export interface ApplicationMenuCapabilities {
@@ -477,11 +487,15 @@ export interface CurrentEdition {
 /** 目标保存协议文档（唯一事实结构，与 packages/form schema 同源） */
 export type FormSchemaDocument = import('@evolyn.do/form/schema').FormSchemaDocument;
 
-/** 表单详情（GET /forms/:id）：含草稿全文与修订口令 */
+/** 表单资产类型：由后端持久化，创建后不可变 */
+export type FormType = 'standard' | 'workflow';
+
+/** 表单详情（GET /forms/:code）：含草稿全文与修订口令 */
 export interface FormDetail {
-  id: number;
   applicationId: number;
+  code: string;
   name: string;
+  formType: FormType;
   draftRevision: number;
   publishedVersion: number;
   draft: FormSchemaDocument;
@@ -491,9 +505,10 @@ export interface FormDetail {
 
 /** 表单列表条目（不含草稿全文） */
 export interface FormSummary {
-  id: number;
   applicationId: number;
+  code: string;
   name: string;
+  formType: FormType;
   publishedVersion: number;
   updatedAt: string;
 }
@@ -505,20 +520,20 @@ export interface FormPage {
   hasMore: boolean;
 }
 
-/** PUT /forms/:id/draft 结果：新口令供下次保存回传 */
+/** PUT /forms/:code/draft 结果：新口令供下次保存回传 */
 export interface FormDraftSaveResult {
   draftRevision: number;
 }
 
-/** POST /forms/:id/publish 结果：发布双口令 */
+/** POST /forms/:code/publish 结果：发布双口令 */
 export interface FormPublishResult {
   publishedVersion: number;
   schemaRevision: string;
 }
 
-/** GET /applications/code/:appCode/forms/:formId/runtime 响应（运行时引导） */
+/** GET /applications/code/:appCode/forms/:formCode/runtime 响应（运行时引导） */
 export interface FormRuntimeBootstrap {
-  formId: number;
+  formCode: string;
   name: string;
   publishedVersion: number;
   schemaRevision: string;

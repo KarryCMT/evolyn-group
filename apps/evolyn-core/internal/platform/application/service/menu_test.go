@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -158,7 +159,7 @@ func TestMenuAssetInvisiblePruning(t *testing.T) {
 
 	repo := &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": snap}}
 	svc := newMenuTestService(repo, fullPerms()).(*menuService)
-	svc.UseFormDirectory(fakeFormDirectory{existing: map[uint]bool{}})
+	svc.UseFormDirectory(fakeFormDirectory{existing: map[uint]FormTargetProjection{}})
 
 	menu, err := svc.GetMenu(alphaCtx(), alphaMember(), "app_a")
 	assert.NoError(t, err)
@@ -166,12 +167,36 @@ func TestMenuAssetInvisiblePruning(t *testing.T) {
 	assert.Empty(t, menu.EntryMap)
 }
 
-// fakeFormDirectory 表单目录端口桩（M2-资产-1）：existing 即存在集
-type fakeFormDirectory struct {
-	existing map[uint]bool
+func TestMenuFormTargetUsesPublicCodeAndFormType(t *testing.T) {
+	form := menuEntryFixture(2, "menu_form", nil, model.MenuEntryTypeForm, 1024)
+	snap := emptySnapshot("app_a")
+	snap.Entries = []model.MenuEntry{form}
+
+	repo := &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": snap}}
+	svc := newMenuTestService(repo, fullPerms()).(*menuService)
+	svc.UseFormDirectory(fakeFormDirectory{existing: map[uint]FormTargetProjection{
+		902: {Code: "form_0123456789abcdef", FormType: "workflow"},
+	}})
+
+	menu, err := svc.GetMenu(alphaCtx(), alphaMember(), "app_a")
+	assert.NoError(t, err)
+	target := menu.EntryMap["menu_form"].Target
+	if assert.NotNil(t, target) {
+		assert.Equal(t, model.MenuEntryTypeForm, target.Type)
+		assert.Equal(t, "form_0123456789abcdef", target.Code)
+		assert.Equal(t, "workflow", target.FormType)
+		payload, marshalErr := json.Marshal(target)
+		assert.NoError(t, marshalErr)
+		assert.JSONEq(t, `{"type":"form","code":"form_0123456789abcdef","formType":"workflow"}`, string(payload))
+	}
 }
 
-func (f fakeFormDirectory) ExistingFormIDs(ctx context.Context, ids []uint) (map[uint]bool, error) {
+// fakeFormDirectory 表单目录端口桩（M2-资产-1）：existing 为内部 ID → 菜单目标投影。
+type fakeFormDirectory struct {
+	existing map[uint]FormTargetProjection
+}
+
+func (f fakeFormDirectory) ExistingFormTargets(ctx context.Context, ids []uint) (map[uint]FormTargetProjection, error) {
 	return f.existing, nil
 }
 

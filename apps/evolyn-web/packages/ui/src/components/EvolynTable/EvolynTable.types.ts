@@ -46,14 +46,12 @@ export interface EvolynTableColumn {
     | 'switch'
     | 'progressbar'
     | 'sparkline'
-    | 'button'
-    | 'multilinetext';
+    | 'button';
   /** 文本格式化：入参为行数据与列、行下标 */
   format?: (record: EvolynTableRow, col: number, row: number) => string;
   /** 声明式富单元格，优先级高于 cellType/format；画布无法消费 CSS 变量，色值需传具体值 */
   customRender?: EvolynTableCustomRender;
   /** 逃生舱：VTable ColumnDefine 的其余字段原样透传 */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
 

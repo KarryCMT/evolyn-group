@@ -31,9 +31,9 @@ func (r *formRepository) Create(ctx context.Context, form *model.Form) (*model.F
 	return form, nil
 }
 
-func (r *formRepository) GetByID(ctx context.Context, id uint) (*model.Form, error) {
+func (r *formRepository) GetByCode(ctx context.Context, code string) (*model.Form, error) {
 	form := new(model.Form)
-	if err := r.withContext(ctx).First(form, id).Error; err != nil {
+	if err := r.withContext(ctx).Where("code = ?", code).First(form).Error; err != nil {
 		return nil, err
 	}
 	return form, nil
@@ -99,25 +99,33 @@ func (r *formRepository) CountBillableFormsByTenant(ctx context.Context, tenantI
 	return count, err
 }
 
-// ExistingFormIDs 批量存在性查询：IN 命中 + 软删排除 + ctx 租户过滤。
-func (r *formRepository) ExistingFormIDs(ctx context.Context, ids []uint) (map[uint]bool, error) {
-	existing := make(map[uint]bool, len(ids))
+// ExistingFormTargets 批量查询菜单内部目标 ID 对应的公开编码与表单类型。
+func (r *formRepository) ExistingFormTargets(ctx context.Context, ids []uint) (map[uint]FormMenuTarget, error) {
+	existing := make(map[uint]FormMenuTarget, len(ids))
 	if len(ids) == 0 {
 		return existing, nil
 	}
-	rows := make([]uint, 0, len(ids))
+	rows := make([]struct {
+		ID       uint
+		Code     string
+		FormType model.FormType
+	}, 0, len(ids))
 	if err := r.withContext(ctx).Model(&model.Form{}).
 		Where("id IN ?", ids).
-		Pluck("id", &rows).Error; err != nil {
+		Select("id", "code", "form_type").Scan(&rows).Error; err != nil {
 		return nil, err
 	}
-	for _, id := range rows {
-		existing[id] = true
+	for _, row := range rows {
+		existing[row.ID] = FormMenuTarget{Code: row.Code, FormType: row.FormType}
 	}
 	return existing, nil
 }
 
 // Migrate 开发/测试路径：AutoMigrate 建表（索引与迁移链同构部分）
 func (r *formRepository) Migrate() error {
-	return r.db.AutoMigrate(&model.Form{})
+	if err := r.db.AutoMigrate(&model.Form{}); err != nil {
+		return err
+	}
+	return r.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_forms_tenant_code
+		ON forms (tenant_id, code) WHERE deleted_at IS NULL`).Error
 }

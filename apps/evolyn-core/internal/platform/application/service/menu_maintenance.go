@@ -16,9 +16,16 @@ import (
 // FormDirectory 表单目录窄端口（M2-资产-1，菜单读侧资产可见性与 target
 // 投影）：由表单域仓储在装配层适配；application 域不反向依赖 form 域包。
 type FormDirectory interface {
-	// ExistingFormIDs 返回 ids 中存在且未软删的表单 ID 集合（租户过滤由
-	// ctx 承载，跨租户 ID 自然不在结果中）
-	ExistingFormIDs(ctx context.Context, ids []uint) (map[uint]bool, error)
+	// ExistingFormTargets 返回内部 ID 对应的菜单目标投影（租户过滤由
+	// ctx 承载，跨租户 ID 自然不在结果中）。
+	ExistingFormTargets(ctx context.Context, ids []uint) (map[uint]FormTargetProjection, error)
+}
+
+// FormTargetProjection 是表单域向菜单读模型提供的最小投影；不携带草稿、
+// 发布版本等表单内部数据，避免 application 域反向依赖 form 域模型。
+type FormTargetProjection struct {
+	Code     string
+	FormType string
 }
 
 // MenuMaintenance 表单资产菜单节点维护窄端口（M2-资产-1）：表单域在创建/
@@ -26,7 +33,7 @@ type FormDirectory interface {
 // 菜单管理写接口（分组/移动/重排）仍随 M2-菜单-3 落地，本端口只承载
 // 资产生命周期驱动的节点维护。
 type MenuMaintenance interface {
-	// AttachFormEntry 表单创建事务内挂 form 资产节点（target 指向表单 ID）；
+	// AttachFormEntry 表单创建事务内挂 form 资产节点（target_id 保留内部表单 ID，出网投影 code）；
 	// parentEntryCode 为空挂应用根级，非空须为同应用下未软删的分组节点，
 	// 否则返回 APP_MENU_PARENT_INVALID（BizError 透传出网）
 	AttachFormEntry(ctx context.Context, applicationID, formID uint, name, parentEntryCode string) error
