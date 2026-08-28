@@ -122,6 +122,14 @@ const (
 	// FormRecordResource 与 /form-records 路由保持一致，代表表单记录提交
 	//（create 动词授予全体成员）：填写提交与表单设计权限彻底分离。
 	FormRecordResource = "form-records"
+	// NotificationResource 与 /notifications 路由保持一致，代表成员收件箱
+	//（view 覆盖摘要/列表、update 覆盖已读，授予全体成员）；数据范围只能
+	// 是「当前租户 × 当前成员」，由 Repository 双条件兜底。
+	NotificationResource = "notifications"
+	// NotificationSettingResource 与 /notification-settings 路由保持一致，
+	// 代表租户级通知偏好与自定义提醒对象管理（仅授予租户管理员；包含外部
+	// 联系人隐私数据，不经管理组范围回落放行）。
+	NotificationSettingResource = "notification-settings"
 )
 
 type Resource struct {

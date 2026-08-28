@@ -101,3 +101,13 @@ security: # 账号安全配置；TOTP 主密钥仅能通过未提交配置或密
     currentKeyVersion: 1 # 新绑定因子使用的主密钥版本；示例：1，轮换后递增。
     masterKeys: # 主密钥版本映射；保留旧版本直到对应因子完成重加密或停用。
       1: 'bee7b7bb6d86dc57d72eb878d223182ea2bc0874c185fb59ffa05d6e4c2f86b1' # 版本 1 的 32 字节十六进制主密钥示例占位值；生产必须替换。
+
+# 消息中心（P1/P2）：Outbox 物化与过期清理的 Worker 节奏、保留期口径与
+# 自定义提醒对象租户上限；全部零值回落内置默认。
+notification:
+  outboxIntervalSeconds: 5 # Outbox Worker 轮询间隔（秒）；示例：5。
+  outboxBatchSize: 20 # Outbox 单轮领取事件数；示例：20（上限 200）。
+  retentionIntervalSeconds: 21600 # 过期消息清理扫描周期（秒）；示例：21600（6 小时）。
+  retentionBatchSize: 1000 # 清理每批行数；示例：1000（上限 5000）。
+  retentionMonths: 6 # 消息保留期（月），列表/未读统计在 SQL 侧排除过期；示例：6。
+  customRecipientLimit: 200 # 租户自定义提醒对象上限；示例：200。

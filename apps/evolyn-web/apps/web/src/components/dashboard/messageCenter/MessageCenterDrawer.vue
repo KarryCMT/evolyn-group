@@ -1,19 +1,16 @@
 <script setup lang="ts">
-import type { ReminderRecipientInput } from './messageCenter.types';
+import type { MessageCategoryId } from './messageCenter.types';
 import { RiCloseFill } from '@remixicon/vue';
 import { shallowRef, watch } from 'vue';
 import AddMessageRecipientDialog from './AddMessageRecipientDialog.vue';
 import MessageCenterSidebar from './MessageCenterSidebar.vue';
 import MessageInbox from './MessageInbox.vue';
 import MessageRecipientManager from './MessageRecipientManager.vue';
+import MessageRecipientSelectorDialog from './MessageRecipientSelectorDialog.vue';
 import MessageSettings from './MessageSettings.vue';
 import { useMessageCenter } from './useMessageCenter';
 
 defineOptions({ name: 'MessageCenterDrawer' });
-
-const emit = defineEmits<{
-  unreadChange: [count: number];
-}>();
 
 /** 作为顶栏通知入口的唯一对外状态，父组件以 v-model 控制显隐。 */
 const visible = defineModel<boolean>({ default: false });
@@ -21,41 +18,71 @@ const visible = defineModel<boolean>({ default: false });
 const {
   activeCategoryId,
   activeCategoryLabel,
+  activeEventCode,
+  activeEventOptions,
   activePreferences,
   activeView,
   addRecipient,
+  categories,
+  channelCapabilities,
+  hasMore,
+  inboxError,
+  inboxLoading,
+  loadInbox,
   markAllAsRead,
   markAsRead,
+  onDrawerOpen,
   openRecipientManagement,
   openSettings,
+  recipientSaving,
   recipients,
+  records,
   removeRecipient,
+  replacePreferenceRecipients,
+  retentionMonths,
   selectCategory,
   selectSettingsCategory,
+  settingsAggregate,
+  settingsDenied,
+  settingsLoading,
   showUnreadOnly,
-  unreadCount,
+  smsBudget,
   unreadCountByCategory,
   updatePreference,
-  visibleRecords,
 } = useMessageCenter();
-const recipientDialogVisible = shallowRef(false);
 
-// 顶栏红点由未读总数驱动，抽屉内操作后无需依赖父组件额外同步状态。
-watch(
-  unreadCount,
-  (count) => {
-    emit('unreadChange', count);
-  },
-  { immediate: true },
-);
+const recipientDialogVisible = shallowRef(false);
+/** 事件接收对象选择器：记录当前编辑的事件码（空串表示未打开） */
+const recipientSelectorEventCode = shallowRef('');
+
+// 未读摘要由 Pinia notification store 承载（两个顶栏共读同一事实源），
+// 抽屉不再向父组件转发 unreadChange；打开时刷新摘要与首页数据
+watch(visible, (isVisible) => {
+  if (isVisible) onDrawerOpen();
+});
 
 function openAddRecipientDialog() {
   recipientDialogVisible.value = true;
 }
 
-function handleRecipientSubmit(payload: ReminderRecipientInput) {
-  addRecipient(payload);
-  recipientDialogVisible.value = false;
+/** 新增提醒对象：等待服务端成功后再关闭弹窗（失败保留输入供修正）。 */
+async function handleRecipientSubmit(payload: { name: string; mobile: string; email: string }) {
+  const created = await addRecipient(payload);
+  if (created) recipientDialogVisible.value = false;
+}
+
+/** 打开某事件的接收对象选择器（全量替换该事件接收规则）。 */
+function openRecipientSelector(eventCode: string) {
+  recipientSelectorEventCode.value = eventCode;
+}
+
+/** 保存接收规则：服务端成功后关闭选择器（失败保留勾选供修正）。 */
+async function handleRecipientSelectorSubmit(
+  eventCode: string,
+  next: { kind: string; recipientId?: number }[],
+) {
+  const saved = await replacePreferenceRecipients(eventCode, next);
+  if (saved) recipientSelectorEventCode.value = '';
 }
 </script>
 
@@ -85,6 +112,8 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
         <MessageCenterSidebar
           :active-category-id="activeCategoryId"
           :active-view="activeView"
+          :categories="categories"
+          :settings-available="!settingsDenied"
           :unread-count-by-category="unreadCountByCategory"
           @select-category="selectCategory"
           @open-settings="openSettings"
@@ -93,22 +122,37 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
         <main class="message-center__content">
           <MessageInbox
             v-if="activeView === 'inbox'"
-            :messages="visibleRecords"
+            :event-code="activeEventCode"
+            :event-options="activeEventOptions"
+            :error="inboxError"
+            :has-more="hasMore"
+            :loading="inboxLoading"
+            :messages="records"
+            :retention-months="retentionMonths"
             :show-unread-only="showUnreadOnly"
+            @update:event-code="activeEventCode = $event"
             @update:show-unread-only="showUnreadOnly = $event"
             @mark-all-as-read="markAllAsRead"
             @open-message="markAsRead"
+            @load-more="loadInbox(true)"
+            @retry="loadInbox()"
           />
           <MessageSettings
             v-else-if="activeView === 'settings'"
             :active-category-id="activeCategoryId"
+            :channel-capabilities="channelCapabilities"
+            :loading="settingsLoading"
             :preferences="activePreferences"
+            :settings-aggregate="settingsAggregate"
+            :sms-budget="smsBudget"
             @select-category="selectSettingsCategory"
-            @update-channel="updatePreference($event.preferenceId, $event.channel, $event.checked)"
+            @update-channel="updatePreference($event.eventCode, $event.channel, $event.checked)"
+            @edit-recipients="openRecipientSelector"
             @manage-recipients="openRecipientManagement"
           />
           <MessageRecipientManager
             v-else
+            :loading="recipientSaving"
             :recipients="recipients"
             @back="openSettings"
             @add="openAddRecipientDialog"
@@ -119,6 +163,13 @@ function handleRecipientSubmit(payload: ReminderRecipientInput) {
     </section>
   </el-drawer>
   <AddMessageRecipientDialog v-model="recipientDialogVisible" @submit="handleRecipientSubmit" />
+  <MessageRecipientSelectorDialog
+    v-model="recipientSelectorEventCode"
+    :event-code="recipientSelectorEventCode"
+    :preferences="activePreferences"
+    :recipients="recipients"
+    @submit="handleRecipientSelectorSubmit"
+  />
 </template>
 
 <style scoped lang="scss">

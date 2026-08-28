@@ -13,17 +13,18 @@ import (
 )
 
 type Config struct {
-	Server      ServerConfig           `yaml:"server"`
-	DB          DBConfig               `yaml:"db"`
-	Redis       RedisConfig            `yaml:"redis"`
-	Tenant      TenantRuntimeConfig    `yaml:"tenant"`
-	OAuthConfig map[string]OAuthConfig `yaml:"oauth"`
-	SMS         SMSConfig              `yaml:"sms"`
-	Email       EmailConfig            `yaml:"email"`
-	Auth        AuthConfig             `yaml:"auth"`
-	PKI         PKIConfig              `yaml:"pki"`
-	Security    SecurityConfig         `yaml:"security"`
-	Storage     StorageConfig          `yaml:"storage"`
+	Server       ServerConfig           `yaml:"server"`
+	DB           DBConfig               `yaml:"db"`
+	Redis        RedisConfig            `yaml:"redis"`
+	Tenant       TenantRuntimeConfig    `yaml:"tenant"`
+	OAuthConfig  map[string]OAuthConfig `yaml:"oauth"`
+	SMS          SMSConfig              `yaml:"sms"`
+	Email        EmailConfig            `yaml:"email"`
+	Auth         AuthConfig             `yaml:"auth"`
+	PKI          PKIConfig              `yaml:"pki"`
+	Security     SecurityConfig         `yaml:"security"`
+	Storage      StorageConfig          `yaml:"storage"`
+	Notification NotificationConfig     `yaml:"notification"`
 }
 
 // AuthConfig 认证域运行参数（登录失败锁定与令牌吊销降级策略）。
@@ -224,6 +225,72 @@ func (s StorageConfig) UploadCleanupInterval() time.Duration {
 		return 5 * time.Minute
 	}
 	return time.Duration(s.UploadCleanupIntervalSeconds) * time.Second
+}
+
+// NotificationConfig 消息中心域运行参数（消息中心 P1/P2）：Outbox 物化与
+// 过期清理的 Worker 节奏、保留期口径和自定义提醒对象租户上限。全部零值
+// 回落内置默认，不配置即按默认运行
+type NotificationConfig struct {
+	OutboxIntervalSeconds    int `yaml:"outboxIntervalSeconds"`    // Outbox Worker 轮询间隔秒（默认 5）
+	OutboxBatchSize          int `yaml:"outboxBatchSize"`          // Outbox 单轮领取事件数（默认 20，上限 200）
+	RetentionIntervalSeconds int `yaml:"retentionIntervalSeconds"` // 过期清理扫描周期秒（默认 21600 即 6 小时）
+	RetentionBatchSize       int `yaml:"retentionBatchSize"`       // 清理每批行数（默认 1000，上限 5000）
+	RetentionMonths          int `yaml:"retentionMonths"`          // 消息保留期月数（默认 6；页面「保存最近六个月」口径）
+	CustomRecipientLimit     int `yaml:"customRecipientLimit"`     // 租户自定义提醒对象上限（默认 200）
+}
+
+// OutboxInterval Outbox 轮询间隔（零/负值回落 5 秒）
+func (n NotificationConfig) OutboxInterval() time.Duration {
+	if n.OutboxIntervalSeconds <= 0 {
+		return 5 * time.Second
+	}
+	return time.Duration(n.OutboxIntervalSeconds) * time.Second
+}
+
+// OutboxBatch Outbox 单轮领取批量（回落 20，钳制上限 200 防长事务）
+func (n NotificationConfig) OutboxBatch() int {
+	if n.OutboxBatchSize <= 0 {
+		return 20
+	}
+	if n.OutboxBatchSize > 200 {
+		return 200
+	}
+	return n.OutboxBatchSize
+}
+
+// RetentionInterval 过期清理周期（回落 6 小时）
+func (n NotificationConfig) RetentionInterval() time.Duration {
+	if n.RetentionIntervalSeconds <= 0 {
+		return 6 * time.Hour
+	}
+	return time.Duration(n.RetentionIntervalSeconds) * time.Second
+}
+
+// RetentionBatch 清理单批行数（回落 1000，钳制上限 5000）
+func (n NotificationConfig) RetentionBatch() int {
+	if n.RetentionBatchSize <= 0 {
+		return 1000
+	}
+	if n.RetentionBatchSize > 5000 {
+		return 5000
+	}
+	return n.RetentionBatchSize
+}
+
+// RetentionMonthsValue 消息保留期月数（回落 6）
+func (n NotificationConfig) RetentionMonthsValue() int {
+	if n.RetentionMonths <= 0 {
+		return 6
+	}
+	return n.RetentionMonths
+}
+
+// RecipientLimit 自定义提醒对象上限（回落 200）
+func (n NotificationConfig) RecipientLimit() int {
+	if n.CustomRecipientLimit <= 0 {
+		return 200
+	}
+	return n.CustomRecipientLimit
 }
 
 func (s *StorageConfig) normalize() error {

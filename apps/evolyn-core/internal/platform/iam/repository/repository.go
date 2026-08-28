@@ -204,6 +204,18 @@ func (r *Repositories) Init() error {
 			Name:  model.FormRecordResource,
 			Scope: model.ClusterScope,
 		},
+		// 消息中心：成员收件箱（view/update 授全体成员，只能读写自己的
+		// 收件箱，数据范围由 Repository 双条件兜底）
+		{
+			Name:  model.NotificationResource,
+			Scope: model.ClusterScope,
+		},
+		// 通知设置：租户级通知偏好与自定义提醒对象（仅授予租户管理员；
+		// 含外部联系人隐私数据，不经管理组间接放行）
+		{
+			Name:  model.NotificationSettingResource,
+			Scope: model.ClusterScope,
+		},
 	}
 
 	if err := r.rbac.CreateResources(ctx, resources, clause.OnConflict{DoNothing: true}); err != nil {

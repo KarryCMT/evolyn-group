@@ -6,12 +6,13 @@ defineOptions({ name: 'MessageRecipientManager' });
 
 defineProps<{
   recipients: ReminderRecipient[];
+  loading: boolean;
 }>();
 
 const emit = defineEmits<{
   back: [];
   add: [];
-  remove: [recipientId: string];
+  remove: [recipientId: number];
 }>();
 </script>
 
@@ -36,7 +37,12 @@ const emit = defineEmits<{
         <span role="columnheader">操作</span>
       </div>
 
-      <div v-if="recipients.length" class="message-recipient-manager__body" role="rowgroup">
+      <!-- 仅此 body 承担滚动（el-scrollbar），表头固定。 -->
+      <el-scrollbar
+        v-if="recipients.length"
+        class="message-recipient-manager__body"
+        role="rowgroup"
+      >
         <div
           v-for="recipient in recipients"
           :key="recipient.id"
@@ -56,7 +62,7 @@ const emit = defineEmits<{
             </button>
           </span>
         </div>
-      </div>
+      </el-scrollbar>
       <div v-else class="message-recipient-manager__empty">暂无提醒对象</div>
     </div>
   </section>
@@ -156,7 +162,7 @@ const emit = defineEmits<{
 
   &__body {
     min-height: 0;
-    overflow: auto;
+    flex: 1;
   }
 
   &__empty {

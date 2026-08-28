@@ -98,3 +98,13 @@ security:
     # 填写 32 字节十六进制主密钥；支持按版本追加以完成密钥轮换。
     masterKeys:
       1: 'CHANGE_ME'
+
+# 消息中心（P1/P2）：Outbox 物化与过期清理的 Worker 节奏、保留期口径与
+# 自定义提醒对象租户上限；全部零值回落内置默认。
+notification:
+  outboxIntervalSeconds: 5 # Outbox Worker 轮询间隔（秒）；示例：5。
+  outboxBatchSize: 20 # Outbox 单轮领取事件数；示例：20（上限 200）。
+  retentionIntervalSeconds: 21600 # 过期消息清理扫描周期（秒）；示例：21600（6 小时）。
+  retentionBatchSize: 1000 # 清理每批行数；示例：1000（上限 5000）。
+  retentionMonths: 6 # 消息保留期（月），列表/未读统计在 SQL 侧排除过期；示例：6。
+  customRecipientLimit: 200 # 租户自定义提醒对象上限；示例：200。

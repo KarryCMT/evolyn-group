@@ -182,6 +182,36 @@ internal/
                       注册表（service/events.go）按 module+resourceType+action
                       推导事件码/分类/脱敏摘要，存量历史行读取侧降级
                       「历史操作记录」
+  notification/     消息中心域（P1+P2，小三层，docs/低代码平台/消息中心/）：
+                      租户×成员站内收件箱与租户通知设置（迁移 000039 七表：
+                      不可变 notification_messages（纯文本快照物化时固化，
+                      (tenant_id,event_id) 唯一幂等）+ notification_member_
+                      inboxes（扇出/已读，查询显式 tenant_id+member_id 双
+                      条件，过期消息 SQL 侧排除）+ 设置聚合/偏好覆盖/接收
+                      规则/自定义提醒对象 + notification_outbox_events）；
+                      业务域经 EventPublisher.PublishInTx 在自身事务内写
+                      Outbox（application 域创建/删除应用已发布
+                      application.asset.changed 真实事件），Dispatcher 以
+                      FOR UPDATE SKIP LOCKED 小批领取、按事件目录（八个
+                      稳定分类 + 首批五个 app-log 事件，模板纯文本渲染 +
+                      受控动作码）解析接收人（event_actor/event_audience/
+                      tenant_admin 实时推导，custom 仅外部渠道）并同事务
+                      扇出；Outbox 物化 Worker + 六个月保留清理 Worker 随
+                      服务启停；API：GET /notifications/unread-summary、
+                      GET /notifications（游标分页）、PUT /notifications/
+                      :id/read|read-all（through 口令不误伤新消息）与
+                      GET/PATCH /notification-settings*、recipients CRUD
+                      （revision 乐观锁 409、联系人被引用 409 +
+                      usedByEventCodes、上限 200 配置）；权限 notifications:
+                      view/update 授全体成员（只能读写本人收件箱）、
+                      notification-settings:* 按管理员规则签名补授（不经
+                      管理组放行）；租户开通经 NotificationSettingSeeder
+                      预置聚合根；前端：api/notifications.ts、api/
+                      notificationSettings.ts、stores/notification.ts（未读
+                      摘要会话级单一事实源，两个顶栏共读）、消息中心抽屉
+                      全量接入（游标增量分页、事件筛选目录、action 白名单
+                      跳转、接收对象选择器、409 冲突重载）；邮件/短信外部
+                      渠道与云币计费为 P3
 migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
                       命名 NNNNNN_name.(up|down).sql，版本号只增不复用）
 scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（本地证书）

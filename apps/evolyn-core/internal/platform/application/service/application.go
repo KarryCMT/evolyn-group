@@ -57,11 +57,12 @@ type TxManager interface {
 // 访问判定统一经 ApplicationAccessEvaluator（§9.1），capabilities 与
 // 写路径复核不依赖 HTTP 中间件
 type applicationService struct {
-	tx     TxManager
-	repo   repository.ApplicationRepository
-	quota  tenantservice.QuotaService
-	audit  auditservice.Recorder
-	access ApplicationAccessEvaluator
+	tx       TxManager
+	repo     repository.ApplicationRepository
+	quota    tenantservice.QuotaService
+	audit    auditservice.Recorder
+	access   ApplicationAccessEvaluator
+	notifier AssetEventNotifier // 资产变更事件发布（消息中心 P1，可空）
 }
 
 func NewApplicationService(
@@ -113,7 +114,12 @@ func (s *applicationService) CreateBlank(ctx context.Context, member *iammodel.U
 		// 安装记录 M2-A 出网不直接消费（来源摘要由应用行派生），M2-B
 		// 模板安装改用其版本/渠道信息
 		app, _, err = s.provisionBlank(tctx, tenantID, member, name, icon, color)
-		return err
+		if err != nil {
+			return err
+		}
+		// 消息中心 P1：应用资产变更事件随业务事务发布（Outbox 同事务，
+		// 回滚即同步回滚；事件编码/模板见 notification 事件注册表）
+		return s.publishAssetChangedInTx(tctx, assetVerbCreated, app, member)
 	}); err != nil {
 		return nil, err
 	}
@@ -382,7 +388,14 @@ func (s *applicationService) Delete(ctx context.Context, member *iammodel.User, 
 			fmt.Errorf("application %d provisioning (%s)", app.ID, app.ProvisionStatus))
 	}
 
-	if err := s.repo.SoftDelete(ctx, app); err != nil {
+	// 软删与资产变更事件同事务（消息中心 P1）：事件随删除提交物化，
+	// 删除失败则一并回滚
+	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		if err := s.repo.SoftDelete(tctx, app); err != nil {
+			return err
+		}
+		return s.publishAssetChangedInTx(tctx, assetVerbDeleted, app, member)
+	}); err != nil {
 		return err
 	}
 

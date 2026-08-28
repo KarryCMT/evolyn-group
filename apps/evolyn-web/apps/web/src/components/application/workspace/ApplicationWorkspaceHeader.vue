@@ -6,9 +6,10 @@ import {
   RiNotification3Fill,
   RiQuestionFill,
 } from '@remixicon/vue';
-import { shallowRef } from 'vue';
+import { computed, shallowRef } from 'vue';
 import MessageCenterDrawer from '~/components/dashboard/messageCenter/MessageCenterDrawer.vue';
 import UserMenu from '~/components/navigation/UserMenu.vue';
+import { useNotificationStore } from '~/stores/notification';
 import type { ApplicationWorkspaceMode } from './applicationWorkspace.types';
 
 defineOptions({ name: 'ApplicationWorkspaceHeader' });
@@ -24,7 +25,9 @@ const emit = defineEmits<{
 }>();
 
 const messageCenterVisible = shallowRef(false);
-const unreadMessageCount = shallowRef(0);
+// 未读摘要读 Pinia notification store（与主导航顶栏共读同一事实源）
+const notificationStore = useNotificationStore();
+const unreadMessageCount = computed(() => notificationStore.unreadTotal);
 
 const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof RiEditBoxFill }[] = [
   { mode: 'fill', label: '仅添加数据', icon: RiEditBoxFill },
@@ -77,9 +80,7 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
       <UserMenu />
     </div>
   </header>
-  <MessageCenterDrawer
-    v-model="messageCenterVisible"
-    @unread-change="unreadMessageCount = $event"
+  <MessageCenterDrawer v-model="messageCenterVisible" />
   />
 </template>
 

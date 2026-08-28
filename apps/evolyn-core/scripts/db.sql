@@ -555,6 +555,156 @@ CREATE TABLE IF NOT EXISTS form_records (
 CREATE INDEX IF NOT EXISTS idx_form_records_tenant_form
     ON form_records (tenant_id, form_id, id DESC);
 
+-- 消息中心不可变逻辑消息（000039）：模板渲染后的展示快照固化存储，
+-- 多成员经收件箱共享同一行；(tenant_id, event_id) 唯一承担 Worker 重试幂等
+CREATE TABLE IF NOT EXISTS notification_messages (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    event_id varchar(128) NOT NULL,
+    category_code varchar(64) NOT NULL,
+    event_code varchar(128) NOT NULL,
+    severity varchar(16) NOT NULL DEFAULT 'info',
+    title varchar(200) NOT NULL DEFAULT '',
+    content varchar(2000) NOT NULL,
+    action JSONB NOT NULL DEFAULT '{}'::jsonb,
+    source_ref JSONB NOT NULL DEFAULT '{}'::jsonb,
+    occurred_at timestamp with time zone NOT NULL,
+    expires_at timestamp with time zone NOT NULL,
+    created_at timestamp with time zone,
+    CONSTRAINT chk_notification_messages_severity CHECK (severity IN ('info', 'success', 'warning', 'error')),
+    CONSTRAINT chk_notification_messages_action CHECK (jsonb_typeof(action) = 'object'),
+    CONSTRAINT chk_notification_messages_source_ref CHECK (jsonb_typeof(source_ref) = 'object'),
+    CONSTRAINT chk_notification_messages_content CHECK (length(btrim(content)) > 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_notification_messages_tenant_event
+    ON notification_messages (tenant_id, event_id);
+
+CREATE INDEX IF NOT EXISTS idx_notification_messages_tenant_category
+    ON notification_messages (tenant_id, category_code, occurred_at DESC, id DESC);
+
+-- 成员收件箱（000039）：站内信扇出与已读状态；查询/更新必须 tenant_id+member_id 双条件
+CREATE TABLE IF NOT EXISTS notification_member_inboxes (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    message_id BIGINT NOT NULL REFERENCES notification_messages(id),
+    member_id BIGINT NOT NULL,
+    category_code varchar(64) NOT NULL,
+    occurred_at timestamp with time zone NOT NULL,
+    read_at timestamp with time zone,
+    created_at timestamp with time zone
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_notification_inboxes_unique
+    ON notification_member_inboxes (tenant_id, message_id, member_id);
+
+CREATE INDEX IF NOT EXISTS idx_notification_inboxes_member_list
+    ON notification_member_inboxes (tenant_id, member_id, category_code, occurred_at DESC, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_notification_inboxes_member_unread
+    ON notification_member_inboxes (tenant_id, member_id, category_code, occurred_at DESC, id DESC)
+    WHERE read_at IS NULL;
+
+-- 租户通知设置聚合根（000039）：每租户一行有效记录，revision 覆盖整个聚合
+CREATE TABLE IF NOT EXISTS tenant_notification_settings (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    revision BIGINT NOT NULL DEFAULT 1,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tenant_notification_settings_tenant
+    ON tenant_notification_settings (tenant_id)
+    WHERE deleted_at IS NULL;
+
+-- 事件偏好覆盖（000039）：只保存对注册表默认值的覆盖，无覆盖行投影默认
+CREATE TABLE IF NOT EXISTS tenant_notification_preferences (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    setting_id BIGINT NOT NULL REFERENCES tenant_notification_settings(id),
+    event_code varchar(128) NOT NULL,
+    system_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    email_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    sms_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    recipients_overridden BOOLEAN NOT NULL DEFAULT FALSE,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tenant_notification_prefs_event
+    ON tenant_notification_preferences (tenant_id, event_code);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_notification_prefs_setting
+    ON tenant_notification_preferences (setting_id);
+
+-- 事件偏好接收规则关联（000039）：CHECK 强制 target_kind 与联系人 ID 组合合法
+CREATE TABLE IF NOT EXISTS tenant_notification_preference_recipients (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    preference_id BIGINT NOT NULL REFERENCES tenant_notification_preferences(id),
+    target_kind varchar(32) NOT NULL,
+    custom_recipient_id BIGINT,
+    created_at timestamp with time zone,
+    CONSTRAINT chk_tenant_notif_pref_recipients_kind CHECK (target_kind IN ('event_actor', 'event_audience', 'tenant_admin', 'custom_recipient')),
+    CONSTRAINT chk_tenant_notif_pref_recipients_custom CHECK (
+        (target_kind = 'custom_recipient' AND custom_recipient_id IS NOT NULL)
+        OR (target_kind <> 'custom_recipient' AND custom_recipient_id IS NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_notif_pref_recipients_pref
+    ON tenant_notification_preference_recipients (preference_id);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_notif_pref_recipients_recipient
+    ON tenant_notification_preference_recipients (custom_recipient_id)
+    WHERE custom_recipient_id IS NOT NULL;
+
+-- 租户自定义外部提醒对象池（000039）：软删除保留关联历史；手机/邮箱至少一项由服务层校验
+CREATE TABLE IF NOT EXISTS tenant_notification_custom_recipients (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    name varchar(80) NOT NULL,
+    mobile varchar(32) NOT NULL DEFAULT '',
+    email varchar(254) NOT NULL DEFAULT '',
+    revision BIGINT NOT NULL DEFAULT 1,
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    deleted_at timestamp with time zone
+);
+
+CREATE INDEX IF NOT EXISTS idx_tenant_notification_recipients_tenant
+    ON tenant_notification_custom_recipients (tenant_id)
+    WHERE deleted_at IS NULL;
+
+-- 事务 Outbox（000039）：业务事务与消息物化之间的可靠边界，event_id 全局幂等
+CREATE TABLE IF NOT EXISTS notification_outbox_events (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    event_id varchar(128) NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    event_code varchar(128) NOT NULL,
+    actor_member_id BIGINT NOT NULL DEFAULT 0,
+    audience_member_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
+    parameters JSONB NOT NULL DEFAULT '{}'::jsonb,
+    occurred_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP,
+    status varchar(16) NOT NULL DEFAULT 'pending',
+    attempt_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP,
+    last_error_code varchar(100) NOT NULL DEFAULT '',
+    created_at timestamp with time zone,
+    processed_at timestamp with time zone,
+    CONSTRAINT chk_notification_outbox_status CHECK (status IN ('pending', 'processing', 'done', 'failed')),
+    CONSTRAINT chk_notification_outbox_audience CHECK (jsonb_typeof(audience_member_ids) = 'array'),
+    CONSTRAINT chk_notification_outbox_parameters CHECK (jsonb_typeof(parameters) = 'object')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_notification_outbox_event_id
+    ON notification_outbox_events (event_id);
+
+CREATE INDEX IF NOT EXISTS idx_notification_outbox_dispatch
+    ON notification_outbox_events (status, next_attempt_at, id);
+
 -- RustFS 文件元数据（000017）：对象字节存于私有 bucket，数据库只保存
 -- 租户归属、配额预留与访问控制所需字段。
 
@@ -1643,4 +1793,31 @@ WHERE name = 'authenticated'
   AND NOT EXISTS (
       SELECT 1 FROM json_array_elements_text(rules) AS e
       WHERE e::json->>'resource' = 'form-records'
+  );
+
+-- 消息中心（000039）：基线管理员按规则签名补授 notification-settings 资源
+--（口径同 000035/000037，与可改名的角色名无关）
+UPDATE roles
+SET rules = (
+    rules::jsonb || jsonb_build_array(jsonb_build_object('resource', 'notification-settings', 'operation', '*'))
+)::json
+WHERE deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*')
+  AND NOT EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'notification-settings');
+
+-- 消息中心（000039）：全体成员读写自己的收件箱（view 覆盖摘要/列表，
+-- update 覆盖单条/批量已读；数据范围由 Repository 双租户条件兜底）
+UPDATE roles
+SET rules = (
+    rules::jsonb
+    || '[{"resource": "notifications", "operation": "view"}, {"resource": "notifications", "operation": "update"}]'::jsonb
+)::json
+WHERE name = 'authenticated'
+  AND deleted_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM json_array_elements_text(rules) AS e
+      WHERE e::json->>'resource' = 'notifications'
   );

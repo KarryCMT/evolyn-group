@@ -8,11 +8,12 @@ import {
   RiNotification3Fill,
   RiQuestionFill,
 } from '@remixicon/vue';
-import { shallowRef } from 'vue';
+import { computed, shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
 import appLogo from '~/assets/logo/logo.png';
 import MessageCenterDrawer from '~/components/dashboard/messageCenter/MessageCenterDrawer.vue';
 import UserMenu from '~/components/navigation/UserMenu.vue';
+import { useNotificationStore } from '~/stores/notification';
 
 defineOptions({ name: 'TopNavigation' });
 
@@ -57,7 +58,9 @@ defineSlots<{
 
 const router = useRouter();
 const messageCenterVisible = shallowRef(false);
-const unreadMessageCount = shallowRef(0);
+// 未读摘要读 Pinia notification store（与工作区顶栏共读同一事实源）
+const notificationStore = useNotificationStore();
+const unreadMessageCount = computed(() => notificationStore.unreadTotal);
 
 function goBack() {
   if (props.backTo) {
@@ -167,9 +170,7 @@ function notifyUnavailable() {}
       </slot>
     </div>
   </header>
-  <MessageCenterDrawer
-    v-model="messageCenterVisible"
-    @unread-change="unreadMessageCount = $event"
+  <MessageCenterDrawer v-model="messageCenterVisible" />
   />
 </template>
 

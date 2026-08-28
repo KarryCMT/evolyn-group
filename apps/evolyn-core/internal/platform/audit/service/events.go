@@ -99,6 +99,10 @@ var resourceRegistry = map[string]ResourceMeta{
 	"tenant/tenant":                {CategoryTenantSettings, "企业信息"},
 	"tenantproduct/tenant_product": {CategoryTenantSettings, "产品设置"},
 	"edition/tenant_subscription":  {CategoryTenantSettings, "版本订阅"},
+	// 消息中心（通知偏好与自定义提醒对象属于租户级设置；用户查看/已读消息
+	// 不记审计，避免高频噪声）
+	"notification/notification_setting": {CategoryTenantSettings, "通知设置"},
+	"notification/custom_recipient":     {CategoryTenantSettings, "提醒对象"},
 	// 应用管理
 	"application/application": {CategoryApplication, "应用"},
 	// 文件管理
@@ -150,6 +154,8 @@ var resourceActions = map[string][]string{
 	"tenant/tenant":                     {"create", "update", "update_name", "transfer_owner", "status"},
 	"tenantproduct/tenant_product":      {"update_enabled", "update_scope"},
 	"edition/tenant_subscription":       {"update", "downgrade"},
+	"notification/notification_setting": {"update"},
+	"notification/custom_recipient":     {"create", "delete"},
 	"application/application":           {"create", "update", "delete"},
 	"file/file":                         {"upload_init", "upload_complete", "delete"},
 	"enterpriselog/export":              {"create"},

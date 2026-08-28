@@ -115,6 +115,7 @@ declare module 'vue' {
     MessageListItem: typeof import('./components/dashboard/messageCenter/MessageListItem.vue')['default']
     MessagePreferenceTable: typeof import('./components/dashboard/messageCenter/MessagePreferenceTable.vue')['default']
     MessageRecipientManager: typeof import('./components/dashboard/messageCenter/MessageRecipientManager.vue')['default']
+    MessageRecipientSelectorDialog: typeof import('./components/dashboard/messageCenter/MessageRecipientSelectorDialog.vue')['default']
     MessageSettings: typeof import('./components/dashboard/messageCenter/MessageSettings.vue')['default']
     MessageSettingsTabs: typeof import('./components/dashboard/messageCenter/MessageSettingsTabs.vue')['default']
     MessageToolbar: typeof import('./components/dashboard/messageCenter/MessageToolbar.vue')['default']

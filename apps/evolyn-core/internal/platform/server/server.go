@@ -56,6 +56,9 @@ import (
 	"evolyn/internal/platform/iam/repository"
 	"evolyn/internal/platform/iam/service"
 	"evolyn/internal/platform/middleware"
+	notificationcontroller "evolyn/internal/platform/notification/controller"
+	notificationrepository "evolyn/internal/platform/notification/repository"
+	notificationservice "evolyn/internal/platform/notification/service"
 	tenantcontroller "evolyn/internal/platform/tenant/controller"
 	tenantrepository "evolyn/internal/platform/tenant/repository"
 	tenantservice "evolyn/internal/platform/tenant/service"
@@ -145,6 +148,10 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	formRepo := formrepository.NewRepository(db)
 	formVersionRepo := formrepository.NewVersionRepository(db)
 	formRecordRepo := formrepository.NewRecordRepository(db)
+	// 消息中心域仓储（000039）：逻辑消息+收件箱、通知设置聚合、事务 Outbox
+	notificationMessageRepo := notificationrepository.NewMessageRepository(db)
+	notificationSettingRepo := notificationrepository.NewSettingRepository(db)
+	notificationOutboxRepo := notificationrepository.NewOutboxRepository(db)
 	if conf.DB.Migrate {
 		if err := auditRepo.Migrate(); err != nil {
 			return nil, err
@@ -183,6 +190,15 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 			return nil, err
 		}
 		if err := formRecordRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := notificationMessageRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := notificationSettingRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := notificationOutboxRepo.Migrate(); err != nil {
 			return nil, err
 		}
 	}
@@ -306,6 +322,29 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 访问判定与鉴权中间件同源（按 ID 重载成员 + authenticated 系统组）
 	appAccess := applicationservice.NewRBACAccessEvaluator(iamRepo.User(), iamRepo.Group())
 	applicationService := applicationservice.NewApplicationService(txManager, applicationRepo, quotaSvc, auditSvc, appAccess)
+	// 消息中心域（000039）：收件箱/设置服务 + 事务 Outbox 发布端口与扇出
+	// Dispatcher（成员目录/系统管理员解析经窄端口适配，域内不依赖 iam 具体
+	// Service）；应用域事件发布器随 Dispatcher 前装配注入
+	notificationEventPublisher := notificationservice.NewEventPublisher(notificationOutboxRepo)
+	if injector, ok := applicationService.(applicationservice.AssetNotifierInjector); ok {
+		injector.UseAssetNotifier(applicationAssetNotifier{publisher: notificationEventPublisher})
+	}
+	notificationDispatcher := notificationservice.NewDispatcher(
+		txManager, notificationOutboxRepo, notificationMessageRepo, notificationSettingRepo,
+		notificationMemberDirectory{users: iamRepo.User()},
+		notificationAdminResolver{adminGroups: iamRepo.AdminGroup()},
+		conf.Notification.RetentionMonthsValue(), logger,
+	)
+	notificationDispatcher.SetBatchSize(conf.Notification.OutboxBatch())
+	notificationInboxService := notificationservice.NewInboxService(
+		txManager, notificationMessageRepo, conf.Notification.RetentionMonthsValue(),
+	)
+	notificationSettingService := notificationservice.NewSettingService(
+		txManager, notificationSettingRepo, auditSvc, conf.Notification.RecipientLimit(),
+	)
+	if injector, ok := tenantService.(tenantservice.NotificationSettingSeederInjector); ok {
+		injector.UseNotificationSeeder(notificationSettingService)
+	}
 	// 应用菜单服务（M2-菜单-1 只读）：访问判定复用应用域评估器，与鉴权
 	// 中间件同源；菜单写路径随 M2-菜单-3 落地
 	menuService := applicationservice.NewMenuService(menuRepo, appAccess)
@@ -414,12 +453,24 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	)
 	formController := formcontroller.NewFormController(formService)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController}
+	// 消息中心域（000039）控制器：收件箱（notifications）/ 通知设置
+	//（notification-settings）均挂租户域链
+	notificationController := notificationcontroller.NewNotificationController(notificationInboxService)
+	notificationSettingController := notificationcontroller.NewSettingController(notificationSettingService)
+
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, notificationController, notificationSettingController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
 	// 订阅到期降级任务（版本信息一期）：间隔取默认值（读时投影已兜底窗口期）
 	editionWorker := editionservice.NewEditionWorker(editionService, 0, logger)
+	// 消息中心（000039）：Outbox 物化 + 过期消息清理，随服务生命周期启停
+	notificationOutboxWorker := notificationservice.NewOutboxWorker(
+		notificationDispatcher, conf.Notification.OutboxInterval(), logger,
+	)
+	notificationRetentionWorker := notificationservice.NewRetentionWorker(
+		notificationDispatcher, conf.Notification.RetentionInterval(), logger,
+	)
 
 	gin.SetMode(conf.Server.ENV)
 
@@ -451,20 +502,22 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	)
 
 	return &Server{
-		engine:               e,
-		config:               conf,
-		logger:               logger,
-		db:                   db,
-		rdb:                  rdb,
-		controllers:          controllers,
-		fileController:       fileController,
-		purgeWorker:          purgeWorker,
-		editionWorker:        editionWorker,
-		fileCleanupWorker:    fileCleanupWorker,
-		sessionCleanupWorker: sessionCleanupWorker,
-		authorizer:           authorizer,
-		tenantRepo:           tenantRepo,
-		pkiKeypair:           keypair,
+		engine:                   e,
+		config:                   conf,
+		logger:                   logger,
+		db:                       db,
+		rdb:                      rdb,
+		controllers:              controllers,
+		fileController:           fileController,
+		purgeWorker:              purgeWorker,
+		editionWorker:            editionWorker,
+		fileCleanupWorker:        fileCleanupWorker,
+		sessionCleanupWorker:     sessionCleanupWorker,
+		notificationOutboxWorker: notificationOutboxWorker,
+		notificationRetWorker:    notificationRetentionWorker,
+		authorizer:               authorizer,
+		tenantRepo:               tenantRepo,
+		pkiKeypair:               keypair,
 	}, nil
 }
 
@@ -484,8 +537,11 @@ type Server struct {
 	fileCleanupWorker *fileservice.UploadCleanupWorker
 	// 会话清理任务（ADR-009 SEC-3-4）：删除过期/超保留期的历史设备会话
 	sessionCleanupWorker *securityservice.SessionCleanupWorker
-	authorizer           *authorization.Authorizer
-	tenantRepo           tenantrepository.TenantRepository
+	// 消息中心任务（000039）：Outbox 物化扇出 + 过期消息保留清理
+	notificationOutboxWorker *notificationservice.OutboxWorker
+	notificationRetWorker    *notificationservice.RetentionWorker
+	authorizer               *authorization.Authorizer
+	tenantRepo               tenantrepository.TenantRepository
 	// 登录口令加密密钥对：登录/改密解密与 /app/conf 公钥下发共用
 	pkiKeypair *pki.Keypair
 }
@@ -503,6 +559,8 @@ func (s *Server) Run() error {
 	go s.editionWorker.Run(workerCtx)
 	go s.fileCleanupWorker.Run(workerCtx)
 	go s.sessionCleanupWorker.Run(workerCtx)
+	go s.notificationOutboxWorker.Run(workerCtx)
+	go s.notificationRetWorker.Run(workerCtx)
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Address, s.config.Server.Port)
 	s.logger.Infof("Start server on: %s", addr)
@@ -690,6 +748,77 @@ func (d enterpriseLogMemberDirectory) ValidateMember(ctx context.Context, tenant
 	}
 	_ = member
 	return nil
+}
+
+// notificationMemberDirectory 消息中心成员目录窄端口适配：扇出前的成员
+// 归属/有效状态复核与模板 actorName 固化（口径同企业日志，跨租户/已删成员
+// NotFound → ErrMemberInvalid，Dispatcher 静默收敛扇出范围）
+type notificationMemberDirectory struct {
+	users repository.UserRepository
+}
+
+func (d notificationMemberDirectory) ValidateMember(ctx context.Context, tenantID, memberID uint) error {
+	_, err := d.users.GetUserByID(contextx.NewTenantContext(ctx, tenantID), memberID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return apperrors.ErrMemberInvalid
+		}
+		return httpx.Wrap(httpx.NewBiz(httpx.CodeInternalServer, "成员校验失败", http.StatusInternalServerError), err)
+	}
+	return nil
+}
+
+func (d notificationMemberDirectory) MemberDisplayName(ctx context.Context, tenantID, memberID uint) string {
+	member, err := d.users.GetUserByID(contextx.NewTenantContext(ctx, tenantID), memberID)
+	if err != nil {
+		return ""
+	}
+	return member.Nickname
+}
+
+// notificationAdminResolver 系统管理员窄端口适配：经内置系统管理员组的
+// tenant-admin 角色绑定实时推导成员（单一事实源），不依赖可改名的角色名
+type notificationAdminResolver struct {
+	adminGroups repository.AdminGroupRepository
+}
+
+func (r notificationAdminResolver) ResolveAdminMemberIDs(ctx context.Context, tenantID uint) ([]uint, error) {
+	tenantCtx := contextx.NewTenantContext(ctx, tenantID)
+	roleID, err := r.adminGroups.ResolveBuiltinRoleID(tenantCtx)
+	if err != nil {
+		return nil, err
+	}
+	members, err := r.adminGroups.ListBuiltinMembers(tenantCtx, roleID)
+	if err != nil {
+		return nil, err
+	}
+	ids := make([]uint, 0, len(members))
+	for _, member := range members {
+		ids = append(ids, member.ID)
+	}
+	return ids, nil
+}
+
+// applicationAssetNotifier 应用资产变更事件窄端口适配：application 域不
+// 直接依赖 notification 域，装配层转发到事务 Outbox 发布端口；事件码与
+// 参数 Schema 由 notification 事件注册表终审
+type applicationAssetNotifier struct {
+	publisher notificationservice.EventPublisher
+}
+
+func (n applicationAssetNotifier) NotifyAssetChanged(
+	ctx context.Context, eventID, verb, appCode, appName string, actorMemberID uint,
+) error {
+	return n.publisher.PublishInTx(ctx, notificationservice.EventInput{
+		EventID:       eventID,
+		EventCode:     "application.asset.changed",
+		ActorMemberID: actorMemberID,
+		Parameters: map[string]string{
+			"appName": appName,
+			"verb":    verb,
+			"appCode": appCode,
+		},
+	})
 }
 
 // buildSmsSender 按配置分派短信通道与固定验证码：

@@ -3,12 +3,16 @@ import { RiArrowDownSFill } from '@remixicon/vue';
 
 defineOptions({ name: 'MessageToolbar' });
 
-defineProps<{
+const props = defineProps<{
   showUnreadOnly: boolean;
+  /** 事件筛选选项（服务端目录下发；为空时隐藏下拉，不显示占位项） */
+  eventCode: string;
+  eventOptions: { code: string; label: string }[];
 }>();
 
 const emit = defineEmits<{
   'update:showUnreadOnly': [value: boolean];
+  'update:eventCode': [value: string];
   markAllAsRead: [];
 }>();
 
@@ -16,18 +20,30 @@ const emit = defineEmits<{
 function updateUnreadOnly(value: boolean | string | number) {
   emit('update:showUnreadOnly', value === true);
 }
+
+function selectEvent(code: string) {
+  emit('update:eventCode', code === props.eventCode ? '' : code);
+}
 </script>
 
 <template>
   <div class="message-toolbar">
-    <el-dropdown trigger="click">
+    <el-dropdown v-if="eventOptions.length" trigger="click" @command="selectEvent">
       <button class="message-toolbar__filter" type="button">
-        <span>全部</span>
+        <span>{{ eventOptions.find((option) => option.code === eventCode)?.label ?? '全部' }}</span>
         <el-icon><RiArrowDownSFill /></el-icon>
       </button>
       <template #dropdown>
         <el-dropdown-menu>
-          <el-dropdown-item>全部</el-dropdown-item>
+          <el-dropdown-item :class="{ 'is-active': !eventCode }" command="">全部</el-dropdown-item>
+          <el-dropdown-item
+            v-for="option in eventOptions"
+            :key="option.code"
+            :class="{ 'is-active': option.code === eventCode }"
+            :command="option.code"
+          >
+            {{ option.label }}
+          </el-dropdown-item>
         </el-dropdown-menu>
       </template>
     </el-dropdown>

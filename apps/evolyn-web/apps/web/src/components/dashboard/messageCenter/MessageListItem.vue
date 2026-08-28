@@ -8,7 +8,7 @@ defineProps<{
 }>();
 
 const emit = defineEmits<{
-  open: [messageId: string];
+  open: [messageId: number];
 }>();
 </script>
 

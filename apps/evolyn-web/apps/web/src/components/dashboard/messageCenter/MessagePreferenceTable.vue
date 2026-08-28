@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import type { MessageDeliveryChannel, MessagePreference } from './messageCenter.types';
+import type { NotificationChannelCapability } from '~/api/notificationSettings';
 import { RiInformationFill, RiUserFill } from '@remixicon/vue';
 
 defineOptions({ name: 'MessagePreferenceTable' });
 
-defineProps<{
+const props = defineProps<{
   preferences: MessagePreference[];
+  channelCapabilities: Record<string, NotificationChannelCapability>;
 }>();
 
 const emit = defineEmits<{
   updateChannel: [
-    payload: { preferenceId: string; channel: MessageDeliveryChannel; checked: boolean },
+    payload: { eventCode: string; channel: MessageDeliveryChannel; checked: boolean },
   ];
-  manageRecipients: [preferenceId: string];
+  editRecipients: [eventCode: string];
 }>();
 
 const channelLabels: { key: MessageDeliveryChannel; label: string; tooltip?: string }[] = [
@@ -21,13 +23,31 @@ const channelLabels: { key: MessageDeliveryChannel; label: string; tooltip?: str
   { key: 'sms', label: '短信', tooltip: '短信提醒将消耗云币额度。' },
 ];
 
+/**
+ * 渠道勾选禁用条件：必选渠道（locked）恒禁用；事件不支持的渠道禁用；
+ * 渠道能力不可用（P3 前邮件/短信恒不可用）禁用并提示原因——不展示
+ * 「已开启但永远无法发送」的虚假状态。
+ */
+function channelDisabled(preference: MessagePreference, channel: MessageDeliveryChannel): boolean {
+  if (preference.lockedChannels.includes(channel)) return true;
+  if (!preference.supportedChannels.includes(channel)) return true;
+  return !props.channelCapabilities[channel]?.available;
+}
+
+function channelTooltip(preference: MessagePreference, channel: MessageDeliveryChannel): string {
+  if (!preference.supportedChannels.includes(channel)) return '该事件不支持此渠道';
+  const capability = props.channelCapabilities[channel];
+  if (capability && !capability.available) return capability.reason;
+  return '';
+}
+
 /** 避免将 Element Plus 的 label 值写入布尔通知偏好。 */
 function updateChannel(
-  preferenceId: string,
+  eventCode: string,
   channel: MessageDeliveryChannel,
   value: boolean | string | number,
 ) {
-  emit('updateChannel', { preferenceId, channel, checked: value === true });
+  emit('updateChannel', { eventCode, channel, checked: value === true });
 }
 </script>
 
@@ -38,12 +58,12 @@ function updateChannel(
       <span>提醒方式及对象</span>
     </div>
 
-    <!-- 仅此 body 承担滚动，表头始终固定在红框外。 -->
-    <div class="message-preference-table__body">
+    <!-- 仅此 body 承担滚动（el-scrollbar），表头始终固定。 -->
+    <el-scrollbar class="message-preference-table__body">
       <template v-if="preferences.length">
         <div
           v-for="preference in preferences"
-          :key="preference.id"
+          :key="preference.code"
           class="message-preference-table__row"
         >
           <div class="message-preference-table__type">{{ preference.label }}</div>
@@ -52,12 +72,22 @@ function updateChannel(
               <el-checkbox
                 v-for="channel in channelLabels"
                 :key="channel.key"
+                :disabled="channelDisabled(preference, channel.key)"
                 :model-value="preference.channels[channel.key]"
-                :disabled="channel.key === 'system'"
-                @update:model-value="updateChannel(preference.id, channel.key, $event)"
+                @update:model-value="updateChannel(preference.code, channel.key, $event)"
               >
                 {{ channel.label }}
-                <el-tooltip v-if="channel.tooltip" :content="channel.tooltip" placement="top">
+                <el-tooltip
+                  v-if="
+                    channelDisabled(preference, channel.key) &&
+                    channelTooltip(preference, channel.key)
+                  "
+                  :content="channelTooltip(preference, channel.key)"
+                  placement="top"
+                >
+                  <el-icon class="message-preference-table__hint"><RiInformationFill /></el-icon>
+                </el-tooltip>
+                <el-tooltip v-else-if="channel.tooltip" :content="channel.tooltip" placement="top">
                   <el-icon class="message-preference-table__hint"><RiInformationFill /></el-icon>
                 </el-tooltip>
               </el-checkbox>
@@ -66,18 +96,18 @@ function updateChannel(
             <div class="message-preference-table__recipients">
               <button
                 v-for="recipient in preference.recipients"
-                :key="recipient"
+                :key="recipient.kind + (recipient.recipientId ?? '')"
                 class="message-preference-table__recipient"
                 type="button"
-                @click="emit('manageRecipients', preference.id)"
+                @click="emit('editRecipients', preference.code)"
               >
                 <el-icon><RiUserFill /></el-icon>
-                <span>{{ recipient }}</span>
+                <span>{{ recipient.label }}</span>
               </button>
               <button
                 class="message-preference-table__manage"
                 type="button"
-                @click="emit('manageRecipients', preference.id)"
+                @click="emit('editRecipients', preference.code)"
               >
                 修改
               </button>
@@ -86,7 +116,7 @@ function updateChannel(
         </div>
       </template>
       <div v-else class="message-preference-table__empty">当前分类暂无可配置的通知。</div>
-    </div>
+    </el-scrollbar>
   </div>
 </template>
 
@@ -131,8 +161,6 @@ function updateChannel(
   &__body {
     min-height: 0;
     flex: 1;
-    overflow: auto;
-    overscroll-behavior: contain;
   }
 
   &__type {

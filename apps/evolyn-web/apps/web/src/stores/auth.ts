@@ -16,6 +16,7 @@ import {
   verifyMfaLogin,
 } from '~/api/auth';
 import { getToken, removeToken, setToken } from '@evolyn.do/utils';
+import { useNotificationStore } from '~/stores/notification';
 
 // 会话域 store（pinia setup store）：token 单例状态 + 登录/登出/切换租户动作 +
 // 登录聚合信息（账号/成员/租户/配额，对齐灵衍云 login_user_info 引导形态），
@@ -108,22 +109,26 @@ export const useAuthStore = defineStore('auth', () => {
   /**
    * 清理本地会话镜像：除持久化令牌外，还必须同步清空 Pinia 内存态。
    * 被其他设备挤下线时由全局 401 处理器调用，避免受保护界面继续按旧状态渲染。
+   * 消息中心未读摘要属租户 × 成员维度数据，随会话一并清空
    */
   function clearSession() {
     removeToken();
     token.value = null;
     userInfo.value = null;
+    useNotificationStore().clear();
   }
 
   /**
    * 多租户账号切换当前租户：后端重新签发令牌，前端原位替换（沿用存储范围），
-   * 并重拉聚合信息——成员/租户身份已随切换变化
+   * 并重拉聚合信息——成员/租户身份已随切换变化；消息中心未读摘要按新租户清零重拉
    */
   async function switchTenant(tenantId: TenantMembership['tenantId']) {
     const jwt = await apiSwitchTenant(tenantId);
     setToken(jwt.token, rememberLogin);
     token.value = jwt.token;
+    useNotificationStore().clear();
     await loadUserInfo();
+    void useNotificationStore().load();
   }
 
   /** 拉取账号的租户成员关系（登录后判断单/多租户走向） */

@@ -1,24 +1,27 @@
 <script setup lang="ts">
 import type { MessageCategoryId } from './messageCenter.types';
+import type { NotificationCategorySetting } from '~/api/notificationSettings';
 import { computed } from 'vue';
-import { messageCategories } from './messageCenter.constants';
 
 defineOptions({ name: 'MessageSettingsTabs' });
 
-defineProps<{
+const props = defineProps<{
   activeCategoryId: MessageCategoryId;
+  /** 服务端设置聚合的分类目录（configurable=false 的分类不出现在设置页） */
+  categories: NotificationCategorySetting[];
 }>();
 
 const emit = defineEmits<{
   select: [categoryId: MessageCategoryId];
 }>();
 
-/** 数据提醒与文档动态暂无专属通知策略，设置页仅显示可配置的企业消息类目。 */
-const configurableCategories = computed(() =>
-  messageCategories.filter(
-    (item) => item.id !== 'data-reminder' && item.id !== 'document-activity',
-  ),
-);
+/** 只显示服务端标记为可配置的分类（数据提醒/文档动态等无事件注册的分类自动排除）。 */
+const configurableCategories = computed(() => props.categories.filter((item) => item.configurable));
+
+function select(categoryId: string) {
+  // 目录 id 即稳定分类码（八个分类之一），收敛到视图层强类型
+  emit('select', categoryId as MessageCategoryId);
+}
 </script>
 
 <template>
@@ -31,7 +34,7 @@ const configurableCategories = computed(() =>
       type="button"
       role="tab"
       :aria-selected="activeCategoryId === category.id"
-      @click="emit('select', category.id)"
+      @click="select(category.id)"
     >
       {{ category.label }}
     </button>

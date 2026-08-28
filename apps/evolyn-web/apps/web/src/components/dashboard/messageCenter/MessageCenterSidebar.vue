@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { MessageCategoryId, MessageCenterView } from './messageCenter.types';
+import type { MessageCategory, MessageCategoryId, MessageCenterView } from './messageCenter.types';
 import {
   RiApps2Fill,
   RiBarChartBoxFill,
@@ -11,13 +11,16 @@ import {
   RiSettings3Fill,
 } from '@remixicon/vue';
 import { computed } from 'vue';
-import { messageCategories } from './messageCenter.constants';
 
 defineOptions({ name: 'MessageCenterSidebar' });
 
-defineProps<{
+const props = defineProps<{
   activeCategoryId: MessageCategoryId;
   activeView: MessageCenterView;
+  /** 服务端下发的分类目录（加载失败时由上层回落兜底常量） */
+  categories: MessageCategory[];
+  /** 普通成员隐藏「通知设置」入口（后端权限仍是最终边界） */
+  settingsAvailable: boolean;
   unreadCountByCategory: Partial<Record<MessageCategoryId, number>>;
 }>();
 
@@ -27,10 +30,10 @@ const emit = defineEmits<{
 }>();
 
 const productCategories = computed(() =>
-  messageCategories.filter((item) => item.group === 'product'),
+  props.categories.filter((item) => item.group === 'product'),
 );
 const enterpriseCategories = computed(() =>
-  messageCategories.filter((item) => item.group === 'enterprise'),
+  props.categories.filter((item) => item.group === 'enterprise'),
 );
 
 const categoryIcons = {
@@ -101,7 +104,7 @@ const categoryIcons = {
       </button>
     </div>
 
-    <div class="message-center-sidebar__footer">
+    <div v-if="settingsAvailable" class="message-center-sidebar__footer">
       <button
         class="message-center-sidebar__settings"
         :class="{

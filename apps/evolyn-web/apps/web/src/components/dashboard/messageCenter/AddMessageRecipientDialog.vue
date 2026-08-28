@@ -2,6 +2,7 @@
 import type { FormInstance, FormRules } from 'element-plus';
 import type { ReminderRecipientInput } from './messageCenter.types';
 import { RiCloseFill } from '@remixicon/vue';
+import { ElMessage } from 'element-plus';
 import { reactive, shallowRef, watch } from 'vue';
 
 defineOptions({ name: 'AddMessageRecipientDialog' });
@@ -31,6 +32,11 @@ watch(visible, (isVisible) => {
 async function submit() {
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
+  // 手机/邮箱至少一项（后端同样强制校验，前端校验不替代服务端）
+  if (!form.mobile.trim() && !form.email.trim()) {
+    ElMessage.warning('手机与邮箱至少填写一项，否则无法投递提醒');
+    return;
+  }
   emit('submit', {
     name: form.name.trim(),
     mobile: form.mobile.trim(),

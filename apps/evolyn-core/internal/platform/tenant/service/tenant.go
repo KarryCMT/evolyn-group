@@ -75,6 +75,19 @@ type ProductConfigSeederInjector interface {
 	UseProductSeeder(seeder ProductConfigSeeder)
 }
 
+// NotificationSettingSeeder 开通租户时预置通知设置聚合根的最小能力（消息
+// 中心 P1）：由 notification 设置服务实现，经 NotificationSettingSeederInjector
+// 注入（口径同 ProductConfigSeeder）；读取侧 EnsureSetting 另有幂等兜底，
+// 兼容注入缺失的存量路径
+type NotificationSettingSeeder interface {
+	SeedDefaults(ctx context.Context, tenantID uint) error
+}
+
+// NotificationSettingSeederInjector 支持事后注入通知设置种子器的租户服务
+type NotificationSettingSeederInjector interface {
+	UseNotificationSeeder(seeder NotificationSettingSeeder)
+}
+
 // 租户内基线角色名（与默认租户种子、db.sql 口径一致）。
 // 名称直接面向组织角色页展示，因此使用中文；租户内权限判定只依赖角色规则，
 // 不以名称作为授权依据。
@@ -102,15 +115,16 @@ var ErrTenantNameInvalid = httpx.NewBiz("TENANT_NAME_INVALID", "租户名称格�
 // 开通全流程经 TxManager 单事务提交（FIX-020）；审计记录关键运营操作
 // （FIX-013），配额服务在开建成员前校验（FIX-011）
 type tenantService struct {
-	tx            TxManager
-	tenantRepo    tenantrepository.TenantRepository
-	iam           IAMRepositories
-	quota         QuotaService
-	audit         auditservice.Recorder
-	retention     time.Duration
-	subSeeder     SubscriptionSeeder
-	fieldSeeder   MemberFieldSeeder
-	productSeeder ProductConfigSeeder
+	tx                 TxManager
+	tenantRepo         tenantrepository.TenantRepository
+	iam                IAMRepositories
+	quota              QuotaService
+	audit              auditservice.Recorder
+	retention          time.Duration
+	subSeeder          SubscriptionSeeder
+	fieldSeeder        MemberFieldSeeder
+	productSeeder      ProductConfigSeeder
+	notificationSeeder NotificationSettingSeeder
 }
 
 func NewTenantService(
@@ -150,6 +164,12 @@ func (s *tenantService) UseFieldSeeder(seeder MemberFieldSeeder) {
 // 停用卡片（写入路径仍按未初始化拒绝）
 func (s *tenantService) UseProductSeeder(seeder ProductConfigSeeder) {
 	s.productSeeder = seeder
+}
+
+// UseNotificationSeeder 注入通知设置种子器（消息中心 P1）：新租户开通事务内
+// 预置通知设置聚合根；未注入时读取侧 EnsureSetting 幂等兜底
+func (s *tenantService) UseNotificationSeeder(seeder NotificationSettingSeeder) {
+	s.notificationSeeder = seeder
 }
 
 // OpenTenantRequest 开通租户请求：OwnerAccountID 与 Owner 账号信息二选一
@@ -425,6 +445,14 @@ func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*
 		}
 	}
 
+	// 消息中心 P1：开通事务内预置通知设置聚合根（幂等）；注入失败即整体
+	// 回滚，读取侧 EnsureSetting 另有幂等兜底兼容存量路径
+	if s.notificationSeeder != nil {
+		if err = s.notificationSeeder.SeedDefaults(contextx.NewTenantContext(bctx, tenant.ID), tenant.ID); err != nil {
+			return nil, err
+		}
+	}
+
 	// 权限中心-管理员模块：开通事务内预置内置系统管理员组（幂等）；成员由
 	// 上方 owner 绑定的 tenant-admin 角色实时推导，不落成员表
 	if err = s.seedBuiltinAdminGroup(bctx, tenant.ID); err != nil {
@@ -482,6 +510,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 表单资产（ADR-010）：表单设计/发布/删除全量；存量租户由 000037
 			// 按「管理员规则签名」补授（与角色名无关）
 			{Resource: iammodel.FormResource, Operation: iammodel.AllOperation},
+			// 通知设置（消息中心）：租户级偏好与自定义提醒对象全量管理；
+			// 存量租户由 000039 按「管理员规则签名」补授。不经管理组间接放行
+			{Resource: iammodel.NotificationSettingResource, Operation: iammodel.AllOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},
@@ -499,6 +530,10 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// applications:get）；表单设计权限在 forms 资源，与本规则分离；
 			// 存量租户由 000038 补授
 			{Resource: iammodel.FormRecordResource, Operation: request.CreateOperation},
+			// 消息中心（消息中心 P1）：全体成员读写自己的收件箱（view 覆盖
+			// 摘要/列表，update 覆盖已读）；存量租户由 000039 补授
+			{Resource: iammodel.NotificationResource, Operation: iammodel.ViewOperation},
+			{Resource: iammodel.NotificationResource, Operation: request.UpdateOperation},
 		}},
 		{Name: UnAuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "auth", Operation: "create"},
