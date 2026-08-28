@@ -71,7 +71,7 @@ code {
 }
 
 #nprogress .bar {
-  background: #1677ff;
+  background: var(--el-color-primary);
   opacity: 0.75;
   position: fixed;
   z-index: 1031;

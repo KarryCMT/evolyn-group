@@ -253,7 +253,7 @@ function notifyUnavailable() {}
     height: 32px;
     padding: 0 var(--el-space-xs);
     border-radius: var(--el-border-radius-large);
-    background: #ffffff;
+    background: var(--el-bg-color);
     box-shadow: var(--el-box-shadow-light);
 
     svg {
@@ -262,7 +262,7 @@ function notifyUnavailable() {}
     }
 
     &:hover {
-      background: #ffffff;
+      background: var(--el-bg-color);
       box-shadow: var(--el-box-shadow-light);
       transform: translateY(-1px);
     }

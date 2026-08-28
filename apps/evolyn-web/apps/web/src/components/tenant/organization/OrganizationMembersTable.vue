@@ -407,7 +407,7 @@ function removeCurrentMember() {
   min-width: 128px;
   padding: var(--el-space-md) 0;
   border-radius: var(--el-border-radius-medium);
-  background: #fff;
+  background: var(--el-bg-color);
   box-shadow: var(--el-box-shadow-light);
 }
 .organization-members-table__action-menu-panel button {

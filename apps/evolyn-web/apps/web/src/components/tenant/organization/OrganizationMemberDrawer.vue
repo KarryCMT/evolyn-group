@@ -158,7 +158,7 @@ function save() {
   width: min(620px, 94vw);
   height: 100%;
   flex-direction: column;
-  background: #fff;
+  background: var(--el-bg-color);
   box-shadow: var(--el-box-shadow-light);
 }
 .organization-member-drawer__header {

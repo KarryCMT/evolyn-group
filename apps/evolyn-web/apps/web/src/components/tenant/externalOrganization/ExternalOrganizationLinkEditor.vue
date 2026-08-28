@@ -108,7 +108,6 @@ function confirm() {
 
 :global(.external-organization-link-editor) {
   /* 弹窗传送至 body 后不继承管理后台的页面变量，显式固定为浅色管理端表面。 */
-  --el-bg-color: #ffffff;
   --el-bg-color-overlay: #ffffff;
   --el-fill-color: #f4f6fa;
   --el-fill-color-light: #f7f8fc;
@@ -120,7 +119,7 @@ function confirm() {
   --el-border-color: #dbe1eb;
   --el-border-color-light: #e7eaf0;
   border-radius: var(--el-border-radius-large);
-  background: #ffffff;
+  background: var(--el-bg-color);
   color-scheme: light;
 }
 :global(.external-organization-link-editor .el-dialog__header) {
@@ -149,10 +148,10 @@ function confirm() {
   border-top: 1px solid var(--el-border-color-lighter);
 }
 :global(.external-organization-link-editor .el-select__wrapper) {
-  background: #ffffff;
+  background: var(--el-bg-color);
 }
 :global(.external-organization-link-editor .el-button:not(.el-button--primary)) {
-  --el-button-bg-color: #ffffff;
+  --el-button-bg-color: var(--el-bg-color);
   --el-button-text-color: var(--el-text-color-regular);
   --el-button-border-color: var(--el-border-color);
 }

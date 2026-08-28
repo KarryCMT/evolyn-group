@@ -116,7 +116,7 @@ const emit = defineEmits<{
     overflow: hidden;
     border: 1px solid var(--el-border-color-lighter);
     border-radius: var(--el-border-radius-large);
-    background: #fff;
+    background: var(--el-bg-color);
     box-shadow: var(--el-box-shadow-light);
 
     h3 {

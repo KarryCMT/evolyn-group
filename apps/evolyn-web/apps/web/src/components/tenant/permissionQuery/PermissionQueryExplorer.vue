@@ -167,7 +167,7 @@ function selectTab(id: PermissionSubjectType) {
 }
 .permission-query-explorer__tab--active {
   color: var(--el-color-primary);
-  background: #fff;
+  background: var(--el-bg-color);
   box-shadow: var(--el-box-shadow-light);
 }
 .permission-query-explorer__search {

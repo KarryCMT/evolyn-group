@@ -334,7 +334,6 @@ function downloadTemplate() {
 
 :global(.external-organization-invite-dialog) {
   /* 全屏邀请层附加在 body，需与固定浅色的管理后台保持一致。 */
-  --el-bg-color: #ffffff;
   --el-bg-color-overlay: #ffffff;
   --el-fill-color: #f4f6fa;
   --el-fill-color-light: #f7f8fc;
@@ -349,7 +348,7 @@ function downloadTemplate() {
   height: calc(100vh - 62px);
   margin: 62px 0 0;
   border-radius: 0;
-  background: #ffffff;
+  background: var(--el-bg-color);
   color-scheme: light;
 }
 :global(.external-organization-invite-dialog .el-dialog__header) {
