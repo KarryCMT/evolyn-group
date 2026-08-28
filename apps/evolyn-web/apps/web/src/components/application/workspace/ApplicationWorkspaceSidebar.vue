@@ -291,8 +291,6 @@ function handleCreateAsset(command: string | number | object) {
     align-items: center;
     justify-content: center;
     color: var(--el-color-primary);
-    background: var(--el-color-white);
-    border-radius: var(--el-border-radius-medium);
     font-size: var(--el-font-size-large);
   }
 

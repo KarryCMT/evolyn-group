@@ -111,7 +111,7 @@ onMounted(() => {
           class="apps-widget__icon"
           :model-value="app.icon"
           display-only
-          :size="48"
+          :size="42"
         />
         <span class="apps-widget__item-name" :title="app.name">{{ app.name }}</span>
       </button>
@@ -181,7 +181,7 @@ onMounted(() => {
   }
 
   &__icon {
-    flex: 0 0 48px;
+    flex: 0 0 42px;
     margin-bottom: var(--el-space-md);
   }
 }
