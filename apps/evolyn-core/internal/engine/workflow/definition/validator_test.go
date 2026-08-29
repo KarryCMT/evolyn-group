@@ -250,10 +250,71 @@ func TestValidateCCAndServiceConfig(t *testing.T) {
 	}
 	assert.Empty(t, NewValidator(nil).Validate(doc))
 
-	// service 节点必须声明 action 占位（Phase 7 前冻结数据模型）
+	// service 节点深度校验（Phase 7 定版）：合法 http 配置整体通过
 	doc = validDoc()
+	maxRetries := 2
 	doc.Nodes[1].Type = model.NodeTypeService
+	doc.Nodes[1].Config = model.NodeConfig{Service: &model.ServiceConfig{
+		Action: "http", Method: "POST",
+		URL:  "https://api.example.com/orders/{{form.orderId}}",
+		Body: `{"amount": {{form.amount}}}`,
+		ResponseMapping: []model.ServiceResponseMapping{
+			{Variable: "orderNo", Path: "data.id", Required: true},
+		},
+		MaxRetries: &maxRetries,
+	}}
+	assert.Empty(t, NewValidator(nil).Validate(doc))
+
+	// 非法 action / 缺 URL / 非 http(s) 前缀
+	doc.Nodes[1].Config.Service.Action = "grpc"
 	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+	doc.Nodes[1].Config.Service.Action = "http"
+	doc.Nodes[1].Config.Service.URL = ""
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+	doc.Nodes[1].Config.Service.URL = "ftp://api.example.com/x"
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+
+	// 敏感请求头禁止明文写入 DSL（第 27 章密钥不入 DSL）
+	doc.Nodes[1].Config.Service.URL = "https://api.example.com/x"
+	doc.Nodes[1].Config.Service.Headers = map[string]string{"Authorization": "Bearer hard-coded-secret"}
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+
+	// 模板表达式非法 → EXPRESSION_INVALID；body 方法约束
+	doc.Nodes[1].Config.Service.Headers = map[string]string{"X-Trace": "{{form.amount >}}"}
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeExprInvalid)
+	doc.Nodes[1].Config.Service.Headers = nil
+	doc.Nodes[1].Config.Service.Method = "GET"
+	doc.Nodes[1].Config.Service.Body = `{"x": 1}`
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+
+	// 映射变量重复 / 非法命名 / 超时越界
+	doc.Nodes[1].Config.Service.Method = "POST"
+	doc.Nodes[1].Config.Service.Body = ""
+	doc.Nodes[1].Config.Service.ResponseMapping = []model.ServiceResponseMapping{
+		{Variable: "a"}, {Variable: "a"},
+	}
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+	doc.Nodes[1].Config.Service.ResponseMapping = []model.ServiceResponseMapping{{Variable: "1bad"}}
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+	doc.Nodes[1].Config.Service.ResponseMapping = nil
+	doc.Nodes[1].Config.Service.TimeoutSeconds = 121
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+	doc.Nodes[1].Config.Service.TimeoutSeconds = 0
+
+	// Compile：模板段预编译产物登记 + 非法模板发布失败
+	doc.Nodes[1].Config.Service.ResponseMapping = []model.ServiceResponseMapping{{Variable: "orderNo"}}
+	compiled, err := Compile(doc, nil)
+	require.NoError(t, err)
+	require.Contains(t, compiled.ServiceTemplates, "approval")
+	_, err = Compile(func() *model.Document {
+		d := validDoc()
+		d.Nodes[1].Type = model.NodeTypeService
+		d.Nodes[1].Config = model.NodeConfig{Service: &model.ServiceConfig{
+			Action: "http", URL: "https://api.example.com/{{bad >}}",
+		}}
+		return d
+	}(), nil)
+	assert.Error(t, err)
 }
 
 func TestCompilePrecompilesEdges(t *testing.T) {

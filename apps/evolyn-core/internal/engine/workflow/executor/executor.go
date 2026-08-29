@@ -26,6 +26,10 @@ type ExecuteInput struct {
 type ExecuteResult struct {
 	// Wait 节点进入等待（人工审批创建任务后挂起，Runtime 停止推进）
 	Wait bool
+	// Async 节点异步执行挂起（Phase 7 service 节点）：节点实例保持 RUNNING，
+	// 由 Runtime 排期 service.invoke Job，Job Worker 独立事务完成调用后
+	// 续跑推进环——业务事务内不发外部请求（第 19 章）。Wait 与 Async 互斥
+	Async bool
 	// Complete 节点已同步完成，Runtime 继续 Navigator 寻路
 	Complete bool
 	// NextNodeKeys 覆盖默认寻路（condition 节点分支决策结果；

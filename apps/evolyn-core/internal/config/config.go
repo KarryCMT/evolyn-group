@@ -25,6 +25,23 @@ type Config struct {
 	Security     SecurityConfig         `yaml:"security"`
 	Storage      StorageConfig          `yaml:"storage"`
 	Notification NotificationConfig     `yaml:"notification"`
+	Workflow     WorkflowConfig         `yaml:"workflow"`
+}
+
+// WorkflowConfig 流程引擎运行参数（Phase 7）：目前仅服务节点出站调用
+// 安全策略；零值即安全默认（拒绝私网、无白名单限制）。
+type WorkflowConfig struct {
+	Service WorkflowServiceConfig `yaml:"service"`
+}
+
+// WorkflowServiceConfig 服务节点出站调用安全策略（第 27 章 SSRF 防护与
+// URL 白名单/策略的配置承载）。
+type WorkflowServiceConfig struct {
+	// AllowPrivateNetwork 是否允许调用私网/回环地址（默认 false；
+	// 本地联调可显式开启，生产必须保持关闭）
+	AllowPrivateNetwork bool `yaml:"allowPrivateNetwork"`
+	// AllowedHosts 出站主机白名单（精确主机名；空=不限制，私网仍拒绝）
+	AllowedHosts []string `yaml:"allowedHosts"`
 }
 
 // AuthConfig 认证域运行参数（登录失败锁定与令牌吊销降级策略）。

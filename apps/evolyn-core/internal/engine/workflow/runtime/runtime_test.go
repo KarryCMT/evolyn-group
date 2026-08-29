@@ -466,7 +466,7 @@ func newHarness(t *testing.T, doc model.Document) *harness {
 
 	definitions.publishDefinition("wf_test", doc)
 	registry := executor.NewRegistry(assignment.NewRegistry(nil, nil), nil)
-	rt := NewRuntime(definitions, instances, executions, nodes, tasks, operations, registry, publisher, nil, nil, nil, nil)
+	rt := NewRuntime(definitions, instances, executions, nodes, tasks, operations, registry, publisher, nil, nil, nil, nil, nil, nil)
 	return &harness{runtime: rt, definitions: definitions, instances: instances, tasks: tasks, nodes: nodes, publisher: publisher}
 }
 

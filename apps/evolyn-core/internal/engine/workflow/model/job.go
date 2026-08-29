@@ -28,12 +28,15 @@ type Job struct {
 	LastError string
 }
 
-// JobType V1 任务类型（Phase 7 后可扩展 service.retry / webhook.retry）。
+// JobType 任务类型目录（Phase 7 定版：service.invoke 承载 service 节点
+// 的异步 HTTP 调用，失败重试经 wf_job 重试记账退避回队——即第 19.1 章
+// 预留的 service.retry 语义；PostgreSQL 仍是流程状态唯一事实源）。
 type JobType string
 
 const (
-	JobTypeTaskReminder JobType = "task.reminder"
-	JobTypeTaskTimeout  JobType = "task.timeout"
+	JobTypeTaskReminder  JobType = "task.reminder"
+	JobTypeTaskTimeout   JobType = "task.timeout"
+	JobTypeServiceInvoke JobType = "service.invoke"
 )
 
 // JobStatus Job 状态机（第 19.1 章）。

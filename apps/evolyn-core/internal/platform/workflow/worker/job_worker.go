@@ -14,13 +14,16 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"time"
 
+	"evolyn/internal/contextx"
 	"evolyn/internal/engine/workflow/event"
 	"evolyn/internal/engine/workflow/model"
 	"evolyn/internal/engine/workflow/provider"
 	"evolyn/internal/engine/workflow/repository"
 	engineruntime "evolyn/internal/engine/workflow/runtime"
+	"evolyn/internal/engine/workflow/task"
 	"evolyn/internal/infrastructure"
 
 	"github.com/sirupsen/logrus"
@@ -152,6 +155,11 @@ func (w *JobWorker) processOne(ctx context.Context) (bool, error) {
 		}
 		job := claims[0]
 		jobID = job.ID
+		// 租户上下文修复：Worker 全租户轮询路径 ctx 原本无租户，租户
+		// Callback（Create 注入/查询过滤）对执行期内嵌套的平台写入
+		//（变量/Outbox/表单写回等）原本无副作用。按 Job 租户上下文化后，
+		// 与请求路径同口径（Phase 7 service 执行引入平台写入后成为必须）
+		tctx = contextx.NewTenantContext(tctx, job.TenantID)
 		return w.handle(tctx, &job)
 	})
 	if execErr == nil {
@@ -177,6 +185,22 @@ func (w *JobWorker) handle(ctx context.Context, job *model.Job) error {
 		}
 	case model.JobTypeTaskReminder:
 		if err := w.handleReminder(ctx, job); err != nil {
+			return err
+		}
+	case model.JobTypeServiceInvoke:
+		// 服务节点异步调用（Phase 7）：经 Runtime 正常推进路径执行
+		//（行锁校验/变量写入/续跑推进/操作流水与人工动作同口径），
+		// Worker 不得直改流程状态；失败由重试记账退避回队。实例已终态
+		//（终止与领取竞态）幂等空跑，与超时动作「终态空跑」同口径
+		if _, err := w.runtime.InvokeServiceNode(ctx, engineruntime.ServiceInvokeInput{
+			TenantID:       job.TenantID,
+			InstanceID:     job.InstanceID,
+			NodeInstanceID: job.NodeInstanceID,
+		}); err != nil {
+			if errors.Is(err, task.ErrInstanceNotRunning) {
+				w.logger.Infof("service invoke job %d: instance %d not running, skip", job.ID, job.InstanceID)
+				return nil
+			}
 			return err
 		}
 	default:
@@ -259,7 +283,8 @@ func (w *JobWorker) handleReminder(ctx context.Context, job *model.Job) error {
 }
 
 // recordRetryFailure 失败重试记账（独立事务：执行事务已回滚）：
-// retry_count 递增 → 未超限回队 PENDING + 退避，超限 FAILED + last_error。
+// retry_count 递增 → 未超限回队 PENDING + 退避，超限 FAILED + last_error；
+// service.invoke 追加 SERVICE/FAILED 操作流水（时间线可见，第 19 章诊断）。
 func (w *JobWorker) recordRetryFailure(ctx context.Context, jobID uint, cause error) error {
 	lastError := truncateError(cause)
 	return w.tx.WithinTransaction(ctx, func(tctx context.Context) error {
@@ -267,6 +292,8 @@ func (w *JobWorker) recordRetryFailure(ctx context.Context, jobID uint, cause er
 		if err != nil {
 			return err
 		}
+		// 记账路径同样上下文化 Job 租户（流水/回写走租户 Callback 过滤）
+		tctx = contextx.NewTenantContext(tctx, job.TenantID)
 		job.RetryCount++
 		job.LastError = lastError
 		if job.RetryCount >= job.MaxRetryCount {
@@ -275,7 +302,21 @@ func (w *JobWorker) recordRetryFailure(ctx context.Context, jobID uint, cause er
 			job.Status = model.JobStatusPENDING
 			job.ExecuteAt = time.Now().Add(defaultRetryBackoff)
 		}
-		return w.jobs.SaveJob(tctx, job)
+		if err := w.jobs.SaveJob(tctx, job); err != nil {
+			return err
+		}
+		if job.Type != model.JobTypeServiceInvoke {
+			return nil
+		}
+		return w.operations.AppendOperation(tctx, &model.Operation{
+			TenantID:   job.TenantID,
+			InstanceID: job.InstanceID,
+			TaskID:     0,
+			Type:       model.OperationTypeService,
+			Payload: map[string]any{
+				"status": "FAILED", "retryCount": job.RetryCount, "error": lastError,
+			},
+		})
 	})
 }
 

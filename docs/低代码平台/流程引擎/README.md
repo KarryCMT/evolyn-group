@@ -91,6 +91,23 @@ apps/evolyn-core/
   node.entered/completed 无通知消费方，V1 仅日志流水（Phase 7 Webhook
   预留）；提醒 Job 到点 REMINDER 流水与 workflow.task.reminder 事件同
   事务落库。
+- **Phase 7（当前）**：Service Task / Webhook 已落地——迁移 000053
+  （wf_variable 流程变量表 (instance_id,var_key) 唯一 + wf_job 类型约束
+  扩展 service.invoke）；DSL `service` 节点配置 v1 定版（action=http、
+  method/URL/Headers/Body 模板、timeoutSeconds 封顶 120s、maxRetries
+  封顶 8、responseMapping 响应→流程变量映射），`{{expr}}` 模板段发布期
+  预编译（CompiledDefinition.ServiceTemplates）；校验器深度校验（URL
+  scheme/敏感头禁入 DSL（authorization/cookie 等明文拒绝，密钥由平台侧
+  注入）/映射变量命名唯一/上限冻结）；执行模型：节点在推进环中 Async
+  挂起并排期 service.invoke Job，Job Worker 独立事务经 ServiceInvoker
+  窄端口出站调用（net/http 适配器：SSRF 防护禁私网/回环+禁重定向、
+  allowedHosts 主机白名单、Idempotency-Key 注入、响应体 1MB 限长、日志
+  脱敏只记方法/主机/状态/耗时），2xx 后响应映射写 wf_variable（标量
+  收敛，required 语义）→ 节点 COMPLETED → SERVICE 操作流水 → 从下一
+  节点续跑推进（条件节点可读 variables.*）；调用失败整体回滚由重试
+  记账退避回队，失败流水在记账事务落账；Worker 领取路径按 Job 租户
+  上下文化（修复嵌套平台写入的租户 Callback 缺位）。
+- **Phase 8+**（并行执行 / LogicFlow 设计器 / 可观测性）为后续里程碑。
 - 前端错误码：workflow 域 errCode 已在
   `apps/evolyn-web/packages/utils/src/request/errorCodes.ts` 预留分段。
 

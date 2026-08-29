@@ -164,13 +164,126 @@ func (v *Validator) validateNodeConfig(errs ValidationErrors, n *model.Node, pat
 		}
 		errs = v.validateAssigneeSpec(errs, n.Config.Recipients, path+".recipients")
 	case model.NodeTypeService:
-		// Phase 0 冻结数据模型，执行能力 Phase 7 开放：仅要求声明 action 占位
-		if n.Config.Service == nil || strings.TrimSpace(n.Config.Service.Action) == "" {
-			errs = append(errs, &ValidationError{Path: path + ".service.action", Code: ErrCodeConfigInvalid,
-				Message: "service 节点必须声明 action（执行能力 Phase 7 开放）"})
+		errs = v.validateServiceConfig(errs, n.Config.Service, path+".service")
+	}
+	return errs
+}
+
+// ServiceHeaderPattern 请求头命名规则（冻结）：RFC 7230 token 子集，
+// 1~64 位，防畸形头注入。
+var ServiceHeaderPattern = regexp.MustCompile(`^[a-zA-Z0-9-]{1,64}$`)
+
+// ServiceBlockedHeaders V1 禁止明文写入 DSL 的敏感请求头（第 27 章「密钥
+// 不得直接存 DSL」）：鉴权/凭据类头必须由平台侧安全注入，禁止设计期硬编码。
+// 键为小写规范化形态。
+var ServiceBlockedHeaders = map[string]bool{
+	"authorization": true, "cookie": true, "set-cookie": true,
+	"proxy-authorization": true, "www-authenticate": true,
+}
+
+// validateServiceConfig service 节点配置深度校验（Phase 7 定版）：
+// 动作/方法/URL/模板表达式/敏感头/上限逐项冻结，与 Runtime 执行语义同口径。
+func (v *Validator) validateServiceConfig(errs ValidationErrors, cfg *model.ServiceConfig, path string) ValidationErrors {
+	if cfg == nil {
+		return append(errs, &ValidationError{Path: path, Code: ErrCodeConfigInvalid,
+			Message: "service 节点必须配置 service 配置块"})
+	}
+	if !model.V1ServiceActions[cfg.Action] {
+		errs = append(errs, &ValidationError{Path: path + ".action", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("service 节点 action 必须为 http，当前为 %q", cfg.Action)})
+	}
+	method := cfg.Method
+	if method == "" {
+		method = model.ServiceDefaultMethod
+	}
+	if !model.V1ServiceMethods[method] {
+		errs = append(errs, &ValidationError{Path: path + ".method", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("service 节点 method 必须为 GET/POST/PUT/PATCH/DELETE，当前为 %q", method)})
+	}
+	if !model.ServiceBodyMethods[method] && cfg.Body != "" {
+		errs = append(errs, &ValidationError{Path: path + ".body", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("method=%s 不允许携带 body（仅 POST/PUT/PATCH）", method)})
+	}
+	// URL：模板形态校验（scheme 判定基于字面前缀；插值段表达式发布期编译）
+	if strings.TrimSpace(cfg.URL) == "" {
+		errs = append(errs, &ValidationError{Path: path + ".url", Code: ErrCodeConfigInvalid,
+			Message: "service 节点必须配置 url"})
+	} else if !strings.HasPrefix(cfg.URL, "http://") && !strings.HasPrefix(cfg.URL, "https://") {
+		errs = append(errs, &ValidationError{Path: path + ".url", Code: ErrCodeConfigInvalid,
+			Message: "service 节点 url 必须以 http:// 或 https:// 开头"})
+	} else if err := v.compileTemplate(cfg.URL); err != nil {
+		errs = append(errs, &ValidationError{Path: path + ".url", Code: ErrCodeExprInvalid,
+			Message: "url 模板表达式非法: " + err.Error()})
+	}
+	// 请求头：数量/命名/敏感头/模板表达式
+	if len(cfg.Headers) > model.ServiceMaxHeaders {
+		errs = append(errs, &ValidationError{Path: path + ".headers", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("请求头数量不得超过 %d", model.ServiceMaxHeaders)})
+	}
+	for name, value := range cfg.Headers {
+		headerPath := path + ".headers." + name
+		if !ServiceHeaderPattern.MatchString(name) {
+			errs = append(errs, &ValidationError{Path: headerPath, Code: ErrCodeConfigInvalid,
+				Message: "请求头命名非法（仅允许字母/数字/连字符，1~64 位）"})
+		}
+		if ServiceBlockedHeaders[strings.ToLower(name)] {
+			errs = append(errs, &ValidationError{Path: headerPath, Code: ErrCodeConfigInvalid,
+				Message: "敏感请求头禁止明文写入 DSL（鉴权凭据由平台侧注入，第 27 章）"})
+		}
+		if err := v.compileTemplate(value); err != nil {
+			errs = append(errs, &ValidationError{Path: headerPath, Code: ErrCodeExprInvalid,
+				Message: "请求头模板表达式非法: " + err.Error()})
+		}
+	}
+	if len(cfg.Body) > model.ServiceMaxBodyBytes {
+		errs = append(errs, &ValidationError{Path: path + ".body", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("请求体不得超过 %d 字节", model.ServiceMaxBodyBytes)})
+	}
+	if cfg.Body != "" {
+		if err := v.compileTemplate(cfg.Body); err != nil {
+			errs = append(errs, &ValidationError{Path: path + ".body", Code: ErrCodeExprInvalid,
+				Message: "请求体模板表达式非法: " + err.Error()})
+		}
+	}
+	// 超时：1~120s（缺省 10s，封顶防执行事务被外部服务长挂拖垮）
+	if cfg.TimeoutSeconds < 0 || cfg.TimeoutSeconds > model.ServiceMaxTimeoutSeconds {
+		errs = append(errs, &ValidationError{Path: path + ".timeoutSeconds", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("timeoutSeconds 必须在 1~%d 之间（0=缺省 %ds）",
+				model.ServiceMaxTimeoutSeconds, model.ServiceDefaultTimeoutSeconds)})
+	}
+	// 重试上限：0~8（缺省 3，wf_job 重试记账承担退避回队）
+	if cfg.MaxRetries != nil && (*cfg.MaxRetries < 0 || *cfg.MaxRetries > model.ServiceMaxRetries) {
+		errs = append(errs, &ValidationError{Path: path + ".maxRetries", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("maxRetries 必须在 0~%d 之间（缺省 %d）",
+				model.ServiceMaxRetries, model.ServiceDefaultMaxRetries)})
+	}
+	// 响应映射：变量命名/唯一性/路径合法性
+	seen := make(map[string]bool, len(cfg.ResponseMapping))
+	for i := range cfg.ResponseMapping {
+		m := &cfg.ResponseMapping[i]
+		mapPath := fmt.Sprintf("%s.responseMapping[%d]", path, i)
+		if !KeyPattern.MatchString(m.Variable) {
+			errs = append(errs, &ValidationError{Path: mapPath + ".variable", Code: ErrCodeConfigInvalid,
+				Message: "映射变量名必须为字母开头的标识符（1~64 位，字母/数字/下划线）"})
+		}
+		if seen[m.Variable] {
+			errs = append(errs, &ValidationError{Path: mapPath + ".variable", Code: ErrCodeConfigInvalid,
+				Message: fmt.Sprintf("映射变量名 %q 重复", m.Variable)})
+		}
+		seen[m.Variable] = true
+		if strings.TrimSpace(m.Path) != "" && strings.ContainsAny(m.Path, " 	") {
+			errs = append(errs, &ValidationError{Path: mapPath + ".path", Code: ErrCodeConfigInvalid,
+				Message: "映射路径为点分路径形态，不允许空白字符"})
 		}
 	}
 	return errs
+}
+
+// compileTemplate 模板表达式编译校验（URL/Headers/Body 共用；Compile 阶段
+// 再次编译并冻结产物，此处仅产出可读的校验错误）。
+func (v *Validator) compileTemplate(source string) error {
+	_, err := expression.ParseTemplate(v.expressions, source)
+	return err
 }
 
 // validateAssigneeSpec 审批人规格校验（规则 12：Resolver 类型校验；

@@ -34,4 +34,7 @@ const (
 	OperationTypeCC              OperationType = "CC"
 	OperationTypeTimeout         OperationType = "TIMEOUT"
 	OperationTypeReminder        OperationType = "REMINDER"
+	// OperationTypeService 服务节点调用流水（Phase 7）：成功/失败共用本
+	// 类型，payload.status 区分（Worker 重试记账失败也落流水，时间线可见）
+	OperationTypeService OperationType = "SERVICE"
 )

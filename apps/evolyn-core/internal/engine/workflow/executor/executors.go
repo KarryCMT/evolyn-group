@@ -20,14 +20,15 @@ func (r *registry) ExecutorOf(nodeType model.NodeType) (NodeExecutor, bool) {
 	return e, ok
 }
 
-// NewRegistry 构造执行器注册表（V1：start/approval/condition/cc/end；
-// service 执行器 Phase 7 注册，运行期命中未注册类型即快速失败）。
+// NewRegistry 构造执行器注册表（V1：start/approval/condition/cc/service/end；
+// 运行期命中未注册类型即快速失败）。
 func NewRegistry(resolvers assignment.Registry, identity provider.IdentityProvider) Registry {
 	return &registry{byType: map[model.NodeType]NodeExecutor{
 		model.NodeTypeStart:     &StartExecutor{},
 		model.NodeTypeApproval:  &ApprovalExecutor{resolvers: resolvers, identity: identity},
 		model.NodeTypeCondition: &ConditionExecutor{},
 		model.NodeTypeCC:        &CCExecutor{resolvers: resolvers},
+		model.NodeTypeService:   &ServiceExecutor{},
 		model.NodeTypeEnd:       &EndExecutor{},
 	}}
 }
@@ -78,6 +79,21 @@ func (e *CCExecutor) Execute(ctx context.Context, input ExecuteInput) (ExecuteRe
 		return ExecuteResult{}, &assignment.ErrAssigneeNotFound{Type: spec.Type}
 	}
 	return ExecuteResult{Complete: true, CCRecipients: recipients}, nil
+}
+
+// ServiceExecutor 服务节点（Phase 7，第 12.1/19 章）：校验配置存在后以
+// Async 挂起——HTTP 调用不在业务事务内执行，由 Runtime 排期 service.invoke
+// Job，Job Worker 独立事务经 ServiceInvoker 窄端口调用并续跑推进环；
+// 失败经 wf_job 重试记账退避重试。
+type ServiceExecutor struct{}
+
+func (e *ServiceExecutor) Type() model.NodeType { return model.NodeTypeService }
+
+func (e *ServiceExecutor) Execute(ctx context.Context, input ExecuteInput) (ExecuteResult, error) {
+	if input.Node.Config.Service == nil {
+		return ExecuteResult{}, fmt.Errorf("service node %s has no service config", input.Node.Key)
+	}
+	return ExecuteResult{Async: true}, nil
 }
 
 // EndExecutor 结束节点：节点瞬时完成；实例终态由 Runtime 依据节点类型落账。

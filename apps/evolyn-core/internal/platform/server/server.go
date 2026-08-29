@@ -166,6 +166,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	workflowInstanceRepo, workflowExecutionRepo, workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowCCRepo, workflowJobRepo := workflowrepository.NewRuntimeRepositories(db)
 	workflowEngineReader := workflowrepository.NewEngineDefinitionReader(db)
 	workflowRuntimeReader := workflowrepository.NewRuntimeReader(db)
+	// 流程变量仓储（000053，Phase 7）：service 节点响应映射写入与
+	// variables.* 表达式数据源加载
+	workflowVariableRepo := workflowrepository.NewVariableRepository(db)
 	// 消息中心域仓储（000039）：逻辑消息+收件箱、通知设置聚合、事务 Outbox
 	notificationMessageRepo := notificationrepository.NewMessageRepository(db)
 	notificationSettingRepo := notificationrepository.NewSettingRepository(db)
@@ -506,9 +509,16 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 事件发布适配器（Phase 6）：引擎 workflow.* 事件桥接 notification 域
 	// 事务 Outbox（既有 Dispatcher 消费扇出），同一审批事务内写入
 	workflowEventPublisher := workflowadapter.NewEventPublisher(notificationEventPublisher, db)
+	// 服务节点出站调用适配器（Phase 7）：SSRF 防护/主机白名单/幂等键/
+	// 响应限长/日志脱敏在适配层强制（第 27 章安全设计）
+	workflowServiceInvoker := workflowadapter.NewServiceInvoker(workflowadapter.ServiceInvokerConfig{
+		AllowPrivateNetwork: conf.Workflow.Service.AllowPrivateNetwork,
+		AllowedHosts:        conf.Workflow.Service.AllowedHosts,
+	})
 	workflowEngineRuntime := engineruntime.NewRuntime(workflowEngineReader, workflowInstanceRepo, workflowExecutionRepo,
 		workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowExecutors,
-		workflowEventPublisher, workflowFormProvider, workflowIdentityProvider, workflowCCRepo, workflowJobRepo)
+		workflowEventPublisher, workflowFormProvider, workflowIdentityProvider, workflowCCRepo, workflowJobRepo,
+		workflowVariableRepo, workflowServiceInvoker)
 	workflowRuntimeService := workflowservice.NewRuntimeService(
 		txManager,
 		workflowEngineRuntime,

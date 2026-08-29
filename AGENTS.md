@@ -35,7 +35,8 @@
 
 - Go 1.25，Gin + GORM（Postgres）+ go-redis + swaggo。
 - 入口 `cmd/api/main.go`，默认配置 `config/app.yaml`（可用 `--config` 覆盖）。
-- 关键配置段：`server`（端口 8080、jwtSecret、rateLimits）、`db`（库名 `evolyn`；`migrations: true` 启动时应用版本化 SQL 迁移【生产路径】，`migrate: true` 为 GORM AutoMigrate【仅开发/测试】，两者互斥）、`tenant`（注销保留期/清理周期）、`redis`、`oauth`。
+- 关键配置段：`server`（端口 8080、jwtSecret、rateLimits）、`workflow`
+  （service 节点出站调用安全策略：allowPrivateNetwork/allowedHosts）、`db`（库名 `evolyn`；`migrations: true` 启动时应用版本化 SQL 迁移【生产路径】，`migrate: true` 为 GORM AutoMigrate【仅开发/测试】，两者互斥）、`tenant`（注销保留期/清理周期）、`redis`、`oauth`。
 
 目录职责（域模块化定版，ADR-007）：
 
@@ -117,7 +118,17 @@ internal/
                       目录追增 workflow.instance.returned /
                       workflow.task.reminder，催办 Job 与 REMINDER 流水
                       同事务发通知事件；task 终态与节点流转事件 V1 仅日志
-                      流水（Webhook 为 Phase 7 预留）
+                      流水（Webhook 为 Phase 7 预留）；Phase 7 已落地：
+                      迁移 000053（wf_variable (instance_id,var_key) 唯一
+                      + wf_job 约束扩展 service.invoke），DSL service
+                      节点 v1（http 动作 + {{expr}} 模板发布期预编译 +
+                      responseMapping），节点 Async 挂起排期 service.invoke
+                      Job、Worker 独立事务经 ServiceInvoker 窄端口出站
+                      调用（SSRF 禁私网/禁重定向/allowedHosts 白名单/
+                      Idempotency-Key/响应 1MB 限长/日志脱敏），2xx 响应
+                      映射写流程变量（标量收敛）后节点完成并续跑推进，
+                      失败经重试记账退避回队；校验器拒绝 authorization/
+                      cookie 等敏感头明文入 DSL（密钥由平台侧注入）
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
     controller/       Controller 注册契约（RegisterRoute/Name；
                       PlatformController 标记平台运营域归属）与 AppConf

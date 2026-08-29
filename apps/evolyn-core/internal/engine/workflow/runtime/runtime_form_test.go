@@ -72,7 +72,7 @@ func newFormHarness(t *testing.T, doc model.Document, business provider.Business
 
 	definitions.publishDefinition("wf_test", doc)
 	registry := executor.NewRegistry(assignment.NewRegistry(identity, nil), identity)
-	rt := NewRuntime(definitions, instances, executions, nodes, tasks, operations, registry, publisher, business, identity, nil, nil)
+	rt := NewRuntime(definitions, instances, executions, nodes, tasks, operations, registry, publisher, business, identity, nil, nil, nil, nil)
 	return &harness{runtime: rt, definitions: definitions, instances: instances, tasks: tasks, nodes: nodes, publisher: publisher}
 }
 

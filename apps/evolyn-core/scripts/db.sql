@@ -2176,7 +2176,7 @@ CREATE TABLE IF NOT EXISTS wf_job (
     last_error text NOT NULL DEFAULT '',
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
-    CONSTRAINT chk_wf_job_type CHECK (job_type IN ('task.reminder', 'task.timeout')),
+    CONSTRAINT chk_wf_job_type CHECK (job_type IN ('task.reminder', 'task.timeout', 'service.invoke')),
     CONSTRAINT chk_wf_job_status CHECK (status IN
         ('PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED', 'CANCELLED'))
 );
@@ -2192,7 +2192,7 @@ CREATE INDEX IF NOT EXISTS idx_wf_job_instance
 
 COMMENT ON TABLE wf_job IS '流程延时任务（追加语义 + 有限重试）：任务创建时按节点配置排期 task.timeout/task.reminder，Worker 单事务内领取（FOR UPDATE SKIP LOCKED）→ 执行 → 回写结果，claim+执行同事务故 crash 自动回滚为 PENDING（第 19 章）；超时自动动作必须经 Task Engine 正常执行路径，Worker 不得直改流程状态';
 COMMENT ON COLUMN wf_job.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN wf_job.job_type IS '任务类型：task.reminder=待办提醒 / task.timeout=待办超时自动动作（Phase 7 后可扩展 service.retry/webhook.retry）';
+COMMENT ON COLUMN wf_job.job_type IS '任务类型：task.reminder=待办提醒 / task.timeout=待办超时自动动作 / service.invoke=服务节点异步 HTTP 调用（000053 扩展）';
 COMMENT ON COLUMN wf_job.instance_id IS '关联流程实例 ID（0=未关联）';
 COMMENT ON COLUMN wf_job.node_instance_id IS '关联节点实例 ID（0=未关联）';
 COMMENT ON COLUMN wf_job.task_id IS '关联人工任务 ID（0=未关联；任务终态时在途 Job 联动取消）';
@@ -2204,6 +2204,35 @@ COMMENT ON COLUMN wf_job.payload IS '任务载荷 JSONB（超时动作参数/提
 COMMENT ON COLUMN wf_job.last_error IS '最近一次失败摘要（只入日志/诊断，不出网）';
 COMMENT ON COLUMN wf_job.created_at IS '创建时间';
 COMMENT ON COLUMN wf_job.updated_at IS '更新时间（领取/回写/重试回队）';
+
+-- 000053：流程变量表（流程引擎 Phase 7，ADR-012）
+-- service 节点响应映射写流程变量（表达式 variables.* 数据源），后续节点
+-- 条件/审批人/模板经 variables.* 读取；V1 冻结标量值域。
+CREATE TABLE IF NOT EXISTS wf_variable (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    instance_id BIGINT NOT NULL,
+    var_key varchar(64) NOT NULL,
+    var_type varchar(16) NOT NULL,
+    var_value JSONB NOT NULL DEFAULT 'null',
+    created_at timestamp with time zone,
+    updated_at timestamp with time zone,
+    CONSTRAINT chk_wf_variable_type CHECK (var_type IN ('string', 'number', 'boolean')),
+    CONSTRAINT uq_wf_variable_instance_key UNIQUE (instance_id, var_key)
+);
+
+-- 实例维度变量加载（推进上下文构造）
+CREATE INDEX IF NOT EXISTS idx_wf_variable_instance
+    ON wf_variable (tenant_id, instance_id);
+
+COMMENT ON TABLE wf_variable IS '流程变量（实例作用域，(instance_id,var_key) 唯一）：service 节点响应映射等写入，表达式经 variables.* 白名单数据源读取；V1 冻结标量值域（string/number/boolean）';
+COMMENT ON COLUMN wf_variable.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN wf_variable.instance_id IS '归属流程实例 ID';
+COMMENT ON COLUMN wf_variable.var_key IS '变量名（字母开头标识符，实例内唯一，校验器冻结命名规则）';
+COMMENT ON COLUMN wf_variable.var_type IS '值类型（V1 冻结标量集合）：string/number/boolean';
+COMMENT ON COLUMN wf_variable.var_value IS '变量值 JSONB（标量；提取失败且非 required 时不落行）';
+COMMENT ON COLUMN wf_variable.created_at IS '创建时间';
+COMMENT ON COLUMN wf_variable.updated_at IS '更新时间（同键覆盖写）';
 
 -- 权限补授：发起/查看与待办审批授全体成员（authenticated 系统分组），
 -- 具体任务能否审批由 TaskActor 实例级校验兜底

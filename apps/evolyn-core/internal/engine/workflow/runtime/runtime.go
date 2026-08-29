@@ -34,8 +34,15 @@ type Runtime struct {
 
 	// ccRecords 抄送记录仓储（第 10.6 章，CC 节点执行时追加写）
 	ccRecords repository.CCRepository
-	// jobs 延时任务仓储（Phase 5：任务创建排期 + 实例终态联动取消）
+	// jobs 延时任务仓储（Phase 5：任务创建排期 + 实例终态联动取消；
+	// Phase 7 扩展 service.invoke 异步执行排期）
 	jobs repository.JobRepository
+	// variables 流程变量仓储（Phase 7：表达式 variables.* 数据源加载与
+	// service 节点响应映射写入；可为 nil——单测或无变量场景）
+	variables repository.VariableRepository
+	// serviceInvoker 服务节点出站调用窄端口（Phase 7，平台适配层承担
+	// HTTP/SSRF 防护；可为 nil——无服务节点场景）
+	serviceInvoker provider.ServiceInvoker
 
 	// business 业务数据窄端口（第 15 章，Phase 3）：form.* 表达式数据源与
 	// 审批编辑写回的唯一通道，内核不感知 form_records；可为 nil（单测）
@@ -77,24 +84,28 @@ func NewRuntime(
 	identity provider.IdentityProvider,
 	ccRecords repository.CCRepository,
 	jobs repository.JobRepository,
+	variables repository.VariableRepository,
+	serviceInvoker provider.ServiceInvoker,
 ) *Runtime {
 	return &Runtime{
-		definitions:   definitions,
-		instances:     instances,
-		executions:    executions,
-		nodes:         nodes,
-		tasks:         tasks,
-		operations:    operations,
-		executors:     executors,
-		navigator:     NewNavigator(nil),
-		publisher:     publisher,
-		taskEngine:    task.NewEngine(tasks, instances, operations, publisher, identity, jobs),
-		business:      business,
-		identity:      identity,
-		expressions:   expression.NewExprEngine(),
-		compiledCache: make(map[uint]*definition.CompiledDefinition),
-		ccRecords:     ccRecords,
-		jobs:          jobs,
+		definitions:    definitions,
+		instances:      instances,
+		executions:     executions,
+		nodes:          nodes,
+		tasks:          tasks,
+		operations:     operations,
+		executors:      executors,
+		navigator:      NewNavigator(nil),
+		publisher:      publisher,
+		taskEngine:     task.NewEngine(tasks, instances, operations, publisher, identity, jobs),
+		business:       business,
+		identity:       identity,
+		expressions:    expression.NewExprEngine(),
+		compiledCache:  make(map[uint]*definition.CompiledDefinition),
+		ccRecords:      ccRecords,
+		jobs:           jobs,
+		variables:      variables,
+		serviceInvoker: serviceInvoker,
 	}
 }
 
@@ -384,6 +395,18 @@ func (r *Runtime) newAdvanceContext(ctx context.Context, instance *model.Instanc
 		env.Starter.UserID = userID
 		env.Starter.DepartmentID = departmentID
 	}
+	// 流程变量：表达式 variables.* 数据源（Phase 7；service 节点响应映射
+	// 写入后立即可读；仓储未装配时为空环境，单测场景）
+	if r.variables != nil {
+		vars, err := r.variables.ListVariablesByInstance(ctx, instance.ID)
+		if err != nil {
+			return nil, err
+		}
+		env.Variables = make(map[string]any, len(vars))
+		for i := range vars {
+			env.Variables[vars[i].Key] = vars[i].Value
+		}
+	}
 	// 业务数据窄端口：填充 form.* 表达式数据源（发起时冻结的 Form 快照，
 	// 第 8.2 章双版本冻结；读取失败即本次推进失败）
 	if r.business != nil && instance.FormVersionID != 0 {
@@ -476,6 +499,16 @@ func (r *Runtime) advance(ctx context.Context, a *advanceContext, current string
 			// 人工审批：节点挂起等待，Runtime 停止推进（第 12.2 章）
 			nodeInstance.Status = model.NodeInstanceStatusWAITING
 			if err := r.nodes.SaveNodeInstance(ctx, nodeInstance); err != nil {
+				return err
+			}
+			r.publish(ctx, event.NodeEntered, a.instance, 0, 0)
+			return nil
+		}
+		if result.Async {
+			// 服务节点异步挂起（Phase 7，第 19 章）：节点实例保持 RUNNING，
+			// 排期 service.invoke Job 后停止推进——业务事务内不发外部请求，
+			// Worker 独立事务调用完成后续跑（InvokeServiceNode）
+			if err := r.scheduleServiceInvoke(ctx, a, nodeInstance, node); err != nil {
 				return err
 			}
 			r.publish(ctx, event.NodeEntered, a.instance, 0, 0)

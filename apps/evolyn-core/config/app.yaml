@@ -111,3 +111,8 @@ notification:
   retentionBatchSize: 1000 # 清理每批行数；示例：1000（上限 5000）。
   retentionMonths: 6 # 消息保留期（月），列表/未读统计在 SQL 侧排除过期；示例：6。
   customRecipientLimit: 200 # 租户自定义提醒对象上限；示例：200。
+
+workflow:
+  service:
+    allowPrivateNetwork: false # 是否允许服务节点调用私网/回环地址（本地联调显式开启；生产必须 false）。
+    allowedHosts: [] # 服务节点出站主机白名单（精确主机名；空=不限制，私网仍拒绝）。示例：[api.example.com]。

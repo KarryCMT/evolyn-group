@@ -138,10 +138,75 @@ type ReminderConfig struct {
 	Seconds int `json:"seconds"`
 }
 
-// ServiceConfig service 节点配置占位（Phase 7 落地执行能力，
-// Phase 0 仅冻结数据模型，校验器对 service 节点不做深度校验）。
+// V1ServiceActions service 节点动作类型目录（Phase 7 定版：V1 仅出站
+// HTTP/Webhook；grpc/插件等随后续里程碑扩展，校验器以此为准）。
+var V1ServiceActions = map[string]bool{"http": true}
+
+// V1ServiceMethods service 节点允许的 HTTP 方法（出站写语义为主）。
+var V1ServiceMethods = map[string]bool{
+	"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true,
+}
+
+// ServiceBodyMethods 允许携带请求体的方法。
+var ServiceBodyMethods = map[string]bool{"POST": true, "PUT": true, "PATCH": true}
+
+// Service 节点常量（第 7 章 DSL v1，Phase 7 定版）：超时/重试/变量名等
+// 复杂度上限在此冻结，校验器与 Runtime 同口径。
+const (
+	// ServiceActionHTTP V1 唯一动作类型
+	ServiceActionHTTP = "http"
+	// ServiceDefaultMethod URL/方法缺省值
+	ServiceDefaultMethod = "POST"
+	// ServiceDefaultTimeoutSeconds / ServiceMaxTimeoutSeconds 单次请求超时
+	//（缺省 10s，封顶 120s：推进事务不因外部服务长挂而过久占用）
+	ServiceDefaultTimeoutSeconds = 10
+	ServiceMaxTimeoutSeconds     = 120
+	// ServiceDefaultMaxRetries / ServiceMaxRetries 失败重试上限
+	//（wf_job 重试记账承担退避回队，缺省 3 次）
+	ServiceDefaultMaxRetries = 3
+	ServiceMaxRetries        = 8
+	// ServiceMaxHeaders / ServiceMaxBodyBytes / ServiceMaxResponseBytes
+	// 请求头数量、请求体与响应体大小上限（防大报文拖垮执行事务）
+	ServiceMaxHeaders       = 16
+	ServiceMaxBodyBytes     = 64 * 1024
+	ServiceMaxResponseBytes = 1024 * 1024
+)
+
+// ServiceResponseMapping 响应映射：从 JSON 响应体提取值写入流程变量，
+// 后续节点条件/审批人/模板经 variables.<name> 读取（第 16 章白名单上下文）。
+type ServiceResponseMapping struct {
+	// Variable 变量名（合法 Go 标识符形态，实例内唯一）
+	Variable string `json:"variable"`
+	// Path 响应 JSON 内点分路径（如 "data.orderId"；空=整个响应体）
+	Path string `json:"path,omitempty"`
+	// Required 提取失败是否整体失败（缺省 false：变量落 JSON null 继续推进）
+	Required bool `json:"required,omitempty"`
+}
+
+// ServiceConfig service 节点配置（Phase 7 定版）：V1 承载出站 HTTP/Webhook
+// 动作。安全边界（第 27 章）：密钥不得直接存 DSL——校验器拒绝
+// authorization/cookie 等敏感头明文入 DSL，鉴权凭据由平台侧扩展注入；
+// SSRF 防护与主机白名单由平台适配层在调用时强制（第 7 章/第 19 章）。
+// 执行模型：节点在推进环中异步挂起，HTTP 调用经 wf_job service.invoke 由
+// Job Worker 独立事务执行（业务事务内不发外部请求），失败退避重试。
 type ServiceConfig struct {
-	Action string `json:"action,omitempty"`
+	// Action 动作类型（V1 仅 "http"）
+	Action string `json:"action"`
+	// Method HTTP 方法（缺省 POST）
+	Method string `json:"method,omitempty"`
+	// URL 请求地址模板：支持 {{expr}} 插值（form.*/starter.*/variables.*，
+	// 发布期预编译）；必须为 http(s) 形态
+	URL string `json:"url"`
+	// Headers 请求头：值支持 {{expr}} 插值；V1 禁止携带明文敏感头
+	Headers map[string]string `json:"headers,omitempty"`
+	// Body 请求体模板（JSON 形态，支持 {{expr}} 插值；GET/DELETE 忽略）
+	Body string `json:"body,omitempty"`
+	// TimeoutSeconds 单次请求超时秒数（缺省 10，1~120）
+	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
+	// MaxRetries 失败重试上限（缺省 3，0~8；承载于 wf_job 重试记账）
+	MaxRetries *int `json:"maxRetries,omitempty"`
+	// ResponseMapping 响应 → 流程变量映射（成功 2xx 时执行）
+	ResponseMapping []ServiceResponseMapping `json:"responseMapping,omitempty"`
 }
 
 // NodeConfig 节点配置：字段扁平承载各类型节点的配置项，校验器按

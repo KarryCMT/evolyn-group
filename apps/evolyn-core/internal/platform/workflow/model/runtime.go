@@ -133,3 +133,19 @@ type WfJob struct {
 }
 
 func (*WfJob) TableName() string { return "wf_job" }
+
+// WfVariable 流程变量（000053，Phase 7）：实例作用域 (instance_id, var_key)
+// 唯一，JSONB 单值承载 V1 冻结的标量值域；service 节点响应映射写入。
+type WfVariable struct {
+	ID         uint            `json:"id" gorm:"autoIncrement;primaryKey"`
+	InstanceID uint            `json:"instanceId" gorm:"not null"`
+	VarKey     string          `json:"varKey" gorm:"size:64;not null"`
+	VarType    string          `json:"varType" gorm:"size:16;not null"`
+	VarValue   DSLContent      `json:"varValue" gorm:"type:jsonb;not null;default:'null'"`
+	CreatedAt  kernel.JSONTime `json:"createdAt"`
+	UpdatedAt  kernel.JSONTime `json:"updatedAt"`
+
+	TenantID uint `json:"tenantId" gorm:"index;not null;default:1"`
+}
+
+func (*WfVariable) TableName() string { return "wf_variable" }
