@@ -25,6 +25,7 @@
 - [表单设计器/目标协议字段字典.md](./表单设计器/目标协议字段字典.md)：27 种 `widget.type` 的属性/约束/值协议/执行阶段登记与发布白名单（ADR-010，P1+P2 已按此实现于 packages/form 与 internal/platform/form）。
 - [表单设计器/表单资产域后端契约.md](./表单设计器/表单资产域后端契约.md)：表单资产/草稿/发布版本/记录提交的数据模型、API、错误码、权限与配额（迁移 000037/000038 已落地）。
 - [表单设计器/迁移清单与验收矩阵.md](./表单设计器/迁移清单与验收矩阵.md)：旧 FormDocument 调用点审计与退场清单、字段验收矩阵、端到端测试矩阵与性能基线。
+- [流程引擎/流程引擎阶段开发功能设计v1.1.md](./流程引擎/流程引擎阶段开发功能设计v1.1.md)：Evolyn Workflow Engine 定版基线（ADR-012），覆盖纯内核/平台适配分层、DSL v1 协议与严格校验、状态机语义、事务边界、表单交互、审批人快照、事件与 Job、API/错误码/权限与 Phase 0~10 开发计划（Phase 0 架构/协议/语义冻结已落地：internal/engine/workflow + internal/platform/workflow 骨架）。
 - [版本信息/管理后台-版本信息两期功能设计方案.md](./版本信息/管理后台-版本信息两期功能设计方案.md)：管理后台版本信息的两期建设设计，覆盖真实套餐与资源概览，以及后续订阅、支付、云币与计量闭环。
 - [成员信息管理/管理后台-成员信息管理开发文档.md](./成员信息管理/管理后台-成员信息管理开发文档.md)：成员字段设置与卡片展示的开发方案，覆盖租户级字段配置、正式成员扩展档案、权限执行与邀请档案迁移。
 - [产品中心/管理后台-产品中心开发文档.md](./产品中心/管理后台-产品中心开发文档.md)：租户内置产品的启停与成员分发设计，覆盖产品目录、租户配置、范围关联、访问判定、权限、接口与实施约束。
@@ -42,7 +43,7 @@
 | --- | --- | --- |
 | `apps/evolyn-core/` | 现有目录演进（不改名） | Go + Gin 平台主体（cmd/api、internal/{platform,engine,infrastructure}；域模块化结构已按 ADR-007 落地，含 iam/tenant/auth/audit/application/edition/tenantproduct/enterpriselog/form/notification 九域（edition 为版本信息一期：套餐版本/订阅/特批覆盖，迁移 000030；tenantproduct 为产品中心一期：平台产品目录/租户配置/范围关联与 TenantProductAccessEvaluator 访问判定，迁移 000033，见 docs/低代码平台/产品中心/；form 为表单资产域，ADR-010：目标保存协议草稿/不可变发布版本/记录提交 + 前后端一致校验器，迁移 000037/000038，见 docs/低代码平台/表单设计器/；notification 为消息中心域（迁移 000039）：不可变消息/成员收件箱/租户通知设置聚合/自定义提醒对象 + 事务 Outbox 与 Dispatcher/保留清理 Worker，业务域经窄端口在自身事务内发布事件（application 域资产变更已接入），见 docs/低代码平台/消息中心/）；认证域含短信与邮箱双验证码的账号安全绑定链路；application 为 M2-A 应用管理最小闭环：空白应用创建/列表/详情/更新/软删 + apps 配额，M2-菜单含只读快照与受 menu_revision 乐观锁保护的分组创建接口；iam 含管理组（权限中心-管理员模块，迁移 000032：管理组 CRUD/分区块即时 PATCH、内置系统管理员组代理 tenant-admin 角色绑定、鉴权保守门）），migrations/ 版本化 SQL，engine 随 M2 起） |
 | `apps/evolyn-web/` | 现有目录演进（不改名） | pnpm + Turborepo monorepo：`apps/web/` Vue3 + TypeScript 主应用、`packages/` 共享库（含 `packages/form`：表单协议/最终渲染器/设计器三入口，ADR-010 目标保存协议 P1+P2 基础字段闭环已落地——协议字典与严格校验器、按 widget.type 注册的运行时（9 类基础字段）、设计器素材/画布/属性面板与草稿/发布/提交接口接线，见 docs/低代码平台/表单运行时/README.md 实现位置映射） |
-| `services/workflow/` | 新建 | Java + Spring Boot + Flowable 流程服务 |
+| `services/workflow/` | 规划目录（原 Java + Flowable 方案已由 ADR-012 取代） | 流程引擎以 Go 原生实现落地于 `apps/evolyn-core`（`internal/engine/workflow` 纯内核 + `internal/platform/workflow` 适配层，见 docs/低代码平台/流程引擎/）；本目录仅在出现明确部署/容量需求时按 ADR-012 第 30 章拆分 `services/evolyn-workflow`，当前不创建 |
 | `packages/openapi/` | 新建 | 全平台 API 契约唯一事实源 |
 
 > 本目录存放设计文档；后端 swagger 生成物位于 `apps/evolyn-core/docs/`（gitignored，`make swagger` 本地查阅），不入库。

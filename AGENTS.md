@@ -8,7 +8,7 @@
 
 - `apps/evolyn-core/`: Go 1.25 + Gin 后端，模块名保持 `evolyn`。当前承载认证（JWT + OAuth）、平台账号/租户成员、部门、分组、自定义 RBAC、租户与套餐配额；低代码引擎（Schema/Query/Permission 等）按里程碑逐步落地。
 - `apps/evolyn-web/`: pnpm + Turborepo 前端 monorepo（Vue 3.5 + TypeScript）。主应用在 `apps/web/`（脚手架阶段），共享库在 `packages/`，文档站在 `apps/docs/`。
-- `services/`、`packages/`（仓库根）: 规划目录（Java/Flowable 工作流、OpenAPI 契约），落地前不要创建同名内容。
+- `services/`、`packages/`（仓库根）: 规划目录（OpenAPI 契约；原 Java/Flowable 工作流规划已由 ADR-012 取代——流程引擎以 Go 原生落在 `apps/evolyn-core`，见 `docs/低代码平台/流程引擎/`），落地前不要创建同名内容。
 - `deploy/`: `docker-compose.yaml` 一键起 PostgreSQL 16/Redis 7/MinIO。
 - 根目录 `.golangci.yml`、`.staticcheck-version` 等：仓库级 lint 配置；后端域内另有 `apps/evolyn-core/.golangci.yaml`。
 
@@ -57,7 +57,24 @@ internal/
   testsupport/        集成测试基础设施（TEST_PG_DSN 按需建库/迁移/清理）
   utils/              ratelimit/request/set/trace
   version/            版本信息（Makefile ldflags 注入，路径勿动）
+  engine/
+    workflow/         流程引擎纯内核（ADR-012，docs/低代码平台/流程引擎/）：
+                      禁依赖 gin/gorm/redis/http 及任何 platform 具体实现；
+                      DSL v1 协议（model/dsl.go：单文档 JSONB 事实源，
+                      不建 wf_node/wf_edge 表）、严格校验器（definition/）、
+                      状态机迁移表（task/state_machine.go：状态语义唯一
+                      事实源，Phase 0 冻结）、全部 SPI 契约（repository/
+                      provider/executor/assignment/expression/event）；
+                      平台能力一律经 provider/ 窄端口注入
   platform/
+    workflow/         流程引擎平台适配层（ADR-012）：Controller/Service/
+                      GORM Repository Adapter/Provider Adapter/Job Worker
+                      薄壳装配，依赖方向唯一（platform/workflow →
+                      engine/workflow）；事务复用 TxManager/ResolveDB，
+                      事件经既有 notification 域 Outbox（禁新建
+                      domain_outbox）；API 走 /api/v1 租户中间件链 +
+                      httpx.BizError（错误码段见该包 doc.go，前端
+                      errorCodes.ts 对齐维护）；核心表随 Phase 1/2 落地
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
     controller/       Controller 注册契约（RegisterRoute/Name；
                       PlatformController 标记平台运营域归属）与 AppConf
