@@ -25,4 +25,12 @@ var (
 	// ErrFormFieldForbidden 审批编辑携带了节点字段权限未授权的字段，
 	// 或实例未绑定表单却携带编辑值（第 15.4 章审批提交协议）
 	ErrFormFieldForbidden = errors.New("form field not permitted on this node")
+	// ErrActionNotAllowed 当前状态下不允许执行该动作（如撤回窗口已关闭：
+	// 实例已存在完成的人工审批任务，第 10.4 章冻结规则）
+	ErrActionNotAllowed = errors.New("action not allowed in current state")
+	// ErrNotStarter 当前操作者不是实例发起人（撤回/重新提交为发起人专属动作）
+	ErrNotStarter = errors.New("operator is not the instance starter")
+	// ErrResubmitNodeMissing 实例不存在等待重提交的节点实例
+	//（非退回状态下重提交，或状态已推进）
+	ErrResubmitNodeMissing = errors.New("no node instance waiting for resubmit")
 )

@@ -174,3 +174,133 @@ type ApproveTaskResult struct {
 	InstanceStatus string `json:"instanceStatus"`
 	NodeCompleted  bool   `json:"nodeCompleted"`
 }
+
+// ---- 审批中心与完整人工任务（Phase 4，第 20.3/20.4 章） ----
+
+// RejectTaskRequest 驳回请求（V1 仅 terminate 语义）。
+type RejectTaskRequest struct {
+	TaskID  uint   `json:"taskId"`
+	Comment string `json:"comment"`
+}
+
+// ReturnTaskRequest 退回发起人请求。
+type ReturnTaskRequest struct {
+	TaskID  uint   `json:"taskId"`
+	Comment string `json:"comment"`
+}
+
+// TransferTaskRequest 转办请求。
+type TransferTaskRequest struct {
+	TaskID uint `json:"taskId"`
+	// TargetMemberID 转办目标成员（同租户有效成员，服务层校验）
+	TargetMemberID uint   `json:"targetMemberId"`
+	Comment        string `json:"comment"`
+}
+
+// InstanceActionRequest 实例级动作请求（撤回/终止/重提交共用 comment 位）。
+type InstanceActionRequest struct {
+	Comment string `json:"comment"`
+}
+
+// ResubmitInstanceRequest 发起人重新提交请求：修改后的表单字段值（可选，
+// 经 Form Domain 按冻结快照整体校验）。
+type ResubmitInstanceRequest struct {
+	Values map[string]json.RawMessage `json:"values,omitempty"`
+}
+
+// ActionTaskResult 任务级动作结果（驳回/退回/转办共用）。
+type ActionTaskResult struct {
+	InstanceID     uint   `json:"instanceId"`
+	InstanceStatus string `json:"instanceStatus"`
+	// NewTaskID 转办产生的新任务 ID（非转办动作为 0）
+	NewTaskID uint `json:"newTaskId,omitempty"`
+}
+
+// TaskActorView 任务参与人（快照）—— 位置见上，Phase 2 已定义。
+
+// TaskSummary 审批中心任务条目。
+type TaskSummary struct {
+	ID              uint            `json:"id"`
+	InstanceID      uint            `json:"instanceId"`
+	NodeKey         string          `json:"nodeKey"`
+	Status          string          `json:"status"`
+	Actors          []TaskActorView `json:"actors"`
+	TransferredFrom uint            `json:"transferredFrom,omitempty"`
+	CreatedAt       kernel.JSONTime `json:"createdAt"`
+}
+
+// TaskPage 任务游标分页（id 倒序；cursor 不透明值原样回传）。
+type TaskPage struct {
+	Items      []TaskSummary `json:"items"`
+	NextCursor string        `json:"nextCursor"`
+}
+
+// CCRecordView 抄送我的条目。
+type CCRecordView struct {
+	ID          uint            `json:"id"`
+	InstanceID  uint            `json:"instanceId"`
+	NodeKey     string          `json:"nodeKey"`
+	MemberID    uint            `json:"memberId"`
+	DisplayName string          `json:"displayName"`
+	CreatedAt   kernel.JSONTime `json:"createdAt"`
+}
+
+// CCPage 抄送游标分页。
+type CCPage struct {
+	Items      []CCRecordView `json:"items"`
+	NextCursor string         `json:"nextCursor"`
+}
+
+// InstanceSummary 审批中心实例条目（我发起的）。
+type InstanceSummary struct {
+	ID                  uint            `json:"id"`
+	DefinitionCode      string          `json:"definitionCode"`
+	DefinitionVersionNo int             `json:"definitionVersionNo"`
+	BusinessType        string          `json:"businessType"`
+	BusinessID          string          `json:"businessId"`
+	Status              string          `json:"status"`
+	StarterMemberID     uint            `json:"starterMemberId"`
+	CreatedAt           kernel.JSONTime `json:"createdAt"`
+}
+
+// InstancePage 实例游标分页。
+type InstancePage struct {
+	Items      []InstanceSummary `json:"items"`
+	NextCursor string            `json:"nextCursor"`
+}
+
+// TaskDetail 任务详情上下文（第 4 章审批详情返回协议）：任务 + 实例绑定
+// + 表单快照/数据 + 节点字段权限 + 允许动作 + 操作时间线。
+type TaskDetail struct {
+	Task       TaskSummary     `json:"task"`
+	Instance   InstanceSummary `json:"instance"`
+	NodeKey    string          `json:"nodeKey"`
+	NodeStatus string          `json:"nodeStatus"`
+	// FormPermissions 当前节点字段权限（widgetName → 权限；无配置为空对象）
+	FormPermissions map[string]string `json:"formPermissions"`
+	// AllowedActions 当前任务允许的动作（PENDING：approve/reject/
+	// return-to-starter/transfer；终态为空数组）
+	AllowedActions []string `json:"allowedActions"`
+	// FormCode / FormVersionNo / FormContent 表单冻结绑定投影（未绑定为空）
+	FormCode      string          `json:"formCode,omitempty"`
+	FormVersionNo int             `json:"formVersionNo,omitempty"`
+	FormContent   json.RawMessage `json:"formContent,omitempty"`
+	// FormValues 业务数据当前值（未绑定为空对象）
+	FormValues map[string]any          `json:"formValues"`
+	Operations []InstanceOperationView `json:"operations"`
+}
+
+// ListTasksQuery 审批中心任务查询参数。
+type ListTasksQuery struct {
+	// Scope pending=我的待办 / completed=我的已办 / cc-to-me=抄送我的
+	Scope  string
+	Limit  int
+	Cursor string
+}
+
+// ListInstancesQuery 实例查询参数（scope=started-by-me 我发起的）。
+type ListInstancesQuery struct {
+	Scope  string
+	Limit  int
+	Cursor string
+}

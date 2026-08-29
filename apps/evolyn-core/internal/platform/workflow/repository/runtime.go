@@ -25,9 +25,9 @@ type runtimeRepository struct {
 }
 
 // NewRuntimeRepositories 构造运行态仓储集合。
-func NewRuntimeRepositories(base *gorm.DB) (*runtimeInstances, *runtimeExecutions, *runtimeNodes, *runtimeTasks, *runtimeOperations) {
+func NewRuntimeRepositories(base *gorm.DB) (*runtimeInstances, *runtimeExecutions, *runtimeNodes, *runtimeTasks, *runtimeOperations, *runtimeCCRecords) {
 	r := &runtimeRepository{base: base}
-	return &runtimeInstances{r}, &runtimeExecutions{r}, &runtimeNodes{r}, &runtimeTasks{r}, &runtimeOperations{r}
+	return &runtimeInstances{r}, &runtimeExecutions{r}, &runtimeNodes{r}, &runtimeTasks{r}, &runtimeOperations{r}, &runtimeCCRecords{r}
 }
 
 // ---- 实例 ----
@@ -297,6 +297,36 @@ func (r *runtimeTasks) CancelPendingTasksByNode(ctx context.Context, nodeInstanc
 		Where("node_instance_id = ? AND status = ?", nodeInstanceID, "PENDING").
 		Update("status", "CANCELLED")
 	return result.RowsAffected, result.Error
+}
+
+func (r *runtimeTasks) CancelPendingTasksByInstance(ctx context.Context, instanceID uint) (int64, error) {
+	result := infrastructure.ResolveDB(ctx, r.base).Model(&model.WfTask{}).
+		Where("instance_id = ? AND status = ?", instanceID, "PENDING").
+		Update("status", "CANCELLED")
+	return result.RowsAffected, result.Error
+}
+
+// ---- 抄送记录（000051） ----
+
+type runtimeCCRecords struct{ *runtimeRepository }
+
+func (r *runtimeCCRecords) CreateCCRecords(ctx context.Context, records []enginemodel.CCRecord) error {
+	if len(records) == 0 {
+		return nil
+	}
+	rows := make([]model.WfCCRecord, 0, len(records))
+	for _, record := range records {
+		row := model.WfCCRecord{
+			InstanceID:     record.InstanceID,
+			NodeInstanceID: record.NodeInstanceID,
+			NodeKey:        record.NodeKey,
+			MemberID:       record.MemberID,
+			DisplayName:    record.DisplayName,
+		}
+		row.TenantID = record.TenantID
+		rows = append(rows, row)
+	}
+	return infrastructure.ResolveDB(ctx, r.base).Create(&rows).Error
 }
 
 // ---- 操作流水 ----

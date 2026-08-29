@@ -75,4 +75,8 @@ var (
 	// ErrFormFieldForbidden 审批编辑携带了节点字段权限未授权的字段，
 	// 或实例未绑定表单却携带编辑值（第 15.4 章审批提交协议）
 	ErrFormFieldForbidden = httpx.NewBiz("WORKFLOW_FORM_FIELD_FORBIDDEN", "存在本节点不允许修改的表单字段", http.StatusForbidden)
+
+	// ErrActionNotAllowed 当前状态下不允许执行该动作（如撤回窗口已关闭：
+	// 实例已存在完成的人工审批任务、非退回状态下重提交，第 10.4 章冻结规则）
+	ErrActionNotAllowed = httpx.NewBiz("WORKFLOW_ACTION_NOT_ALLOWED", "当前状态不允许执行该操作", http.StatusConflict)
 )

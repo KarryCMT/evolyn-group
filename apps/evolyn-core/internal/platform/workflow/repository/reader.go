@@ -66,6 +66,12 @@ func (r *EngineDefinitionReader) FindCodeByID(ctx context.Context, definitionID 
 	return row.Code, nil
 }
 
+// FindDefinitionCodeByID 引擎内核 DefinitionReader 端口实现：实例级动作
+// （重提交）构造表达式上下文时按定义行 ID 反查公开编码。
+func (r *EngineDefinitionReader) FindDefinitionCodeByID(ctx context.Context, tenantID, definitionID uint) (string, error) {
+	return r.FindCodeByID(ctx, definitionID)
+}
+
 func definitionFromRow(ctx context.Context, base *gorm.DB, row *model.WfDefinition) (*enginemodel.Definition, error) {
 	draft, err := decodeDocument([]byte(row.DraftContent))
 	if err != nil {
@@ -123,6 +129,17 @@ type RuntimeReader interface {
 	ListTaskRowsByInstance(ctx context.Context, instanceID uint) ([]model.WfTask, error)
 	ListActorRowsByInstance(ctx context.Context, instanceID uint) ([]model.WfTaskActor, error)
 	ListOperationRowsByInstance(ctx context.Context, instanceID uint) ([]model.WfOperation, error)
+	// FindTaskRow 按任务行 ID 读取（ctx 租户过滤兜底；任务详情上下文）
+	FindTaskRow(ctx context.Context, taskID uint) (*model.WfTask, error)
+	// ListActorRowsByTaskIDs 批量读取任务参与人快照（列表页组装）
+	ListActorRowsByTaskIDs(ctx context.Context, taskIDs []uint) ([]model.WfTaskActor, error)
+	// ListTaskRowsByMemberAndStatuses 我的待办/我的已办（第 20.4/28 章主查询：
+	// 经 wf_task_actor 参与人快照定位本人任务，游标按 task id 倒序）
+	ListTaskRowsByMemberAndStatuses(ctx context.Context, memberID uint, statuses []string, limit int, afterID uint) ([]model.WfTask, bool, error)
+	// ListCCRowsByMember 抄送我的（000051 追加写记录，游标按 id 倒序）
+	ListCCRowsByMember(ctx context.Context, memberID uint, limit int, afterID uint) ([]model.WfCCRecord, bool, error)
+	// ListInstanceRowsByStarter 我发起的（游标按 id 倒序）
+	ListInstanceRowsByStarter(ctx context.Context, memberID uint, limit int, afterID uint) ([]model.WfInstance, bool, error)
 }
 
 type runtimeReader struct{ base *gorm.DB }
@@ -166,4 +183,87 @@ func (r *runtimeReader) ListOperationRowsByInstance(ctx context.Context, instanc
 	err := infrastructure.ResolveDB(ctx, r.base).
 		Where("instance_id = ?", instanceID).Order("id").Find(&rows).Error
 	return rows, err
+}
+
+func (r *runtimeReader) FindTaskRow(ctx context.Context, taskID uint) (*model.WfTask, error) {
+	var row model.WfTask
+	if err := infrastructure.ResolveDB(ctx, r.base).Where("id = ?", taskID).First(&row).Error; err != nil {
+		return nil, err
+	}
+	return &row, nil
+}
+
+func (r *runtimeReader) ListActorRowsByTaskIDs(ctx context.Context, taskIDs []uint) ([]model.WfTaskActor, error) {
+	if len(taskIDs) == 0 {
+		return nil, nil
+	}
+	rows := make([]model.WfTaskActor, 0)
+	err := infrastructure.ResolveDB(ctx, r.base).
+		Where("task_id IN ?", taskIDs).Order("id").Find(&rows).Error
+	return rows, err
+}
+
+// pageTaskRowsByMember 待办/已办共用游标分页：参与人快照定位本人任务
+// （快照在任务创建时一次性写入，运行中不随组织变化重算），limit+1 探测下一页。
+func (r *runtimeReader) pageTaskRowsByMember(ctx context.Context, memberID uint, statuses []string, limit int, afterID uint) ([]model.WfTask, bool, error) {
+	query := infrastructure.ResolveDB(ctx, r.base).
+		Model(&model.WfTask{}).
+		Joins("JOIN wf_task_actor ON wf_task_actor.task_id = wf_task.id AND wf_task_actor.member_id = ?", memberID).
+		Where("wf_task.status IN ?", statuses)
+	if afterID > 0 {
+		query = query.Where("wf_task.id < ?", afterID)
+	}
+	rows := make([]model.WfTask, 0)
+	if err := query.
+		Order("wf_task.id DESC").
+		Limit(limit + 1).
+		Select("wf_task.*").
+		Find(&rows).Error; err != nil {
+		return nil, false, err
+	}
+	hasMore := len(rows) > limit
+	if hasMore {
+		rows = rows[:limit]
+	}
+	return rows, hasMore, nil
+}
+
+func (r *runtimeReader) ListTaskRowsByMemberAndStatuses(ctx context.Context, memberID uint, statuses []string, limit int, afterID uint) ([]model.WfTask, bool, error) {
+	return r.pageTaskRowsByMember(ctx, memberID, statuses, limit, afterID)
+}
+
+func (r *runtimeReader) ListCCRowsByMember(ctx context.Context, memberID uint, limit int, afterID uint) ([]model.WfCCRecord, bool, error) {
+	query := infrastructure.ResolveDB(ctx, r.base).
+		Model(&model.WfCCRecord{}).
+		Where("member_id = ?", memberID)
+	if afterID > 0 {
+		query = query.Where("id < ?", afterID)
+	}
+	rows := make([]model.WfCCRecord, 0)
+	if err := query.Order("id DESC").Limit(limit + 1).Find(&rows).Error; err != nil {
+		return nil, false, err
+	}
+	hasMore := len(rows) > limit
+	if hasMore {
+		rows = rows[:limit]
+	}
+	return rows, hasMore, nil
+}
+
+func (r *runtimeReader) ListInstanceRowsByStarter(ctx context.Context, memberID uint, limit int, afterID uint) ([]model.WfInstance, bool, error) {
+	query := infrastructure.ResolveDB(ctx, r.base).
+		Model(&model.WfInstance{}).
+		Where("starter_member_id = ?", memberID)
+	if afterID > 0 {
+		query = query.Where("id < ?", afterID)
+	}
+	rows := make([]model.WfInstance, 0)
+	if err := query.Order("id DESC").Limit(limit + 1).Find(&rows).Error; err != nil {
+		return nil, false, err
+	}
+	hasMore := len(rows) > limit
+	if hasMore {
+		rows = rows[:limit]
+	}
+	return rows, hasMore, nil
 }

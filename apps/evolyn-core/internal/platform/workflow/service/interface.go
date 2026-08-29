@@ -46,4 +46,25 @@ type RuntimeService interface {
 	GetInstance(ctx context.Context, member *iammodel.User, instanceID uint) (*model.InstanceDetail, error)
 	// Approve 审批同意（行锁 + 参与人校验 + 节点完成判定 + 同事务推进）
 	Approve(ctx context.Context, member *iammodel.User, req *model.ApproveTaskRequest) (*model.ApproveTaskResult, error)
+
+	// ---- Phase 4：完整人工任务与审批中心（第 10/20.3/20.4 章） ----
+
+	// RejectTask 驳回任务（V1 terminate 语义：实例整体终止）
+	RejectTask(ctx context.Context, member *iammodel.User, req *model.RejectTaskRequest) (*model.ActionTaskResult, error)
+	// ReturnTask 退回发起人（实例保持 RUNNING，进入发起人修改等待态）
+	ReturnTask(ctx context.Context, member *iammodel.User, req *model.ReturnTaskRequest) (*model.ActionTaskResult, error)
+	// TransferTask 转办任务（原任务 TRANSFERRED，新任务另建，历史链可追溯）
+	TransferTask(ctx context.Context, member *iammodel.User, req *model.TransferTaskRequest) (*model.ActionTaskResult, error)
+	// WithdrawInstance 发起人撤回（撤回窗口：尚无已完成人工审批任务）
+	WithdrawInstance(ctx context.Context, member *iammodel.User, instanceID uint, req *model.InstanceActionRequest) (*model.ActionTaskResult, error)
+	// TerminateInstance 管理员终止（独立权限，不受撤回窗口限制）
+	TerminateInstance(ctx context.Context, member *iammodel.User, instanceID uint, req *model.InstanceActionRequest) (*model.ActionTaskResult, error)
+	// ResubmitInstance 发起人重新提交（流程从退回节点继续）
+	ResubmitInstance(ctx context.Context, member *iammodel.User, instanceID uint, req *model.ResubmitInstanceRequest) (*model.ActionTaskResult, error)
+	// ListTasks 审批中心任务查询：我的待办/我的已办/抄送我的
+	ListTasks(ctx context.Context, member *iammodel.User, query model.ListTasksQuery) (*model.TaskPage, error)
+	// ListInstances 审批中心实例查询：我发起的
+	ListInstances(ctx context.Context, member *iammodel.User, query model.ListInstancesQuery) (*model.InstancePage, error)
+	// GetTask 任务详情上下文（表单快照/数据 + 字段权限 + 允许动作 + 时间线）
+	GetTask(ctx context.Context, member *iammodel.User, taskID uint) (*model.TaskDetail, error)
 }

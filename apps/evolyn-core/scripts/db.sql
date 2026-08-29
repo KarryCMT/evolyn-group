@@ -2139,6 +2139,26 @@ CREATE TABLE IF NOT EXISTS wf_operation (
 CREATE INDEX IF NOT EXISTS idx_wf_operation_instance
     ON wf_operation (instance_id, id);
 
+-- 抄送记录（000051，追加写）：CC 不是审批任务，不参与节点完成判定；
+-- 「抄送我的」高频查询落独立记录表（10.6 章查询模型最简原则）
+CREATE TABLE IF NOT EXISTS wf_cc_record (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    instance_id BIGINT NOT NULL,
+    node_instance_id BIGINT NOT NULL DEFAULT 0,
+    node_key varchar(64) NOT NULL DEFAULT '',
+    member_id BIGINT NOT NULL,
+    display_name varchar(100) NOT NULL DEFAULT '',
+    created_at timestamp with time zone,
+    CONSTRAINT fk_wf_cc_record_instance FOREIGN KEY (instance_id) REFERENCES wf_instance(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_wf_cc_record_member
+    ON wf_cc_record (tenant_id, member_id, id DESC);
+
+CREATE INDEX IF NOT EXISTS idx_wf_cc_record_instance
+    ON wf_cc_record (instance_id, id);
+
 -- 权限补授：发起/查看与待办审批授全体成员（authenticated 系统分组），
 -- 具体任务能否审批由 TaskActor 实例级校验兜底
 UPDATE roles
@@ -2267,5 +2287,14 @@ COMMENT ON COLUMN wf_operation.instance_id IS '所属实例 ID';
 COMMENT ON COLUMN wf_operation.task_id IS '关联任务 ID（0=实例级操作，如 START/WITHDRAW）';
 COMMENT ON COLUMN wf_operation.operator_member_id IS '操作人成员 ID（0=系统）';
 COMMENT ON COLUMN wf_operation.operation_type IS '操作类型：START/APPROVE/REJECT/RETURN_TO_STARTER/RESUBMIT/WITHDRAW/TERMINATE/TRANSFER/CC/TIMEOUT/REMINDER';
+COMMENT ON TABLE wf_cc_record IS '流程抄送记录（追加写，禁止更新）：CC 节点执行时一次性解析并快照抄送对象（v1.1 审批人快照同语义）；cc 不是审批任务，不参与节点完成判定（ADR-012 第 10.6 章）';
+COMMENT ON COLUMN wf_cc_record.id IS '自增主键';
+COMMENT ON COLUMN wf_cc_record.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN wf_cc_record.instance_id IS '归属流程实例 ID（wf_instance 外键）';
+COMMENT ON COLUMN wf_cc_record.node_instance_id IS '触发抄送的节点实例 ID';
+COMMENT ON COLUMN wf_cc_record.node_key IS '抄送节点 key（设计态，配置从发布快照读取）';
+COMMENT ON COLUMN wf_cc_record.member_id IS '抄送对象成员 ID（同租户有效成员，解析时校验）';
+COMMENT ON COLUMN wf_cc_record.display_name IS '抄送对象显示名快照（仅历史展示，实时身份以成员 ID 为准）';
+COMMENT ON COLUMN wf_cc_record.created_at IS '创建时间';
 COMMENT ON COLUMN wf_operation.payload IS '操作载荷 JSONB（节点 key、意见、转办去向等；敏感字段出网前脱敏）';
 COMMENT ON COLUMN wf_operation.created_at IS '创建时间（追加写）';

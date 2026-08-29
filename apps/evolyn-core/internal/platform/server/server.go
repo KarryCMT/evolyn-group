@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	_ "net/http/pprof"
@@ -161,7 +162,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 运行态六表（实例/执行路径/节点实例/任务/参与人/操作流水）
 	workflowDefinitionRepo := workflowrepository.NewDefinitionRepository(db)
 	workflowVersionRepo := workflowrepository.NewVersionRepository(db)
-	workflowInstanceRepo, workflowExecutionRepo, workflowNodeRepo, workflowTaskRepo, workflowOperationRepo := workflowrepository.NewRuntimeRepositories(db)
+	workflowInstanceRepo, workflowExecutionRepo, workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowCCRepo := workflowrepository.NewRuntimeRepositories(db)
 	workflowEngineReader := workflowrepository.NewEngineDefinitionReader(db)
 	workflowRuntimeReader := workflowrepository.NewRuntimeReader(db)
 	// 消息中心域仓储（000039）：逻辑消息+收件箱、通知设置聚合、事务 Outbox
@@ -505,19 +506,22 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		txManager,
 		engineruntime.NewRuntime(workflowEngineReader, workflowInstanceRepo, workflowExecutionRepo,
 			workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowExecutors,
-			workflowadapter.NewEventPublisher(), workflowFormProvider, workflowIdentityProvider),
+			workflowadapter.NewEventPublisher(), workflowFormProvider, workflowIdentityProvider, workflowCCRepo),
 		workflowRuntimeReader, workflowEngineReader,
 		workflowFormDirectory{forms: formRepo, versions: formVersionRepo},
 		appAccess, auditSvc,
+		workflowIdentityProvider, workflowFormProvider,
 	)
 	workflowInstanceController := workflowcontroller.NewWorkflowInstanceController(workflowRuntimeService)
+	// Phase 4 完整人工任务与审批中心：驳回/退回/转办/撤回/终止/重提交 + 查询
+	workflowTaskController := workflowcontroller.NewWorkflowTaskController(workflowRuntimeService)
 
 	// 消息中心域（000039）控制器：收件箱（notifications）/ 通知设置
 	//（notification-settings）均挂租户域链
 	notificationController := notificationcontroller.NewNotificationController(notificationInboxService)
 	notificationSettingController := notificationcontroller.NewSettingController(notificationSettingService)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, notificationController, notificationSettingController, workflowController, workflowInstanceController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
@@ -795,6 +799,26 @@ func (d workflowFormDirectory) ResolveFormVersion(ctx context.Context, formCode 
 		return 0, 0, err
 	}
 	return form.ID, version.ID, nil
+}
+
+// GetVersionContent 任务详情上下文用：按表单版本行 ID 读发布快照全文与
+// 版本元数据（快照不可变；跨租户/不存在统一映射 WORKFLOW_FORM_VERSION_INVALID）。
+func (d workflowFormDirectory) GetVersionContent(ctx context.Context, formVersionID uint) (json.RawMessage, string, int, error) {
+	version, err := d.versions.GetByID(ctx, formVersionID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", 0, workflowerrors.ErrFormVersionInvalid
+		}
+		return nil, "", 0, err
+	}
+	form, err := d.forms.GetByID(ctx, version.FormID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, "", 0, workflowerrors.ErrFormVersionInvalid
+		}
+		return nil, "", 0, err
+	}
+	return json.RawMessage(version.Content), form.Code, version.VersionNo, nil
 }
 
 func (s formReferenceSource) ListFormReferences(ctx context.Context, formID uint) ([]formservice.FormReference, error) {

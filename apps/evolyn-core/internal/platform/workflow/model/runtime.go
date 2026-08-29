@@ -94,3 +94,18 @@ type WfOperation struct {
 }
 
 func (*WfOperation) TableName() string { return "wf_operation" }
+
+// WfCCRecord 抄送记录（000051，追加写；第 10.6 章）。
+type WfCCRecord struct {
+	ID             uint            `json:"id" gorm:"autoIncrement;primaryKey"`
+	InstanceID     uint            `json:"instanceId" gorm:"not null"`
+	NodeInstanceID uint            `json:"nodeInstanceId" gorm:"not null;default:0"`
+	NodeKey        string          `json:"nodeKey" gorm:"size:64;not null;default:''"`
+	MemberID       uint            `json:"memberId" gorm:"not null"`
+	DisplayName    string          `json:"displayName" gorm:"size:100;not null;default:''"`
+	CreatedAt      kernel.JSONTime `json:"createdAt"`
+	// TenantID 租户隔离（追加写，无更新语义故不嵌 TenantBaseModel）
+	TenantID uint `json:"tenantId" gorm:"index;not null;default:1"`
+}
+
+func (*WfCCRecord) TableName() string { return "wf_cc_record" }

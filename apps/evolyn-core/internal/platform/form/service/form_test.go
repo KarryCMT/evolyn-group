@@ -158,6 +158,17 @@ func (f *fakeFormRepo) Create(ctx context.Context, form *model.Form) (*model.For
 	return &clone, nil
 }
 
+func (f *fakeFormRepo) GetByID(ctx context.Context, id uint) (*model.Form, error) {
+	for _, form := range f.forms {
+		if form.ID != id {
+			continue
+		}
+		clone := *form
+		return &clone, nil
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
 func (f *fakeFormRepo) GetByCode(ctx context.Context, code string) (*model.Form, error) {
 	for _, form := range f.forms {
 		if form.Code != code {

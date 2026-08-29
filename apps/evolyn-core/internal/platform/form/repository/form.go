@@ -39,6 +39,14 @@ func (r *formRepository) GetByCode(ctx context.Context, code string) (*model.For
 	return form, nil
 }
 
+func (r *formRepository) GetByID(ctx context.Context, id uint) (*model.Form, error) {
+	form := new(model.Form)
+	if err := r.withContext(ctx).Where("id = ?", id).First(form).Error; err != nil {
+		return nil, err
+	}
+	return form, nil
+}
+
 // List 应用内游标分页：固定序 id DESC，游标行之后取 limit 条，多取一条探测 hasMore
 func (r *formRepository) List(ctx context.Context, params ListParams) ([]model.Form, bool, error) {
 	query := r.withContext(ctx).Model(&model.Form{}).

@@ -31,6 +31,9 @@ type Runtime struct {
 	// taskEngine 人工任务引擎（Runtime 与 Task Engine 分离，第 12.2 章）
 	taskEngine *task.Engine
 
+	// ccRecords 抄送记录仓储（第 10.6 章，CC 节点执行时追加写）
+	ccRecords repository.CCRepository
+
 	// business 业务数据窄端口（第 15 章，Phase 3）：form.* 表达式数据源与
 	// 审批编辑写回的唯一通道，内核不感知 form_records；可为 nil（单测）
 	business provider.BusinessDataProvider
@@ -51,10 +54,13 @@ type DefinitionReader interface {
 	FindDefinitionByCode(ctx context.Context, tenantID uint, code string) (*model.Definition, error)
 	FindVersion(ctx context.Context, tenantID, definitionID uint, versionNo int) (*model.DefinitionVersion, error)
 	FindVersionByID(ctx context.Context, tenantID, versionID uint) (*model.DefinitionVersion, error)
+	// FindDefinitionCodeByID 按定义行 ID 反查公开编码（重提交等实例级动作
+	// 构造表达式上下文使用；tenantID 仅为接口对齐，租户过滤由 ctx 承载）
+	FindDefinitionCodeByID(ctx context.Context, tenantID, definitionID uint) (string, error)
 }
 
-// NewRuntime 构造运行时（publisher/business/identity 可为 nil：
-// 跳过事件发布与表单数据接入，便于单测）。
+// NewRuntime 构造运行时（publisher/business/identity/ccRecords 可为 nil：
+// 跳过事件发布、表单数据接入与抄送落库，便于单测）。
 func NewRuntime(
 	definitions DefinitionReader,
 	instances repository.InstanceRepository,
@@ -66,6 +72,7 @@ func NewRuntime(
 	publisher provider.EventPublisher,
 	business provider.BusinessDataProvider,
 	identity provider.IdentityProvider,
+	ccRecords repository.CCRepository,
 ) *Runtime {
 	return &Runtime{
 		definitions:   definitions,
@@ -77,11 +84,12 @@ func NewRuntime(
 		executors:     executors,
 		navigator:     NewNavigator(nil),
 		publisher:     publisher,
-		taskEngine:    task.NewEngine(tasks, instances, operations, publisher),
+		taskEngine:    task.NewEngine(tasks, instances, operations, publisher, identity),
 		business:      business,
 		identity:      identity,
 		expressions:   expression.NewExprEngine(),
 		compiledCache: make(map[uint]*definition.CompiledDefinition),
+		ccRecords:     ccRecords,
 	}
 }
 
@@ -448,6 +456,10 @@ func (r *Runtime) advance(ctx context.Context, a *advanceContext, current string
 		if err := r.persistTasks(ctx, a, nodeInstance, result); err != nil {
 			return err
 		}
+		// 抄送记录落库（第 10.6 章：非审批任务，独立记录 + CC 操作流水）
+		if err := r.persistCC(ctx, a, nodeInstance, result); err != nil {
+			return err
+		}
 		if result.Wait {
 			// 人工审批：节点挂起等待，Runtime 停止推进（第 12.2 章）
 			nodeInstance.Status = model.NodeInstanceStatusWAITING
@@ -509,6 +521,42 @@ func (r *Runtime) persistTasks(ctx context.Context, a *advanceContext, nodeInsta
 		r.publish(ctx, event.TaskCreated, a.instance, blueprint.ID, a.env.Starter.MemberID)
 	}
 	return nil
+}
+
+// persistCC 落库抄送记录与 CC 操作流水（第 10.6 章）：抄送对象解析快照
+// 一次性写入；ccRecords 未装配时跳过（单测场景）。
+func (r *Runtime) persistCC(ctx context.Context, a *advanceContext, nodeInstance *model.NodeInstance, result executor.ExecuteResult) error {
+	if len(result.CCRecipients) == 0 {
+		return nil
+	}
+	if r.ccRecords != nil {
+		records := make([]model.CCRecord, 0, len(result.CCRecipients))
+		for _, recipient := range result.CCRecipients {
+			records = append(records, model.CCRecord{
+				TenantID:       a.instance.TenantID,
+				InstanceID:     a.instance.ID,
+				NodeInstanceID: nodeInstance.ID,
+				NodeKey:        nodeInstance.NodeKey,
+				MemberID:       recipient.MemberID,
+				DisplayName:    recipient.DisplayName,
+			})
+		}
+		if err := r.ccRecords.CreateCCRecords(ctx, records); err != nil {
+			return err
+		}
+	}
+	recipients := make([]map[string]any, 0, len(result.CCRecipients))
+	for _, recipient := range result.CCRecipients {
+		recipients = append(recipients, map[string]any{
+			"memberId": recipient.MemberID, "displayName": recipient.DisplayName,
+		})
+	}
+	return r.operations.AppendOperation(ctx, &model.Operation{
+		TenantID:   a.instance.TenantID,
+		InstanceID: a.instance.ID,
+		Type:       model.OperationTypeCC,
+		Payload:    map[string]any{"nodeKey": nodeInstance.NodeKey, "recipients": recipients},
+	})
 }
 
 func (r *Runtime) publish(ctx context.Context, eventName string, instance *model.Instance, taskID, actorMemberID uint) {

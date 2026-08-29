@@ -10,6 +10,7 @@ import (
 	"evolyn/internal/contextx"
 	"evolyn/internal/engine/workflow/assignment"
 	"evolyn/internal/engine/workflow/expression"
+	"evolyn/internal/engine/workflow/provider"
 	engineruntime "evolyn/internal/engine/workflow/runtime"
 	enginetask "evolyn/internal/engine/workflow/task"
 	auditservice "evolyn/internal/platform/audit/service"
@@ -34,9 +35,14 @@ type runtimeService struct {
 	formDir     adapter.FormDirectory
 	access      AccessEvaluator
 	audit       auditservice.Recorder
+	// identity 身份窄端口（转办目标成员有效性校验，Phase 4）
+	identity provider.IdentityProvider
+	// formData 业务数据窄端口（任务详情表单数据投影，Phase 4）
+	formData provider.BusinessDataProvider
 }
 
-// NewRuntimeService 构造最小 Runtime 服务。
+// NewRuntimeService 构造最小 Runtime 服务（identity/formData 可为 nil：
+// 转办校验与详情表单数据投影降级，便于单测）。
 func NewRuntimeService(
 	tx TxManager,
 	engine *engineruntime.Runtime,
@@ -45,10 +51,13 @@ func NewRuntimeService(
 	formDir adapter.FormDirectory,
 	access AccessEvaluator,
 	audit auditservice.Recorder,
+	identity provider.IdentityProvider,
+	formData provider.BusinessDataProvider,
 ) RuntimeService {
 	return &runtimeService{
 		tx: tx, engine: engine, reader: reader,
 		definitions: definitions, formDir: formDir, access: access, audit: audit,
+		identity: identity, formData: formData,
 	}
 }
 
@@ -79,6 +88,11 @@ func mapEngineError(err error) error {
 		return httpx.Wrap(wfapp.ErrInstanceNotRunning, err)
 	case errors.Is(err, engineruntime.ErrFormFieldForbidden):
 		return httpx.Wrap(wfapp.ErrFormFieldForbidden, err)
+	case errors.Is(err, engineruntime.ErrActionNotAllowed),
+		errors.Is(err, engineruntime.ErrResubmitNodeMissing):
+		return httpx.Wrap(wfapp.ErrActionNotAllowed, err)
+	case errors.Is(err, engineruntime.ErrNotStarter):
+		return httpx.Wrap(wfapp.ErrForbidden, err)
 	case errors.Is(err, engineruntime.ErrRouteStuck), errors.Is(err, engineruntime.ErrNodeUnsupported),
 		errors.Is(err, engineruntime.ErrAdvanceOverflow):
 		// 校验器已保证的路由不变量运行期被打破：细节只入日志，出网统一口径

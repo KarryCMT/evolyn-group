@@ -35,6 +35,9 @@ type ExecuteResult struct {
 	CreatedTasks []model.Task
 	// CreatedActors 任务参与人快照（与 CreatedTasks 一一对应）
 	CreatedActors [][]model.Actor
+	// CCRecipients 抄送对象快照（cc 节点产出，非审批任务不参与完成判定，
+	// 第 10.6 章；落库由 Runtime 统一承担）
+	CCRecipients []model.Actor
 }
 
 // NodeExecutor 节点执行器 SPI：按 NodeType 注册（第 12.1 章）。

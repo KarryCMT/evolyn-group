@@ -66,6 +66,16 @@ func (f *fakeDefinitions) FindVersionByID(ctx context.Context, tenantID, version
 	return nil, fmt.Errorf("version not found")
 }
 
+// FindDefinitionCodeByID 引擎端口实现（测试桩：内存 map 反查）。
+func (f *fakeDefinitions) FindDefinitionCodeByID(ctx context.Context, tenantID, definitionID uint) (string, error) {
+	for code, def := range f.defs {
+		if def.ID == definitionID {
+			return code, nil
+		}
+	}
+	return "", fmt.Errorf("definition not found")
+}
+
 // 未在 Runtime 路径使用的接口方法：显式 panic 防止测试误用
 func (f *fakeDefinitions) CreateDefinition(ctx context.Context, def *model.Definition) error {
 	panic("not used")
@@ -223,7 +233,13 @@ func (f *fakeNodes) FindNodeInstanceByID(ctx context.Context, tenantID, nodeInst
 }
 
 func (f *fakeNodes) ListNodeInstancesByInstance(ctx context.Context, instanceID uint) ([]model.NodeInstance, error) {
-	panic("not used")
+	rows := make([]model.NodeInstance, 0)
+	for _, node := range f.byID {
+		if node.InstanceID == instanceID {
+			rows = append(rows, *node)
+		}
+	}
+	return rows, nil
 }
 
 func (f *fakeNodes) SaveNodeInstance(ctx context.Context, nodeInstance *model.NodeInstance) error {
@@ -292,6 +308,19 @@ func (f *fakeTasks) ListActorsOfTask(ctx context.Context, taskID uint) ([]model.
 func (f *fakeTasks) SaveTask(ctx context.Context, task *model.Task) error {
 	f.byID[task.ID] = task
 	return nil
+}
+
+func (f *fakeTasks) CancelPendingTasksByInstance(ctx context.Context, instanceID uint) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var cancelled int64
+	for _, task := range f.byID {
+		if task.InstanceID == instanceID && task.Status == model.TaskStatusPENDING {
+			task.Status = model.TaskStatusCANCELLED
+			cancelled++
+		}
+	}
+	return cancelled, nil
 }
 
 func (f *fakeTasks) CancelPendingTasksByNode(ctx context.Context, nodeInstanceID uint) (int64, error) {
@@ -369,7 +398,7 @@ func newHarness(t *testing.T, doc model.Document) *harness {
 
 	definitions.publishDefinition("wf_test", doc)
 	registry := executor.NewRegistry(assignment.NewRegistry(nil, nil), nil)
-	rt := NewRuntime(definitions, instances, executions, nodes, tasks, operations, registry, publisher, nil, nil)
+	rt := NewRuntime(definitions, instances, executions, nodes, tasks, operations, registry, publisher, nil, nil, nil)
 	return &harness{runtime: rt, definitions: definitions, instances: instances, tasks: tasks, nodes: nodes, publisher: publisher}
 }
 

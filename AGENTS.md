@@ -88,7 +88,18 @@ internal/
                       starter.* 上下文填充 + role/form_field/
                       department_manager Resolver（解析失败租户管理员兜底）
                       + 审批编辑字段权限过滤（同事务经 Form Domain
-                      WorkflowRecordStore 窄端口写回 form_records）
+                      WorkflowRecordStore 窄端口写回 form_records）；
+                      Phase 4 已落地（迁移 000051 wf_cc_record）：完整人工
+                      Task Engine——Reject terminate 联动/ReturnToStarter+
+                      发起人 Resubmit（WAITING_RESUBMIT）/Withdraw 撤回窗口/
+                      Terminate 管理员独立权限/Transfer 转办回链/CC 节点
+                      执行器（独立抄送记录表），/api/v1/workflow-tasks
+                      （列表 scope=pending|completed|cc-to-me、详情上下文
+                      含表单快照+字段权限+允许动作+时间线、reject/
+                      return-to-starter/transfer）与 /api/v1/
+                      workflow-instances（started-by-me、withdraw、
+                      terminate、resubmit），WORKFLOW_ACTION_NOT_ALLOWED
+                      稳定码
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
     controller/       Controller 注册契约（RegisterRoute/Name；
                       PlatformController 标记平台运营域归属）与 AppConf

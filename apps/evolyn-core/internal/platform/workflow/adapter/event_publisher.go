@@ -4,6 +4,7 @@ package adapter
 
 import (
 	"context"
+	"encoding/json"
 
 	"evolyn/internal/engine/workflow/provider"
 
@@ -38,6 +39,9 @@ func (p *EventPublisher) PublishInTx(ctx context.Context, event provider.Event) 
 // 引擎运行期按实例冻结的 FormVersionID 取数（Phase 3 接 BusinessDataProvider）。
 type FormDirectory interface {
 	ResolveFormVersion(ctx context.Context, formCode string, versionNo int) (formID, formVersionID uint, err error)
+	// GetVersionContent 按表单版本行 ID 读取发布快照全文与版本元数据
+	//（Phase 4 任务详情上下文：Form Schema Snapshot 出网投影）
+	GetVersionContent(ctx context.Context, formVersionID uint) (content json.RawMessage, formCode string, versionNo int, err error)
 }
 
 // EnsureInterfaces 编译期端口契约自检。

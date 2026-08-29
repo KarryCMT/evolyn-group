@@ -28,6 +28,8 @@ type FormRepository interface {
 	Create(ctx context.Context, form *model.Form) (*model.Form, error)
 	// GetByCode 按公开编码加载（ctx 携带租户时自动过滤，跨租户编码即 NotFound）
 	GetByCode(ctx context.Context, code string) (*model.Form, error)
+	// GetByID 按行 ID 加载（ctx 租户过滤兜底；流程引擎版本投影使用）
+	GetByID(ctx context.Context, id uint) (*model.Form, error)
 	// List 应用内游标分页；返回当页数据与是否还有下一页（limit+1 探测）
 	List(ctx context.Context, params ListParams) ([]model.Form, bool, error)
 	// UpdateName 改名（白名单字段）

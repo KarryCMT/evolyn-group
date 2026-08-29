@@ -27,6 +27,15 @@ type TaskRepository interface {
 	// CancelPendingTasksByNode 批量取消节点下 PENDING 任务
 	//（或签淘汰/节点完成/驳回终止联动；返回受影响行数）
 	CancelPendingTasksByNode(ctx context.Context, nodeInstanceID uint) (int64, error)
+	// CancelPendingTasksByInstance 批量取消实例下全部 PENDING 任务
+	//（撤回/管理员终止联动；返回受影响行数）
+	CancelPendingTasksByInstance(ctx context.Context, instanceID uint) (int64, error)
+}
+
+// CCRepository 抄送记录仓储（追加写，禁止更新；第 10.6 章）。
+type CCRepository interface {
+	// CreateCCRecords 批量落抄送记录（抄送节点执行时一次性写入）
+	CreateCCRecords(ctx context.Context, records []model.CCRecord) error
 }
 
 // NodeInstanceRepository 节点实例仓储。

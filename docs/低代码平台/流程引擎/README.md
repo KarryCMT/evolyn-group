@@ -57,8 +57,17 @@ apps/evolyn-core/
   form 域 WorkflowRecordStore 窄端口（合并值按冻结快照整体终审后同事务
   写回，FORM_RECORD_INVALID + fieldErrors 与提交同协议）、Approve 接口
   values 传值；发起人直属主管（reporting）IAM 无此语义，保持禁用。
-- **Phase 4**（完整人工 Task Engine：驳回/退回/撤回/转办/抄送/审批中心
-  查询）为下一里程碑。
+- **Phase 4（当前）**：完整人工 Task Engine 已落地（V1 核心完成）——
+  迁移 000051（wf_cc_record 抄送记录表）；任务级动作 Reject（terminate
+  联动）/ReturnToStarter/Transfer（TRANSFERRED 回链 + 新任务）与实例级
+  动作 Withdraw（撤回窗口：WithdrawAllowed 冻结规则）/Terminate（独立
+  workflow-instances:update 权限）/Resubmit（WAITING_RESUBMIT → 从退回
+  节点继续）；CC 节点执行器（独立记录表，不参与完成判定）；审批中心
+  API：GET /workflow-tasks?scope=pending|completed|cc-to-me、GET
+  /workflow-instances?scope=started-by-me、GET /workflow-tasks/:id
+  （详情上下文：表单冻结快照 + 业务数据 + 字段权限 + AllowedActions +
+  操作时间线）；稳定码 WORKFLOW_ACTION_NOT_ALLOWED。
+- **Phase 5**（wf_job 超时/提醒 Worker）为下一里程碑。
 - 前端错误码：workflow 域 errCode 已在
   `apps/evolyn-web/packages/utils/src/request/errorCodes.ts` 预留分段。
 

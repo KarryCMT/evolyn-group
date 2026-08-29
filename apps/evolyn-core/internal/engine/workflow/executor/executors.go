@@ -20,14 +20,14 @@ func (r *registry) ExecutorOf(nodeType model.NodeType) (NodeExecutor, bool) {
 	return e, ok
 }
 
-// NewRegistry 构造执行器注册表（V1：start/approval/condition/end；
-// service 执行器 Phase 7 注册，cc 执行器 Phase 4 随人工任务全量动作注册，
-// 运行期命中未注册类型即快速失败）。
+// NewRegistry 构造执行器注册表（V1：start/approval/condition/cc/end；
+// service 执行器 Phase 7 注册，运行期命中未注册类型即快速失败）。
 func NewRegistry(resolvers assignment.Registry, identity provider.IdentityProvider) Registry {
 	return &registry{byType: map[model.NodeType]NodeExecutor{
 		model.NodeTypeStart:     &StartExecutor{},
 		model.NodeTypeApproval:  &ApprovalExecutor{resolvers: resolvers, identity: identity},
 		model.NodeTypeCondition: &ConditionExecutor{},
+		model.NodeTypeCC:        &CCExecutor{resolvers: resolvers},
 		model.NodeTypeEnd:       &EndExecutor{},
 	}}
 }
@@ -50,6 +50,34 @@ func (e *ConditionExecutor) Type() model.NodeType { return model.NodeTypeConditi
 
 func (e *ConditionExecutor) Execute(ctx context.Context, input ExecuteInput) (ExecuteResult, error) {
 	return ExecuteResult{Complete: true}, nil
+}
+
+// CCExecutor 抄送节点（第 10.6 章）：解析抄送对象 → 产出抄送快照（落库由
+// Runtime 统一承担）→ 瞬时完成。CC 不是审批任务，不参与节点完成判定，
+// 解析不到任何对象同样报错禁止静默跳过（第 17 章补充语义）。
+type CCExecutor struct {
+	resolvers assignment.Registry
+}
+
+func (e *CCExecutor) Type() model.NodeType { return model.NodeTypeCC }
+
+func (e *CCExecutor) Execute(ctx context.Context, input ExecuteInput) (ExecuteResult, error) {
+	spec := input.Node.Config.Recipients
+	if spec == nil {
+		return ExecuteResult{}, fmt.Errorf("cc node %s has no recipients spec", input.Node.Key)
+	}
+	resolver, ok := e.resolvers.ResolverOf(spec.Type)
+	if !ok {
+		return ExecuteResult{}, &assignment.ErrAssigneeNotFound{Type: spec.Type}
+	}
+	recipients, err := resolver.Resolve(ctx, assignment.ResolveInput{Ctx: input.Ctx, Spec: *spec})
+	if err != nil {
+		return ExecuteResult{}, err
+	}
+	if len(recipients) == 0 {
+		return ExecuteResult{}, &assignment.ErrAssigneeNotFound{Type: spec.Type}
+	}
+	return ExecuteResult{Complete: true, CCRecipients: recipients}, nil
 }
 
 // EndExecutor 结束节点：节点瞬时完成；实例终态由 Runtime 依据节点类型落账。
