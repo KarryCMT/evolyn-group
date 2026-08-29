@@ -59,3 +59,54 @@ func TestIsClusterAdminUsesLocalizedRoleName(t *testing.T) {
 
 	assert.True(t, IsClusterAdmin(user))
 }
+
+func TestPermissionsOfMenuActionCodes(t *testing.T) {
+	// form-actions 通配规则（租户管理员基线/000047 补授同形）必须展开为
+	// 具体按钮动作键：动作码不属于 CRUD 动词集，Contain 展开覆盖不到，
+	// 缺失即菜单按钮图全 false（ADR-011 回归）
+	user := &model.User{
+		ID: 1,
+		Roles: []model.Role{
+			{Rules: model.Rules{{Resource: model.FormMenuActionResource, Operation: model.AllOperation}}},
+		},
+	}
+	permissions := PermissionsOf(user)
+	assert.True(t, permissions["form-actions:*"]) // 通配键本身保留
+	assert.True(t, permissions["form-actions:switch-type"])
+	assert.True(t, permissions["form-actions:copy-in-app"])
+	assert.True(t, permissions["form-actions:copy-cross-app"])
+	assert.True(t, permissions["form-actions:hide"])
+
+	// 逐动作授权（自定义角色场景）：透明键即动作键，不放大其他动作
+	user = &model.User{
+		ID: 2,
+		Roles: []model.Role{
+			{Rules: model.Rules{{Resource: model.FormMenuActionResource, Operation: "hide"}}},
+		},
+	}
+	permissions = PermissionsOf(user)
+	assert.True(t, permissions["form-actions:hide"])
+	assert.False(t, permissions["form-actions:switch-type"])
+	assert.False(t, permissions["form-actions:copy-in-app"])
+
+	// 全资源通配（*）：按 Authorize 的全资源语义放行全部动作键
+	user = &model.User{
+		ID: 3,
+		Roles: []model.Role{
+			{Rules: model.Rules{{Resource: model.All, Operation: model.AllOperation}}},
+		},
+	}
+	permissions = PermissionsOf(user)
+	assert.True(t, permissions["form-actions:switch-type"])
+	assert.True(t, permissions["form-actions:hide"])
+
+	// 非 form-actions 资源的通配不产出动作键（如 applications:*）
+	user = &model.User{
+		ID: 4,
+		Roles: []model.Role{
+			{Rules: model.Rules{{Resource: "applications", Operation: model.AllOperation}}},
+		},
+	}
+	permissions = PermissionsOf(user)
+	assert.False(t, permissions["form-actions:switch-type"])
+}

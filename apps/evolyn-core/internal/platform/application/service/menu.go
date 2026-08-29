@@ -538,8 +538,8 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 	}
 
 	// 应用可编辑状态是全部按钮动作的公共因子（归档/初始化中应用只读）；
-	// manage/move 口径对齐应用域 detailFor（认 applications:patch），delete
-	// 认 applications:delete；favorite 凡可见即可收藏（个人状态动作）
+	// favorite 凡可见即可收藏（个人状态动作）；按钮细节由 menuEntryActions
+	// 按动作注册表 × 权限集投影（ADR-011，actions 为唯一按钮事实源）
 	editable := snap.Status == model.ApplicationStatusActive && !provisionStatus(snap.ProvisionStatus)
 
 	roots := make([]*model.MenuEntry, 0)
@@ -550,9 +550,6 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 		}
 		caps := model.MenuEntryCapabilities{
 			View:     true,
-			Manage:   perms["applications:patch"] && editable,
-			Move:     perms["applications:patch"] && editable,
-			Delete:   perms["applications:delete"] && editable,
 			Favorite: true,
 			Actions:  menuEntryActions(perms, entry, editable),
 		}

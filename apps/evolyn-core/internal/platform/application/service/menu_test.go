@@ -338,10 +338,9 @@ func TestMenuIntegrityFailures(t *testing.T) {
 }
 
 func TestMenuCapabilities(t *testing.T) {
-	// capabilities 口径对齐应用域 detailFor：manage/move=patch∩可编辑，
-	// delete=delete∩非初始化中；favorite 为个人状态能力（ADR-011：凡可见
-	// 即可收藏，与权限/应用状态无关）；actions 按动作注册表 × 权限集派生
-	//（资产节点默认出网）
+	// capabilities 已收敛为 view/favorite/actions 三字段（ADR-011）：actions
+	// 是按钮唯一事实源（动作注册表 × 权限集 × 可编辑状态派生）；favorite 为
+	// 个人状态能力（凡可见即可收藏，与权限/应用状态无关）
 	// 菜单管理员全量权限集（模拟 tenant-admin：applications:* + forms:* +
 	// form-actions:*，ADR-011 动作键齐备）
 	menuAdminPerms := func() map[string]bool {
@@ -363,13 +362,13 @@ func TestMenuCapabilities(t *testing.T) {
 		want   model.MenuEntryCapabilities
 	}{
 		{"全量权限 + active", menuAdminPerms(), model.ApplicationStatusActive,
-			model.MenuEntryCapabilities{View: true, Manage: true, Move: true, Delete: true, Favorite: true,
+			model.MenuEntryCapabilities{View: true, Favorite: true,
 				Actions: model.MenuEntryActions{Edit: true, Rename: true, SwitchType: true, ReferenceView: true,
 					CopyInApp: true, CopyCrossApp: true, Move: true, Hide: true, Delete: true}}},
 		{"只读权限（authenticated 基线）", map[string]bool{"applications:get": true}, model.ApplicationStatusActive,
 			model.MenuEntryCapabilities{View: true, Favorite: true}},
-		// 归档态禁止菜单管理（方案 §8.2）：节点级 manage/move/delete 与全部
-		// 按钮动作全关（可编辑是动作公共因子）；favorite 随可见保持可收藏
+		// 归档态禁止一切按钮动作（可编辑是动作公共因子）；favorite 随可见
+		// 保持可收藏
 		{"全量权限 + 归档（不可管理）", menuAdminPerms(), model.ApplicationStatusArchived,
 			model.MenuEntryCapabilities{View: true, Favorite: true}},
 	}

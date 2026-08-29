@@ -79,15 +79,14 @@ type MenuEntryActions struct {
 	Delete        bool `json:"delete"`
 }
 
-// MenuEntryCapabilities 当前成员对节点的运行时能力（方案 §6.2）：读取时由
-// 应用级权限与状态派生，不落库。Actions 为按钮级细粒度投影（ADR-011）；
-// Manage/Move/Delete 为应用级粗粒度兼容字段（与 Actions 同因子派生）；
-// favorite 凡可见即可收藏（menu-favorites 授全体成员）
+// MenuEntryCapabilities 当前成员对节点的运行时能力（方案 §6.2）：读取时
+// 派生，不落库。按钮级动作以 Actions 为唯一事实源（ADR-011：动作注册表 ×
+// 权限集 × 应用可编辑状态派生，未适配当前节点类型的动作恒 false）；
+// favorite 是个人状态能力（凡可见即可收藏），View 为可见标记（树构建过滤）。
+// 旧契约的 manage/move/delete 粗粒度字段已废弃——同一语义由 Actions 的
+// rename/move/delete 承载，不再双写。
 type MenuEntryCapabilities struct {
 	View     bool             `json:"view"`
-	Manage   bool             `json:"manage"`
-	Move     bool             `json:"move"`
-	Delete   bool             `json:"delete"`
 	Favorite bool             `json:"favorite"`
 	Actions  MenuEntryActions `json:"actions"`
 }

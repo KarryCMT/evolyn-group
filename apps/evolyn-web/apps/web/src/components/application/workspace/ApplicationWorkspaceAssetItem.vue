@@ -49,7 +49,9 @@ const expanded = shallowRef(true);
 const isFolder = computed(() => props.asset.type === 'folder');
 // 分组仅承担展开、管理与容纳子节点职责，不能成为内容区的选中资产。
 const isActive = computed(() => !isFolder.value && props.asset.code === props.activeAssetCode);
-const canCreateChild = computed(() => isFolder.value && props.asset.capabilities.manage);
+// 分组「+ 新建资产」入口沿用菜单管理能力：与 actions.rename 同因子
+//（applications:patch × 可编辑），actions 是按钮唯一事实源（ADR-011）。
+const canCreateChild = computed(() => isFolder.value && props.asset.capabilities.actions.rename);
 // 分组最多两级：二级分组仍可创建资产，但不再展示“新建子分组”。
 const canCreateNestedGroup = computed(() => canCreateChild.value && props.depth < 1);
 
@@ -60,50 +62,46 @@ interface ActionItem {
   danger?: boolean;
 }
 
-// 后端按钮级动作能力（ADR-011 actions 按钮图）优先；旧载荷缺失时按
-// 粗粒度能力兜底，避免旧菜单接口下按钮集塌缩。
+// 按钮集完全按后端 actions 按钮图出网（ADR-011「按钮不撒谎」）：投影
+// false 的动作不渲染，前端不做二次权限推断。
 const actionItems = computed<ActionItem[]>(() => {
-  const caps = props.asset.capabilities;
-  const actions = caps.actions;
-  const granted = (key: keyof NonNullable<typeof caps.actions>, legacy: boolean) =>
-    actions ? actions[key] : legacy;
+  const actions = props.asset.capabilities.actions;
   const items: ActionItem[] = [];
 
   if (isFolder.value) {
     // 分组仅三个按钮：修改名称、移动、删除（收藏/隐藏等不适用于分组）。
-    if (granted('rename', caps.manage)) {
+    if (actions.rename) {
       items.push({ action: 'rename', label: '修改名称', icon: RiPencilFill });
     }
-    if (granted('move', caps.move)) {
+    if (actions.move) {
       items.push({ action: 'move', label: '移动', icon: RiDragMove2Fill });
     }
-    if (granted('delete', caps.delete)) {
+    if (actions.delete) {
       items.push({ action: 'delete', label: '删除', icon: RiDeleteBin6Fill, danger: true });
     }
     return items;
   }
 
   if (props.asset.type === 'dashboard') {
-    // 仪表盘动作后端未落地（actions 占位恒 false），按钮集按粗粒度能力
-    // 出网；「复制」为仪表盘形态的单复制入口。
-    if (caps.manage) items.push({ action: 'edit', label: '编辑', icon: RiEditFill });
-    if (caps.manage) items.push({ action: 'rename', label: '修改名称和图标', icon: RiPencilFill });
-    if (caps.manage) items.push({ action: 'copy-in-app', label: '复制', icon: RiFileCopyFill });
-    if (caps.move) items.push({ action: 'move', label: '移动', icon: RiDragMove2Fill });
-    if (caps.favorite) items.push({ action: 'favorite', label: '收藏', icon: RiStarFill });
-    if (caps.delete)
+    // 仪表盘资产域未落地（actions 占位恒 false）：仅出收藏个人状态动作，
+    // 其余按钮随仪表盘域端点落地由后端翻转投影。
+    if (props.asset.capabilities.favorite) {
+      items.push({ action: 'favorite', label: '收藏', icon: RiStarFill });
+    }
+    if (actions.delete) {
       items.push({ action: 'delete', label: '删除', icon: RiDeleteBin6Fill, danger: true });
+    }
     return items;
   }
 
   // 表单节点（流程/普通）全量按钮集，按 actions 按钮图逐项出网。
-  if (granted('edit', caps.manage)) {
+  if (actions.edit) {
     items.push({ action: 'edit', label: '编辑', icon: RiEditFill });
   }
-  if (granted('rename', caps.manage)) {
+  if (actions.rename) {
     items.push({ action: 'rename', label: '修改名称和图标', icon: RiPencilFill });
   }
-  if (granted('switchType', false)) {
+  if (actions.switchType) {
     items.push({
       action: 'switch-type',
       // 切换方向按当前表单类型互指：流程→普通、普通→流程。
@@ -111,26 +109,26 @@ const actionItems = computed<ActionItem[]>(() => {
       icon: RiRepeatFill,
     });
   }
-  if (granted('referenceView', false)) {
+  if (actions.referenceView) {
     items.push({ action: 'reference-view', label: '查看引用视图', icon: RiLinksFill });
   }
-  if (granted('copyInApp', false)) {
+  if (actions.copyInApp) {
     items.push({ action: 'copy-in-app', label: '复制到当前应用', icon: RiFileCopyFill });
   }
-  if (granted('copyCrossApp', false)) {
+  if (actions.copyCrossApp) {
     items.push({ action: 'copy-cross-app', label: '复制到其他应用', icon: RiFileCopy2Fill });
   }
-  if (granted('move', caps.move)) {
+  if (actions.move) {
     items.push({ action: 'move', label: '移动', icon: RiDragMove2Fill });
   }
   // 收藏是个人状态动作：凡节点可见即可收藏（与权限解耦）。
-  if (caps.favorite) {
+  if (props.asset.capabilities.favorite) {
     items.push({ action: 'favorite', label: '收藏', icon: RiStarFill });
   }
-  if (granted('hide', false)) {
+  if (actions.hide) {
     items.push({ action: 'hide', label: '对成员隐藏', icon: RiEyeOffFill });
   }
-  if (granted('delete', caps.delete)) {
+  if (actions.delete) {
     items.push({ action: 'delete', label: '删除', icon: RiDeleteBin6Fill, danger: true });
   }
   return items;

@@ -37,7 +37,21 @@ function asset(targetCode: string): ApplicationWorkspaceAsset {
     type: 'form',
     targetCode,
     formType: 'standard',
-    capabilities: { view: true, manage: true, move: true, delete: true, favorite: true },
+    capabilities: {
+      view: true,
+      favorite: true,
+      actions: {
+        edit: true,
+        rename: true,
+        switchType: false,
+        referenceView: false,
+        copyInApp: false,
+        copyCrossApp: false,
+        move: true,
+        hide: false,
+        delete: true,
+      },
+    },
   };
 }
 

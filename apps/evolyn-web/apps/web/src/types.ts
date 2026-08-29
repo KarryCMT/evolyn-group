@@ -402,15 +402,13 @@ export interface ApplicationMenuEntryActions {
   delete: boolean;
 }
 
-/** 菜单节点运行时能力（后端按当前成员权限与应用状态读取时派生，不落库） */
+/** 菜单节点运行时能力（后端按当前成员权限与应用状态读取时派生，不落库）：
+ * 按钮级动作以 actions 为唯一事实源（ADR-011），favorite 是个人状态能力
+ *（凡可见即可收藏），view 为可见标记 */
 export interface ApplicationMenuCapabilities {
   view: boolean;
-  manage: boolean;
-  move: boolean;
-  delete: boolean;
   favorite: boolean;
-  /** 按钮级动作能力（ADR-011）；旧载荷缺失时消费方按粗粒度能力兜底 */
-  actions?: ApplicationMenuEntryActions;
+  actions: ApplicationMenuEntryActions;
 }
 
 /** 应用菜单节点（entryMap 的值；parentEntryId 为 null 即根节点） */
