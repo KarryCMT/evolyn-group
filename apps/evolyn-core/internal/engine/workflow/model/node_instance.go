@@ -5,6 +5,8 @@ package model
 // 1 NodeInstance → 3 Task。
 type NodeInstance struct {
 	ID uint
+	// TenantID 归属租户
+	TenantID uint
 	// InstanceID / ExecutionID 归属实例与执行路径
 	InstanceID  uint
 	ExecutionID uint

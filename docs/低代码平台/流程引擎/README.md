@@ -33,14 +33,21 @@ apps/evolyn-core/
 
 - **Phase 0**：架构、协议与语义冻结——全部 SPI 契约草案、DSL 校验器、状态机
   迁移表、表达式沙箱及单元测试已落地（commit cba47b2）。
-- **Phase 1（当前）**：Definition Engine 已落地——迁移 000048
+- **Phase 1**：Definition Engine 已落地——迁移 000048
   （wf_definition + wf_definition_version，含 down 与 scripts/db.sql 同步）、
   GORM 仓储、DefinitionService（CRUD/草稿乐观锁/严格校验/Expr 预编译/发布
   事务/版本查询）、/api/v1/workflows 全套接口（Swagger 中文注解）、
   workflows 资源基线管理员补授；联调可直接以 JSON DSL 创建并发布定义。
-- Phase 2 最小 Runtime（Start → Approval → End）为下一里程碑；
-  IAM 部门负责人（leader）/直属主管（reporting）字段随 Phase 3 开工前补齐，
-  此前对应 Resolver 保持禁用。
+- **Phase 2（当前）**：最小 Runtime 已落地——迁移 000049（wf_instance/
+  wf_execution/wf_node_instance/wf_task/wf_task_actor/wf_operation 六表 +
+  运行实例业务幂等/请求幂等部分唯一索引）；内核 Runtime（推进环/执行器/
+  Task Engine 行锁审批/节点完成判定/事件端口）；API：POST
+  /workflow-instances（发起，双层幂等）、GET /workflow-instances/:id
+  （详情时间线）、POST /workflow-tasks/:taskId/approve（同意，双击防护）；
+  workflow-instances/workflow-tasks 资源补授（发起/查看/审批授全体成员，
+  实例级由 TaskActor 校验兜底）；Phase 6 前事件经日志适配器落流水。
+- Phase 3（Form + Expr + 动态审批人）为下一里程碑；IAM 部门负责人（leader）/
+  直属主管（reporting）字段为 Phase 3 开工前置，此前对应 Resolver 保持禁用。
 - 前端错误码：workflow 域 errCode 已在
   `apps/evolyn-web/packages/utils/src/request/errorCodes.ts` 预留分段。
 

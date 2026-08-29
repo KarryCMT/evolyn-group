@@ -7,13 +7,15 @@ type Instance struct {
 	ID uint
 	// TenantID 归属租户
 	TenantID uint
+	// DefinitionID 所属定义（内部外键；与版本一起冗余便于查询）
+	DefinitionID uint
 	// DefinitionVersionID 绑定的不可变流程版本
 	DefinitionVersionID uint
 	// BusinessType / BusinessID 业务绑定（同一 tenant+type+id 同一时间
 	// 至多一个 RUNNING 实例，部分唯一索引保障，第 14.1 章）
 	BusinessType string
 	BusinessID   string
-	// AppID / FormID / FormVersionID 发起时冻结的表单绑定
+	// AppID / FormID / FormVersionID 发起时冻结的表单绑定（0=未绑定）
 	AppID         uint
 	FormID        uint
 	FormVersionID uint
@@ -21,6 +23,8 @@ type Instance struct {
 	Status InstanceStatus
 	// StarterMemberID 发起人成员 ID（Withdraw 资格与退回发起人的目标）
 	StarterMemberID uint
+	// IdempotencyKey 请求幂等键（空=未携带；同租户非空唯一，第 14.2 章）
+	IdempotencyKey string
 }
 
 // InstanceStatus 流程实例状态机（第 9.1 章，Phase 0 冻结，Runtime 代码
@@ -43,6 +47,8 @@ const (
 // Execution 运行路径，为并行（Phase 8）、子流程预留；V1 仅根执行路径。
 type Execution struct {
 	ID uint
+	// TenantID 归属租户
+	TenantID uint
 	// InstanceID 所属实例
 	InstanceID uint
 	// ParentExecutionID 父路径（V1 根路径为 0）

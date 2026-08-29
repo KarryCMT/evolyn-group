@@ -10,13 +10,12 @@ import (
 	"fmt"
 
 	"evolyn/internal/engine/workflow/model"
-	wfruntime "evolyn/internal/engine/workflow/runtime"
 )
 
 // ResolveInput 解析输入。
 type ResolveInput struct {
 	// Ctx 运行上下文（form/starter/variables 均可参与解析条件）
-	Ctx *wfruntime.WorkflowContext
+	Ctx *model.WorkflowContext
 	// Spec 审批人规格（来自发布快照节点配置）
 	Spec model.AssigneeSpec
 }

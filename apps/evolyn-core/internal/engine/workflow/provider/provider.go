@@ -54,6 +54,8 @@ type OrganizationProvider interface {
 type IdentityProvider interface {
 	// ValidateMembers 校验成员集合同租户且有效（快照写入前复核）
 	ValidateMembers(ctx context.Context, tenantID uint, memberIDs []uint) error
+	// MemberDisplayName 成员显示名快照（任务创建时固化）
+	MemberDisplayName(ctx context.Context, tenantID, memberID uint) string
 	// ResolveTenantAdmins 解析租户管理员成员（Assignee 兜底/terminate 通知）
 	ResolveTenantAdmins(ctx context.Context, tenantID uint) ([]model.Actor, error)
 }

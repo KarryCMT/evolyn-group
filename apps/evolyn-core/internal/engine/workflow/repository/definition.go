@@ -30,6 +30,9 @@ type DefinitionRepository interface {
 	CreateVersion(ctx context.Context, version *model.DefinitionVersion) error
 	// FindVersion 读取指定版本快照
 	FindVersion(ctx context.Context, tenantID, definitionID uint, versionNo int) (*model.DefinitionVersion, error)
+	// FindVersionByID 按版本行 ID 读取快照（运行实例按 wf_instance
+	// 冻结的 definition_version_id 定位，取节点配置与审批模式）
+	FindVersionByID(ctx context.Context, tenantID, versionID uint) (*model.DefinitionVersion, error)
 	// ListVersions 版本列表（version_no 降序）
 	ListVersions(ctx context.Context, definitionID uint) ([]model.DefinitionVersion, error)
 }

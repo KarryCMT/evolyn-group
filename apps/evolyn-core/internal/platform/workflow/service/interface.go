@@ -37,3 +37,13 @@ type DefinitionService interface {
 	// GetVersion 指定版本详情（含冻结快照全文；历史版本可读）
 	GetVersion(ctx context.Context, member *iammodel.User, code string, versionNo int) (*model.VersionDetail, error)
 }
+
+// RuntimeService 最小流程运行时服务接口（Phase 2：发起/详情/同意）。
+type RuntimeService interface {
+	// Start 发起流程实例（业务幂等 + 请求幂等，事务内推进至审批挂起或完成）
+	Start(ctx context.Context, member *iammodel.User, req *model.StartInstanceRequest) (*model.InstanceDetail, error)
+	// GetInstance 实例详情（绑定关系 + 节点/任务/操作时间线）
+	GetInstance(ctx context.Context, member *iammodel.User, instanceID uint) (*model.InstanceDetail, error)
+	// Approve 审批同意（行锁 + 参与人校验 + 节点完成判定 + 同事务推进）
+	Approve(ctx context.Context, member *iammodel.User, req *model.ApproveTaskRequest) (*model.ApproveTaskResult, error)
+}

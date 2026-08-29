@@ -29,7 +29,7 @@ func TestMigrateINT001EmptyDatabaseUp(t *testing.T) {
 	// 版本登记完整：全部版本（与 migrations/*.up.sql 数量一致，新增随链顺延）落库
 	var count int64
 	assert.NoError(t, db.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&count).Error)
-	assert.EqualValues(t, 48, count)
+	assert.EqualValues(t, 49, count)
 
 	// 关键业务表已建齐（表名与迁移链一致）
 	for _, table := range []string{
@@ -48,6 +48,8 @@ func TestMigrateINT001EmptyDatabaseUp(t *testing.T) {
 		"tenant_notification_custom_recipients",
 		"forms", "form_versions", "form_records",
 		"wf_definition", "wf_definition_version",
+		"wf_instance", "wf_execution", "wf_node_instance",
+		"wf_task", "wf_task_actor", "wf_operation",
 	} {
 		var exists bool
 		assert.NoError(t, db.Raw(
@@ -67,7 +69,7 @@ func TestMigrateINT002IdempotentReplay(t *testing.T) {
 
 	var count int64
 	assert.NoError(t, db.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&count).Error)
-	assert.EqualValues(t, 48, count, "重放不得产生重复版本记录")
+	assert.EqualValues(t, 49, count, "重放不得产生重复版本记录")
 }
 
 // MIGRATE-INT-003：已执行迁移内容被篡改（checksum 改变）必须拒绝

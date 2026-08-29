@@ -14,6 +14,12 @@ var (
 	// ErrWorkflowNotFound 流程定义不存在或无权访问（租户过滤后的 NotFound 统一口径）
 	ErrWorkflowNotFound = httpx.NewBiz("WORKFLOW_NOT_FOUND", "流程不存在或无权访问", http.StatusNotFound)
 
+	// ErrInstanceNotFound 流程实例不存在或无权访问
+	ErrInstanceNotFound = httpx.NewBiz("WORKFLOW_INSTANCE_NOT_FOUND", "流程实例不存在或无权访问", http.StatusNotFound)
+
+	// ErrTaskNotFound 任务不存在或无权访问
+	ErrTaskNotFound = httpx.NewBiz("WORKFLOW_TASK_NOT_FOUND", "任务不存在或无权访问", http.StatusNotFound)
+
 	// ErrWorkflowNameInvalid 流程名称不符合要求（trim 后 1–128 字符）
 	ErrWorkflowNameInvalid = httpx.NewBiz("WORKFLOW_NAME_INVALID", "流程名称不符合要求", http.StatusBadRequest)
 
@@ -33,6 +39,26 @@ var (
 	// ErrVersionNotFound 指定发布版本不存在（版本以 version_no 标识，历史版本均可读）
 	ErrVersionNotFound = httpx.NewBiz("WORKFLOW_VERSION_NOT_FOUND", "流程版本不存在", http.StatusNotFound)
 
+	// ErrFormVersionInvalid 表单绑定无效：表单不存在/跨租户/版本号不存在
+	ErrFormVersionInvalid = httpx.NewBiz("WORKFLOW_FORM_VERSION_INVALID", "表单或表单版本无效", http.StatusBadRequest)
+
 	// ErrForbidden 流程域操作越权（与鉴权中间件共用 FORBIDDEN 稳定码）
 	ErrForbidden = httpx.NewBiz(httpx.CodeForbidden, "没有执行该操作的权限", http.StatusForbidden)
+
+	// ---- 运行态（Phase 2，第 20.5 章冻结码段） ----
+
+	// ErrNotPublished 流程尚未发布可执行版本（发起校验）
+	ErrNotPublished = httpx.NewBiz("WORKFLOW_VERSION_NOT_PUBLISHED", "流程尚未发布", http.StatusBadRequest)
+
+	// ErrInstanceAlreadyRunning 同一业务键已存在运行中实例（业务幂等，第 14.1 章）
+	ErrInstanceAlreadyRunning = httpx.NewBiz("WORKFLOW_INSTANCE_ALREADY_RUNNING", "该业务已存在进行中的流程", http.StatusConflict)
+
+	// ErrInstanceNotRunning 实例不在运行中（终态实例不可再操作）
+	ErrInstanceNotRunning = httpx.NewBiz("WORKFLOW_INSTANCE_NOT_RUNNING", "流程已结束，无法继续操作", http.StatusConflict)
+
+	// ErrTaskNotPending 任务不在待办状态（已被处理/取消/转办；双击防护，第 13.2 章）
+	ErrTaskNotPending = httpx.NewBiz("WORKFLOW_TASK_NOT_PENDING", "任务已被处理，请刷新后重试", http.StatusConflict)
+
+	// ErrTaskForbidden 当前操作者不是该任务的参与人（实例级校验，第 21 章）
+	ErrTaskForbidden = httpx.NewBiz("WORKFLOW_TASK_FORBIDDEN", "没有执行该任务的权限", http.StatusForbidden)
 )

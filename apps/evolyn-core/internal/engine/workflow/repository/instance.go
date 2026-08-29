@@ -21,6 +21,9 @@ type InstanceRepository interface {
 	// FindRunningInstanceByBusiness 幂等查询：同 tenant+type+id 的
 	// RUNNING 实例（无则返回 nil, nil）
 	FindRunningInstanceByBusiness(ctx context.Context, tenantID uint, businessType, businessID string) (*model.Instance, error)
+	// FindInstanceByIdempotencyKey 请求幂等查询：同租户幂等键的既有实例
+	//（无则返回 nil, nil；命中即重放返回，第 14.2 章）
+	FindInstanceByIdempotencyKey(ctx context.Context, tenantID uint, key string) (*model.Instance, error)
 	// HasRunningInstanceByDefinition 定义删除前置校验：是否存在运行中实例
 	HasRunningInstanceByDefinition(ctx context.Context, definitionID uint) (bool, error)
 }

@@ -20,6 +20,10 @@ type Definition struct {
 	DraftRevision int64
 	// Status 设计态状态
 	Status DefinitionStatus
+	// LatestVersionID 最新发布版本行 ID（nil=从未发布）
+	LatestVersionID *uint
+	// PublishedVersion 最新发布号（冗余自最新快照 version_no，0=未发布）
+	PublishedVersion int
 }
 
 // DefinitionStatus 设计态状态。软删仅允许删除无运行中实例的定义；

@@ -6,13 +6,12 @@ import (
 	"context"
 
 	"evolyn/internal/engine/workflow/model"
-	wfruntime "evolyn/internal/engine/workflow/runtime"
 )
 
 // ExecuteInput 节点执行输入。
 type ExecuteInput struct {
 	// Ctx 运行上下文（含表达式环境）
-	Ctx *wfruntime.WorkflowContext
+	Ctx *model.WorkflowContext
 	// Instance / NodeInstance 当前实例与节点实例
 	Instance     *model.Instance
 	NodeInstance *model.NodeInstance

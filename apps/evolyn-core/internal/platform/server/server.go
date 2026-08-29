@@ -50,6 +50,11 @@ import (
 	formcontroller "evolyn/internal/platform/form/controller"
 	formrepository "evolyn/internal/platform/form/repository"
 	formservice "evolyn/internal/platform/form/service"
+	workflowadapter "evolyn/internal/platform/workflow/adapter"
+	workflowerrors "evolyn/internal/platform/workflow"
+	engineruntime "evolyn/internal/engine/workflow/runtime"
+	"evolyn/internal/engine/workflow/assignment"
+	"evolyn/internal/engine/workflow/executor"
 	workflowcontroller "evolyn/internal/platform/workflow/controller"
 	workflowrepository "evolyn/internal/platform/workflow/repository"
 	workflowservice "evolyn/internal/platform/workflow/service"
@@ -151,9 +156,13 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	formRepo := formrepository.NewRepository(db)
 	formVersionRepo := formrepository.NewVersionRepository(db)
 	formRecordRepo := formrepository.NewRecordRepository(db)
-	// 流程引擎仓储（000048，ADR-012）：定义+草稿、不可变发布快照
+	// 流程引擎仓储（000048/000049，ADR-012）：定义+草稿、不可变发布快照、
+	// 运行态六表（实例/执行路径/节点实例/任务/参与人/操作流水）
 	workflowDefinitionRepo := workflowrepository.NewDefinitionRepository(db)
 	workflowVersionRepo := workflowrepository.NewVersionRepository(db)
+	workflowInstanceRepo, workflowExecutionRepo, workflowNodeRepo, workflowTaskRepo, workflowOperationRepo := workflowrepository.NewRuntimeRepositories(db)
+	workflowEngineReader := workflowrepository.NewEngineDefinitionReader(db)
+	workflowRuntimeReader := workflowrepository.NewRuntimeReader(db)
 	// 消息中心域仓储（000039）：逻辑消息+收件箱、通知设置聚合、事务 Outbox
 	notificationMessageRepo := notificationrepository.NewMessageRepository(db)
 	notificationSettingRepo := notificationrepository.NewSettingRepository(db)
@@ -477,12 +486,26 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	)
 	workflowController := workflowcontroller.NewWorkflowController(workflowService)
 
+	// 最小 Runtime（000049）：引擎执行器注册表 + 事件日志适配器（Phase 6 换
+	// Outbox 桥接）+ 表单目录窄端口（form 域仓储桥接，跨域不直接依赖），
+	// 事务在 RuntimeService 内经 TxManager 建立，内核在同一事务内推进
+	workflowExecutors := executor.NewRegistry(assignment.NewRegistry(nil))
+	workflowRuntimeService := workflowservice.NewRuntimeService(
+		txManager,
+		engineruntime.NewRuntime(workflowEngineReader, workflowInstanceRepo, workflowExecutionRepo,
+			workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowExecutors, workflowadapter.NewEventPublisher()),
+		workflowRuntimeReader, workflowEngineReader,
+		workflowFormDirectory{forms: formRepo, versions: formVersionRepo},
+		appAccess, auditSvc,
+	)
+	workflowInstanceController := workflowcontroller.NewWorkflowInstanceController(workflowRuntimeService)
+
 	// 消息中心域（000039）控制器：收件箱（notifications）/ 通知设置
 	//（notification-settings）均挂租户域链
 	notificationController := notificationcontroller.NewNotificationController(notificationInboxService)
 	notificationSettingController := notificationcontroller.NewSettingController(notificationSettingService)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, notificationController, notificationSettingController, workflowController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, notificationController, notificationSettingController, workflowController, workflowInstanceController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
@@ -734,6 +757,32 @@ type formApplicationDirectory struct {
 // 仓储查询显式携带租户条件
 type formReferenceSource struct {
 	menu applicationrepository.MenuRepository
+}
+
+// workflowFormDirectory 流程引擎的表单目录窄端口适配（ADR-012）：把
+// (formCode, formVersionNo) 解析为内部 form_id / form_version_id；表单
+// 不存在/跨租户/版本号不存在统一映射 WORKFLOW_FORM_VERSION_INVALID。
+type workflowFormDirectory struct {
+	forms    formrepository.FormRepository
+	versions formrepository.FormVersionRepository
+}
+
+func (d workflowFormDirectory) ResolveFormVersion(ctx context.Context, formCode string, versionNo int) (uint, uint, error) {
+	form, err := d.forms.GetByCode(ctx, formCode)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, 0, workflowerrors.ErrFormVersionInvalid
+		}
+		return 0, 0, err
+	}
+	version, err := d.versions.GetByFormAndVersionNo(ctx, form.ID, versionNo)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return 0, 0, workflowerrors.ErrFormVersionInvalid
+		}
+		return 0, 0, err
+	}
+	return form.ID, version.ID, nil
 }
 
 func (s formReferenceSource) ListFormReferences(ctx context.Context, formID uint) ([]formservice.FormReference, error) {
