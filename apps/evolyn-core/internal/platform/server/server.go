@@ -50,6 +50,9 @@ import (
 	formcontroller "evolyn/internal/platform/form/controller"
 	formrepository "evolyn/internal/platform/form/repository"
 	formservice "evolyn/internal/platform/form/service"
+	workflowcontroller "evolyn/internal/platform/workflow/controller"
+	workflowrepository "evolyn/internal/platform/workflow/repository"
+	workflowservice "evolyn/internal/platform/workflow/service"
 	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
 	iamcontroller "evolyn/internal/platform/iam/controller"
@@ -148,6 +151,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	formRepo := formrepository.NewRepository(db)
 	formVersionRepo := formrepository.NewVersionRepository(db)
 	formRecordRepo := formrepository.NewRecordRepository(db)
+	// 流程引擎仓储（000048，ADR-012）：定义+草稿、不可变发布快照
+	workflowDefinitionRepo := workflowrepository.NewDefinitionRepository(db)
+	workflowVersionRepo := workflowrepository.NewVersionRepository(db)
 	// 消息中心域仓储（000039）：逻辑消息+收件箱、通知设置聚合、事务 Outbox
 	notificationMessageRepo := notificationrepository.NewMessageRepository(db)
 	notificationSettingRepo := notificationrepository.NewSettingRepository(db)
@@ -190,6 +196,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 			return nil, err
 		}
 		if err := formRecordRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := workflowDefinitionRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := workflowVersionRepo.Migrate(); err != nil {
 			return nil, err
 		}
 		if err := notificationMessageRepo.Migrate(); err != nil {
@@ -458,12 +470,19 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	}
 	formController := formcontroller.NewFormController(formService)
 
+	// 流程引擎域（000048，ADR-012）Definition Engine：定义 CRUD/草稿/发布；
+	// DSL 校验以引擎内核严格校验器为唯一事实源，权限集经窄端口与鉴权同源
+	workflowService := workflowservice.NewDefinitionService(
+		txManager, workflowDefinitionRepo, workflowVersionRepo, appAccess, auditSvc,
+	)
+	workflowController := workflowcontroller.NewWorkflowController(workflowService)
+
 	// 消息中心域（000039）控制器：收件箱（notifications）/ 通知设置
 	//（notification-settings）均挂租户域链
 	notificationController := notificationcontroller.NewNotificationController(notificationInboxService)
 	notificationSettingController := notificationcontroller.NewSettingController(notificationSettingService)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, notificationController, notificationSettingController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, notificationController, notificationSettingController, workflowController}
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)

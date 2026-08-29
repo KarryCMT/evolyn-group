@@ -74,7 +74,11 @@ internal/
                       事件经既有 notification 域 Outbox（禁新建
                       domain_outbox）；API 走 /api/v1 租户中间件链 +
                       httpx.BizError（错误码段见该包 doc.go，前端
-                      errorCodes.ts 对齐维护）；核心表随 Phase 1/2 落地
+                      errorCodes.ts 对齐维护）；Phase 1 Definition
+                      Engine 已落地：迁移 000048（wf_definition +
+                      wf_definition_version）+ /api/v1/workflows 全套
+                      接口 + workflows 资源基线管理员补授，运行态表
+                      随 Phase 2 落地
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
     controller/       Controller 注册契约（RegisterRoute/Name；
                       PlatformController 标记平台运营域归属）与 AppConf
