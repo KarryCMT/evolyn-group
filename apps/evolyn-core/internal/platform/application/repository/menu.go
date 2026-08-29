@@ -10,6 +10,7 @@ import (
 	"evolyn/internal/platform/application/model"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type menuRepository struct {
@@ -48,6 +49,7 @@ type menuEntryJSON struct {
 	TargetType    *string `json:"target_type"`
 	TargetID      *uint   `json:"target_id"`
 	SortOrder     int64   `json:"sort_order"`
+	Hidden        bool    `json:"hidden"`
 }
 
 // GetSnapshot 以单条 SQL 同时读取应用行（含 menu_revision）与未软删菜单
@@ -107,6 +109,7 @@ GROUP BY a.id, a.code, a.status, a.provision_status, a.menu_revision`
 			TargetType:    e.TargetType,
 			TargetID:      e.TargetID,
 			SortOrder:     e.SortOrder,
+			Hidden:        e.Hidden,
 		})
 	}
 
@@ -195,6 +198,14 @@ func (r *menuRepository) UpdateNameByFormTarget(ctx context.Context, application
 		Update("name", name).Error
 }
 
+// UpdateAppearanceByFormTarget 表单图标/颜色修改事务内同步节点展示属性
+// （ADR-011：展示属性以资产域为事实源；空串清空，出网投影为 null）。
+func (r *menuRepository) UpdateAppearanceByFormTarget(ctx context.Context, applicationID, formID uint, icon, color string) error {
+	return infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuEntry{}).
+		Where("application_id = ? AND entry_type = ? AND target_id = ?", applicationID, model.MenuEntryTypeForm, formID).
+		Updates(map[string]interface{}{"icon": icon, "color": color}).Error
+}
+
 // SoftDeleteByFormTarget 表单删除事务内软删节点。
 func (r *menuRepository) SoftDeleteByFormTarget(ctx context.Context, applicationID, formID uint) error {
 	return infrastructure.ResolveDB(ctx, r.db).
@@ -220,11 +231,110 @@ func (r *menuRepository) BumpMenuRevisionFrom(ctx context.Context, applicationID
 	return result.RowsAffected == 1, result.Error
 }
 
+// UpdateEntryFields 节点白名单字段更新（fields 由 Service 组装，仓储不做
+// 二次裁剪；先经 BumpMenuRevisionFrom 占用修订号后再调用，同事务执行）。
+func (r *menuRepository) UpdateEntryFields(ctx context.Context, applicationID, entryID uint, fields map[string]interface{}) error {
+	return infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuEntry{}).
+		Where("application_id = ? AND id = ?", applicationID, entryID).
+		Updates(fields).Error
+}
+
+// ---- ADR-011：菜单节点个人收藏（个人状态，不递增菜单修订号） ----
+
+// CreateFavorite 写入收藏行：(member_id, entry_id) 唯一约束幂等，重复收藏
+// 静默成功（OnConflict DoNothing）。
+func (r *menuRepository) CreateFavorite(ctx context.Context, fav *model.MenuEntryFavorite) error {
+	return infrastructure.ResolveDB(ctx, r.db).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(fav).Error
+}
+
+// DeleteFavoriteByCode 取消收藏：按成员 + 节点编码定位（节点编码租户内
+// 唯一）。目标行不存在同样按成功处理（幂等），返回是否实际删除了行。
+func (r *menuRepository) DeleteFavoriteByCode(ctx context.Context, tenantID, memberID uint, entryCode string) (bool, error) {
+	result := infrastructure.ResolveDB(ctx, r.db).
+		Where("tenant_id = ? AND member_id = ? AND entry_id IN (?)", tenantID, memberID,
+			infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuEntry{}).
+				Select("id").Where("code = ?", entryCode)).
+		Delete(&model.MenuEntryFavorite{})
+	return result.RowsAffected > 0, result.Error
+}
+
+// FavoriteEntryIDs 当前成员在指定应用内已收藏的节点 ID 集合（菜单读取时
+// 投影 Favorited 状态用）。
+func (r *menuRepository) FavoriteEntryIDs(ctx context.Context, tenantID, memberID, applicationID uint) (map[uint]bool, error) {
+	var ids []uint
+	err := infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuEntryFavorite{}).
+		Where("tenant_id = ? AND member_id = ? AND application_id = ?", tenantID, memberID, applicationID).
+		Pluck("entry_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	set := make(map[uint]bool, len(ids))
+	for _, id := range ids {
+		set[id] = true
+	}
+	return set, nil
+}
+
+// DeleteFavoritesByFormTarget 表单软删事务内硬删其菜单节点的关联收藏行
+// （个人状态无保留价值；不清理会残留指向软删节点的幽灵收藏）。
+func (r *menuRepository) DeleteFavoritesByFormTarget(ctx context.Context, applicationID, formID uint) error {
+	return infrastructure.ResolveDB(ctx, r.db).
+		Where("application_id = ? AND entry_id IN (?)", applicationID,
+			infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuEntry{}).
+				Select("id").
+				Where("application_id = ? AND entry_type = ? AND target_id = ?", applicationID, model.MenuEntryTypeForm, formID)).
+		Delete(&model.MenuEntryFavorite{}).Error
+}
+
+// ---- ADR-011：表单引用视图（form 域窄端口消费的跨应用反查） ----
+
+// FormMenuReference 引用视图行：表单被哪个应用的哪个菜单节点引用。
+type FormMenuReference struct {
+	ApplicationCode string
+	ApplicationName string
+	EntryCode       string
+	EntryName       string
+	EntryType       string
+	ParentEntryCode *string
+}
+
+// ListFormMenuReferences 跨应用反查引用指定表单的未软删菜单节点
+// （含应用名快照与父节点编码投影）。租户过滤显式携带（raw SQL 不经租户
+// Callback），引用视图本身是只读诊断信息，不做可见性裁剪（调用方须持
+// forms:get）。
+func (r *menuRepository) ListFormMenuReferences(ctx context.Context, tenantID, formID uint) ([]FormMenuReference, error) {
+	const query = `
+SELECT a.code AS application_code,
+       a.name AS application_name,
+       e.code AS entry_code,
+       e.name AS entry_name,
+       e.entry_type AS entry_type,
+       p.code AS parent_entry_code
+FROM application_menu_entries e
+INNER JOIN applications a
+    ON a.id = e.application_id
+   AND a.tenant_id = e.tenant_id
+   AND a.deleted_at IS NULL
+LEFT JOIN application_menu_entries p
+    ON p.id = e.parent_entry_id
+   AND p.deleted_at IS NULL
+WHERE e.tenant_id = ?
+  AND e.entry_type = 'form'
+  AND e.target_id = ?
+  AND e.deleted_at IS NULL
+ORDER BY a.code ASC, e.sort_order ASC, e.code ASC`
+	var rows []FormMenuReference
+	err := infrastructure.ResolveDB(ctx, r.db).Raw(query, tenantID, formID).Scan(&rows).Error
+	return rows, err
+}
+
 // Migrate 开发/测试路径：AutoMigrate 建表 + 补齐 GORM 标签表达不了的
 // 部分索引（与迁移链 000016 同名同构）；applications.menu_revision 列
 // 由 Application 模型 AutoMigrate 自动补齐
 func (r *menuRepository) Migrate() error {
-	if err := r.db.AutoMigrate(&model.MenuEntry{}); err != nil {
+	if err := r.db.AutoMigrate(&model.MenuEntry{}, &model.MenuEntryFavorite{}); err != nil {
 		return err
 	}
 	statements := []string{

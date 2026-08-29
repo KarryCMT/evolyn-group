@@ -4,7 +4,9 @@
 package controller
 
 import (
+	"fmt"
 	"net/http"
+	"strings"
 
 	appmodel "evolyn/internal/platform/application/model"
 	"evolyn/internal/platform/application/service"
@@ -84,6 +86,97 @@ func (a *MenuController) GetMenu(c *gin.Context) {
 	httpx.ResponseSuccess(c, menu)
 }
 
+// UpdateEntry 菜单节点管理更新（ADR-011）
+// @Summary 更新应用菜单节点
+// @Description 分组改名 / 资产节点对成员隐藏（须 form-actions:hide 动作授权）/ 移动节点（换父分组或根级，追加到目标末位）；携带 baseMenuRevision 乐观并发口令，冲突返回 409
+// @Accept json
+// @Produce json
+// @Tags 应用管理
+// @Security JWT
+// @Param code path string true "应用编码（app_ 前缀）"
+// @Param entryCode path string true "菜单节点编码（menu_ 前缀）"
+// @Param entry body appmodel.UpdateMenuEntryRequest true "更新字段（name 仅分组 / hidden 仅资产节点 / parentEntryCode 空串移动到根级）"
+// @Success 200 {object} httpx.Response{data=appmodel.MenuEntryMutation}
+// @Failure 400 {object} httpx.Response "errCode=APP_MENU_NAME_INVALID/APP_MENU_ENTRY_RENAME_FORBIDDEN/APP_MENU_HIDDEN_INVALID/APP_MENU_PARENT_INVALID/APP_MENU_MOVE_INVALID/APP_MENU_DEPTH_EXCEEDED"
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
+// @Failure 404 {object} httpx.Response "errCode=APP_NOT_FOUND/APP_MENU_NOT_FOUND"
+// @Failure 409 {object} httpx.Response "errCode=APP_MENU_VERSION_CONFLICT/APP_STATUS_INVALID/APP_PROVISIONING"
+// @Router /api/v1/applications/code/{code}/menu/entries/{entryCode} [patch]
+func (a *MenuController) UpdateEntry(c *gin.Context) {
+	code, ok := codeFromParam(c)
+	if !ok {
+		return
+	}
+	entryCode := strings.TrimSpace(c.Param("entryCode"))
+	if !strings.HasPrefix(entryCode, "menu_") || len(entryCode) <= len("menu_") {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的菜单节点编码：%s", entryCode))
+		return
+	}
+	var req appmodel.UpdateMenuEntryRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	updated, err := a.menuService.UpdateEntry(c.Request.Context(), ginctx.GetUser(c), code, entryCode, &req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, updated)
+}
+
+// AddFavorite 收藏菜单节点
+// @Summary 收藏应用菜单节点
+// @Description 当前成员收藏指定应用的菜单节点（个人状态，凡节点可见即可收藏）；重复收藏幂等成功，不递增菜单修订号
+// @Accept json
+// @Produce json
+// @Tags 应用管理
+// @Security JWT
+// @Param favorite body appmodel.CreateMenuFavoriteRequest true "应用编码与节点编码"
+// @Success 200 {object} httpx.Response{data=appmodel.MenuFavoriteMutation}
+// @Failure 400 {object} httpx.Response "errCode=APP_MENU_FAVORITE_INVALID"
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
+// @Failure 404 {object} httpx.Response "errCode=APP_NOT_FOUND"
+// @Router /api/v1/menu-favorites [post]
+func (a *MenuController) AddFavorite(c *gin.Context) {
+	var req appmodel.CreateMenuFavoriteRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	updated, err := a.menuService.AddFavorite(c.Request.Context(), ginctx.GetUser(c),
+		strings.TrimSpace(req.ApplicationCode), strings.TrimSpace(req.EntryCode))
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, updated)
+}
+
+// RemoveFavorite 取消收藏菜单节点
+// @Summary 取消收藏应用菜单节点
+// @Description 按节点编码取消当前成员的收藏；目标收藏不存在时幂等成功（返回 Favorited=false）
+// @Produce json
+// @Tags 应用管理
+// @Security JWT
+// @Param entryCode path string true "菜单节点编码（menu_ 前缀）"
+// @Success 200 {object} httpx.Response{data=appmodel.MenuFavoriteMutation}
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
+// @Router /api/v1/menu-favorites/{entryCode} [delete]
+func (a *MenuController) RemoveFavorite(c *gin.Context) {
+	entryCode := strings.TrimSpace(c.Param("entryCode"))
+	if !strings.HasPrefix(entryCode, "menu_") || len(entryCode) <= len("menu_") {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的菜单节点编码：%s", entryCode))
+		return
+	}
+	updated, err := a.menuService.RemoveFavorite(c.Request.Context(), ginctx.GetUser(c), entryCode)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, updated)
+}
+
 func (a *MenuController) RegisterRoute(api *gin.RouterGroup) {
 	// 与既有 /applications/code/:code 同前缀（gin radix tree 静态段优先，
 	// 不会被 /applications/:id 捕获）；URL 鉴权解析为 resource=applications
@@ -91,6 +184,13 @@ func (a *MenuController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/applications/code/:code/menu", a.GetMenu)
 	// POST 映射 applications:create；Service 内再次复核相同权限。
 	api.POST("/applications/code/:code/menu/groups", a.CreateGroup)
+	// PATCH 映射 applications:patch；隐藏开关另经 form-actions:hide 动作复核
+	//（ADR-011：动作授权键不随菜单管理权限放大）
+	api.PATCH("/applications/code/:code/menu/entries/:entryCode", a.UpdateEntry)
+	// 个人收藏（ADR-011）：独立资源 menu-favorites（create/delete 授全体
+	// 成员），与菜单管理权限彻底分离，口径同 form-records 与 forms 的关系
+	api.POST("/menu-favorites", a.AddFavorite)
+	api.DELETE("/menu-favorites/:entryCode", a.RemoveFavorite)
 }
 
 func (a *MenuController) Name() string {

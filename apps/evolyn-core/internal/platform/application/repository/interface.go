@@ -69,6 +69,9 @@ type MenuRepository interface {
 	CreateFormEntry(ctx context.Context, entry *model.MenuEntry) (*model.MenuEntry, error)
 	// UpdateNameByFormTarget 按应用与表单目标同步节点名（表单改名事务内）
 	UpdateNameByFormTarget(ctx context.Context, applicationID, formID uint, name string) error
+	// UpdateAppearanceByFormTarget 按应用与表单目标同步节点图标/颜色
+	//（ADR-011：展示属性以资产域为事实源，空串清空）
+	UpdateAppearanceByFormTarget(ctx context.Context, applicationID, formID uint, icon, color string) error
 	// SoftDeleteByFormTarget 软删表单目标节点（表单删除事务内）
 	SoftDeleteByFormTarget(ctx context.Context, applicationID, formID uint) error
 	// MaxSortOrder 指定父节点（nil 即根级）下最大排序值；无节点返回 0
@@ -80,6 +83,20 @@ type MenuRepository interface {
 	// BumpMenuRevisionFrom 仅当当前修订号等于 baseRevision 时递增；false
 	// 表示并发写入已抢先提交，调用方应返回 APP_MENU_VERSION_CONFLICT。
 	BumpMenuRevisionFrom(ctx context.Context, applicationID uint, baseRevision int64) (bool, error)
+	// UpdateEntryFields 节点白名单字段更新（fields 由 Service 组装；
+	// 须先经 BumpMenuRevisionFrom 占用修订号后同事务调用）
+	UpdateEntryFields(ctx context.Context, applicationID, entryID uint, fields map[string]interface{}) error
+	// CreateFavorite 写入成员收藏（(member_id, entry_id) 唯一幂等）
+	CreateFavorite(ctx context.Context, fav *model.MenuEntryFavorite) error
+	// DeleteFavoriteByCode 按成员 + 节点编码取消收藏（幂等）；返回是否实际删除
+	DeleteFavoriteByCode(ctx context.Context, tenantID, memberID uint, entryCode string) (bool, error)
+	// FavoriteEntryIDs 当前成员在指定应用内已收藏的节点 ID 集合
+	FavoriteEntryIDs(ctx context.Context, tenantID, memberID, applicationID uint) (map[uint]bool, error)
+	// DeleteFavoritesByFormTarget 表单软删事务内硬删其菜单节点的关联收藏行
+	DeleteFavoritesByFormTarget(ctx context.Context, applicationID, formID uint) error
+	// ListFormMenuReferences 跨应用反查引用指定表单的未软删菜单节点
+	//（引用视图只读诊断，租户条件显式携带）
+	ListFormMenuReferences(ctx context.Context, tenantID, formID uint) ([]FormMenuReference, error)
 	// Migrate 开发/测试 AutoMigrate 路径（生产只走 SQL 迁移）
 	Migrate() error
 }

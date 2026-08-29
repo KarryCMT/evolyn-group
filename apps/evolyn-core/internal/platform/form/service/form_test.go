@@ -107,6 +107,10 @@ func (f *fakeMenuPort) SyncFormEntryName(ctx context.Context, applicationID, for
 	return nil
 }
 
+func (f *fakeMenuPort) SyncFormEntryAppearance(ctx context.Context, applicationID, formID uint, icon, color string) error {
+	return nil
+}
+
 func (f *fakeMenuPort) DetachFormEntry(ctx context.Context, applicationID, formID uint) error {
 	f.detached = append(f.detached, struct {
 		appID  uint
@@ -180,6 +184,11 @@ func (f *fakeFormRepo) List(ctx context.Context, params repository.ListParams) (
 
 func (f *fakeFormRepo) UpdateName(ctx context.Context, id uint, name string) error {
 	f.forms[id].Name = name
+	return nil
+}
+
+func (f *fakeFormRepo) UpdateFormType(ctx context.Context, id uint, formType model.FormType) error {
+	f.forms[id].FormType = formType
 	return nil
 }
 

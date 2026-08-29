@@ -44,19 +44,21 @@ var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","items":[]}
 
 // formService 表单资产服务实现。
 type formService struct {
-	tx       TxManager
-	repo     repository.FormRepository
-	versions repository.FormVersionRepository
-	records  repository.FormRecordRepository
-	quota    tenantservice.QuotaService
-	audit    auditservice.Recorder
-	access   AccessEvaluator
-	apps     ApplicationDirectory
-	menu     MenuMaintenance
+	tx         TxManager
+	repo       repository.FormRepository
+	versions   repository.FormVersionRepository
+	records    repository.FormRecordRepository
+	quota      tenantservice.QuotaService
+	audit      auditservice.Recorder
+	access     AccessEvaluator
+	apps       ApplicationDirectory
+	menu       MenuMaintenance
+	references ReferenceSource
 }
 
 // NewFormService 构造表单域服务（records 可为 nil：P1 未启记录提交路径；
-// menu 为菜单维护窄端口，可为 nil：跳过节点维护，便于单测桩）。
+// menu 为菜单维护窄端口，可为 nil：跳过节点维护，便于单测桩；references
+// 为引用视图只读端口，可为 nil：引用视图返回空集）。
 func NewFormService(
 	tx TxManager,
 	repo repository.FormRepository,
@@ -79,6 +81,17 @@ func NewFormService(
 		apps:     apps,
 		menu:     menu,
 	}
+}
+
+// UseReferenceSource 注入引用视图只读端口（装配期一次性调用，ADR-011）：
+// 未注入时 ListReferences 返回空集，存量测试桩无需调整。
+func (s *formService) UseReferenceSource(src ReferenceSource) {
+	s.references = src
+}
+
+// FormReferenceSourceInjector 装配期注入能力（可选）。
+type FormReferenceSourceInjector interface {
+	UseReferenceSource(src ReferenceSource)
 }
 
 // ---- 创建 ----
@@ -127,7 +140,7 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
 		var err error
 		created, err = s.provision(tctx, tenantID, member, req.ApplicationID, code, name, req.FormType,
-			strings.TrimSpace(req.ParentEntryCode))
+			emptyFormDocument, strings.TrimSpace(req.ParentEntryCode))
 		return err
 	}); err != nil {
 		return nil, err
@@ -146,13 +159,14 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 	return detailOf(created), nil
 }
 
-// provision 事务内的创建主流程：配额占位（CheckAndReserve 内先锁租户行再判限额），
-// 通过后写入资产行；任一步失败随外层事务整体回滚。parentEntryCode 为空挂
-// 应用根级菜单，非空挂指定分组下（合法性由菜单维护端口校验，非法分组随
-// 整个创建事务回滚）。
+// provision 事务内的创建主流程（Create 与 Copy 共用，ADR-011）：配额占位
+// （CheckAndReserve 内先锁租户行再判限额），通过后写入资产行；任一步失败
+// 随外层事务整体回滚。draftContent 由调用方给定（Create 传空协议文档，
+// Copy 传源表单草稿全文）。parentEntryCode 为空挂应用根级菜单，非空挂指定
+// 分组下（合法性由菜单维护端口校验，非法分组随整个创建事务回滚）。
 func (s *formService) provision(
 	ctx context.Context, tenantID uint, member *iammodel.User, applicationID uint,
-	code, name string, formType model.FormType, parentEntryCode string,
+	code, name string, formType model.FormType, draftContent model.JSONContent, parentEntryCode string,
 ) (*model.Form, error) {
 	var created *model.Form
 	err := s.quota.CheckAndReserve(ctx, tenantID, tenantmodel.QuotaForms, func(tctx context.Context) error {
@@ -161,7 +175,7 @@ func (s *formService) provision(
 			Code:            code,
 			Name:            name,
 			FormType:        formType,
-			DraftContent:    emptyFormDocument,
+			DraftContent:    draftContent,
 			DraftRevision:   1,
 			ProtocolVersion: 1,
 			CreatorMemberID: member.ID,
@@ -246,40 +260,224 @@ func (s *formService) Update(ctx context.Context, member *iammodel.User, code st
 	if err != nil {
 		return nil, err
 	}
-	if req.Name != nil {
-		name := strings.TrimSpace(*req.Name)
-		if name == "" || utf8.RuneCountInString(name) > maxFormNameRunes {
-			return nil, httpx.Wrap(apperrors.ErrFormNameInvalid, fmt.Errorf("invalid form name length"))
-		}
-		if name != form.Name {
-			before := form.Name
-			// 改名与菜单节点名同步同一事务（M2-资产-1）
-			if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
-				if err := s.repo.UpdateName(tctx, form.ID, name); err != nil {
+	// 「修改名称和图标」是同一按钮的单一权限点（forms:patch）：名称在
+	// forms 表、图标/颜色在菜单节点行，两段写经 MenuMaintenance 同事务
+	// 同步（ADR-011），事务未注入（单测）时跳过展示属性同步。
+	name := req.Name
+	icon := req.Icon
+	color := req.Color
+	if name == nil && icon == nil && color == nil {
+		return detailOf(form), nil
+	}
+	var auditBefore, auditAfter map[string]any
+	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		auditBefore = map[string]any{}
+		auditAfter = map[string]any{}
+		if name != nil {
+			newName := strings.TrimSpace(*name)
+			if newName == "" || utf8.RuneCountInString(newName) > maxFormNameRunes {
+				return httpx.Wrap(apperrors.ErrFormNameInvalid, fmt.Errorf("invalid form name length"))
+			}
+			if newName != form.Name {
+				if err := s.repo.UpdateName(tctx, form.ID, newName); err != nil {
 					return err
 				}
 				if s.menu != nil {
-					return s.menu.SyncFormEntryName(tctx, form.ApplicationID, form.ID, name)
+					if err := s.menu.SyncFormEntryName(tctx, form.ApplicationID, form.ID, newName); err != nil {
+						return err
+					}
 				}
-				return nil
-			}); err != nil {
-				return nil, err
-			}
-			if s.audit != nil {
-				s.audit.Record(ctx, auditservice.Entry{
-					Module: "form", Action: "update", ResourceType: "form",
-					ResourceID: form.Code,
-					Before:     map[string]any{"name": before},
-					After:      map[string]any{"name": name},
-				})
+				auditBefore["name"] = form.Name
+				auditAfter["name"] = newName
 			}
 		}
+		// 图标/颜色是菜单节点展示属性：以本域为事实源，经端口同步（空串=清空，
+		// 出网投影为 null）
+		if icon != nil || color != nil {
+			newIcon := ""
+			newColor := ""
+			if icon != nil {
+				newIcon = strings.TrimSpace(*icon)
+			}
+			if color != nil {
+				newColor = strings.TrimSpace(*color)
+			}
+			if utf8.RuneCountInString(newIcon) > 32 || utf8.RuneCountInString(newColor) > 32 {
+				return httpx.Wrap(apperrors.ErrFormIconInvalid, fmt.Errorf("invalid icon/color key length"))
+			}
+			if s.menu != nil {
+				if err := s.menu.SyncFormEntryAppearance(tctx, form.ApplicationID, form.ID, newIcon, newColor); err != nil {
+					return err
+				}
+			}
+			if icon != nil {
+				auditAfter["icon"] = newIcon
+			}
+			if color != nil {
+				auditAfter["color"] = newColor
+			}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	if s.audit != nil && len(auditAfter) > 0 {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "form", Action: "update", ResourceType: "form",
+			ResourceID: form.Code,
+			Before:     auditBefore,
+			After:      auditAfter,
+		})
 	}
 	updated, err := s.loadByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
 	return detailOf(updated), nil
+}
+
+// ---- 切换类型 / 复制 / 引用视图（ADR-011） ----
+
+// SwitchType 切换表单类型：URL 门 POST→forms:create，动作键
+// form-actions:switch-type 独立复核；standard↔workflow 互转，流程表单切
+// 标准后原流程数据保留（仅不可再发起流程），草稿与发布快照不受影响。
+func (s *formService) SwitchType(ctx context.Context, member *iammodel.User, code string, req *model.SwitchFormTypeRequest) (*model.FormDetail, error) {
+	perms := s.access.Permissions(ctx, member)
+	if !perms["forms:create"] || !perms["form-actions:switch-type"] {
+		return nil, httpx.Wrap(apperrors.ErrForbidden,
+			fmt.Errorf("member cannot switch form %s type", code))
+	}
+	if req == nil || !req.FormType.Valid() {
+		return nil, httpx.Wrap(apperrors.ErrFormTypeInvalid,
+			fmt.Errorf("invalid form type %v", req))
+	}
+	form, err := s.loadByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if req.FormType == form.FormType {
+		return nil, httpx.Wrap(apperrors.ErrFormTypeUnchanged,
+			fmt.Errorf("form %s is already %s", code, form.FormType))
+	}
+	before := form.FormType
+	if err := s.repo.UpdateFormType(ctx, form.ID, req.FormType); err != nil {
+		return nil, err
+	}
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "form", Action: "switch-type", ResourceType: "form",
+			ResourceID: form.Code,
+			Before:     map[string]any{"formType": before},
+			After:      map[string]any{"formType": req.FormType},
+		})
+	}
+	updated, err := s.loadByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	return detailOf(updated), nil
+}
+
+// Copy 复制表单（ADR-011 双动作码）：目标应用为空或等于源应用走
+// form-actions:copy-in-app，跨应用走 form-actions:copy-cross-app；复制
+// 草稿全文与表单类型（不复制发布快照与记录），名称追加「（副本）」，
+// 事务内占目标应用所属配额并挂目标应用菜单。
+func (s *formService) Copy(ctx context.Context, member *iammodel.User, code string, req *model.CopyFormRequest) (*model.FormDetail, error) {
+	tenantID, ok := contextx.TenantIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("tenant context required")
+	}
+	if member == nil || member.ID == 0 || member.TenantID != tenantID {
+		return nil, httpx.Wrap(apperrors.ErrForbidden,
+			fmt.Errorf("member not in tenant %d", tenantID))
+	}
+	perms := s.access.Permissions(ctx, member)
+	if !perms["forms:create"] {
+		return nil, httpx.Wrap(apperrors.ErrForbidden,
+			fmt.Errorf("member cannot copy form %s", code))
+	}
+	if req == nil {
+		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid, fmt.Errorf("copy request is nil"))
+	}
+	form, err := s.loadByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+
+	// 动作裁决：目标应用与源应用同/异决定走哪个动作码
+	targetAppID := form.ApplicationID
+	if req.TargetApplicationID != nil && *req.TargetApplicationID != 0 && *req.TargetApplicationID != form.ApplicationID {
+		if !perms["form-actions:copy-cross-app"] {
+			return nil, httpx.Wrap(apperrors.ErrForbidden,
+				fmt.Errorf("member lacks form-actions:copy-cross-app"))
+		}
+		targetAppID = *req.TargetApplicationID
+	} else if !perms["form-actions:copy-in-app"] {
+		return nil, httpx.Wrap(apperrors.ErrForbidden,
+			fmt.Errorf("member lacks form-actions:copy-in-app"))
+	}
+
+	// 目标应用复核（同应用复制同样要求目标应用可用，口径同 Create）
+	targetApp, notFound, err := s.apps.ApplicationByID(ctx, targetAppID)
+	if err != nil {
+		return nil, err
+	}
+	if notFound || targetApp.Status != applicationStatusActive {
+		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid,
+			fmt.Errorf("copy target application %d unavailable", targetAppID))
+	}
+
+	// 名称追加「（副本）」，超长按 rune 截断到 128
+	name := form.Name + "（副本）"
+	if utf8.RuneCountInString(name) > maxFormNameRunes {
+		runes := []rune(name)
+		name = string(runes[:maxFormNameRunes])
+	}
+	newCode, err := newFormCode()
+	if err != nil {
+		return nil, err
+	}
+
+	var created *model.Form
+	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		var err error
+		created, err = s.provision(tctx, tenantID, member, targetAppID, newCode, name, form.FormType,
+			form.DraftContent, strings.TrimSpace(req.ParentEntryCode))
+		return err
+	}); err != nil {
+		return nil, err
+	}
+
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "form", Action: "copy", ResourceType: "form",
+			ResourceID: created.Code,
+			After: map[string]any{
+				"sourceCode":        form.Code,
+				"sourceApplication": form.ApplicationID,
+				"targetApplication": targetAppID,
+				"formType":          created.FormType,
+			},
+		})
+	}
+	return detailOf(created), nil
+}
+
+// ListReferences 引用视图（ADR-011）：跨应用反查引用指定表单的菜单节点；
+// 只读诊断信息，持 forms:get 即可读取（不做应用可见性裁剪）。
+func (s *formService) ListReferences(ctx context.Context, member *iammodel.User, code string) ([]FormReference, error) {
+	if !s.access.Permissions(ctx, member)["forms:get"] {
+		return nil, httpx.Wrap(apperrors.ErrForbidden,
+			fmt.Errorf("member cannot list references of form %s", code))
+	}
+	form, err := s.loadByCode(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	if s.references == nil {
+		return []FormReference{}, nil
+	}
+	return s.references.ListFormReferences(ctx, form.ID)
 }
 
 // Delete 软删表单：发布版本行保留（历史记录可追溯），配额随软删释放。

@@ -469,6 +469,7 @@ CREATE TABLE IF NOT EXISTS application_menu_entries (
     target_id BIGINT NULL,
     sort_order BIGINT NOT NULL DEFAULT 0,
     config JSONB NOT NULL DEFAULT '{}',
+    hidden BOOLEAN NOT NULL DEFAULT false,
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     deleted_at timestamp with time zone,
@@ -493,6 +494,29 @@ CREATE INDEX IF NOT EXISTS idx_application_menu_entries_app_parent_sort
 CREATE INDEX IF NOT EXISTS idx_application_menu_entries_app_target
     ON application_menu_entries (tenant_id, application_id, target_type, target_id)
     WHERE deleted_at IS NULL AND target_id IS NOT NULL;
+
+-- 应用菜单个人收藏（000046，ADR-011）：成员×菜单节点的个人状态，不参与
+-- 菜单共享结构与修订号；节点软删时同事务硬删关联行
+CREATE TABLE IF NOT EXISTS application_menu_favorites (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    member_id BIGINT NOT NULL,
+    application_id BIGINT NOT NULL REFERENCES applications(id),
+    entry_id BIGINT NOT NULL REFERENCES application_menu_entries(id),
+    created_at timestamp with time zone,
+    CONSTRAINT uk_application_menu_favorites_member_entry UNIQUE (member_id, entry_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_application_menu_favorites_member
+    ON application_menu_favorites (tenant_id, member_id, application_id);
+
+COMMENT ON TABLE application_menu_favorites IS '应用菜单个人收藏（000046，ADR-011）：成员×菜单节点的个人状态，不参与菜单共享结构与修订号；节点软删时同事务硬删关联行';
+COMMENT ON COLUMN application_menu_favorites.id IS '自增主键';
+COMMENT ON COLUMN application_menu_favorites.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN application_menu_favorites.member_id IS '收藏成员 ID（租户成员，读写一律叠加本列双条件）';
+COMMENT ON COLUMN application_menu_favorites.application_id IS '收藏节点所属应用 ID（外键指向 applications）';
+COMMENT ON COLUMN application_menu_favorites.entry_id IS '收藏的菜单节点 ID（外键指向 application_menu_entries；(member_id, entry_id) 唯一幂等）';
+COMMENT ON COLUMN application_menu_favorites.created_at IS '收藏时间';
 
 -- 表单资产与草稿（000037/000044/000045，ADR-010）：code 为稳定公开编码，
 -- draft_content 为目标保存协议草稿全文
@@ -968,6 +992,7 @@ COMMENT ON COLUMN application_menu_entries.target_type IS '资产引用类型：
 COMMENT ON COLUMN application_menu_entries.target_id IS '资产域内部数字主键；出网时由资产查询投影为稳定公开编码，不直接暴露';
 COMMENT ON COLUMN application_menu_entries.sort_order IS '同父节点排序值，仅同父内有意义；新增 1024 间隔，服务端重排写连续间隔值，不信任客户端排序值';
 COMMENT ON COLUMN application_menu_entries.config IS '小型显示配置 JSONB（如页面打开方式）；严禁存放表单 Schema、流程定义、权限或前端组件名';
+COMMENT ON COLUMN application_menu_entries.hidden IS '对成员隐藏（000046，导航隐藏）：普通成员读取菜单时按不存在裁剪，持 applications:create/patch 的菜单管理成员仍可见以便恢复；仅导航语义，不拦截 runtime 直连';
 COMMENT ON COLUMN application_menu_entries.created_at IS '创建时间';
 COMMENT ON COLUMN application_menu_entries.updated_at IS '更新时间';
 COMMENT ON COLUMN application_menu_entries.deleted_at IS '软删除时间，NULL=未删除；资产软删时同事务软删关联节点，应用软删后的节点由清理任务处理';
@@ -978,7 +1003,7 @@ COMMENT ON COLUMN forms.tenant_id IS '所属租户 ID';
 COMMENT ON COLUMN forms.application_id IS '所属应用 ID（同租户，服务层归属校验，禁止裸 ID 写入）';
 COMMENT ON COLUMN forms.code IS '表单稳定公开编码（form_ 前缀）；路由、API 与菜单 target 使用，禁止暴露自增主键';
 COMMENT ON COLUMN forms.name IS '表单名称（trim 后 1–128 字符）；表单名称不进入协议 content';
-COMMENT ON COLUMN forms.form_type IS '表单类型：standard 标准表单 / workflow 流程表单；创建后不可变，设计器能力以此字段为准';
+COMMENT ON COLUMN forms.form_type IS '表单类型：standard 标准表单 / workflow 流程表单；可经 form-actions:switch-type 切换（ADR-011），切换后原类型流程数据保留，设计器能力以此字段为准';
 COMMENT ON COLUMN forms.draft_content IS '目标保存协议草稿全文 JSONB：根结构 {content:{type:"form",items:[]}}，原样字节存取保证未编辑属性不丢失';
 COMMENT ON COLUMN forms.draft_revision IS '草稿乐观锁口令：每次草稿保存条件递增，客户端原样回传，过期返回 FORM_REVISION_CONFLICT';
 COMMENT ON COLUMN forms.protocol_version IS '协议版本外部承载（协议文档内不携带版本字段，字典 1.3），当前固定 1';
@@ -1840,4 +1865,39 @@ WHERE id IN (
   AND NOT EXISTS (
       SELECT 1 FROM json_array_elements_text(rules) AS e
       WHERE e::json->>'resource' = 'notifications'
+  );
+
+
+-- 表单菜单按钮动作（000047，ADR-011）：基线管理员按规则签名补授
+-- form-actions 资源（切换类型/复制/隐藏的动作授权键；不对应 URL 首段，
+-- 动作键仅由各域 Service 复核与菜单读取投影消费）
+UPDATE roles
+SET rules = (
+    rules::jsonb || jsonb_build_array(jsonb_build_object('resource', 'form-actions', 'operation', '*'))
+)::json
+WHERE deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*')
+  AND NOT EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'form-actions');
+
+-- 菜单节点个人收藏（000047，ADR-011）：全体成员（authenticated 系统分组
+-- 关联角色）授 menu-favorites create/delete——凡节点可见即可收藏
+UPDATE roles
+SET rules = (
+    rules::jsonb
+    || '[{"resource": "menu-favorites", "operation": "create"}, {"resource": "menu-favorites", "operation": "delete"}]'::jsonb
+)::json
+WHERE id IN (
+      SELECT gr.role_id
+      FROM group_roles gr
+      INNER JOIN groups g ON g.id = gr.group_id
+      WHERE g.name = 'system:authenticated' AND g.kind = 'system'
+  )
+  AND deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND NOT EXISTS (
+      SELECT 1 FROM json_array_elements_text(rules) AS e
+      WHERE e::json->>'resource' = 'menu-favorites'
   );

@@ -9,7 +9,9 @@ import (
 	kernel "evolyn/internal/model"
 )
 
-// FormType 表单资产类型：标准表单只承载字段与数据，流程表单额外开放流程设计能力。
+// FormType 表单资产类型：标准表单只承载字段与数据，流程表单额外开放流程
+// 设计能力。ADR-011 起类型可经 form-actions:switch-type 动作切换
+// （standard↔workflow），切换后原类型流程数据保留；切换裁决在 Service 层。
 type FormType string
 
 const (
@@ -29,7 +31,7 @@ type Form struct {
 	ApplicationID    uint        `json:"applicationId" gorm:"not null"`                     // 所属应用（同租户，Service 层校验）
 	Code             string      `json:"code" gorm:"size:64;not null"`                      // form_ 前缀稳定公开编码（路由/API 使用）
 	Name             string      `json:"name" gorm:"size:128;not null"`                     // 表单名称（不进入协议 content）
-	FormType         FormType    `json:"formType" gorm:"size:16;not null;default:standard"` // 表单类型（创建后不可变）
+	FormType         FormType    `json:"formType" gorm:"size:16;not null;default:standard"` // 表单类型（ADR-011 起可经动作切换）
 	DraftContent     JSONContent `json:"draft" gorm:"type:jsonb;not null"`
 	DraftRevision    int64       `json:"draftRevision" gorm:"not null;default:1"`   // 草稿乐观锁：保存条件递增
 	ProtocolVersion  int         `json:"protocolVersion" gorm:"not null;default:1"` // 协议版本外部承载（文档内无版本字段）

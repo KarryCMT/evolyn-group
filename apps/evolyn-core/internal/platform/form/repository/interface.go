@@ -32,6 +32,8 @@ type FormRepository interface {
 	List(ctx context.Context, params ListParams) ([]model.Form, bool, error)
 	// UpdateName 改名（白名单字段）
 	UpdateName(ctx context.Context, id uint, name string) error
+	// UpdateFormType 切换表单类型（ADR-011：服务层校验枚举与类型变化后写入）
+	UpdateFormType(ctx context.Context, id uint, formType model.FormType) error
 	// UpdateDraft 草稿乐观锁保存：draft_revision 匹配才写入并条件递增；
 	// 0 行影响即口令过期（Service 转 FORM_REVISION_CONFLICT）
 	UpdateDraft(ctx context.Context, id uint, fromRevision int64, content model.JSONContent) (bool, error)

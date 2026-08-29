@@ -153,8 +153,12 @@ internal/
                       窄端口做存在性裁剪与 target 投影（跨域双向窄端口装配）；
                       000044 将 form_type（standard/workflow）固化为创建后不可变
                       的表单类型事实源；000045 将 form_ 前缀 code 固化为路由/API/
-                      菜单 target 的稳定公开标识，内部自增 ID 不出网；迁移
-                      000037/000038/000044/000045
+                      菜单 target 的稳定公开标识，内部自增 ID 不出网；ADR-011
+                      放宽 form_type 可切换（form-actions:switch-type，流程数据
+                      保留）并落菜单按钮动作授权（动作注册表
+                      iam/authorization/menuactions.go + form-actions/menu-
+                      favorites 资源，菜单读侧投影 actions 按钮图）；迁移
+                      000037/000038/000044/000045/000046/000047
   tenantproduct/    产品中心域（一期，小三层，docs/低代码平台/产品中心/）：
                       平台产品目录/租户产品配置/部门与成员范围关联（迁移
                       000033，四表 + lingyanyun seed + 存量租户回填，目录是

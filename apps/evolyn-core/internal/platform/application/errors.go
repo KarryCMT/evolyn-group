@@ -70,4 +70,18 @@ var (
 	// ErrMenuInvalid 菜单树完整性故障（孤儿节点/父节点非分组/循环）：
 	// 服务端数据损坏而非客户端冲突，读取路径返回 500 而非 409
 	ErrMenuInvalid = httpx.NewBiz("APP_MENU_INVALID", "应用菜单数据异常，请联系管理员", http.StatusInternalServerError)
+
+	// ErrMenuEntryRenameForbidden 资产节点不支持经菜单接口改名：资产节点
+	// 名称/图标以资产域为事实源，须经对应资产接口修改（同事务同步回节点）
+	ErrMenuEntryRenameForbidden = httpx.NewBiz("APP_MENU_ENTRY_RENAME_FORBIDDEN", "资产节点名称请通过对应资产接口修改", http.StatusBadRequest)
+
+	// ErrMenuHiddenInvalid 分组节点不支持对成员隐藏：分组可见性由后代节点
+	// 派生，隐藏语义仅对资产节点成立
+	ErrMenuHiddenInvalid = httpx.NewBiz("APP_MENU_HIDDEN_INVALID", "仅资产节点支持对成员隐藏", http.StatusBadRequest)
+
+	// ErrMenuMoveInvalid 移动请求无效（目标父节点自身/后代、层级超限等）
+	ErrMenuMoveInvalid = httpx.NewBiz("APP_MENU_MOVE_INVALID", "菜单移动请求无效", http.StatusBadRequest)
+
+	// ErrMenuFavoriteInvalid 收藏请求无效（应用/节点定位失败或跨应用不一致）
+	ErrMenuFavoriteInvalid = httpx.NewBiz("APP_MENU_FAVORITE_INVALID", "收藏请求无效", http.StatusBadRequest)
 )

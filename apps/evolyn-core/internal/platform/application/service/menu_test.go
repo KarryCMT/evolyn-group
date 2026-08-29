@@ -22,6 +22,7 @@ type fakeMenuRepo struct {
 	snapshots map[string]*repository.MenuSnapshot
 	created   []*model.MenuEntry
 	nextID    uint
+	favorites map[uint]bool // member 无关的收藏集合（读侧投影用例注入）
 }
 
 func (f *fakeMenuRepo) GetSnapshot(ctx context.Context, tenantID uint, code string) (*repository.MenuSnapshot, error) {
@@ -49,6 +50,9 @@ func (f *fakeMenuRepo) CreateFormEntry(ctx context.Context, entry *model.MenuEnt
 func (f *fakeMenuRepo) UpdateNameByFormTarget(ctx context.Context, applicationID, formID uint, name string) error {
 	return nil
 }
+func (f *fakeMenuRepo) UpdateAppearanceByFormTarget(ctx context.Context, applicationID, formID uint, icon, color string) error {
+	return nil
+}
 func (f *fakeMenuRepo) SoftDeleteByFormTarget(ctx context.Context, applicationID, formID uint) error {
 	return nil
 }
@@ -70,6 +74,29 @@ func (f *fakeMenuRepo) BumpMenuRevisionFrom(ctx context.Context, applicationID u
 		return true, nil
 	}
 	return false, nil
+}
+
+// ADR-011 新增接口的默认桩：只读用例不触达；节点管理/收藏用例在需要时覆写
+func (f *fakeMenuRepo) UpdateEntryFields(ctx context.Context, applicationID, entryID uint, fields map[string]interface{}) error {
+	return nil
+}
+func (f *fakeMenuRepo) CreateFavorite(ctx context.Context, fav *model.MenuEntryFavorite) error {
+	return nil
+}
+func (f *fakeMenuRepo) DeleteFavoriteByCode(ctx context.Context, tenantID, memberID uint, entryCode string) (bool, error) {
+	return true, nil
+}
+func (f *fakeMenuRepo) FavoriteEntryIDs(ctx context.Context, tenantID, memberID, applicationID uint) (map[uint]bool, error) {
+	if f.favorites == nil {
+		return map[uint]bool{}, nil
+	}
+	return f.favorites, nil
+}
+func (f *fakeMenuRepo) DeleteFavoritesByFormTarget(ctx context.Context, applicationID, formID uint) error {
+	return nil
+}
+func (f *fakeMenuRepo) ListFormMenuReferences(ctx context.Context, tenantID, formID uint) ([]repository.FormMenuReference, error) {
+	return nil, nil
 }
 
 // menuEntryFixture 构造菜单节点（测试内联便捷函数）
@@ -312,7 +339,22 @@ func TestMenuIntegrityFailures(t *testing.T) {
 
 func TestMenuCapabilities(t *testing.T) {
 	// capabilities 口径对齐应用域 detailFor：manage/move=patch∩可编辑，
-	// delete=delete∩非初始化中，favorite 恒 false（资产节点默认出网）
+	// delete=delete∩非初始化中；favorite 为个人状态能力（ADR-011：凡可见
+	// 即可收藏，与权限/应用状态无关）；actions 按动作注册表 × 权限集派生
+	//（资产节点默认出网）
+	// 菜单管理员全量权限集（模拟 tenant-admin：applications:* + forms:* +
+	// form-actions:*，ADR-011 动作键齐备）
+	menuAdminPerms := func() map[string]bool {
+		return map[string]bool{
+			"applications:get": true, "applications:list": true,
+			"applications:create": true, "applications:patch": true,
+			"applications:delete": true,
+			"forms:create":        true, "forms:get": true, "forms:list": true,
+			"forms:update": true, "forms:patch": true, "forms:delete": true,
+			"form-actions:switch-type": true, "form-actions:copy-in-app": true,
+			"form-actions:copy-cross-app": true, "form-actions:hide": true,
+		}
+	}
 	form := menuEntryFixture(2, "menu_form", nil, model.MenuEntryTypeForm, 1024)
 	cases := []struct {
 		name   string
@@ -320,14 +362,16 @@ func TestMenuCapabilities(t *testing.T) {
 		status string
 		want   model.MenuEntryCapabilities
 	}{
-		{"全量权限 + active", fullPerms(), model.ApplicationStatusActive,
-			model.MenuEntryCapabilities{View: true, Manage: true, Move: true, Delete: true}},
+		{"全量权限 + active", menuAdminPerms(), model.ApplicationStatusActive,
+			model.MenuEntryCapabilities{View: true, Manage: true, Move: true, Delete: true, Favorite: true,
+				Actions: model.MenuEntryActions{Edit: true, Rename: true, SwitchType: true, ReferenceView: true,
+					CopyInApp: true, CopyCrossApp: true, Move: true, Hide: true, Delete: true}}},
 		{"只读权限（authenticated 基线）", map[string]bool{"applications:get": true}, model.ApplicationStatusActive,
-			model.MenuEntryCapabilities{View: true}},
-		// 归档态禁止菜单管理（方案 §8.2）：节点级 manage/move/delete 全关，
-		// 与应用级 Delete（归档可删应用本身）口径不同
-		{"全量权限 + 归档（不可管理）", fullPerms(), model.ApplicationStatusArchived,
-			model.MenuEntryCapabilities{View: true}},
+			model.MenuEntryCapabilities{View: true, Favorite: true}},
+		// 归档态禁止菜单管理（方案 §8.2）：节点级 manage/move/delete 与全部
+		// 按钮动作全关（可编辑是动作公共因子）；favorite 随可见保持可收藏
+		{"全量权限 + 归档（不可管理）", menuAdminPerms(), model.ApplicationStatusArchived,
+			model.MenuEntryCapabilities{View: true, Favorite: true}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -340,7 +384,7 @@ func TestMenuCapabilities(t *testing.T) {
 			menu, err := svc.GetMenu(alphaCtx(), alphaMember(), "app_a")
 			assert.NoError(t, err)
 			assert.Equal(t, tc.want, menu.EntryMap["menu_form"].Capabilities)
-			assert.False(t, menu.EntryMap["menu_form"].Capabilities.Favorite)
+			assert.False(t, menu.EntryMap["menu_form"].Favorited) // 未注入收藏集合
 		})
 	}
 }

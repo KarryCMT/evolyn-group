@@ -130,6 +130,17 @@ const (
 	// 代表租户级通知偏好与自定义提醒对象管理（仅授予租户管理员；包含外部
 	// 联系人隐私数据，不经管理组范围回落放行）。
 	NotificationSettingResource = "notification-settings"
+	// FormMenuActionResource 表单菜单按钮动作授权资源（ADR-011）。刻意不对应
+	// 任何 URL 首段：中间件 URL 门永不命中，动作键（switch-type/copy-in-app/
+	// copy-cross-app/hide）只在各域 Service 内按权限集复核，并由菜单读取经
+	// authorization.MenuActionsOf 投影按钮能力——动作授权因此不可能越权放大
+	// URL 访问。
+	FormMenuActionResource = "form-actions"
+	// MenuFavoriteResource 与 /menu-favorites 路由保持一致，代表成员对应用
+	// 菜单节点的个人收藏（个人状态而非授权对象：凡节点可见即可收藏）。
+	// create 授予全体成员（收藏），delete 覆盖取消收藏，数据范围由
+	// Repository 强制 member_id 双条件兜底。
+	MenuFavoriteResource = "menu-favorites"
 )
 
 type Resource struct {

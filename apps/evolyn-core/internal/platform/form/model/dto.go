@@ -14,9 +14,29 @@ type CreateFormRequest struct {
 	ParentEntryCode string   `json:"parentEntryCode" example:"menu_ab12cd34ef56ab12"`
 }
 
-// UpdateFormRequest 白名单改名（PATCH /forms/:code）。
+// UpdateFormRequest 白名单更新（PATCH /forms/:code）：名称为资产事实源，
+// 图标/颜色经菜单维护端口同步到节点展示属性（ADR-011「修改名称和图标」
+// 单一权限点 forms:patch）；指针字段区分未提交与提交零值（空串图标=清空）。
 type UpdateFormRequest struct {
-	Name *string `json:"name"`
+	Name  *string `json:"name"`
+	Icon  *string `json:"icon"`
+	Color *string `json:"color"`
+}
+
+// SwitchFormTypeRequest 切换表单类型（POST /forms/:code/switch-type，
+// ADR-011）：standard↔workflow 互转；流程表单切标准后原流程数据保留，
+// 仅不可再发起流程；与当前类型相同返回 FORM_TYPE_UNCHANGED。
+type SwitchFormTypeRequest struct {
+	FormType FormType `json:"formType" binding:"required" example:"workflow"`
+}
+
+// CopyFormRequest 复制表单（POST /forms/:code/copy，ADR-011）：
+// targetApplicationId 为空或等于源应用 → copy-in-app 动作；非空且不同 →
+// copy-cross-app 动作（目标应用须可创建表单）。parentEntryCode 为目标应用
+// 菜单中的目标分组节点编码，为空挂目标应用根级。
+type CopyFormRequest struct {
+	TargetApplicationID *uint  `json:"targetApplicationId" example:"2"`
+	ParentEntryCode     string `json:"parentEntryCode" example:"menu_ab12cd34ef56ab12"`
 }
 
 // SaveDraftRequest 保存草稿（PUT /forms/:code/draft）：全量替换 + 乐观锁口令。

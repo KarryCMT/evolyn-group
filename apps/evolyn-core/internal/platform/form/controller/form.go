@@ -128,15 +128,15 @@ func (f *FormController) Get(c *gin.Context) {
 }
 
 // @Summary 更新表单
-// @Description 白名单字段更新：仅名称（trim 后 1–128 字符）
+// @Description 白名单字段更新：名称（trim 后 1–128 字符）与图标/颜色稳定键（空串清空，经菜单维护端口同事务同步到节点展示属性，ADR-011）
 // @Accept json
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
 // @Param code path string true "表单编码（form_ 前缀）"
-// @Param form body formmodel.UpdateFormRequest true "更新字段（仅白名单）"
+// @Param form body formmodel.UpdateFormRequest true "更新字段（仅白名单，指针区分未提交）"
 // @Success 200 {object} httpx.Response{data=formmodel.FormDetail}
-// @Failure 400 {object} httpx.Response "errCode=FORM_NAME_INVALID"
+// @Failure 400 {object} httpx.Response "errCode=FORM_NAME_INVALID/FORM_ICON_INVALID"
 // @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND"
 // @Router /api/v1/forms/{code} [patch]
 func (f *FormController) Update(c *gin.Context) {
@@ -294,6 +294,91 @@ func (f *FormController) SubmitRecord(c *gin.Context) {
 	httpx.NewResponse(c, http.StatusCreated, result, "提交成功")
 }
 
+// @Summary 切换表单类型
+// @Description standard↔workflow 互转（ADR-011）：流程表单切标准后原流程数据保留，仅不可再发起流程；草稿与发布快照不受影响；目标类型与当前相同返回 FORM_TYPE_UNCHANGED
+// @Accept json
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "表单编码（form_ 前缀）"
+// @Param body body formmodel.SwitchFormTypeRequest true "目标表单类型"
+// @Success 200 {object} httpx.Response{data=formmodel.FormDetail}
+// @Failure 400 {object} httpx.Response "errCode=FORM_TYPE_INVALID/FORM_TYPE_UNCHANGED"
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN（须 form-actions:switch-type 动作授权）"
+// @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND"
+// @Router /api/v1/forms/{code}/switch-type [post]
+func (f *FormController) SwitchType(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	req := new(formmodel.SwitchFormTypeRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	detail, err := f.formService.SwitchType(c.Request.Context(), ginctx.GetUser(c), code, req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, detail)
+}
+
+// @Summary 复制表单
+// @Description 复制表单资产（ADR-011）：targetApplicationId 为空或等于源应用走 copy-in-app 动作，跨应用走 copy-cross-app 动作；复制草稿全文与表单类型（不复制发布快照与记录），名称追加「（副本）」，事务内占目标应用配额并挂目标应用菜单
+// @Accept json
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "表单编码（form_ 前缀）"
+// @Param body body formmodel.CopyFormRequest true "目标应用与可选目标分组节点编码"
+// @Success 201 {object} httpx.Response{data=formmodel.FormDetail}
+// @Failure 400 {object} httpx.Response "errCode=FORM_APP_INVALID/APP_MENU_PARENT_INVALID"
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN（须 form-actions:copy-in-app / form-actions:copy-cross-app 动作授权）/QUOTA_EXCEEDED"
+// @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND"
+// @Router /api/v1/forms/{code}/copy [post]
+func (f *FormController) Copy(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	req := new(formmodel.CopyFormRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	detail, err := f.formService.Copy(c.Request.Context(), ginctx.GetUser(c), code, req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.NewResponse(c, http.StatusCreated, detail, "复制成功")
+}
+
+// @Summary 查看表单引用视图
+// @Description 跨应用反查引用指定表单的菜单节点（ADR-011）：返回应用编码/名称与节点编码/名称；只读诊断信息，持 forms:get 即可读取
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "表单编码（form_ 前缀）"
+// @Success 200 {object} httpx.Response{data=[]service.FormReference}
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
+// @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND"
+// @Router /api/v1/forms/{code}/references [get]
+func (f *FormController) ListReferences(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	references, err := f.formService.ListReferences(c.Request.Context(), ginctx.GetUser(c), code)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, references)
+}
+
 func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/forms", f.Create)
 	api.GET("/forms", f.List)
@@ -302,6 +387,11 @@ func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.PUT("/forms/:code/draft", f.SaveDraft)
 	api.DELETE("/forms/:code", f.Delete)
 	api.POST("/forms/:code/publish", f.Publish)
+	// ADR-011：切换类型/复制（URL 门 POST→forms:create，动作键由 Service
+	// 按 form-actions:* 复核）与引用视图（GET→forms:get）
+	api.POST("/forms/:code/switch-type", f.SwitchType)
+	api.POST("/forms/:code/copy", f.Copy)
+	api.GET("/forms/:code/references", f.ListReferences)
 	api.POST("/form-records", f.SubmitRecord)
 	// 与 /applications/code/:code 系列同前缀且通配符同名（gin radix tree 要求同
 	// 位置同名，静态段 code 优先），鉴权解析为 applications:get，普通成员可读。

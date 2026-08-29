@@ -61,6 +61,13 @@ func (r *formRepository) UpdateName(ctx context.Context, id uint, name string) e
 		Where("id = ?", id).Update("name", name).Error
 }
 
+// UpdateFormType 切换表单类型（ADR-011）：服务层已校验枚举与「类型确有
+// 变化」，仓储只做白名单字段写入。
+func (r *formRepository) UpdateFormType(ctx context.Context, id uint, formType model.FormType) error {
+	return r.withContext(ctx).Model(&model.Form{}).
+		Where("id = ?", id).Update("form_type", string(formType)).Error
+}
+
 // UpdateDraft 草稿乐观锁保存：条件递增避免读改写竞态（口径同 tenantproduct revision）
 func (r *formRepository) UpdateDraft(
 	ctx context.Context, id uint, fromRevision int64, content model.JSONContent,

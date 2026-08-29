@@ -513,6 +513,10 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 通知设置（消息中心）：租户级偏好与自定义提醒对象全量管理；
 			// 存量租户由 000039 按「管理员规则签名」补授。不经管理组间接放行
 			{Resource: iammodel.NotificationSettingResource, Operation: iammodel.AllOperation},
+			// 表单菜单按钮动作（ADR-011）：切换类型/复制/隐藏等菜单按钮的
+			// 动作授权键，动作不对应 URL 门（各域 Service 复核）；存量租户由
+			// 000047 按「管理员规则签名」补授
+			{Resource: iammodel.FormMenuActionResource, Operation: iammodel.AllOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},
@@ -534,6 +538,10 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 摘要/列表，update 覆盖已读）；存量租户由 000039 补授
 			{Resource: iammodel.NotificationResource, Operation: iammodel.ViewOperation},
 			{Resource: iammodel.NotificationResource, Operation: request.UpdateOperation},
+			// 菜单节点个人收藏（ADR-011）：凡节点可见即可收藏，个人状态而非
+			// 授权对象；存量租户由 000047 按 authenticated 系统分组补授
+			{Resource: iammodel.MenuFavoriteResource, Operation: request.CreateOperation},
+			{Resource: iammodel.MenuFavoriteResource, Operation: request.DeleteOperation},
 		}},
 		{Name: UnAuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "auth", Operation: "create"},

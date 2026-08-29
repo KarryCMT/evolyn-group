@@ -31,8 +31,9 @@ type ApplicationService interface {
 	Delete(ctx context.Context, member *iammodel.User, id uint) error
 }
 
-// ApplicationMenuService 应用菜单服务：读取当前成员可见的菜单快照，并
-// 提供以 menuRevision 乐观锁保护的分组创建能力。
+// ApplicationMenuService 应用菜单服务：读取当前成员可见的菜单快照（含按钮
+// 能力与个人收藏状态，ADR-011），并提供以 menuRevision 乐观锁保护的分组
+// 创建与节点管理能力。
 type ApplicationMenuService interface {
 	// GetMenu 按应用编码读取菜单（GET /applications/code/:code/menu）：
 	// 应用不存在/跨租户/无读取权限统一 APP_NOT_FOUND；空菜单为合法结果
@@ -40,4 +41,13 @@ type ApplicationMenuService interface {
 	// CreateGroup 创建根分组或二级子分组；应用、父节点、层级、状态和修订号
 	// 均由服务端复核，成功后返回新节点编码与推进后的菜单修订号。
 	CreateGroup(ctx context.Context, member *iammodel.User, code string, req *model.CreateMenuGroupRequest) (*model.MenuGroupMutation, error)
+	// UpdateEntry 菜单节点管理更新（PATCH .../menu/entries/:entryCode）：
+	// 分组改名 / 资产节点对成员隐藏（须 form-actions:hide）/ 移动节点，
+	// 经 menuRevision 乐观锁串行化。
+	UpdateEntry(ctx context.Context, member *iammodel.User, code, entryCode string, req *model.UpdateMenuEntryRequest) (*model.MenuEntryMutation, error)
+	// AddFavorite 收藏菜单节点（POST /menu-favorites）：个人状态动作，
+	// 凡能读取应用菜单的成员即可收藏；重复收藏幂等。
+	AddFavorite(ctx context.Context, member *iammodel.User, appCode, entryCode string) (*model.MenuFavoriteMutation, error)
+	// RemoveFavorite 取消收藏（DELETE /menu-favorites/:entryCode）：幂等。
+	RemoveFavorite(ctx context.Context, member *iammodel.User, entryCode string) (*model.MenuFavoriteMutation, error)
 }

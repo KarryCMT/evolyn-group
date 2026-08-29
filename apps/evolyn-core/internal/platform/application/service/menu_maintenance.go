@@ -39,6 +39,10 @@ type MenuMaintenance interface {
 	AttachFormEntry(ctx context.Context, applicationID, formID uint, name, parentEntryCode string) error
 	// SyncFormEntryName 表单改名事务内同步节点展示名
 	SyncFormEntryName(ctx context.Context, applicationID, formID uint, name string) error
+	// SyncFormEntryAppearance 表单图标/颜色修改事务内同步节点展示属性
+	//（ADR-011：资产节点的展示属性以资产域为事实源；空串表示清空，
+	// 出网投影为 null）
+	SyncFormEntryAppearance(ctx context.Context, applicationID, formID uint, icon, color string) error
 	// DetachFormEntry 表单删除事务内软删节点
 	DetachFormEntry(ctx context.Context, applicationID, formID uint) error
 }
@@ -101,7 +105,20 @@ func (s *menuMaintenanceService) SyncFormEntryName(ctx context.Context, applicat
 	return s.repo.BumpMenuRevision(ctx, applicationID)
 }
 
+// SyncFormEntryAppearance 图标/颜色同步：展示属性变更递增修订号
+// （节点出网视图随target投影变化）。
+func (s *menuMaintenanceService) SyncFormEntryAppearance(ctx context.Context, applicationID, formID uint, icon, color string) error {
+	if err := s.repo.UpdateAppearanceByFormTarget(ctx, applicationID, formID, icon, color); err != nil {
+		return err
+	}
+	return s.repo.BumpMenuRevision(ctx, applicationID)
+}
+
 func (s *menuMaintenanceService) DetachFormEntry(ctx context.Context, applicationID, formID uint) error {
+	// 先清理关联收藏行（ADR-011：个人状态不指向软删节点），再软删节点
+	if err := s.repo.DeleteFavoritesByFormTarget(ctx, applicationID, formID); err != nil {
+		return err
+	}
 	if err := s.repo.SoftDeleteByFormTarget(ctx, applicationID, formID); err != nil {
 		return err
 	}

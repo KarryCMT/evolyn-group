@@ -211,9 +211,23 @@ func (r *Repositories) Init() error {
 			Scope: model.ClusterScope,
 		},
 		// 通知设置：租户级通知偏好与自定义提醒对象（仅授予租户管理员；
-		// 含外部联系人隐私数据，不经管理组间接放行）
+		// 不经管理组间接放行）
 		{
 			Name:  model.NotificationSettingResource,
+			Scope: model.ClusterScope,
+		},
+		// 表单菜单按钮动作（ADR-011）：不对应任何 URL 首段，动作键仅由各域
+		// Service 复核与菜单读取投影消费（switch-type/copy-in-app/copy-cross-app/
+		// hide）；授予租户管理员，存量租户由 000047 按管理员规则签名补授
+		{
+			Name:  model.FormMenuActionResource,
+			Scope: model.ClusterScope,
+		},
+		// 菜单节点个人收藏：凡节点可见即可收藏（create 收藏、delete 取消），
+		// 授予全体成员（authenticated 基线），数据范围由 Repository 的
+		// member_id 双条件兜底
+		{
+			Name:  model.MenuFavoriteResource,
 			Scope: model.ClusterScope,
 		},
 	}

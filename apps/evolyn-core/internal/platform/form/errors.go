@@ -20,6 +20,13 @@ var (
 	// ErrFormTypeInvalid 表单类型不是 standard/workflow 稳定枚举
 	ErrFormTypeInvalid = httpx.NewBiz("FORM_TYPE_INVALID", "表单类型不符合要求", http.StatusBadRequest)
 
+	// ErrFormTypeUnchanged 切换类型时目标类型与当前类型相同（ADR-011）：
+	// 无变化不落库，客户端据此感知误操作
+	ErrFormTypeUnchanged = httpx.NewBiz("FORM_TYPE_UNCHANGED", "表单类型未发生变化", http.StatusBadRequest)
+
+	// ErrFormIconInvalid 图标/颜色稳定键不符合要求（空串表示清空，其余最长 32 字符）
+	ErrFormIconInvalid = httpx.NewBiz("FORM_ICON_INVALID", "表单图标或颜色配置无效", http.StatusBadRequest)
+
 	// ErrFormAppInvalid 应用无效：不存在/跨租户/已归档，或表单不归属该应用
 	ErrFormAppInvalid = httpx.NewBiz("FORM_APP_INVALID", "应用不存在或不可用", http.StatusBadRequest)
 

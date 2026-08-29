@@ -14,6 +14,7 @@ import (
 	"evolyn/internal/platform/application/repository"
 	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/httpx"
+	"evolyn/internal/platform/iam/authorization"
 	iammodel "evolyn/internal/platform/iam/model"
 
 	"github.com/sirupsen/logrus"
@@ -74,6 +75,13 @@ func (s *menuService) GetMenu(ctx context.Context, member *iammodel.User, code s
 		return nil, err
 	}
 
+	// 个人收藏状态（ADR-011）：读时并查当前成员在本应用内的收藏集合，
+	// 仅用于投影 Favorited，不参与可见性与修订号
+	favorites, err := s.repo.FavoriteEntryIDs(ctx, tenantID, member.ID, snap.ApplicationID)
+	if err != nil {
+		return nil, err
+	}
+
 	// M2-资产-1：表单目标投影批量查询。existingFormTargets 以 nil 表达「目录
 	// 未接入」（旧行为：不裁剪、不投影）；目录接入且确无表单时为空 map，
 	// form 节点按不存在裁剪——两种空态语义必须区分。
@@ -91,7 +99,7 @@ func (s *menuService) GetMenu(ctx context.Context, member *iammodel.User, code s
 		}
 	}
 
-	return buildMenuSnapshot(perms, snap, existingFormTargets)
+	return buildMenuSnapshot(perms, snap, existingFormTargets, favorites)
 }
 
 // CreateGroup 创建根分组或二级子分组。条件递增修订号是事务内第一项菜单
@@ -225,6 +233,234 @@ func menuEntryByCode(entries []model.MenuEntry, code string) (*model.MenuEntry, 
 	return nil, gorm.ErrRecordNotFound
 }
 
+// UpdateEntry 菜单节点管理更新（ADR-011）：分组改名 / 资产节点对成员隐藏 /
+// 移动节点，统一走 menuRevision 乐观锁串行化。资产节点名称以资产域为事实
+// 源，本接口拒绝改名（经对应资产接口修改后同事务同步回节点）。
+func (s *menuService) UpdateEntry(ctx context.Context, member *iammodel.User, code, entryCode string, req *model.UpdateMenuEntryRequest) (*model.MenuEntryMutation, error) {
+	tenantID, ok := contextx.TenantIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("tenant context required")
+	}
+	if req == nil {
+		return nil, httpx.Wrap(apperrors.ErrMenuNameInvalid, errors.New("update menu entry request is nil"))
+	}
+	if member == nil || member.ID == 0 || member.TenantID != tenantID {
+		return nil, httpx.Wrap(apperrors.ErrMemberInvalid,
+			fmt.Errorf("member %d (tenant %d) not in tenant %d", memberID(member), memberTenant(member), tenantID))
+	}
+	// 与路由层 PATCH /applications/...（verb=patch）同口径复核
+	perms := s.access.Permissions(ctx, member)
+	if !perms["applications:patch"] {
+		return nil, httpx.Wrap(apperrors.ErrForbidden,
+			fmt.Errorf("member %d cannot update menu entry in application %s", member.ID, code))
+	}
+	// 隐藏开关是独立动作授权键（form-actions:hide），不随菜单管理权限放大
+	if req.Hidden != nil && !perms["form-actions:hide"] {
+		return nil, httpx.Wrap(apperrors.ErrForbidden,
+			fmt.Errorf("member %d lacks form-actions:hide", member.ID))
+	}
+
+	// 改名校验（仅分组；资产节点改名拒绝）
+	var newName *string
+	if req.Name != nil {
+		name := strings.TrimSpace(*req.Name)
+		if name == "" || utf8.RuneCountInString(name) > 128 {
+			return nil, httpx.Wrap(apperrors.ErrMenuNameInvalid,
+				fmt.Errorf("menu entry name rune count %d", utf8.RuneCountInString(name)))
+		}
+		newName = &name
+	}
+	// 移动目标：nil 指针=未提交移动；非 nil 空串=移动到根级；非空=分组编码
+	var newParentCode *string
+	if req.ParentEntryCode != nil {
+		trimmed := strings.TrimSpace(*req.ParentEntryCode)
+		newParentCode = &trimmed
+	}
+	if newName == nil && req.Hidden == nil && newParentCode == nil {
+		return nil, httpx.Wrap(apperrors.ErrMenuNameInvalid, errors.New("no updatable field provided"))
+	}
+
+	var updated *model.MenuEntry
+	var newRevision int64
+	if s.tx == nil {
+		return nil, errors.New("application menu transaction manager is required")
+	}
+	err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		snap, err := s.repo.GetSnapshot(tctx, tenantID, code)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return httpx.Wrap(apperrors.ErrNotFound, err)
+			}
+			return err
+		}
+		if provisionStatus(snap.ProvisionStatus) {
+			return httpx.Wrap(apperrors.ErrProvisioning,
+				fmt.Errorf("application %d provisioning (%s)", snap.ApplicationID, snap.ProvisionStatus))
+		}
+		if snap.Status != model.ApplicationStatusActive {
+			return httpx.Wrap(apperrors.ErrStatusInvalid,
+				fmt.Errorf("application %d status %s", snap.ApplicationID, snap.Status))
+		}
+
+		advanced, err := s.repo.BumpMenuRevisionFrom(tctx, snap.ApplicationID, req.BaseMenuRevision)
+		if err != nil {
+			return err
+		}
+		if !advanced {
+			return httpx.Wrap(apperrors.ErrMenuVersionConflict,
+				fmt.Errorf("application %d menu revision changed from base %d", snap.ApplicationID, req.BaseMenuRevision))
+		}
+
+		entry, err := menuEntryByCode(snap.Entries, entryCode)
+		if err != nil {
+			return httpx.Wrap(apperrors.ErrMenuNotFound,
+				fmt.Errorf("entry %q not found in application %s", entryCode, code))
+		}
+
+		fields := make(map[string]interface{}, 3)
+		if newName != nil {
+			// 资产节点的展示名由资产域事实源管理，拒绝旁路改名
+			if entry.EntryType != model.MenuEntryTypeGroup {
+				return httpx.Wrap(apperrors.ErrMenuEntryRenameForbidden,
+					fmt.Errorf("entry %q is an asset node of type %s", entryCode, entry.EntryType))
+			}
+			fields["name"] = *newName
+		}
+		if req.Hidden != nil {
+			// 分组可见性由后代派生，「对成员隐藏」仅对资产节点成立
+			if entry.EntryType == model.MenuEntryTypeGroup {
+				return httpx.Wrap(apperrors.ErrMenuHiddenInvalid,
+					fmt.Errorf("entry %q is a group node", entryCode))
+			}
+			fields["hidden"] = *req.Hidden
+		}
+		if newParentCode != nil {
+			parentEntryID, err := resolveMoveParent(snap.Entries, entry, *newParentCode)
+			if err != nil {
+				return err
+			}
+			sortOrder, err := s.repo.MaxSortOrder(tctx, snap.ApplicationID, parentEntryID)
+			if err != nil {
+				return err
+			}
+			fields["parent_entry_id"] = parentEntryID
+			// 移动节点追加到目标父节点末位（服务端排序，不信任客户端排序值）
+			fields["sort_order"] = sortOrder + 1024
+		}
+		if err := s.repo.UpdateEntryFields(tctx, snap.ApplicationID, entry.ID, fields); err != nil {
+			return err
+		}
+		updated = entry
+		newRevision = req.BaseMenuRevision + 1
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "application", Action: "update", ResourceType: "application_menu_entry",
+			ResourceID: updated.Code,
+			After: map[string]any{
+				"applicationCode": code,
+				"entryCode":       updated.Code,
+				"name":            newName,
+				"hidden":          req.Hidden,
+				"parentEntryCode": newParentCode,
+			},
+		})
+	}
+	return &model.MenuEntryMutation{EntryID: updated.Code, MenuRevision: newRevision}, nil
+}
+
+// resolveMoveParent 校验移动目标父节点：空串移动到根级；非空须为同应用
+// 未软删分组，且不是被移动节点自身或其后代（防自环），分组移动须落到根
+// 分组下（层级上限与创建分组一致：根分组+子分组两层）。
+func resolveMoveParent(entries []model.MenuEntry, entry *model.MenuEntry, parentCode string) (*uint, error) {
+	if parentCode == "" {
+		return nil, nil // 根级
+	}
+	parent, err := menuEntryByCode(entries, parentCode)
+	if err != nil || parent.EntryType != model.MenuEntryTypeGroup {
+		return nil, httpx.Wrap(apperrors.ErrMenuParentInvalid,
+			fmt.Errorf("move parent %q is missing or not a group", parentCode))
+	}
+	if parent.ID == entry.ID {
+		return nil, httpx.Wrap(apperrors.ErrMenuMoveInvalid,
+			fmt.Errorf("cannot move entry %q under itself", entry.Code))
+	}
+	// 沿父链上行：目标父节点处于被移动节点子树内即形成环
+	byID := make(map[uint]*model.MenuEntry, len(entries))
+	for i := range entries {
+		byID[entries[i].ID] = &entries[i]
+	}
+	for cur := parent; cur.ParentEntryID != nil; {
+		cur = byID[*cur.ParentEntryID]
+		if cur.ID == entry.ID {
+			return nil, httpx.Wrap(apperrors.ErrMenuMoveInvalid,
+				fmt.Errorf("cannot move entry %q under its own descendant %q", entry.Code, parentCode))
+		}
+	}
+	// 分组挂载深度限制：目标父分组必须为根分组（移动后仍是两级结构）
+	if entry.EntryType == model.MenuEntryTypeGroup && parent.ParentEntryID != nil {
+		return nil, httpx.Wrap(apperrors.ErrMenuDepthExceeded,
+			fmt.Errorf("group %q cannot move under nested group %q", entry.Code, parentCode))
+	}
+	return &parent.ID, nil
+}
+
+// AddFavorite 收藏菜单节点（个人状态动作，ADR-011）：凡能读取应用菜单的
+// 成员即可收藏（menu-favorites:create 授全体成员）；重复收藏幂等成功。
+// 不递增菜单修订号——收藏不改变共享菜单结构。
+func (s *menuService) AddFavorite(ctx context.Context, member *iammodel.User, appCode, entryCode string) (*model.MenuFavoriteMutation, error) {
+	tenantID, ok := contextx.TenantIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("tenant context required")
+	}
+	if member == nil || member.ID == 0 || member.TenantID != tenantID {
+		return nil, httpx.Wrap(apperrors.ErrMemberInvalid,
+			fmt.Errorf("member %d (tenant %d) not in tenant %d", memberID(member), memberTenant(member), tenantID))
+	}
+	snap, err := s.repo.GetSnapshot(ctx, tenantID, appCode)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, httpx.Wrap(apperrors.ErrNotFound, err)
+		}
+		return nil, err
+	}
+	entry, err := menuEntryByCode(snap.Entries, entryCode)
+	if err != nil {
+		return nil, httpx.Wrap(apperrors.ErrMenuFavoriteInvalid,
+			fmt.Errorf("entry %q not found in application %s", entryCode, appCode))
+	}
+	if err := s.repo.CreateFavorite(ctx, &model.MenuEntryFavorite{
+		TenantID:      tenantID,
+		MemberID:      member.ID,
+		ApplicationID: snap.ApplicationID,
+		EntryID:       entry.ID,
+	}); err != nil {
+		return nil, err
+	}
+	return &model.MenuFavoriteMutation{EntryID: entry.Code, Favorited: true}, nil
+}
+
+// RemoveFavorite 取消收藏（幂等）：目标收藏不存在同样返回 Favorited=false。
+func (s *menuService) RemoveFavorite(ctx context.Context, member *iammodel.User, entryCode string) (*model.MenuFavoriteMutation, error) {
+	tenantID, ok := contextx.TenantIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("tenant context required")
+	}
+	if member == nil || member.ID == 0 || member.TenantID != tenantID {
+		return nil, httpx.Wrap(apperrors.ErrMemberInvalid,
+			fmt.Errorf("member %d (tenant %d) not in tenant %d", memberID(member), memberTenant(member), tenantID))
+	}
+	if _, err := s.repo.DeleteFavoriteByCode(ctx, tenantID, member.ID, entryCode); err != nil {
+		return nil, err
+	}
+	return &model.MenuFavoriteMutation{EntryID: entryCode, Favorited: false}, nil
+}
+
 // assetVisible 资产节点可见性判定（M2-资产-1 起按目录端口注入的存在集
 // 执行）：form 节点在表单软删/不存在时不可见；目录未接入（existingFormTargets
 // 为 nil）时保持旧行为——按节点存在性出网。仪表盘/页面域落地后在此扩展。
@@ -246,8 +482,10 @@ var assetVisible = func(entry *model.MenuEntry, existingFormTargets map[uint]For
 
 // buildMenuSnapshot 由仓储快照组装出网视图：结构完整性校验 → 可见性
 // 裁剪 → 排序投影。损坏树（孤儿/父非分组/循环）记录告警并返回
-// ErrMenuInvalid，不把异常数据当正常树交给前端（方案 §6.3）
-func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, existingFormTargets map[uint]FormTargetProjection) (*model.MenuSnapshot, error) {
+// ErrMenuInvalid，不把异常数据当正常树交给前端（方案 §6.3）。
+// ADR-011：可见性叠加「对成员隐藏」裁剪；capabilities 携带按钮级 actions
+// （动作注册表 × 权限集 × 应用状态派生）与当前成员收藏状态。
+func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, existingFormTargets map[uint]FormTargetProjection, favorites map[uint]bool) (*model.MenuSnapshot, error) {
 	byID := make(map[uint]*model.MenuEntry, len(snap.Entries))
 	for i := range snap.Entries {
 		byID[snap.Entries[i].ID] = &snap.Entries[i]
@@ -267,19 +505,27 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 		}
 	}
 
-	// 可见性裁剪：资产节点按 assetVisible 判定；可管理菜单的成员还需看到
-	// 刚创建的空分组才能继续向其中添加资产，只读成员仍只看到有可见后代
-	// 的分组，避免泄露无内容的管理结构。
+	// 可见性裁剪：资产节点按 assetVisible 判定，并叠加「对成员隐藏」
+	// （ADR-011，导航隐藏）——hidden 节点仅对持菜单管理权限的成员可见
+	//（否则无法恢复显示）；可管理菜单的成员还需看到刚创建的空分组才能
+	// 继续向其中添加资产，只读成员仍只看到有可见后代的分组，避免泄露
+	// 无内容的管理结构。
 	canManageMenu := perms["applications:create"] || perms["applications:patch"]
+	nodeVisible := func(entry *model.MenuEntry) bool {
+		if !assetVisible(entry, existingFormTargets) {
+			return false
+		}
+		return !entry.Hidden || canManageMenu
+	}
 	visible := make(map[uint]bool, len(snap.Entries))
 	groupMemo := make(map[uint]bool, len(snap.Entries))
 	for i := range snap.Entries {
 		entry := &snap.Entries[i]
 		switch entry.EntryType {
 		case model.MenuEntryTypeGroup:
-			visible[entry.ID] = canManageMenu || hasVisibleDescendant(byID, entry, groupMemo, existingFormTargets)
+			visible[entry.ID] = canManageMenu || hasVisibleDescendant(byID, entry, groupMemo, nodeVisible)
 		default:
-			visible[entry.ID] = assetVisible(entry, existingFormTargets)
+			visible[entry.ID] = nodeVisible(entry)
 		}
 	}
 
@@ -291,17 +537,10 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 		Features:        model.MenuFeatures{Workflow: false}, // 流程引擎未接入，能力注册表落地前恒 false
 	}
 
-	// capabilities 口径对齐应用域 detailFor：manage/move 只认 patch 且
-	// 应用可编辑（active 且非初始化中），delete 认 delete 且非初始化中；
-	// favorite 待个人收藏域落地，首期恒 false
+	// 应用可编辑状态是全部按钮动作的公共因子（归档/初始化中应用只读）；
+	// manage/move 口径对齐应用域 detailFor（认 applications:patch），delete
+	// 认 applications:delete；favorite 凡可见即可收藏（个人状态动作）
 	editable := snap.Status == model.ApplicationStatusActive && !provisionStatus(snap.ProvisionStatus)
-	caps := model.MenuEntryCapabilities{
-		View:     true,
-		Manage:   perms["applications:patch"] && editable,
-		Move:     perms["applications:patch"] && editable,
-		Delete:   perms["applications:delete"] && editable,
-		Favorite: false,
-	}
 
 	roots := make([]*model.MenuEntry, 0)
 	for i := range snap.Entries {
@@ -309,7 +548,17 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 		if !visible[entry.ID] {
 			continue
 		}
-		out.EntryMap[entry.Code] = menuEntryDetail(entry, byID, caps, existingFormTargets)
+		caps := model.MenuEntryCapabilities{
+			View:     true,
+			Manage:   perms["applications:patch"] && editable,
+			Move:     perms["applications:patch"] && editable,
+			Delete:   perms["applications:delete"] && editable,
+			Favorite: true,
+			Actions:  menuEntryActions(perms, entry, editable),
+		}
+		detail := menuEntryDetail(entry, byID, caps, existingFormTargets)
+		detail.Favorited = favorites[entry.ID]
+		out.EntryMap[entry.Code] = detail
 		if entry.ParentEntryID == nil {
 			roots = append(roots, entry)
 		}
@@ -327,6 +576,26 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 		out.RootEntryIDs = append(out.RootEntryIDs, root.Code)
 	}
 	return out, nil
+}
+
+// menuEntryActions 节点按钮能力投影（ADR-011）：按节点类型查动作注册表，
+// 以「授权键命中 × 应用可编辑」求值后映射为出网结构。注册表未登记的
+// 动作（如分组上的表单专属动作）保持零值 false。
+func menuEntryActions(perms map[string]bool, entry *model.MenuEntry, editable bool) model.MenuEntryActions {
+	granted := authorization.MenuActionsOf(perms, entry.EntryType)
+	actions := model.MenuEntryActions{}
+	if editable {
+		actions.Edit = granted[authorization.MenuActionEdit]
+		actions.Rename = granted[authorization.MenuActionRename]
+		actions.SwitchType = granted[authorization.MenuActionSwitchType]
+		actions.ReferenceView = granted[authorization.MenuActionReferenceView]
+		actions.CopyInApp = granted[authorization.MenuActionCopyInApp]
+		actions.CopyCrossApp = granted[authorization.MenuActionCopyCrossApp]
+		actions.Move = granted[authorization.MenuActionMove]
+		actions.Hide = granted[authorization.MenuActionHide]
+		actions.Delete = granted[authorization.MenuActionDelete]
+	}
+	return actions
 }
 
 // validateMenuAncestry 校验单节点父链完整性：父引用在集合内、父为分组、
@@ -357,8 +626,8 @@ func validateMenuAncestry(byID map[uint]*model.MenuEntry, entry *model.MenuEntry
 // hasVisibleDescendant 自底向上裁剪：分组可见当且仅当存在可见后代节点
 // （可见资产，或自身有可见后代的子分组）；空分组被裁剪（方案目标 3）。
 // memo 缓存已判定分组避免链形树重复递归；树已被 validateMenuAncestry
-// 保证无环，递归必然终止
-func hasVisibleDescendant(byID map[uint]*model.MenuEntry, group *model.MenuEntry, memo map[uint]bool, existingFormTargets map[uint]FormTargetProjection) bool {
+// 保证无环，递归必然终止。visible 为可见性谓词（含隐藏裁剪，ADR-011）。
+func hasVisibleDescendant(byID map[uint]*model.MenuEntry, group *model.MenuEntry, memo map[uint]bool, visible func(*model.MenuEntry) bool) bool {
 	if cached, ok := memo[group.ID]; ok {
 		return cached
 	}
@@ -370,13 +639,13 @@ func hasVisibleDescendant(byID map[uint]*model.MenuEntry, group *model.MenuEntry
 			continue
 		}
 		if entry.EntryType != model.MenuEntryTypeGroup {
-			if assetVisible(entry, existingFormTargets) {
+			if visible(entry) {
 				keep = true
 				break
 			}
 			continue
 		}
-		if hasVisibleDescendant(byID, entry, memo, existingFormTargets) {
+		if hasVisibleDescendant(byID, entry, memo, visible) {
 			keep = true
 			break
 		}

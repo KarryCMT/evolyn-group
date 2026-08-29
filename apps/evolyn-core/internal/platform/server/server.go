@@ -451,6 +451,11 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		txManager, formRepo, formVersionRepo, formRecordRepo, quotaSvc, auditSvc,
 		appAccess, formApplicationDirectory{applications: applicationRepo}, formMenuMaintenance,
 	)
+	// 引用视图只读端口（ADR-011）：form 域不反向依赖 application 域，装配层
+	// 以菜单仓储桥接（跨应用反查引用指定表单的菜单节点）
+	if injector, ok := formService.(formservice.FormReferenceSourceInjector); ok {
+		injector.UseReferenceSource(formReferenceSource{menu: menuRepo})
+	}
 	formController := formcontroller.NewFormController(formService)
 
 	// 消息中心域（000039）控制器：收件箱（notifications）/ 通知设置
@@ -703,6 +708,35 @@ func (d formMenuDirectory) ExistingFormTargets(ctx context.Context, ids []uint) 
 // 跨租户即 NotFound（与 form 域 ErrFormAppInvalid 口径一致）
 type formApplicationDirectory struct {
 	applications applicationrepository.ApplicationRepository
+}
+
+// formReferenceSource 表单引用视图只读窄端口适配（ADR-011）：application
+// 域不反向依赖 form 域，装配层以菜单仓储桥接；租户上下文由请求 ctx 承载，
+// 仓储查询显式携带租户条件
+type formReferenceSource struct {
+	menu applicationrepository.MenuRepository
+}
+
+func (s formReferenceSource) ListFormReferences(ctx context.Context, formID uint) ([]formservice.FormReference, error) {
+	tenantID, ok := contextx.TenantIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("tenant context required")
+	}
+	rows, err := s.menu.ListFormMenuReferences(ctx, tenantID, formID)
+	if err != nil {
+		return nil, err
+	}
+	references := make([]formservice.FormReference, 0, len(rows))
+	for _, row := range rows {
+		references = append(references, formservice.FormReference{
+			ApplicationCode: row.ApplicationCode,
+			ApplicationName: row.ApplicationName,
+			EntryID:         row.EntryCode,
+			EntryName:       row.EntryName,
+			ParentEntryID:   row.ParentEntryCode,
+		})
+	}
+	return references, nil
 }
 
 func (d formApplicationDirectory) ApplicationByID(ctx context.Context, id uint) (formservice.ApplicationView, bool, error) {
