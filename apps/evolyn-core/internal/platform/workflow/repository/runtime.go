@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	enginemodel "evolyn/internal/engine/workflow/model"
 	"evolyn/internal/infrastructure"
@@ -25,9 +26,9 @@ type runtimeRepository struct {
 }
 
 // NewRuntimeRepositories 构造运行态仓储集合。
-func NewRuntimeRepositories(base *gorm.DB) (*runtimeInstances, *runtimeExecutions, *runtimeNodes, *runtimeTasks, *runtimeOperations, *runtimeCCRecords) {
+func NewRuntimeRepositories(base *gorm.DB) (*runtimeInstances, *runtimeExecutions, *runtimeNodes, *runtimeTasks, *runtimeOperations, *runtimeCCRecords, *runtimeJobs) {
 	r := &runtimeRepository{base: base}
-	return &runtimeInstances{r}, &runtimeExecutions{r}, &runtimeNodes{r}, &runtimeTasks{r}, &runtimeOperations{r}, &runtimeCCRecords{r}
+	return &runtimeInstances{r}, &runtimeExecutions{r}, &runtimeNodes{r}, &runtimeTasks{r}, &runtimeOperations{r}, &runtimeCCRecords{r}, &runtimeJobs{r}
 }
 
 // ---- 实例 ----
@@ -327,6 +328,155 @@ func (r *runtimeCCRecords) CreateCCRecords(ctx context.Context, records []engine
 		rows = append(rows, row)
 	}
 	return infrastructure.ResolveDB(ctx, r.base).Create(&rows).Error
+}
+
+// ---- 延时任务（000052，Phase 5） ----
+
+type runtimeJobs struct{ *runtimeRepository }
+
+func (r *runtimeJobs) CreateJob(ctx context.Context, job *enginemodel.Job) error {
+	row, err := jobToRow(job)
+	if err != nil {
+		return err
+	}
+	if err := infrastructure.ResolveDB(ctx, r.base).Create(row).Error; err != nil {
+		return err
+	}
+	job.ID = row.ID
+	return nil
+}
+
+// ClaimDueJobs 领取到期任务（第 19.2 章）：单条 UPDATE ... WHERE id IN
+// (SELECT ... FOR UPDATE SKIP LOCKED) 原子完成「锁定 + 置 PROCESSING」，
+// 与后续执行共用调用方事务——crash 时整体回滚为 PENDING，天然无孤儿
+// PROCESSING。Raw SQL 不经租户 Callback：Worker 全租户轮询属预期行为。
+func (r *runtimeJobs) ClaimDueJobs(ctx context.Context, now time.Time, batch int) ([]enginemodel.Job, error) {
+	rows := make([]model.WfJob, 0, batch)
+	err := infrastructure.ResolveDB(ctx, r.base).Raw(
+		`UPDATE wf_job SET status = 'PROCESSING', updated_at = now()
+		 WHERE id IN (
+		     SELECT id FROM wf_job
+		     WHERE status = 'PENDING' AND execute_at <= ?
+		     ORDER BY execute_at
+		     LIMIT ?
+		     FOR UPDATE SKIP LOCKED
+		 ) RETURNING *`, now, batch).Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]enginemodel.Job, 0, len(rows))
+	for i := range rows {
+		job, err := jobFromRow(&rows[i])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *job)
+	}
+	return out, nil
+}
+
+func (r *runtimeJobs) SaveJob(ctx context.Context, job *enginemodel.Job) error {
+	row, err := jobToRow(job)
+	if err != nil {
+		return err
+	}
+	return infrastructure.ResolveDB(ctx, r.base).Model(&model.WfJob{}).
+		Where("id = ?", job.ID).
+		Updates(map[string]any{
+			"status":          row.Status,
+			"retry_count":     row.RetryCount,
+			"execute_at":      row.ExecuteAt,
+			"payload":         row.Payload,
+			"last_error":      row.LastError,
+			"max_retry_count": row.MaxRetryCount,
+		}).Error
+}
+
+func (r *runtimeJobs) FindJobByID(ctx context.Context, tenantID, jobID uint) (*enginemodel.Job, error) {
+	var row model.WfJob
+	if err := infrastructure.ResolveDB(ctx, r.base).Where("id = ?", jobID).First(&row).Error; err != nil {
+		return nil, err
+	}
+	return jobFromRow(&row)
+}
+
+func (r *runtimeJobs) cancelJobs(ctx context.Context, condition string, args ...any) error {
+	return infrastructure.ResolveDB(ctx, r.base).Model(&model.WfJob{}).
+		Where("status IN ?", []string{"PENDING", "PROCESSING"}).
+		Where(condition, args...).
+		Update("status", "CANCELLED").Error
+}
+
+func (r *runtimeJobs) CancelJobsByTask(ctx context.Context, taskID uint) error {
+	return r.cancelJobs(ctx, "task_id = ?", taskID)
+}
+
+func (r *runtimeJobs) CancelJobsByNodeInstance(ctx context.Context, nodeInstanceID uint) error {
+	return r.cancelJobs(ctx, "node_instance_id = ?", nodeInstanceID)
+}
+
+func (r *runtimeJobs) CancelJobsByInstance(ctx context.Context, instanceID uint) error {
+	return r.cancelJobs(ctx, "instance_id = ?", instanceID)
+}
+
+func (r *runtimeJobs) ListJobsByInstance(ctx context.Context, instanceID uint) ([]enginemodel.Job, error) {
+	rows := make([]model.WfJob, 0)
+	if err := infrastructure.ResolveDB(ctx, r.base).
+		Where("instance_id = ?", instanceID).Order("id").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]enginemodel.Job, 0, len(rows))
+	for i := range rows {
+		job, err := jobFromRow(&rows[i])
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *job)
+	}
+	return out, nil
+}
+
+func jobToRow(job *enginemodel.Job) (*model.WfJob, error) {
+	payload, err := json.Marshal(job.Payload)
+	if err != nil {
+		return nil, fmt.Errorf("encode job payload: %w", err)
+	}
+	return &model.WfJob{
+		ID:             job.ID,
+		JobType:        string(job.Type),
+		InstanceID:     job.InstanceID,
+		NodeInstanceID: job.NodeInstanceID,
+		TaskID:         job.TaskID,
+		ExecuteAt:      job.ExecuteAt,
+		Status:         string(job.Status),
+		RetryCount:     job.RetryCount,
+		MaxRetryCount:  job.MaxRetryCount,
+		Payload:        model.DSLContent(payload),
+		LastError:      job.LastError,
+		// TenantID 由 Create 路径租户 Callback 兜底填充
+		TenantID: job.TenantID,
+	}, nil
+}
+
+func jobFromRow(row *model.WfJob) (*enginemodel.Job, error) {
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(row.Payload), &payload); err != nil {
+		return nil, fmt.Errorf("decode job %d payload: %w", row.ID, err)
+	}
+	return &enginemodel.Job{
+		ID:             row.ID,
+		TenantID:       row.TenantID,
+		Type:           enginemodel.JobType(row.JobType),
+		InstanceID:     row.InstanceID,
+		NodeInstanceID: row.NodeInstanceID,
+		TaskID:         row.TaskID,
+		ExecuteAt:      row.ExecuteAt,
+		Status:         enginemodel.JobStatus(row.Status),
+		RetryCount:     row.RetryCount,
+		MaxRetryCount:  row.MaxRetryCount,
+		Payload:        payload,
+		LastError:      row.LastError,
+	}, nil
 }
 
 // ---- 操作流水 ----

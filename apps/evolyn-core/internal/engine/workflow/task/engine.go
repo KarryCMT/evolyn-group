@@ -35,18 +35,21 @@ type Engine struct {
 	publisher  provider.EventPublisher
 	// identity 身份窄端口（转办目标显示名快照；可为 nil：单测/无快照场景）
 	identity provider.IdentityProvider
+	// jobs 延时任务仓储（任务终态联动取消排期 Job，第 19 章；可为 nil：单测）
+	jobs repository.JobRepository
 }
 
-// NewEngine 构造任务引擎（publisher/identity 可为 nil：跳过事件发布与
-// 显示名快照，便于单测）。
+// NewEngine 构造任务引擎（publisher/identity/jobs 可为 nil：跳过事件发布、
+// 显示名快照与 Job 联动，便于单测）。
 func NewEngine(
 	tasks repository.TaskRepository,
 	instances repository.InstanceRepository,
 	operations repository.OperationRepository,
 	publisher provider.EventPublisher,
 	identity provider.IdentityProvider,
+	jobs repository.JobRepository,
 ) *Engine {
-	return &Engine{tasks: tasks, instances: instances, operations: operations, publisher: publisher, identity: identity}
+	return &Engine{tasks: tasks, instances: instances, operations: operations, publisher: publisher, identity: identity, jobs: jobs}
 }
 
 // ApproveInput 同意动作输入。
@@ -54,10 +57,13 @@ type ApproveInput struct {
 	TenantID uint
 	TaskID   uint
 	// OperatorMemberID 操作人成员 ID；必须命中任务参与人快照（实例级校验，
-	// RBAC 只决定操作能力，第 21 章）
+	// RBAC 只决定操作能力，第 21 章）；0=系统触发（超时自动动作，第 19.4 章）
 	OperatorMemberID uint
 	// Comment 审批意见（入 operation 载荷）
 	Comment string
+	// AutoTimeout 超时自动动作触发（第 19.4 章）：跳过参与人校验（Actor
+	// 语义替代），操作流水记 TIMEOUT 且操作人 0；状态机/事务模板不变
+	AutoTimeout bool
 }
 
 // ApproveOutcome 同意动作产出：任务与实例的最新状态（节点是否达成完成条件
@@ -74,49 +80,54 @@ type ApproveOutcome struct {
 // 已 APPROVED，0 推进）→ 实例 RUNNING 校验 → 参与人校验 → 更新任务 →
 // 追加操作流水 → 发布事件（经端口加入调用方事务，通知失败不回滚审批）。
 func (e *Engine) Approve(ctx context.Context, in ApproveInput) (*ApproveOutcome, error) {
-	// 1. 行锁读取任务（并发双击在同一行上串行化）
-	task, err := e.tasks.FindTaskByIDForUpdate(ctx, in.TenantID, in.TaskID)
-	if err != nil {
-		return nil, fmt.Errorf("task %d: %w", in.TaskID, ErrTaskNotFound)
-	}
-	// 2. 状态机校验：迁移表是唯一事实源，未登记迁移一律非法
-	if !CanTransitionTask(task.Status, model.TaskStatusAPPROVED) {
-		return nil, fmt.Errorf("task %d status %s: %w", task.ID, task.Status, ErrTaskNotPending)
-	}
-	// 3. 行锁读取实例并校验 RUNNING
-	instance, err := e.instances.FindInstanceByIDForUpdate(ctx, in.TenantID, task.InstanceID)
-	if err != nil {
-		return nil, fmt.Errorf("instance of task %d: %w", task.ID, ErrInstanceNotFound)
-	}
-	if instance.Status != model.InstanceStatusRUNNING {
-		return nil, fmt.Errorf("instance %d status %s: %w", instance.ID, instance.Status, ErrInstanceNotRunning)
-	}
-	// 4. 参与人快照实例级校验（第 27 章安全要求）
-	actors, err := e.tasks.ListActorsOfTask(ctx, task.ID)
+	// 1-4. 行锁任务/实例 + 状态机 + 参与人校验（超时自动动作经 Auto 语义替代）
+	task, instance, err := e.lockPendingTask(ctx, in.TenantID, in.TaskID, in.OperatorMemberID, in.AutoTimeout)
 	if err != nil {
 		return nil, err
 	}
-	if !containsActor(actors, in.OperatorMemberID) {
-		return nil, ErrTaskForbidden
+	if !CanTransitionTask(task.Status, model.TaskStatusAPPROVED) {
+		return nil, fmt.Errorf("task %d status %s: %w", task.ID, task.Status, ErrTaskNotPending)
 	}
 	// 5-6. 更新任务 + 追加操作流水（同事务）
 	task.Status = model.TaskStatusAPPROVED
 	if err := e.tasks.SaveTask(ctx, task); err != nil {
 		return nil, err
 	}
-	if err := e.operations.AppendOperation(ctx, &model.Operation{
-		TenantID:         in.TenantID,
-		InstanceID:       task.InstanceID,
-		TaskID:           task.ID,
-		OperatorMemberID: in.OperatorMemberID,
-		Type:             model.OperationTypeApprove,
-		Payload:          map[string]any{"nodeKey": task.NodeKey, "comment": in.Comment},
-	}); err != nil {
+	if err := e.appendActionOperation(ctx, task, in.OperatorMemberID, model.OperationTypeApprove,
+		map[string]any{"nodeKey": task.NodeKey, "comment": in.Comment}, in.AutoTimeout); err != nil {
 		return nil, err
 	}
+	// 任务终态：联动取消排期 Job（第 19 章 cancel job when task completed）
+	e.cancelJobsByTask(ctx, task.ID)
 	// 7. 发布事件（Outbox 模式：写入随事务提交，消费失败不回滚审批）
 	e.publish(ctx, event.TaskApproved, instance.ID, task.ID, in.OperatorMemberID)
 	return &ApproveOutcome{Task: task, Instance: instance, NodeInstanceID: task.NodeInstanceID, NodeKey: task.NodeKey}, nil
+}
+
+// appendActionOperation 动作操作流水：人工动作记对应类型（操作人=实际操作者）；
+// 超时自动动作统一记 TIMEOUT（操作人 0=系统，第 19.4 章自动动作边界）。
+func (e *Engine) appendActionOperation(ctx context.Context, task *model.Task, operatorMemberID uint, manualType model.OperationType, payload map[string]any, auto bool) error {
+	opType := manualType
+	if auto {
+		opType = model.OperationTypeTimeout
+		payload["auto"] = true
+	}
+	return e.operations.AppendOperation(ctx, &model.Operation{
+		TenantID:         task.TenantID,
+		InstanceID:       task.InstanceID,
+		TaskID:           task.ID,
+		OperatorMemberID: operatorMemberID,
+		Type:             opType,
+		Payload:          payload,
+	})
+}
+
+// cancelJobsByTask 任务终态联动取消排期 Job（jobs 未装配时跳过，单测场景）。
+func (e *Engine) cancelJobsByTask(ctx context.Context, taskID uint) {
+	if e.jobs == nil {
+		return
+	}
+	_ = e.jobs.CancelJobsByTask(ctx, taskID)
 }
 
 // RejectOutcome 驳回动作产出：任务与实例最新状态（节点 REJECTED 与实例
@@ -134,6 +145,8 @@ type RejectInput struct {
 	TaskID           uint
 	OperatorMemberID uint
 	Comment          string
+	// AutoTimeout 超时自动驳回触发（第 19.4 章，语义同 ApproveInput）
+	AutoTimeout bool
 }
 
 // Reject 驳回任务（第 10.2 章 terminate 语义）：行锁 → PENDING 状态机校验 →
@@ -142,7 +155,7 @@ type RejectInput struct {
 // Runtime 在同一事务内联动落账（Reject 语义不可拆分：任一审批人驳回
 // 即整个实例终止，V1 无「驳回到历史节点」）。
 func (e *Engine) Reject(ctx context.Context, in RejectInput) (*RejectOutcome, error) {
-	task, instance, err := e.lockPendingTask(ctx, in.TenantID, in.TaskID, in.OperatorMemberID)
+	task, instance, err := e.lockPendingTask(ctx, in.TenantID, in.TaskID, in.OperatorMemberID, in.AutoTimeout)
 	if err != nil {
 		return nil, err
 	}
@@ -150,18 +163,13 @@ func (e *Engine) Reject(ctx context.Context, in RejectInput) (*RejectOutcome, er
 	if err := e.tasks.SaveTask(ctx, task); err != nil {
 		return nil, err
 	}
-	if err := e.operations.AppendOperation(ctx, &model.Operation{
-		TenantID:         in.TenantID,
-		InstanceID:       task.InstanceID,
-		TaskID:           task.ID,
-		OperatorMemberID: in.OperatorMemberID,
-		Type:             model.OperationTypeReject,
-		Payload: map[string]any{
-			"nodeKey": task.NodeKey, "comment": in.Comment, "rejectStrategy": string(model.RejectStrategyTerminate),
-		},
-	}); err != nil {
+	if err := e.appendActionOperation(ctx, task, in.OperatorMemberID, model.OperationTypeReject, map[string]any{
+		"nodeKey": task.NodeKey, "comment": in.Comment, "rejectStrategy": string(model.RejectStrategyTerminate),
+	}, in.AutoTimeout); err != nil {
 		return nil, err
 	}
+	// 任务终态：联动取消排期 Job（第 19 章）
+	e.cancelJobsByTask(ctx, task.ID)
 	e.publish(ctx, event.TaskRejected, instance.ID, task.ID, in.OperatorMemberID)
 	return &RejectOutcome{Task: task, Instance: instance, NodeInstanceID: task.NodeInstanceID, NodeKey: task.NodeKey}, nil
 }
@@ -187,7 +195,7 @@ type ReturnOutcome struct {
 // 以 COMPLETED + RETURN_TO_STARTER operation 表达，随后创建
 // WAITING_RESUBMIT 节点实例等待发起人修改重提；实例保持 RUNNING。
 func (e *Engine) ReturnToStarter(ctx context.Context, in ReturnInput) (*ReturnOutcome, error) {
-	task, instance, err := e.lockPendingTask(ctx, in.TenantID, in.TaskID, in.OperatorMemberID)
+	task, instance, err := e.lockPendingTask(ctx, in.TenantID, in.TaskID, in.OperatorMemberID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -205,6 +213,8 @@ func (e *Engine) ReturnToStarter(ctx context.Context, in ReturnInput) (*ReturnOu
 	}); err != nil {
 		return nil, err
 	}
+	// 任务终态：联动取消排期 Job（第 19 章）
+	e.cancelJobsByTask(ctx, task.ID)
 	e.publish(ctx, event.TaskCancelled, instance.ID, task.ID, in.OperatorMemberID)
 	return &ReturnOutcome{Task: task, Instance: instance, NodeInstanceID: task.NodeInstanceID, NodeKey: task.NodeKey}, nil
 }
@@ -235,7 +245,7 @@ func (e *Engine) Transfer(ctx context.Context, in TransferInput) (*TransferOutco
 	if in.TargetMemberID == 0 {
 		return nil, fmt.Errorf("transfer target member required")
 	}
-	task, instance, err := e.lockPendingTask(ctx, in.TenantID, in.TaskID, in.OperatorMemberID)
+	task, instance, err := e.lockPendingTask(ctx, in.TenantID, in.TaskID, in.OperatorMemberID, false)
 	if err != nil {
 		return nil, err
 	}
@@ -247,6 +257,9 @@ func (e *Engine) Transfer(ctx context.Context, in TransferInput) (*TransferOutco
 	if err := e.tasks.SaveTask(ctx, task); err != nil {
 		return nil, err
 	}
+	// 原任务终态：取消其排期 Job（转办产生的新任务不继承排期配置，
+	// 重排期属管理能力，V1 不做）
+	e.cancelJobsByTask(ctx, task.ID)
 	// 新任务另建（TransferredFromTaskID 回链原任务，历史链可追溯）
 	newTask := &model.Task{
 		TenantID:              in.TenantID,
@@ -289,7 +302,7 @@ func (e *Engine) Transfer(ctx context.Context, in TransferInput) (*TransferOutco
 // lockPendingTask 审批动作公共前置（第 13.2 章事务模板 1–4 步）：行锁取
 // 任务 → PENDING 状态机校验（双击防护命中点）→ 行锁取实例校验 RUNNING →
 // 参与人快照实例级校验。返回任务与实例供动作继续落账。
-func (e *Engine) lockPendingTask(ctx context.Context, tenantID, taskID, operatorMemberID uint) (*model.Task, *model.Instance, error) {
+func (e *Engine) lockPendingTask(ctx context.Context, tenantID, taskID, operatorMemberID uint, auto bool) (*model.Task, *model.Instance, error) {
 	// 1. 行锁读取任务（并发双击在同一行上串行化）
 	task, err := e.tasks.FindTaskByIDForUpdate(ctx, tenantID, taskID)
 	if err != nil {
@@ -308,13 +321,16 @@ func (e *Engine) lockPendingTask(ctx context.Context, tenantID, taskID, operator
 	if instance.Status != model.InstanceStatusRUNNING {
 		return nil, nil, fmt.Errorf("instance %d status %s: %w", instance.ID, instance.Status, ErrInstanceNotRunning)
 	}
-	// 4. 参与人快照实例级校验（第 27 章安全要求）
-	actors, err := e.tasks.ListActorsOfTask(ctx, task.ID)
-	if err != nil {
-		return nil, nil, err
-	}
-	if !containsActor(actors, operatorMemberID) {
-		return nil, nil, ErrTaskForbidden
+	// 4. 参与人快照实例级校验（第 27 章安全要求）；超时自动动作经 Actor
+	// 语义替代豁免（操作人 0=系统，第 19.4 章自动动作边界）
+	if !auto {
+		actors, err := e.tasks.ListActorsOfTask(ctx, task.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		if !containsActor(actors, operatorMemberID) {
+			return nil, nil, ErrTaskForbidden
+		}
 	}
 	return task, instance, nil
 }

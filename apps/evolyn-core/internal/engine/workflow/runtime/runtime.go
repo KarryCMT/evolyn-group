@@ -3,6 +3,7 @@ package runtime
 import (
 	"context"
 	"sync"
+	"time"
 
 	"evolyn/internal/engine/workflow/definition"
 	"evolyn/internal/engine/workflow/event"
@@ -33,6 +34,8 @@ type Runtime struct {
 
 	// ccRecords 抄送记录仓储（第 10.6 章，CC 节点执行时追加写）
 	ccRecords repository.CCRepository
+	// jobs 延时任务仓储（Phase 5：任务创建排期 + 实例终态联动取消）
+	jobs repository.JobRepository
 
 	// business 业务数据窄端口（第 15 章，Phase 3）：form.* 表达式数据源与
 	// 审批编辑写回的唯一通道，内核不感知 form_records；可为 nil（单测）
@@ -73,6 +76,7 @@ func NewRuntime(
 	business provider.BusinessDataProvider,
 	identity provider.IdentityProvider,
 	ccRecords repository.CCRepository,
+	jobs repository.JobRepository,
 ) *Runtime {
 	return &Runtime{
 		definitions:   definitions,
@@ -84,12 +88,13 @@ func NewRuntime(
 		executors:     executors,
 		navigator:     NewNavigator(nil),
 		publisher:     publisher,
-		taskEngine:    task.NewEngine(tasks, instances, operations, publisher, identity),
+		taskEngine:    task.NewEngine(tasks, instances, operations, publisher, identity, jobs),
 		business:      business,
 		identity:      identity,
 		expressions:   expression.NewExprEngine(),
 		compiledCache: make(map[uint]*definition.CompiledDefinition),
 		ccRecords:     ccRecords,
+		jobs:          jobs,
 	}
 }
 
@@ -220,6 +225,10 @@ type ApproveInput struct {
 	// 点字段权限过滤后经业务数据窄端口在同一事务内写回（第 13.2/15.4 章）：
 	// 携带未授权字段即整体失败回滚，禁止直接改业务表
 	FormValues map[string]any
+	// AutoTimeout 超时自动动作触发（第 19.4 章）：操作人 0，跳过参与人
+	// 校验（Actor 语义替代），操作流水记 TIMEOUT；仍走 Task Engine 正常
+	// 执行路径，Worker 不得绕过
+	AutoTimeout bool
 }
 
 // ApproveResult 审批同意结果。
@@ -240,6 +249,7 @@ func (r *Runtime) Approve(ctx context.Context, in ApproveInput) (*ApproveResult,
 		TaskID:           in.TaskID,
 		OperatorMemberID: in.OperatorMemberID,
 		Comment:          in.Comment,
+		AutoTimeout:      in.AutoTimeout,
 	})
 	if err != nil {
 		return nil, err
@@ -282,6 +292,8 @@ func (r *Runtime) Approve(ctx context.Context, in ApproveInput) (*ApproveResult,
 	if _, err := r.tasks.CancelPendingTasksByNode(ctx, outcome.NodeInstanceID); err != nil {
 		return nil, err
 	}
+	// 剩余任务取消：排期 Job 联动取消（第 19 章）
+	r.cancelJobsByNode(ctx, outcome.NodeInstanceID)
 	r.publish(ctx, event.NodeCompleted, instance, outcome.NodeInstanceID, in.OperatorMemberID)
 
 	advance, err := r.newAdvanceContext(ctx, instance, version, "")
@@ -518,7 +530,52 @@ func (r *Runtime) persistTasks(ctx context.Context, a *advanceContext, nodeInsta
 				return err
 			}
 		}
+		// 排期超时/提醒 Job（Phase 5，第 19 章：任务创建时一次性排期）
+		if err := r.scheduleJobs(ctx, a, nodeInstance, blueprint); err != nil {
+			return err
+		}
 		r.publish(ctx, event.TaskCreated, a.instance, blueprint.ID, a.env.Starter.MemberID)
+	}
+	return nil
+}
+
+// defaultJobMaxRetry 排期 Job 默认重试上限（Worker 失败重试回队）。
+const defaultJobMaxRetry = 3
+
+// scheduleJobs 按节点配置为任务排期 task.timeout / task.reminder Job
+// （jobs 未装配时跳过，单测场景；校验器已保证秒数与动作合法）。
+func (r *Runtime) scheduleJobs(ctx context.Context, a *advanceContext, nodeInstance *model.NodeInstance, created model.Task) error {
+	if r.jobs == nil {
+		return nil
+	}
+	node, ok := a.doc.NodeOf(nodeInstance.NodeKey)
+	if !ok {
+		return nil
+	}
+	now := time.Now()
+	jobs := make([]model.Job, 0, 2)
+	if node.Config.Timeout != nil {
+		jobs = append(jobs, model.Job{
+			TenantID: a.instance.TenantID, Type: model.JobTypeTaskTimeout,
+			InstanceID: a.instance.ID, NodeInstanceID: nodeInstance.ID, TaskID: created.ID,
+			ExecuteAt: now.Add(time.Duration(node.Config.Timeout.Seconds) * time.Second),
+			Status:    model.JobStatusPENDING, MaxRetryCount: defaultJobMaxRetry,
+			Payload: map[string]any{"action": string(node.Config.Timeout.Action), "nodeKey": nodeInstance.NodeKey},
+		})
+	}
+	if node.Config.Reminder != nil {
+		jobs = append(jobs, model.Job{
+			TenantID: a.instance.TenantID, Type: model.JobTypeTaskReminder,
+			InstanceID: a.instance.ID, NodeInstanceID: nodeInstance.ID, TaskID: created.ID,
+			ExecuteAt: now.Add(time.Duration(node.Config.Reminder.Seconds) * time.Second),
+			Status:    model.JobStatusPENDING, MaxRetryCount: defaultJobMaxRetry,
+			Payload: map[string]any{"nodeKey": nodeInstance.NodeKey},
+		})
+	}
+	for i := range jobs {
+		if err := r.jobs.CreateJob(ctx, &jobs[i]); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -557,6 +614,22 @@ func (r *Runtime) persistCC(ctx context.Context, a *advanceContext, nodeInstance
 		Type:       model.OperationTypeCC,
 		Payload:    map[string]any{"nodeKey": nodeInstance.NodeKey, "recipients": recipients},
 	})
+}
+
+// cancelJobsByNode 节点完成联动取消排期 Job（jobs 未装配时跳过）。
+func (r *Runtime) cancelJobsByNode(ctx context.Context, nodeInstanceID uint) {
+	if r.jobs == nil {
+		return
+	}
+	_ = r.jobs.CancelJobsByNodeInstance(ctx, nodeInstanceID)
+}
+
+// cancelJobsByInstance 实例终态联动取消排期 Job（jobs 未装配时跳过）。
+func (r *Runtime) cancelJobsByInstance(ctx context.Context, instanceID uint) {
+	if r.jobs == nil {
+		return
+	}
+	_ = r.jobs.CancelJobsByInstance(ctx, instanceID)
 }
 
 func (r *Runtime) publish(ctx context.Context, eventName string, instance *model.Instance, taskID, actorMemberID uint) {

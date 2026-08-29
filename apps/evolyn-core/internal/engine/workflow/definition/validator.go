@@ -154,6 +154,8 @@ func (v *Validator) validateNodeConfig(errs ValidationErrors, n *model.Node, pat
 					Message: fmt.Sprintf("字段权限值必须为 hidden/readonly/editable/required，当前为 %q", perm)})
 			}
 		}
+		errs = v.validateTimeoutConfig(errs, n.Config.Timeout, path+".timeout")
+		errs = v.validateReminderConfig(errs, n.Config.Reminder, path+".reminder")
 	case model.NodeTypeCC:
 		if n.Config.Recipients == nil {
 			errs = append(errs, &ValidationError{Path: path + ".recipients", Code: ErrCodeConfigInvalid,
@@ -211,6 +213,36 @@ func (v *Validator) validateAssigneeSpec(errs ValidationErrors, spec *model.Assi
 	if !assignment.ResolverEnabled(spec.Type) {
 		errs = append(errs, &ValidationError{Path: path + ".type", Code: ErrCodeConfigInvalid,
 			Message: fmt.Sprintf("审批人类型 %q 暂未启用（IAM 前置能力未落地）", spec.Type)})
+	}
+	return errs
+}
+
+// validateTimeoutConfig 超时配置校验（Phase 5，第 19 章）：秒数在
+// [1, MaxJobSeconds] 区间，动作仅 approve/reject。
+func (v *Validator) validateTimeoutConfig(errs ValidationErrors, config *model.TimeoutConfig, path string) ValidationErrors {
+	if config == nil {
+		return errs
+	}
+	if config.Seconds < 1 || config.Seconds > model.MaxJobSeconds {
+		errs = append(errs, &ValidationError{Path: path + ".seconds", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("超时秒数必须在 1~%d 区间", model.MaxJobSeconds)})
+	}
+	if !model.V1TimeoutActions[config.Action] {
+		errs = append(errs, &ValidationError{Path: path + ".action", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("超时自动动作必须为 approve/reject，当前为 %q", config.Action)})
+	}
+	return errs
+}
+
+// validateReminderConfig 提醒配置校验（Phase 5）：秒数在
+// [1, MaxJobSeconds] 区间（V1 单次提醒，不循环）。
+func (v *Validator) validateReminderConfig(errs ValidationErrors, config *model.ReminderConfig, path string) ValidationErrors {
+	if config == nil {
+		return errs
+	}
+	if config.Seconds < 1 || config.Seconds > model.MaxJobSeconds {
+		errs = append(errs, &ValidationError{Path: path + ".seconds", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("提醒秒数必须在 1~%d 区间", model.MaxJobSeconds)})
 	}
 	return errs
 }

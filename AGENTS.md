@@ -99,7 +99,14 @@ internal/
                       return-to-starter/transfer）与 /api/v1/
                       workflow-instances（started-by-me、withdraw、
                       terminate、resubmit），WORKFLOW_ACTION_NOT_ALLOWED
-                      稳定码
+                      稳定码；Phase 5 已落地（迁移 000052 wf_job）：
+                      DSL approval 节点 timeout/reminder 显式配置（校验器
+                      封顶 30 天）+ 任务创建排期/任务与实例终态联动取消 +
+                      WorkflowJobWorker（FOR UPDATE SKIP LOCKED，claim+
+                      执行同事务 crash 自动回滚，失败重试独立记账回队/
+                      FAILED），超时自动 approve/reject 强制经 Task Engine
+                      正常路径（AutoTimeout：操作人 0=系统、TIMEOUT 流水、
+                      状态机不变）
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
     controller/       Controller 注册契约（RegisterRoute/Name；
                       PlatformController 标记平台运营域归属）与 AppConf

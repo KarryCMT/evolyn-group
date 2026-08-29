@@ -19,6 +19,8 @@ type RejectInput struct {
 	TaskID           uint
 	OperatorMemberID uint
 	Comment          string
+	// AutoTimeout 超时自动驳回触发（第 19.4 章，语义同 ApproveInput）
+	AutoTimeout bool
 }
 
 // RejectResult 驳回结果。
@@ -37,6 +39,7 @@ func (r *Runtime) Reject(ctx context.Context, in RejectInput) (*RejectResult, er
 		TaskID:           in.TaskID,
 		OperatorMemberID: in.OperatorMemberID,
 		Comment:          in.Comment,
+		AutoTimeout:      in.AutoTimeout,
 	})
 	if err != nil {
 		return nil, err
@@ -63,6 +66,8 @@ func (r *Runtime) Reject(ctx context.Context, in RejectInput) (*RejectResult, er
 	if _, err := r.tasks.CancelPendingTasksByNode(ctx, outcome.NodeInstanceID); err != nil {
 		return nil, err
 	}
+	// 任务取消联动排期 Job（第 19 章）
+	r.cancelJobsByNode(ctx, outcome.NodeInstanceID)
 	res, err := r.cancelInstance(ctx, instance, model.InstanceStatusREJECTED, in.OperatorMemberID)
 	if err != nil {
 		return nil, err
@@ -122,6 +127,8 @@ func (r *Runtime) ReturnToStarter(ctx context.Context, in ReturnInput) (*ReturnR
 	if _, err := r.tasks.CancelPendingTasksByNode(ctx, outcome.NodeInstanceID); err != nil {
 		return nil, err
 	}
+	// 任务取消联动排期 Job（第 19 章）
+	r.cancelJobsByNode(ctx, outcome.NodeInstanceID)
 	// 发起人修改节点实例：NodeKey 记录退回来源节点，重提交后从该节点继续
 	resubmit := &model.NodeInstance{
 		TenantID:    instance.TenantID,
@@ -306,6 +313,8 @@ func (r *Runtime) cancelInstance(ctx context.Context, instance *model.Instance, 
 	if _, err := r.tasks.CancelPendingTasksByInstance(ctx, instance.ID); err != nil {
 		return nil, err
 	}
+	// 实例终态联动取消全部排期 Job（第 19 章）
+	r.cancelJobsByInstance(ctx, instance.ID)
 	// 挂起中的节点实例（WAITING/WAITING_RESUBMIT）随实例终态取消
 	nodeInstances, err := r.nodes.ListNodeInstancesByInstance(ctx, instance.ID)
 	if err != nil {

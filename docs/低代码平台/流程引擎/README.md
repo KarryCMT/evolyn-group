@@ -67,7 +67,17 @@ apps/evolyn-core/
   /workflow-instances?scope=started-by-me、GET /workflow-tasks/:id
   （详情上下文：表单冻结快照 + 业务数据 + 字段权限 + AllowedActions +
   操作时间线）；稳定码 WORKFLOW_ACTION_NOT_ALLOWED。
-- **Phase 5**（wf_job 超时/提醒 Worker）为下一里程碑。
+- **Phase 5（当前）**：wf_job 延时任务已落地——迁移 000052（wf_job，
+  status+execute_at 领取索引 + 任务维度部分索引）；DSL approval 节点新增
+  `timeout`（seconds + approve/reject 动作）与 `reminder`（seconds）显式
+  配置，校验器封顶 30 天；任务创建时按配置排期，任务/节点/实例终态联动
+  取消在途 Job；WorkflowJobWorker 30s 轮询，`FOR UPDATE SKIP LOCKED`
+  单条领取，claim+执行+回写同事务（crash 自动回滚为 PENDING），失败重试
+  独立事务记账（未超限回队 + 60s 退避，超限 FAILED + last_error）；超时
+  自动 approve/reject 强制经 Runtime → Task Engine 正常执行路径
+  （AutoTimeout：操作人 0=系统、TIMEOUT 操作流水、事件不变），提醒落
+  REMINDER 操作流水（Phase 6 接通知域后升级推送）。
+- **Phase 6**（workflow.* 事件接入既有 Outbox）为下一里程碑。
 - 前端错误码：workflow 域 errCode 已在
   `apps/evolyn-web/packages/utils/src/request/errorCodes.ts` 预留分段。
 

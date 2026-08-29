@@ -75,6 +75,7 @@ import (
 	workflowcontroller "evolyn/internal/platform/workflow/controller"
 	workflowrepository "evolyn/internal/platform/workflow/repository"
 	workflowservice "evolyn/internal/platform/workflow/service"
+	workflowworker "evolyn/internal/platform/workflow/worker"
 	"evolyn/internal/utils/request"
 	"evolyn/internal/utils/set"
 	"evolyn/internal/version"
@@ -162,7 +163,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 运行态六表（实例/执行路径/节点实例/任务/参与人/操作流水）
 	workflowDefinitionRepo := workflowrepository.NewDefinitionRepository(db)
 	workflowVersionRepo := workflowrepository.NewVersionRepository(db)
-	workflowInstanceRepo, workflowExecutionRepo, workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowCCRepo := workflowrepository.NewRuntimeRepositories(db)
+	workflowInstanceRepo, workflowExecutionRepo, workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowCCRepo, workflowJobRepo := workflowrepository.NewRuntimeRepositories(db)
 	workflowEngineReader := workflowrepository.NewEngineDefinitionReader(db)
 	workflowRuntimeReader := workflowrepository.NewRuntimeReader(db)
 	// 消息中心域仓储（000039）：逻辑消息+收件箱、通知设置聚合、事务 Outbox
@@ -502,11 +503,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	if formRecordStore, ok := formService.(formservice.WorkflowRecordStore); ok {
 		workflowFormProvider = workflowadapter.NewFormDataProvider(formRecordStore)
 	}
+	workflowEngineRuntime := engineruntime.NewRuntime(workflowEngineReader, workflowInstanceRepo, workflowExecutionRepo,
+		workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowExecutors,
+		workflowadapter.NewEventPublisher(), workflowFormProvider, workflowIdentityProvider, workflowCCRepo, workflowJobRepo)
 	workflowRuntimeService := workflowservice.NewRuntimeService(
 		txManager,
-		engineruntime.NewRuntime(workflowEngineReader, workflowInstanceRepo, workflowExecutionRepo,
-			workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowExecutors,
-			workflowadapter.NewEventPublisher(), workflowFormProvider, workflowIdentityProvider, workflowCCRepo),
+		workflowEngineRuntime,
 		workflowRuntimeReader, workflowEngineReader,
 		workflowFormDirectory{forms: formRepo, versions: formVersionRepo},
 		appAccess, auditSvc,
@@ -522,6 +524,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	notificationSettingController := notificationcontroller.NewSettingController(notificationSettingService)
 
 	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController}
+
+	// 流程延时任务 Worker（Phase 5，000052）：超时自动动作/待办提醒，
+	// 领取走 FOR UPDATE SKIP LOCKED，claim+执行同事务（crash 自动回滚），
+	// 自动动作经 Task Engine 正常执行路径（第 19.4 章自动动作边界）
+	workflowJobWorker := workflowworker.NewJobWorker(
+		txManager, workflowJobRepo, workflowTaskRepo, workflowOperationRepo,
+		workflowEngineRuntime, 0, logger,
+	)
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
 	purgeWorker := tenantservice.NewPurgeWorker(tenantRepo, conf.Tenant.PurgeInterval(), logger)
@@ -578,6 +588,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 		sessionCleanupWorker:     sessionCleanupWorker,
 		notificationOutboxWorker: notificationOutboxWorker,
 		notificationRetWorker:    notificationRetentionWorker,
+		workflowJobWorker:        workflowJobWorker,
 		authorizer:               authorizer,
 		tenantRepo:               tenantRepo,
 		pkiKeypair:               keypair,
@@ -603,8 +614,10 @@ type Server struct {
 	// 消息中心任务（000039）：Outbox 物化扇出 + 过期消息保留清理
 	notificationOutboxWorker *notificationservice.OutboxWorker
 	notificationRetWorker    *notificationservice.RetentionWorker
-	authorizer               *authorization.Authorizer
-	tenantRepo               tenantrepository.TenantRepository
+	// 流程延时任务（Phase 5）：超时自动动作/待办提醒
+	workflowJobWorker *workflowworker.JobWorker
+	authorizer        *authorization.Authorizer
+	tenantRepo        tenantrepository.TenantRepository
 	// 登录口令加密密钥对：登录/改密解密与 /app/conf 公钥下发共用
 	pkiKeypair *pki.Keypair
 }
@@ -624,6 +637,7 @@ func (s *Server) Run() error {
 	go s.sessionCleanupWorker.Run(workerCtx)
 	go s.notificationOutboxWorker.Run(workerCtx)
 	go s.notificationRetWorker.Run(workerCtx)
+	go s.workflowJobWorker.Run(workerCtx)
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Address, s.config.Server.Port)
 	s.logger.Infof("Start server on: %s", addr)

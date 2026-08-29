@@ -104,6 +104,27 @@ func TestValidateApprovalConfig(t *testing.T) {
 	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeFieldPermission)
 }
 
+func TestValidateTimeoutAndReminderConfig(t *testing.T) {
+	// 合法配置通过
+	doc := validDoc()
+	doc.Nodes[1].Config.Timeout = &model.TimeoutConfig{Seconds: 86400, Action: model.TimeoutActionApprove}
+	doc.Nodes[1].Config.Reminder = &model.ReminderConfig{Seconds: 3600}
+	assert.Empty(t, NewValidator(nil).Validate(doc))
+
+	// 非法动作
+	doc = validDoc()
+	doc.Nodes[1].Config.Timeout = &model.TimeoutConfig{Seconds: 60, Action: "escalate"}
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+
+	// 秒数越界（0 与超过 30 天）
+	doc = validDoc()
+	doc.Nodes[1].Config.Timeout = &model.TimeoutConfig{Seconds: 0, Action: model.TimeoutActionReject}
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+	doc = validDoc()
+	doc.Nodes[1].Config.Reminder = &model.ReminderConfig{Seconds: model.MaxJobSeconds + 1}
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+}
+
 func TestValidateAssigneeCapabilityGate(t *testing.T) {
 	// IAM 前置能力未落地的类型不允许发布（能力矩阵门，第 17.2 章）
 	doc := validDoc()

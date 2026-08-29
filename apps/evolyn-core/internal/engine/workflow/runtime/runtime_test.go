@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -310,6 +311,73 @@ func (f *fakeTasks) SaveTask(ctx context.Context, task *model.Task) error {
 	return nil
 }
 
+// ---- Job 仓储桩（Phase 5） ----
+
+type fakeJobs struct {
+	byID   map[uint]*model.Job
+	nextID uint
+}
+
+func newFakeJobs() *fakeJobs {
+	return &fakeJobs{byID: map[uint]*model.Job{}}
+}
+
+func (f *fakeJobs) CreateJob(ctx context.Context, job *model.Job) error {
+	if f.byID == nil {
+		f.byID = map[uint]*model.Job{}
+	}
+	f.nextID++
+	job.ID = f.nextID
+	clone := *job
+	f.byID[job.ID] = &clone
+	return nil
+}
+
+func (f *fakeJobs) ClaimDueJobs(ctx context.Context, now time.Time, batch int) ([]model.Job, error) {
+	panic("not used")
+}
+
+func (f *fakeJobs) SaveJob(ctx context.Context, job *model.Job) error {
+	if _, ok := f.byID[job.ID]; !ok {
+		return fmt.Errorf("job not found")
+	}
+	clone := *job
+	f.byID[job.ID] = &clone
+	return nil
+}
+
+func (f *fakeJobs) FindJobByID(ctx context.Context, tenantID, jobID uint) (*model.Job, error) {
+	if job, ok := f.byID[jobID]; ok {
+		return job, nil
+	}
+	return nil, fmt.Errorf("job not found")
+}
+
+func (f *fakeJobs) CancelJobsByTask(ctx context.Context, taskID uint) error {
+	return f.cancel(func(job *model.Job) bool { return job.TaskID == taskID })
+}
+
+func (f *fakeJobs) CancelJobsByNodeInstance(ctx context.Context, nodeInstanceID uint) error {
+	return f.cancel(func(job *model.Job) bool { return job.NodeInstanceID == nodeInstanceID })
+}
+
+func (f *fakeJobs) CancelJobsByInstance(ctx context.Context, instanceID uint) error {
+	return f.cancel(func(job *model.Job) bool { return job.InstanceID == instanceID })
+}
+
+func (f *fakeJobs) cancel(match func(*model.Job) bool) error {
+	for _, job := range f.byID {
+		if match(job) && (job.Status == model.JobStatusPENDING || job.Status == model.JobStatusPROCESSING) {
+			job.Status = model.JobStatusCANCELLED
+		}
+	}
+	return nil
+}
+
+func (f *fakeJobs) ListJobsByInstance(ctx context.Context, instanceID uint) ([]model.Job, error) {
+	panic("not used")
+}
+
 func (f *fakeTasks) CancelPendingTasksByInstance(ctx context.Context, instanceID uint) (int64, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -398,7 +466,7 @@ func newHarness(t *testing.T, doc model.Document) *harness {
 
 	definitions.publishDefinition("wf_test", doc)
 	registry := executor.NewRegistry(assignment.NewRegistry(nil, nil), nil)
-	rt := NewRuntime(definitions, instances, executions, nodes, tasks, operations, registry, publisher, nil, nil, nil)
+	rt := NewRuntime(definitions, instances, executions, nodes, tasks, operations, registry, publisher, nil, nil, nil, nil)
 	return &harness{runtime: rt, definitions: definitions, instances: instances, tasks: tasks, nodes: nodes, publisher: publisher}
 }
 

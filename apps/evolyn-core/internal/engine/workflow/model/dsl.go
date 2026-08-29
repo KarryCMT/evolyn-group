@@ -103,6 +103,41 @@ type AssigneeSpec struct {
 	DeptID uint `json:"deptId,omitempty"`
 }
 
+// MaxJobSeconds 超时/提醒排期秒数上限（30 天，冻结复杂度上限；校验器与
+// 前端设计器同口径）。
+const MaxJobSeconds = 30 * 24 * 3600
+
+// TimeoutAction 超时自动动作（第 19.4 章：必须经 Task Engine 正常执行路径
+// 触发，V1 仅支持同意/驳回；reject 即 terminate 联动）。
+type TimeoutAction string
+
+const (
+	TimeoutActionApprove TimeoutAction = "approve"
+	TimeoutActionReject  TimeoutAction = "reject"
+)
+
+// V1TimeoutActions 超时自动动作合法值域。
+var V1TimeoutActions = map[TimeoutAction]bool{
+	TimeoutActionApprove: true,
+	TimeoutActionReject:  true,
+}
+
+// TimeoutConfig 审批节点超时配置（Phase 5）：任务创建时排 task.timeout Job，
+// 到期由 Worker 经 Task Engine 执行自动动作；MaxSeconds 冻结复杂度上限。
+type TimeoutConfig struct {
+	// Seconds 任务创建后多少秒超时（1~2592000，即最长 30 天）
+	Seconds int `json:"seconds"`
+	// Action 超时自动动作（approve/reject）
+	Action TimeoutAction `json:"action"`
+}
+
+// ReminderConfig 审批节点提醒配置（Phase 5）：任务创建时排 task.reminder
+// Job，到期由 Worker 落 REMINDER 操作流水（V1 单次提醒，不循环）。
+type ReminderConfig struct {
+	// Seconds 任务创建后多少秒提醒（1~2592000，即最长 30 天）
+	Seconds int `json:"seconds"`
+}
+
 // ServiceConfig service 节点配置占位（Phase 7 落地执行能力，
 // Phase 0 仅冻结数据模型，校验器对 service 节点不做深度校验）。
 type ServiceConfig struct {
@@ -123,6 +158,10 @@ type NodeConfig struct {
 	PassRatio float64 `json:"passRatio,omitempty"`
 	// FormPermissions 审批节点字段权限：widgetName → 权限（approval 节点可选）
 	FormPermissions map[string]FieldPermission `json:"formPermissions,omitempty"`
+	// Timeout 审批节点超时配置（Phase 5，可选；到期自动 approve/reject）
+	Timeout *TimeoutConfig `json:"timeout,omitempty"`
+	// Reminder 审批节点提醒配置（Phase 5，可选；单次提醒流水）
+	Reminder *ReminderConfig `json:"reminder,omitempty"`
 	// Recipients 抄送对象（cc 节点必填）
 	Recipients *AssigneeSpec `json:"recipients,omitempty"`
 	// Service 服务节点配置（Phase 7 执行）

@@ -1,6 +1,8 @@
 package model
 
 import (
+	"time"
+
 	kernel "evolyn/internal/model"
 )
 
@@ -109,3 +111,25 @@ type WfCCRecord struct {
 }
 
 func (*WfCCRecord) TableName() string { return "wf_cc_record" }
+
+// WfJob 延时任务（000052，Phase 5）。
+type WfJob struct {
+	ID             uint            `json:"id" gorm:"autoIncrement;primaryKey"`
+	JobType        string          `json:"jobType" gorm:"size:32;not null"`
+	InstanceID     uint            `json:"instanceId" gorm:"not null;default:0"`
+	NodeInstanceID uint            `json:"nodeInstanceId" gorm:"not null;default:0"`
+	TaskID         uint            `json:"taskId" gorm:"not null;default:0"`
+	ExecuteAt      time.Time       `json:"executeAt" gorm:"not null"`
+	Status         string          `json:"status" gorm:"size:16;not null;default:PENDING"`
+	RetryCount     int             `json:"retryCount" gorm:"not null;default:0"`
+	MaxRetryCount  int             `json:"maxRetryCount" gorm:"not null;default:3"`
+	Payload        DSLContent      `json:"payload" gorm:"type:jsonb;not null;default:'{}'"`
+	LastError      string          `json:"lastError" gorm:"type:text;not null;default:''"`
+	CreatedAt      kernel.JSONTime `json:"createdAt"`
+	UpdatedAt      kernel.JSONTime `json:"updatedAt"`
+	// TenantID 租户隔离（Worker 全租户轮询路径 ctx 无租户上下文，本表
+	// 由租户 Callback 兜底；追加/状态机回写，无业务更新语义）
+	TenantID uint `json:"tenantId" gorm:"index;not null;default:1"`
+}
+
+func (*WfJob) TableName() string { return "wf_job" }
