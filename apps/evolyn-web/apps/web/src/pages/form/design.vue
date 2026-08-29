@@ -1,9 +1,26 @@
 <script setup lang="ts">
+import type {
+  FormSchemaIssue,
+  FormSchemaPaletteGroup,
+  FormWidgetType,
+} from '@evolyn.do/form/designer';
+import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime';
+import {
+  FormSchemaCanvas,
+  FormSchemaPalette,
+  FormSchemaPropertyPanel,
+  useFormSchemaEditor,
+  validateFormSchema,
+  validatePublishableFormSchema,
+  WIDGET_GROUP_META,
+  WIDGET_SPECS,
+} from '@evolyn.do/form/designer';
+import { ApiError } from '@evolyn.do/utils';
 import {
   RiArrowDownBoxFill,
   RiCalendarScheduleFill,
-  RiCheckDoubleFill,
   RiCheckboxMultipleFill,
+  RiCheckDoubleFill,
   RiEyeFill,
   RiFileTextFill,
   RiHashtag,
@@ -15,21 +32,6 @@ import {
   RiText,
   RiUploadCloud2Fill,
 } from '@remixicon/vue';
-import {
-  type FormSchemaIssue,
-  type FormSchemaPaletteGroup,
-  FormSchemaCanvas,
-  FormSchemaPalette,
-  FormSchemaPropertyPanel,
-  useFormSchemaEditor,
-  validateFormSchema,
-  validatePublishableFormSchema,
-  WIDGET_GROUP_META,
-  WIDGET_SPECS,
-  type FormWidgetType,
-} from '@evolyn.do/form/designer';
-import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime';
-import { ApiError } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
 import { computed, ref, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
@@ -204,6 +206,9 @@ const previewAdapter: FormRuntimeAdapter = {
   async submit() {
     return { accepted: true };
   },
+  async saveDraft() {
+    // 仅验证填写草稿交互，不调用设计结构草稿接口，也不持久化用户填写值。
+  },
 };
 
 function onUnsupportedPreviewField(info: { fieldKey: string; type: string }): void {
@@ -214,6 +219,10 @@ function onUnsupportedPreviewField(info: { fieldKey: string; type: string }): vo
 
 function onPreviewSubmitSuccess(): void {
   ElMessage.success('预览提交成功');
+}
+
+function onPreviewDraftSuccess(): void {
+  ElMessage.info('预览模式不会保存填写草稿');
 }
 
 /** 保存草稿：本地校验先行（前后端一致），服务端口令递增。 */
@@ -399,6 +408,7 @@ function notifyUnavailable(action: string) {
       :adapter="previewAdapter"
       @unsupported-field="onUnsupportedPreviewField"
       @submit-success="onPreviewSubmitSuccess"
+      @draft-success="onPreviewDraftSuccess"
     />
   </section>
 </template>

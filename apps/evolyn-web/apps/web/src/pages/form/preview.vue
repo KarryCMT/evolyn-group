@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { FormRenderer, type FormRuntimeAdapter } from '@evolyn.do/form/runtime';
-import { migrateFormSchema, type FormSchemaIssue } from '@evolyn.do/form/schema';
+import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do/form/runtime';
+import type { FormSchemaIssue } from '@evolyn.do/form/schema';
+import type { FormSchemaDocument } from '~/types';
+import { FormRuntimeSurface } from '@evolyn.do/form/runtime';
+import { migrateFormSchema } from '@evolyn.do/form/schema';
 import { ApiError } from '@evolyn.do/utils';
 import { RiArrowGoBackFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { getFormRuntime, submitFormRecord } from '~/api/form';
+import { loadFormPreviewDocument } from './preview-storage';
 // 运行时样式独立于设计器 style.css，最终用户填写页只加载关键 CSS。
 import '@evolyn.do/form/runtime/style.css';
-import { getFormRuntime, submitFormRecord } from '~/api/form';
-import type { FormSchemaDocument } from '~/types';
-import { loadFormPreviewDocument } from './preview-storage';
 
 defineOptions({ name: 'FormPreviewPage' });
 
@@ -111,6 +113,17 @@ const runtimeAdapter: FormRuntimeAdapter = {
   },
 };
 
+const runtimeActions: FormRuntimeActionDefinition[] = [
+  {
+    key: 'submit',
+    label: '提交',
+    behavior: 'submit',
+    intent: 'primary',
+    order: 100,
+    mobilePresentation: 'button',
+  },
+];
+
 function onUnsupportedField(info: { fieldKey: string; type: string }): void {
   if (unsupportedTypes.has(info.type)) return;
   unsupportedTypes.add(info.type);
@@ -150,24 +163,22 @@ function goBack(): void {
     </header>
 
     <div class="form-preview-page__body">
-      <el-scrollbar>
-        <div class="form-preview-page__canvas">
-          <el-empty v-if="initializing" description="正在加载表单…" />
-          <el-empty v-else-if="!documentRef" :description="emptyText" />
-          <!-- Web 宿主接入：--evf-* 映射到 --el-*，运行时随宿主主题与暗色模式联动。 -->
-          <FormRenderer
-            v-else
-            class="form-preview-page__runtime"
-            :schema="documentRef"
-            :form-id="formCode"
-            :published-version="runtimeInfo?.publishedVersion ?? 0"
-            :schema-revision="runtimeInfo?.schemaRevision ?? ''"
-            :adapter="runtimeAdapter"
-            @unsupported-field="onUnsupportedField"
-            @submit-success="onSubmitSuccess"
-          />
-        </div>
-      </el-scrollbar>
+      <el-empty v-if="initializing" description="正在加载表单…" />
+      <el-empty v-else-if="!documentRef" :description="emptyText" />
+      <FormRuntimeSurface
+        v-else
+        class="form-preview-page__runtime"
+        :schema="documentRef"
+        :form-id="formCode"
+        :published-version="runtimeInfo?.publishedVersion ?? 0"
+        :schema-revision="runtimeInfo?.schemaRevision ?? ''"
+        :adapter="runtimeAdapter"
+        :actions="runtimeActions"
+        layout="auto"
+        content-width="860px"
+        @unsupported-field="onUnsupportedField"
+        @submit-success="onSubmitSuccess"
+      />
     </div>
   </section>
 </template>
@@ -175,17 +186,17 @@ function goBack(): void {
 <style scoped lang="scss">
 .form-preview-page {
   display: flex;
-  min-height: 0;
   flex: 1;
   flex-direction: column;
+  min-height: 0;
   background: var(--el-bg-color-page);
 
   &__header {
     display: flex;
+    gap: var(--el-space-lg);
+    align-items: center;
     height: 50px;
     min-height: 50px;
-    align-items: center;
-    gap: var(--el-space-lg);
     padding: 0 var(--el-space-xl);
     background: var(--el-bg-color);
     border-bottom: 1px solid var(--el-border-color-lighter);
@@ -193,16 +204,16 @@ function goBack(): void {
 
   &__back {
     display: inline-flex;
-    height: 32px;
-    align-items: center;
     gap: var(--el-space-sm);
+    align-items: center;
+    height: 32px;
     padding: 0 var(--el-space-md);
-    color: var(--el-text-color-regular);
     font-size: var(--el-font-size-base);
+    color: var(--el-text-color-regular);
+    cursor: pointer;
     background: transparent;
     border: 0;
     border-radius: var(--el-border-radius-base);
-    cursor: pointer;
 
     svg {
       width: 18px;
@@ -222,79 +233,41 @@ function goBack(): void {
 
   &__title {
     display: flex;
-    align-items: center;
     gap: var(--el-space-md);
+    align-items: center;
     margin: 0;
-    color: var(--el-text-color-primary);
     font-size: var(--el-font-size-medium);
     font-weight: 600;
+    color: var(--el-text-color-primary);
   }
 
   &__title-tag {
     padding: 0 var(--el-space-md);
-    color: var(--el-color-primary);
     font-size: var(--el-font-size-extra-small);
     font-weight: 500;
     line-height: 20px;
+    color: var(--el-color-primary);
     background: var(--el-color-primary-light-9);
     border-radius: var(--el-border-radius-base);
   }
 
   &__body {
     display: flex;
-    min-height: 0;
     flex: 1;
     flex-direction: column;
+    min-height: 0;
   }
 
-  &__canvas {
-    display: flex;
-    max-width: 860px;
-    min-height: 100%;
-    margin: 0 auto;
-    padding: var(--el-space-3xl) var(--el-space-md) var(--el-space-4xl);
-    flex-direction: column;
-  }
-
-  // 运行时主题映射：中性色/状态色全部取宿主 Element Plus 变量，暗色模式自动跟随。
   &__runtime {
-    --evf-color-text: var(--el-text-color-primary);
-    --evf-color-text-regular: var(--el-text-color-regular);
-    --evf-color-text-secondary: var(--el-text-color-secondary);
-    --evf-color-text-placeholder: var(--el-text-color-placeholder);
-    --evf-color-text-disabled: var(--el-text-color-disabled);
-    --evf-color-border: var(--el-border-color);
-    --evf-color-border-light: var(--el-border-color-light);
-    --evf-color-border-lighter: var(--el-border-color-lighter);
-    --evf-color-fill-light: var(--el-fill-color-light);
-    --evf-color-bg: var(--el-bg-color);
-    --evf-color-primary: var(--el-color-primary);
-    --evf-color-danger: var(--el-color-danger);
-    --evf-font-size-base: var(--el-font-size-base);
-    --evf-font-size-small: var(--el-font-size-small);
-    --evf-font-size-extra-small: var(--el-font-size-extra-small);
-    --evf-space-sm: var(--el-space-sm);
-    --evf-space-md: var(--el-space-md);
-    --evf-space-lg: var(--el-space-lg);
-    --evf-space-xl: var(--el-space-xl);
-    --evf-space-3xl: var(--el-space-3xl);
-    --evf-radius-base: var(--el-border-radius-base);
-    --evf-radius-medium: var(--el-border-radius-medium);
-    background: var(--el-bg-color);
-    border: 1px solid var(--el-border-color-lighter);
-    border-radius: var(--el-border-radius-large);
-    box-shadow: var(--el-box-shadow-light);
+    flex: 1;
+    min-height: 0;
   }
 }
 
-@media (max-width: 620px) {
+@media (width <= 620px) {
   .form-preview-page {
     &__back-label {
       display: none;
-    }
-
-    &__canvas {
-      padding: var(--el-space-lg) var(--el-space-xs) var(--el-space-3xl);
     }
   }
 }

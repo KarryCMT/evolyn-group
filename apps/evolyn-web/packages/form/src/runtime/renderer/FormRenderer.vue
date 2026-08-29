@@ -1,18 +1,19 @@
 <script setup lang="ts">
-import { ref, shallowRef, watch } from 'vue';
-import { validateFormSchema, type FormSchemaIssue } from '../../schema/validate';
+import { onBeforeUnmount, onMounted, shallowRef, watch } from 'vue';
+import { type FormSchemaIssue, validateFormSchema } from '../../schema/validate';
 import type { FormSchemaDocument } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
 import {
-  createFormRuntime,
+  type FormDraftOutcome,
   type FormRuntime,
   type FormSubmitOutcome,
+  createFormRuntime,
 } from '../store/createFormRuntime';
 import { createFocusRegistry, provideFormRendererContext } from '../store/injection';
-import type { FormSubmitPayload, FormValue } from '../types';
-import { createDefaultFieldRegistry, type FormFieldRegistry } from '../widgets/registry';
+import type { FormDraftPayload, FormSubmitPayload, FormValue } from '../types';
+import { type FormFieldRegistry, createDefaultFieldRegistry } from '../widgets/registry';
 import FormSectionRenderer from './FormSectionRenderer.vue';
-import FormSubmitBar from './FormSubmitBar.vue';
+import type { FormRendererExpose } from './types';
 
 /**
  * 最终渲染器总装：初始化会话、提供上下文、管理提交与整体状态。
@@ -32,21 +33,35 @@ const props = withDefaults(
     adapter?: FormRuntimeAdapter;
     /** 自定义字段注册表；缺省使用基础字段默认注册表。 */
     registry?: FormFieldRegistry;
-    /** 提交按钮文案；缺省「提交」（协议不承载表单级设置，由宿主注入）。 */
-    submitText?: string;
+    /** 原生 form 的稳定 DOM ID，供外部操作栏通过 form 属性建立语义关联。 */
+    formDomId?: string;
   }>(),
-  { formId: '', publishedVersion: 0, schemaRevision: '', submitText: '提交' },
+  {
+    formId: '',
+    publishedVersion: 0,
+    schemaRevision: '',
+    initialValues: undefined,
+    contextDefaults: undefined,
+    adapter: undefined,
+    registry: undefined,
+    formDomId: undefined,
+  },
 );
 
 const emit = defineEmits<{
   submit: [payload: FormSubmitPayload];
   'submit-success': [payload: FormSubmitPayload];
   'submit-error': [error: unknown];
+  draft: [payload: FormDraftPayload];
+  'draft-success': [payload: FormDraftPayload];
+  'draft-error': [error: unknown];
+  'runtime-change': [runtime: FormRuntime | null];
   'unsupported-field': [info: { fieldKey: string; type: string }];
 }>();
 
 const runtimeRef = shallowRef<FormRuntime | null>(null);
-const schemaIssues = ref<FormSchemaIssue[]>([]);
+const schemaIssues = shallowRef<FormSchemaIssue[]>([]);
+const operationController = shallowRef<AbortController | null>(null);
 // 注册表在会话间复用：字段组件解析与异步包装缓存不应随 Schema 替换丢失。
 const fieldRegistry = props.registry ?? createDefaultFieldRegistry();
 const focusRegistry = createFocusRegistry();
@@ -62,8 +77,19 @@ provideFormRendererContext({
 
 // Schema 引用变更即替换整个会话（发布不可变，运行中不做字段级热更新）。
 watch(
-  () => props.schema,
-  (schema) => {
+  [
+    () => props.schema,
+    () => props.formId,
+    () => props.publishedVersion,
+    () => props.schemaRevision,
+    () => props.initialValues,
+    () => props.contextDefaults,
+    () => props.adapter,
+  ],
+  ([schema]) => {
+    // Schema/资产切换时终止旧会话请求，避免旧响应回写新表单。
+    operationController.value?.abort();
+    operationController.value = null;
     const result = validateFormSchema(schema);
     if (result.valid) {
       schemaIssues.value = [];
@@ -80,11 +106,16 @@ watch(
       schemaIssues.value = result.issues;
       runtimeRef.value = null;
     }
+    emit('runtime-change', runtimeRef.value);
   },
   { immediate: true },
 );
 
-/** 错误定位：优先聚焦第一个出错字段；聚焦不到时回退提交栏错误摘要。 */
+onBeforeUnmount(() => operationController.value?.abort());
+// immediate watch 可能发生在父组件事件监听完成前，挂载后补发当前会话供 Surface 建立只读投影。
+onMounted(() => emit('runtime-change', runtimeRef.value));
+
+/** 错误定位：优先聚焦第一个出错字段；聚焦不到时由 Surface 展示操作区错误摘要。 */
 function focusFirstError(): boolean {
   const runtime = runtimeRef.value;
   if (!runtime) return false;
@@ -97,32 +128,61 @@ function focusFirstError(): boolean {
   return false;
 }
 
-async function handleSubmit(): Promise<void> {
+async function handleSubmit(): Promise<FormSubmitOutcome | undefined> {
   const runtime = runtimeRef.value;
-  if (!runtime) return;
-  const outcome: FormSubmitOutcome = await runtime.submit();
+  if (!runtime) return undefined;
+  // 保留正在执行请求的控制器，避免重复命令覆盖后导致卸载时无法取消旧请求。
+  if (operationController.value) return { ok: false, reason: 'busy' };
+  const controller = new AbortController();
+  operationController.value = controller;
+  const outcome: FormSubmitOutcome = await runtime.submit(controller.signal);
+  if (operationController.value === controller) operationController.value = null;
   if (outcome.ok) {
     emit('submit', outcome.payload);
     if (outcome.submitted) emit('submit-success', outcome.payload);
-    return;
+    return outcome;
   }
   if (outcome.reason === 'invalid' || outcome.reason === 'server') focusFirstError();
   if (outcome.reason === 'error') emit('submit-error', outcome.error);
+  return outcome;
 }
 
-defineExpose({
+async function handleSaveDraft(): Promise<FormDraftOutcome | undefined> {
+  const runtime = runtimeRef.value;
+  if (!runtime) return undefined;
+  if (operationController.value) return { ok: false, reason: 'busy' };
+  const controller = new AbortController();
+  operationController.value = controller;
+  const outcome = await runtime.saveDraft(controller.signal);
+  if (operationController.value === controller) operationController.value = null;
+  if (outcome.ok) {
+    emit('draft', outcome.payload);
+    emit('draft-success', outcome.payload);
+  } else if (outcome.reason === 'error') {
+    emit('draft-error', outcome.error);
+  }
+  return outcome;
+}
+
+const exposed = {
   /** 只读会话引用；宿主可读取状态但不得绕过 action 直接改写。 */
   runtime: runtimeRef,
+  getRuntime: () => runtimeRef.value,
   submit: handleSubmit,
+  saveDraft: handleSaveDraft,
+  buildSubmitPayload: () => runtimeRef.value?.buildSubmitPayload() ?? null,
+  buildDraftPayload: () => runtimeRef.value?.buildDraftPayload() ?? null,
   focusFirstError,
   /** 手动重置会话（继续填写场景）。 */
   reset: () => runtimeRef.value?.reset(),
-});
+} satisfies FormRendererExpose;
+
+defineExpose(exposed);
 </script>
 
 <template>
   <!-- novalidate：校验统一由运行时接管，避免原生气泡与错误态双轨展示。 -->
-  <form class="evf-form" novalidate @submit.prevent="handleSubmit">
+  <form :id="formDomId" class="evf-form" novalidate @submit.prevent="handleSubmit">
     <div v-if="schemaIssues.length > 0" class="evf-form__invalid" role="alert">
       <p class="evf-form__invalid-title">表单配置无法加载</p>
       <ul class="evf-form__invalid-list">
@@ -131,9 +191,6 @@ defineExpose({
         </li>
       </ul>
     </div>
-    <template v-else-if="runtimeRef">
-      <FormSectionRenderer />
-      <FormSubmitBar :submit-text="submitText" />
-    </template>
+    <FormSectionRenderer v-else-if="runtimeRef" />
   </form>
 </template>

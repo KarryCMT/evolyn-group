@@ -101,11 +101,59 @@ describe('FormRenderer 渲染', () => {
     expect(wrapper.find('.evf-field__error').text()).toContain('已被占用');
   });
 
-  it('submitText 覆盖提交按钮文案（协议不承载表单级设置）', () => {
+  it('不渲染具体操作栏，并为外部操作区提供稳定 form DOM ID', () => {
     const wrapper = mount(FormRenderer, {
-      props: { schema: schema([]), submitText: '保存草稿' },
+      props: { schema: schema([]), formDomId: 'runtime-form-a' },
     });
-    expect(wrapper.find('.evf-submit-bar__submit').text()).toBe('保存草稿');
+    expect(wrapper.find('form').attributes('id')).toBe('runtime-form-a');
+    expect(wrapper.find('.evf-runtime-action-bar').exists()).toBe(false);
+  });
+
+  it('通过公开命令保存填写草稿并发出成功事件', async () => {
+    const saveDraft = vi.fn(async () => undefined);
+    const wrapper = mount(FormRenderer, {
+      props: {
+        schema: schema([item({ type: 'text', widgetName: '_widget_t' })]),
+        adapter: { saveDraft },
+      },
+    });
+    await wrapper.find('input').setValue('draft');
+
+    const outcome = await (
+      wrapper.vm as unknown as { saveDraft(): Promise<{ ok: boolean }> }
+    ).saveDraft();
+
+    expect(outcome.ok).toBe(true);
+    expect(saveDraft).toHaveBeenCalledTimes(1);
+    expect(wrapper.emitted('draft-success')).toHaveLength(1);
+  });
+
+  it('公开命令互斥执行，不用新请求覆盖活动请求的取消控制器', async () => {
+    let release: (() => void) | undefined;
+    const submit = vi.fn(
+      () =>
+        new Promise<FormSubmitResult>((resolve) => {
+          release = () => resolve({ accepted: true });
+        }),
+    );
+    const wrapper = mount(FormRenderer, {
+      props: {
+        schema: schema([item({ type: 'text', widgetName: '_widget_t' })]),
+        adapter: { submit },
+      },
+    });
+    const exposed = wrapper.vm as unknown as {
+      submit(): Promise<{ ok: boolean; reason?: string }>;
+      saveDraft(): Promise<{ ok: boolean; reason?: string }>;
+    };
+
+    const submitting = exposed.submit();
+    const competing = await exposed.saveDraft();
+
+    expect(competing).toMatchObject({ ok: false, reason: 'busy' });
+    expect(submit).toHaveBeenCalledTimes(1);
+    release?.();
+    await submitting;
   });
 
   it('enable=false 字段渲染禁用态控件', () => {

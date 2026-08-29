@@ -247,21 +247,24 @@ function selectWorkspaceAsset(asset: ApplicationWorkspaceAsset) {
   });
 }
 
-/** 顶栏“编辑”只对当前表单生效，并携带菜单目标资产的公开 formCode 进入设计器。 */
+/**
+ * 顶栏模式入口只对当前表单生效：填写留在应用运行态，编辑与数据管理
+ * 携带菜单目标资产的公开 formCode 进入各自独立工作区。
+ */
 function updateWorkspaceMode(mode: ApplicationWorkspaceMode) {
-  if (mode !== 'design') {
-    workspaceMode.value = mode;
+  if (mode === 'fill') {
+    workspaceMode.value = 'fill';
     return;
   }
 
   const asset = activeWorkspaceAsset.value;
   if (!asset || asset.type !== 'form' || !asset.targetCode) {
-    ElMessage.info('请先从左侧选择要编辑的表单');
+    ElMessage.info(`请先从左侧选择要${mode === 'design' ? '编辑' : '管理数据'}的表单`);
     return;
   }
 
   void router.push({
-    name: 'form-design',
+    name: mode === 'design' ? 'form-design' : 'form-data',
     params: { appCode: appCode.value, formCode: asset.targetCode },
   });
 }
@@ -391,12 +394,13 @@ function reloadWorkspace() {
         :sub-title="menuErrorMessage"
       >
         <template #extra>
-          <el-button type="primary" @click="reloadMenu()">重新加载</el-button>
+          <el-button type="primary" @click="reloadMenu()"> 重新加载 </el-button>
         </template>
       </el-result>
 
       <ApplicationWorkspaceShell
         v-else
+        :app-code="appCode"
         :application-name="applicationName"
         :application-icon="application?.icon ?? DEFAULT_APPLICATION_ICON"
         :assets="menuAssets"
@@ -445,7 +449,7 @@ function reloadWorkspace() {
         sub-title="请返回工作台后重新选择应用。"
       >
         <template #extra>
-          <el-button type="primary" @click="returnToDashboard">返回工作台</el-button>
+          <el-button type="primary" @click="returnToDashboard"> 返回工作台 </el-button>
         </template>
       </el-result>
 
@@ -457,7 +461,7 @@ function reloadWorkspace() {
         :sub-title="errorMessage"
       >
         <template #extra>
-          <el-button type="primary" @click="reloadWorkspace()">重新加载</el-button>
+          <el-button type="primary" @click="reloadWorkspace()"> 重新加载 </el-button>
         </template>
       </el-result>
 

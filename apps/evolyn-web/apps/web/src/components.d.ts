@@ -30,6 +30,7 @@ declare module 'vue' {
     ApplicationStarterCard: typeof import('./components/application/create/ApplicationStarterCard.vue')['default']
     ApplicationTemplateCard: typeof import('./components/application/create/ApplicationTemplateCard.vue')['default']
     ApplicationWorkspaceAssetItem: typeof import('./components/application/workspace/ApplicationWorkspaceAssetItem.vue')['default']
+    ApplicationWorkspaceFormRuntime: typeof import('./components/application/runtime/ApplicationWorkspaceFormRuntime.vue')['default']
     ApplicationWorkspaceHeader: typeof import('./components/application/workspace/ApplicationWorkspaceHeader.vue')['default']
     ApplicationWorkspaceShell: typeof import('./components/application/workspace/ApplicationWorkspaceShell.vue')['default']
     ApplicationWorkspaceSidebar: typeof import('./components/application/workspace/ApplicationWorkspaceSidebar.vue')['default']

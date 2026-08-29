@@ -154,7 +154,7 @@ describe('提交', () => {
     if (!outcome.ok) expect(outcome.reason).toBe('invalid');
   });
 
-  it('服务端字段错误按 widgetName 回填并进入 failed 态', async () => {
+  it('服务端字段错误按 widgetName 回填并恢复 ready 生命周期', async () => {
     const rejected: FormSubmitResult = {
       accepted: false,
       fieldErrors: { _widget_m: ['选项已失效'] },
@@ -170,7 +170,8 @@ describe('提交', () => {
     if (outcome.ok) return;
     expect(outcome.reason).toBe('server');
     expect(runtime.state.fieldStates._widget_m.errors).toEqual(['选项已失效']);
-    expect(runtime.state.formState).toBe('failed');
+    expect(runtime.state.lifecycle).toBe('ready');
+    expect(runtime.state.activeOperation).toBeNull();
   });
 
   it('adapter 抛 AbortError 恢复 ready 态（取消不是业务错误）', async () => {
@@ -188,6 +189,90 @@ describe('提交', () => {
     const outcome = await runtime.submit();
     expect(outcome.ok).toBe(false);
     if (!outcome.ok) expect(outcome.reason).toBe('cancelled');
-    expect(runtime.state.formState).toBe('ready');
+    expect(runtime.state.lifecycle).toBe('ready');
+    expect(runtime.state.activeOperation).toBeNull();
+  });
+
+  it('兼容 Axios 的 ERR_CANCELED 取消错误', async () => {
+    const runtime = createFormRuntime({
+      schema,
+      adapter: {
+        submit: async () => Promise.reject({ code: 'ERR_CANCELED' }),
+      },
+    });
+    runtime.setValue('_widget_t', 'ok');
+
+    const outcome = await runtime.submit();
+
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.reason).toBe('cancelled');
+    expect(runtime.state.issues).toEqual([]);
+    expect(runtime.state.lifecycle).toBe('ready');
+  });
+});
+
+describe('填写草稿', () => {
+  const schema = documentOf([
+    item({ type: 'text', widgetName: '_widget_visible', allowBlank: false }),
+    item({ type: 'text', widgetName: '_widget_hidden', visible: false }),
+  ]);
+
+  it('不执行必填校验并保存全部字段及版本口令', async () => {
+    let received: unknown;
+    const runtime = createFormRuntime({
+      schema,
+      formId: 'form_a',
+      publishedVersion: 2,
+      schemaRevision: 'revision-2',
+      initialValues: { _widget_hidden: '保留值' },
+      adapter: {
+        saveDraft: async (payload) => {
+          received = payload;
+        },
+      },
+    });
+    runtime.setValue('_widget_visible', '未完成');
+
+    const outcome = await runtime.saveDraft();
+
+    expect(outcome.ok).toBe(true);
+    expect(received).toEqual({
+      formId: 'form_a',
+      publishedVersion: 2,
+      schemaRevision: 'revision-2',
+      values: { _widget_visible: '未完成', _widget_hidden: '保留值' },
+    });
+    expect(runtime.isDirty()).toBe(false);
+  });
+
+  it('adapter 缺失时返回 unavailable，不伪装保存成功', async () => {
+    const runtime = createFormRuntime({ schema });
+    const outcome = await runtime.saveDraft();
+    expect(outcome.ok).toBe(false);
+    if (!outcome.ok) expect(outcome.reason).toBe('unavailable');
+  });
+
+  it('提交与保存草稿互斥，避免并发持久化', async () => {
+    let release: (() => void) | undefined;
+    const runtime = createFormRuntime({
+      schema: documentOf([item({ type: 'text', widgetName: '_widget_t' })]),
+      adapter: {
+        saveDraft: () =>
+          new Promise<void>((resolve) => {
+            release = resolve;
+          }),
+        submit: async () => ({ accepted: true }),
+      },
+    });
+
+    const saving = runtime.saveDraft();
+    expect(runtime.state.activeOperation).toBe('save-draft');
+    const submitOutcome = await runtime.submit();
+    expect(submitOutcome.ok).toBe(false);
+    if (!submitOutcome.ok) expect(submitOutcome.reason).toBe('busy');
+
+    release?.();
+    await saving;
+    expect(runtime.state.activeOperation).toBeNull();
   });
 });

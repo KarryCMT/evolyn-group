@@ -71,8 +71,12 @@ export function publishForm(code: string, draftRevision: number): Promise<FormPu
  * 运行时引导（GET /applications/code/:appCode/forms/:formCode/runtime）：
  * 返回已发布快照与双口令；未发布抛 FORM_NOT_PUBLISHED。
  */
-export function getFormRuntime(appCode: string, formCode: string): Promise<FormRuntimeBootstrap> {
-  return http.get(`/applications/code/${appCode}/forms/${formCode}/runtime`);
+export function getFormRuntime(
+  appCode: string,
+  formCode: string,
+  signal?: AbortSignal,
+): Promise<FormRuntimeBootstrap> {
+  return http.get(`/applications/code/${appCode}/forms/${formCode}/runtime`, undefined, signal);
 }
 
 /**
@@ -80,11 +84,14 @@ export function getFormRuntime(appCode: string, formCode: string): Promise<FormR
  * 校验失败抛 errCode=FORM_RECORD_INVALID（ApiError.data.fieldErrors 按字段键回填），
  * 版本口令不符抛 FORM_VERSION_CONFLICT。
  */
-export function submitFormRecord(payload: {
-  formCode: string;
-  publishedVersion: number;
-  schemaRevision: string;
-  values: Record<string, unknown>;
-}): Promise<FormRecordSubmitResult> {
-  return http.post('/form-records', payload);
+export function submitFormRecord(
+  payload: {
+    formCode: string;
+    publishedVersion: number;
+    schemaRevision: string;
+    values: Record<string, unknown>;
+  },
+  signal?: AbortSignal,
+): Promise<FormRecordSubmitResult> {
+  return http.post('/form-records', payload, { signal });
 }

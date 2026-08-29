@@ -9,8 +9,11 @@ export type FormValue = FormJsonValue;
 /** 值写入来源：仅用户输入计入脏状态，初始化与规则回写不污染草稿语义。 */
 export type FormValueSource = 'user' | 'init';
 
-/** 表单会话阶段；submitted 后由宿主决定跳转、重置或继续填写。 */
-export type FormRuntimePhase = 'initializing' | 'ready' | 'submitting' | 'submitted' | 'failed';
+/** 表单会话生命周期；请求进行态单独由 activeOperation 表达。 */
+export type FormRuntimeLifecycle = 'initializing' | 'ready' | 'submitted';
+
+/** 内置持久化操作互斥执行，业务自定义动作的状态由宿主持有。 */
+export type FormRuntimeOperation = 'submit' | 'save-draft';
 
 /** 单字段运行时状态；FieldHost 只按自身 widgetName 订阅，避免整表重渲染。 */
 export interface FieldRuntimeState {
@@ -22,7 +25,7 @@ export interface FieldRuntimeState {
   errors: readonly string[];
 }
 
-/** 表单级问题：字段错误按 widgetName 关联，非字段错误（提交失败等）展示在提交栏。 */
+/** 表单级问题：字段错误按 widgetName 关联，非字段错误（提交失败等）展示在操作区摘要。 */
 export interface FormIssue {
   fieldKey?: string;
   message: string;
@@ -33,7 +36,8 @@ export interface FormIssue {
 export interface FormRuntimeState {
   values: Record<string, FormValue>;
   fieldStates: Record<string, FieldRuntimeState>;
-  formState: FormRuntimePhase;
+  lifecycle: FormRuntimeLifecycle;
+  activeOperation: FormRuntimeOperation | null;
   dirtyKeys: Set<string>;
   issues: FormIssue[];
 }
@@ -49,7 +53,7 @@ export interface FormSubmitPayload {
   values: Record<string, FormValue>;
 }
 
-/** 服务端提交结果；字段级错误按 widgetName 回填，非字段错误经 message 展示在提交栏。 */
+/** 服务端提交结果；字段级错误按 widgetName 回填，非字段错误经 message 展示在操作区摘要。 */
 export interface FormSubmitResult {
   accepted: boolean;
   fieldErrors?: Record<string, string[]>;
@@ -59,6 +63,8 @@ export interface FormSubmitResult {
 /** 草稿载荷；本地草稿的隔离与过期策略由宿主 adapter 负责。 */
 export interface FormDraftPayload {
   formId: string;
+  publishedVersion: number;
+  schemaRevision: string;
   values: Record<string, FormValue>;
 }
 

@@ -1,6 +1,5 @@
-// 表单运行时最小样式（文档 §7.4）：自带语义化 CSS 与主题变量，不依赖 Element Plus。
-// 变量默认值与《前端中性色变量》规范保持一致；Web 宿主接入时应将 --evf-* 映射到
-// 宿主主题变量（如 --el-*），即可获得全局主题与暗色模式的自动跟随。
+// FormRenderer 基础样式（文档 §7.4）：以 --evf-* 保持可嵌入；Web 官方组合入口
+// FormRuntimeSurface 在下方统一映射 Element Plus 主题变量，并承载固定操作区样式。
 
 .evf-form {
   // —— 主题变量：文本 ——
@@ -9,14 +8,16 @@
   --evf-color-text-secondary: #909399;
   --evf-color-text-placeholder: #a8abb2;
   --evf-color-text-disabled: #c0c4cc;
+
   // —— 主题变量：边框 / 填充 / 背景 ——
   --evf-color-border: #dcdfe6;
   --evf-color-border-light: #e4e7ed;
   --evf-color-border-lighter: #ebeef5;
   --evf-color-fill-light: #f5f7fa;
-  --evf-color-bg: #ffffff;
+  --evf-color-bg: #fff;
   --evf-color-primary: #409eff;
   --evf-color-danger: #f56c6c;
+
   // —— 主题变量：字号 / 间距 / 圆角 / 控件高度 ——
   --evf-font-size-base: 14px;
   --evf-font-size-small: 13px;
@@ -29,15 +30,16 @@
   --evf-radius-base: 4px;
   --evf-radius-medium: 6px;
   --evf-control-height: 36px;
+
   // —— 布局意图（lineWidth 语义见字段字典 §2）：移动端默认单列，桌面 12 栅格；
   // 断点由媒体查询切换，不在 Schema 复制两份配置 ——
   --evf-columns: 1;
 
   display: flex;
   flex-direction: column;
-  color: var(--evf-color-text);
   font-size: var(--evf-font-size-base);
   line-height: 1.5;
+  color: var(--evf-color-text);
 
   *,
   *::before,
@@ -47,7 +49,7 @@
 }
 
 // 桌面端切换为 12 栅格；跨列数由 --evf-field-span 表达并收敛在列数内。
-@media (min-width: 768px) {
+@media (width >= 768px) {
   .evf-form {
     --evf-columns: 12;
     --evf-control-height: 36px;
@@ -55,7 +57,7 @@
 }
 
 // 移动端触控目标不小于 44px。
-@media (max-width: 767px) {
+@media (width <= 767px) {
   .evf-form {
     --evf-control-height: 44px;
   }
@@ -65,8 +67,7 @@
 .evf-form__body {
   display: grid;
   grid-template-columns: repeat(var(--evf-columns), minmax(0, 1fr));
-  column-gap: var(--evf-space-3xl);
-  row-gap: var(--evf-space-xl);
+  gap: var(--evf-space-xl) var(--evf-space-3xl);
   padding: var(--evf-space-3xl);
 }
 
@@ -79,10 +80,10 @@
 
 .evf-field {
   display: flex;
-  min-width: 0;
   flex-direction: column;
-  gap: var(--evf-space-md);
   grid-column: span clamp(1, var(--evf-field-span, 12), var(--evf-columns, 1));
+  gap: var(--evf-space-md);
+  min-width: 0;
 
   &--layout {
     // 布局项（分割线等）忽略 lineWidth，整行渲染。
@@ -93,15 +94,15 @@
 
 .evf-field__label {
   display: inline-flex;
-  align-items: center;
   gap: 2px;
+  align-items: center;
   font-weight: 500;
   color: var(--evf-color-text);
 }
 
 .evf-field__required {
-  color: var(--evf-color-danger);
   font-weight: 500;
+  color: var(--evf-color-danger);
 }
 
 .evf-field__description {
@@ -114,8 +115,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin: 0;
   padding: 0;
+  margin: 0;
   list-style: none;
 }
 
@@ -145,21 +146,21 @@
     color: var(--evf-color-text-placeholder);
   }
 
-  &:hover:not(:disabled):not([readonly]) {
+  &:hover:not(:disabled, [readonly]) {
     border-color: var(--evf-color-text-placeholder);
   }
 
   &:focus-visible {
-    border-color: var(--evf-color-primary);
     outline: none;
+    border-color: var(--evf-color-primary);
     box-shadow: 0 0 0 1px var(--evf-color-primary);
   }
 
   &:disabled {
     color: var(--evf-color-text-disabled);
+    cursor: not-allowed;
     background: var(--evf-color-fill-light);
     border-color: var(--evf-color-border-lighter);
-    cursor: not-allowed;
   }
 
   &[readonly] {
@@ -168,14 +169,14 @@
 }
 
 .evf-textarea {
-  resize: vertical;
   line-height: 1.6;
+  resize: vertical;
 
   &--auto {
     height: auto;
     min-height: calc(var(--evf-control-height) + 16px);
-    resize: none;
     overflow: hidden;
+    resize: none;
   }
 }
 
@@ -192,15 +193,14 @@
   gap: var(--evf-space-md) var(--evf-space-xl);
 
   &--horizontal {
-    flex-direction: row;
-    flex-wrap: wrap;
+    flex-flow: row wrap;
   }
 }
 
 .evf-choice {
   display: inline-flex;
-  align-items: center;
   gap: var(--evf-space-md);
+  align-items: center;
   min-height: 36px;
   padding: var(--evf-space-sm) 0;
   cursor: pointer;
@@ -219,7 +219,7 @@
   }
 }
 
-@media (max-width: 767px) {
+@media (width <= 767px) {
   .evf-choice {
     min-height: 44px;
   }
@@ -228,22 +228,22 @@
 // —— 布局字段 / 未支持字段 ——
 .evf-divider {
   display: flex;
-  align-items: center;
   gap: var(--evf-space-lg);
+  align-items: center;
   min-height: 32px;
   color: var(--evf-color-text);
 
   &::before {
-    content: '';
     flex: 0 0 var(--evf-space-lg);
     height: 1px;
+    content: '';
     background: var(--evf-color-border);
   }
 
   &::after {
-    content: '';
     flex: 1;
     height: 1px;
+    content: '';
     background: var(--evf-color-border);
   }
 
@@ -274,8 +274,8 @@
 
 // —— 无效 Schema 的受控错误态（文档 §10.2：不创建半初始化会话） ——
 .evf-form__invalid {
-  margin: var(--evf-space-3xl);
   padding: var(--evf-space-3xl);
+  margin: var(--evf-space-3xl);
   color: var(--evf-color-danger);
   background: var(--evf-color-bg);
   border: 1px solid var(--evf-color-border-lighter);
@@ -290,70 +290,207 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    margin: 0;
     padding-left: var(--evf-space-xl);
+    margin: 0;
     font-size: var(--evf-font-size-small);
   }
 }
 
-// —— 提交栏：移动端固定在安全区内（文档 §8.2） ——
-.evf-submit-bar {
+// —— Web 运行时表面：唯一滚动内容区 + 容器内固定操作区 ——
+.evf-runtime-surface {
   display: flex;
   flex-direction: column;
-  gap: var(--evf-space-md);
-  padding: var(--evf-space-lg) var(--evf-space-3xl)
-    max(var(--evf-space-lg), env(safe-area-inset-bottom));
-  border-top: 1px solid var(--evf-color-border-lighter);
-  background: var(--evf-color-bg);
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  min-height: 0;
+  container-name: evf-runtime-surface;
+  container-type: inline-size;
+  overflow: hidden;
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color);
+
+  // FormRenderer 保持跨宿主的 --evf-* 契约；Surface 作为 Element Plus Web 宿主
+  // 在组合边界完成主题映射，页面不再重复声明同一组变量。
+  .evf-form {
+    --evf-color-text: var(--el-text-color-primary);
+    --evf-color-text-regular: var(--el-text-color-regular);
+    --evf-color-text-secondary: var(--el-text-color-secondary);
+    --evf-color-text-placeholder: var(--el-text-color-placeholder);
+    --evf-color-text-disabled: var(--el-text-color-disabled);
+    --evf-color-border: var(--el-border-color);
+    --evf-color-border-light: var(--el-border-color-light);
+    --evf-color-border-lighter: var(--el-border-color-lighter);
+    --evf-color-fill-light: var(--el-fill-color-light);
+    --evf-color-bg: var(--el-bg-color);
+    --evf-color-primary: var(--el-color-primary);
+    --evf-color-danger: var(--el-color-danger);
+    --evf-font-size-base: var(--el-font-size-base);
+    --evf-font-size-small: var(--el-font-size-small);
+    --evf-font-size-extra-small: var(--el-font-size-extra-small);
+    --evf-space-sm: var(--el-space-sm);
+    --evf-space-md: var(--el-space-md);
+    --evf-space-lg: var(--el-space-lg);
+    --evf-space-xl: var(--el-space-xl);
+    --evf-space-3xl: var(--el-space-3xl);
+    --evf-radius-base: var(--el-border-radius-base);
+    --evf-radius-medium: var(--el-border-radius-medium);
+  }
+
+  &--desktop .evf-form {
+    --evf-columns: 12;
+    --evf-control-height: 36px;
+  }
+
+  &--mobile .evf-form {
+    --evf-columns: 1;
+    --evf-control-height: 44px;
+  }
+}
+
+.evf-runtime-surface__scrollbar {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.evf-runtime-surface__canvas {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100%;
+  padding: var(--el-space-3xl) var(--el-space-md) var(--el-space-4xl);
+  margin: 0 auto;
+}
+
+.evf-runtime-surface__form {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 100%;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: var(--el-border-radius-large);
+}
+
+.evf-runtime-action-bar {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  gap: var(--el-space-md);
+  min-width: 0;
+  padding: var(--el-space-lg) var(--el-space-3xl)
+    max(var(--el-space-lg), env(safe-area-inset-bottom));
+  background: var(--el-bg-color);
+  border-top: 1px solid var(--el-border-color-lighter);
+  box-shadow: var(--el-box-shadow-lighter);
 
   &__issues {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    margin: 0;
+    gap: var(--el-space-xs);
+    width: 100%;
     padding: 0;
+    margin: 0;
+    margin-inline: auto;
     list-style: none;
   }
 
   &__issue {
-    font-size: var(--evf-font-size-extra-small);
-    color: var(--evf-color-danger);
+    margin: 0;
+    font-size: var(--el-font-size-extra-small);
+    color: var(--el-color-danger);
   }
 
-  &__submit {
-    display: inline-flex;
+  &__content {
     width: 100%;
-    height: 44px;
+    margin: 0 auto;
+  }
+
+  &__layout,
+  &__group {
+    display: flex;
+    gap: var(--el-space-lg);
     align-items: center;
-    justify-content: center;
-    font-size: var(--evf-font-size-base);
-    font-weight: 500;
-    color: #ffffff;
-    background: var(--evf-color-primary);
-    border: 0;
-    border-radius: var(--evf-radius-medium);
-    cursor: pointer;
-    transition: opacity 0.15s ease;
+  }
 
-    &:hover:not(:disabled) {
-      opacity: 0.85;
+  &__layout {
+    width: 100%;
+
+    &--mobile {
+      display: none;
+    }
+  }
+
+  &__group {
+    flex: 1;
+    min-width: 0;
+
+    .el-button + .el-button {
+      margin-left: 0;
+    }
+  }
+
+  &__more,
+  &__mobile-more {
+    svg {
+      width: 18px;
+      height: 18px;
+    }
+  }
+
+  &__more {
+    display: inline-flex;
+    gap: var(--el-space-sm);
+  }
+
+  &__mobile-action {
+    min-width: 0;
+    margin-left: 0;
+
+    &--primary {
+      flex: 1;
+    }
+  }
+}
+
+.evf-runtime-action-bar--mobile {
+  padding-inline: var(--el-space-xl);
+
+  .evf-runtime-action-bar__layout--desktop {
+    display: none;
+  }
+
+  .evf-runtime-action-bar__layout--mobile {
+    display: flex;
+  }
+}
+
+@container evf-runtime-surface (width <= 560px) {
+  .evf-runtime-surface--auto .evf-form {
+    --evf-columns: 1;
+    --evf-control-height: 44px;
+  }
+
+  .evf-runtime-action-bar--auto {
+    padding-inline: var(--el-space-xl);
+
+    .evf-runtime-action-bar__layout--desktop {
+      display: none;
     }
 
-    &:focus-visible {
-      outline: 2px solid var(--evf-color-primary);
-      outline-offset: 2px;
+    .evf-runtime-action-bar__layout--mobile {
+      display: flex;
     }
+  }
 
-    &:disabled {
-      cursor: not-allowed;
-      opacity: 0.6;
-    }
+  .evf-runtime-surface__canvas {
+    padding: var(--el-space-lg) var(--el-space-xs) var(--el-space-3xl);
   }
 }
 
 // —— 暗色回退：非 Web 宿主（未映射主题变量）时的默认暗色值 ——
 // Web 宿主将 --evf-* 映射到 --el-* 后由宿主主题接管，此块仅作兜底。
-html.dark .evf-form {
+html.dark .evf-form:not(.evf-runtime-surface__form) {
   --evf-color-text: #e5eaf3;
   --evf-color-text-regular: #cfd3dc;
   --evf-color-text-secondary: #a3a6ad;

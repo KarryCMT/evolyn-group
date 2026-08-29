@@ -1,19 +1,21 @@
 <script setup lang="ts">
-import { shallowRef } from 'vue';
-import type { ApplicationIcon } from '~/types';
-import ApplicationContentPlaceholder from './ApplicationContentPlaceholder.vue';
-import ApplicationWorkspaceHeader from './ApplicationWorkspaceHeader.vue';
-import ApplicationWorkspaceSidebar from './ApplicationWorkspaceSidebar.vue';
 import type {
   ApplicationWorkspaceAsset,
   ApplicationWorkspaceAssetAction,
   ApplicationWorkspaceCreateAssetType,
   ApplicationWorkspaceMode,
 } from './applicationWorkspace.types';
+import type { ApplicationIcon } from '~/types';
+import { shallowRef } from 'vue';
+import ApplicationWorkspaceFormRuntime from '../runtime/ApplicationWorkspaceFormRuntime.vue';
+import ApplicationContentPlaceholder from './ApplicationContentPlaceholder.vue';
+import ApplicationWorkspaceHeader from './ApplicationWorkspaceHeader.vue';
+import ApplicationWorkspaceSidebar from './ApplicationWorkspaceSidebar.vue';
 
 defineOptions({ name: 'ApplicationWorkspaceShell' });
 
 const props = defineProps<{
+  appCode: string;
   applicationName: string;
   applicationIcon: ApplicationIcon;
   assets: ApplicationWorkspaceAsset[];
@@ -70,7 +72,12 @@ function toggleSidebar() {
         @toggle-sidebar="toggleSidebar"
         @update-mode="emit('updateMode', $event)"
       />
-      <ApplicationContentPlaceholder :asset="props.activeAsset" :mode="props.mode" />
+      <ApplicationWorkspaceFormRuntime
+        v-if="props.activeAsset?.type === 'form' && props.mode === 'fill'"
+        :app-code="props.appCode"
+        :asset="props.activeAsset"
+      />
+      <ApplicationContentPlaceholder v-else :asset="props.activeAsset" :mode="props.mode" />
     </section>
   </div>
 </template>

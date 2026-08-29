@@ -8,7 +8,8 @@ export type {
   FieldRuntimeState,
   FormDraftPayload,
   FormIssue,
-  FormRuntimePhase,
+  FormRuntimeLifecycle,
+  FormRuntimeOperation,
   FormRuntimeState,
   FormSubmitPayload,
   FormSubmitResult,
@@ -30,7 +31,19 @@ export type {
   UploadInput,
 } from './adapters/types';
 export { createFormRuntime } from './store/createFormRuntime';
-export type { FormRuntime, FormRuntimeOptions, FormSubmitOutcome } from './store/createFormRuntime';
+export type {
+  FormDraftOutcome,
+  FormRuntime,
+  FormRuntimeOptions,
+  FormSubmitOutcome,
+} from './store/createFormRuntime';
+export type {
+  FormRuntimeActionBehavior,
+  FormRuntimeActionDefinition,
+  FormRuntimeActionIntent,
+  FormRuntimeLayout,
+  FormRuntimeMobilePresentation,
+} from './actions/types';
 export {
   FormRendererContextKey,
   useFormRendererContext,
@@ -39,10 +52,12 @@ export {
 export { buildRenderPlan } from './renderer/plan';
 export type { FormRenderPlan, FormRenderSection } from './renderer/plan';
 export { default as FormRenderer } from './renderer/FormRenderer.vue';
+export type { FormRendererExpose } from './renderer/types';
 export { default as FormSectionRenderer } from './renderer/FormSectionRenderer.vue';
 export { default as FormFieldHost } from './renderer/FormFieldHost.vue';
 export { default as FormFieldError } from './renderer/FormFieldError.vue';
-export { default as FormSubmitBar } from './renderer/FormSubmitBar.vue';
+export { default as FormRuntimeActionBar } from './surface/FormRuntimeActionBar.vue';
+export { default as FormRuntimeSurface } from './surface/FormRuntimeSurface.vue';
 export {
   createDefaultFieldRegistry,
   FormFieldRegistry,

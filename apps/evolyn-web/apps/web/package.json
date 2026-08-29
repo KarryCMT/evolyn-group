@@ -14,6 +14,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
+    "test": "vitest run",
     "typecheck": "vue-tsc --noEmit"
   },
   "dependencies": {
@@ -41,12 +42,15 @@
     "@types/node": "catalog:types",
     "@types/qrcode": "^1.5.6",
     "@vitejs/plugin-vue": "catalog:build",
+    "@vue/test-utils": "catalog:test",
     "eslint": "catalog:lint",
     "eslint-plugin-format": "^1.0.1",
+    "happy-dom": "catalog:test",
     "sass": "catalog:dev",
     "typescript": "catalog:types",
     "unplugin-vue-components": "^28.8.0",
     "vite": "catalog:build",
+    "vitest": "catalog:test",
     "vue-tsc": "catalog:build"
   }
 }

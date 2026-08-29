@@ -10,6 +10,7 @@ import type { FormItem, FormSchemaDocument } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
 import type {
   FieldRuntimeState,
+  FormDraftPayload,
   FormIssue,
   FormRuntimeState,
   FormSubmitPayload,
@@ -46,6 +47,15 @@ export type FormSubmitOutcome =
       error?: unknown;
     };
 
+export type FormDraftOutcome =
+  | { ok: true; payload: FormDraftPayload }
+  | {
+      ok: false;
+      reason: 'busy' | 'unavailable' | 'error' | 'cancelled';
+      payload?: FormDraftPayload;
+      error?: unknown;
+    };
+
 export interface FormRuntime {
   readonly schema: FormSchemaDocument;
   readonly state: FormRuntimeState;
@@ -60,7 +70,9 @@ export interface FormRuntime {
   addServerIssue(message: string): void;
   clearServerIssues(): void;
   buildSubmitPayload(): FormSubmitPayload;
+  buildDraftPayload(): FormDraftPayload;
   submit(signal?: AbortSignal): Promise<FormSubmitOutcome>;
+  saveDraft(signal?: AbortSignal): Promise<FormDraftOutcome>;
   reset(): void;
   isDirty(): boolean;
 }
@@ -75,13 +87,14 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   const state = reactive({
     values: {},
     fieldStates: {},
-    formState: 'initializing',
+    lifecycle: 'initializing',
+    activeOperation: null,
     dirtyKeys: new Set<string>(),
     issues: [],
   }) as FormRuntimeState;
 
   initializeValues();
-  state.formState = 'ready';
+  state.lifecycle = 'ready';
 
   function initializeValues(): void {
     state.values = {};
@@ -158,7 +171,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
         );
       }
     }
-    // 仅替换本地字段问题；服务端非字段错误（版本冲突提示等）保留在提交栏。
+    // 仅替换本地字段问题；服务端非字段错误（版本冲突提示等）保留在操作区摘要。
     const serverIssues = state.issues.filter(
       (issue) => issue.source === 'server' && !issue.fieldKey,
     );
@@ -208,8 +221,23 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     };
   }
 
+  /** 填写草稿保留全部数据字段，隐藏字段也必须可在恢复填写后继续使用。 */
+  function buildDraftPayload(): FormDraftPayload {
+    const values: Record<string, FormValue> = {};
+    for (const item of dataItems) {
+      const key = item.widget.widgetName;
+      values[key] = cloneFormValue(state.values[key]);
+    }
+    return {
+      formId: options.formId ?? '',
+      publishedVersion: options.publishedVersion ?? 0,
+      schemaRevision: options.schemaRevision ?? '',
+      values,
+    };
+  }
+
   async function submit(signal?: AbortSignal): Promise<FormSubmitOutcome> {
-    if (state.formState === 'submitting' || state.formState === 'submitted') {
+    if (state.activeOperation || state.lifecycle === 'submitted') {
       return { ok: false, reason: 'busy' };
     }
     if (!validateVisibleFields()) return { ok: false, reason: 'invalid' };
@@ -218,33 +246,60 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     const submitter = options.adapter?.submit;
     if (!submitter) return { ok: true, payload, submitted: false };
 
-    state.formState = 'submitting';
+    state.activeOperation = 'submit';
     try {
       const result = await submitter(payload, signal ?? new AbortController().signal);
       if (!result.accepted) {
         applyServerFieldErrors(result.fieldErrors ?? {});
         if (result.message) addServerIssue(result.message);
-        state.formState = 'failed';
+        state.lifecycle = 'ready';
         return { ok: false, reason: 'server', payload };
       }
       clearServerIssues();
-      state.formState = 'submitted';
+      state.dirtyKeys.clear();
+      state.lifecycle = 'submitted';
       return { ok: true, payload, submitted: true };
     } catch (error) {
       if (isAbortError(error)) {
-        // 请求取消不是业务错误：恢复可提交状态，不展示错误。
-        state.formState = 'ready';
+        // 请求取消不是业务错误：恢复可操作状态，不展示错误。
         return { ok: false, reason: 'cancelled', payload };
       }
       addServerIssue('提交失败，请稍后重试');
-      state.formState = 'failed';
+      state.lifecycle = 'ready';
       return { ok: false, reason: 'error', payload, error };
+    } finally {
+      state.activeOperation = null;
+    }
+  }
+
+  /** 保存填写草稿不执行必填校验；无 adapter 时明确返回 unavailable。 */
+  async function saveDraft(signal?: AbortSignal): Promise<FormDraftOutcome> {
+    if (state.activeOperation || state.lifecycle === 'submitted') {
+      return { ok: false, reason: 'busy' };
+    }
+    const saver = options.adapter?.saveDraft;
+    if (!saver) return { ok: false, reason: 'unavailable' };
+
+    const payload = buildDraftPayload();
+    state.activeOperation = 'save-draft';
+    try {
+      await saver(payload, signal ?? new AbortController().signal);
+      clearServerIssues();
+      state.dirtyKeys.clear();
+      return { ok: true, payload };
+    } catch (error) {
+      if (isAbortError(error)) return { ok: false, reason: 'cancelled', payload };
+      addServerIssue('保存草稿失败，请稍后重试');
+      return { ok: false, reason: 'error', payload, error };
+    } finally {
+      state.activeOperation = null;
     }
   }
 
   function reset(): void {
     initializeValues();
-    state.formState = 'ready';
+    state.lifecycle = 'ready';
+    state.activeOperation = null;
   }
 
   function isDirty(): boolean {
@@ -263,10 +318,18 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     addServerIssue,
     clearServerIssues,
     buildSubmitPayload,
+    buildDraftPayload,
     submit,
+    saveDraft,
     reset,
     isDirty,
   };
+}
+
+/** 载荷必须是会话当前值的 JSON 快照，不能把响应式对象泄漏给 Adapter。 */
+function cloneFormValue(value: FormValue | undefined): FormValue {
+  if (value === undefined || value === null) return null;
+  return JSON.parse(JSON.stringify(value)) as FormValue;
 }
 
 /** 字段静态状态按保存值执行：visible 决定收集，enable 取反映射禁用。 */
@@ -291,11 +354,10 @@ function isSameFieldValue(current: FormValue | undefined, next: FormValue): bool
 }
 
 function isAbortError(error: unknown): boolean {
-  return (
-    typeof error === 'object' &&
-    error !== null &&
-    (error as { name?: unknown }).name === 'AbortError'
-  );
+  if (typeof error !== 'object' || error === null) return false;
+  const cancelled = error as { code?: unknown; name?: unknown };
+  // 同时兼容浏览器 AbortError 与 Axios 对 AbortSignal 的 ERR_CANCELED 包装。
+  return cancelled.name === 'AbortError' || cancelled.code === 'ERR_CANCELED';
 }
 
 function readOwn(

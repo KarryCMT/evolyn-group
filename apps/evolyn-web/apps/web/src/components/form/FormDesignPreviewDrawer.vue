@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime';
+import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do/form/runtime';
 import type { FormSchemaDocument } from '@evolyn.do/form/schema';
-import { FormRenderer } from '@evolyn.do/form/runtime';
+import { FormRuntimeSurface } from '@evolyn.do/form/runtime';
 import { RiCloseFill, RiComputerFill, RiSmartphoneFill } from '@remixicon/vue';
 import { shallowRef } from 'vue';
 // 预览组件独立加载运行时样式，避免宿主页面依赖设计器样式副作用。
@@ -18,12 +18,31 @@ defineProps<{
 const emit = defineEmits<{
   unsupportedField: [info: { fieldKey: string; type: string }];
   submitSuccess: [];
+  draftSuccess: [];
 }>();
 
 /** 抽屉显隐由设计页持有，组件通过标准 v-model 契约回传关闭状态。 */
 const visible = defineModel<boolean>({ default: false });
 /** 终端视口仅影响预览组件内部布局，不进入表单草稿协议。 */
 const viewport = shallowRef<'desktop' | 'mobile'>('desktop');
+const previewActions: FormRuntimeActionDefinition[] = [
+  {
+    key: 'save-draft',
+    label: '保存草稿',
+    behavior: 'save-draft',
+    intent: 'secondary',
+    order: 10,
+    mobilePresentation: 'compact',
+  },
+  {
+    key: 'submit',
+    label: '提交',
+    behavior: 'submit',
+    intent: 'primary',
+    order: 100,
+    mobilePresentation: 'button',
+  },
+];
 
 function setViewport(value: 'desktop' | 'mobile'): void {
   viewport.value = value;
@@ -82,22 +101,20 @@ function setViewport(value: 'desktop' | 'mobile'): void {
       </div>
     </template>
     <section class="form-design-preview" aria-label="表单预览内容">
-      <el-scrollbar class="form-design-preview__body">
-        <div
-          class="form-design-preview__canvas"
-          :class="`form-design-preview__canvas--${viewport}`"
-        >
-          <FormRenderer
-            class="form-design-preview__runtime"
-            :class="`form-design-preview__runtime--${viewport}`"
-            :schema="schema"
-            :form-id="formId"
-            :adapter="adapter"
-            @unsupported-field="emit('unsupportedField', $event)"
-            @submit-success="emit('submitSuccess')"
-          />
-        </div>
-      </el-scrollbar>
+      <div class="form-design-preview__stage" :class="`form-design-preview__stage--${viewport}`">
+        <FormRuntimeSurface
+          class="form-design-preview__runtime"
+          :schema="schema"
+          :form-id="formId"
+          :adapter="adapter"
+          :actions="previewActions"
+          :layout="viewport"
+          content-width="100%"
+          @unsupported-field="emit('unsupportedField', $event)"
+          @submit-success="emit('submitSuccess')"
+          @draft-success="emit('draftSuccess')"
+        />
+      </div>
     </section>
   </el-drawer>
 </template>
@@ -124,11 +141,6 @@ function setViewport(value: 'desktop' | 'mobile'): void {
   margin: 0;
   background: var(--el-bg-color);
   border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-// 运行时位于独立子组件内，仅通过预览块类定向补齐弹性布局。
-.form-design-preview__runtime .evf-form__body {
-  flex: 1;
 }
 
 @media (width <= 620px) {
@@ -233,59 +245,26 @@ function setViewport(value: 'desktop' | 'mobile'): void {
     }
   }
 
-  &__body {
-    flex: 1;
-    min-height: 0;
-  }
-
-  &__canvas {
+  &__stage {
     width: 704px;
     max-width: calc(100% - var(--el-space-4xl));
-    min-height: 100%;
-    padding: var(--el-space-3xl) var(--el-space-md) var(--el-space-4xl);
+    height: 100%;
+    min-height: 0;
     margin: 0 auto;
+    overflow: hidden;
 
     &--mobile {
       width: 375px;
+      height: calc(100% - var(--el-space-6xl));
+      margin-block: var(--el-space-6xl) 0;
+      border: 1px solid var(--el-border-color-lighter);
+      border-radius: var(--el-border-radius-large);
+      box-shadow: var(--el-box-shadow-light);
     }
   }
 
-  // 运行时主题映射到宿主 Element Plus 变量，暗色模式自动跟随。
   &__runtime {
-    --evf-color-text: var(--el-text-color-primary);
-    --evf-color-text-regular: var(--el-text-color-regular);
-    --evf-color-text-secondary: var(--el-text-color-secondary);
-    --evf-color-text-placeholder: var(--el-text-color-placeholder);
-    --evf-color-text-disabled: var(--el-text-color-disabled);
-    --evf-color-border: var(--el-border-color);
-    --evf-color-border-light: var(--el-border-color-light);
-    --evf-color-border-lighter: var(--el-border-color-lighter);
-    --evf-color-fill-light: var(--el-fill-color-light);
-    --evf-color-bg: var(--el-bg-color);
-    --evf-color-primary: var(--el-color-primary);
-    --evf-color-danger: var(--el-color-danger);
-    --evf-font-size-base: var(--el-font-size-base);
-    --evf-font-size-small: var(--el-font-size-small);
-    --evf-font-size-extra-small: var(--el-font-size-extra-small);
-    --evf-space-sm: var(--el-space-sm);
-    --evf-space-md: var(--el-space-md);
-    --evf-space-lg: var(--el-space-lg);
-    --evf-space-xl: var(--el-space-xl);
-    --evf-space-3xl: var(--el-space-3xl);
-    --evf-radius-base: var(--el-border-radius-base);
-    --evf-radius-medium: var(--el-border-radius-medium);
-
-    display: flex;
-    flex-direction: column;
-    min-height: calc(100vh - 144px);
-    background: var(--el-bg-color);
-    border-radius: var(--el-border-radius-large);
-    box-shadow: var(--el-box-shadow-light);
-
-    &--mobile {
-      --evf-columns: 1;
-      --evf-control-height: 44px;
-    }
+    min-height: 0;
   }
 }
 
@@ -299,18 +278,17 @@ function setViewport(value: 'desktop' | 'mobile'): void {
       }
     }
 
-    &__canvas {
-      padding: var(--el-space-lg) var(--el-space-xs) var(--el-space-3xl);
-
+    &__stage {
       &--desktop,
       &--mobile {
         width: 100%;
         max-width: 100%;
+        height: 100%;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
       }
-    }
-
-    &__runtime {
-      min-height: calc(100vh - 124px);
     }
   }
 }
