@@ -179,7 +179,9 @@ type fakeExecutions struct {
 }
 
 func newFakeExecutions() *fakeExecutions {
-	return &fakeExecutions{byInstance: map[uint][]*model.Execution{}}
+	// next 从 1 起：0 是「根路径」哨兵值（ParentExecutionID==0），执行路径
+	// ID 不得与哨兵重叠（与生产 BIGSERIAL 从 1 起同口径）
+	return &fakeExecutions{byInstance: map[uint][]*model.Execution{}, next: 1}
 }
 
 func (f *fakeExecutions) CreateExecution(ctx context.Context, execution *model.Execution) error {
@@ -207,7 +209,14 @@ func (f *fakeExecutions) SaveExecution(ctx context.Context, execution *model.Exe
 }
 
 func (f *fakeExecutions) FindExecutionByID(ctx context.Context, tenantID, executionID uint) (*model.Execution, error) {
-	panic("not used")
+	for _, executions := range f.byInstance {
+		for _, e := range executions {
+			if e.ID == executionID {
+				return e, nil
+			}
+		}
+	}
+	return nil, fmt.Errorf("execution not found")
 }
 
 type fakeNodes struct {
@@ -449,6 +458,7 @@ type harness struct {
 	runtime     *Runtime
 	definitions *fakeDefinitions
 	instances   *fakeInstances
+	executions  *fakeExecutions
 	tasks       *fakeTasks
 	nodes       *fakeNodes
 	publisher   *fakePublisher
@@ -467,7 +477,7 @@ func newHarness(t *testing.T, doc model.Document) *harness {
 	definitions.publishDefinition("wf_test", doc)
 	registry := executor.NewRegistry(assignment.NewRegistry(nil, nil), nil)
 	rt := NewRuntime(definitions, instances, executions, nodes, tasks, operations, registry, publisher, nil, nil, nil, nil, nil, nil)
-	return &harness{runtime: rt, definitions: definitions, instances: instances, tasks: tasks, nodes: nodes, publisher: publisher}
+	return &harness{runtime: rt, definitions: definitions, instances: instances, executions: executions, tasks: tasks, nodes: nodes, publisher: publisher}
 }
 
 func (h *harness) start(t *testing.T) *StartResult {

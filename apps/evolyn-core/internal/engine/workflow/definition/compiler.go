@@ -1,6 +1,8 @@
 package definition
 
 import (
+	"fmt"
+
 	"evolyn/internal/engine/workflow/expression"
 	"evolyn/internal/engine/workflow/model"
 )
@@ -23,6 +25,11 @@ type CompiledDefinition struct {
 	// ServiceTemplates service 节点 key → 模板编译产物（Phase 7；
 	// 无模板段亦登记，区分「节点存在」与「未编译」）
 	ServiceTemplates map[string]*ServiceTemplates
+	// SplitRegions / JoinRegions 并行区域预编译产物（Phase 8）：
+	// split key / join key → 区域（分支目标按出边声明顺序）。
+	// 运行期按表驱动 split 扇出与 join token 判定，禁止重新图分析
+	SplitRegions map[string]*ParallelRegion
+	JoinRegions  map[string]*ParallelRegion
 }
 
 // Compile 校验并预编译 DSL 文档：任一表达式编译失败即返回错误，
@@ -72,6 +79,18 @@ func Compile(doc *model.Document, engine expression.Engine) (*CompiledDefinition
 			}
 		}
 		compiled.ServiceTemplates[n.Key] = templates
+	}
+	// 并行区域预编译（Phase 8）：发布链路已先经 Validator 校验，此处
+	// 任何区域问题都属异常（防御性报错，杜绝带病快照进入运行时）
+	regions, issues := analyzeParallelRegions(doc)
+	if len(issues) > 0 {
+		return nil, fmt.Errorf("并行区域分析失败: %v", issues)
+	}
+	compiled.SplitRegions = make(map[string]*ParallelRegion, len(regions))
+	compiled.JoinRegions = make(map[string]*ParallelRegion, len(regions))
+	for _, region := range regions {
+		compiled.SplitRegions[region.SplitKey] = region
+		compiled.JoinRegions[region.JoinKey] = region
 	}
 	return compiled, nil
 }

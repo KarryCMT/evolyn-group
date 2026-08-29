@@ -133,7 +133,8 @@ func TestSECMENU004PlainMemberReadOnly(t *testing.T) {
 }
 
 // SEC-MENU-005：真库构造分组/资产树（资产域未落地，节点按菜单行出网、
-// target 不投影）→ 分组保留、资产节点可见；纯空分组被裁剪；结构损坏
+// target 不投影）→ 分组保留、资产节点可见；空分组按 ADR-011 可见性规则
+// 裁剪：菜单管理成员可见（可继续添加资产），普通成员被裁剪；结构损坏
 // （跨应用父节点）返回 APP_MENU_INVALID
 func TestSECMENU005PruningAndIntegrity(t *testing.T) {
 	env := newMenuEnv(t)
@@ -141,8 +142,9 @@ func TestSECMENU005PruningAndIntegrity(t *testing.T) {
 	created, err := env.appSvc.CreateBlank(appCtx(env.alpha.ID), env.alphaMember, blankReq("裁剪应用"))
 	assert.NoError(t, err)
 	ctx := appCtx(env.alpha.ID)
+	plain := env.createPlainMember(t, env.alpha, "menu-plain-prune")
 
-	t.Run("资产节点出网且分组保留，空分组被裁剪", func(t *testing.T) {
+	t.Run("资产节点出网且分组保留，空分组按成员可见性裁剪", func(t *testing.T) {
 		emptyRoot := menuEntryFixture(0, "menu_empty", nil, model.MenuEntryTypeGroup, 0)
 		emptyRoot.ApplicationID = created.ID
 		root := menuEntryFixture(0, "menu_root", nil, model.MenuEntryTypeGroup, 1024)
@@ -154,14 +156,23 @@ func TestSECMENU005PruningAndIntegrity(t *testing.T) {
 		form.ApplicationID = created.ID
 		env.insertMenuEntry(t, ctx, &form)
 
+		// 菜单管理成员（ADR-011）：空分组必须可见，否则无法向其中添加资产
 		menu, err := env.menuSvc.GetMenu(ctx, env.alphaMember, created.Code)
 		assert.NoError(t, err)
-		assert.Equal(t, []string{"menu_root"}, menu.RootEntryIDs)
+		assert.Equal(t, []string{"menu_empty", "menu_root"}, menu.RootEntryIDs)
 		assert.Contains(t, menu.EntryMap, "menu_root")
+		assert.Contains(t, menu.EntryMap, "menu_empty")
 		assert.Contains(t, menu.EntryMap, "menu_form")
-		assert.NotContains(t, menu.EntryMap, "menu_empty") // 空分组被裁剪
 		// 资产域未落地：target 不投影（M2-资产-1 接入后映射资产公开编码）
 		assert.Nil(t, menu.EntryMap["menu_form"].Target)
+
+		// 普通成员：无可见后代的空分组被裁剪，分组与资产正常出网
+		plainMenu, err := env.menuSvc.GetMenu(ctx, plain, created.Code)
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"menu_root"}, plainMenu.RootEntryIDs)
+		assert.Contains(t, plainMenu.EntryMap, "menu_root")
+		assert.Contains(t, plainMenu.EntryMap, "menu_form")
+		assert.NotContains(t, plainMenu.EntryMap, "menu_empty") // 空分组被裁剪
 	})
 
 	t.Run("跨应用父节点返回 APP_MENU_INVALID", func(t *testing.T) {

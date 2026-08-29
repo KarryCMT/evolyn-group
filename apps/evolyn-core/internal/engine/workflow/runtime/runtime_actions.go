@@ -113,6 +113,14 @@ func (r *Runtime) ReturnToStarter(ctx context.Context, in ReturnInput) (*ReturnR
 	if _, ok := version.Snapshot.NodeOf(outcome.NodeKey); !ok {
 		return nil, ErrRouteStuck
 	}
+	// 并行流程 V1 冻结不支持退回发起人（Phase 8 复杂度冻结）：重提交会
+	// 从退回节点重新推进，若路径上存在并行 split 将二次扇出子执行路径，
+	// join 到达计数随之失真——含并行网关的定义一律拒绝退回
+	for i := range version.Snapshot.Nodes {
+		if version.Snapshot.Nodes[i].Type == model.NodeTypeParallel {
+			return nil, ErrActionNotAllowed
+		}
+	}
 	nodeInstance, err := r.nodes.FindNodeInstanceByID(ctx, in.TenantID, outcome.NodeInstanceID)
 	if err != nil {
 		return nil, err
@@ -220,7 +228,8 @@ func (r *Runtime) Resubmit(ctx context.Context, in ResubmitInput) (*ResubmitResu
 	}); err != nil {
 		return nil, err
 	}
-	// 从退回来源节点重新执行（新节点实例 + 新任务，审批人重新审批）
+	// 从退回来源节点重新执行（新节点实例 + 新任务，审批人重新审批）；
+	// 并行流程已被 ReturnToStarter 拒绝，退回节点必在根执行路径上
 	version, err := r.definitions.FindVersionByID(ctx, in.TenantID, instance.DefinitionVersionID)
 	if err != nil {
 		return nil, err
@@ -233,7 +242,11 @@ func (r *Runtime) Resubmit(ctx context.Context, in ResubmitInput) (*ResubmitResu
 	if err != nil {
 		return nil, err
 	}
-	if err := r.advance(ctx, advance, resubmit.NodeKey); err != nil {
+	execution, err := r.executions.FindExecutionByID(ctx, in.TenantID, resubmit.ExecutionID)
+	if err != nil {
+		return nil, ErrRouteStuck
+	}
+	if err := r.advance(ctx, advance, execution, resubmit.NodeKey, 0); err != nil {
 		return nil, err
 	}
 	return &ResubmitResult{InstanceID: instance.ID, InstanceStatus: instance.Status}, nil

@@ -107,7 +107,24 @@ apps/evolyn-core/
   节点续跑推进（条件节点可读 variables.*）；调用失败整体回滚由重试
   记账退避回队，失败流水在记账事务落账；Worker 领取路径按 Job 租户
   上下文化（修复嵌套平台写入的租户 Callback 缺位）。
-- **Phase 8+**（并行执行 / LogicFlow 设计器 / 可观测性）为后续里程碑。
+- **Phase 8（当前）**：并行执行（Execution Tree）已落地——DSL 新增
+  `parallel` 节点（`config.parallel.role=split/join`，分支数封顶 10），
+  发布期并行区域分析（definition/parallel.go，校验器与预编译器共用）：
+  每 split 的全部分支路径必须封闭汇聚到同一 join（禁分支经过 End、禁
+  嵌套 parallel、禁外部路径中途进入区域、禁分支泄漏区域外、禁空分支），
+  区域冻结为 CompiledDefinition.SplitRegions/JoinRegions 预编译产物；
+  Runtime 推进环显式携带执行路径编排（发起=根路径，审批/服务续跑/
+  重提交=节点实例所属路径），split 瞬时完成后按出边声明顺序扇出子执行
+  路径（wf_execution.parent_execution_id 执行树，分支串行推进互不阻塞，
+  并行人工审批各自挂起），分支推进进入 join 落到达 token（join 节点实例
+  挂分支路径 COMPLETED + 分支路径收口），实例行锁串行化到达计数（并发
+  推进锁），到达数==分支数时由最后到达分支在自身事务内放行回父路径续跑；
+  并行下 Reject/Withdraw/Terminate 复用 cancelInstance 全执行路径取消
+  链路；含并行定义冻结不支持退回发起人（重提交会二次扇出致 join 计数
+  失真）：Runtime 拒绝 WORKFLOW_ACTION_NOT_ALLOWED，任务详情允许动作
+  投影剔除 return-to-starter 同口径；无新增迁移（000049 已预留
+  parent_execution_id）。
+- **Phase 9+**（LogicFlow 设计器 / 可观测性）为后续里程碑。
 - 前端错误码：workflow 域 errCode 已在
   `apps/evolyn-web/packages/utils/src/request/errorCodes.ts` 预留分段。
 

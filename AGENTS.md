@@ -128,7 +128,28 @@ internal/
                       Idempotency-Key/响应 1MB 限长/日志脱敏），2xx 响应
                       映射写流程变量（标量收敛）后节点完成并续跑推进，
                       失败经重试记账退避回队；校验器拒绝 authorization/
-                      cookie 等敏感头明文入 DSL（密钥由平台侧注入）
+                      cookie 等敏感头明文入 DSL（密钥由平台侧注入）；
+                      Phase 8 已落地：启用 Phase 0 预留的 Execution Tree
+                      ——DSL parallel 节点（config.parallel.role=
+                      split/join，分支数封顶 10），发布期并行区域分析
+                      （definition/parallel.go：分支封闭汇聚同一 join、
+                      禁 End/嵌套 parallel/外部入口/分支泄漏，校验器与
+                      编译器共用实现并冻结为 CompiledDefinition
+                      SplitRegions/JoinRegions 预编译产物），Runtime
+                      推进环按执行路径编排（advance 显式携带 execution：
+                      发起=根路径、审批/服务续跑/重提交=节点实例所属
+                      路径），split 瞬时完成即按出边声明顺序扇出子执行
+                      路径（wf_execution.parent_execution_id 执行树，
+                      分支内串行推进互不阻塞）、分支进入 join 落到达
+                      token（join 节点实例挂分支路径 COMPLETED+分支路径
+                      收口）并以实例行锁串行化到达计数（并发推进锁），
+                      到达数==分支数由最后到达分支在自身事务内放行回父
+                      路径续跑；并行下 Reject/Withdraw/Terminate 既有
+                      cancelInstance 链路已覆盖全执行路径取消，含并行
+                      定义冻结不支持退回发起人（重提交会二次扇出致
+                      join 计数失真，Runtime 拒绝 + 任务详情允许动作
+                      投影剔除 return-to-starter 同口径），无新增迁移
+                      （000049 已预留 parent_execution_id）
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
     controller/       Controller 注册契约（RegisterRoute/Name；
                       PlatformController 标记平台运营域归属）与 AppConf

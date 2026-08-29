@@ -78,18 +78,18 @@ sms:
 email:
   # dev 仅可用于 debug；release 环境必须使用 smtp，SMTP 凭据只通过未提交的
   # 部署配置注入，禁止将真实密码提交到仓库。
-  provider: 'dev'
-  codeTtlSeconds: 300 # 验证码有效期（秒）
-  cooldownSeconds: 60 # 重发冷却（秒）
+  provider: 'smtp' # dev=仅写本地日志；生产使用 smtp
+  codeTtlSeconds: 300 # 邮箱验证码有效期 5 分钟
+  cooldownSeconds: 60 # 重发冷却 60 秒
   maxTries: 5 # 单验证码最大试错次数
-  identityTtlSeconds: 300 # 手机号身份验证凭证有效期（秒）
-  devEcho: false # 仅本地联调可开，生产必须 false
-  smtpHost: ''
-  smtpPort: 587
-  smtpUsername: ''
-  smtpPassword: ''
-  smtpFrom: ''
-  smtpImplicitTls: false # 465 等隐式 TLS 端口填写 true；465 端口也会自动识别
+  identityTtlSeconds: 300 # 手机号身份验证凭证有效期 5 分钟
+  devEcho: true # 仅本地联调时回显固定验证码 666666
+  smtpHost: 'smtp.qq.com'
+  smtpPort: 465
+  smtpUsername: '1570606465@qq.com'
+  smtpPassword: 'rmuwzvfvdkroihcc'
+  smtpFrom: '1570606465@qq.com'
+  smtpImplicitTls: false # 465 等隐式 TLS 端口填写 true；465 端口也会自动识别。
 
 auth:
   loginMaxFails: 5 # 连续登录失败上限；示例：5，达到后临时锁定账号。
@@ -117,10 +117,10 @@ pki:
 # currentKeyVersion；保留旧版本直到所有对应因子完成重加密/停用。release 环境
 # 启用 MFA 前必须填入真实随机 32 字节 hex 密钥，示例值不可用于生产。
 security:
-  totp:
+  totp: # TOTP 双因素认证主密钥配置；启用 MFA 前必须注入真实密钥。
     currentKeyVersion: 1 # 新绑定因子使用的主密钥版本；示例：1，轮换后递增。
     masterKeys: # 主密钥版本映射；保留旧版本直到对应因子完成重加密或停用。
-      1: 'CHANGE_ME' # 版本 1 的 32 字节十六进制主密钥示例占位值；生产必须替换。
+      1: 'bee7b7bb6d86dc57d72eb878d223182ea2bc0874c185fb59ffa05d6e4c2f86b1' # 版本 1 的 32 字节十六进制主密钥示例占位值；生产必须替换。
 
 # 消息中心（P1/P2）：Outbox 物化与过期清理的 Worker 节奏、保留期口径与
 # 自定义提醒对象租户上限；全部零值回落内置默认。

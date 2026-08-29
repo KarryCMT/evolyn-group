@@ -60,6 +60,10 @@ const (
 	ErrCodeUnreachable     = "NODE_UNREACHABLE"
 	ErrCodeNoExit          = "NODE_NO_PATH_TO_END"
 	ErrCodeCycle           = "CYCLE_UNSUPPORTED"
+	// Phase 8 并行执行（第 31 章）：配置与区域规则独立码段，前端设计器
+	// 按码定位并行网关的配置问题与结构问题
+	ErrCodeParallelConfig = "PARALLEL_CONFIG_INVALID"
+	ErrCodeParallelRegion = "PARALLEL_REGION_INVALID"
 )
 
 // Validator DSL 严格校验器。表达式校验经 ExpressionEngine 发布前预编译；
@@ -87,6 +91,7 @@ func (v *Validator) Validate(doc *model.Document) ValidationErrors {
 	errs = v.validateNodes(errs, doc)
 	errs = v.validateEdges(errs, doc)
 	errs = v.validateCardinality(errs, doc)
+	errs = v.validateParallel(errs, doc)
 	errs = v.validateGraph(errs, doc)
 	return errs
 }
@@ -165,6 +170,75 @@ func (v *Validator) validateNodeConfig(errs ValidationErrors, n *model.Node, pat
 		errs = v.validateAssigneeSpec(errs, n.Config.Recipients, path+".recipients")
 	case model.NodeTypeService:
 		errs = v.validateServiceConfig(errs, n.Config.Service, path+".service")
+	case model.NodeTypeParallel:
+		errs = v.validateParallelConfig(errs, n.Config.Parallel, path+".parallel")
+	}
+	return errs
+}
+
+// validateParallelConfig parallel 节点配置校验（Phase 8）：必须配置
+// parallel 配置块且 role 在 split/join 值域内。
+func (v *Validator) validateParallelConfig(errs ValidationErrors, cfg *model.ParallelConfig, path string) ValidationErrors {
+	if cfg == nil {
+		return append(errs, &ValidationError{Path: path, Code: ErrCodeParallelConfig,
+			Message: "parallel 节点必须配置 parallel 配置块（role=split/join）"})
+	}
+	if !model.V1ParallelRoles[cfg.Role] {
+		errs = append(errs, &ValidationError{Path: path + ".role", Code: ErrCodeParallelConfig,
+			Message: fmt.Sprintf("parallel 节点 role 必须为 split/join，当前为 %q", cfg.Role)})
+	}
+	return errs
+}
+
+// validateParallel 并行网关结构与区域校验（Phase 8，第 31 章）：
+//   - split：恰好一条入边、2~MaxParallelBranches 条无条件出边（出边条件
+//     已由「仅 condition 节点出边可携带条件」规则拒绝）；
+//   - join：恰好一条出边、至少两条入边；
+//   - 每个 split 的全部分支路径必须封闭汇聚到同一 join：不允许分支经过
+//     End / 嵌套 parallel、不允许外部路径中途进入区域、不允许分支泄漏
+//     到区域外——join token「到达数 == 分支数」判定的结构前提。
+func (v *Validator) validateParallel(errs ValidationErrors, doc *model.Document) ValidationErrors {
+	outCount := make(map[string]int, len(doc.Nodes))
+	inCount := make(map[string]int, len(doc.Nodes))
+	for i := range doc.Edges {
+		e := &doc.Edges[i]
+		outCount[e.Source]++
+		inCount[e.Target]++
+	}
+	nodePath := make(map[string]string, len(doc.Nodes))
+	for i := range doc.Nodes {
+		nodePath[doc.Nodes[i].Key] = fmt.Sprintf("$.nodes[%d]", i)
+		n := &doc.Nodes[i]
+		if n.Type != model.NodeTypeParallel || n.Config.Parallel == nil {
+			continue
+		}
+		switch n.Config.Parallel.Role {
+		case model.ParallelRoleSplit:
+			if inCount[n.Key] != 1 {
+				errs = append(errs, &ValidationError{Path: nodePath[n.Key], Code: ErrCodeParallelConfig,
+					Message: fmt.Sprintf("并行分流节点 %q 必须恰好有一条入边，当前 %d 条", n.Key, inCount[n.Key])})
+			}
+			if outCount[n.Key] < 2 || outCount[n.Key] > model.MaxParallelBranches {
+				errs = append(errs, &ValidationError{Path: nodePath[n.Key], Code: ErrCodeParallelConfig,
+					Message: fmt.Sprintf("并行分流节点 %q 出边分支数必须在 2~%d 之间，当前 %d 条",
+						n.Key, model.MaxParallelBranches, outCount[n.Key])})
+			}
+		case model.ParallelRoleJoin:
+			if outCount[n.Key] != 1 {
+				errs = append(errs, &ValidationError{Path: nodePath[n.Key], Code: ErrCodeParallelConfig,
+					Message: fmt.Sprintf("并行汇聚节点 %q 必须恰好有一条出边，当前 %d 条", n.Key, outCount[n.Key])})
+			}
+			if inCount[n.Key] < 2 {
+				errs = append(errs, &ValidationError{Path: nodePath[n.Key], Code: ErrCodeParallelConfig,
+					Message: fmt.Sprintf("并行汇聚节点 %q 至少需要两条入边（分支汇入），当前 %d 条", n.Key, inCount[n.Key])})
+			}
+		}
+	}
+	// 区域分析（校验器与编译器共用实现，保证发布校验与预编译产物同口径）
+	_, issues := analyzeParallelRegions(doc)
+	for _, issue := range issues {
+		errs = append(errs, &ValidationError{Path: issue.Path, Code: ErrCodeParallelRegion,
+			Message: issue.Message})
 	}
 	return errs
 }

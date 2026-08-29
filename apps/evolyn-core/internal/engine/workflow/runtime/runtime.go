@@ -210,7 +210,7 @@ func (r *Runtime) Start(ctx context.Context, in StartInput) (*StartResult, error
 	if err != nil {
 		return nil, err
 	}
-	if err := r.advance(ctx, advance, advanceStartKey(&version.Snapshot)); err != nil {
+	if err := r.advance(ctx, advance, execution, advanceStartKey(&version.Snapshot), 0); err != nil {
 		return nil, err
 	}
 	return &StartResult{InstanceID: instance.ID, Status: instance.Status}, nil
@@ -311,12 +311,18 @@ func (r *Runtime) Approve(ctx context.Context, in ApproveInput) (*ApproveResult,
 	if err != nil {
 		return nil, err
 	}
+	// 审批节点可能位于并行分支（Phase 8）：从节点实例所属执行路径继续推进
+	//（FindNext 命中 join 时由推进环做到达判定）
+	execution, err := r.executions.FindExecutionByID(ctx, in.TenantID, nodeInstance.ExecutionID)
+	if err != nil {
+		return nil, ErrRouteStuck
+	}
 	// 从已完成节点寻路并推进后续节点（取发布预编译产物求值）
 	next, err := r.navigator.FindNextCompiled(advance.compiled, advance.env, outcome.NodeKey)
 	if err != nil {
 		return nil, err
 	}
-	if err := r.advance(ctx, advance, next); err != nil {
+	if err := r.advance(ctx, advance, execution, next, 0); err != nil {
 		return nil, err
 	}
 	return &ApproveResult{InstanceID: instance.ID, InstanceStatus: instance.Status, NodeCompleted: true}, nil
@@ -355,23 +361,17 @@ func (r *Runtime) applyFormValues(ctx context.Context, instance *model.Instance,
 	}, values)
 }
 
-// advanceContext 推进环上下文：一次推进内共享实例/执行路径/快照/表达式环境。
+// advanceContext 推进环上下文：一次推进内共享实例/快照/表达式环境。
+// 执行路径不固定在根路径（Phase 8 并行执行树）：调用方按节点实例所属
+// 执行路径显式传入，分支推进/服务续跑/重提交均在正确路径上进行。
 type advanceContext struct {
-	instance  *model.Instance
-	execution *model.Execution
-	env       *model.WorkflowContext
-	doc       *model.Document
-	compiled  *definition.CompiledDefinition
+	instance *model.Instance
+	env      *model.WorkflowContext
+	doc      *model.Document
+	compiled *definition.CompiledDefinition
 }
 
 func (r *Runtime) newAdvanceContext(ctx context.Context, instance *model.Instance, version *model.DefinitionVersion, definitionCode string) (*advanceContext, error) {
-	executions, err := r.executions.ListExecutionsByInstance(ctx, instance.ID)
-	if err != nil {
-		return nil, err
-	}
-	if len(executions) == 0 {
-		return nil, ErrRouteStuck
-	}
 	env := &model.WorkflowContext{
 		TenantID: instance.TenantID,
 		Instance: model.InstanceContext{
@@ -427,11 +427,10 @@ func (r *Runtime) newAdvanceContext(ctx context.Context, instance *model.Instanc
 		return nil, err
 	}
 	return &advanceContext{
-		instance:  instance,
-		execution: &executions[0],
-		env:       env,
-		doc:       &version.Snapshot,
-		compiled:  compiled,
+		instance: instance,
+		env:      env,
+		doc:      &version.Snapshot,
+		compiled: compiled,
 	}, nil
 }
 
@@ -451,17 +450,28 @@ func (r *Runtime) compiledFor(version *model.DefinitionVersion) (*definition.Com
 	return compiled, nil
 }
 
-// advance 推进环：执行 current 节点并沿导航链推进，直到人工审批挂起
-// （WAIT）或实例到达 End（COMPLETED）。步数上限防御快照异常死循环。
-func (r *Runtime) advance(ctx context.Context, a *advanceContext, current string) error {
+// advance 推进环：在指定执行路径上执行 current 节点并沿导航链推进，直到
+// 人工审批挂起（WAIT）、服务异步挂起（Async）、并行分支扇出/汇聚停驻或
+// 实例到达 End（COMPLETED）。步数上限防御快照异常死循环；depth 防御并行
+// 链式深度（校验器已禁止嵌套并行，此处为纵深防御，model.MaxParallelDepth）。
+func (r *Runtime) advance(ctx context.Context, a *advanceContext, execution *model.Execution, current string, depth int) error {
 	doc := a.doc
-	if doc == nil {
+	if doc == nil || execution == nil {
 		return ErrRouteStuck
+	}
+	if depth > model.MaxParallelDepth {
+		return ErrAdvanceOverflow
 	}
 	for step := 0; step <= len(doc.Nodes); step++ {
 		node, ok := doc.NodeOf(current)
 		if !ok {
 			return ErrRouteStuck
+		}
+		// 并行汇聚到达（Phase 8）：分支推进进入 join 节点时不执行该节点，
+		// 落一次到达 token 并判定全分支是否到齐——join 由最后到达的分支
+		// 在其事务内触发放行（join token 计数，第 31 章）
+		if node.Type == model.NodeTypeParallel && node.Config.Parallel != nil && node.Config.Parallel.Role == model.ParallelRoleJoin {
+			return r.arriveAtJoin(ctx, a, execution, node, depth)
 		}
 		exec, ok := r.executors.ExecutorOf(node.Type)
 		if !ok {
@@ -471,7 +481,7 @@ func (r *Runtime) advance(ctx context.Context, a *advanceContext, current string
 		nodeInstance := &model.NodeInstance{
 			TenantID:    a.instance.TenantID,
 			InstanceID:  a.instance.ID,
-			ExecutionID: a.execution.ID,
+			ExecutionID: execution.ID,
 			NodeKey:     node.Key,
 			Status:      model.NodeInstanceStatusRUNNING,
 		}
@@ -522,11 +532,11 @@ func (r *Runtime) advance(ctx context.Context, a *advanceContext, current string
 		r.publish(ctx, event.NodeCompleted, a.instance, 0, 0)
 		if node.Type == model.NodeTypeEnd {
 			// 实例终态：执行路径与实例同事务收口（状态机 RUNNING → COMPLETED）
-			if !task.CanTransitionExecution(a.execution.Status, model.ExecutionStatusCOMPLETED) {
+			if !task.CanTransitionExecution(execution.Status, model.ExecutionStatusCOMPLETED) {
 				return ErrRouteStuck
 			}
-			a.execution.Status = model.ExecutionStatusCOMPLETED
-			if err := r.executions.SaveExecution(ctx, a.execution); err != nil {
+			execution.Status = model.ExecutionStatusCOMPLETED
+			if err := r.executions.SaveExecution(ctx, execution); err != nil {
 				return err
 			}
 			if !task.CanTransitionInstance(a.instance.Status, model.InstanceStatusCOMPLETED) {
@@ -539,6 +549,15 @@ func (r *Runtime) advance(ctx context.Context, a *advanceContext, current string
 			r.publish(ctx, event.InstanceCompleted, a.instance, 0, 0)
 			return nil
 		}
+		// 并行分流（Phase 8）：瞬时完成后按预编译区域扇出子执行路径，
+		// 每条分支独立推进（同一事务内按出边声明顺序串行执行，分支内的
+		// 人工审批各自挂起等待，互不阻塞）
+		if node.Type == model.NodeTypeParallel && node.Config.Parallel != nil && node.Config.Parallel.Role == model.ParallelRoleSplit {
+			if err := r.fanOutBranches(ctx, a, execution, node, depth); err != nil {
+				return err
+			}
+			return nil
+		}
 		next, err := r.navigator.FindNextCompiled(a.compiled, a.env, node.Key)
 		if err != nil {
 			return err
@@ -546,6 +565,116 @@ func (r *Runtime) advance(ctx context.Context, a *advanceContext, current string
 		current = next
 	}
 	return ErrAdvanceOverflow
+}
+
+// fanOutBranches 并行分流（Phase 8）：先按出边声明顺序一次性创建全部子
+// 执行路径（ParentExecutionID 挂到 split 所在路径，构成执行树），再逐条
+// 推进分支。分支路径必须汇聚到同一 join（校验器冻结），故分支推进只可能
+// 停在人工审批（WAIT）、服务异步（Async）或 join 到达，不会直接结束实例。
+func (r *Runtime) fanOutBranches(ctx context.Context, a *advanceContext, execution *model.Execution, node *model.Node, depth int) error {
+	region, ok := a.compiled.SplitRegions[node.Key]
+	if !ok || len(region.BranchTargets) < 2 {
+		return ErrRouteStuck
+	}
+	children := make([]*model.Execution, 0, len(region.BranchTargets))
+	for range region.BranchTargets {
+		child := &model.Execution{
+			TenantID:          a.instance.TenantID,
+			InstanceID:        a.instance.ID,
+			ParentExecutionID: execution.ID,
+			Status:            model.ExecutionStatusRUNNING,
+		}
+		if err := r.executions.CreateExecution(ctx, child); err != nil {
+			return err
+		}
+		children = append(children, child)
+	}
+	for i, target := range region.BranchTargets {
+		if err := r.advance(ctx, a, children[i], target, depth+1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// arriveAtJoin 并行汇聚到达（Phase 8）：分支推进进入 join 节点——
+//  1. 行锁实例（并发推进锁）：两个分支事务可能同时完成各自最后一步，
+//     到达计数与放行判定必须在锁内串行进行（第 13 章 PostgreSQL 行锁）；
+//  2. 落一次到达 token：join 节点实例挂在分支执行路径上（COMPLETED），
+//     分支执行路径随之收口 RUNNING → COMPLETED；
+//  3. 到达数 < 分支数：其余分支仍在途，本分支停驻（推进结束）；
+//  4. 到达数 == 分支数：join 放行——最后到达的分支在自己事务内回到父
+//     执行路径继续推进后续节点（Runtime 仅放行一次）。
+func (r *Runtime) arriveAtJoin(ctx context.Context, a *advanceContext, execution *model.Execution, node *model.Node, depth int) error {
+	region, ok := a.compiled.JoinRegions[node.Key]
+	if !ok || len(region.BranchTargets) < 2 {
+		return ErrRouteStuck
+	}
+	// 1. 并发推进锁：行锁实例 + RUNNING 校验（与审批动作同口径）
+	instance, err := r.instances.FindInstanceByIDForUpdate(ctx, a.instance.TenantID, a.instance.ID)
+	if err != nil {
+		return task.ErrInstanceNotFound
+	}
+	if instance.Status != model.InstanceStatusRUNNING {
+		return task.ErrInstanceNotRunning
+	}
+	a.instance = instance
+	// 2. 到达 token：RUNNING → COMPLETED 两步落账（迁移表裁决）
+	arrival := &model.NodeInstance{
+		TenantID:    a.instance.TenantID,
+		InstanceID:  a.instance.ID,
+		ExecutionID: execution.ID,
+		NodeKey:     node.Key,
+		Status:      model.NodeInstanceStatusRUNNING,
+	}
+	if err := r.nodes.CreateNodeInstance(ctx, arrival); err != nil {
+		return err
+	}
+	if !task.CanTransitionNodeInstance(arrival.Status, model.NodeInstanceStatusCOMPLETED) {
+		return ErrRouteStuck
+	}
+	arrival.Status = model.NodeInstanceStatusCOMPLETED
+	if err := r.nodes.SaveNodeInstance(ctx, arrival); err != nil {
+		return err
+	}
+	// 分支执行路径收口（RUNNING → COMPLETED，迁移表裁决）
+	if !task.CanTransitionExecution(execution.Status, model.ExecutionStatusCOMPLETED) {
+		return ErrRouteStuck
+	}
+	execution.Status = model.ExecutionStatusCOMPLETED
+	if err := r.executions.SaveExecution(ctx, execution); err != nil {
+		return err
+	}
+	r.publishWithNode(ctx, event.NodeEntered, a.instance, arrival.ID, 0)
+	// 3. 到达计数：join 节点实例只由本函数产生，按节点 key 计数即到达数
+	nodeInstances, err := r.nodes.ListNodeInstancesByInstance(ctx, a.instance.ID)
+	if err != nil {
+		return err
+	}
+	arrivals := 0
+	for i := range nodeInstances {
+		if nodeInstances[i].NodeKey == node.Key {
+			arrivals++
+		}
+	}
+	if arrivals < len(region.BranchTargets) {
+		return nil
+	}
+	if arrivals != len(region.BranchTargets) {
+		// 校验器保证区域封闭（每个分支恰好到达一次），超计数属异常快速失败
+		return ErrRouteStuck
+	}
+	// 4. 全分支到齐：join 放行，回到父执行路径继续推进
+	r.publishWithNode(ctx, event.NodeCompleted, a.instance, arrival.ID, 0)
+	parent, err := r.executions.FindExecutionByID(ctx, a.instance.TenantID, execution.ParentExecutionID)
+	if err != nil || parent == nil {
+		return ErrRouteStuck
+	}
+	next, err := r.navigator.FindNextCompiled(a.compiled, a.env, node.Key)
+	if err != nil {
+		return err
+	}
+	return r.advance(ctx, a, parent, next, depth+1)
 }
 
 // persistTasks 落库执行器创建的任务蓝图与参与人快照，并发布 task.created。

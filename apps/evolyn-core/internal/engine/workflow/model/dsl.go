@@ -19,7 +19,8 @@ const (
 	NodeTypeApproval  NodeType = "approval"
 	NodeTypeCondition NodeType = "condition"
 	NodeTypeCC        NodeType = "cc"
-	NodeTypeService   NodeType = "service" // 数据模型先定义，执行能力 Phase 7 开放
+	NodeTypeService   NodeType = "service"  // 数据模型先定义，执行能力 Phase 7 开放
+	NodeTypeParallel  NodeType = "parallel" // 并行网关（Phase 8）：role=split/join
 	NodeTypeEnd       NodeType = "end"
 )
 
@@ -30,7 +31,40 @@ var V1NodeTypes = map[NodeType]bool{
 	NodeTypeCondition: true,
 	NodeTypeCC:        true,
 	NodeTypeService:   true,
+	NodeTypeParallel:  true,
 	NodeTypeEnd:       true,
+}
+
+// ParallelRole 并行网关角色（Phase 8，第 31 章并行执行定版）：同一节点
+// 通过 role 表达 split（分流）/ join（汇聚）两种语义，避免引入两个节点类型。
+type ParallelRole string
+
+const (
+	// ParallelRoleSplit 并行分流：多条无条件出边各自 fork 一条子执行路径
+	ParallelRoleSplit ParallelRole = "split"
+	// ParallelRoleJoin 并行汇聚：等待全部分支路径到达后放行单条出边
+	//（join token 计数 = 分支数，Runtime 判定，第 12.2 章）
+	ParallelRoleJoin ParallelRole = "join"
+)
+
+// V1ParallelRoles 并行网关角色合法值域。
+var V1ParallelRoles = map[ParallelRole]bool{
+	ParallelRoleSplit: true,
+	ParallelRoleJoin:  true,
+}
+
+// MaxParallelBranches 并行分支数上限（Phase 8 复杂度冻结：校验器与
+// Runtime 同口径，防 DSL 配置出超大规模扇出拖垮推进事务）。
+const MaxParallelBranches = 10
+
+// MaxParallelDepth 运行期并行嵌套/链式深度上限（Phase 8 复杂度冻结：
+// 校验器禁止并行区域内再嵌套 parallel，该上限仅作运行期纵深防御）。
+const MaxParallelDepth = 16
+
+// ParallelConfig 并行网关配置（Phase 8）。
+type ParallelConfig struct {
+	// Role 网关角色：split（分流）/ join（汇聚）
+	Role ParallelRole `json:"role"`
 }
 
 // ApprovalMode 审批模式（第 11 章）。
@@ -231,6 +265,8 @@ type NodeConfig struct {
 	Recipients *AssigneeSpec `json:"recipients,omitempty"`
 	// Service 服务节点配置（Phase 7 执行）
 	Service *ServiceConfig `json:"service,omitempty"`
+	// Parallel 并行网关配置（Phase 8：role=split/join）
+	Parallel *ParallelConfig `json:"parallel,omitempty"`
 }
 
 // EdgeCondition 出边条件；仅 condition 节点的出边允许携带，

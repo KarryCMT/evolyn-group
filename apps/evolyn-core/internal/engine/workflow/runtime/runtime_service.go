@@ -116,13 +116,19 @@ func (r *Runtime) InvokeServiceNode(ctx context.Context, in ServiceInvokeInput) 
 		return nil, err
 	}
 	// 8. 续跑推进：服务节点完成语义与瞬时节点一致（NodeCompleted 事件 +
-	// Navigator 寻路后续节点，实例终态由 advance 内 End 分支收口）
+	// Navigator 寻路后续节点，实例终态由 advance 内 End 分支收口）。
+	// 服务节点可能位于并行分支（Phase 8）：从节点实例所属执行路径续跑，
+	// FindNext 命中 join 时由推进环做到达判定
 	r.publishNodeCompleted(ctx, instance, nodeInstance.ID)
+	execution, err := r.executions.FindExecutionByID(ctx, in.TenantID, nodeInstance.ExecutionID)
+	if err != nil {
+		return nil, ErrRouteStuck
+	}
 	next, err := r.navigator.FindNextCompiled(a.compiled, a.env, node.Key)
 	if err != nil {
 		return nil, err
 	}
-	if err := r.advance(ctx, a, next); err != nil {
+	if err := r.advance(ctx, a, execution, next, 0); err != nil {
 		return nil, err
 	}
 	return &ServiceInvokeResult{InstanceID: instance.ID, InstanceStatus: instance.Status, Completed: true}, nil

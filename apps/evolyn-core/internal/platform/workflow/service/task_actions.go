@@ -442,7 +442,17 @@ func (s *runtimeService) GetTask(ctx context.Context, member *iammodel.User, tas
 		}
 	}
 	if taskRow.Status == "PENDING" {
-		detail.AllowedActions = []string{"approve", "reject", "return-to-starter", "transfer"}
+		actions := []string{"approve", "reject", "return-to-starter", "transfer"}
+		// 含并行网关的定义冻结不支持退回发起人（Phase 8）：重提交会从退回
+		// 节点二次推进，若路径上有 split 将二次扇出分支致 join 到达计数失真，
+		// 动作投影与 Runtime.ReturnToStarter 裁决同口径
+		for i := range version.Snapshot.Nodes {
+			if version.Snapshot.Nodes[i].Type == enginemodel.NodeTypeParallel {
+				actions = []string{"approve", "reject", "transfer"}
+				break
+			}
+		}
+		detail.AllowedActions = actions
 	}
 
 	// 表单绑定投影：冻结快照全文 + 业务数据当前值（第 8.2 章双版本冻结）

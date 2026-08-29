@@ -2049,7 +2049,7 @@ CREATE INDEX IF NOT EXISTS idx_wf_instance_business
 CREATE INDEX IF NOT EXISTS idx_wf_instance_tenant
     ON wf_instance (tenant_id, id DESC);
 
--- 执行路径（并行 Phase 8 预留；V1 仅根路径）
+-- 执行路径（Phase 8 并行执行树：根路径 + split 扇出的子分支路径）
 CREATE TABLE IF NOT EXISTS wf_execution (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     tenant_id BIGINT NOT NULL DEFAULT 1,
@@ -2315,11 +2315,11 @@ COMMENT ON COLUMN wf_instance.idempotency_key IS '请求幂等键（客户端生
 COMMENT ON COLUMN wf_instance.created_at IS '创建时间';
 COMMENT ON COLUMN wf_instance.updated_at IS '更新时间';
 
-COMMENT ON TABLE wf_execution IS '执行路径（为并行 Phase 8、子流程预留）：V1 仅根路径 RUNNING → COMPLETED/CANCELLED';
+COMMENT ON TABLE wf_execution IS '执行路径（Phase 8 并行执行树）：根路径由发起创建，并行 split 扇出子分支路径，分支到 join 收口 COMPLETED；RUNNING → COMPLETED/CANCELLED';
 COMMENT ON COLUMN wf_execution.id IS '自增主键';
 COMMENT ON COLUMN wf_execution.tenant_id IS '所属租户 ID';
 COMMENT ON COLUMN wf_execution.instance_id IS '所属实例 ID';
-COMMENT ON COLUMN wf_execution.parent_execution_id IS '父路径 ID（0=根路径；并行 split 才非零）';
+COMMENT ON COLUMN wf_execution.parent_execution_id IS '父路径 ID（0=根路径；并行 split 扇出的子分支挂父路径 ID）';
 COMMENT ON COLUMN wf_execution.status IS '路径状态：RUNNING/COMPLETED/CANCELLED';
 COMMENT ON COLUMN wf_execution.created_at IS '创建时间';
 COMMENT ON COLUMN wf_execution.updated_at IS '更新时间';

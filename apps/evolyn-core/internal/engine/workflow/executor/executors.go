@@ -20,8 +20,8 @@ func (r *registry) ExecutorOf(nodeType model.NodeType) (NodeExecutor, bool) {
 	return e, ok
 }
 
-// NewRegistry 构造执行器注册表（V1：start/approval/condition/cc/service/end；
-// 运行期命中未注册类型即快速失败）。
+// NewRegistry 构造执行器注册表（V1：start/approval/condition/cc/service/
+// parallel/end；运行期命中未注册类型即快速失败）。
 func NewRegistry(resolvers assignment.Registry, identity provider.IdentityProvider) Registry {
 	return &registry{byType: map[model.NodeType]NodeExecutor{
 		model.NodeTypeStart:     &StartExecutor{},
@@ -29,6 +29,7 @@ func NewRegistry(resolvers assignment.Registry, identity provider.IdentityProvid
 		model.NodeTypeCondition: &ConditionExecutor{},
 		model.NodeTypeCC:        &CCExecutor{resolvers: resolvers},
 		model.NodeTypeService:   &ServiceExecutor{},
+		model.NodeTypeParallel:  &ParallelExecutor{},
 		model.NodeTypeEnd:       &EndExecutor{},
 	}}
 }
@@ -102,6 +103,21 @@ type EndExecutor struct{}
 func (e *EndExecutor) Type() model.NodeType { return model.NodeTypeEnd }
 
 func (e *EndExecutor) Execute(ctx context.Context, input ExecuteInput) (ExecuteResult, error) {
+	return ExecuteResult{Complete: true}, nil
+}
+
+// ParallelExecutor 并行网关（Phase 8，第 31 章）：split/join 两种角色共用
+// 一个执行器，节点本身瞬时完成——split 的子执行路径扇出与 join 的到达
+// token 计数是执行树编排语义，由 Runtime 依据预编译区域产物编排
+// （fanOutBranches / arriveAtJoin），执行器只负责让推进环越过本节点。
+type ParallelExecutor struct{}
+
+func (e *ParallelExecutor) Type() model.NodeType { return model.NodeTypeParallel }
+
+func (e *ParallelExecutor) Execute(ctx context.Context, input ExecuteInput) (ExecuteResult, error) {
+	if input.Node.Config.Parallel == nil {
+		return ExecuteResult{}, fmt.Errorf("parallel node %s has no parallel config", input.Node.Key)
+	}
 	return ExecuteResult{Complete: true}, nil
 }
 
