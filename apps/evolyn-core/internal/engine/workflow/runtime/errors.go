@@ -22,4 +22,7 @@ var (
 	ErrRouteStuck = errors.New("no available outgoing edge")
 	// ErrAdvanceOverflow 推进步数超上限（防御快照异常导致的死循环）
 	ErrAdvanceOverflow = errors.New("advance step overflow")
+	// ErrFormFieldForbidden 审批编辑携带了节点字段权限未授权的字段，
+	// 或实例未绑定表单却携带编辑值（第 15.4 章审批提交协议）
+	ErrFormFieldForbidden = errors.New("form field not permitted on this node")
 )

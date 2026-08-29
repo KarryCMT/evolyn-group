@@ -21,6 +21,10 @@ type Department struct {
 	Name     string `json:"name" gorm:"size:100;not null"`
 	Order    int    `json:"order" gorm:"not null;default:0"` // 同级排序，小在前
 	Status   string `json:"status" gorm:"size:16;not null;default:active"`
+	// LeaderMemberID 部门负责人成员 ID，NULL=未设置（迁移 000050）；流程引擎
+	// department_manager 审批人解析数据源（ADR-012 Phase 3），同租户有效性由
+	// 部门服务写入时校验，不加外键避免成员物理清理被 FK 阻断
+	LeaderMemberID *uint `json:"leaderMemberId" gorm:"index"`
 
 	kernel.TenantBaseModel
 }

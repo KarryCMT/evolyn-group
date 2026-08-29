@@ -58,4 +58,7 @@ type IdentityProvider interface {
 	MemberDisplayName(ctx context.Context, tenantID, memberID uint) string
 	// ResolveTenantAdmins 解析租户管理员成员（Assignee 兜底/terminate 通知）
 	ResolveTenantAdmins(ctx context.Context, tenantID uint) ([]model.Actor, error)
+	// MemberContext 成员运行上下文（表达式 starter.* 数据源）：
+	// userID 为成员关联登录名（组织维度键），departmentID 为首个归属部门
+	MemberContext(ctx context.Context, tenantID, memberID uint) (userID string, departmentID uint, err error)
 }

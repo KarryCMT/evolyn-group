@@ -35,7 +35,7 @@ func NewWorkflowInstanceController(runtimeService wfservice.RuntimeService) plat
 // @Security JWT
 // @Param instance body model.StartInstanceRequest true "流程编码、业务绑定与可选幂等键/表单绑定"
 // @Success 201 {object} httpx.Response{data=model.InstanceDetail}
-// @Failure 400 {object} httpx.Response "errCode=WORKFLOW_CODE_INVALID/WORKFLOW_FORM_VERSION_INVALID/WORKFLOW_VERSION_NOT_PUBLISHED"
+// @Failure 400 {object} httpx.Response "errCode=WORKFLOW_CODE_INVALID/WORKFLOW_FORM_VERSION_INVALID/WORKFLOW_VERSION_NOT_PUBLISHED/WORKFLOW_ASSIGNEE_NOT_FOUND/WORKFLOW_EXPRESSION_INVALID/FORM_RECORD_INVALID"
 // @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
 // @Failure 404 {object} httpx.Response "errCode=WORKFLOW_NOT_FOUND"
 // @Failure 409 {object} httpx.Response "errCode=WORKFLOW_INSTANCE_ALREADY_RUNNING"
@@ -78,15 +78,16 @@ func (f *WorkflowInstanceController) GetInstance(c *gin.Context) {
 }
 
 // @Summary 审批同意
-// @Description 同意待办任务（第 13.2 章事务模板）：行锁防双击（重复提交返回 WORKFLOW_TASK_NOT_PENDING）、参与人实例级校验（WORKFLOW_TASK_FORBIDDEN）、节点完成判定（单人/或签首个通过即完成）与同事务推进
+// @Description 同意待办任务（第 13.2 章事务模板）：行锁防双击（重复提交返回 WORKFLOW_TASK_NOT_PENDING）、参与人实例级校验（WORKFLOW_TASK_FORBIDDEN）、节点完成判定（单人/或签首个通过即完成）与同事务推进；values 携带审批编辑的表单字段（键=widgetName，可选）：仅允许节点字段权限授权（editable/required）的字段（越权返回 WORKFLOW_FORM_FIELD_FORBIDDEN），授权字段按发起时冻结的表单快照校验后同事务写回（校验失败 FORM_RECORD_INVALID + fieldErrors 回填）
 // @Accept json
 // @Produce json
 // @Tags 流程管理
 // @Security JWT
 // @Param taskId path int true "任务 ID"
-// @Param body body model.ApproveTaskRequest true "审批意见（可选）"
+// @Param body body model.ApproveTaskRequest true "审批意见（可选）与表单字段编辑值（可选）"
 // @Success 200 {object} httpx.Response{data=model.ApproveTaskResult}
-// @Failure 403 {object} httpx.Response "errCode=WORKFLOW_TASK_FORBIDDEN/FORBIDDEN"
+// @Failure 400 {object} httpx.Response "errCode=FORM_RECORD_INVALID/WORKFLOW_EXPRESSION_INVALID/WORKFLOW_ASSIGNEE_NOT_FOUND"
+// @Failure 403 {object} httpx.Response "errCode=WORKFLOW_TASK_FORBIDDEN/WORKFLOW_FORM_FIELD_FORBIDDEN/FORBIDDEN"
 // @Failure 404 {object} httpx.Response "errCode=WORKFLOW_TASK_NOT_FOUND"
 // @Failure 409 {object} httpx.Response "errCode=WORKFLOW_TASK_NOT_PENDING/WORKFLOW_INSTANCE_NOT_RUNNING"
 // @Router /api/v1/workflow-tasks/{taskId}/approve [post]

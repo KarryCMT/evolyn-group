@@ -2,9 +2,12 @@ package runtime
 
 import (
 	"context"
+	"sync"
 
+	"evolyn/internal/engine/workflow/definition"
 	"evolyn/internal/engine/workflow/event"
 	"evolyn/internal/engine/workflow/executor"
+	"evolyn/internal/engine/workflow/expression"
 	"evolyn/internal/engine/workflow/model"
 	"evolyn/internal/engine/workflow/provider"
 	"evolyn/internal/engine/workflow/repository"
@@ -27,6 +30,19 @@ type Runtime struct {
 	publisher provider.EventPublisher
 	// taskEngine 人工任务引擎（Runtime 与 Task Engine 分离，第 12.2 章）
 	taskEngine *task.Engine
+
+	// business 业务数据窄端口（第 15 章，Phase 3）：form.* 表达式数据源与
+	// 审批编辑写回的唯一通道，内核不感知 form_records；可为 nil（单测）
+	business provider.BusinessDataProvider
+	// identity 身份窄端口：starter.* 表达式上下文填充；可为 nil（单测）
+	identity provider.IdentityProvider
+
+	// expressions 表达式引擎（发布期已预编译，运行期仅取产物求值）
+	expressions expression.Engine
+	// compiledCache 发布预编译产物缓存（版本 ID → CompiledDefinition；
+	// 快照不可变故进程内缓存安全），互斥锁保护首次构建
+	compiledMu    sync.Mutex
+	compiledCache map[uint]*definition.CompiledDefinition
 }
 
 // DefinitionReader 运行时对定义快照的最小读取面（内核 SPI 细化：Runtime
@@ -37,7 +53,8 @@ type DefinitionReader interface {
 	FindVersionByID(ctx context.Context, tenantID, versionID uint) (*model.DefinitionVersion, error)
 }
 
-// NewRuntime 构造运行时（publisher 可为 nil：跳过事件发布，便于单测）。
+// NewRuntime 构造运行时（publisher/business/identity 可为 nil：
+// 跳过事件发布与表单数据接入，便于单测）。
 func NewRuntime(
 	definitions DefinitionReader,
 	instances repository.InstanceRepository,
@@ -47,18 +64,24 @@ func NewRuntime(
 	operations repository.OperationRepository,
 	executors executor.Registry,
 	publisher provider.EventPublisher,
+	business provider.BusinessDataProvider,
+	identity provider.IdentityProvider,
 ) *Runtime {
 	return &Runtime{
-		definitions: definitions,
-		instances:   instances,
-		executions:  executions,
-		nodes:       nodes,
-		tasks:       tasks,
-		operations:  operations,
-		executors:   executors,
-		navigator:   NewNavigator(nil),
-		publisher:   publisher,
-		taskEngine:  task.NewEngine(tasks, instances, operations, publisher),
+		definitions:   definitions,
+		instances:     instances,
+		executions:    executions,
+		nodes:         nodes,
+		tasks:         tasks,
+		operations:    operations,
+		executors:     executors,
+		navigator:     NewNavigator(nil),
+		publisher:     publisher,
+		taskEngine:    task.NewEngine(tasks, instances, operations, publisher),
+		business:      business,
+		identity:      identity,
+		expressions:   expression.NewExprEngine(),
+		compiledCache: make(map[uint]*definition.CompiledDefinition),
 	}
 }
 
@@ -185,6 +208,10 @@ type ApproveInput struct {
 	TaskID           uint
 	OperatorMemberID uint
 	Comment          string
+	// FormValues 审批编辑的表单字段值（键=widgetName，可选）。Runtime 按节
+	// 点字段权限过滤后经业务数据窄端口在同一事务内写回（第 13.2/15.4 章）：
+	// 携带未授权字段即整体失败回滚，禁止直接改业务表
+	FormValues map[string]any
 }
 
 // ApproveResult 审批同意结果。
@@ -218,6 +245,11 @@ func (r *Runtime) Approve(ctx context.Context, in ApproveInput) (*ApproveResult,
 	if !ok || node.Type != model.NodeTypeApproval {
 		return nil, ErrRouteStuck
 	}
+	// 审批编辑写回（第 13.2 章事务模板第 5/6 步）：按节点字段权限过滤后
+	// 经业务数据窄端口由 Form Domain 校验写回，失败即整体回滚（含任务更新）
+	if err := r.applyFormValues(ctx, instance, node, in.FormValues); err != nil {
+		return nil, err
+	}
 	// 节点完成判定（第 11 章冻结规则，含会签 ceil 阈值）
 	nodeTasks, err := r.tasks.ListTasksByNodeInstance(ctx, outcome.NodeInstanceID)
 	if err != nil {
@@ -248,8 +280,8 @@ func (r *Runtime) Approve(ctx context.Context, in ApproveInput) (*ApproveResult,
 	if err != nil {
 		return nil, err
 	}
-	// 从已完成节点寻路并推进后续节点
-	next, err := r.navigator.FindNext(advance.env, &version.Snapshot, outcome.NodeKey)
+	// 从已完成节点寻路并推进后续节点（取发布预编译产物求值）
+	next, err := r.navigator.FindNextCompiled(advance.compiled, advance.env, outcome.NodeKey)
 	if err != nil {
 		return nil, err
 	}
@@ -259,12 +291,46 @@ func (r *Runtime) Approve(ctx context.Context, in ApproveInput) (*ApproveResult,
 	return &ApproveResult{InstanceID: instance.ID, InstanceStatus: instance.Status, NodeCompleted: true}, nil
 }
 
+// applyFormValues 审批编辑写回（第 15.4 章审批提交协议）：
+//   - 未携带编辑值：直通；
+//   - 携带编辑值但实例未绑定表单/端口未装配：WORKFLOW_FORM_FIELD_FORBIDDEN；
+//   - 请求字段未获节点 editable/required 授权：WORKFLOW_FORM_FIELD_FORBIDDEN；
+//   - 授权字段经业务数据窄端口由 Form Domain 按冻结快照校验，校验失败
+//     整体报错（同事务回滚），内核不做任何 form_records 直改。
+func (r *Runtime) applyFormValues(ctx context.Context, instance *model.Instance, node *model.Node, values map[string]any) error {
+	if len(values) == 0 {
+		return nil
+	}
+	if r.business == nil || instance.FormVersionID == 0 {
+		return ErrFormFieldForbidden
+	}
+	allowed := make(map[string]bool, len(node.Config.FormPermissions))
+	for field, perm := range node.Config.FormPermissions {
+		if perm == model.FieldPermissionEditable || perm == model.FieldPermissionRequired {
+			allowed[field] = true
+		}
+	}
+	for field := range values {
+		if !allowed[field] {
+			return ErrFormFieldForbidden
+		}
+	}
+	return r.business.UpdateData(ctx, provider.BusinessRef{
+		TenantID:      instance.TenantID,
+		AppID:         instance.AppID,
+		FormID:        instance.FormID,
+		FormVersionID: instance.FormVersionID,
+		BusinessID:    instance.BusinessID,
+	}, values)
+}
+
 // advanceContext 推进环上下文：一次推进内共享实例/执行路径/快照/表达式环境。
 type advanceContext struct {
 	instance  *model.Instance
 	execution *model.Execution
 	env       *model.WorkflowContext
 	doc       *model.Document
+	compiled  *definition.CompiledDefinition
 }
 
 func (r *Runtime) newAdvanceContext(ctx context.Context, instance *model.Instance, version *model.DefinitionVersion, definitionCode string) (*advanceContext, error) {
@@ -289,12 +355,57 @@ func (r *Runtime) newAdvanceContext(ctx context.Context, instance *model.Instanc
 		Form:      map[string]any{},
 		Variables: map[string]any{},
 	}
+	// 身份窄端口：填充 starter.* 表达式上下文（登录名/归属部门，Phase 3）
+	if r.identity != nil {
+		userID, departmentID, err := r.identity.MemberContext(ctx, instance.TenantID, instance.StarterMemberID)
+		if err != nil {
+			return nil, err
+		}
+		env.Starter.UserID = userID
+		env.Starter.DepartmentID = departmentID
+	}
+	// 业务数据窄端口：填充 form.* 表达式数据源（发起时冻结的 Form 快照，
+	// 第 8.2 章双版本冻结；读取失败即本次推进失败）
+	if r.business != nil && instance.FormVersionID != 0 {
+		values, err := r.business.GetData(ctx, provider.BusinessRef{
+			TenantID:      instance.TenantID,
+			AppID:         instance.AppID,
+			FormID:        instance.FormID,
+			FormVersionID: instance.FormVersionID,
+			BusinessID:    instance.BusinessID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		env.Form = values
+	}
+	compiled, err := r.compiledFor(version)
+	if err != nil {
+		return nil, err
+	}
 	return &advanceContext{
 		instance:  instance,
 		execution: &executions[0],
 		env:       env,
 		doc:       &version.Snapshot,
+		compiled:  compiled,
 	}, nil
+}
+
+// compiledFor 取版本预编译产物（第 16 章「发布时预编译」）：快照不可变，
+// 进程内按版本 ID 缓存一次构建结果，运行期禁止逐次重编译。
+func (r *Runtime) compiledFor(version *model.DefinitionVersion) (*definition.CompiledDefinition, error) {
+	r.compiledMu.Lock()
+	defer r.compiledMu.Unlock()
+	if compiled, ok := r.compiledCache[version.ID]; ok {
+		return compiled, nil
+	}
+	compiled, err := definition.Compile(&version.Snapshot, r.expressions)
+	if err != nil {
+		return nil, err
+	}
+	r.compiledCache[version.ID] = compiled
+	return compiled, nil
 }
 
 // advance 推进环：执行 current 节点并沿导航链推进，直到人工审批挂起
@@ -371,7 +482,7 @@ func (r *Runtime) advance(ctx context.Context, a *advanceContext, current string
 			r.publish(ctx, event.InstanceCompleted, a.instance, 0, 0)
 			return nil
 		}
-		next, err := r.navigator.FindNext(a.env, doc, node.Key)
+		next, err := r.navigator.FindNextCompiled(a.compiled, a.env, node.Key)
 		if err != nil {
 			return err
 		}

@@ -18,11 +18,18 @@ func (r *registry) ResolverOf(assigneeType model.AssigneeType) (AssigneeResolver
 	return resolver, ok
 }
 
-// NewRegistry 构造审批人解析注册表（Phase 2：指定用户；角色/表单字段
-// 随 Phase 3 接入，部门负责人/直属主管待 IAM 前置能力落地）。
-func NewRegistry(identity provider.IdentityProvider) Registry {
+// NewRegistry 构造审批人解析注册表：注册类型必须与 v1ResolverCapabilities
+// 启用集一致（发布校验器据此拒绝未启用类型，双保险）。
+//   - user：指定用户（身份端口校验 + 显示名快照）；
+//   - role：指定角色（组织端口解析角色成员）；
+//   - form_field：表单用户字段（运行上下文 form.* 取成员 ID）；
+//   - department_manager：部门负责人（迁移 000050 leader 前置）。
+func NewRegistry(identity provider.IdentityProvider, org provider.OrganizationProvider) Registry {
 	resolvers := map[model.AssigneeType]AssigneeResolver{
-		model.AssigneeTypeUser: &UserResolver{identity: identity},
+		model.AssigneeTypeUser:              &UserResolver{identity: identity},
+		model.AssigneeTypeRole:              &RoleResolver{org: org},
+		model.AssigneeTypeFormField:         &FormFieldResolver{identity: identity},
+		model.AssigneeTypeDepartmentManager: &DepartmentManagerResolver{org: org},
 	}
 	return &registry{resolvers: resolvers}
 }

@@ -19,6 +19,10 @@ import (
 	// swagger spec 注册：swag init 生成的 docs 包经 init() 把接口定义
 	// 注册给 gin-swagger，不引入则 /swagger/doc.json 500（页面能开但无内容）
 	_ "evolyn/docs"
+	"evolyn/internal/engine/workflow/assignment"
+	"evolyn/internal/engine/workflow/executor"
+	wfprovider "evolyn/internal/engine/workflow/provider"
+	engineruntime "evolyn/internal/engine/workflow/runtime"
 	applicationcontroller "evolyn/internal/platform/application/controller"
 	applicationrepository "evolyn/internal/platform/application/repository"
 	applicationservice "evolyn/internal/platform/application/service"
@@ -50,14 +54,6 @@ import (
 	formcontroller "evolyn/internal/platform/form/controller"
 	formrepository "evolyn/internal/platform/form/repository"
 	formservice "evolyn/internal/platform/form/service"
-	workflowadapter "evolyn/internal/platform/workflow/adapter"
-	workflowerrors "evolyn/internal/platform/workflow"
-	engineruntime "evolyn/internal/engine/workflow/runtime"
-	"evolyn/internal/engine/workflow/assignment"
-	"evolyn/internal/engine/workflow/executor"
-	workflowcontroller "evolyn/internal/platform/workflow/controller"
-	workflowrepository "evolyn/internal/platform/workflow/repository"
-	workflowservice "evolyn/internal/platform/workflow/service"
 	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
 	iamcontroller "evolyn/internal/platform/iam/controller"
@@ -73,6 +69,11 @@ import (
 	tenantproductcontroller "evolyn/internal/platform/tenantproduct/controller"
 	tenantproductrepository "evolyn/internal/platform/tenantproduct/repository"
 	tenantproductservice "evolyn/internal/platform/tenantproduct/service"
+	workflowerrors "evolyn/internal/platform/workflow"
+	workflowadapter "evolyn/internal/platform/workflow/adapter"
+	workflowcontroller "evolyn/internal/platform/workflow/controller"
+	workflowrepository "evolyn/internal/platform/workflow/repository"
+	workflowservice "evolyn/internal/platform/workflow/service"
 	"evolyn/internal/utils/request"
 	"evolyn/internal/utils/set"
 	"evolyn/internal/version"
@@ -486,14 +487,25 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	)
 	workflowController := workflowcontroller.NewWorkflowController(workflowService)
 
-	// 最小 Runtime（000049）：引擎执行器注册表 + 事件日志适配器（Phase 6 换
-	// Outbox 桥接）+ 表单目录窄端口（form 域仓储桥接，跨域不直接依赖），
-	// 事务在 RuntimeService 内经 TxManager 建立，内核在同一事务内推进
-	workflowExecutors := executor.NewRegistry(assignment.NewRegistry(nil))
+	// Runtime（000049 + Phase 3）：引擎执行器注册表 + 事件日志适配器
+	//（Phase 6 换 Outbox 桥接）+ 表单目录/身份/组织/业务数据四条窄端口
+	//（form 域与 IAM 桥接，跨域不直接依赖），事务在 RuntimeService 内经
+	// TxManager 建立，内核在同一事务内推进
+	workflowIdentityProvider := workflowadapter.NewIdentityProvider(db)
+	workflowOrgProvider := workflowadapter.NewOrganizationProvider(db)
+	workflowExecutors := executor.NewRegistry(
+		assignment.NewRegistry(workflowIdentityProvider, workflowOrgProvider),
+		workflowIdentityProvider,
+	)
+	var workflowFormProvider wfprovider.BusinessDataProvider
+	if formRecordStore, ok := formService.(formservice.WorkflowRecordStore); ok {
+		workflowFormProvider = workflowadapter.NewFormDataProvider(formRecordStore)
+	}
 	workflowRuntimeService := workflowservice.NewRuntimeService(
 		txManager,
 		engineruntime.NewRuntime(workflowEngineReader, workflowInstanceRepo, workflowExecutionRepo,
-			workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowExecutors, workflowadapter.NewEventPublisher()),
+			workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowExecutors,
+			workflowadapter.NewEventPublisher(), workflowFormProvider, workflowIdentityProvider),
 		workflowRuntimeReader, workflowEngineReader,
 		workflowFormDirectory{forms: formRepo, versions: formVersionRepo},
 		appAccess, auditSvc,

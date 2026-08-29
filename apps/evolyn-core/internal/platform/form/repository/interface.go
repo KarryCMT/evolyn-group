@@ -67,9 +67,15 @@ type FormVersionRepository interface {
 	Migrate() error
 }
 
-// FormRecordRepository 记录仓储（P2：追加写）。
+// FormRecordRepository 记录仓储（P2：追加写；流程引擎 Phase 3 增补审批
+// 编辑窄口：按 ID 读值与白名单字段合并更新，均经 Service 层快照校验）。
 type FormRecordRepository interface {
 	Create(ctx context.Context, record *model.FormRecord) (*model.FormRecord, error)
+	// GetByID 按行 ID 加载（ctx 租户过滤兜底：跨租户记录即 NotFound）
+	GetByID(ctx context.Context, id uint) (*model.FormRecord, error)
+	// UpdateValues 整体替换 values JSONB（调用方必须先按发布快照校验合并
+	// 结果；只更新 values 列，不动提交人与提交时间）
+	UpdateValues(ctx context.Context, id uint, values model.JSONContent) error
 	// Migrate 开发/测试 AutoMigrate 路径
 	Migrate() error
 }

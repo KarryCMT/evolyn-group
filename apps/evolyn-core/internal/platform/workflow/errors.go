@@ -61,4 +61,18 @@ var (
 
 	// ErrTaskForbidden 当前操作者不是该任务的参与人（实例级校验，第 21 章）
 	ErrTaskForbidden = httpx.NewBiz("WORKFLOW_TASK_FORBIDDEN", "没有执行该任务的权限", http.StatusForbidden)
+
+	// ---- 表单联动与表达式（Phase 3，第 20.5 章冻结码段） ----
+
+	// ErrExpressionInvalid 条件表达式运行期求值失败（发布期已预编译拦截
+	// 语法/白名单问题，运行期失败属数据形态异常）
+	ErrExpressionInvalid = httpx.NewBiz("WORKFLOW_EXPRESSION_INVALID", "条件表达式执行失败", http.StatusBadRequest)
+
+	// ErrAssigneeNotFound 审批人解析为空且无可用兜底（第 17 章补充语义，
+	// 禁止静默跳过节点）
+	ErrAssigneeNotFound = httpx.NewBiz("WORKFLOW_ASSIGNEE_NOT_FOUND", "无法解析审批人，请联系管理员配置审批人", http.StatusConflict)
+
+	// ErrFormFieldForbidden 审批编辑携带了节点字段权限未授权的字段，
+	// 或实例未绑定表单却携带编辑值（第 15.4 章审批提交协议）
+	ErrFormFieldForbidden = httpx.NewBiz("WORKFLOW_FORM_FIELD_FORBIDDEN", "存在本节点不允许修改的表单字段", http.StatusForbidden)
 )

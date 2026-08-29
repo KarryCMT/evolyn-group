@@ -104,6 +104,26 @@ func TestValidateApprovalConfig(t *testing.T) {
 	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeFieldPermission)
 }
 
+func TestValidateAssigneeCapabilityGate(t *testing.T) {
+	// IAM 前置能力未落地的类型不允许发布（能力矩阵门，第 17.2 章）
+	doc := validDoc()
+	doc.Nodes[1].Config.Assignee = &model.AssigneeSpec{Type: model.AssigneeTypeStarterManager}
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+
+	doc = validDoc()
+	doc.Nodes[1].Config.Assignee = &model.AssigneeSpec{Type: model.AssigneeTypeDepartment, DeptID: 1}
+	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeConfigInvalid)
+
+	// 已启用类型正常通过
+	doc = validDoc()
+	doc.Nodes[1].Config.Assignee = &model.AssigneeSpec{Type: model.AssigneeTypeRole, RoleCode: "finance"}
+	assert.Empty(t, NewValidator(nil).Validate(doc))
+
+	doc = validDoc()
+	doc.Nodes[1].Config.Assignee = &model.AssigneeSpec{Type: model.AssigneeTypeFormField, FormField: "manager_id"}
+	assert.Empty(t, NewValidator(nil).Validate(doc))
+}
+
 func TestValidateConditionEdges(t *testing.T) {
 	// 合法条件节点：两条出边，一条带表达式一条 default
 	doc := validDoc()

@@ -48,13 +48,16 @@ type Registry interface {
 }
 
 // V1 Resolver 能力矩阵（第 17.2 章）：enabled 表示该类型当前允许注册
-// 启用；条件开放类型在 IAM 前置能力落地前保持关闭（Phase 3 开工前排期）。
+// 启用；条件开放类型在 IAM 前置能力落地前保持关闭。
+// Phase 3：指定角色 / 表单用户字段 / 部门负责人已启用（部门负责人依赖
+// 迁移 000050 的 IAM leader 前置能力）；发起人直属主管待 IAM reporting
+// 关系落地（V1 IAM 无此组织语义，禁止猜测实现）。
 var v1ResolverCapabilities = map[model.AssigneeType]bool{
 	model.AssigneeTypeUser:              true,  // 指定用户（IAM User 已具备）
 	model.AssigneeTypeRole:              true,  // 指定角色（IAM Role 已具备）
 	model.AssigneeTypeFormField:         true,  // 表单用户字段（Phase 3 Form 接入后生效）
 	model.AssigneeTypeDepartment:        false, // 部门成员（可选，视 IAM membership 端口排期）
-	model.AssigneeTypeDepartmentManager: false, // 部门负责人（需 IAM leader 字段前置）
+	model.AssigneeTypeDepartmentManager: true,  // 部门负责人（迁移 000050 leader 前置已落地）
 	model.AssigneeTypeStarterManager:    false, // 发起人直属主管（需 IAM reporting 前置）
 }
 

@@ -83,6 +83,19 @@ func (r *formRecordRepository) Create(ctx context.Context, record *model.FormRec
 	return record, nil
 }
 
+func (r *formRecordRepository) GetByID(ctx context.Context, id uint) (*model.FormRecord, error) {
+	record := &model.FormRecord{}
+	if err := infrastructure.ResolveDB(ctx, r.db).Where("id = ?", id).First(record).Error; err != nil {
+		return nil, err
+	}
+	return record, nil
+}
+
+func (r *formRecordRepository) UpdateValues(ctx context.Context, id uint, values model.JSONContent) error {
+	return infrastructure.ResolveDB(ctx, r.db).Model(&model.FormRecord{}).
+		Where("id = ?", id).Update("values", values).Error
+}
+
 func (r *formRecordRepository) Migrate() error {
 	return r.db.AutoMigrate(&model.FormRecord{})
 }

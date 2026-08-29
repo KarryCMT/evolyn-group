@@ -80,7 +80,15 @@ internal/
                       唯一索引），/api/v1/workflows 与 /workflow-instances
                       （发起/详情/同意，行锁推进）全套接口，workflows 资源
                       基线管理员补授、workflow-instances/workflow-tasks
-                      授全体成员（TaskActor 实例级校验兜底）
+                      授全体成员（TaskActor 实例级校验兜底）；Phase 3 已
+                      落地（迁移 000050 departments.leader_member_id）：
+                      身份/组织/业务数据三条窄端口适配器（identity/
+                      organization/form_provider）+ 条件节点执行器与
+                      Expr 发布预编译产物缓存 + form.* 表达式数据源与
+                      starter.* 上下文填充 + role/form_field/
+                      department_manager Resolver（解析失败租户管理员兜底）
+                      + 审批编辑字段权限过滤（同事务经 Form Domain
+                      WorkflowRecordStore 窄端口写回 form_records）
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
     controller/       Controller 注册契约（RegisterRoute/Name；
                       PlatformController 标记平台运营域归属）与 AppConf

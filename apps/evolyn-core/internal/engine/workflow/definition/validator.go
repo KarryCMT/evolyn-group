@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"evolyn/internal/engine/workflow/assignment"
 	"evolyn/internal/engine/workflow/expression"
 	"evolyn/internal/engine/workflow/model"
 )
@@ -203,6 +204,13 @@ func (v *Validator) validateAssigneeSpec(errs ValidationErrors, spec *model.Assi
 	default:
 		errs = append(errs, &ValidationError{Path: path + ".type", Code: ErrCodeConfigInvalid,
 			Message: fmt.Sprintf("不支持的审批人类型 %q", spec.Type)})
+		return errs
+	}
+	// Resolver 能力门（第 17.2 章能力矩阵）：IAM 前置能力未落地的类型
+	// 不允许发布，避免「发布成功、运行必失败」的定义进入快照
+	if !assignment.ResolverEnabled(spec.Type) {
+		errs = append(errs, &ValidationError{Path: path + ".type", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("审批人类型 %q 暂未启用（IAM 前置能力未落地）", spec.Type)})
 	}
 	return errs
 }

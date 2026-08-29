@@ -175,12 +175,14 @@ CREATE TABLE IF NOT EXISTS departments (
     name varchar(100) NOT NULL,
     "order" BIGINT NOT NULL DEFAULT 0,
     status varchar(16) NOT NULL DEFAULT 'active',
+    leader_member_id BIGINT,
     tenant_id BIGINT NOT NULL DEFAULT 1,
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     deleted_at timestamp with time zone,
     CONSTRAINT fk_departments_parent FOREIGN KEY (parent_id) REFERENCES departments(id)
 );
+CREATE INDEX IF NOT EXISTS idx_departments_leader_member_id ON departments (leader_member_id);
 
 CREATE TABLE IF NOT EXISTS department_users(
     department_id BIGINT NOT NULL REFERENCES departments(id),
@@ -834,6 +836,7 @@ COMMENT ON COLUMN departments.parent_id IS '父部门 ID，NULL=根节点；自�
 COMMENT ON COLUMN departments.name IS '部门名称';
 COMMENT ON COLUMN departments."order" IS '同级排序值，小者在前';
 COMMENT ON COLUMN departments.status IS '部门状态：active=正常 / disabled=停用';
+COMMENT ON COLUMN departments.leader_member_id IS '部门负责人成员 ID，NULL=未设置；流程引擎 department_manager 审批人解析数据源（ADR-012 Phase 3），同租户有效性由部门服务写入时校验';
 COMMENT ON COLUMN departments.tenant_id IS '所属租户 ID';
 COMMENT ON COLUMN departments.created_at IS '创建时间';
 COMMENT ON COLUMN departments.updated_at IS '更新时间';

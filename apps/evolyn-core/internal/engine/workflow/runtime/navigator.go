@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"evolyn/internal/engine/workflow/definition"
 	"evolyn/internal/engine/workflow/expression"
 	"evolyn/internal/engine/workflow/model"
 )
@@ -23,6 +24,9 @@ func NewNavigator(expressions expression.Engine) *Navigator {
 //   - 普通节点：V1 仅允许单出边（多出边属未支持语义，快速失败）；
 //   - 条件节点：按快照出边声明顺序求值边表达式，取首个命中的分支；
 //     全部未命中时回落 default（无条件）出边——校验器已保证 default 必存在。
+//
+// 兼容入口：按需即时编译表达式（测试/直接调用方使用）；生产链路走
+// FindNextCompiled 取发布预编译产物。
 func (n *Navigator) FindNext(env *model.WorkflowContext, doc *model.Document, nodeKey string) (string, error) {
 	node, ok := doc.NodeOf(nodeKey)
 	if !ok {
@@ -40,6 +44,54 @@ func (n *Navigator) FindNext(env *model.WorkflowContext, doc *model.Document, no
 		return edges[0].Target, nil
 	}
 	return n.pickConditionBranch(env, edges)
+}
+
+// FindNextCompiled 语义同 FindNext，但条件表达式取发布预编译产物
+// （CompiledDefinition.EdgeExpressions，第 16 章「发布时预编译、运行期
+// 禁止重编译」）；产物缺失的出边防御性回退到即时编译。
+func (n *Navigator) FindNextCompiled(compiled *definition.CompiledDefinition, env *model.WorkflowContext, nodeKey string) (string, error) {
+	doc := compiled.Document
+	node, ok := doc.NodeOf(nodeKey)
+	if !ok {
+		return "", ErrRouteStuck
+	}
+	edges := n.outgoingEdges(doc, nodeKey)
+	if len(edges) == 0 {
+		return "", ErrRouteStuck
+	}
+	if node.Type != model.NodeTypeCondition {
+		if len(edges) > 1 {
+			return "", ErrRouteStuck
+		}
+		return edges[0].Target, nil
+	}
+	var defaultTarget string
+	for _, edge := range edges {
+		if edge.Condition == nil {
+			defaultTarget = edge.Target
+			continue
+		}
+		program, ok := compiled.EdgeExpressions[edge.Key]
+		if !ok {
+			// 防御：快照含未编译表达式（正常发布链路不会发生）
+			recompiled, err := n.expressions.Compile(edge.Condition.Expression)
+			if err != nil {
+				return "", err
+			}
+			program = recompiled
+		}
+		hit, err := program.Eval(env.ExpressionEnv())
+		if err != nil {
+			return "", err
+		}
+		if truthy(hit) {
+			return edge.Target, nil
+		}
+	}
+	if defaultTarget == "" {
+		return "", ErrRouteStuck
+	}
+	return defaultTarget, nil
 }
 
 // outgoingEdges 返回节点出边（保持快照声明顺序，条件求值以此为准）。

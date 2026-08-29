@@ -60,6 +60,11 @@ func (s *departmentService) Create(ctx context.Context, dept *model.Department) 
 	if dept.Status == "" {
 		dept.Status = model.DeptActive
 	}
+	if dept.LeaderMemberID != nil {
+		if err := s.validateLeader(ctx, *dept.LeaderMemberID); err != nil {
+			return nil, err
+		}
+	}
 
 	created, err := s.departmentRepo.Create(ctx, dept)
 	if err == nil && s.audit != nil {
@@ -85,6 +90,11 @@ func (s *departmentService) Update(ctx context.Context, id string, dept *model.D
 	}
 	if dept.ParentId != nil {
 		if err := s.validateParent(ctx, *dept.ParentId, uint(did)); err != nil {
+			return nil, err
+		}
+	}
+	if dept.LeaderMemberID != nil {
+		if err := s.validateLeader(ctx, *dept.LeaderMemberID); err != nil {
 			return nil, err
 		}
 	}
@@ -156,6 +166,20 @@ func (s *departmentService) SetMemberDepartments(ctx context.Context, memberID s
 			ResourceID: memberID,
 			After:      map[string]any{"departmentIds": departmentIDs},
 		})
+	}
+	return nil
+}
+
+// validateLeader 部门负责人校验（迁移 000050）：负责人必须是租户内有效成员
+// （ctx 租户过滤保证同租户，跨租户成员表现为不存在）；流程引擎
+// department_manager 审批人解析依赖该语义（ADR-012 Phase 3）
+func (s *departmentService) validateLeader(ctx context.Context, leaderMemberID uint) error {
+	leader, err := s.userRepo.GetUserByID(ctx, leaderMemberID)
+	if err != nil {
+		return fmt.Errorf("leader member %d not found", leaderMemberID)
+	}
+	if leader.Status != model.MemberStatusActive || leader.ResignedAt != nil {
+		return fmt.Errorf("leader member %d is not active", leaderMemberID)
 	}
 	return nil
 }

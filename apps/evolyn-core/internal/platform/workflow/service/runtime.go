@@ -2,11 +2,14 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	"evolyn/internal/contextx"
+	"evolyn/internal/engine/workflow/assignment"
+	"evolyn/internal/engine/workflow/expression"
 	engineruntime "evolyn/internal/engine/workflow/runtime"
 	enginetask "evolyn/internal/engine/workflow/task"
 	auditservice "evolyn/internal/platform/audit/service"
@@ -74,9 +77,23 @@ func mapEngineError(err error) error {
 		return httpx.Wrap(wfapp.ErrTaskForbidden, err)
 	case errors.Is(err, enginetask.ErrInstanceNotRunning):
 		return httpx.Wrap(wfapp.ErrInstanceNotRunning, err)
-	default:
-		return err
+	case errors.Is(err, engineruntime.ErrFormFieldForbidden):
+		return httpx.Wrap(wfapp.ErrFormFieldForbidden, err)
+	case errors.Is(err, engineruntime.ErrRouteStuck), errors.Is(err, engineruntime.ErrNodeUnsupported),
+		errors.Is(err, engineruntime.ErrAdvanceOverflow):
+		// 校验器已保证的路由不变量运行期被打破：细节只入日志，出网统一口径
+		return httpx.Wrap(wfapp.ErrDefinitionInvalid, err)
 	}
+	// 类型化错误：表达式求值失败 / 审批人解析为空（struct 错误走 errors.As）
+	var exprErr *expression.ErrExpressionInvalid
+	if errors.As(err, &exprErr) {
+		return httpx.Wrap(wfapp.ErrExpressionInvalid, err)
+	}
+	var assigneeErr *assignment.ErrAssigneeNotFound
+	if errors.As(err, &assigneeErr) {
+		return httpx.Wrap(wfapp.ErrAssigneeNotFound, err)
+	}
+	return err
 }
 
 func (s *runtimeService) Start(ctx context.Context, member *iammodel.User, req *model.StartInstanceRequest) (*model.InstanceDetail, error) {
@@ -162,6 +179,15 @@ func (s *runtimeService) Approve(ctx context.Context, member *iammodel.User, req
 	if req.TaskID == 0 {
 		return nil, httpx.Wrap(wfapp.ErrTaskNotFound, fmt.Errorf("taskId required"))
 	}
+	// 审批编辑值：RawMessage → any（JSON 数字为 float64，与表单域校验口径一致）
+	formValues := make(map[string]any, len(req.Values))
+	for key, raw := range req.Values {
+		var value any
+		if err := json.Unmarshal(raw, &value); err != nil {
+			return nil, httpx.Wrap(wfapp.ErrFormFieldForbidden, fmt.Errorf("field %s: %w", key, err))
+		}
+		formValues[key] = value
+	}
 
 	var result *model.ApproveTaskResult
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
@@ -170,6 +196,7 @@ func (s *runtimeService) Approve(ctx context.Context, member *iammodel.User, req
 			TaskID:           req.TaskID,
 			OperatorMemberID: member.ID,
 			Comment:          req.Comment,
+			FormValues:       formValues,
 		})
 		if err != nil {
 			return mapEngineError(err)

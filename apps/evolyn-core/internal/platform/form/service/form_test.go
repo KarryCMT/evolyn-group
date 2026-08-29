@@ -293,6 +293,25 @@ func (f *fakeRecordRepo) Create(ctx context.Context, record *model.FormRecord) (
 	return &clone, nil
 }
 
+func (f *fakeRecordRepo) GetByID(ctx context.Context, id uint) (*model.FormRecord, error) {
+	for _, record := range f.records {
+		if record.ID == id {
+			return record, nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (f *fakeRecordRepo) UpdateValues(ctx context.Context, id uint, values model.JSONContent) error {
+	for _, record := range f.records {
+		if record.ID == id {
+			record.Values = values
+			return nil
+		}
+	}
+	return gorm.ErrRecordNotFound
+}
+
 func (f *fakeRecordRepo) Migrate() error { return nil }
 
 // ---- 服务工厂 ----

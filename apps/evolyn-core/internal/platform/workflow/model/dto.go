@@ -109,6 +109,11 @@ type StartInstanceRequest struct {
 type ApproveTaskRequest struct {
 	TaskID  uint   `json:"taskId"`
 	Comment string `json:"comment"`
+	// Values 审批编辑的表单字段值（键=widgetName，可选）：仅允许节点
+	// 字段权限授权（editable/required）的字段，越权字段整体拒绝
+	//（WORKFLOW_FORM_FIELD_FORBIDDEN），授权字段经 Form Domain 按冻结
+	// 快照校验后同事务写回（FORM_RECORD_INVALID + fieldErrors 回填）
+	Values map[string]json.RawMessage `json:"values,omitempty"`
 }
 
 // TaskActorView 任务参与人（快照）。

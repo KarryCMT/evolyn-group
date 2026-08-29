@@ -46,8 +46,19 @@ apps/evolyn-core/
   （详情时间线）、POST /workflow-tasks/:taskId/approve（同意，双击防护）；
   workflow-instances/workflow-tasks 资源补授（发起/查看/审批授全体成员，
   实例级由 TaskActor 校验兜底）；Phase 6 前事件经日志适配器落流水。
-- Phase 3（Form + Expr + 动态审批人）为下一里程碑；IAM 部门负责人（leader）/
-  直属主管（reporting）字段为 Phase 3 开工前置，此前对应 Resolver 保持禁用。
+- **Phase 3（当前）**：Form + Expr + 动态审批人已落地——迁移 000050
+  （departments.leader_member_id，IAM leader 前置能力，部门服务写入校验）；
+  引擎内核：条件节点执行器、发布预编译产物进程内缓存（运行期禁重编译）、
+  form.*/starter.* 表达式上下文经窄端口填充、role/form_field/
+  department_manager Resolver（解析为空租户管理员兜底，禁止静默跳过）、
+  发布校验器 Resolver 能力门、审批编辑字段权限过滤（editable/required
+  之外整体拒绝 WORKFLOW_FORM_FIELD_FORBIDDEN）；平台层：identity/
+  organization/form 三条窄端口适配器（JOIN 聚合路径显式租户条件）、
+  form 域 WorkflowRecordStore 窄端口（合并值按冻结快照整体终审后同事务
+  写回，FORM_RECORD_INVALID + fieldErrors 与提交同协议）、Approve 接口
+  values 传值；发起人直属主管（reporting）IAM 无此语义，保持禁用。
+- **Phase 4**（完整人工 Task Engine：驳回/退回/撤回/转办/抄送/审批中心
+  查询）为下一里程碑。
 - 前端错误码：workflow 域 errCode 已在
   `apps/evolyn-web/packages/utils/src/request/errorCodes.ts` 预留分段。
 
