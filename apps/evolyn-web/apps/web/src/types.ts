@@ -388,6 +388,20 @@ export type ApplicationMenuTarget =
       code: string;
     };
 
+/** 菜单节点按钮级动作能力（ADR-011：动作注册表 × 权限集 × 应用状态读时派生，
+ * 不落库；未适配当前节点类型的动作恒 false） */
+export interface ApplicationMenuEntryActions {
+  edit: boolean;
+  rename: boolean;
+  switchType: boolean;
+  referenceView: boolean;
+  copyInApp: boolean;
+  copyCrossApp: boolean;
+  move: boolean;
+  hide: boolean;
+  delete: boolean;
+}
+
 /** 菜单节点运行时能力（后端按当前成员权限与应用状态读取时派生，不落库） */
 export interface ApplicationMenuCapabilities {
   view: boolean;
@@ -395,6 +409,8 @@ export interface ApplicationMenuCapabilities {
   move: boolean;
   delete: boolean;
   favorite: boolean;
+  /** 按钮级动作能力（ADR-011）；旧载荷缺失时消费方按粗粒度能力兜底 */
+  actions?: ApplicationMenuEntryActions;
 }
 
 /** 应用菜单节点（entryMap 的值；parentEntryId 为 null 即根节点） */
@@ -409,6 +425,8 @@ export interface ApplicationMenuEntry {
   sortOrder: number;
   target: ApplicationMenuTarget | null;
   capabilities: ApplicationMenuCapabilities;
+  /** 当前成员的收藏状态（ADR-011 个人状态，随菜单读取出网） */
+  favorited?: boolean;
 }
 
 /** 应用菜单快照（GET /applications/code/:code/menu）：entryMap 仅含当前

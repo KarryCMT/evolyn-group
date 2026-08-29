@@ -367,8 +367,14 @@ function handleWorkspaceAssetAction(payload: {
 }) {
   const actionLabels: Record<ApplicationWorkspaceAssetAction, string> = {
     edit: '编辑',
+    rename: '修改名称和图标',
+    'switch-type': '切换表单类型',
+    'reference-view': '查看引用视图',
+    'copy-in-app': '复制到当前应用',
+    'copy-cross-app': '复制到其他应用',
     move: '移动',
     favorite: '收藏',
+    hide: '对成员隐藏',
     delete: '删除',
   };
   ElMessage.info(`${actionLabels[payload.action]}「${payload.asset.label}」功能将在后续版本接入`);

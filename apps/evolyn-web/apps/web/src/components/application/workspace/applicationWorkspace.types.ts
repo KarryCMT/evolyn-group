@@ -23,8 +23,23 @@ export interface ApplicationWorkspaceAsset {
   children?: ApplicationWorkspaceAsset[];
 }
 
-/** 侧栏更多浮窗当前已具备的操作入口；实际写入接口按后续里程碑接入。 */
-export type ApplicationWorkspaceAssetAction = 'edit' | 'move' | 'favorite' | 'delete';
+/**
+ * 侧栏更多浮窗的操作入口（ADR-011 动作码，与后端注册表一致）：
+ * rename=修改名称（表单节点含图标/颜色）、switch-type=切换表单类型、
+ * reference-view=查看引用视图、copy-in-app/copy-cross-app=复制（当前/其他
+ * 应用）、hide=对成员隐藏；实际写入接口按后续里程碑接入。
+ */
+export type ApplicationWorkspaceAssetAction =
+  | 'edit'
+  | 'rename'
+  | 'switch-type'
+  | 'reference-view'
+  | 'copy-in-app'
+  | 'copy-cross-app'
+  | 'move'
+  | 'favorite'
+  | 'hide'
+  | 'delete';
 
 /** 创建菜单支持的资产类型；父级为空时创建根节点，实际持久化由页面层在对应 API 就绪后接入。 */
 export type ApplicationWorkspaceCreateAssetType = 'workflow-form' | 'form' | 'dashboard' | 'folder';
