@@ -196,7 +196,7 @@ func TestSettingAggregateProjection(t *testing.T) {
 	aggregate, err := svc.GetAggregate(context.Background(), testTenantID)
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1, aggregate.Revision)
-	assert.Len(t, aggregate.Categories, 8)
+	assert.Len(t, aggregate.Categories, 9)
 	// smsBudget 未接入计费事实源时为 null（前端隐藏数值摘要）
 	assert.Nil(t, aggregate.SmsBudget)
 	// 渠道能力：站内信可用，邮件/短信不可用且带可展示原因

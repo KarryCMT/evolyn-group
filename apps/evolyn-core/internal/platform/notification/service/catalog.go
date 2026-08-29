@@ -17,10 +17,12 @@ const (
 	CategoryGroupEnterprise = "enterprise" // 企业消息分组
 )
 
-// 分类码（八个稳定分类，只增不改；展示名与分组经设置接口下发）
+// 分类码（稳定分类，只增不改；展示名与分组经设置接口下发。审批动态随
+// 流程引擎 Phase 6 接入追增，历史八个分类编码与语义保持不变）
 const (
 	CategoryDataReminder       = "data-reminder"
 	CategoryAppLog             = "app-log"
+	CategoryApproval           = "approval"
 	CategoryDocumentActivity   = "document-activity"
 	CategoryUsageReminder      = "usage-reminder"
 	CategoryContactsManagement = "contacts-management"
@@ -42,6 +44,7 @@ type CategoryDef struct {
 var categoryCatalog = []CategoryDef{
 	{CategoryDataReminder, "数据提醒", CategoryGroupProduct, false},
 	{CategoryAppLog, "应用日志", CategoryGroupProduct, true},
+	{CategoryApproval, "审批动态", CategoryGroupProduct, true},
 	{CategoryDocumentActivity, "文档动态", CategoryGroupProduct, false},
 	{CategoryUsageReminder, "用量提醒", CategoryGroupEnterprise, false},
 	{CategoryContactsManagement, "通讯录管理", CategoryGroupEnterprise, false},
@@ -77,7 +80,8 @@ type EventDef struct {
 }
 
 // eventRegistry 事件注册表（唯一事实源，参照 audit/service/events.go 做法）：
-// 事件码只增不改；首批为应用日志分类的 4 个事件 + 真实生产者应用资产变更。
+// 事件码只增不改；应用日志分类首批事件 + 真实生产者应用资产变更 + 流程引擎
+// 审批动态（workflow.*，Phase 6 接入既有 Outbox）。
 var eventRegistry = map[string]EventDef{
 	// 应用资产变更：application 域创建/删除应用事务内发布（P1 端到端生产者）
 	"application.asset.changed": {
@@ -159,6 +163,142 @@ var eventRegistry = map[string]EventDef{
 		DefaultChannels:   map[string]bool{ChannelSystem: true, ChannelEmail: false, ChannelSMS: false},
 		DefaultRecipients: []string{model.RecipientEventActor, model.RecipientTenantAdmin},
 	},
+
+	// ---- 审批动态分类（流程引擎 Phase 6 接入既有 Outbox，ADR-012）----
+	// 事件码与 engine/workflow/event 冻结目录对齐；接收人走显式受众
+	//（event_audience：待办=任务参与人快照、实例级=发起人），由 workflow
+	// 事件适配器在业务事务内解析后随事件写入，Dispatcher 扇出前再复核同租户。
+	// 新的审批待办：任务创建时发布（task.created）
+	"workflow.task.created": {
+		Code:     "workflow.task.created",
+		Category: CategoryApproval,
+		Label:    "新的审批待办",
+		Severity: "info",
+		Template: "{actorName}提交的「{flowName}」等待您审批",
+		Params: []ParamDef{
+			{Name: "flowName", Required: true, MaxLen: 128},
+			{Name: "nodeName", Required: true, MaxLen: 64},
+			{Name: "taskId", Required: true, MaxLen: 32},
+		},
+		ActionType:        "open_workflow_task",
+		ActionParamKeys:   []string{"taskId"},
+		SupportedChannels: []string{ChannelSystem, ChannelEmail, ChannelSMS},
+		LockedChannels:    []string{ChannelSystem},
+		DefaultChannels:   map[string]bool{ChannelSystem: true, ChannelEmail: false, ChannelSMS: false},
+		DefaultRecipients: []string{model.RecipientEventAudience},
+	},
+	// 审批转办：转办事务内发布（task.transferred，接收人=新任务参与人）
+	"workflow.task.transferred": {
+		Code:     "workflow.task.transferred",
+		Category: CategoryApproval,
+		Label:    "审批转办提醒",
+		Severity: "info",
+		Template: "{actorName}将「{flowName}」的「{nodeName}」审批转办给您",
+		Params: []ParamDef{
+			{Name: "flowName", Required: true, MaxLen: 128},
+			{Name: "nodeName", Required: true, MaxLen: 64},
+			{Name: "taskId", Required: true, MaxLen: 32},
+		},
+		ActionType:        "open_workflow_task",
+		ActionParamKeys:   []string{"taskId"},
+		SupportedChannels: []string{ChannelSystem, ChannelEmail, ChannelSMS},
+		LockedChannels:    []string{ChannelSystem},
+		DefaultChannels:   map[string]bool{ChannelSystem: true, ChannelEmail: false, ChannelSMS: false},
+		DefaultRecipients: []string{model.RecipientEventAudience},
+	},
+	// 审批催办：wf_job task.reminder 到点且任务仍 PENDING 时由 Job Worker 发布
+	"workflow.task.reminder": {
+		Code:     "workflow.task.reminder",
+		Category: CategoryApproval,
+		Label:    "审批催办提醒",
+		Severity: "warning",
+		Template: "「{flowName}」的「{nodeName}」仍在等待您审批，请尽快处理",
+		Params: []ParamDef{
+			{Name: "flowName", Required: true, MaxLen: 128},
+			{Name: "nodeName", Required: true, MaxLen: 64},
+			{Name: "taskId", Required: true, MaxLen: 32},
+		},
+		ActionType:        "open_workflow_task",
+		ActionParamKeys:   []string{"taskId"},
+		SupportedChannels: []string{ChannelSystem, ChannelEmail, ChannelSMS},
+		LockedChannels:    []string{ChannelSystem},
+		DefaultChannels:   map[string]bool{ChannelSystem: true, ChannelEmail: false, ChannelSMS: false},
+		DefaultRecipients: []string{model.RecipientEventAudience},
+	},
+	// 流程通过：实例进入 COMPLETED 时发布（接收人=发起人）
+	"workflow.instance.completed": {
+		Code:     "workflow.instance.completed",
+		Category: CategoryApproval,
+		Label:    "审批通过通知",
+		Severity: "success",
+		Template: "您发起的「{flowName}」已全部审批通过",
+		Params: []ParamDef{
+			{Name: "flowName", Required: true, MaxLen: 128},
+			{Name: "instanceId", Required: true, MaxLen: 32},
+		},
+		ActionType:        "open_workflow_instance",
+		ActionParamKeys:   []string{"instanceId"},
+		SupportedChannels: []string{ChannelSystem, ChannelEmail, ChannelSMS},
+		LockedChannels:    []string{ChannelSystem},
+		DefaultChannels:   map[string]bool{ChannelSystem: true, ChannelEmail: false, ChannelSMS: false},
+		DefaultRecipients: []string{model.RecipientEventAudience},
+	},
+	// 流程驳回：实例进入 REJECTED 时发布（接收人=发起人）
+	"workflow.instance.rejected": {
+		Code:     "workflow.instance.rejected",
+		Category: CategoryApproval,
+		Label:    "审批驳回通知",
+		Severity: "warning",
+		Template: "您发起的「{flowName}」已被{actorName}驳回",
+		Params: []ParamDef{
+			{Name: "flowName", Required: true, MaxLen: 128},
+			{Name: "instanceId", Required: true, MaxLen: 32},
+		},
+		ActionType:        "open_workflow_instance",
+		ActionParamKeys:   []string{"instanceId"},
+		SupportedChannels: []string{ChannelSystem, ChannelEmail, ChannelSMS},
+		LockedChannels:    []string{ChannelSystem},
+		DefaultChannels:   map[string]bool{ChannelSystem: true, ChannelEmail: false, ChannelSMS: false},
+		DefaultRecipients: []string{model.RecipientEventAudience},
+	},
+	// 流程终止：实例进入 CANCELLED（撤回/管理员终止）时发布（接收人=发起人；
+	// 发起人自行撤回时操作人即本人，模板语义仍然成立）
+	"workflow.instance.cancelled": {
+		Code:     "workflow.instance.cancelled",
+		Category: CategoryApproval,
+		Label:    "流程终止通知",
+		Severity: "info",
+		Template: "您发起的「{flowName}」已被{actorName}终止",
+		Params: []ParamDef{
+			{Name: "flowName", Required: true, MaxLen: 128},
+			{Name: "instanceId", Required: true, MaxLen: 32},
+		},
+		ActionType:        "open_workflow_instance",
+		ActionParamKeys:   []string{"instanceId"},
+		SupportedChannels: []string{ChannelSystem, ChannelEmail, ChannelSMS},
+		LockedChannels:    []string{ChannelSystem},
+		DefaultChannels:   map[string]bool{ChannelSystem: true, ChannelEmail: false, ChannelSMS: false},
+		DefaultRecipients: []string{model.RecipientEventAudience},
+	},
+	// 退回发起人：退回事务内发布（接收人=发起人；同一实例可能多次退回，
+	// 幂等键由适配器按「实例+重提交节点实例」构造）
+	"workflow.instance.returned": {
+		Code:     "workflow.instance.returned",
+		Category: CategoryApproval,
+		Label:    "审批退回通知",
+		Severity: "warning",
+		Template: "{actorName}退回了您发起的「{flowName}」，请修改后重新提交",
+		Params: []ParamDef{
+			{Name: "flowName", Required: true, MaxLen: 128},
+			{Name: "instanceId", Required: true, MaxLen: 32},
+		},
+		ActionType:        "open_workflow_instance",
+		ActionParamKeys:   []string{"instanceId"},
+		SupportedChannels: []string{ChannelSystem, ChannelEmail, ChannelSMS},
+		LockedChannels:    []string{ChannelSystem},
+		DefaultChannels:   map[string]bool{ChannelSystem: true, ChannelEmail: false, ChannelSMS: false},
+		DefaultRecipients: []string{model.RecipientEventAudience},
+	},
 }
 
 // LookupEvent 事件码 → 目录定义（未登记返回 false）
@@ -203,6 +343,13 @@ func eventOrder() []EventDef {
 		eventRegistry["application.assistant.run_failed"],
 		eventRegistry["application.data_flow.run_failed"],
 		eventRegistry["application.output_sync.failed"],
+		eventRegistry["workflow.task.created"],
+		eventRegistry["workflow.task.transferred"],
+		eventRegistry["workflow.task.reminder"],
+		eventRegistry["workflow.instance.completed"],
+		eventRegistry["workflow.instance.rejected"],
+		eventRegistry["workflow.instance.cancelled"],
+		eventRegistry["workflow.instance.returned"],
 	}
 }
 

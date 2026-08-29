@@ -8,6 +8,7 @@ import type { MessageCategory } from './messageCenter.types';
 export const fallbackMessageCategories: MessageCategory[] = [
   { id: 'data-reminder', label: '数据提醒', group: 'product' },
   { id: 'app-log', label: '应用日志', group: 'product' },
+  { id: 'approval', label: '审批动态', group: 'product' },
   { id: 'document-activity', label: '文档动态', group: 'product' },
   { id: 'usage-reminder', label: '用量提醒', group: 'enterprise' },
   { id: 'contacts-management', label: '通讯录管理', group: 'enterprise' },

@@ -503,9 +503,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	if formRecordStore, ok := formService.(formservice.WorkflowRecordStore); ok {
 		workflowFormProvider = workflowadapter.NewFormDataProvider(formRecordStore)
 	}
+	// 事件发布适配器（Phase 6）：引擎 workflow.* 事件桥接 notification 域
+	// 事务 Outbox（既有 Dispatcher 消费扇出），同一审批事务内写入
+	workflowEventPublisher := workflowadapter.NewEventPublisher(notificationEventPublisher, db)
 	workflowEngineRuntime := engineruntime.NewRuntime(workflowEngineReader, workflowInstanceRepo, workflowExecutionRepo,
 		workflowNodeRepo, workflowTaskRepo, workflowOperationRepo, workflowExecutors,
-		workflowadapter.NewEventPublisher(), workflowFormProvider, workflowIdentityProvider, workflowCCRepo, workflowJobRepo)
+		workflowEventPublisher, workflowFormProvider, workflowIdentityProvider, workflowCCRepo, workflowJobRepo)
 	workflowRuntimeService := workflowservice.NewRuntimeService(
 		txManager,
 		workflowEngineRuntime,
@@ -530,7 +533,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	// 自动动作经 Task Engine 正常执行路径（第 19.4 章自动动作边界）
 	workflowJobWorker := workflowworker.NewJobWorker(
 		txManager, workflowJobRepo, workflowTaskRepo, workflowOperationRepo,
-		workflowEngineRuntime, 0, logger,
+		workflowEngineRuntime, workflowEventPublisher, 0, logger,
 	)
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停

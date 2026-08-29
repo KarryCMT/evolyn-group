@@ -11,10 +11,12 @@ import (
 // 事件目录注册表测试（文档 16.1）：未知事件、参数校验、模板纯文本输出、
 // 受控动作构造
 func TestCatalogLookupAndOrder(t *testing.T) {
-	// 八个稳定分类全部登记且顺序稳定
+	// 稳定分类全部登记且顺序稳定（approval 审批动态随流程引擎 Phase 6 追增）
 	categories := Categories()
-	assert.Len(t, categories, 8)
+	assert.Len(t, categories, 9)
 	assert.Equal(t, CategoryAppLog, categories[1].Code)
+	assert.Equal(t, CategoryApproval, categories[2].Code)
+	assert.True(t, categories[2].Configurable)
 
 	// 事件按分类检索且顺序稳定（事件码只增不改）
 	events := EventsOfCategory(CategoryAppLog)
@@ -96,4 +98,39 @@ func TestRecipientLabels(t *testing.T) {
 	assert.Equal(t, "系统管理员", RecipientLabel(model.RecipientTenantAdmin))
 	// 未知类型原样返回（防目录演进后展示空白）
 	assert.Equal(t, "someone_else", RecipientLabel("someone_else"))
+}
+
+// workflow.* 审批动态事件注册测试（流程引擎 Phase 6，ADR-012 第 18 章）：
+// 事件码与引擎冻结目录对齐，接收人默认走显式受众，动作直达待办/实例详情
+func TestWorkflowEventCatalog(t *testing.T) {
+	events := EventsOfCategory(CategoryApproval)
+	assert.Len(t, events, 7)
+	assert.Equal(t, "workflow.task.created", events[0].Code)
+	assert.Equal(t, "workflow.instance.returned", events[6].Code)
+
+	// 任务级事件：受众接收 + open_workflow_task 动作（taskId 白名单）
+	taskCreated, ok := LookupEvent("workflow.task.created")
+	assert.True(t, ok)
+	assert.NoError(t, ValidateParams(taskCreated, map[string]string{
+		"flowName": "报销审批", "nodeName": "部门负责人审批", "taskId": "42",
+	}))
+	assert.Error(t, ValidateParams(taskCreated, map[string]string{"flowName": "x"}))
+	assert.Error(t, ValidateParams(taskCreated, map[string]string{
+		"flowName": "x", "nodeName": "n", "taskId": "1", "evil": "<script>",
+	}))
+	action := BuildAction(taskCreated, map[string]string{"taskId": "42", "flowName": "x"})
+	assert.Equal(t, map[string]string{"type": "open_workflow_task", "taskId": "42"}, action)
+	assert.Equal(t, []string{model.RecipientEventAudience}, taskCreated.DefaultRecipients)
+
+	// 实例级事件：open_workflow_instance 动作（instanceId 白名单）
+	completed, ok := LookupEvent("workflow.instance.completed")
+	assert.True(t, ok)
+	action = BuildAction(completed, map[string]string{"instanceId": "7", "flowName": "x"})
+	assert.Equal(t, map[string]string{"type": "open_workflow_instance", "instanceId": "7"}, action)
+
+	// 渲染：退回通知带操作人内置变量
+	returned, ok := LookupEvent("workflow.instance.returned")
+	assert.True(t, ok)
+	content := RenderContent(returned, map[string]string{"flowName": "报销审批"}, "王审批")
+	assert.Equal(t, "王审批退回了您发起的「报销审批」，请修改后重新提交", content)
 }

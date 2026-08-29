@@ -16,7 +16,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"evolyn/internal/engine/workflow/event"
 	"evolyn/internal/engine/workflow/model"
+	"evolyn/internal/engine/workflow/provider"
 	"evolyn/internal/engine/workflow/repository"
 	engineruntime "evolyn/internal/engine/workflow/runtime"
 	"evolyn/internal/infrastructure"
@@ -44,9 +46,12 @@ type JobWorker struct {
 	tasks      repository.TaskRepository
 	operations repository.OperationRepository
 	runtime    *engineruntime.Runtime
-	interval   time.Duration
-	batchSize  int
-	logger     *logrus.Logger
+	// publisher 领域事件发布窄端口（Phase 6）：催办到点经适配器桥接
+	// notification 域事务 Outbox，与 REMINDER 流水同事务落库
+	publisher provider.EventPublisher
+	interval  time.Duration
+	batchSize int
+	logger    *logrus.Logger
 }
 
 // TxManager 事务窄端口（装配层由 infrastructure.TxManager 适配）。
@@ -68,6 +73,7 @@ func NewJobWorker(
 	tasks repository.TaskRepository,
 	operations repository.OperationRepository,
 	runtime *engineruntime.Runtime,
+	publisher provider.EventPublisher,
 	interval time.Duration,
 	logger *logrus.Logger,
 ) *JobWorker {
@@ -83,6 +89,7 @@ func NewJobWorker(
 		tasks:      tasks,
 		operations: operations,
 		runtime:    runtime,
+		publisher:  publisher,
 		interval:   interval,
 		batchSize:  defaultBatchSize,
 		logger:     logger,
@@ -217,8 +224,9 @@ func (w *JobWorker) handleTimeout(ctx context.Context, job *model.Job) error {
 }
 
 // handleReminder 待办提醒：任务仍 PENDING 时落 REMINDER 操作流水（时间线
-// 可见）；已终态则空跑。V1 单次提醒，不循环（Phase 6 接通知域后升级为
-// 站内信/外部渠道推送）。
+// 可见）并发布 workflow.task.reminder 事件（Phase 6：经适配器同事务写通知
+// 域 Outbox，由 Dispatcher 扇出站内信给任务参与人）；已终态则空跑。
+// V1 单次提醒，不循环。
 func (w *JobWorker) handleReminder(ctx context.Context, job *model.Job) error {
 	task, err := w.tasks.FindTaskByIDForUpdate(ctx, job.TenantID, job.TaskID)
 	if err != nil {
@@ -228,14 +236,26 @@ func (w *JobWorker) handleReminder(ctx context.Context, job *model.Job) error {
 	if task.Status != model.TaskStatusPENDING {
 		return nil
 	}
-	return w.operations.AppendOperation(ctx, &model.Operation{
+	if err := w.operations.AppendOperation(ctx, &model.Operation{
 		TenantID:         job.TenantID,
 		InstanceID:       job.InstanceID,
 		TaskID:           job.TaskID,
 		OperatorMemberID: reminderOperator,
 		Type:             model.OperationTypeReminder,
 		Payload:          jobPayloadSnapshot(job),
-	})
+	}); err != nil {
+		return err
+	}
+	if w.publisher != nil {
+		_ = w.publisher.PublishInTx(ctx, provider.Event{
+			EventName:     event.TaskReminder,
+			TenantID:      job.TenantID,
+			InstanceID:    job.InstanceID,
+			TaskID:        job.TaskID,
+			ActorMemberID: reminderOperator,
+		})
+	}
+	return nil
 }
 
 // recordRetryFailure 失败重试记账（独立事务：执行事务已回滚）：

@@ -100,7 +100,7 @@ func (e *Engine) Approve(ctx context.Context, in ApproveInput) (*ApproveOutcome,
 	// 任务终态：联动取消排期 Job（第 19 章 cancel job when task completed）
 	e.cancelJobsByTask(ctx, task.ID)
 	// 7. 发布事件（Outbox 模式：写入随事务提交，消费失败不回滚审批）
-	e.publish(ctx, event.TaskApproved, instance.ID, task.ID, in.OperatorMemberID)
+	e.publish(ctx, event.TaskApproved, instance, task.ID, in.OperatorMemberID)
 	return &ApproveOutcome{Task: task, Instance: instance, NodeInstanceID: task.NodeInstanceID, NodeKey: task.NodeKey}, nil
 }
 
@@ -170,7 +170,7 @@ func (e *Engine) Reject(ctx context.Context, in RejectInput) (*RejectOutcome, er
 	}
 	// 任务终态：联动取消排期 Job（第 19 章）
 	e.cancelJobsByTask(ctx, task.ID)
-	e.publish(ctx, event.TaskRejected, instance.ID, task.ID, in.OperatorMemberID)
+	e.publish(ctx, event.TaskRejected, instance, task.ID, in.OperatorMemberID)
 	return &RejectOutcome{Task: task, Instance: instance, NodeInstanceID: task.NodeInstanceID, NodeKey: task.NodeKey}, nil
 }
 
@@ -215,7 +215,7 @@ func (e *Engine) ReturnToStarter(ctx context.Context, in ReturnInput) (*ReturnOu
 	}
 	// 任务终态：联动取消排期 Job（第 19 章）
 	e.cancelJobsByTask(ctx, task.ID)
-	e.publish(ctx, event.TaskCancelled, instance.ID, task.ID, in.OperatorMemberID)
+	e.publish(ctx, event.TaskCancelled, instance, task.ID, in.OperatorMemberID)
 	return &ReturnOutcome{Task: task, Instance: instance, NodeInstanceID: task.NodeInstanceID, NodeKey: task.NodeKey}, nil
 }
 
@@ -295,7 +295,7 @@ func (e *Engine) Transfer(ctx context.Context, in TransferInput) (*TransferOutco
 	}); err != nil {
 		return nil, err
 	}
-	e.publish(ctx, event.TaskTransferred, instance.ID, newTask.ID, in.OperatorMemberID)
+	e.publish(ctx, event.TaskTransferred, instance, newTask.ID, in.OperatorMemberID)
 	return &TransferOutcome{OriginalTask: task, NewTask: newTask, Instance: instance}, nil
 }
 
@@ -366,13 +366,16 @@ func containsActor(actors []model.Actor, memberID uint) bool {
 	return false
 }
 
-func (e *Engine) publish(ctx context.Context, eventName string, instanceID, taskID, actorMemberID uint) {
+// publish 事件发布（best-effort）：引擎事件信封不带展示参数，展示元数据由
+// 平台适配器按实例/任务解析；发布失败只记日志，不回滚审批事务（第 18.3 章）。
+func (e *Engine) publish(ctx context.Context, eventName string, instance *model.Instance, taskID, actorMemberID uint) {
 	if e.publisher == nil {
 		return
 	}
 	_ = e.publisher.PublishInTx(ctx, provider.Event{
 		EventName:     eventName,
-		InstanceID:    instanceID,
+		TenantID:      instance.TenantID,
+		InstanceID:    instance.ID,
 		TaskID:        taskID,
 		ActorMemberID: actorMemberID,
 	})

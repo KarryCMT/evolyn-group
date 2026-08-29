@@ -1,7 +1,9 @@
-/** 消息中心分类稳定编码（八个分类只增不改；展示名/分组由服务端目录下发）。 */
+/** 消息中心分类稳定编码（只增不改；展示名/分组由服务端目录下发，
+ * approval 审批动态随流程引擎 Phase 6 追增）。 */
 export type MessageCategoryId =
   | 'data-reminder'
   | 'app-log'
+  | 'approval'
   | 'document-activity'
   | 'usage-reminder'
   | 'contacts-management'

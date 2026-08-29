@@ -11,6 +11,9 @@ const (
 	InstanceCompleted = "workflow.instance.completed"
 	InstanceRejected  = "workflow.instance.rejected"
 	InstanceCancelled = "workflow.instance.cancelled"
+	// InstanceReturned 退回发起人（第 10.3 章）：实例保持 RUNNING，新增于
+	// Phase 6——退回是 V1 核心人工动作，发起人侧需要通知消费
+	InstanceReturned = "workflow.instance.returned"
 
 	// 人工任务
 	TaskCreated     = "workflow.task.created"
@@ -18,6 +21,9 @@ const (
 	TaskRejected    = "workflow.task.rejected"
 	TaskTransferred = "workflow.task.transferred"
 	TaskCancelled   = "workflow.task.cancelled"
+	// TaskReminder 待办催办（第 19 章 task.reminder Job 到点且任务仍
+	// PENDING 时由 Job Worker 经 Task Engine 同口径发布，新增于 Phase 6）
+	TaskReminder = "workflow.task.reminder"
 
 	// 节点流转
 	NodeEntered   = "workflow.node.entered"
@@ -30,11 +36,13 @@ var All = []string{
 	InstanceCompleted,
 	InstanceRejected,
 	InstanceCancelled,
+	InstanceReturned,
 	TaskCreated,
 	TaskApproved,
 	TaskRejected,
 	TaskTransferred,
 	TaskCancelled,
+	TaskReminder,
 	NodeEntered,
 	NodeCompleted,
 }

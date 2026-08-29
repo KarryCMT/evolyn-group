@@ -140,6 +140,9 @@ func (r *Runtime) ReturnToStarter(ctx context.Context, in ReturnInput) (*ReturnR
 	if err := r.nodes.CreateNodeInstance(ctx, resubmit); err != nil {
 		return nil, err
 	}
+	// 退回发起人事件（Phase 6）：发起人侧通知消费；幂等键含重提交节点实例
+	//（同一实例可能多次退回，第 18.3 章随事务写入 Outbox）
+	r.publishWithNode(ctx, event.InstanceReturned, instance, resubmit.ID, in.OperatorMemberID)
 	return &ReturnResult{InstanceID: instance.ID, Status: instance.Status, ResubmitNodeInstanceID: resubmit.ID}, nil
 }
 

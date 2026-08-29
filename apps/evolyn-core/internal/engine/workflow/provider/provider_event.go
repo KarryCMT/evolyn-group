@@ -25,6 +25,9 @@ type Event struct {
 	TenantID   uint
 	InstanceID uint
 	TaskID     uint
+	// NodeInstanceID 节点实例维度归属（0=不区分）：同一实例内可重复发生的
+	// 事件（如退回发起人）以它参与构造平台侧幂等键（Phase 6）
+	NodeInstanceID uint
 	// ActorMemberID 事件发起成员（0=系统，如超时自动动作）
 	ActorMemberID uint
 	// Parameters 受控参数（string 扁平键值，禁止嵌套结构）

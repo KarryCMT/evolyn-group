@@ -76,8 +76,21 @@ apps/evolyn-core/
   独立事务记账（未超限回队 + 60s 退避，超限 FAILED + last_error）；超时
   自动 approve/reject 强制经 Runtime → Task Engine 正常执行路径
   （AutoTimeout：操作人 0=系统、TIMEOUT 操作流水、事件不变），提醒落
-  REMINDER 操作流水（Phase 6 接通知域后升级推送）。
-- **Phase 6**（workflow.* 事件接入既有 Outbox）为下一里程碑。
+  REMINDER 操作流水（Phase 6 已升级为同事务推送站内通知）。
+- **Phase 6（当前）**：workflow.* 事件接入既有 Outbox 已落地——引擎事件
+  目录在冻结 11 事件上追增 `workflow.instance.returned`（退回发起人通知）
+  与 `workflow.task.reminder`（催办通知）；平台事件适配器桥接 notification
+  域 `EventPublisher.PublishInTx`（同一审批事务写 notification_outbox_events，
+  既有 Dispatcher 消费扇出，发布失败 best-effort 不回滚审批）；通知目录
+  追增「审批动态」分类（approval）并注册 7 个消费事件：待办
+  （workflow.task.created，受众=任务参与人快照）、转办/催办（受众=新任务
+  参与人）、实例终态通过与驳回/终止（受众=发起人）、退回（受众=发起人），
+  跳转动作 open_workflow_task / open_workflow_instance（稳定动作码，
+  审批中心页面落地后前端 action registry 映射路由，未登记动作按既有
+  白名单策略忽略）；任务级 task.approved/rejected/cancelled 与节点级
+  node.entered/completed 无通知消费方，V1 仅日志流水（Phase 7 Webhook
+  预留）；提醒 Job 到点 REMINDER 流水与 workflow.task.reminder 事件同
+  事务落库。
 - 前端错误码：workflow 域 errCode 已在
   `apps/evolyn-web/packages/utils/src/request/errorCodes.ts` 预留分段。
 

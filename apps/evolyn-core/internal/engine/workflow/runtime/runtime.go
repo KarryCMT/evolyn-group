@@ -644,3 +644,18 @@ func (r *Runtime) publish(ctx context.Context, eventName string, instance *model
 		ActorMemberID: actorMemberID,
 	})
 }
+
+// publishWithNode 带节点实例维度的事件发布：同一实例内可重复发生的事件
+// （退回发起人）以 NodeInstanceID 参与平台侧幂等键构造（Phase 6）。
+func (r *Runtime) publishWithNode(ctx context.Context, eventName string, instance *model.Instance, nodeInstanceID, actorMemberID uint) {
+	if r.publisher == nil {
+		return
+	}
+	_ = r.publisher.PublishInTx(ctx, provider.Event{
+		EventName:      eventName,
+		TenantID:       instance.TenantID,
+		InstanceID:     instance.ID,
+		NodeInstanceID: nodeInstanceID,
+		ActorMemberID:  actorMemberID,
+	})
+}

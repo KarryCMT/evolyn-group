@@ -106,7 +106,18 @@ internal/
                       执行同事务 crash 自动回滚，失败重试独立记账回队/
                       FAILED），超时自动 approve/reject 强制经 Task Engine
                       正常路径（AutoTimeout：操作人 0=系统、TIMEOUT 流水、
-                      状态机不变）
+                      状态机不变）；Phase 6 已落地：workflow.* 事件接入
+                      既有 notification 域 Outbox——事件适配器桥接
+                      EventPublisher.PublishInTx（同一审批事务写
+                      notification_outbox_events，发布失败 best-effort
+                      不回滚审批），通知目录追增「审批动态」分类与 7 个
+                      消费事件（待办/转办/催办受众=任务参与人快照，
+                      通过/驳回/终止/退回受众=发起人，动作
+                      open_workflow_task / open_workflow_instance），事件
+                      目录追增 workflow.instance.returned /
+                      workflow.task.reminder，催办 Job 与 REMINDER 流水
+                      同事务发通知事件；task 终态与节点流转事件 V1 仅日志
+                      流水（Webhook 为 Phase 7 预留）
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
     controller/       Controller 注册契约（RegisterRoute/Name；
                       PlatformController 标记平台运营域归属）与 AppConf
@@ -268,8 +279,11 @@ internal/
                       notificationSettings.ts、stores/notification.ts（未读
                       摘要会话级单一事实源，两个顶栏共读）、消息中心抽屉
                       全量接入（游标增量分页、事件筛选目录、action 白名单
-                      跳转、接收对象选择器、409 冲突重载）；邮件/短信外部
-                      渠道与云币计费为 P3
+                      跳转、接收对象选择器、409 冲突重载）；审批动态分类
+                      （approval）+ workflow.* 事件随流程引擎 Phase 6 接入
+                      （目录注册 + Dispatcher 扇出，受众由 workflow 事件
+                      适配器解析显式成员）；邮件/短信外部渠道与云币计费
+                      为 P3
 migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
                       命名 NNNNNN_name.(up|down).sql，版本号只增不复用）
 scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（本地证书）
