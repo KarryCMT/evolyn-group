@@ -77,7 +77,7 @@ function replaceTab(layoutName: string, tabName: string, entries: unknown[]): vo
   });
 }
 
-function activeTabName(layout: FormMultitabLayout): string {
+function activeTabName(layout: FormMultitabLayout): string | undefined {
   const current = activeTabs[layout.name];
   if (layout.container.some((tab) => tab.name === current)) return current;
   return layout.container[0]?.name ?? '';
