@@ -1,21 +1,22 @@
 <script setup lang="ts">
-import { ElMessage, ElMessageBox } from 'element-plus';
-import {
-  EvolynMemberDepartmentRolePicker,
-  type EvolynMemberDepartmentRolePickerMember,
-  type EvolynMemberDepartmentRolePickerSelection,
-  type EvolynMemberDepartmentRolePickerTreeNode,
+import type {
+  EvolynMemberDepartmentRolePickerMember,
+  EvolynMemberDepartmentRolePickerSelection,
+  EvolynMemberDepartmentRolePickerTreeNode,
 } from '@evolyn.do/ui';
-import { computed, shallowRef } from 'vue';
-import { useRoute } from 'vue-router';
-import PermissionAssetList from '~/components/application/permissions/PermissionAssetList.vue';
-import PermissionGroupsPanel from '~/components/application/permissions/PermissionGroupsPanel.vue';
-import { useApplicationHome } from '~/composables/useApplicationHome';
 import type {
   AssetPermissionGroup,
   PermissionAsset,
   PermissionSubject,
 } from '~/components/application/permissions/permission.types';
+import { EvolynMemberDepartmentRolePicker } from '@evolyn.do/ui';
+import { ElMessage, ElMessageBox } from 'element-plus';
+import { computed, shallowRef } from 'vue';
+import { useRoute } from 'vue-router';
+import PermissionAssetList from '~/components/application/permissions/PermissionAssetList.vue';
+import PermissionGroupEditorDialog from '~/components/application/permissions/PermissionGroupEditorDialog.vue';
+import PermissionGroupsPanel from '~/components/application/permissions/PermissionGroupsPanel.vue';
+import { useApplicationHome } from '~/composables/useApplicationHome';
 
 defineOptions({ name: 'ApplicationSettingPermissionsPage' });
 
@@ -135,6 +136,8 @@ const keyword = shallowRef('');
 const pickerVisible = shallowRef(false);
 const targetGroupId = shallowRef<string>();
 const pickerSelection = shallowRef<EvolynMemberDepartmentRolePickerSelection[]>([]);
+const editorVisible = shallowRef(false);
+const editingGroupId = shallowRef<string>();
 
 /** 资产为树形结构，选中查找需沿 children 递归。 */
 function findAssetById(list: PermissionAsset[], id: string): PermissionAsset | undefined {
@@ -149,6 +152,9 @@ function findAssetById(list: PermissionAsset[], id: string): PermissionAsset | u
 const selectedAsset = computed(() => findAssetById(assets.value, selectedAssetId.value));
 const selectedGroups = computed(() => groupsByAssetId.value[selectedAssetId.value] ?? []);
 const pickerTitle = computed(() => (targetGroupId.value ? '添加授权对象' : '添加成员'));
+const editingGroup = computed(() =>
+  selectedGroups.value.find((group) => group.id === editingGroupId.value),
+);
 
 function updateGroups(assetId: string, groups: AssetPermissionGroup[]) {
   groupsByAssetId.value = { ...groupsByAssetId.value, [assetId]: groups };
@@ -236,6 +242,23 @@ function updateGroupEnabled(payload: { groupId: string; enabled: boolean }) {
   );
 }
 
+/** 卡片编辑入口只保存当前组 ID，弹窗提交后由页面统一更新所属资产的权限组列表。 */
+function openGroupEditor(groupId: string) {
+  if (!selectedGroups.value.some((group) => group.id === groupId)) return;
+  editingGroupId.value = groupId;
+  editorVisible.value = true;
+}
+
+function updatePermissionGroup(updatedGroup: AssetPermissionGroup) {
+  const asset = selectedAsset.value;
+  if (!asset) return;
+  updateGroups(
+    asset.id,
+    selectedGroups.value.map((group) => (group.id === updatedGroup.id ? updatedGroup : group)),
+  );
+  ElMessage.success('权限组已更新');
+}
+
 function cloneGroup(groupId: string) {
   const asset = selectedAsset.value;
   const group = selectedGroups.value.find((item) => item.id === groupId);
@@ -310,7 +333,7 @@ async function disableAll() {
     :sub-title="errorMessage"
   >
     <template #extra>
-      <el-button type="primary" @click="reload()">重新加载</el-button>
+      <el-button type="primary" @click="reload()"> 重新加载 </el-button>
     </template>
   </el-result>
 
@@ -339,9 +362,15 @@ async function disableAll() {
       @add-subjects="openSubjectPicker"
       @clone-group="cloneGroup"
       @disable-all="disableAll"
-      @edit-group="ElMessage.info('权限编辑面板将在下一步接入')"
+      @edit-group="openGroupEditor"
       @remove-group="removeGroup"
       @update-group-enabled="updateGroupEnabled"
+    />
+    <PermissionGroupEditorDialog
+      v-model="editorVisible"
+      :asset-type="selectedAsset?.type"
+      :group="editingGroup"
+      @confirm="updatePermissionGroup"
     />
     <EvolynMemberDepartmentRolePicker
       v-model="pickerSelection"
