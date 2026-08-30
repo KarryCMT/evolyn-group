@@ -13,12 +13,29 @@ import type {
   FormMultitabLayout,
   FormSchemaDocument,
   FormWidgetType,
+  SubformWidget,
 } from '../schema/types';
+import { SUBFORM_ALLOWED_WIDGET_TYPES } from '../schema/types';
 import type { FormSchemaPaletteDrag } from './palette';
 
 export type FormLayoutTarget =
   | { type: 'top' }
   | { type: 'tab'; layoutName: string; tabName: string };
+
+const SUBFORM_SELECTION_PREFIX = 'subform:';
+
+/** 子字段允许与顶层重名，选中态必须携带父子两级键，不能只保存 child widgetName。 */
+export function subformSelectionKey(parentKey: string, childKey: string): string {
+  return `${SUBFORM_SELECTION_PREFIX}${parentKey}:${childKey}`;
+}
+
+export function parseSubformSelection(
+  selection: string,
+): { parentKey: string; childKey: string } | null {
+  if (!selection.startsWith(SUBFORM_SELECTION_PREFIX)) return null;
+  const [parentKey, childKey] = selection.slice(SUBFORM_SELECTION_PREFIX.length).split(':');
+  return parentKey && childKey ? { parentKey, childKey } : null;
+}
 
 /** 空表单协议文档（新建/草稿初始化用）。 */
 export function createEmptyFormSchemaDocument(): FormSchemaDocument {
@@ -42,12 +59,20 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
   // 会在 add 事件内被真实字段项替换）；所有遍历必须经 widgetOf 收窄，避免
   // undefined.widgetName 在响应式重算路径上抛错。
   const widgetOf = (item: FormItem) => (item as FormItem & Partial<FormSchemaPaletteDrag>).widget;
-  const selectedItem = computed(() =>
-    items.value.find((item) => widgetOf(item)?.widgetName === selectedKey.value),
-  );
+  const selectedItem = computed(() => {
+    const nested = parseSubformSelection(selectedKey.value);
+    if (!nested) {
+      return items.value.find((item) => widgetOf(item)?.widgetName === selectedKey.value);
+    }
+    return subformWidgetOf(nested.parentKey)?.items.find(
+      (item) => item.widget.widgetName === nested.childKey,
+    );
+  });
   const selectedLayout = computed(() =>
     layouts.value.find((layout) => layout.name === selectedKey.value),
   );
+  const pendingPaletteFieldKeys = new Set<string>();
+  let paletteCleanupQueued = false;
 
   /** 新增字段（素材点击或拖拽落点替换临时对象）；index<0 追加到末尾。 */
   function addItem(
@@ -68,6 +93,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
   /** 复制字段：深拷贝并换新 widgetName，插入原字段之后。 */
   function copyItem(item: FormItem): void {
     const next = copyWidgetItem(item);
+    if (next.widget.type === 'subform') next.lineWidth = 12;
     const itemIndex = items.value.findIndex(
       (entry) => widgetOf(entry)?.widgetName === item.widget.widgetName,
     );
@@ -76,6 +102,64 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     const placement = findPlacement(item.widget.widgetName);
     if (placement) placement.references.splice(placement.index + 1, 0, next.widget.widgetName);
     selectedKey.value = next.widget.widgetName;
+  }
+
+  /** 子表单新增字段：只接受协议白名单，子字段始终占子表格的一列。 */
+  function addSubformItem(parentKey: string, type: FormWidgetType, index = -1): FormItem | null {
+    const subform = subformWidgetOf(parentKey);
+    if (!subform || !SUBFORM_ALLOWED_WIDGET_TYPES.includes(type) || subform.items.length >= 200) {
+      return null;
+    }
+    const item = createWidgetItem(type);
+    item.lineWidth = 12;
+    subform.items.splice(normalizeInsertIndex(index, subform.items.length), 0, item);
+    selectedKey.value = subformSelectionKey(parentKey, item.widget.widgetName);
+    return item;
+  }
+
+  function copySubformItem(parentKey: string, childKey: string): void {
+    const subform = subformWidgetOf(parentKey);
+    if (!subform || subform.items.length >= 200) return;
+    const index = subform.items.findIndex((item) => item.widget.widgetName === childKey);
+    if (index < 0) return;
+    const copied = copyWidgetItem(subform.items[index]!);
+    copied.lineWidth = 12;
+    subform.items.splice(index + 1, 0, copied);
+    selectedKey.value = subformSelectionKey(parentKey, copied.widget.widgetName);
+  }
+
+  function removeSubformItem(parentKey: string, childKey: string): void {
+    const subform = subformWidgetOf(parentKey);
+    if (!subform) return;
+    const index = subform.items.findIndex((item) => item.widget.widgetName === childKey);
+    if (index < 0) return;
+    subform.items.splice(index, 1);
+    if (selectedKey.value !== subformSelectionKey(parentKey, childKey)) return;
+    const neighbor = subform.items[index] ?? subform.items[index - 1];
+    selectedKey.value = neighbor
+      ? subformSelectionKey(parentKey, neighbor.widget.widgetName)
+      : parentKey;
+  }
+
+  /**
+   * 子表单拖拽数组可瞬时混入素材载荷；统一在状态层转换并过滤禁用类型，
+   * 保证协议对象从不落入 paletteType 临时结构。
+   */
+  function replaceSubformItems(parentKey: string, entries: unknown[]): void {
+    const subform = subformWidgetOf(parentKey);
+    if (!subform) return;
+    const next = entries.flatMap<FormItem>((entry) => {
+      if (isFormItem(entry)) return [entry];
+      const type = (entry as Partial<FormSchemaPaletteDrag> | null)?.paletteType as
+        | FormWidgetType
+        | undefined;
+      if (!type || !SUBFORM_ALLOWED_WIDGET_TYPES.includes(type)) return [];
+      const item = createWidgetItem(type);
+      item.lineWidth = 12;
+      selectedKey.value = subformSelectionKey(parentKey, item.widget.widgetName);
+      return [item];
+    });
+    subform.items.splice(0, subform.items.length, ...next.slice(0, 200));
   }
 
   function removeItem(key: string): void {
@@ -95,6 +179,10 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     selectedKey.value = key;
   }
 
+  function selectSubformItem(parentKey: string, childKey: string): void {
+    selectedKey.value = subformSelectionKey(parentKey, childKey);
+  }
+
   function selectLayout(name: string): void {
     selectedKey.value = name;
   }
@@ -105,6 +193,11 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     if (!item) return;
     const previousKey = item.widget.widgetName;
     item.widget.widgetName = nextKey;
+    const nested = parseSubformSelection(selectedKey.value);
+    if (nested) {
+      selectedKey.value = subformSelectionKey(nested.parentKey, nextKey);
+      return;
+    }
     replaceReferenceEverywhere(previousKey, nextKey);
     selectedKey.value = nextKey;
   }
@@ -113,11 +206,24 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
   function updateSelectedItem(next: FormItem): void {
     const current = selectedItem.value;
     if (!current) return;
+    const nested = parseSubformSelection(selectedKey.value);
+    if (nested) {
+      const subform = subformWidgetOf(nested.parentKey);
+      const index = subform?.items.findIndex(
+        (item) => item.widget.widgetName === current.widget.widgetName,
+      );
+      if (!subform || index === undefined || index < 0) return;
+      subform.items.splice(index, 1, next);
+      selectedKey.value = subformSelectionKey(nested.parentKey, next.widget.widgetName);
+      return;
+    }
     const index = items.value.findIndex(
       (item) => widgetOf(item)?.widgetName === current.widget.widgetName,
     );
     if (index < 0) return;
     const previousKey = current.widget.widgetName;
+    // 子表单是横向明细容器，属性回写不能改变其整行宽度约束。
+    if (next.widget.type === 'subform') next.lineWidth = 12;
     items.value.splice(index, 1, next);
     if (next.widget.widgetName !== previousKey) {
       replaceReferenceEverywhere(previousKey, next.widget.widgetName);
@@ -181,13 +287,13 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     if (layout) layout.tabStyle = style;
   }
 
-  /** 切换表单默认列布局时同步归一化所有普通字段；标签页引用同一 items 定义池，自动生效。 */
+  /** 切换表单默认列布局时同步普通字段；布局组件与子表单固定占满 12 栅格。 */
   function setFormLayout(layout: FormLayoutMode): void {
     document.value.content.layout = layout;
     const lineWidth = FORM_LAYOUT_LINE_WIDTH[layout];
     for (const item of items.value) {
       const widget = widgetOf(item);
-      if (widget) item.lineWidth = isLayoutWidgetType(widget.type) ? 12 : lineWidth;
+      if (widget) item.lineWidth = defaultLineWidth(widget.type, lineWidth);
     }
   }
 
@@ -245,6 +351,10 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
       const item = createWidgetItem(type as FormWidgetType);
       item.lineWidth = defaultLineWidth(item.widget.type);
       items.value.push(item);
+      // 嵌套 Sortable 会让外层列表短暂收到同一次素材克隆；记录本轮新字段，
+      // 待所有同步拖拽事件结束后清理没有最终布局引用的瞬时顶层定义。
+      pendingPaletteFieldKeys.add(item.widget.widgetName);
+      schedulePaletteOrphanCleanup();
       selectedKey.value = item.widget.widgetName;
       return [item.widget.widgetName];
     });
@@ -259,6 +369,20 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
 
   function layoutByName(name: string): FormMultitabLayout | undefined {
     return layouts.value.find((layout) => layout.name === name);
+  }
+
+  function subformWidgetOf(parentKey: string): SubformWidget | undefined {
+    const item = items.value.find((entry) => widgetOf(entry)?.widgetName === parentKey);
+    return item?.widget.type === 'subform' ? item.widget : undefined;
+  }
+
+  function isFormItem(entry: unknown): entry is FormItem {
+    return Boolean(
+      entry &&
+      typeof entry === 'object' &&
+      'widget' in entry &&
+      (entry as FormItem).widget?.widgetName,
+    );
   }
 
   function referencesOf(target: FormLayoutTarget): string[] | null {
@@ -317,6 +441,31 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     );
   }
 
+  /** 只回收本轮素材拖拽产生的瞬时孤儿，不影响跨顶层/标签页移动的既有字段。 */
+  function schedulePaletteOrphanCleanup(): void {
+    if (paletteCleanupQueued) return;
+    paletteCleanupQueued = true;
+    queueMicrotask(() => {
+      paletteCleanupQueued = false;
+      const referenced = new Set([
+        ...document.value.content.field_layout,
+        ...layouts.value.flatMap((layout) => layout.container.flatMap((tab) => tab.field_layout)),
+      ]);
+      const removedKeys = new Set<string>();
+      const retained = items.value.filter((item) => {
+        const key = widgetOf(item)?.widgetName;
+        const keep = !key || !pendingPaletteFieldKeys.has(key) || referenced.has(key);
+        if (!keep && key) removedKeys.add(key);
+        return keep;
+      });
+      items.value.splice(0, items.value.length, ...retained);
+      if (removedKeys.has(selectedKey.value)) {
+        selectedKey.value = document.value.content.field_layout[0] ?? '';
+      }
+      pendingPaletteFieldKeys.clear();
+    });
+  }
+
   function createTab(title: string) {
     return { name: generateTabName(), title, type: 'tab' as const, field_layout: [] };
   }
@@ -325,8 +474,11 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     return index >= 0 && index <= length ? index : length;
   }
 
-  function defaultLineWidth(type: FormWidgetType): number {
-    return isLayoutWidgetType(type) ? 12 : FORM_LAYOUT_LINE_WIDTH[document.value.content.layout];
+  function defaultLineWidth(
+    type: FormWidgetType,
+    layoutWidth = FORM_LAYOUT_LINE_WIDTH[document.value.content.layout],
+  ): number {
+    return isLayoutWidgetType(type) || type === 'subform' ? 12 : layoutWidth;
   }
 
   return {
@@ -338,8 +490,13 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     selectedLayout,
     addItem,
     copyItem,
+    addSubformItem,
+    copySubformItem,
+    removeSubformItem,
+    replaceSubformItems,
     removeItem,
     selectItem,
+    selectSubformItem,
     selectLayout,
     renameItemKey,
     updateSelectedItem,

@@ -4,12 +4,18 @@ import { EvolynScrollbar } from '@evolyn.do/ui';
 import { ElIcon, ElPopconfirm, ElTabPane, ElTabs } from 'element-plus';
 import { computed, reactive, type CSSProperties } from 'vue';
 import Draggable from 'vuedraggable';
-import type { FormItem, FormMultitabLayout, FormSchemaDocument } from '../schema/types';
+import type {
+  FormItem,
+  FormMultitabLayout,
+  FormSchemaDocument,
+  SubformWidget,
+} from '../schema/types';
 import { isLayoutWidgetType } from '../schema/codec';
 import { FORM_LAYOUT_LINE_WIDTH } from '../schema/dictionary';
 import { FORM_SCHEMA_DRAG_GROUP, type FormSchemaPaletteDrag } from './palette';
 import type { FormLayoutTarget } from './useFormSchemaEditor';
 import FormSchemaFieldCard from './FormSchemaFieldCard.vue';
+import FormSchemaSubformCard from './FormSchemaSubformCard.vue';
 
 /**
  * v2 布局画布：只渲染引用序列，不复制字段定义；跨列表拖拽通过语义事件回写编辑器，
@@ -22,6 +28,10 @@ const emit = defineEmits<{
   selectLayout: [name: string];
   copyItem: [item: FormItem];
   removeItem: [key: string];
+  selectSubformItem: [parentKey: string, childKey: string];
+  copySubformItem: [parentKey: string, childKey: string];
+  removeSubformItem: [parentKey: string, childKey: string];
+  replaceSubformItems: [parentKey: string, entries: unknown[]];
   replaceReferences: [payload: { target: FormLayoutTarget; entries: unknown[] }];
   removeLayout: [layoutName: string];
 }>();
@@ -42,6 +52,11 @@ const dragListStyle = computed(
 
 function itemOf(reference: unknown): FormItem | undefined {
   return typeof reference === 'string' ? itemMap.value.get(reference) : undefined;
+}
+
+function subformItemOf(reference: unknown): FormItem<SubformWidget> | undefined {
+  const item = itemOf(reference);
+  return item?.widget.type === 'subform' ? (item as FormItem<SubformWidget>) : undefined;
 }
 
 function layoutOf(reference: unknown): FormMultitabLayout | undefined {
@@ -103,8 +118,22 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
     >
       <template #item="{ element }">
         <div class="form-schema-layout-canvas__node" :style="referenceStyle(element)">
+          <FormSchemaSubformCard
+            v-if="subformItemOf(element)"
+            :item="subformItemOf(element)!"
+            :selected-key="selectedKey"
+            @select="emit('selectItem', $event)"
+            @select-child="(parentKey, childKey) => emit('selectSubformItem', parentKey, childKey)"
+            @copy="emit('copyItem', $event)"
+            @remove="emit('removeItem', $event)"
+            @replace-children="
+              (parentKey, entries) => emit('replaceSubformItems', parentKey, entries)
+            "
+            @copy-child="(parentKey, childKey) => emit('copySubformItem', parentKey, childKey)"
+            @remove-child="(parentKey, childKey) => emit('removeSubformItem', parentKey, childKey)"
+          />
           <FormSchemaFieldCard
-            v-if="itemOf(element)"
+            v-else-if="itemOf(element)"
             :item="itemOf(element)!"
             :selected="selectedKey === element"
             @select="emit('selectItem', $event)"
@@ -171,8 +200,28 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
                       :style="referenceStyle(fieldReference)"
                       @click.stop
                     >
+                      <FormSchemaSubformCard
+                        v-if="subformItemOf(fieldReference)"
+                        :item="subformItemOf(fieldReference)!"
+                        :selected-key="selectedKey"
+                        @select="emit('selectItem', $event)"
+                        @select-child="
+                          (parentKey, childKey) => emit('selectSubformItem', parentKey, childKey)
+                        "
+                        @copy="emit('copyItem', $event)"
+                        @remove="emit('removeItem', $event)"
+                        @replace-children="
+                          (parentKey, entries) => emit('replaceSubformItems', parentKey, entries)
+                        "
+                        @copy-child="
+                          (parentKey, childKey) => emit('copySubformItem', parentKey, childKey)
+                        "
+                        @remove-child="
+                          (parentKey, childKey) => emit('removeSubformItem', parentKey, childKey)
+                        "
+                      />
                       <FormSchemaFieldCard
-                        v-if="itemOf(fieldReference)"
+                        v-else-if="itemOf(fieldReference)"
                         :item="itemOf(fieldReference)!"
                         :selected="selectedKey === fieldReference"
                         @select="emit('selectItem', $event)"

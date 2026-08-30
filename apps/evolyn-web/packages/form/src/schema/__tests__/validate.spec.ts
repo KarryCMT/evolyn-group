@@ -11,6 +11,20 @@ import { migrateFormSchema } from '../migrate';
 import type { FormSchemaDocument } from '../types';
 import { validateFormSchema, validatePublishableFormSchema } from '../validate';
 
+function subformConfig() {
+  return {
+    subformCreate: true,
+    subformInsert: true,
+    subformEdit: true,
+    subformDelete: true,
+    quickFill: true,
+    pcStickyColumn: { enable: true, limit: 1 },
+    mobileStickyColumn: { enable: false, limit: 1 },
+    mobileViewStyle: 'vertical',
+    mobileSummaryFieldCount: 3,
+  } as const;
+}
+
 /** 构造合法 text 字段项（P1 验收样本的最小形态）。 */
 function textItem(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -141,6 +155,7 @@ describe('validateFormSchema 结构校验', () => {
         visible: true,
         allowBlank: true,
         items: [child],
+        ...subformConfig(),
       },
       label: '子表单',
       description: '',
@@ -164,6 +179,25 @@ describe('validateFormSchema 结构校验', () => {
       false,
     );
     expect(validateFormSchema(documentWith([{ ...textItem(), lineWidth: 13 }])).valid).toBe(false);
+    const subform = {
+      widget: {
+        type: 'subform',
+        widgetName: '_widget_full_row_subform',
+        enable: true,
+        visible: true,
+        allowBlank: true,
+        items: [],
+        ...subformConfig(),
+      },
+      label: '子表单',
+      description: '',
+      labelHidden: false,
+      lineWidth: 6,
+    };
+    expect(validateFormSchema(documentWith([subform])).issues).toContainEqual({
+      path: 'content.items[0].lineWidth',
+      message: '子表单必须固定占整行（lineWidth=12）',
+    });
     // separator 允许空 label。
     const separator = {
       widget: {
@@ -230,6 +264,7 @@ describe('validateFormSchema 结构校验', () => {
         enable: true,
         visible: true,
         allowBlank: true,
+        ...subformConfig(),
         items: [
           {
             widget: {
@@ -239,6 +274,7 @@ describe('validateFormSchema 结构校验', () => {
               visible: true,
               allowBlank: true,
               items: [],
+              ...subformConfig(),
             },
             label: '嵌套子表单',
             description: '',
@@ -276,6 +312,7 @@ describe('validateFormSchema 结构校验', () => {
         visible: true,
         allowBlank: true,
         items: [child],
+        ...subformConfig(),
       },
       label: '子表单',
       description: '',
@@ -363,19 +400,27 @@ describe('migrateFormSchema / cloneFormSchema', () => {
     expect(result.issues).toEqual([]);
   });
 
+  it('当前协议读取时把子表单宽度归一化为整行', () => {
+    const subform = createWidgetItem('subform');
+    subform.lineWidth = 6;
+    const result = migrateFormSchema(documentWith([subform]), 4);
+    expect(result.issues).toEqual([]);
+    expect(result.document?.content.items[0]?.lineWidth).toBe(12);
+  });
+
   it('非法输入返回 issues 且 document 为 null', () => {
     const result = migrateFormSchema({ nope: true }, 3);
     expect(result.document).toBeNull();
     expect(result.issues.length).toBeGreaterThan(0);
   });
 
-  it('v1 平铺文档无损迁移为 v3 引用结构与单列布局', () => {
+  it('v1 平铺文档无损迁移为 v4 引用结构与单列布局', () => {
     const item = textItem();
     const result = migrateFormSchema({ content: { type: 'form', items: [item] } }, 1);
     expect(result.document?.content.layout_fields).toEqual([]);
     expect(result.document?.content.field_layout).toEqual(['_widget_a1']);
     expect(result.document?.content.layout).toBe('normal');
-    expect(result.protocolVersion).toBe(3);
+    expect(result.protocolVersion).toBe(4);
   });
 
   it('v2 引用文档迁移为 v3 时补单列布局', () => {

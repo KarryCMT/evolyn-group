@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import type { FormItem, FormSchemaDocument } from '../../schema/types';
+import { createWidgetItem } from '../../schema/dictionary';
 import FormSchemaLayoutCanvas from '../FormSchemaLayoutCanvas.vue';
 
 function field(widgetName: string, lineWidth: number): FormItem {
@@ -119,5 +120,24 @@ describe('FormSchemaLayoutCanvas', () => {
     expect(dropArea.find('.form-schema-layout-canvas__tab-empty').text()).toBe(
       '将字段拖入当前标签页',
     );
+  });
+
+  it('子表单以横向字段表格渲染并提供嵌套拖入提示', () => {
+    const subform = createWidgetItem('subform');
+    const document: FormSchemaDocument = {
+      content: {
+        type: 'form',
+        layout: 'normal',
+        items: [subform],
+        layout_fields: [],
+        field_layout: [subform.widget.widgetName],
+      },
+    };
+    const wrapper = mount(FormSchemaLayoutCanvas, {
+      props: { document, selectedKey: subform.widget.widgetName },
+    });
+
+    expect(wrapper.find('.form-schema-subform-card').classes()).toContain('is-active');
+    expect(wrapper.text()).toContain('从左侧拖入字段，或在右侧添加子字段');
   });
 });

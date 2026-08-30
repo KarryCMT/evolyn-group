@@ -40,6 +40,7 @@ export type WidgetPropKind =
   | 'stringArray'
   | 'options'
   | 'widgetItems'
+  | 'stickyColumn'
   | 'expression'
   | 'snRule'
   | 'linkFilters'
@@ -290,6 +291,15 @@ export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
     valueKind: 'rows',
     props: {
       items: { kind: 'widgetItems', required: true },
+      subformCreate: { kind: 'boolean', required: true },
+      subformInsert: { kind: 'boolean', required: true },
+      subformEdit: { kind: 'boolean', required: true },
+      subformDelete: { kind: 'boolean', required: true },
+      quickFill: { kind: 'boolean', required: true },
+      pcStickyColumn: { kind: 'stickyColumn', required: true },
+      mobileStickyColumn: { kind: 'stickyColumn', required: true },
+      mobileViewStyle: { kind: 'enum', values: ['vertical', 'horizontal'], required: true },
+      mobileSummaryFieldCount: { kind: 'integer', min: 1, max: 5, required: true },
       minRowCount: { kind: 'integer', min: 0, max: 200 },
       maxRowCount: { kind: 'integer', min: 1, max: 200 },
     },
@@ -411,7 +421,20 @@ export function createWidgetItem(type: FormWidgetType): FormItem {
   };
   // 仅选项类控件带必填 options；数值上限类属性缺省即「未启用」，不预写。
   if (spec.props.options?.required) widget.options = defaultOptions();
-  if (type === 'subform') widget.items = [];
+  if (type === 'subform') {
+    Object.assign(widget, {
+      items: [],
+      subformCreate: true,
+      subformInsert: true,
+      subformEdit: true,
+      subformDelete: true,
+      quickFill: true,
+      pcStickyColumn: { enable: true, limit: 1 },
+      mobileStickyColumn: { enable: false, limit: 1 },
+      mobileViewStyle: 'vertical',
+      mobileSummaryFieldCount: 3,
+    });
+  }
   return {
     widget: widget as FormItem['widget'],
     label: spec.label,

@@ -27,20 +27,21 @@ type SchemaIssue struct {
 type propKind string
 
 const (
-	kindBoolean     propKind = "boolean"
-	kindString      propKind = "string"
-	kindInteger     propKind = "integer"
-	kindNumber      propKind = "number"
-	kindEnum        propKind = "enum"
-	kindStringArray propKind = "stringArray"
-	kindOptions     propKind = "options"
-	kindWidgetItems propKind = "widgetItems"
-	kindLinkFilters propKind = "linkFilters"
-	kindLinkSorts   propKind = "linkSorts"
-	kindLinkMaps    propKind = "linkMappings"
-	kindExpression  propKind = "expression"
-	kindSnRule      propKind = "snRule"
-	kindButtonAct   propKind = "buttonAction"
+	kindBoolean      propKind = "boolean"
+	kindString       propKind = "string"
+	kindInteger      propKind = "integer"
+	kindNumber       propKind = "number"
+	kindEnum         propKind = "enum"
+	kindStringArray  propKind = "stringArray"
+	kindOptions      propKind = "options"
+	kindWidgetItems  propKind = "widgetItems"
+	kindStickyColumn propKind = "stickyColumn"
+	kindLinkFilters  propKind = "linkFilters"
+	kindLinkSorts    propKind = "linkSorts"
+	kindLinkMaps     propKind = "linkMappings"
+	kindExpression   propKind = "expression"
+	kindSnRule       propKind = "snRule"
+	kindButtonAct    propKind = "buttonAction"
 )
 
 // propSpec 单个控件属性的声明式约束（字段字典逐条对应）。
@@ -88,11 +89,14 @@ var publishableWidgetTypes = map[string]bool{
 	"separator": true,
 }
 
-// subformAllowedTypes 子表单子项白名单（基础 9 类 + 组织四类，禁止嵌套 subform）。
+// subformAllowedTypes 子表单子项白名单：禁止无行值语义的 separator/richtext/subform。
 var subformAllowedTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
-	"separator": true, "user": true, "usergroup": true, "dept": true, "deptgroup": true,
+	"user": true, "usergroup": true, "dept": true, "deptgroup": true,
+	"image": true, "upload": true, "address": true, "location": true,
+	"signature": true, "phone": true, "linkquery": true, "linkfield": true,
+	"lookup": true, "aggregation": true, "sn": true, "button": true,
 }
 
 var textProps = map[string]propSpec{
@@ -190,9 +194,18 @@ var widgetSpecs = map[string]widgetSpec{
 		"verification": {kind: kindBoolean},
 	}},
 	"subform": {label: "子表单", props: map[string]propSpec{
-		"items":       {kind: kindWidgetItems, required: true},
-		"minRowCount": {kind: kindInteger, min: f64(0), max: f64(200)},
-		"maxRowCount": {kind: kindInteger, min: f64(1), max: f64(200)},
+		"items":                   {kind: kindWidgetItems, required: true},
+		"subformCreate":           {kind: kindBoolean, required: true},
+		"subformInsert":           {kind: kindBoolean, required: true},
+		"subformEdit":             {kind: kindBoolean, required: true},
+		"subformDelete":           {kind: kindBoolean, required: true},
+		"quickFill":               {kind: kindBoolean, required: true},
+		"pcStickyColumn":          {kind: kindStickyColumn, required: true},
+		"mobileStickyColumn":      {kind: kindStickyColumn, required: true},
+		"mobileViewStyle":         {kind: kindEnum, enum: []string{"vertical", "horizontal"}, required: true},
+		"mobileSummaryFieldCount": {kind: kindInteger, min: f64(1), max: f64(5), required: true},
+		"minRowCount":             {kind: kindInteger, min: f64(0), max: f64(200)},
+		"maxRowCount":             {kind: kindInteger, min: f64(1), max: f64(200)},
 	}},
 	"linkquery": {label: "关联查询", props: map[string]propSpec{
 		"targetForm": {kind: kindString, maxLen: protoNameMax},
@@ -544,6 +557,11 @@ func validateItem(raw any, path string, scopeNames map[string]bool, issues *[]Sc
 				Path:    path + ".lineWidth",
 				Message: "lineWidth 必须在 1–12 之间",
 			})
+		} else if widgetType == "subform" && lineWidth != 12 {
+			*issues = append(*issues, SchemaIssue{
+				Path:    path + ".lineWidth",
+				Message: "子表单必须固定占整行（lineWidth=12）",
+			})
 		}
 	} else {
 		*issues = append(*issues, SchemaIssue{Path: path + ".lineWidth", Message: "lineWidth 必须是整数"})
@@ -718,6 +736,8 @@ func validateWidgetProp(value any, spec propSpec, path, key string, issues *[]Sc
 		validateOptions(value, path, issues)
 	case kindWidgetItems:
 		validateSubformItems(value, path, issues)
+	case kindStickyColumn:
+		validateStickyColumn(value, path, issues)
 	case kindLinkFilters:
 		validateLinkFilters(value, path, issues)
 	case kindLinkSorts:
@@ -730,6 +750,23 @@ func validateWidgetProp(value any, spec propSpec, path, key string, issues *[]Sc
 		validateSnRule(value, path, issues)
 	case kindButtonAct:
 		validateButtonAction(value, path, issues)
+	}
+}
+
+// validateStickyColumn 严格校验冻结列对象，避免未知字段被静默落库。
+func validateStickyColumn(value any, path string, issues *[]SchemaIssue) {
+	config, ok := value.(map[string]any)
+	if !ok {
+		*issues = append(*issues, SchemaIssue{Path: path, Message: "冻结列配置必须是 {enable, limit} 对象"})
+		return
+	}
+	rejectUnknownKeys(config, []string{"enable", "limit"}, path, issues)
+	if _, ok := config["enable"].(bool); !ok {
+		*issues = append(*issues, SchemaIssue{Path: path + ".enable", Message: "enable 必须是布尔值"})
+	}
+	limit, ok := asInteger(config["limit"])
+	if !ok || limit < 1 || limit > 5 {
+		*issues = append(*issues, SchemaIssue{Path: path + ".limit", Message: "limit 必须是 1–5 之间的整数"})
 	}
 }
 

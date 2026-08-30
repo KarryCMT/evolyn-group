@@ -179,6 +179,8 @@ const paletteGroups = computed<FormSchemaPaletteGroup[]>(() => {
           type,
           label: spec.label,
           icon: iconOfType[type] ?? RiMenuFill,
+          // P4 首先开放子表单设计能力；同组关联字段仍按原计划保持不可添加。
+          enabled: group.key === 'basic' || type === 'subform',
         })),
     })),
     {
@@ -441,6 +443,10 @@ function notifyUnavailable(action: string) {
         @select-layout="editor.selectLayout"
         @copy-item="editor.copyItem"
         @remove-item="editor.removeItem"
+        @select-subform-item="editor.selectSubformItem"
+        @copy-subform-item="editor.copySubformItem"
+        @remove-subform-item="editor.removeSubformItem"
+        @replace-subform-items="editor.replaceSubformItems"
         @replace-references="editor.replaceReferences($event.target, $event.entries)"
         @remove-layout="editor.removeMultitab"
       />

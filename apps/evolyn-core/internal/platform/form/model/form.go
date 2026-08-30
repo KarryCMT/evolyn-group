@@ -14,8 +14,8 @@ import (
 // （standard↔workflow），切换后原类型流程数据保留；切换裁决在 Service 层。
 type FormType string
 
-// CurrentProtocolVersion 当前表单保存协议版本；v3 增加表单默认列布局。
-const CurrentProtocolVersion = 3
+// CurrentProtocolVersion 当前表单保存协议版本；v4 增加子表单权限与端侧展示配置。
+const CurrentProtocolVersion = 4
 
 const (
 	FormTypeStandard FormType = "standard"
@@ -37,7 +37,7 @@ type Form struct {
 	FormType         FormType    `json:"formType" gorm:"size:16;not null;default:standard"` // 表单类型（ADR-011 起可经动作切换）
 	DraftContent     JSONContent `json:"draft" gorm:"type:jsonb;not null"`
 	DraftRevision    int64       `json:"draftRevision" gorm:"not null;default:1"`   // 草稿乐观锁：保存条件递增
-	ProtocolVersion  int         `json:"protocolVersion" gorm:"not null;default:3"` // 协议版本外部承载（文档内无版本字段）
+	ProtocolVersion  int         `json:"protocolVersion" gorm:"not null;default:4"` // 协议版本外部承载（文档内无版本字段）
 	LatestVersionID  *uint       `json:"latestVersionId"`                           // 最新发布版本；NULL=从未发布
 	PublishedVersion int         `json:"publishedVersion" gorm:"not null;default:0"`
 	CreatorMemberID  uint        `json:"creatorMemberId" gorm:"not null"`
@@ -56,7 +56,7 @@ type FormVersion struct {
 	SchemaRevision      int64           `json:"schemaRevision" gorm:"not null;default:0"`
 	Content             JSONContent     `json:"content" gorm:"type:jsonb;not null"`
 	FieldKeys           JSONContent     `json:"fieldKeys" gorm:"type:jsonb;not null"` // 顶层字段键有序数组（提交未知键快速拒绝）
-	ProtocolVersion     int             `json:"protocolVersion" gorm:"not null;default:3"`
+	ProtocolVersion     int             `json:"protocolVersion" gorm:"not null;default:4"`
 	PublishedByMemberID uint            `json:"publishedByMemberId" gorm:"not null"`
 	PublishedAt         kernel.JSONTime `json:"publishedAt"`
 

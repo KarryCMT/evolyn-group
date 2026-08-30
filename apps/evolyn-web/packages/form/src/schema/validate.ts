@@ -360,6 +360,8 @@ function validateItem(
       path: `${path}.lineWidth`,
       message: `lineWidth 必须在 ${FORM_PROTOCOL_LIMITS.lineWidthRange.min}–${FORM_PROTOCOL_LIMITS.lineWidthRange.max} 之间`,
     });
+  } else if (type === 'subform' && input.lineWidth !== 12) {
+    issues.push({ path: `${path}.lineWidth`, message: '子表单必须固定占整行（lineWidth=12）' });
   }
   validateWidget(input.widget, `${path}.widget`, issues, seenNames);
 }
@@ -528,6 +530,9 @@ function validateWidgetProp(
     case 'widgetItems':
       validateSubformItems(value, path, issues);
       return;
+    case 'stickyColumn':
+      validateStickyColumn(value, path, issues);
+      return;
     case 'linkFilters':
       validateLinkFilters(value, path, issues);
       return;
@@ -546,6 +551,20 @@ function validateWidgetProp(
     case 'buttonAction':
       validateButtonAction(value, path, issues);
       return;
+  }
+}
+
+function validateStickyColumn(value: unknown, path: string, issues: FormSchemaIssue[]): void {
+  if (!isPlainObject(value)) {
+    issues.push({ path, message: '冻结列配置必须是 {enable, limit} 对象' });
+    return;
+  }
+  rejectUnknownKeys(value, ['enable', 'limit'], path, issues);
+  if (typeof value.enable !== 'boolean') {
+    issues.push({ path: `${path}.enable`, message: 'enable 必须是布尔值' });
+  }
+  if (!isInteger(value.limit) || value.limit < 1 || value.limit > 5) {
+    issues.push({ path: `${path}.limit`, message: 'limit 必须是 1–5 之间的整数' });
   }
 }
 

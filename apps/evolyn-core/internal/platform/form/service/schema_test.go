@@ -29,6 +29,18 @@ func validTextItem() map[string]any {
 	}
 }
 
+func validSubformWidget(items []any) map[string]any {
+	return map[string]any{
+		"type": "subform", "widgetName": "_widget_sub",
+		"enable": true, "visible": true, "allowBlank": true, "items": items,
+		"subformCreate": true, "subformInsert": true, "subformEdit": true, "subformDelete": true,
+		"quickFill":          true,
+		"pcStickyColumn":     map[string]any{"enable": true, "limit": 1},
+		"mobileStickyColumn": map[string]any{"enable": false, "limit": 1},
+		"mobileViewStyle":    "vertical", "mobileSummaryFieldCount": 3,
+	}
+}
+
 func doc(items ...any) []byte {
 	if items == nil {
 		items = []any{}
@@ -51,11 +63,8 @@ func TestValidateFormSchemaMultitabWithSubformReference(t *testing.T) {
 	child := validTextItem()
 	child["widget"].(map[string]any)["widgetName"] = "_widget_child"
 	subform := map[string]any{
-		"widget": map[string]any{
-			"type": "subform", "widgetName": "_widget_sub",
-			"enable": true, "visible": true, "allowBlank": true, "items": []any{child},
-		},
-		"label": "子表单", "description": "", "labelHidden": false, "lineWidth": 12,
+		"widget": validSubformWidget([]any{child}),
+		"label":  "子表单", "description": "", "labelHidden": false, "lineWidth": 12,
 	}
 	document := map[string]any{"content": map[string]any{
 		"type": "form", "layout": "normal", "items": []any{subform},
@@ -176,12 +185,8 @@ func TestValidateFormSchemaWidgetNameRules(t *testing.T) {
 	child := validTextItem()
 	child["widget"].(map[string]any)["widgetName"] = "_widget_top"
 	subform := map[string]any{
-		"widget": map[string]any{
-			"type": "subform", "widgetName": "_widget_sub",
-			"enable": true, "visible": true, "allowBlank": true,
-			"items": []any{child},
-		},
-		"label": "子表单", "description": "", "labelHidden": false, "lineWidth": 12,
+		"widget": validSubformWidget([]any{child}),
+		"label":  "子表单", "description": "", "labelHidden": false, "lineWidth": 12,
 	}
 	top := validTextItem()
 	top["widget"].(map[string]any)["widgetName"] = "_widget_top"
@@ -206,6 +211,13 @@ func TestValidateFormSchemaLabelAndLimits(t *testing.T) {
 	item["lineWidth"] = 13
 	issues := ValidateFormSchema(doc(item))
 	assert.Equal(t, "content.items[0].lineWidth", issues[0].Path)
+
+	subform := map[string]any{
+		"widget": validSubformWidget([]any{}),
+		"label":  "子表单", "description": "", "labelHidden": false, "lineWidth": 6,
+	}
+	issues = ValidateFormSchema(doc(subform))
+	assert.Equal(t, "子表单必须固定占整行（lineWidth=12）", issues[0].Message)
 
 	// separator 允许空 label
 	sep := map[string]any{
@@ -266,17 +278,13 @@ func TestValidateFormSchemaCrossRules(t *testing.T) {
 
 func TestValidateFormSchemaSubformWhitelist(t *testing.T) {
 	nested := map[string]any{
-		"widget": map[string]any{
-			"type": "subform", "widgetName": "_widget_sub",
-			"enable": true, "visible": true, "allowBlank": true,
-			"items": []any{map[string]any{
-				"widget": map[string]any{
-					"type": "subform", "widgetName": "_widget_inner",
-					"enable": true, "visible": true, "allowBlank": true, "items": []any{},
-				},
-				"label": "嵌套", "description": "", "labelHidden": false, "lineWidth": 12,
-			}},
-		},
+		"widget": validSubformWidget([]any{map[string]any{
+			"widget": map[string]any{
+				"type": "subform", "widgetName": "_widget_inner",
+				"enable": true, "visible": true, "allowBlank": true, "items": []any{},
+			},
+			"label": "嵌套", "description": "", "labelHidden": false, "lineWidth": 12,
+		}}),
 		"label": "子表单", "description": "", "labelHidden": false, "lineWidth": 12,
 	}
 	issues := ValidateFormSchema(doc(nested))

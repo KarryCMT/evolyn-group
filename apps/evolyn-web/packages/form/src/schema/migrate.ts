@@ -3,7 +3,8 @@
  *
  * 文档内不携带版本号：协议版本由持久层外部承载（forms.protocol_version 列 +
  * FORM_PROTOCOL_VERSION 常量）。迁移器职责是「读入 → 迁移为当前版本 → 校验」三步；
- * v1 会补齐平铺引用，v1/v2 再补默认单列后升级为 v3。未来递增协议版本时追加显式升级步骤，
+ * v1 会补齐平铺引用，v1/v2 再补默认单列；v1–v3 为子表单补齐 v4 展示与权限配置，
+ * 所有受支持版本都会把子表单归一化为整行宽度。
  * 禁止在旧版本校验器内隐式兼容新结构。
  */
 
@@ -48,12 +49,15 @@ export function migrateFormSchema(
         layout: 'normal',
       },
     };
-  } else if (sourceVersion !== FORM_PROTOCOL_VERSION) {
+  } else if (sourceVersion !== 3 && sourceVersion !== FORM_PROTOCOL_VERSION) {
     return {
       document: null,
       issues: [{ path: 'content', message: `不支持的表单协议版本：${sourceVersion}` }],
       protocolVersion: sourceVersion,
     };
+  }
+  if (isV1Document(candidate)) {
+    candidate = normalizeSubformV4(candidate, sourceVersion <= 3);
   }
   const result = validateFormSchema(candidate);
   if (!result.valid || !result.document) {
@@ -64,6 +68,27 @@ export function migrateFormSchema(
     issues: [],
     protocolVersion: FORM_PROTOCOL_VERSION,
   };
+}
+
+/** v4 补齐子表单配置，并将其容器宽度固定为整行 12 栅格。 */
+function normalizeSubformV4(input: unknown, fillMissingConfig: boolean): unknown {
+  const document = cloneFormSchema(input as FormSchemaDocument);
+  for (const item of document.content.items) {
+    if (item.widget.type !== 'subform') continue;
+    item.lineWidth = 12;
+    if (!fillMissingConfig) continue;
+    const widget = item.widget;
+    widget.subformCreate ??= true;
+    widget.subformInsert ??= true;
+    widget.subformEdit ??= true;
+    widget.subformDelete ??= true;
+    widget.quickFill ??= true;
+    widget.pcStickyColumn ??= { enable: true, limit: 1 };
+    widget.mobileStickyColumn ??= { enable: false, limit: 1 };
+    widget.mobileViewStyle ??= 'vertical';
+    widget.mobileSummaryFieldCount ??= 3;
+  }
+  return document;
 }
 
 function isV2Document(

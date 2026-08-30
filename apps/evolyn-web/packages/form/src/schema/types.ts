@@ -9,7 +9,7 @@
  */
 
 /** 协议版本常量；递增时必须同步版本迁移器（migrate.ts）与字段字典。 */
-export const FORM_PROTOCOL_VERSION = 3 as const;
+export const FORM_PROTOCOL_VERSION = 4 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -226,19 +226,60 @@ export interface PhoneWidget extends FormWidgetCommon {
   verification?: boolean;
 }
 
-/** 子表单子项允许的控件集（字段字典 §3.3）：基础 9 类 + 组织四类，禁止嵌套 subform。 */
+/**
+ * 子表单子项允许的控件集（字段字典 §3.3）。
+ * 标签页不属于字段类型；分割线、富文本与子表单本身没有行值语义，因此禁止放入。
+ */
 export const SUBFORM_ALLOWED_WIDGET_TYPES: readonly FormWidgetType[] = [
-  ...PUBLISHABLE_WIDGET_TYPES,
+  'text',
+  'textarea',
+  'number',
+  'datetime',
+  'radiogroup',
+  'checkboxgroup',
+  'combo',
+  'combocheck',
   'user',
   'usergroup',
   'dept',
   'deptgroup',
+  'image',
+  'upload',
+  'address',
+  'location',
+  'signature',
+  'phone',
+  'linkquery',
+  'linkfield',
+  'lookup',
+  'aggregation',
+  'sn',
+  'button',
 ];
+
+/** 子表单冻结列配置；关闭时 limit 仍保留，便于再次开启恢复上次设置。 */
+export interface SubformStickyColumnConfig {
+  enable: boolean;
+  limit: number;
+}
 
 export interface SubformWidget extends FormWidgetCommon {
   type: 'subform';
   /** 嵌套字段项，结构与顶层 items 相同；子项 widgetName 在本子表单作用域内唯一。 */
   items: FormItem[];
+  /** 行操作权限；可编辑关闭时设计器同时禁用四个细分动作。 */
+  subformCreate: boolean;
+  subformInsert: boolean;
+  subformEdit: boolean;
+  subformDelete: boolean;
+  /** 快速填报仅在新增与编辑已有记录均允许时生效。 */
+  quickFill: boolean;
+  pcStickyColumn: SubformStickyColumnConfig;
+  mobileStickyColumn: SubformStickyColumnConfig;
+  /** 移动端纵向卡片或横向表格。 */
+  mobileViewStyle: 'vertical' | 'horizontal';
+  /** 纵向卡片收起时参与摘要的前 N 个字段。 */
+  mobileSummaryFieldCount: number;
   minRowCount?: number | null;
   maxRowCount?: number | null;
 }

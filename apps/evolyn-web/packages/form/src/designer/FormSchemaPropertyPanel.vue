@@ -33,6 +33,11 @@
           @rename-tab="(tabName, title) => $emit('rename-tab', tabName, title)"
           @reorder-tabs="$emit('reorder-tabs', $event)"
         />
+        <FormSchemaSubformPropertyPanel
+          v-else-if="draftItem && isSubform"
+          v-model="subformDraft"
+          @rename-key="$emit('rename-key', $event)"
+        />
         <el-form v-else-if="draftItem" label-position="top" size="default" @submit.prevent>
           <!-- —— 公共属性（字段字典 §2） —— -->
           <el-form-item label="字段名称">
@@ -320,10 +325,17 @@ import {
   ElSelect,
   ElSwitch,
 } from 'element-plus';
-import type { FormItem, FormLayoutMode, FormMultitabLayout, FormTabStyle } from '../schema/types';
+import type {
+  FormItem,
+  FormLayoutMode,
+  FormMultitabLayout,
+  FormTabStyle,
+  SubformWidget,
+} from '../schema/types';
 import { cloneFormSchema } from '../schema/clone';
 import { FORM_FIELD_WIDTH_OPTIONS, widgetTypeLabel } from '../schema/dictionary';
 import FormSchemaMultitabPropertyPanel from './FormSchemaMultitabPropertyPanel.vue';
+import FormSchemaSubformPropertyPanel from './FormSchemaSubformPropertyPanel.vue';
 
 /**
  * 字段属性面板：编辑 item 公共属性与按 widget.type 分派的专属配置。
@@ -368,6 +380,13 @@ const propertyTabs = [
 const formNameDraft = ref(props.formName);
 const draftItem = ref<FormItem>();
 const widget = computed(() => draftItem.value!.widget);
+const isSubform = computed(() => widget.value.type === 'subform');
+const subformDraft = computed<FormItem<SubformWidget>>({
+  get: () => draftItem.value as FormItem<SubformWidget>,
+  set: (item) => {
+    draftItem.value = item;
+  },
+});
 const typeLabel = computed(() => widgetTypeLabel(widget.value.type));
 const isSeparator = computed(() => widget.value.type === 'separator');
 const hasOptions = computed(() =>

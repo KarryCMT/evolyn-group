@@ -15,13 +15,14 @@
         :fallback-on-body="true"
         :fallback-tolerance="3"
         :data-enabled="group.enabled"
+        :move="(event) => canDrag(group, event)"
       >
         <template #item="{ element }">
           <button
             class="form-schema-palette__item"
             type="button"
-            :disabled="!group.enabled"
-            :title="group.enabled ? element.label : '该分组字段随后续版本开放'"
+            :disabled="!entryEnabled(group, element)"
+            :title="entryEnabled(group, element) ? element.label : '该字段随后续版本开放'"
             @click="$emit('add-field', element)"
           >
             <el-icon><component :is="element.icon" /></el-icon>
@@ -49,7 +50,7 @@ export interface FormSchemaPaletteGroup {
   title: string;
   /** 未开放的分组置灰只展示（后续阶段开放），本期仅基础字段可添加。 */
   enabled: boolean;
-  entries: Array<{ type: string; label: string; icon: unknown }>;
+  entries: Array<{ type: string; label: string; icon: unknown; enabled?: boolean }>;
 }
 
 defineProps<{ groups: FormSchemaPaletteGroup[] }>();
@@ -62,6 +63,21 @@ defineEmits<{
 const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
   paletteType: item.type,
 });
+
+function entryEnabled(
+  group: FormSchemaPaletteGroup,
+  entry: FormSchemaPaletteGroup['entries'][number],
+): boolean {
+  return entry.enabled ?? group.enabled;
+}
+
+function canDrag(
+  group: FormSchemaPaletteGroup,
+  event: { draggedContext?: { element?: FormSchemaPaletteGroup['entries'][number] } },
+): boolean {
+  const entry = event.draggedContext?.element;
+  return Boolean(entry && entryEnabled(group, entry));
+}
 </script>
 
 <style lang="scss">

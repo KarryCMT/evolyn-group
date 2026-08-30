@@ -12,6 +12,8 @@
 | `FormSchemaPalette.vue`               | 字段素材面板  | 按分组展示控件入口（P2 仅基础 9 类可添加，其余分组置灰），支持点击添加与拖拽克隆到画布。              |
 | `FormSchemaLayoutCanvas.vue`          | 布局设计画布  | 按 v2 引用序列编排顶层字段与 `multitab`；负责布局选中、预览及字段在顶层/标签页间拖拽。                |
 | `FormSchemaFieldCard.vue`             | 字段设计卡片  | 复用字段标题、预览、复制与删除交互；字段定义仍唯一存放在 `content.items`。                            |
+| `FormSchemaSubformCard.vue`           | 子表单设计卡  | 以桌面表格形态展示嵌套字段，承接素材拖入、子字段排序、选择、复制与删除。                              |
+| `FormSchemaSubformPropertyPanel.vue`  | 子表单属性区  | 配置基础信息、子字段、行权限、快速填报、冻结列及移动端纵向/横向展示。                                 |
 | `FormSchemaMultitabPropertyPanel.vue` | 标签页属性区  | 在右侧属性面板内维护标签样式、标题、增删、复制与拖拽排序。                                            |
 | `FormSchemaItemPreview.vue`           | 字段预览控件  | 按 widget.type 渲染画布内禁用态预览（Element Plus 控件）。                                            |
 | `FormSchemaPropertyPanel.vue`         | 属性配置面板  | 通过「字段属性 / 表单属性」切换；字段页根据画布选中节点分派字段属性或标签页属性，表单页编辑资产名称。 |
@@ -32,4 +34,5 @@
 
 > 旧插件设计器遗留组件（PluginDesign\* / FormSubform\* / FormCodeEditor 等）已随
 > FormDocument 协议一并退场，见 docs/低代码平台/表单设计器/迁移清单与验收矩阵.md；
-> P4 子表单设计器将按目标协议重建。
+> P4 子表单设计态已按 v4 目标协议重建；运行时行编辑、记录提交与服务端行级终审仍按 P4
+> 后续纵切推进。

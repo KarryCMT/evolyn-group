@@ -28,6 +28,6 @@ export { default as FormSchemaCanvas } from './FormSchemaLayoutCanvas.vue';
 export { default as FormSchemaItemPreview } from './FormSchemaItemPreview.vue';
 export { default as FormSchemaPropertyPanel } from './FormSchemaPropertyPanel.vue';
 export { createEmptyFormSchemaDocument, useFormSchemaEditor } from './useFormSchemaEditor';
-export { FORM_SCHEMA_DRAG_GROUP } from './palette';
+export { FORM_SCHEMA_DRAG_GROUP, FORM_SCHEMA_SUBFORM_DRAG_GROUP } from './palette';
 export type { FormSchemaPaletteEntry, FormSchemaPaletteDrag } from './palette';
 export * from '../schema';

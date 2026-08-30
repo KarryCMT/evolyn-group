@@ -1,5 +1,7 @@
 /** 设计器画布与素材面板共享的拖拽分组名（vuedraggable group）。 */
 export const FORM_SCHEMA_DRAG_GROUP = 'form-schema-fields';
+/** 子表单内部字段排序组；目标同时接收素材面板组，但拒绝顶层引用字符串。 */
+export const FORM_SCHEMA_SUBFORM_DRAG_GROUP = 'form-schema-subform-fields';
 
 /**
  * 素材面板条目：type 为目标协议控件类型；icon 由宿主（页面）注入，

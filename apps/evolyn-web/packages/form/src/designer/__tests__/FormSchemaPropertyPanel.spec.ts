@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import { ElSegmented, ElSelect } from 'element-plus';
 import type { FormItem, FormMultitabLayout } from '../../schema/types';
+import { createWidgetItem } from '../../schema/dictionary';
 import FormSchemaPropertyPanel from '../FormSchemaPropertyPanel.vue';
 
 const layout: FormMultitabLayout = {
@@ -63,5 +64,17 @@ describe('FormSchemaPropertyPanel', () => {
     expect(wrapper.text()).toContain('1/4');
     expect(wrapper.text()).toContain('2/3');
     expect(wrapper.text()).toContain('整行');
+  });
+
+  it('子表单属性区展示子字段、权限与双端样式配置', () => {
+    const subform = createWidgetItem('subform');
+    const wrapper = mount(FormSchemaPropertyPanel, { props: { item: subform } });
+
+    expect(wrapper.text()).toContain('子字段');
+    expect(wrapper.text()).toContain('快速填报');
+    expect(wrapper.text()).toContain('可新增记录');
+    expect(wrapper.text()).toContain('子表单展示样式');
+    expect(wrapper.text()).toContain('电脑端');
+    expect(wrapper.text()).toContain('移动端');
   });
 });
