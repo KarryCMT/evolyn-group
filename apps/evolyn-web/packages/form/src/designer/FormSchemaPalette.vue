@@ -163,5 +163,9 @@ const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  &__fallback .el-icon {
+    color: var(--el-color-primary) !important;
+  }
 }
 </style>
