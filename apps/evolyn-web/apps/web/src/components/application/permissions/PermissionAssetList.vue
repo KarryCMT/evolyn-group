@@ -1,8 +1,15 @@
 <script setup lang="ts">
-import { RiBarChartBoxFill, RiFileList3Fill, RiGitBranchFill, RiSearchFill } from '@remixicon/vue';
-import { computed } from 'vue';
+import {
+  RiArrowDownSFill,
+  RiArrowRightSFill,
+  RiBarChartBoxFill,
+  RiFileList3Fill,
+  RiFolderFill,
+  RiGitBranchFill,
+  RiSearchFill,
+} from '@remixicon/vue';
+import { computed, shallowRef } from 'vue';
 import type { PermissionAsset, PermissionAssetType } from './permission.types';
-
 defineOptions({ name: 'PermissionAssetList' });
 
 const props = defineProps<{
@@ -17,30 +24,84 @@ const emit = defineEmits<{
   select: [assetId: string];
 }>();
 
-const assetGroups: Array<{
-  type: PermissionAssetType;
-  label: string;
-  icon: typeof RiFileList3Fill;
-}> = [
-  { type: 'workflow-form', label: '流程表单', icon: RiGitBranchFill },
-  { type: 'form', label: '表单', icon: RiFileList3Fill },
-  { type: 'dashboard', label: '仪表盘', icon: RiBarChartBoxFill },
-];
+// 资产列表按层级平铺展示（group 为可展开/收起的容器行，不可选中），图标按资产类型区分。
+const assetTypeIcons: Record<Exclude<PermissionAssetType, 'group'>, typeof RiFileList3Fill> = {
+  'workflow-form': RiGitBranchFill,
+  form: RiFileList3Fill,
+  dashboard: RiBarChartBoxFill,
+};
+
+const GROUP_INDENT_STEP = 20;
+
+interface VisibleAssetRow {
+  asset: PermissionAsset;
+  depth: number;
+  /** 分组行是否处于展开态；无 children 的分组不参与展开。 */
+  expanded?: boolean;
+}
+
+const collapsedGroupIds = shallowRef<ReadonlySet<string>>(new Set());
+
+function toggleGroup(groupId: string) {
+  const next = new Set(collapsedGroupIds.value);
+  if (next.has(groupId)) {
+    next.delete(groupId);
+  } else {
+    next.add(groupId);
+  }
+  collapsedGroupIds.value = next;
+}
 
 const normalizedKeyword = computed(() => props.keyword.trim().toLocaleLowerCase());
-const visibleGroups = computed(() =>
-  assetGroups
-    .map((group) => ({
-      ...group,
-      assets: props.assets.filter(
-        (asset) =>
-          asset.type === group.type &&
-          (!normalizedKeyword.value ||
-            asset.name.toLocaleLowerCase().includes(normalizedKeyword.value)),
-      ),
-    }))
-    .filter((group) => group.assets.length > 0),
-);
+
+// 名称溢出省略后，仅对真正发生截断的行在悬停时弹出完整文案提示。
+const hoveredRowId = shallowRef<string>();
+const hoveredRowOverflowing = shallowRef(false);
+
+function handleRowHover(row: VisibleAssetRow, event: MouseEvent) {
+  hoveredRowId.value = row.asset.id;
+  const label = (event.currentTarget as HTMLElement).querySelector('[data-asset-name]');
+  hoveredRowOverflowing.value = !!label && label.scrollWidth > label.clientWidth;
+}
+
+/** 关键字过滤保留层级：名称未命中的节点仅当其子树内存在命中时保留。 */
+function filterAssetTree(list: PermissionAsset[], keyword: string): PermissionAsset[] {
+  const result: PermissionAsset[] = [];
+  for (const asset of list) {
+    if (asset.name.toLocaleLowerCase().includes(keyword)) {
+      result.push(asset);
+      continue;
+    }
+    if (asset.children?.length) {
+      const children = filterAssetTree(asset.children, keyword);
+      if (children.length) result.push({ ...asset, children });
+    }
+  }
+  return result;
+}
+
+const visibleRows = computed<VisibleAssetRow[]>(() => {
+  const source = normalizedKeyword.value
+    ? filterAssetTree(props.assets, normalizedKeyword.value)
+    : props.assets;
+
+  const rows: VisibleAssetRow[] = [];
+  // 搜索时忽略收起状态全量展开，保证命中结果不因分组收起而被隐藏。
+  const searching = Boolean(normalizedKeyword.value);
+  const walk = (list: PermissionAsset[], depth: number) => {
+    for (const asset of list) {
+      const expanded = Boolean(asset.children?.length) && (searching || !collapsedGroupIds.value.has(asset.id));
+      rows.push({ asset, depth, expanded });
+      if (expanded) walk(asset.children!, depth + 1);
+    }
+  };
+  walk(source, 0);
+  return rows;
+});
+
+function rowIndentStyle(depth: number) {
+  return { paddingLeft: `calc(var(--el-space-md) + ${depth * GROUP_INDENT_STEP}px)` };
+}
 
 function updateKeyword(event: Event) {
   emit('updateKeyword', (event.target as HTMLInputElement).value);
@@ -72,26 +133,59 @@ function updateKeyword(event: Event) {
 
     <!-- 资产列表独立滚动，搜索框与批量操作始终保留在可见区域。 -->
     <el-scrollbar class="permission-asset-list__scrollbar">
-      <div v-if="visibleGroups.length" class="permission-asset-list__groups">
-        <section
-          v-for="group in visibleGroups"
-          :key="group.type"
-          class="permission-asset-list__group"
-          :aria-label="group.label"
-        >
-          <p class="permission-asset-list__group-title">{{ group.label }}</p>
+      <div v-if="visibleRows.length" class="permission-asset-list__list">
+        <template v-for="row in visibleRows" :key="row.asset.id">
+          <!-- 分组行可点击展开/收起，仅作层级容器展示，不参与选中。 -->
           <button
-            v-for="asset in group.assets"
-            :key="asset.id"
-            class="permission-asset-list__asset"
-            :class="{ 'permission-asset-list__asset--active': props.selectedAssetId === asset.id }"
+            v-if="row.asset.type === 'group'"
+            class="permission-asset-list__group-row"
+            :class="{ 'permission-asset-list__group-row--leaf': !row.asset.children?.length }"
+            :style="rowIndentStyle(row.depth)"
             type="button"
-            @click="emit('select', asset.id)"
+            :aria-expanded="row.expanded ? 'true' : 'false'"
+            @click="toggleGroup(row.asset.id)"
+            @mouseenter="handleRowHover(row, $event)"
           >
-            <component :is="group.icon" aria-hidden="true" />
-            <span>{{ asset.name }}</span>
+            <RiArrowDownSFill
+              v-if="row.expanded"
+              class="permission-asset-list__chevron"
+              aria-hidden="true"
+            />
+            <RiArrowRightSFill v-else class="permission-asset-list__chevron" aria-hidden="true" />
+            <RiFolderFill aria-hidden="true" />
+            <el-tooltip
+              :content="row.asset.name"
+              placement="right"
+              :show-after="300"
+              :disabled="!(hoveredRowId === row.asset.id && hoveredRowOverflowing)"
+            >
+              <span data-asset-name class="permission-asset-list__name">{{
+                row.asset.name
+              }}</span>
+            </el-tooltip>
           </button>
-        </section>
+          <button
+            v-else
+            class="permission-asset-list__asset"
+            :class="{ 'permission-asset-list__asset--active': props.selectedAssetId === row.asset.id }"
+            :style="rowIndentStyle(row.depth)"
+            type="button"
+            @click="emit('select', row.asset.id)"
+            @mouseenter="handleRowHover(row, $event)"
+          >
+            <component :is="assetTypeIcons[row.asset.type]" aria-hidden="true" />
+            <el-tooltip
+              :content="row.asset.name"
+              placement="right"
+              :show-after="300"
+              :disabled="!(hoveredRowId === row.asset.id && hoveredRowOverflowing)"
+            >
+              <span data-asset-name class="permission-asset-list__name">{{
+                row.asset.name
+              }}</span>
+            </el-tooltip>
+          </button>
+        </template>
       </div>
       <div v-else class="permission-asset-list__empty">未找到匹配的应用资产</div>
     </el-scrollbar>
@@ -119,8 +213,7 @@ function updateKeyword(event: Event) {
   }
 
   &__step,
-  &__title,
-  &__group-title {
+  &__title {
     margin: 0;
   }
 
@@ -205,24 +298,68 @@ function updateKeyword(event: Event) {
     flex: 1;
   }
 
-  &__groups {
-    display: flex;
-    flex-direction: column;
-    gap: var(--el-space-xl);
-  }
-
-  &__group {
+  &__list {
     display: flex;
     flex-direction: column;
     gap: var(--el-space-xs);
   }
 
-  &__group-title {
-    padding: 0 var(--el-space-md) var(--el-space-xs);
+  &__group-row {
+    display: flex;
+    min-height: 34px;
+    padding-right: var(--el-space-md);
+    align-items: center;
+    gap: var(--el-space-md);
+    border: 0;
+    border-radius: var(--el-border-radius-medium);
     color: var(--el-text-color-secondary);
-    font-size: var(--el-font-size-extra-small);
+    cursor: pointer;
+    background: transparent;
+    font: inherit;
+    font-size: var(--el-font-size-small);
     font-weight: 600;
-    line-height: 18px;
+    text-align: left;
+
+    svg {
+      width: 18px;
+      height: 18px;
+      flex: 0 0 auto;
+    }
+
+    &:hover {
+      color: var(--el-text-color-primary);
+      background: var(--el-fill-color-light);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--el-color-primary);
+      outline-offset: -2px;
+    }
+
+    // 空分组没有子级可展开，呈现为普通展示行。
+    &--leaf {
+      cursor: default;
+
+      &:hover {
+        color: var(--el-text-color-secondary);
+        background: transparent;
+      }
+    }
+  }
+
+  &__chevron {
+    width: 18px !important;
+    height: 18px !important;
+    color: var(--el-text-color-placeholder);
+  }
+
+  // 名称单行截断省略；溢出时由 el-tooltip 悬浮展示完整文案。
+  &__name {
+    min-width: 0;
+    overflow: hidden;
+    flex: 1;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   &__asset {

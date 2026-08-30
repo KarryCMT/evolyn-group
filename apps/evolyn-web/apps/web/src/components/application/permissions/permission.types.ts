@@ -1,11 +1,12 @@
 /** 权限中心展示的应用资产类型；接口接入后与资产域的稳定类型一一对应。 */
-export type PermissionAssetType = 'workflow-form' | 'form' | 'dashboard';
+export type PermissionAssetType = 'workflow-form' | 'form' | 'dashboard' | 'group';
 
 /** 左栏资产项：当前为前端交互演示数据，后续由资产列表接口替换。 */
 export interface PermissionAsset {
   id: string;
   name: string;
   type: PermissionAssetType;
+  children?: PermissionAsset[]
 }
 
 /** 权限组归属主体；成员、部门、角色统一以标签形式呈现。 */

@@ -2,8 +2,8 @@
   "private": true,
   "name": "evolyn-group",
   "scripts": {
-    "dev:web": "pnpm run stop:web && pnpm --dir apps/evolyn-web run dev:web",
-    "dev:core": "pnpm run stop:core && cd apps/evolyn-core && make run",
+    "dev:web": "pnpm --dir apps/evolyn-web run dev:web",
+    "dev:core": "cd apps/evolyn-core && make run",
     "dev:core-windows": "pnpm run stop:core && cd apps/evolyn-core && make run-windows",
     "dev:core-mac": "pnpm run stop:core && cd apps/evolyn-core && make run-mac",
     "build:web": "pnpm --dir apps/evolyn-web run build",

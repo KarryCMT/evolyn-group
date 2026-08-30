@@ -7,8 +7,10 @@ import {
   type EvolynMemberDepartmentRolePickerTreeNode,
 } from '@evolyn.do/ui';
 import { computed, shallowRef } from 'vue';
+import { useRoute } from 'vue-router';
 import PermissionAssetList from '~/components/application/permissions/PermissionAssetList.vue';
 import PermissionGroupsPanel from '~/components/application/permissions/PermissionGroupsPanel.vue';
+import { useApplicationHome } from '~/composables/useApplicationHome';
 import type {
   AssetPermissionGroup,
   PermissionAsset,
@@ -16,6 +18,17 @@ import type {
 } from '~/components/application/permissions/permission.types';
 
 defineOptions({ name: 'ApplicationSettingPermissionsPage' });
+
+const route = useRoute();
+const appCode = computed(() => String(route.params.appCode ?? ''));
+const { application, errorMessage, reload, status } = useApplicationHome(appCode);
+
+// 权限设置仅应用管理员可访问。后端应用级管理员体系尚未落地，先以应用详情
+// 派生的 capabilities.edit（applications:patch）作为管理员口径；
+// 应用级范围授权（AccessEvaluator 扩展）落地后替换判定即可。
+const accessDenied = computed(
+  () => status.value === 'ready' && !application.value?.capabilities.edit,
+);
 
 /**
  * 权限 API 尚未落地，页面先用本地预览数据完成交互与视觉验收。
@@ -25,12 +38,36 @@ const assets = shallowRef<PermissionAsset[]>([
   { id: 'form_order', name: '订单管理', type: 'workflow-form' },
   { id: 'form_purchase', name: '采购申请', type: 'workflow-form' },
   { id: 'form_office', name: '办公用品申请', type: 'workflow-form' },
-  { id: 'form_employee', name: '员工档案', type: 'form' },
+  {
+    id: 'form_employee',
+    name: '员工档案员工档案员工档案员工档案员工档案员工档案员工档案',
+    type: 'form',
+  },
   { id: 'form_product', name: '产品管理', type: 'form' },
   { id: 'form_customer', name: '客户信息', type: 'form' },
   { id: 'dashboard_employee', name: '员工信息分析', type: 'dashboard' },
+  { id: 'dashboard_employee2', name: '员工信息分析', type: 'dashboard' },
+  { id: 'dashboard_employee12', name: '员工信息分析', type: 'dashboard' },
+  { id: 'dashboard_empl2oyee2', name: '员工信息分析', type: 'dashboard' },
+  { id: 'dashboard_emplo3yee2', name: '员工信息分析', type: 'dashboard' },
+  { id: 'dashboard_empl4oyee2', name: '员工信息分析', type: 'dashboard' },
+  { id: 'dashboard_employee3', name: '员工信息分析', type: 'dashboard' },
   { id: 'dashboard_order', name: '订单分析', type: 'dashboard' },
   { id: 'dashboard_customer', name: '客户信息分析', type: 'dashboard' },
+  {
+    id: 'group_1',
+    name: '分组1',
+    type: 'group',
+    children: [
+      {
+        id: 'group_2_order',
+        name: '订单分析2',
+        type: 'group',
+        children: [{ id: 'form_product_group', name: '产品管理', type: 'form' }],
+      },
+      { id: 'form_employee1', name: '员工档案2', type: 'form' },
+    ],
+  },
 ]);
 
 /** 选择器数据暂用本地演示结构；权限主体接口落地后替换为部门树、角色和成员接口响应。 */
@@ -99,9 +136,17 @@ const pickerVisible = shallowRef(false);
 const targetGroupId = shallowRef<string>();
 const pickerSelection = shallowRef<EvolynMemberDepartmentRolePickerSelection[]>([]);
 
-const selectedAsset = computed(() =>
-  assets.value.find((asset) => asset.id === selectedAssetId.value),
-);
+/** 资产为树形结构，选中查找需沿 children 递归。 */
+function findAssetById(list: PermissionAsset[], id: string): PermissionAsset | undefined {
+  for (const asset of list) {
+    if (asset.id === id) return asset;
+    const found = asset.children ? findAssetById(asset.children, id) : undefined;
+    if (found) return found;
+  }
+  return undefined;
+}
+
+const selectedAsset = computed(() => findAssetById(assets.value, selectedAssetId.value));
 const selectedGroups = computed(() => groupsByAssetId.value[selectedAssetId.value] ?? []);
 const pickerTitle = computed(() => (targetGroupId.value ? '添加授权对象' : '添加成员'));
 
@@ -242,7 +287,43 @@ async function disableAll() {
 </script>
 
 <template>
-  <section class="application-setting-permissions" aria-label="表单和仪表盘权限">
+  <!-- 应用信息装载中：整页占位等待，避免准入判定闪烁。 -->
+  <section
+    v-if="status === 'loading'"
+    v-loading="true"
+    class="application-setting-permissions__status"
+  />
+
+  <el-result
+    v-else-if="status === 'not-found'"
+    class="application-setting-permissions__result"
+    icon="warning"
+    title="应用不存在或已不可访问"
+    sub-title="请返回工作台后重新选择应用。"
+  />
+
+  <el-result
+    v-else-if="status === 'error'"
+    class="application-setting-permissions__result"
+    icon="error"
+    title="加载应用设置失败"
+    :sub-title="errorMessage"
+  >
+    <template #extra>
+      <el-button type="primary" @click="reload()">重新加载</el-button>
+    </template>
+  </el-result>
+
+  <!-- 仅应用管理员可进入权限设置，普通成员呈现无权限状态。 -->
+  <el-result
+    v-else-if="accessDenied"
+    class="application-setting-permissions__result"
+    icon="warning"
+    title="无访问权限"
+    sub-title="仅应用管理员可管理表单和仪表盘权限。"
+  />
+
+  <section v-else class="application-setting-permissions" aria-label="表单和仪表盘权限">
     <PermissionAssetList
       :assets="assets"
       :keyword="keyword"
@@ -282,6 +363,13 @@ async function disableAll() {
   min-width: 920px;
   min-height: 0;
   overflow: hidden;
+
+  &__status,
+  &__result {
+    display: grid;
+    min-height: 100%;
+    place-items: center;
+  }
 }
 
 @media (max-width: 920px) {
