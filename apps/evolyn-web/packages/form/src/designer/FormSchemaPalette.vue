@@ -9,6 +9,11 @@
         :clone="clonePaletteItem"
         item-key="type"
         class="form-schema-palette__list"
+        chosen-class="form-schema-palette__chosen"
+        fallback-class="form-schema-palette__fallback"
+        :force-fallback="true"
+        :fallback-on-body="true"
+        :fallback-tolerance="3"
         :data-enabled="group.enabled"
       >
         <template #item="{ element }">
@@ -125,6 +130,39 @@ const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
       font-size: var(--el-font-size-medium);
       color: var(--el-text-color-regular);
     }
+  }
+
+  // 拖动源保持轻量选中态，跟随鼠标的拖动卡片固定为横向尺寸，避免窄列中标题折行。
+  &__chosen:not(:disabled) {
+    color: var(--el-color-primary);
+    background-color: var(--el-color-primary-light-9);
+    border-color: var(--el-color-primary);
+    border-style: dashed;
+  }
+
+  &__fallback {
+    box-sizing: border-box;
+    display: flex !important;
+    width: 200px !important;
+    min-width: 200px;
+    max-width: 200px;
+    min-height: 40px;
+    padding: 0 var(--el-space-lg) !important;
+    overflow: hidden;
+    color: var(--el-color-primary) !important;
+    white-space: nowrap;
+    background-color: var(--el-bg-color) !important;
+    border-color: var(--el-color-primary) !important;
+    border-style: dashed !important;
+    box-shadow: var(--el-box-shadow-light);
+    opacity: 0.92 !important;
+  }
+
+  &__fallback span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 </style>

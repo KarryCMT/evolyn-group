@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { Delete } from '@element-plus/icons-vue';
 import { EvolynScrollbar } from '@evolyn.do/ui';
-import { ElButton, ElTabPane, ElTabs } from 'element-plus';
+import { ElIcon, ElPopconfirm, ElTabPane, ElTabs } from 'element-plus';
 import { computed, reactive, type CSSProperties } from 'vue';
 import Draggable from 'vuedraggable';
 import type { FormItem, FormMultitabLayout, FormSchemaDocument } from '../schema/types';
 import { isLayoutWidgetType } from '../schema/codec';
+import { FORM_LAYOUT_LINE_WIDTH } from '../schema/dictionary';
 import { FORM_SCHEMA_DRAG_GROUP, type FormSchemaPaletteDrag } from './palette';
 import type { FormLayoutTarget } from './useFormSchemaEditor';
 import FormSchemaFieldCard from './FormSchemaFieldCard.vue';
@@ -32,6 +33,12 @@ const itemMap = computed(
 const layoutMap = computed(
   () => new Map(props.document.content.layout_fields.map((layout) => [layout.name, layout])),
 );
+const dragListStyle = computed(
+  () =>
+    ({
+      '--form-schema-drag-span': FORM_LAYOUT_LINE_WIDTH[props.document.content.layout],
+    }) as CSSProperties,
+);
 
 function itemOf(reference: unknown): FormItem | undefined {
   return typeof reference === 'string' ? itemMap.value.get(reference) : undefined;
@@ -49,10 +56,13 @@ function referenceKey(reference: unknown): string {
 /** 画布与运行时共用 12 栅格；布局控件和标签页容器固定跨满整行。 */
 function referenceStyle(reference: unknown): CSSProperties {
   const item = itemOf(reference);
+  const paletteType = (reference as Partial<FormSchemaPaletteDrag> | null)?.paletteType;
   const width =
     item && !isLayoutWidgetType(item.widget.type) && item.lineWidth >= 1 && item.lineWidth <= 12
       ? item.lineWidth
-      : 12;
+      : typeof paletteType === 'string' && !isLayoutWidgetType(paletteType)
+        ? FORM_LAYOUT_LINE_WIDTH[props.document.content.layout]
+        : 12;
   return { '--form-schema-field-span': width } as CSSProperties;
 }
 
@@ -86,6 +96,7 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
       :group="{ name: FORM_SCHEMA_DRAG_GROUP, pull: true, put: true }"
       :item-key="referenceKey"
       class="form-schema-layout-canvas__list"
+      :style="dragListStyle"
       ghost-class="form-schema-layout-canvas__ghost"
       :animation="180"
       @update:model-value="replaceTop"
@@ -107,17 +118,30 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
             :class="{ 'is-active': selectedKey === element }"
             @click="emit('selectLayout', element)"
           >
-            <header class="form-schema-layout-canvas__tabs-header">
-              <strong>标签页</strong>
-              <span class="form-schema-layout-canvas__tabs-hint">在右侧配置标签页属性</span>
-              <el-button
-                text
-                type="danger"
-                title="解散标签页"
-                :icon="Delete"
-                @click.stop="emit('removeLayout', element)"
-              />
-            </header>
+            <div class="form-schema-layout-canvas__tabs-actions">
+              <el-popconfirm
+                placement="bottom-end"
+                :width="240"
+                hide-icon
+                confirm-button-type="danger"
+                title="确定删除标签页布局？其中字段将移回表单画布"
+                cancel-button-text="取消"
+                confirm-button-text="删除"
+                @confirm="emit('removeLayout', element)"
+              >
+                <template #reference>
+                  <button
+                    class="form-schema-layout-canvas__tabs-delete"
+                    type="button"
+                    title="删除标签页"
+                    aria-label="删除标签页"
+                    @click.stop
+                  >
+                    <el-icon><Delete /></el-icon>
+                  </button>
+                </template>
+              </el-popconfirm>
+            </div>
 
             <el-tabs
               :model-value="activeTabName(layoutOf(element)!)"
@@ -135,6 +159,7 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
                   :group="{ name: FORM_SCHEMA_DRAG_GROUP, pull: true, put: true }"
                   :item-key="referenceKey"
                   class="form-schema-layout-canvas__tab-list"
+                  :style="dragListStyle"
                   ghost-class="form-schema-layout-canvas__ghost"
                   :animation="180"
                   :move="allowTabMove"
@@ -156,13 +181,15 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
                       />
                     </div>
                   </template>
+                  <template #footer>
+                    <p
+                      v-if="tab.field_layout.length === 0"
+                      class="form-schema-layout-canvas__tab-empty"
+                    >
+                      将字段拖入当前标签页
+                    </p>
+                  </template>
                 </Draggable>
-                <p
-                  v-if="tab.field_layout.length === 0"
-                  class="form-schema-layout-canvas__tab-empty"
-                >
-                  将字段拖入当前标签页
-                </p>
               </el-tab-pane>
             </el-tabs>
           </section>
@@ -191,7 +218,10 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
   &__list {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: var(--el-space-lg);
+    grid-auto-rows: max-content;
+    column-gap: var(--el-space-lg);
+    row-gap: 0;
+    align-content: start;
     min-height: 100%;
     padding-bottom: var(--el-space-4xl);
   }
@@ -200,34 +230,51 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
     min-width: 0;
   }
   &__tabs {
+    position: relative;
     padding: var(--el-space-xl);
-    margin-bottom: var(--el-space-lg);
     background: var(--el-bg-color);
-    border: 1px solid var(--el-border-color);
-    border-radius: var(--el-border-radius-base);
 
     &.is-active {
       background: var(--el-color-primary-light-9);
       border-color: var(--el-color-primary);
     }
   }
-  &__tabs-header {
+  &__tabs:hover &__tabs-actions,
+  &__tabs.is-active &__tabs-actions {
+    pointer-events: auto;
+    opacity: 1;
+  }
+  &__tabs-actions {
+    position: absolute;
+    top: var(--el-space-md);
+    right: var(--el-space-md);
+    z-index: 1;
     display: flex;
-    gap: var(--el-space-md);
+    overflow: hidden;
+    pointer-events: none;
+    background: var(--el-bg-color);
+    border-radius: var(--el-border-radius-base);
+    box-shadow: var(--el-box-shadow);
+    opacity: 0;
+  }
+  &__tabs-delete {
+    display: inline-flex;
     align-items: center;
-  }
-  &__tabs-header {
-    margin-bottom: var(--el-space-md);
-  }
-  &__tabs-hint {
-    margin-left: auto;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
     color: var(--el-text-color-secondary);
-    font-size: var(--el-font-size-extra-small);
+    cursor: pointer;
+    background: transparent;
+    border: 0;
   }
   &__tab-list {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    gap: var(--el-space-lg);
+    grid-auto-rows: max-content;
+    column-gap: var(--el-space-lg);
+    row-gap: 0;
+    align-content: start;
     min-height: 72px;
     padding: var(--el-space-md);
     border: 1px dashed var(--el-border-color);
@@ -240,7 +287,11 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
     pointer-events: none;
   }
   &__tab-empty {
-    margin: calc(-52px) 0 28px;
+    display: grid;
+    grid-column: 1 / -1;
+    min-height: 46px;
+    margin: 0;
+    place-items: center;
     font-size: var(--el-font-size-extra-small);
   }
   &__empty {
@@ -249,14 +300,35 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
     display: grid;
     place-items: center;
   }
-  &__pending,
-  &__ghost {
-    grid-column: 1 / -1;
-    min-height: 48px;
-    margin-bottom: var(--el-space-lg);
+  &__pending {
+    box-sizing: border-box;
+    min-height: 64px;
     color: transparent;
     border: 1px dashed var(--el-color-primary);
     border-radius: var(--el-border-radius-base);
   }
+}
+
+// 跨列表拖拽时占位节点来自素材面板，不带本组件的 scoped 属性，因此必须全局命中。
+:global(.form-schema-layout-canvas__ghost) {
+  box-sizing: border-box !important;
+  display: block !important;
+  grid-column: span var(--form-schema-field-span, var(--form-schema-drag-span, 12)) !important;
+  width: auto !important;
+  min-width: 0 !important;
+  min-height: 64px !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  color: transparent !important;
+  font-size: 0 !important;
+  background: transparent !important;
+  border: 1px dashed var(--el-color-primary) !important;
+  border-radius: var(--el-border-radius-base) !important;
+  box-shadow: none !important;
+  opacity: 1 !important;
+}
+
+:global(.form-schema-layout-canvas__ghost > *) {
+  visibility: hidden !important;
 }
 </style>

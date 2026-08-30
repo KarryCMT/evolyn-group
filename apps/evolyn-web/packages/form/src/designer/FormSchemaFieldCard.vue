@@ -30,9 +30,6 @@ const isLayoutItem = computed(() => isLayoutWidgetType(props.item.widget.type));
         {{ item.label }}
         <span v-if="!item.widget.allowBlank" class="form-schema-field-card__required">*</span>
       </span>
-      <span class="form-schema-field-card__key" :title="item.widget.widgetName">
-        {{ item.widget.widgetName }}
-      </span>
       <div class="form-schema-field-card__actions">
         <button type="button" title="复制字段" @click.stop="$emit('copy', item)">
           <el-icon><CopyDocument /></el-icon>
@@ -104,13 +101,6 @@ const isLayoutItem = computed(() => isLayoutWidgetType(props.item.widget.type));
   &__required {
     margin-left: var(--el-space-xs);
     color: var(--el-color-error);
-  }
-  &__key {
-    overflow: hidden;
-    font-weight: 400;
-    color: var(--el-text-color-secondary);
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   &__control {
     pointer-events: none;

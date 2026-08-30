@@ -58,5 +58,66 @@ describe('FormSchemaLayoutCanvas', () => {
         .find('.form-schema-layout-canvas__tab-list .form-schema-layout-canvas__node')
         .attributes('style'),
     ).toContain('--form-schema-field-span: 9');
+    expect(wrapper.text()).not.toContain('在右侧配置标签页属性');
+    expect(wrapper.find('.form-schema-layout-canvas__tabs-delete').attributes('aria-label')).toBe(
+      '删除标签页',
+    );
+  });
+
+  it('画布字段卡片不展示 widgetName', () => {
+    const item = field('_widget_internal_key', 12);
+    item.label = '客户名称';
+    const document: FormSchemaDocument = {
+      content: {
+        type: 'form',
+        layout: 'normal',
+        items: [item],
+        layout_fields: [],
+        field_layout: [item.widget.widgetName],
+      },
+    };
+
+    const wrapper = mount(FormSchemaLayoutCanvas, {
+      props: { document, selectedKey: '' },
+    });
+
+    expect(wrapper.text()).toContain('客户名称');
+    expect(wrapper.text()).not.toContain('_widget_internal_key');
+    expect(wrapper.find('.form-schema-field-card__key').exists()).toBe(false);
+  });
+
+  it('空标签页提示位于虚线拖拽区域内部', () => {
+    const document: FormSchemaDocument = {
+      content: {
+        type: 'form',
+        layout: 'normal',
+        items: [],
+        layout_fields: [
+          {
+            name: '_layout_empty_tabs',
+            type: 'multitab',
+            tabStyle: 'style1',
+            container: [
+              {
+                name: '_tab_empty',
+                type: 'tab',
+                title: '空标签页',
+                field_layout: [],
+              },
+            ],
+          },
+        ],
+        field_layout: ['_layout_empty_tabs'],
+      },
+    };
+
+    const wrapper = mount(FormSchemaLayoutCanvas, {
+      props: { document, selectedKey: '_layout_empty_tabs' },
+    });
+
+    const dropArea = wrapper.find('.form-schema-layout-canvas__tab-list');
+    expect(dropArea.find('.form-schema-layout-canvas__tab-empty').text()).toBe(
+      '将字段拖入当前标签页',
+    );
   });
 });
