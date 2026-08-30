@@ -246,8 +246,8 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
   }
   &__tabs-actions {
     position: absolute;
-    top: var(--el-space-md);
-    right: var(--el-space-md);
+    top: var(--el-space-xs);
+    right: var(--el-space-xl);
     z-index: 1;
     display: flex;
     overflow: hidden;

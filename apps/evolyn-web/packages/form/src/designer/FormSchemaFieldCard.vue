@@ -76,8 +76,8 @@ const isLayoutItem = computed(() => isLayoutWidgetType(props.item.widget.type));
     background-color: var(--el-fill-color-light);
   }
   &.is-active {
-    background-color: var(--el-color-primary-light-3);
-    border-color: var(--el-color-primary);
+    background-color: var(--el-color-primary-light-9);
+    border-color: var(--el-color-primary-light-9);
   }
   &:hover &__actions,
   &.is-active &__actions {

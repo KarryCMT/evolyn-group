@@ -111,9 +111,8 @@ const clonePaletteItem = (item: { type: string }): FormSchemaPaletteDrag => ({
     &:hover:not(:disabled) {
       color: var(--el-color-primary);
       cursor: move;
-      background-color: var(--el-color-primary-light-3);
       border-color: var(--el-color-primary);
-
+      border-style: dashed;
       .el-icon {
         color: var(--el-color-primary);
       }
