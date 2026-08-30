@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"evolyn/internal/platform/form/model"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -31,13 +33,85 @@ func doc(items ...any) []byte {
 	if items == nil {
 		items = []any{}
 	}
-	raw, _ := json.Marshal(map[string]any{"content": map[string]any{"type": "form", "items": items}})
+	fieldLayout := make([]string, 0, len(items))
+	for _, rawItem := range items {
+		item, _ := rawItem.(map[string]any)
+		widget, _ := item["widget"].(map[string]any)
+		if name, ok := widget["widgetName"].(string); ok {
+			fieldLayout = append(fieldLayout, name)
+		}
+	}
+	raw, _ := json.Marshal(map[string]any{"content": map[string]any{
+		"type": "form", "layout": "normal", "items": items, "layout_fields": []any{}, "field_layout": fieldLayout,
+	}})
 	return raw
+}
+
+func TestValidateFormSchemaMultitabWithSubformReference(t *testing.T) {
+	child := validTextItem()
+	child["widget"].(map[string]any)["widgetName"] = "_widget_child"
+	subform := map[string]any{
+		"widget": map[string]any{
+			"type": "subform", "widgetName": "_widget_sub",
+			"enable": true, "visible": true, "allowBlank": true, "items": []any{child},
+		},
+		"label": "子表单", "description": "", "labelHidden": false, "lineWidth": 12,
+	}
+	document := map[string]any{"content": map[string]any{
+		"type": "form", "layout": "normal", "items": []any{subform},
+		"layout_fields": []any{map[string]any{
+			"name": "_layout_tabs", "type": "multitab", "tabStyle": "style2",
+			"container": []any{map[string]any{
+				"name": "_tab_detail", "title": "明细", "type": "tab",
+				"field_layout": []any{"_widget_sub"},
+			}},
+		}},
+		"field_layout": []any{"_layout_tabs"},
+	}}
+	raw, _ := json.Marshal(document)
+	assert.Empty(t, ValidateFormSchema(raw))
+
+	// 子表单内部字段不是顶层字段，不能进入标签页引用。
+	document["content"].(map[string]any)["layout_fields"].([]any)[0].(map[string]any)["container"].([]any)[0].(map[string]any)["field_layout"] = []any{"_widget_child"}
+	raw, _ = json.Marshal(document)
+	issues := ValidateFormSchema(raw)
+	assert.True(t, containsPath(issues, "content.layout_fields[0].container[0].field_layout[0]"))
 }
 
 func TestValidateFormSchemaValidSample(t *testing.T) {
 	assert.Empty(t, ValidateFormSchema(doc(validTextItem())))
 	assert.Empty(t, ValidateFormSchema(doc()))
+}
+
+func TestValidateFormSchemaProtocolVersions(t *testing.T) {
+	v1 := []byte(`{"content":{"type":"form","items":[]}}`)
+	assert.Empty(t, ValidateFormSchema(v1, 1))
+	assert.NotEmpty(t, ValidateFormSchema(v1, model.CurrentProtocolVersion))
+	v2 := []byte(`{"content":{"type":"form","items":[],"layout_fields":[],"field_layout":[]}}`)
+	assert.Empty(t, ValidateFormSchema(v2, 2))
+	assert.NotEmpty(t, ValidateFormSchema(v2, model.CurrentProtocolVersion))
+
+	issues := ValidateFormSchema(doc(), model.CurrentProtocolVersion+1)
+	assert.Equal(t, "content", issues[0].Path)
+	assert.Contains(t, issues[0].Message, "不支持的表单协议版本")
+}
+
+func TestValidateFormSchemaLayout(t *testing.T) {
+	for _, layout := range []string{"normal", "grid-2", "grid-3", "grid-4"} {
+		document := doc()
+		var root map[string]any
+		assert.NoError(t, json.Unmarshal(document, &root))
+		root["content"].(map[string]any)["layout"] = layout
+		raw, _ := json.Marshal(root)
+		assert.Empty(t, ValidateFormSchema(raw), layout)
+	}
+
+	var root map[string]any
+	assert.NoError(t, json.Unmarshal(doc(), &root))
+	root["content"].(map[string]any)["layout"] = "grid-5"
+	raw, _ := json.Marshal(root)
+	issues := ValidateFormSchema(raw)
+	assert.True(t, containsPath(issues, "content.layout"))
 }
 
 func TestValidateFormSchemaRootRules(t *testing.T) {

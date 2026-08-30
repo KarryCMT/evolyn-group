@@ -54,9 +54,10 @@ export function updateFormName(code: string, name: string): Promise<FormDetail> 
 export function saveFormDraft(
   code: string,
   draftRevision: number,
+  protocolVersion: number,
   content: FormSchemaDocument,
 ): Promise<FormDraftSaveResult> {
-  return http.put(`/forms/${code}/draft`, { draftRevision, content });
+  return http.put(`/forms/${code}/draft`, { draftRevision, protocolVersion, content });
 }
 
 /**

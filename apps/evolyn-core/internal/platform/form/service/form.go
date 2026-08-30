@@ -40,7 +40,7 @@ type TxManager interface {
 }
 
 // emptyFormDocument 空协议文档（新表单草稿初值）。
-var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","items":[]}}`)
+var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[],"layout_fields":[],"field_layout":[]}}`)
 
 // formService 表单资产服务实现。
 type formService struct {
@@ -140,7 +140,7 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
 		var err error
 		created, err = s.provision(tctx, tenantID, member, req.ApplicationID, code, name, req.FormType,
-			emptyFormDocument, strings.TrimSpace(req.ParentEntryCode))
+			model.CurrentProtocolVersion, emptyFormDocument, strings.TrimSpace(req.ParentEntryCode))
 		return err
 	}); err != nil {
 		return nil, err
@@ -166,7 +166,8 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 // 分组下（合法性由菜单维护端口校验，非法分组随整个创建事务回滚）。
 func (s *formService) provision(
 	ctx context.Context, tenantID uint, member *iammodel.User, applicationID uint,
-	code, name string, formType model.FormType, draftContent model.JSONContent, parentEntryCode string,
+	code, name string, formType model.FormType, protocolVersion int,
+	draftContent model.JSONContent, parentEntryCode string,
 ) (*model.Form, error) {
 	var created *model.Form
 	err := s.quota.CheckAndReserve(ctx, tenantID, tenantmodel.QuotaForms, func(tctx context.Context) error {
@@ -177,7 +178,7 @@ func (s *formService) provision(
 			FormType:        formType,
 			DraftContent:    draftContent,
 			DraftRevision:   1,
-			ProtocolVersion: 1,
+			ProtocolVersion: protocolVersion,
 			CreatorMemberID: member.ID,
 		}
 		draft.TenantID = tenantID
@@ -442,7 +443,7 @@ func (s *formService) Copy(ctx context.Context, member *iammodel.User, code stri
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
 		var err error
 		created, err = s.provision(tctx, tenantID, member, targetAppID, newCode, name, form.FormType,
-			form.DraftContent, strings.TrimSpace(req.ParentEntryCode))
+			form.ProtocolVersion, form.DraftContent, strings.TrimSpace(req.ParentEntryCode))
 		return err
 	}); err != nil {
 		return nil, err
@@ -519,11 +520,17 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 	if !s.access.Permissions(ctx, member)["forms:update"] {
 		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot save form %s draft", code))
 	}
+	// 历史 v1/v2 只允许读取、发布与前端迁移；写入统一收敛到当前版本，禁止覆盖式降级丢布局。
+	if req.ProtocolVersion != model.CurrentProtocolVersion {
+		issue := SchemaIssue{Path: "protocolVersion", Message: fmt.Sprintf("保存仅支持当前表单协议版本：%d", model.CurrentProtocolVersion)}
+		return nil, httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": []SchemaIssue{issue}}),
+			fmt.Errorf("form %s draft protocol version %d unsupported", code, req.ProtocolVersion))
+	}
 	form, err := s.loadByCode(ctx, code)
 	if err != nil {
 		return nil, err
 	}
-	issues := ValidateFormSchema([]byte(req.Content))
+	issues := ValidateFormSchema([]byte(req.Content), req.ProtocolVersion)
 	if len(issues) > 0 {
 		return nil, httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": issues}),
 			fmt.Errorf("form %s draft invalid: %s", code, issues[0].Path))
@@ -532,7 +539,7 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 		return nil, httpx.Wrap(apperrors.ErrRevisionConflict,
 			fmt.Errorf("form %s draft revision %d != %d", code, req.DraftRevision, form.DraftRevision))
 	}
-	updated, err := s.repo.UpdateDraft(ctx, form.ID, req.DraftRevision, req.Content)
+	updated, err := s.repo.UpdateDraft(ctx, form.ID, req.DraftRevision, req.ProtocolVersion, req.Content)
 	if err != nil {
 		return nil, err
 	}
@@ -582,6 +589,7 @@ func detailOf(form *model.Form) *model.FormDetail {
 		FormType:         form.FormType,
 		DraftRevision:    form.DraftRevision,
 		PublishedVersion: form.PublishedVersion,
+		ProtocolVersion:  form.ProtocolVersion,
 		Draft:            form.DraftContent,
 		CreatedAt:        form.CreatedAt,
 		UpdatedAt:        form.UpdatedAt,

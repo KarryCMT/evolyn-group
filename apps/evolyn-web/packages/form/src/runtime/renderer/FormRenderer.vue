@@ -71,6 +71,8 @@ provideFormRendererContext({
   registry: fieldRegistry,
   registerFieldFocus: focusRegistry.registerFieldFocus,
   unregisterFieldFocus: focusRegistry.unregisterFieldFocus,
+  registerFieldReveal: focusRegistry.registerFieldReveal,
+  unregisterFieldReveal: focusRegistry.unregisterFieldReveal,
   focusField: focusRegistry.focusField,
   reportUnsupportedField: (info) => emit('unsupported-field', info),
 });

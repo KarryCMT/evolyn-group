@@ -1,14 +1,15 @@
 /**
  * 目标保存协议 TypeScript 类型（P1，ADR-010 / docs/低代码平台/表单设计器/目标协议字段字典.md）。
  *
- * 根结构 `{ content: { type: "form", items: [...] } }` 是设计器、后端草稿、发布版本与
+ * 根结构 `{ content: { type: "form", layout: "normal", items: [...], layout_fields: [...], field_layout: [...] } }`
+ * 是设计器、后端草稿、发布版本与
  * 最终渲染器共用的唯一事实结构；文档内不携带版本号，协议版本由持久层外部承载
  * （forms.protocol_version 列 + FORM_PROTOCOL_VERSION 常量）。
  * 类型只表达「合法文档」的形状；JSON 的未知键/非法值由 validate.ts 按 JSON Path 拒绝。
  */
 
 /** 协议版本常量；递增时必须同步版本迁移器（migrate.ts）与字段字典。 */
-export const FORM_PROTOCOL_VERSION = 1 as const;
+export const FORM_PROTOCOL_VERSION = 3 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -369,7 +370,34 @@ export interface FormItem<W extends FormItemWidget = FormItemWidget> {
 
 export interface FormContent {
   type: 'form';
+  /** 表单默认列布局；切换时同步重置所有普通字段的 lineWidth。 */
+  layout: FormLayoutMode;
   items: FormItem[];
+  /** 表单级布局定义池；v2 首期只开放 multitab。 */
+  layout_fields: FormMultitabLayout[];
+  /** 顶层字段与布局节点的唯一排列序列。 */
+  field_layout: string[];
+}
+
+/** 表单级默认列布局；字段仍可通过 lineWidth 单独覆盖实际宽度。 */
+export type FormLayoutMode = 'normal' | 'grid-2' | 'grid-3' | 'grid-4';
+
+export type FormTabStyle = 'style1' | 'style2';
+
+/** 标签页容器；field_layout 只引用 content.items 中的顶层 widgetName。 */
+export interface FormTabLayout {
+  name: string;
+  title: string;
+  type: 'tab';
+  field_layout: string[];
+}
+
+/** v2 首期唯一布局类型；布局本身不产生表单值。 */
+export interface FormMultitabLayout {
+  name: string;
+  type: 'multitab';
+  tabStyle: FormTabStyle;
+  container: FormTabLayout[];
 }
 
 /** 目标保存协议根结构：设计器草稿、发布快照与运行时输入的同一形状。 */

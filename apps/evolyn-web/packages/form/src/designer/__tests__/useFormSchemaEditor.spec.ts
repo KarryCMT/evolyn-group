@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { FormItem, FormSchemaDocument } from '../../schema/types';
-import { createEmptyFormSchemaDocument, useFormSchemaEditor } from '../useFormSchemaEditor';
+import { useFormSchemaEditor } from '../useFormSchemaEditor';
 
 function textItem(widgetName: string): FormItem {
   return {
@@ -19,15 +19,80 @@ function textItem(widgetName: string): FormItem {
 }
 
 describe('useFormSchemaEditor', () => {
+  it('切换表单布局同步更新顶层与标签页字段，新字段继承当前列宽', () => {
+    const editor = useFormSchemaEditor();
+    const topField = editor.addItem('text');
+    const layout = editor.addMultitab();
+    const tabField = editor.addItem('textarea', -1, {
+      type: 'tab',
+      layoutName: layout.name,
+      tabName: layout.container[0].name,
+    });
+
+    editor.setFormLayout('grid-4');
+
+    expect(editor.document.value.content.layout).toBe('grid-4');
+    expect(topField.lineWidth).toBe(3);
+    expect(tabField.lineWidth).toBe(3);
+    expect(editor.addItem('number').lineWidth).toBe(3);
+    expect(editor.addItem('separator').lineWidth).toBe(12);
+  });
+
   it('空文档初始化与整体替换', () => {
     const editor = useFormSchemaEditor();
     expect(editor.items.value).toEqual([]);
     const next: FormSchemaDocument = {
-      content: { type: 'form', items: [textItem('_widget_a')] },
+      content: {
+        type: 'form',
+        layout: 'normal',
+        items: [textItem('_widget_a')],
+        layout_fields: [],
+        field_layout: ['_widget_a'],
+      },
     };
     editor.replaceDocument(next);
     expect(editor.items.value).toHaveLength(1);
+    expect(editor.document.value.content.field_layout).toEqual(['_widget_a']);
     expect(editor.selectedKey.value).toBe('');
+  });
+
+  it('标签页引用字段且删除布局时无损展开', () => {
+    const editor = useFormSchemaEditor();
+    const field = editor.addItem('text');
+    const layout = editor.addMultitab();
+    expect(editor.selectedLayout.value?.name).toBe(layout.name);
+    editor.replaceReferences({ type: 'top' }, [layout.name]);
+    editor.replaceReferences(
+      { type: 'tab', layoutName: layout.name, tabName: layout.container[0].name },
+      [field.widget.widgetName],
+    );
+    expect(layout.container[0].field_layout).toEqual([field.widget.widgetName]);
+    editor.removeMultitab(layout.name);
+    expect(editor.document.value.content.field_layout).toEqual([field.widget.widgetName]);
+    expect(editor.items.value.map((item) => item.widget.widgetName)).toContain(
+      field.widget.widgetName,
+    );
+    expect(editor.selectedLayout.value).toBeUndefined();
+  });
+
+  it('右侧属性动作可复制并重新排序标签页', () => {
+    const editor = useFormSchemaEditor();
+    const field = editor.addItem('text');
+    const layout = editor.addMultitab();
+    const firstTab = layout.container[0];
+    editor.replaceReferences({ type: 'top' }, [layout.name]);
+    editor.replaceReferences({ type: 'tab', layoutName: layout.name, tabName: firstTab.name }, [
+      field.widget.widgetName,
+    ]);
+
+    editor.duplicateTab(layout.name, firstTab.name);
+    expect(layout.container).toHaveLength(3);
+    expect(editor.items.value).toHaveLength(2);
+    expect(layout.container[1].field_layout[0]).not.toBe(field.widget.widgetName);
+
+    const order = layout.container.map((tab) => tab.name).reverse();
+    editor.reorderTabs(layout.name, order);
+    expect(layout.container.map((tab) => tab.name)).toEqual(order);
   });
 
   it('新增/复制/删除/选中/重命名动作', () => {
@@ -52,19 +117,16 @@ describe('useFormSchemaEditor', () => {
     expect(editor.selectedItem.value?.widget.widgetName).toBe(added.widget.widgetName);
   });
 
-  it('拖入的临时对象（无 widget）不会让 selectedItem 等响应式计算抛错', () => {
+  it('拖入的素材标记在引用层转换为字段定义', () => {
     const editor = useFormSchemaEditor();
     editor.addItem('text');
-    // 模拟 vuedraggable 拖入瞬间的素材标记对象：只有 paletteType、没有 widget。
-    (editor.items.value as unknown[]).push({ paletteType: 'number' });
-    editor.addItem('number', 1); // add 事件内以真实字段替换标记
+    editor.replaceReferences({ type: 'top' }, [
+      editor.document.value.content.field_layout[0],
+      { paletteType: 'number' },
+    ]);
     expect(() => editor.selectedItem.value).not.toThrow();
     expect(editor.items.value).toHaveLength(2);
     expect(editor.items.value.every((item) => item.widget)).toBe(true);
-
-    // 删除回落路径同样容忍标记对象
-    (editor.items.value as unknown[]).unshift({ paletteType: 'text' });
-    editor.removeItem(editor.items.value[1].widget.widgetName);
-    expect(editor.items.value).toHaveLength(2);
+    expect(editor.document.value.content.field_layout).toHaveLength(2);
   });
 });

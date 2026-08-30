@@ -3,6 +3,7 @@ import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do
 import type { ApplicationWorkspaceAsset } from '../workspace/applicationWorkspace.types';
 import type { FormRuntimeBootstrap } from '~/types';
 import { FormRuntimeSurface } from '@evolyn.do/form/runtime';
+import { migrateFormSchema } from '@evolyn.do/form/schema';
 import { ApiError } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
 import { shallowRef, watch } from 'vue';
@@ -88,7 +89,17 @@ watch(
       const nextBootstrap = await getFormRuntime(appCode, formCode, controller.signal);
       // 即使请求实现未遵守 AbortSignal，也禁止旧资产响应覆盖当前表单。
       if (controller.signal.aborted) return;
-      bootstrap.value = nextBootstrap;
+      const migrated = migrateFormSchema(nextBootstrap.content, nextBootstrap.protocolVersion);
+      if (!migrated.document) {
+        errorMessage.value = `表单配置无效：${migrated.issues[0]?.message ?? '未知错误'}`;
+        status.value = 'error';
+        return;
+      }
+      bootstrap.value = {
+        ...nextBootstrap,
+        protocolVersion: migrated.protocolVersion,
+        content: migrated.document,
+      };
       status.value = 'ready';
     } catch (error) {
       if (controller.signal.aborted) return;

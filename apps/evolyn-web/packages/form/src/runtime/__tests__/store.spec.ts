@@ -23,7 +23,15 @@ function item(
 }
 
 function documentOf(items: FormItem[]): FormSchemaDocument {
-  return { content: { type: 'form', items } };
+  return {
+    content: {
+      type: 'form',
+      layout: 'normal',
+      items,
+      layout_fields: [],
+      field_layout: items.map((item) => item.widget.widgetName),
+    },
+  };
 }
 
 describe('createFormRuntime 初始化', () => {

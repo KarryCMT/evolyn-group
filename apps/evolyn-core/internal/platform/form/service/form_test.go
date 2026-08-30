@@ -203,12 +203,13 @@ func (f *fakeFormRepo) UpdateFormType(ctx context.Context, id uint, formType mod
 	return nil
 }
 
-func (f *fakeFormRepo) UpdateDraft(ctx context.Context, id uint, fromRevision int64, content model.JSONContent) (bool, error) {
+func (f *fakeFormRepo) UpdateDraft(ctx context.Context, id uint, fromRevision int64, protocolVersion int, content model.JSONContent) (bool, error) {
 	form, ok := f.forms[id]
 	if !ok || form.DraftRevision != fromRevision {
 		return false, nil
 	}
 	form.DraftContent = content
+	form.ProtocolVersion = protocolVersion
 	form.DraftRevision++
 	return true, nil
 }
@@ -353,7 +354,7 @@ func tenantCtx(tenantID uint) context.Context {
 }
 
 func validDraft() model.JSONContent {
-	return model.JSONContent(`{"content":{"type":"form","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":false},"label":"姓名","description":"","labelHidden":false,"lineWidth":12}]}}`)
+	return model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":false},"label":"姓名","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"]}}`)
 }
 
 // ---- 用例 ----
@@ -371,6 +372,7 @@ func TestCreateForm(t *testing.T) {
 	assert.Regexp(t, `^form_[0-9a-f]{16}$`, detail.Code)
 	assert.Equal(t, model.FormTypeWorkflow, detail.FormType)
 	assert.EqualValues(t, 1, detail.DraftRevision)
+	assert.Equal(t, model.CurrentProtocolVersion, detail.ProtocolVersion)
 	assert.Equal(t, emptyFormDocument, detail.Draft)
 	assert.Equal(t, model.FormTypeWorkflow, formRepo.formByCode(detail.Code).FormType)
 	loaded, err := svc.Get(tenantCtx(1), memberOfTenant(1), detail.Code)
@@ -425,11 +427,18 @@ func TestSaveDraft(t *testing.T) {
 	created, _ := svc.Create(tenantCtx(1), memberOfTenant(1), &model.CreateFormRequest{
 		ApplicationID: 7, Name: "报名表", FormType: model.FormTypeStandard,
 	})
+	// 历史 v1/v2 必须先经读取侧迁移，保存接口拒绝覆盖式降级。
+	_, err := svc.SaveDraft(tenantCtx(1), memberOfTenant(1), created.Code, &model.SaveDraftRequest{
+		DraftRevision: 1, ProtocolVersion: 1,
+		Content: model.JSONContent(`{"content":{"type":"form","items":[]}}`),
+	})
+	assert.ErrorIs(t, err, apperrors.ErrSchemaInvalid)
 
 	// 非法协议：携带 issues 数据负载
-	_, err := svc.SaveDraft(tenantCtx(1), memberOfTenant(1), created.Code, &model.SaveDraftRequest{
-		DraftRevision: created.DraftRevision,
-		Content:       model.JSONContent(`{"content":{"type":"form","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":true},"label":"","description":"","labelHidden":false,"lineWidth":12}]}}`),
+	_, err = svc.SaveDraft(tenantCtx(1), memberOfTenant(1), created.Code, &model.SaveDraftRequest{
+		DraftRevision:   created.DraftRevision,
+		ProtocolVersion: model.CurrentProtocolVersion,
+		Content:         model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":true},"label":"","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"]}}`),
 	})
 	assert.ErrorIs(t, err, apperrors.ErrSchemaInvalid)
 	var biz *httpx.BizError
@@ -438,16 +447,18 @@ func TestSaveDraft(t *testing.T) {
 
 	// 合法保存：口令递增
 	result, err := svc.SaveDraft(tenantCtx(1), memberOfTenant(1), created.Code, &model.SaveDraftRequest{
-		DraftRevision: created.DraftRevision,
-		Content:       validDraft(),
+		DraftRevision:   created.DraftRevision,
+		ProtocolVersion: model.CurrentProtocolVersion,
+		Content:         validDraft(),
 	})
 	assert.NoError(t, err)
 	assert.EqualValues(t, 2, result.DraftRevision)
 
 	// 旧口令重放：409
 	_, err = svc.SaveDraft(tenantCtx(1), memberOfTenant(1), created.Code, &model.SaveDraftRequest{
-		DraftRevision: created.DraftRevision,
-		Content:       validDraft(),
+		DraftRevision:   created.DraftRevision,
+		ProtocolVersion: model.CurrentProtocolVersion,
+		Content:         validDraft(),
 	})
 	assert.ErrorIs(t, err, apperrors.ErrRevisionConflict)
 }
@@ -465,15 +476,16 @@ func TestPublishAndRuntimeAndSubmit(t *testing.T) {
 	})
 	// 白名单外控件（user）拒绝发布并给出 issues
 	_, err := svc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{
-		DraftRevision: 1,
-		Content:       model.JSONContent(`{"content":{"type":"form","items":[{"widget":{"type":"user","widgetName":"_widget_u","enable":true,"visible":true,"allowBlank":true},"label":"审批人","description":"","labelHidden":false,"lineWidth":12}]}}`),
+		DraftRevision:   1,
+		ProtocolVersion: model.CurrentProtocolVersion,
+		Content:         model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"user","widgetName":"_widget_u","enable":true,"visible":true,"allowBlank":true},"label":"审批人","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_u"]}}`),
 	})
 	assert.NoError(t, err)
 	_, err = svc.Publish(ctx, member, created.Code, &model.PublishRequest{DraftRevision: 2})
 	assert.ErrorIs(t, err, apperrors.ErrPublishUnsupportedField)
 
 	// 换成基础字段后发布成功：双口令
-	_, _ = svc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{DraftRevision: 2, Content: validDraft()})
+	_, _ = svc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{DraftRevision: 2, ProtocolVersion: model.CurrentProtocolVersion, Content: validDraft()})
 	published, err := svc.Publish(ctx, member, created.Code, &model.PublishRequest{DraftRevision: 3})
 	assert.NoError(t, err)
 	assert.Equal(t, 1, published.PublishedVersion)
@@ -481,8 +493,9 @@ func TestPublishAndRuntimeAndSubmit(t *testing.T) {
 
 	// 快照不可变：再次发布产生新版本，旧快照原样
 	_, _ = svc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{
-		DraftRevision: 3,
-		Content:       model.JSONContent(`{"content":{"type":"form","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":true},"label":"姓名2","description":"","labelHidden":false,"lineWidth":6}]}}`),
+		DraftRevision:   3,
+		ProtocolVersion: model.CurrentProtocolVersion,
+		Content:         model.JSONContent(`{"content":{"type":"form","layout":"grid-2","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":true},"label":"姓名2","description":"","labelHidden":false,"lineWidth":6}],"layout_fields":[],"field_layout":["_widget_a"]}}`),
 	})
 	published2, err := svc.Publish(ctx, member, created.Code, &model.PublishRequest{DraftRevision: 4})
 	assert.NoError(t, err)

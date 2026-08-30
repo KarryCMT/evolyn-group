@@ -42,8 +42,9 @@ type CopyFormRequest struct {
 // SaveDraftRequest 保存草稿（PUT /forms/:code/draft）：全量替换 + 乐观锁口令。
 // content 为目标保存协议根结构；校验失败返回 FORM_SCHEMA_INVALID + issues。
 type SaveDraftRequest struct {
-	DraftRevision int64       `json:"draftRevision" binding:"required"`
-	Content       JSONContent `json:"content" binding:"required"`
+	DraftRevision   int64       `json:"draftRevision" binding:"required"`
+	ProtocolVersion int         `json:"protocolVersion" binding:"required"`
+	Content         JSONContent `json:"content" binding:"required"`
 }
 
 // SaveDraftResult 草稿保存结果：新口令供下次保存回传。
@@ -70,6 +71,7 @@ type FormDetail struct {
 	FormType         FormType        `json:"formType"`
 	DraftRevision    int64           `json:"draftRevision"`
 	PublishedVersion int             `json:"publishedVersion"`
+	ProtocolVersion  int             `json:"protocolVersion"`
 	Draft            JSONContent     `json:"draft"`
 	CreatedAt        kernel.JSONTime `json:"createdAt"`
 	UpdatedAt        kernel.JSONTime `json:"updatedAt"`
@@ -105,6 +107,7 @@ type FormRuntime struct {
 	Name             string      `json:"name"`
 	PublishedVersion int         `json:"publishedVersion"`
 	SchemaRevision   string      `json:"schemaRevision"`
+	ProtocolVersion  int         `json:"protocolVersion"`
 	Content          JSONContent `json:"content"`
 }
 

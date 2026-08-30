@@ -61,7 +61,8 @@ void (async () => {
       publishedVersion: bootstrap.publishedVersion,
       schemaRevision: bootstrap.schemaRevision,
     };
-    adopt(bootstrap.content, []);
+    const migrated = migrateFormSchema(bootstrap.content, bootstrap.protocolVersion);
+    adopt(migrated.document, migrated.issues);
   } catch (error) {
     if (error instanceof ApiError && error.errCode === 'FORM_NOT_PUBLISHED') {
       // 未发布：回退设计器传递的草稿本地回放

@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { mount } from '@vue/test-utils';
 import type { FormItem, FormSchemaDocument } from '../../schema/types';
 import FormRenderer from '../renderer/FormRenderer.vue';
+import { buildRenderPlan } from '../renderer/plan';
 import type { FormSubmitResult } from '../types';
 
 function item(widget: Record<string, unknown>, extras: Partial<FormItem> = {}): FormItem {
@@ -20,12 +21,30 @@ function item(widget: Record<string, unknown>, extras: Partial<FormItem> = {}): 
   };
 }
 
-const schema = (items: FormItem[]): FormSchemaDocument => ({ content: { type: 'form', items } });
+const schema = (items: FormItem[]): FormSchemaDocument => ({
+  content: {
+    type: 'form',
+    layout: 'normal',
+    items,
+    layout_fields: [],
+    field_layout: items.map((entry) => entry.widget.widgetName),
+  },
+});
 
 describe('FormRenderer 渲染', () => {
   it('无效 Schema 渲染受控错误态（含路径），不创建会话', () => {
     const wrapper = mount(FormRenderer, {
-      props: { schema: { content: { type: 'form', items: [{ nope: true } as never] } } },
+      props: {
+        schema: {
+          content: {
+            type: 'form',
+            layout: 'normal',
+            items: [{ nope: true } as never],
+            layout_fields: [],
+            field_layout: [],
+          },
+        },
+      },
     });
     expect(wrapper.find('.evf-form__invalid').exists()).toBe(true);
     expect(wrapper.text()).toContain('content.items[0]');
@@ -160,5 +179,44 @@ describe('FormRenderer 渲染', () => {
     const doc = schema([item({ type: 'text', widgetName: '_widget_d', enable: false })]);
     const wrapper = mount(FormRenderer, { props: { schema: doc } });
     expect((wrapper.find('input').element as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it('按 field_layout 编译标签页并保持字段定义单一事实源', () => {
+    const first = item({ type: 'text', widgetName: '_widget_top' });
+    const detail = item({ type: 'text', widgetName: '_widget_detail' }, { lineWidth: 3 });
+    const doc: FormSchemaDocument = {
+      content: {
+        type: 'form',
+        layout: 'normal',
+        items: [first, detail],
+        layout_fields: [
+          {
+            name: '_layout_tabs',
+            type: 'multitab',
+            tabStyle: 'style2',
+            container: [
+              {
+                name: '_tab_detail',
+                type: 'tab',
+                title: '详情',
+                field_layout: ['_widget_detail'],
+              },
+            ],
+          },
+        ],
+        field_layout: ['_widget_top', '_layout_tabs'],
+      },
+    };
+    const plan = buildRenderPlan(doc);
+    expect(plan.sections[0].nodes[0]).toMatchObject({ type: 'field', key: '_widget_top' });
+    expect(plan.sections[0].nodes[1]).toMatchObject({
+      type: 'multitab',
+      tabs: [{ title: '详情', fields: [{ key: '_widget_detail' }] }],
+    });
+
+    const wrapper = mount(FormRenderer, { props: { schema: doc } });
+    expect(wrapper.find('.evf-multitab__pane .evf-field').attributes('style')).toContain(
+      '--evf-field-span: 3',
+    );
   });
 });

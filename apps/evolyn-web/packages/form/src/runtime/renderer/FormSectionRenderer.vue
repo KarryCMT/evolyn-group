@@ -3,6 +3,7 @@ import { computed } from 'vue';
 import { buildRenderPlan } from './plan';
 import { useFormRendererContext } from '../store/injection';
 import FormFieldHost from './FormFieldHost.vue';
+import FormMultitabRenderer from './FormMultitabRenderer.vue';
 
 /**
  * 区块渲染器：按预编译 render plan 渲染区块序列。当前为平铺单区块；
@@ -21,7 +22,10 @@ const plan = computed(() => (runtime.value ? buildRenderPlan(runtime.value.schem
       class="evf-form__section"
       :aria-label="section.key === 'main' ? undefined : section.key"
     >
-      <FormFieldHost v-for="item in section.items" :key="item.widget.widgetName" :item="item" />
+      <template v-for="node in section.nodes" :key="node.key">
+        <FormFieldHost v-if="node.type === 'field'" :item="node.item" />
+        <FormMultitabRenderer v-else :node="node" />
+      </template>
     </section>
   </div>
 </template>

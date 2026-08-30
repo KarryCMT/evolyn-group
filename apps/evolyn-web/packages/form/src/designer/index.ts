@@ -19,11 +19,12 @@ import 'element-plus/theme-chalk/src/scrollbar.scss';
 import 'element-plus/theme-chalk/src/select.scss';
 import 'element-plus/theme-chalk/src/segmented.scss';
 import 'element-plus/theme-chalk/src/switch.scss';
+import 'element-plus/theme-chalk/src/tabs.scss';
 import 'element-plus/theme-chalk/src/tooltip.scss';
 
 export { default as FormSchemaPalette } from './FormSchemaPalette.vue';
 export type { FormSchemaPaletteGroup } from './FormSchemaPalette.vue';
-export { default as FormSchemaCanvas } from './FormSchemaCanvas.vue';
+export { default as FormSchemaCanvas } from './FormSchemaLayoutCanvas.vue';
 export { default as FormSchemaItemPreview } from './FormSchemaItemPreview.vue';
 export { default as FormSchemaPropertyPanel } from './FormSchemaPropertyPanel.vue';
 export { createEmptyFormSchemaDocument, useFormSchemaEditor } from './useFormSchemaEditor';

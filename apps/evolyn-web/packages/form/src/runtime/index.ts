@@ -50,7 +50,14 @@ export {
   type FormRendererContext,
 } from './store/injection';
 export { buildRenderPlan } from './renderer/plan';
-export type { FormRenderPlan, FormRenderSection } from './renderer/plan';
+export type {
+  FormRenderFieldNode,
+  FormRenderMultitabNode,
+  FormRenderNode,
+  FormRenderPlan,
+  FormRenderSection,
+  FormRenderTab,
+} from './renderer/plan';
 export { default as FormRenderer } from './renderer/FormRenderer.vue';
 export type { FormRendererExpose } from './renderer/types';
 export { default as FormSectionRenderer } from './renderer/FormSectionRenderer.vue';

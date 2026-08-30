@@ -1,11 +1,30 @@
 import { computed, ref } from 'vue';
-import { copyWidgetItem, createWidgetItem } from '../schema/dictionary';
-import type { FormItem, FormSchemaDocument, FormWidgetType } from '../schema/types';
+import {
+  copyWidgetItem,
+  createWidgetItem,
+  FORM_LAYOUT_LINE_WIDTH,
+  generateLayoutName,
+  generateTabName,
+} from '../schema/dictionary';
+import { isLayoutWidgetType } from '../schema/codec';
+import type {
+  FormItem,
+  FormLayoutMode,
+  FormMultitabLayout,
+  FormSchemaDocument,
+  FormWidgetType,
+} from '../schema/types';
 import type { FormSchemaPaletteDrag } from './palette';
+
+export type FormLayoutTarget =
+  | { type: 'top' }
+  | { type: 'tab'; layoutName: string; tabName: string };
 
 /** 空表单协议文档（新建/草稿初始化用）。 */
 export function createEmptyFormSchemaDocument(): FormSchemaDocument {
-  return { content: { type: 'form', items: [] } };
+  return {
+    content: { type: 'form', layout: 'normal', items: [], layout_fields: [], field_layout: [] },
+  };
 }
 
 /**
@@ -18,6 +37,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
   const selectedKey = ref('');
 
   const items = computed(() => document.value.content.items);
+  const layouts = computed(() => document.value.content.layout_fields);
   // items 可能瞬时混有素材面板拖入的临时对象（仅 paletteType 标记、无 widget，
   // 会在 add 事件内被真实字段项替换）；所有遍历必须经 widgetOf 收窄，避免
   // undefined.widgetName 在响应式重算路径上抛错。
@@ -25,15 +45,22 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
   const selectedItem = computed(() =>
     items.value.find((item) => widgetOf(item)?.widgetName === selectedKey.value),
   );
+  const selectedLayout = computed(() =>
+    layouts.value.find((layout) => layout.name === selectedKey.value),
+  );
 
   /** 新增字段（素材点击或拖拽落点替换临时对象）；index<0 追加到末尾。 */
-  function addItem(type: FormWidgetType, index = -1): FormItem {
+  function addItem(
+    type: FormWidgetType,
+    index = -1,
+    target: FormLayoutTarget = { type: 'top' },
+  ): FormItem {
     const item = createWidgetItem(type);
-    if (index >= 0 && index <= items.value.length) {
-      items.value.splice(index, 1, item);
-    } else {
-      items.value.push(item);
-    }
+    item.lineWidth = defaultLineWidth(type);
+    items.value.push(item);
+    const references = referencesOf(target);
+    if (references)
+      references.splice(normalizeInsertIndex(index, references.length), 0, item.widget.widgetName);
     selectedKey.value = item.widget.widgetName;
     return item;
   }
@@ -41,11 +68,13 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
   /** 复制字段：深拷贝并换新 widgetName，插入原字段之后。 */
   function copyItem(item: FormItem): void {
     const next = copyWidgetItem(item);
-    const index = items.value.findIndex(
+    const itemIndex = items.value.findIndex(
       (entry) => widgetOf(entry)?.widgetName === item.widget.widgetName,
     );
-    if (index === -1) return;
-    items.value.splice(index + 1, 0, next);
+    if (itemIndex === -1) return;
+    items.value.splice(itemIndex + 1, 0, next);
+    const placement = findPlacement(item.widget.widgetName);
+    if (placement) placement.references.splice(placement.index + 1, 0, next.widget.widgetName);
     selectedKey.value = next.widget.widgetName;
   }
 
@@ -53,6 +82,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     const index = items.value.findIndex((item) => widgetOf(item)?.widgetName === key);
     if (index === -1) return;
     items.value.splice(index, 1);
+    removeReferenceEverywhere(key);
     if (selectedKey.value === key) {
       // 相邻项也可能是瞬时拖入的临时对象，经 widgetOf 收窄后再取键。
       const neighbor = items.value[index] ?? items.value[index - 1];
@@ -65,12 +95,160 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     selectedKey.value = key;
   }
 
+  function selectLayout(name: string): void {
+    selectedKey.value = name;
+  }
+
   /** widgetName 就地重命名（属性面板）：同步选中键，唯一性由保存校验兜底。 */
   function renameItemKey(nextKey: string): void {
     const item = selectedItem.value;
     if (!item) return;
+    const previousKey = item.widget.widgetName;
     item.widget.widgetName = nextKey;
+    replaceReferenceEverywhere(previousKey, nextKey);
     selectedKey.value = nextKey;
+  }
+
+  /** 属性面板提交完整字段副本；替换定义同时保持布局引用与选中键一致。 */
+  function updateSelectedItem(next: FormItem): void {
+    const current = selectedItem.value;
+    if (!current) return;
+    const index = items.value.findIndex(
+      (item) => widgetOf(item)?.widgetName === current.widget.widgetName,
+    );
+    if (index < 0) return;
+    const previousKey = current.widget.widgetName;
+    items.value.splice(index, 1, next);
+    if (next.widget.widgetName !== previousKey) {
+      replaceReferenceEverywhere(previousKey, next.widget.widgetName);
+      selectedKey.value = next.widget.widgetName;
+    }
+  }
+
+  /** 新增标签页布局；布局是引用容器，不进入 content.items。 */
+  function addMultitab(): FormMultitabLayout {
+    const layout: FormMultitabLayout = {
+      name: generateLayoutName(),
+      type: 'multitab',
+      tabStyle: 'style2',
+      container: [createTab('标签页1'), createTab('标签页2')],
+    };
+    layouts.value.push(layout);
+    document.value.content.field_layout.push(layout.name);
+    selectedKey.value = layout.name;
+    return layout;
+  }
+
+  function addTab(layoutName: string): void {
+    const layout = layoutByName(layoutName);
+    if (!layout || layout.container.length >= 20) return;
+    layout.container.push(createTab(`标签页${layout.container.length + 1}`));
+  }
+
+  /** 删除标签页只解散容器：其中字段移动到整个标签页组之后，绝不删除字段定义。 */
+  function removeTab(layoutName: string, tabName: string): void {
+    const layout = layoutByName(layoutName);
+    if (!layout) return;
+    const tabIndex = layout.container.findIndex((tab) => tab.name === tabName);
+    if (tabIndex < 0) return;
+    const [tab] = layout.container.splice(tabIndex, 1);
+    moveReferencesAfterLayout(layoutName, tab.field_layout);
+    if (layout.container.length === 0) removeMultitab(layoutName);
+  }
+
+  /** 删除标签页组时按标签页顺序展开字段，保证用户字段与填写数据均不丢失。 */
+  function removeMultitab(layoutName: string): void {
+    const layoutIndex = layouts.value.findIndex((layout) => layout.name === layoutName);
+    if (layoutIndex < 0) return;
+    const [layout] = layouts.value.splice(layoutIndex, 1);
+    const flattened = layout.container.flatMap((tab) => tab.field_layout);
+    const topIndex = document.value.content.field_layout.indexOf(layoutName);
+    if (topIndex >= 0) {
+      document.value.content.field_layout.splice(topIndex, 1, ...flattened);
+    } else {
+      document.value.content.field_layout.push(...flattened);
+    }
+    if (selectedKey.value === layoutName) selectedKey.value = flattened[0] ?? '';
+  }
+
+  function renameTab(layoutName: string, tabName: string, title: string): void {
+    const tab = layoutByName(layoutName)?.container.find((entry) => entry.name === tabName);
+    if (tab) tab.title = title;
+  }
+
+  function setTabStyle(layoutName: string, style: FormMultitabLayout['tabStyle']): void {
+    const layout = layoutByName(layoutName);
+    if (layout) layout.tabStyle = style;
+  }
+
+  /** 切换表单默认列布局时同步归一化所有普通字段；标签页引用同一 items 定义池，自动生效。 */
+  function setFormLayout(layout: FormLayoutMode): void {
+    document.value.content.layout = layout;
+    const lineWidth = FORM_LAYOUT_LINE_WIDTH[layout];
+    for (const item of items.value) {
+      const widget = widgetOf(item);
+      if (widget) item.lineWidth = isLayoutWidgetType(widget.type) ? 12 : lineWidth;
+    }
+  }
+
+  /** 复制标签页时同步复制其字段定义，避免同一字段引用出现在两个标签页。 */
+  function duplicateTab(layoutName: string, tabName: string): void {
+    const layout = layoutByName(layoutName);
+    if (!layout || layout.container.length >= 20) return;
+    const index = layout.container.findIndex((tab) => tab.name === tabName);
+    if (index < 0) return;
+    const source = layout.container[index];
+    const fieldLayout = source.field_layout.flatMap((fieldKey) => {
+      const item = items.value.find((entry) => widgetOf(entry)?.widgetName === fieldKey);
+      if (!item) return [];
+      const copied = copyWidgetItem(item);
+      items.value.push(copied);
+      return [copied.widget.widgetName];
+    });
+    layout.container.splice(index + 1, 0, {
+      name: generateTabName(),
+      title: `${source.title} copy`,
+      type: 'tab',
+      field_layout: fieldLayout,
+    });
+  }
+
+  /** 标签页顺序只由稳定键列表驱动，拒绝缺失、重复或外部键。 */
+  function reorderTabs(layoutName: string, tabNames: string[]): void {
+    const layout = layoutByName(layoutName);
+    if (!layout || tabNames.length !== layout.container.length) return;
+    const tabMap = new Map(layout.container.map((tab) => [tab.name, tab]));
+    if (new Set(tabNames).size !== tabNames.length || tabNames.some((name) => !tabMap.has(name))) {
+      return;
+    }
+    layout.container.splice(
+      0,
+      layout.container.length,
+      ...tabNames.map((name) => tabMap.get(name)!),
+    );
+  }
+
+  /**
+   * 拖拽列表只传递引用；素材面板临时标记在这里转换为真实字段并写入 items，
+   * 防止设计组件直接维护协议的双事实源。
+   */
+  function replaceReferences(target: FormLayoutTarget, entries: unknown[]): void {
+    const references = referencesOf(target);
+    if (!references) return;
+    const next = entries.flatMap<string>((entry) => {
+      if (typeof entry === 'string') return [entry];
+      const type = (entry as Partial<FormSchemaPaletteDrag> | null)?.paletteType;
+      if (typeof type !== 'string') return [];
+      if (type === 'multitab') {
+        return target.type === 'top' ? [addMultitab().name] : [];
+      }
+      const item = createWidgetItem(type as FormWidgetType);
+      item.lineWidth = defaultLineWidth(item.widget.type);
+      items.value.push(item);
+      selectedKey.value = item.widget.widgetName;
+      return [item.widget.widgetName];
+    });
+    references.splice(0, references.length, ...next);
   }
 
   /** 整体替换文档（草稿加载/保存回读）。 */
@@ -79,16 +257,102 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     selectedKey.value = '';
   }
 
+  function layoutByName(name: string): FormMultitabLayout | undefined {
+    return layouts.value.find((layout) => layout.name === name);
+  }
+
+  function referencesOf(target: FormLayoutTarget): string[] | null {
+    if (target.type === 'top') return document.value.content.field_layout;
+    return (
+      layoutByName(target.layoutName)?.container.find((tab) => tab.name === target.tabName)
+        ?.field_layout ?? null
+    );
+  }
+
+  function findPlacement(key: string): { references: string[]; index: number } | null {
+    const topIndex = document.value.content.field_layout.indexOf(key);
+    if (topIndex >= 0) return { references: document.value.content.field_layout, index: topIndex };
+    for (const layout of layouts.value) {
+      for (const tab of layout.container) {
+        const index = tab.field_layout.indexOf(key);
+        if (index >= 0) return { references: tab.field_layout, index };
+      }
+    }
+    return null;
+  }
+
+  function removeReferenceEverywhere(key: string): void {
+    const lists = [
+      document.value.content.field_layout,
+      ...layouts.value.flatMap((layout) => layout.container.map((tab) => tab.field_layout)),
+    ];
+    for (const references of lists) {
+      let index = references.indexOf(key);
+      while (index >= 0) {
+        references.splice(index, 1);
+        index = references.indexOf(key);
+      }
+    }
+  }
+
+  function replaceReferenceEverywhere(previousKey: string, nextKey: string): void {
+    const lists = [
+      document.value.content.field_layout,
+      ...layouts.value.flatMap((layout) => layout.container.map((tab) => tab.field_layout)),
+    ];
+    for (const references of lists) {
+      references.forEach((reference, index) => {
+        if (reference === previousKey) references[index] = nextKey;
+      });
+    }
+  }
+
+  function moveReferencesAfterLayout(layoutName: string, references: string[]): void {
+    if (references.length === 0) return;
+    const index = document.value.content.field_layout.indexOf(layoutName);
+    document.value.content.field_layout.splice(
+      index >= 0 ? index + 1 : document.value.content.field_layout.length,
+      0,
+      ...references,
+    );
+  }
+
+  function createTab(title: string) {
+    return { name: generateTabName(), title, type: 'tab' as const, field_layout: [] };
+  }
+
+  function normalizeInsertIndex(index: number, length: number): number {
+    return index >= 0 && index <= length ? index : length;
+  }
+
+  function defaultLineWidth(type: FormWidgetType): number {
+    return isLayoutWidgetType(type) ? 12 : FORM_LAYOUT_LINE_WIDTH[document.value.content.layout];
+  }
+
   return {
     document,
     items,
+    layouts,
     selectedKey,
     selectedItem,
+    selectedLayout,
     addItem,
     copyItem,
     removeItem,
     selectItem,
+    selectLayout,
     renameItemKey,
+    updateSelectedItem,
+    addMultitab,
+    addTab,
+    removeTab,
+    removeMultitab,
+    renameTab,
+    setTabStyle,
+    setFormLayout,
+    duplicateTab,
+    reorderTabs,
+    replaceReferences,
     replaceDocument,
   };
 }

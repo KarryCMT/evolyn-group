@@ -27,7 +27,9 @@ const SurfaceStub = defineComponent({
   template: '<div class="surface-stub" :data-layout="layout" />',
 });
 
-const schema: FormSchemaDocument = { content: { type: 'form', items: [] } };
+const schema: FormSchemaDocument = {
+  content: { type: 'form', layout: 'normal', items: [], layout_fields: [], field_layout: [] },
+};
 const adapter: FormRuntimeAdapter = { submit: async () => ({ accepted: true }) };
 
 describe('formDesignPreviewDrawer', () => {

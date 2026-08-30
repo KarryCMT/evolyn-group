@@ -7,7 +7,25 @@
  * 修改本表必须同步：字段字典文档、Go 侧镜像表、发布白名单与测试用例。
  */
 
-import type { FormItem, FormWidgetOption, FormWidgetType } from './types';
+import type { FormItem, FormLayoutMode, FormWidgetOption, FormWidgetType } from './types';
+
+/** 表单布局切换时批量投影到普通字段的 12 栅格宽度。 */
+export const FORM_LAYOUT_LINE_WIDTH: Readonly<Record<FormLayoutMode, number>> = {
+  normal: 12,
+  'grid-2': 6,
+  'grid-3': 4,
+  'grid-4': 3,
+};
+
+/** 字段属性面板开放的宽度指令；1/2 与 2/3 按产品协议均写入 6。 */
+export const FORM_FIELD_WIDTH_OPTIONS = [
+  { label: '1/4', value: 3 },
+  { label: '1/3', value: 4 },
+  { label: '1/2', value: 6 },
+  { label: '2/3', value: 6 },
+  { label: '3/4', value: 9 },
+  { label: '整行', value: 12 },
+] as const;
 
 /** 控件分组（字段字典 §4.2 的四组）。 */
 export type FormWidgetGroupKey = 'basic' | 'orgfile' | 'relation' | 'interactive';
@@ -69,6 +87,8 @@ export const WIDGET_OPTION_LIMITS = {
 export const FORM_PROTOCOL_LIMITS = {
   maxItems: 500,
   subformMaxItems: 200,
+  maxLayouts: 50,
+  maxTabsPerLayout: 20,
   labelMaxLength: 64,
   descriptionMaxLength: 500,
   widgetNameMaxLength: 64,
@@ -361,6 +381,17 @@ let widgetNameSeed = 0;
 export function generateWidgetName(): string {
   widgetNameSeed = (widgetNameSeed + 1) % 10000;
   return `_widget_${Date.now()}${String(widgetNameSeed).padStart(4, '0')}`;
+}
+
+/** 生成表单级布局与标签页稳定键；二者与 widgetName 共享顶层引用命名空间。 */
+export function generateLayoutName(): string {
+  widgetNameSeed = (widgetNameSeed + 1) % 10000;
+  return `_layout_${Date.now()}${String(widgetNameSeed).padStart(4, '0')}`;
+}
+
+export function generateTabName(): string {
+  widgetNameSeed = (widgetNameSeed + 1) % 10000;
+  return `_tab_${Date.now()}${String(widgetNameSeed).padStart(4, '0')}`;
 }
 
 const defaultOptions = (): FormWidgetOption[] => [

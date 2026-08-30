@@ -78,13 +78,14 @@ func (r *formRepository) UpdateFormType(ctx context.Context, id uint, formType m
 
 // UpdateDraft 草稿乐观锁保存：条件递增避免读改写竞态（口径同 tenantproduct revision）
 func (r *formRepository) UpdateDraft(
-	ctx context.Context, id uint, fromRevision int64, content model.JSONContent,
+	ctx context.Context, id uint, fromRevision int64, protocolVersion int, content model.JSONContent,
 ) (bool, error) {
 	result := r.withContext(ctx).Model(&model.Form{}).
 		Where("id = ? AND draft_revision = ?", id, fromRevision).
 		Updates(map[string]interface{}{
-			"draft_content":  content,
-			"draft_revision": gorm.Expr("draft_revision + 1"),
+			"draft_content":    content,
+			"draft_revision":   gorm.Expr("draft_revision + 1"),
+			"protocol_version": protocolVersion,
 		})
 	if result.Error != nil {
 		return false, result.Error

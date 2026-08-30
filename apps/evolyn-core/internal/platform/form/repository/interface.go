@@ -38,7 +38,7 @@ type FormRepository interface {
 	UpdateFormType(ctx context.Context, id uint, formType model.FormType) error
 	// UpdateDraft 草稿乐观锁保存：draft_revision 匹配才写入并条件递增；
 	// 0 行影响即口令过期（Service 转 FORM_REVISION_CONFLICT）
-	UpdateDraft(ctx context.Context, id uint, fromRevision int64, content model.JSONContent) (bool, error)
+	UpdateDraft(ctx context.Context, id uint, fromRevision int64, protocolVersion int, content model.JSONContent) (bool, error)
 	// MarkPublished 发布事务内回写最新发布指针（latest_version_id + published_version）；
 	// 只追加指针，不触碰草稿与历史快照
 	MarkPublished(ctx context.Context, id uint, versionID uint, versionNo int) error

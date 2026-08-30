@@ -40,7 +40,7 @@ func newActionTestService(perms map[string]bool, formRepo *fakeFormRepo) FormSer
 func seedWorkflowForm(repo *fakeFormRepo) {
 	form := &model.Form{
 		ApplicationID: 7, Code: "form_src", Name: "请假申请", FormType: model.FormTypeWorkflow,
-		DraftContent: validDraft(), DraftRevision: 1, ProtocolVersion: 1, CreatorMemberID: 11,
+		DraftContent: validDraft(), DraftRevision: 1, ProtocolVersion: model.CurrentProtocolVersion, CreatorMemberID: 11,
 	}
 	form.TenantID = 1
 	if _, err := repo.Create(tenantCtx(1), form); err != nil {

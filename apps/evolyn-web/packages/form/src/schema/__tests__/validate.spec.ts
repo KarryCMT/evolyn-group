@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { createWidgetItem, generateWidgetName, WIDGET_SPECS } from '../dictionary';
+import {
+  FORM_FIELD_WIDTH_OPTIONS,
+  FORM_LAYOUT_LINE_WIDTH,
+  WIDGET_SPECS,
+  createWidgetItem,
+  generateWidgetName,
+} from '../dictionary';
 import { cloneFormSchema } from '../clone';
 import { migrateFormSchema } from '../migrate';
 import type { FormSchemaDocument } from '../types';
@@ -24,10 +30,31 @@ function textItem(overrides: Record<string, unknown> = {}): Record<string, unkno
 }
 
 function documentWith(items: unknown[]): unknown {
-  return { content: { type: 'form', items } };
+  const field_layout = items.flatMap((item) => {
+    const name = (item as { widget?: { widgetName?: unknown } })?.widget?.widgetName;
+    return typeof name === 'string' ? [name] : [];
+  });
+  return { content: { type: 'form', layout: 'normal', items, layout_fields: [], field_layout } };
 }
 
 describe('validateFormSchema 结构校验', () => {
+  it('冻结表单布局与字段宽度产品映射', () => {
+    expect(FORM_LAYOUT_LINE_WIDTH).toEqual({
+      normal: 12,
+      'grid-2': 6,
+      'grid-3': 4,
+      'grid-4': 3,
+    });
+    expect(FORM_FIELD_WIDTH_OPTIONS).toEqual([
+      { label: '1/4', value: 3 },
+      { label: '1/3', value: 4 },
+      { label: '1/2', value: 6 },
+      { label: '2/3', value: 6 },
+      { label: '3/4', value: 9 },
+      { label: '整行', value: 12 },
+    ]);
+  });
+
   it('接受样本协议文档并返回深拷贝（未编辑属性不丢失）', () => {
     const input = documentWith([textItem()]);
     const result = validateFormSchema(input);
@@ -44,9 +71,23 @@ describe('validateFormSchema 结构校验', () => {
     expect(result.valid).toBe(true);
   });
 
+  it('只接受四种表单布局枚举', () => {
+    for (const layout of ['normal', 'grid-2', 'grid-3', 'grid-4']) {
+      const document = documentWith([]) as FormSchemaDocument;
+      document.content.layout = layout as FormSchemaDocument['content']['layout'];
+      expect(validateFormSchema(document).valid).toBe(true);
+    }
+    const invalid = documentWith([]) as { content: Record<string, unknown> };
+    invalid.content.layout = 'grid-5';
+    expect(validateFormSchema(invalid).issues[0]).toMatchObject({ path: 'content.layout' });
+  });
+
   it('拒绝根/content 未知键与非法 type', () => {
     expect(
-      validateFormSchema({ content: { type: 'form', items: [] }, extra: 1 }).issues[0].path,
+      validateFormSchema({
+        content: { type: 'form', layout: 'normal', items: [], layout_fields: [], field_layout: [] },
+        extra: 1,
+      }).issues[0].path,
     ).toBe('content.extra');
     expect(validateFormSchema({ content: { type: 'page', items: [] } }).issues[0].path).toBe(
       'content.type',
@@ -224,6 +265,69 @@ describe('validateFormSchema 结构校验', () => {
     expect(result.issues).toEqual([]);
     expect(result.valid).toBe(true);
   });
+
+  it('标签页可引用顶层子表单，但不能引用子表单内部字段', () => {
+    const child = textItem({ widgetName: '_widget_child' });
+    const subform = {
+      widget: {
+        type: 'subform',
+        widgetName: '_widget_sub',
+        enable: true,
+        visible: true,
+        allowBlank: true,
+        items: [child],
+      },
+      label: '子表单',
+      description: '',
+      labelHidden: false,
+      lineWidth: 12,
+    };
+    const document = {
+      content: {
+        type: 'form',
+        layout: 'normal',
+        items: [subform],
+        layout_fields: [
+          {
+            name: '_layout_tabs',
+            type: 'multitab',
+            tabStyle: 'style2',
+            container: [
+              {
+                name: '_tab_detail',
+                title: '明细',
+                type: 'tab',
+                field_layout: ['_widget_sub'],
+              },
+            ],
+          },
+        ],
+        field_layout: ['_layout_tabs'],
+      },
+    };
+    expect(validateFormSchema(document).valid).toBe(true);
+    document.content.layout_fields[0].container[0].field_layout = ['_widget_child'];
+    const result = validateFormSchema(document);
+    expect(result.valid).toBe(false);
+    expect(result.issues[0].path).toBe('content.layout_fields[0].container[0].field_layout[0]');
+  });
+
+  it('拒绝字段在顶层与标签页重复放置', () => {
+    const item = textItem();
+    const document = documentWith([item]) as FormSchemaDocument;
+    document.content.layout_fields.push({
+      name: '_layout_tabs',
+      type: 'multitab',
+      tabStyle: 'style1',
+      container: [
+        { name: '_tab_main', type: 'tab', title: '标签页', field_layout: ['_widget_a1'] },
+      ],
+    });
+    document.content.field_layout.push('_layout_tabs');
+    const result = validateFormSchema(document);
+    expect(result.valid).toBe(false);
+    expect(result.issues.some((issue) => issue.message.includes('重复'))).toBe(true);
+  });
 });
 
 describe('validatePublishableFormSchema 发布白名单', () => {
@@ -252,17 +356,34 @@ describe('validatePublishableFormSchema 发布白名单', () => {
 });
 
 describe('migrateFormSchema / cloneFormSchema', () => {
-  it('v1 迁移即原样校验通过', () => {
+  it('v3 文档原样校验通过', () => {
     const input = documentWith([textItem()]);
-    const result = migrateFormSchema(input);
+    const result = migrateFormSchema(input, 3);
     expect(result.document).toEqual(input);
     expect(result.issues).toEqual([]);
   });
 
   it('非法输入返回 issues 且 document 为 null', () => {
-    const result = migrateFormSchema({ nope: true });
+    const result = migrateFormSchema({ nope: true }, 3);
     expect(result.document).toBeNull();
     expect(result.issues.length).toBeGreaterThan(0);
+  });
+
+  it('v1 平铺文档无损迁移为 v3 引用结构与单列布局', () => {
+    const item = textItem();
+    const result = migrateFormSchema({ content: { type: 'form', items: [item] } }, 1);
+    expect(result.document?.content.layout_fields).toEqual([]);
+    expect(result.document?.content.field_layout).toEqual(['_widget_a1']);
+    expect(result.document?.content.layout).toBe('normal');
+    expect(result.protocolVersion).toBe(3);
+  });
+
+  it('v2 引用文档迁移为 v3 时补单列布局', () => {
+    const current = documentWith([textItem()]);
+    const { layout: _layout, ...content } = current.content;
+    const result = migrateFormSchema({ content }, 2);
+    expect(result.document?.content.layout).toBe('normal');
+    expect(result.document?.content.field_layout).toEqual(['_widget_a1']);
   });
 
   it('cloneFormSchema 切断引用', () => {

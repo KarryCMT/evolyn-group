@@ -1,4 +1,4 @@
-import { inject, provide, type InjectionKey, type ShallowRef } from 'vue';
+import { type InjectionKey, type ShallowRef, inject, nextTick, provide } from 'vue';
 import type { FormRuntime } from './createFormRuntime';
 import type { FormFieldRegistry } from '../widgets/registry';
 
@@ -13,6 +13,8 @@ export interface FormRendererContext {
   /** 字段聚焦注册表：错误定位时 FormRenderer 聚焦第一个出错字段（文档 §7.4）。 */
   registerFieldFocus(key: string, focus: () => void): void;
   unregisterFieldFocus(key: string): void;
+  registerFieldReveal(key: string, reveal: () => void): void;
+  unregisterFieldReveal(key: string): void;
   focusField(key: string): boolean;
   /** 诊断回传：未知/未启用字段类型不可静默丢弃，上报宿主处理（文档 §7.2）。 */
   reportUnsupportedField(info: { fieldKey: string; type: string }): void;
@@ -39,6 +41,7 @@ export function provideFormRendererContext(context: FormRendererContext): void {
 /** 创建聚焦注册表的可复用实现，FormRenderer 与测试均可使用。 */
 export function createFocusRegistry() {
   const handlers = new Map<string, () => void>();
+  const revealers = new Map<string, () => void>();
   return {
     registerFieldFocus(key: string, focus: () => void): void {
       handlers.set(key, focus);
@@ -46,10 +49,22 @@ export function createFocusRegistry() {
     unregisterFieldFocus(key: string): void {
       handlers.delete(key);
     },
+    registerFieldReveal(key: string, reveal: () => void): void {
+      revealers.set(key, reveal);
+    },
+    unregisterFieldReveal(key: string): void {
+      revealers.delete(key);
+    },
     focusField(key: string): boolean {
       const focus = handlers.get(key);
       if (!focus) return false;
-      focus();
+      const reveal = revealers.get(key);
+      if (reveal) {
+        reveal();
+        void nextTick(focus);
+      } else {
+        focus();
+      }
       return true;
     },
   };

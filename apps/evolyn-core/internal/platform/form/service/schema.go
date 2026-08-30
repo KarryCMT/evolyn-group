@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"evolyn/internal/platform/form/model"
 )
 
 // SchemaIssue 协议校验问题（与前端 FormSchemaIssue 结构对齐，随 BizError data 出网）。
@@ -63,6 +65,8 @@ type widgetSpec struct {
 const (
 	protoMaxItems        = 500
 	protoSubformMaxItems = 200
+	protoMaxLayouts      = 50
+	protoMaxTabs         = 20
 	protoLabelMax        = 64
 	protoDescMax         = 500
 	protoNameMax         = 64
@@ -227,19 +231,23 @@ var optionWidgetTypes = map[string]bool{
 }
 
 // ValidateFormSchema 校验目标协议文档原文；合法返回空 issues。
-func ValidateFormSchema(raw []byte) []SchemaIssue {
+func ValidateFormSchema(raw []byte, versions ...int) []SchemaIssue {
 	var root any
 	if err := json.Unmarshal(raw, &root); err != nil {
 		return []SchemaIssue{{Path: "content", Message: "表单文档必须是 JSON 对象"}}
 	}
 	issues := make([]SchemaIssue, 0)
-	validateRoot(root, &issues)
+	protocolVersion := model.CurrentProtocolVersion
+	if len(versions) > 0 {
+		protocolVersion = versions[0]
+	}
+	validateRoot(root, protocolVersion, &issues)
 	return issues
 }
 
 // ValidatePublishable 在结构校验之上叠加发布白名单，返回需要提示的 issues。
-func ValidatePublishable(raw []byte) []SchemaIssue {
-	base := ValidateFormSchema(raw)
+func ValidatePublishable(raw []byte, versions ...int) []SchemaIssue {
+	base := ValidateFormSchema(raw, versions...)
 	if len(base) > 0 {
 		return base
 	}
@@ -273,10 +281,16 @@ func collectUnsupported(items []any, itemsPath string, issues *[]SchemaIssue) {
 
 // ---- 逐层校验（文案与 TS validate.ts 逐字一致） ----
 
-func validateRoot(root any, issues *[]SchemaIssue) {
+func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	obj, ok := root.(map[string]any)
 	if !ok {
 		*issues = append(*issues, SchemaIssue{Path: "content", Message: "表单文档必须是 JSON 对象"})
+		return
+	}
+	if protocolVersion < 1 || protocolVersion > model.CurrentProtocolVersion {
+		*issues = append(*issues, SchemaIssue{
+			Path: "content", Message: fmt.Sprintf("不支持的表单协议版本：%d", protocolVersion),
+		})
 		return
 	}
 	rejectUnknownKeys(obj, []string{"content"}, "content", issues)
@@ -285,9 +299,24 @@ func validateRoot(root any, issues *[]SchemaIssue) {
 		*issues = append(*issues, SchemaIssue{Path: "content", Message: "content 必须是 JSON 对象"})
 		return
 	}
-	rejectUnknownKeys(content, []string{"type", "items"}, "content", issues)
+	contentKeys := []string{"type", "items"}
+	if protocolVersion >= 2 {
+		contentKeys = append(contentKeys, "layout_fields", "field_layout")
+	}
+	if protocolVersion >= 3 {
+		contentKeys = append(contentKeys, "layout")
+	}
+	rejectUnknownKeys(content, contentKeys, "content", issues)
 	if content["type"] != "form" {
 		*issues = append(*issues, SchemaIssue{Path: "content.type", Message: `content.type 必须固定为 "form"`})
+	}
+	if protocolVersion >= 3 {
+		layout, ok := content["layout"].(string)
+		if !ok || (layout != "normal" && layout != "grid-2" && layout != "grid-3" && layout != "grid-4") {
+			*issues = append(*issues, SchemaIssue{
+				Path: "content.layout", Message: "layout 必须是 normal / grid-2 / grid-3 / grid-4",
+			})
+		}
 	}
 	items, ok := content["items"].([]any)
 	if !ok {
@@ -305,6 +334,182 @@ func validateRoot(root any, issues *[]SchemaIssue) {
 	for i, rawItem := range items {
 		validateItem(rawItem, fmt.Sprintf("content.items[%d]", i), scopeNames, issues)
 	}
+	if protocolVersion >= 2 {
+		validateLayouts(content, scopeNames, issues)
+	}
+}
+
+// validateLayouts 校验 v2 multitab 引用图。标签页只引用顶层字段键，字段类型不限，
+// 因而未来 subform 开放运行能力时无需再次修改布局协议。
+func validateLayouts(content map[string]any, topLevelNames map[string]bool, issues *[]SchemaIssue) {
+	rawLayouts, layoutsOK := content["layout_fields"].([]any)
+	if !layoutsOK {
+		*issues = append(*issues, SchemaIssue{Path: "content.layout_fields", Message: "layout_fields 必须是数组"})
+		return
+	}
+	rawTopLayout, topOK := content["field_layout"].([]any)
+	if !topOK {
+		*issues = append(*issues, SchemaIssue{Path: "content.field_layout", Message: "field_layout 必须是数组"})
+		return
+	}
+	if len(rawLayouts) > protoMaxLayouts {
+		*issues = append(*issues, SchemaIssue{
+			Path: "content.layout_fields", Message: fmt.Sprintf("布局数量不能超过 %d", protoMaxLayouts),
+		})
+	}
+
+	layoutNames := map[string]bool{}
+	nodeNames := map[string]bool{}
+	for name := range topLevelNames {
+		nodeNames[name] = true
+	}
+	placements := map[string]string{}
+
+	for layoutIndex, rawLayout := range rawLayouts {
+		path := fmt.Sprintf("content.layout_fields[%d]", layoutIndex)
+		layout, ok := rawLayout.(map[string]any)
+		if !ok {
+			*issues = append(*issues, SchemaIssue{Path: path, Message: "布局项必须是 JSON 对象"})
+			continue
+		}
+		rejectUnknownKeys(layout, []string{"name", "type", "tabStyle", "container"}, path, issues)
+		name := validateStableLayoutName(layout["name"], "_layout_", path+".name", issues)
+		if name != "" {
+			if nodeNames[name] {
+				*issues = append(*issues, SchemaIssue{Path: path + ".name", Message: fmt.Sprintf("布局键「%s」重复", name)})
+			} else {
+				nodeNames[name] = true
+				layoutNames[name] = true
+			}
+		}
+		if layout["type"] != "multitab" {
+			*issues = append(*issues, SchemaIssue{Path: path + ".type", Message: "当前协议仅支持 multitab 布局"})
+		}
+		if layout["tabStyle"] != "style1" && layout["tabStyle"] != "style2" {
+			*issues = append(*issues, SchemaIssue{Path: path + ".tabStyle", Message: "tabStyle 必须是 style1 / style2"})
+		}
+		container, ok := layout["container"].([]any)
+		if !ok {
+			*issues = append(*issues, SchemaIssue{Path: path + ".container", Message: "container 必须是标签页数组"})
+			continue
+		}
+		if len(container) < 1 || len(container) > protoMaxTabs {
+			*issues = append(*issues, SchemaIssue{
+				Path: path + ".container", Message: fmt.Sprintf("标签页数量必须在 1–%d 之间", protoMaxTabs),
+			})
+		}
+		for tabIndex, rawTab := range container {
+			validateTab(rawTab, fmt.Sprintf("%s.container[%d]", path, tabIndex), topLevelNames, nodeNames, placements, issues)
+		}
+	}
+
+	for index, rawReference := range rawTopLayout {
+		path := fmt.Sprintf("content.field_layout[%d]", index)
+		reference, ok := rawReference.(string)
+		if !ok || reference == "" {
+			*issues = append(*issues, SchemaIssue{Path: path, Message: "顶层布局引用必须是非空字符串"})
+			continue
+		}
+		if !topLevelNames[reference] && !layoutNames[reference] {
+			*issues = append(*issues, SchemaIssue{Path: path, Message: fmt.Sprintf("顶层引用「%s」不存在", reference)})
+			continue
+		}
+		registerPlacement(reference, path, placements, issues)
+	}
+
+	for _, name := range sortedBoolKeys(topLevelNames) {
+		if _, placed := placements[name]; !placed {
+			*issues = append(*issues, SchemaIssue{Path: "content.field_layout", Message: fmt.Sprintf("顶层字段「%s」未加入布局", name)})
+		}
+	}
+	for _, name := range sortedBoolKeys(layoutNames) {
+		if _, placed := placements[name]; !placed {
+			*issues = append(*issues, SchemaIssue{Path: "content.field_layout", Message: fmt.Sprintf("布局「%s」未加入顶层布局", name)})
+		}
+	}
+}
+
+func validateTab(
+	rawTab any, path string, topLevelNames, nodeNames map[string]bool,
+	placements map[string]string, issues *[]SchemaIssue,
+) {
+	tab, ok := rawTab.(map[string]any)
+	if !ok {
+		*issues = append(*issues, SchemaIssue{Path: path, Message: "标签页必须是 JSON 对象"})
+		return
+	}
+	rejectUnknownKeys(tab, []string{"name", "title", "type", "field_layout"}, path, issues)
+	name := validateStableLayoutName(tab["name"], "_tab_", path+".name", issues)
+	if name != "" {
+		if nodeNames[name] {
+			*issues = append(*issues, SchemaIssue{Path: path + ".name", Message: fmt.Sprintf("标签页键「%s」重复", name)})
+		} else {
+			nodeNames[name] = true
+		}
+	}
+	if tab["type"] != "tab" {
+		*issues = append(*issues, SchemaIssue{Path: path + ".type", Message: "标签页 type 必须固定为 tab"})
+	}
+	title, titleOK := tab["title"].(string)
+	if !titleOK || strings.TrimSpace(title) == "" {
+		*issues = append(*issues, SchemaIssue{Path: path + ".title", Message: "标签页标题不能为空"})
+	} else if len([]rune(title)) > protoLabelMax {
+		*issues = append(*issues, SchemaIssue{Path: path + ".title", Message: fmt.Sprintf("标签页标题不能超过 %d 个字符", protoLabelMax)})
+	}
+	references, ok := tab["field_layout"].([]any)
+	if !ok {
+		*issues = append(*issues, SchemaIssue{Path: path + ".field_layout", Message: "标签页 field_layout 必须是数组"})
+		return
+	}
+	for index, rawReference := range references {
+		refPath := fmt.Sprintf("%s.field_layout[%d]", path, index)
+		reference, ok := rawReference.(string)
+		if !ok || reference == "" {
+			*issues = append(*issues, SchemaIssue{Path: refPath, Message: "标签页字段引用必须是非空字符串"})
+			continue
+		}
+		if !topLevelNames[reference] {
+			*issues = append(*issues, SchemaIssue{Path: refPath, Message: fmt.Sprintf("字段引用「%s」不是顶层字段", reference)})
+			continue
+		}
+		registerPlacement(reference, refPath, placements, issues)
+	}
+}
+
+func validateStableLayoutName(value any, prefix, path string, issues *[]SchemaIssue) string {
+	name, ok := value.(string)
+	if !ok || !strings.HasPrefix(name, prefix) || !widgetNamePattern.MatchString(name) {
+		label := "布局"
+		if prefix == "_tab_" {
+			label = "标签页"
+		}
+		*issues = append(*issues, SchemaIssue{Path: path, Message: label + "键格式不正确"})
+		return ""
+	}
+	if len(name) > protoNameMax {
+		*issues = append(*issues, SchemaIssue{Path: path, Message: "稳定键不能超过 64 个字符"})
+		return ""
+	}
+	return name
+}
+
+func registerPlacement(reference, path string, placements map[string]string, issues *[]SchemaIssue) {
+	if previous, exists := placements[reference]; exists {
+		*issues = append(*issues, SchemaIssue{
+			Path: path, Message: fmt.Sprintf("引用「%s」重复，已在 %s 使用", reference, previous),
+		})
+		return
+	}
+	placements[reference] = path
+}
+
+func sortedBoolKeys(values map[string]bool) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 func validateItem(raw any, path string, scopeNames map[string]bool, issues *[]SchemaIssue) {

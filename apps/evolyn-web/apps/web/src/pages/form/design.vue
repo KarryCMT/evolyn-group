@@ -2,13 +2,16 @@
 import type {
   FormSchemaIssue,
   FormSchemaPaletteGroup,
+  FormTabStyle,
   FormWidgetType,
 } from '@evolyn.do/form/designer';
 import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime';
 import {
+  FORM_PROTOCOL_VERSION,
   FormSchemaCanvas,
   FormSchemaPalette,
   FormSchemaPropertyPanel,
+  migrateFormSchema,
   useFormSchemaEditor,
   validateFormSchema,
   validatePublishableFormSchema,
@@ -46,9 +49,9 @@ const route = useRoute();
 const router = useRouter();
 const workspace = useFormWorkspaceContext();
 
-/** 编辑器状态：页面唯一持有 content.items（目标保存协议，ADR-010）。 */
+/** 编辑器状态：页面唯一持有字段定义与布局引用（目标保存协议 v2）。 */
 const editor = useFormSchemaEditor();
-const { document, items, selectedKey, selectedItem } = editor;
+const { document, items, selectedKey, selectedItem, selectedLayout } = editor;
 
 /** 路由参数：'new' 为历史兜底新建态；其余使用 form_ 前缀稳定公开编码。 */
 const rawFormCode = computed(() => String(route.params.formCode ?? ''));
@@ -140,13 +143,13 @@ async function startNewForm(): Promise<void> {
 
 /** 以详情响应填充编辑态（加载与新建共用；草稿读取侧完成协议校验）。 */
 function adoptDetail(detail: NonNullable<(typeof workspace.detail)['value']>): void {
-  const result = validateFormSchema(detail.draft);
-  if (!result.valid) {
+  const result = migrateFormSchema(detail.draft, detail.protocolVersion);
+  if (!result.document) {
     showIssues(result.issues);
     loadFailed.value = true;
     return;
   }
-  editor.replaceDocument(result.document!);
+  editor.replaceDocument(result.document);
   draftRevision.value = detail.draftRevision;
   publishedVersion.value = detail.publishedVersion;
   loadFailed.value = false;
@@ -165,26 +168,58 @@ const paletteGroups = computed<FormSchemaPaletteGroup[]>(() => {
     combocheck: RiCheckDoubleFill,
     separator: RiMenuFill,
   };
-  return WIDGET_GROUP_META.map((group) => ({
-    key: group.key,
-    title: group.title,
-    enabled: group.key === 'basic',
-    entries: Object.entries(WIDGET_SPECS)
-      .filter(([, spec]) => spec.group === group.key)
-      .map(([type, spec]) => ({
-        type,
-        label: spec.label,
-        icon: iconOfType[type] ?? RiMenuFill,
-      })),
-  }));
+  return [
+    ...WIDGET_GROUP_META.map((group) => ({
+      key: group.key,
+      title: group.title,
+      enabled: group.key === 'basic',
+      entries: Object.entries(WIDGET_SPECS)
+        .filter(([, spec]) => spec.group === group.key)
+        .map(([type, spec]) => ({
+          type,
+          label: spec.label,
+          icon: iconOfType[type] ?? RiMenuFill,
+        })),
+    })),
+    {
+      key: 'layout',
+      title: '布局组件',
+      enabled: true,
+      entries: [{ type: 'multitab', label: '标签页', icon: RiMenuFill }],
+    },
+  ];
 });
 
 function onAddField(entry: { type: string }): void {
+  if (entry.type === 'multitab') {
+    editor.addMultitab();
+    return;
+  }
   editor.addItem(entry.type as FormWidgetType);
 }
 
-function onAddDragField(value: { type: string; index: number }): void {
-  editor.addItem(value.type as FormWidgetType, value.index);
+function setSelectedTabStyle(style: FormTabStyle): void {
+  if (selectedLayout.value) editor.setTabStyle(selectedLayout.value.name, style);
+}
+
+function addSelectedTab(): void {
+  if (selectedLayout.value) editor.addTab(selectedLayout.value.name);
+}
+
+function removeSelectedTab(tabName: string): void {
+  if (selectedLayout.value) editor.removeTab(selectedLayout.value.name, tabName);
+}
+
+function duplicateSelectedTab(tabName: string): void {
+  if (selectedLayout.value) editor.duplicateTab(selectedLayout.value.name, tabName);
+}
+
+function renameSelectedTab(tabName: string, title: string): void {
+  if (selectedLayout.value) editor.renameTab(selectedLayout.value.name, tabName, title);
+}
+
+function reorderSelectedTabs(tabNames: string[]): void {
+  if (selectedLayout.value) editor.reorderTabs(selectedLayout.value.name, tabNames);
 }
 
 /** 表单属性面板改名：名称属于表单资产，而非草稿协议内容。 */
@@ -234,9 +269,18 @@ async function saveDraft(): Promise<void> {
   }
   saving.value = true;
   try {
-    const result = await saveFormDraft(formCode.value, draftRevision.value, document.value);
+    const result = await saveFormDraft(
+      formCode.value,
+      draftRevision.value,
+      FORM_PROTOCOL_VERSION,
+      document.value,
+    );
     draftRevision.value = result.draftRevision;
-    workspace.patchDetail({ draftRevision: result.draftRevision, draft: document.value });
+    workspace.patchDetail({
+      draftRevision: result.draftRevision,
+      protocolVersion: FORM_PROTOCOL_VERSION,
+      draft: document.value,
+    });
     ElMessage.success('保存成功');
   } catch (error) {
     handleSaveError(error);
@@ -255,12 +299,18 @@ async function publish(): Promise<void> {
   publishing.value = true;
   try {
     // 发布前先落草稿，保证发布的就是当前画布内容（口令以保存结果为准）。
-    const saved = await saveFormDraft(formCode.value, draftRevision.value, document.value);
+    const saved = await saveFormDraft(
+      formCode.value,
+      draftRevision.value,
+      FORM_PROTOCOL_VERSION,
+      document.value,
+    );
     const result = await publishForm(formCode.value, saved.draftRevision);
     draftRevision.value = saved.draftRevision;
     publishedVersion.value = result.publishedVersion;
     workspace.patchDetail({
       draftRevision: saved.draftRevision,
+      protocolVersion: FORM_PROTOCOL_VERSION,
       draft: document.value,
       publishedVersion: result.publishedVersion,
     });
@@ -385,19 +435,31 @@ function notifyUnavailable(action: string) {
     <div v-else class="form-design-page__workspace">
       <FormSchemaPalette :groups="paletteGroups" @add-field="onAddField" />
       <FormSchemaCanvas
-        :items="items"
+        :document="document"
         :selected-key="selectedKey"
         @select-item="editor.selectItem"
+        @select-layout="editor.selectLayout"
         @copy-item="editor.copyItem"
         @remove-item="editor.removeItem"
-        @add-field="onAddDragField"
+        @replace-references="editor.replaceReferences($event.target, $event.entries)"
+        @remove-layout="editor.removeMultitab"
       />
       <FormSchemaPropertyPanel
         :item="selectedItem"
+        :layout="selectedLayout"
+        :form-layout="document.content.layout"
         :form-name="formName"
         :form-name-saving="renaming"
         @rename-key="editor.renameItemKey"
+        @update-item="editor.updateSelectedItem"
         @update-form-name="onUpdateFormName"
+        @update-form-layout="editor.setFormLayout"
+        @set-tab-style="setSelectedTabStyle"
+        @add-tab="addSelectedTab"
+        @remove-tab="removeSelectedTab"
+        @duplicate-tab="duplicateSelectedTab"
+        @rename-tab="renameSelectedTab"
+        @reorder-tabs="reorderSelectedTabs"
       />
     </div>
 

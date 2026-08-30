@@ -158,7 +158,7 @@ func (f *FormController) Update(c *gin.Context) {
 }
 
 // @Summary 保存表单草稿
-// @Description 全量替换草稿（目标保存协议根结构）：先按字段字典严格校验（失败返回 FORM_SCHEMA_INVALID，data 携带 issues），再按 draftRevision 乐观锁条件更新并递增口令
+// @Description 全量替换草稿（目标保存协议根结构，v3 支持表单默认列布局并保留 multitab 标签页布局）：先按 protocolVersion 与字段字典严格校验（失败返回 FORM_SCHEMA_INVALID，data 携带 issues），再按 draftRevision 乐观锁条件更新并递增口令
 // @Accept json
 // @Produce json
 // @Tags 表单管理

@@ -36,7 +36,7 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 			fmt.Errorf("form %s draft revision %d != %d on publish", code, req.DraftRevision, form.DraftRevision))
 	}
 	// 白名单先行：给出比结构错误更明确的能力提示（FORM_PUBLISH_UNSUPPORTED_FIELD）。
-	if issues := ValidatePublishable([]byte(form.DraftContent)); len(issues) > 0 {
+	if issues := ValidatePublishable([]byte(form.DraftContent), form.ProtocolVersion); len(issues) > 0 {
 		return nil, httpx.Wrap(apperrors.ErrPublishUnsupportedField.WithData(map[string]any{"issues": issues}),
 			fmt.Errorf("form %s publish blocked: %s", code, issues[0].Path))
 	}
@@ -150,6 +150,7 @@ func (s *formService) GetRuntime(ctx context.Context, appCode, formCode string) 
 		Name:             form.Name,
 		PublishedVersion: version.VersionNo,
 		SchemaRevision:   strconv.FormatInt(version.SchemaRevision, 10),
+		ProtocolVersion:  version.ProtocolVersion,
 		Content:          version.Content,
 	}, nil
 }

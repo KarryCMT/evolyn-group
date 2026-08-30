@@ -11,19 +11,33 @@
     </div>
 
     <template v-if="activeTab === 'field'">
-      <header v-if="item" class="form-schema-property__header">
-        <span class="form-schema-property__type-tag">{{ typeLabel }}</span>
-        <span class="form-schema-property__title">{{ item.label || typeLabel }}</span>
+      <header v-if="draftItem || layout" class="form-schema-property__header">
+        <span class="form-schema-property__type-tag">{{ layout ? '布局' : typeLabel }}</span>
+        <span class="form-schema-property__title">
+          {{ layout ? '标签页' : draftItem?.label || typeLabel }}
+        </span>
       </header>
 
-      <div v-if="!item" class="form-schema-property__empty">请在画布中选择字段</div>
+      <div v-if="!draftItem && !layout" class="form-schema-property__empty">
+        请在画布中选择字段或布局
+      </div>
 
       <EvolynScrollbar v-else class="form-schema-property__body">
-        <el-form label-position="top" size="default" @submit.prevent>
+        <FormSchemaMultitabPropertyPanel
+          v-if="layout"
+          :layout="layout"
+          @set-tab-style="$emit('set-tab-style', $event)"
+          @add-tab="$emit('add-tab')"
+          @remove-tab="$emit('remove-tab', $event)"
+          @duplicate-tab="$emit('duplicate-tab', $event)"
+          @rename-tab="(tabName, title) => $emit('rename-tab', tabName, title)"
+          @reorder-tabs="$emit('reorder-tabs', $event)"
+        />
+        <el-form v-else-if="draftItem" label-position="top" size="default" @submit.prevent>
           <!-- —— 公共属性（字段字典 §2） —— -->
           <el-form-item label="字段名称">
             <el-input
-              v-model="item.label"
+              v-model="draftItem.label"
               :maxlength="64"
               placeholder="请输入字段名称"
               :disabled="isSeparator"
@@ -31,14 +45,14 @@
           </el-form-item>
           <el-form-item label="字段键（widgetName）">
             <el-input
-              :model-value="item.widget.widgetName"
+              :model-value="draftItem.widget.widgetName"
               placeholder="字段值与规则引用的稳定键"
               @update:model-value="$emit('rename-key', String($event ?? ''))"
             />
           </el-form-item>
           <el-form-item label="说明">
             <el-input
-              v-model="item.description"
+              v-model="draftItem.description"
               type="textarea"
               :rows="2"
               :maxlength="500"
@@ -50,35 +64,36 @@
             <div class="form-schema-property__switch">
               <span>必填</span>
               <el-switch
-                :model-value="!item.widget.allowBlank"
-                @update:model-value="item.widget.allowBlank = !$event"
+                :model-value="!draftItem.widget.allowBlank"
+                @update:model-value="draftItem.widget.allowBlank = !$event"
               />
             </div>
             <div class="form-schema-property__switch">
               <span>可填写</span>
-              <el-switch v-model="item.widget.enable" />
+              <el-switch v-model="draftItem.widget.enable" />
             </div>
             <div class="form-schema-property__switch">
               <span>可见</span>
-              <el-switch v-model="item.widget.visible" />
+              <el-switch v-model="draftItem.widget.visible" />
             </div>
             <div class="form-schema-property__switch">
               <span>隐藏标签</span>
-              <el-switch v-model="item.labelHidden" />
+              <el-switch v-model="draftItem.labelHidden" />
             </div>
           </div>
-          <el-form-item v-if="!isSeparator" label="栅格宽度（桌面 12 列）">
-            <el-select
-              :model-value="item.lineWidth"
-              @update:model-value="item.lineWidth = Number($event)"
-            >
-              <el-option
-                v-for="width in lineWidthOptions"
-                :key="width"
-                :label="lineWidthLabel(width)"
-                :value="width"
-              />
-            </el-select>
+          <el-form-item v-if="!isSeparator" label="字段宽度">
+            <div class="form-schema-property__width-options" role="group" aria-label="字段宽度">
+              <button
+                v-for="(option, index) in fieldWidthOptions"
+                :key="`${option.label}-${index}`"
+                type="button"
+                :class="{ 'is-active': draftItem.lineWidth === option.value }"
+                :aria-pressed="draftItem.lineWidth === option.value"
+                @click="draftItem.lineWidth = option.value"
+              >
+                {{ option.label }}
+              </button>
+            </div>
           </el-form-item>
 
           <!-- —— 控件专属属性（字段字典 §3 逐控件） —— -->
@@ -267,6 +282,22 @@
         <p class="form-schema-property__hint">
           表单名称保存为资产信息，不会写入字段配置；按 Enter 或离开输入框即可保存。
         </p>
+        <el-form-item label="表单布局">
+          <el-select
+            :model-value="formLayout"
+            @update:model-value="emit('update-form-layout', $event as FormLayoutMode)"
+          >
+            <el-option
+              v-for="option in formLayoutOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
+        </el-form-item>
+        <p class="form-schema-property__hint">
+          切换布局会同步重置顶层及标签页内普通字段的宽度，之后仍可逐字段调整。
+        </p>
       </el-form>
     </EvolynScrollbar>
   </aside>
@@ -285,12 +316,14 @@ import {
   ElOption,
   ElRadioButton,
   ElRadioGroup,
-  ElSelect,
   ElSegmented,
+  ElSelect,
   ElSwitch,
 } from 'element-plus';
-import type { FormItem } from '../schema/types';
-import { widgetTypeLabel } from '../schema/dictionary';
+import type { FormItem, FormLayoutMode, FormMultitabLayout, FormTabStyle } from '../schema/types';
+import { cloneFormSchema } from '../schema/clone';
+import { FORM_FIELD_WIDTH_OPTIONS, widgetTypeLabel } from '../schema/dictionary';
+import FormSchemaMultitabPropertyPanel from './FormSchemaMultitabPropertyPanel.vue';
 
 /**
  * 字段属性面板：编辑 item 公共属性与按 widget.type 分派的专属配置。
@@ -300,15 +333,31 @@ import { widgetTypeLabel } from '../schema/dictionary';
 const props = withDefaults(
   defineProps<{
     item?: FormItem;
+    layout?: FormMultitabLayout;
+    formLayout?: FormLayoutMode;
     formName?: string;
     formNameSaving?: boolean;
   }>(),
-  { formName: '', formNameSaving: false },
+  {
+    item: undefined,
+    layout: undefined,
+    formLayout: 'normal',
+    formName: '',
+    formNameSaving: false,
+  },
 );
 
 const emit = defineEmits<{
   (event: 'rename-key', key: string): void;
+  (event: 'update-item', item: FormItem): void;
   (event: 'update-form-name', name: string): void;
+  (event: 'update-form-layout', layout: FormLayoutMode): void;
+  (event: 'set-tab-style', style: FormTabStyle): void;
+  (event: 'add-tab'): void;
+  (event: 'remove-tab', tabName: string): void;
+  (event: 'duplicate-tab', tabName: string): void;
+  (event: 'rename-tab', tabName: string, title: string): void;
+  (event: 'reorder-tabs', tabNames: string[]): void;
 }>();
 
 const activeTab = ref<'field' | 'form'>('field');
@@ -317,18 +366,21 @@ const propertyTabs = [
   { label: '表单属性', value: 'form' },
 ] as const;
 const formNameDraft = ref(props.formName);
-const widget = computed(() => props.item!.widget as NonNullable<props.item>['widget']);
+const draftItem = ref<FormItem>();
+const widget = computed(() => draftItem.value!.widget);
 const typeLabel = computed(() => widgetTypeLabel(widget.value.type));
 const isSeparator = computed(() => widget.value.type === 'separator');
 const hasOptions = computed(() =>
   ['radiogroup', 'checkboxgroup', 'combo', 'combocheck'].includes(widget.value.type),
 );
 const hasPlaceholder = computed(() => ['combo', 'combocheck'].includes(widget.value.type));
-const lineWidthOptions = [12, 8, 6, 4, 3, 2, 1];
-const lineWidthLabel = (width: number) =>
-  ({ 12: '整行', 8: '2/3 行', 6: '半行', 4: '1/3 行', 3: '1/4 行', 2: '1/6 行', 1: '1/12 行' })[
-    width
-  ] ?? `${width} 列`;
+const fieldWidthOptions = FORM_FIELD_WIDTH_OPTIONS;
+const formLayoutOptions: ReadonlyArray<{ label: string; value: FormLayoutMode }> = [
+  { label: '单列', value: 'normal' },
+  { label: '双列', value: 'grid-2' },
+  { label: '三列', value: 'grid-3' },
+  { label: '四列', value: 'grid-4' },
+];
 
 // 外部加载或保存成功后，以资产详情的名称覆盖编辑中的临时值。
 watch(
@@ -337,6 +389,29 @@ watch(
     formNameDraft.value = name;
   },
 );
+
+// 属性面板维护字段草稿并通过显式事件提交，避免子组件直接修改父级协议对象。
+watch(
+  () => props.item,
+  (item) => {
+    if (sameJSON(item, draftItem.value)) return;
+    draftItem.value = item ? cloneFormSchema(item) : undefined;
+  },
+  { immediate: true, deep: true },
+);
+
+watch(
+  draftItem,
+  (item) => {
+    if (!item || sameJSON(item, props.item)) return;
+    emit('update-item', cloneFormSchema(item));
+  },
+  { deep: true },
+);
+
+function sameJSON(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
+}
 
 /** 仅在名称确有变化且非空时通知页面调用资产改名接口。 */
 function updateFormName(): void {
@@ -464,6 +539,35 @@ function removeOption(index: number): void {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--el-space-md);
+  }
+
+  &__width-options {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    width: 100%;
+    overflow: hidden;
+    border: 1px solid var(--el-border-color);
+    border-radius: var(--el-border-radius-base);
+  }
+
+  &__width-options button {
+    min-width: 0;
+    height: 32px;
+    padding: 0;
+    color: var(--el-text-color-regular);
+    cursor: pointer;
+    background: var(--el-bg-color);
+    border: 0;
+    border-right: 1px solid var(--el-border-color);
+  }
+
+  &__width-options button:last-child {
+    border-right: 0;
+  }
+
+  &__width-options button.is-active {
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
   }
 
   &__options {

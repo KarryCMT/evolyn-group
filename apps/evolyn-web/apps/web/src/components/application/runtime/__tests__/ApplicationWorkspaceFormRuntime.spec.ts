@@ -61,7 +61,10 @@ function bootstrap(formCode: string): FormRuntimeBootstrap {
     name: formCode,
     publishedVersion: 1,
     schemaRevision: '1',
-    content: { content: { type: 'form', items: [] } },
+    protocolVersion: 3,
+    content: {
+      content: { type: 'form', layout: 'normal', items: [], layout_fields: [], field_layout: [] },
+    },
   };
 }
 

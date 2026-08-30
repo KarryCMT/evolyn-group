@@ -532,7 +532,7 @@ CREATE TABLE IF NOT EXISTS forms (
     form_type varchar(16) NOT NULL DEFAULT 'standard',
     draft_content JSONB NOT NULL,
     draft_revision BIGINT NOT NULL DEFAULT 1,
-    protocol_version INTEGER NOT NULL DEFAULT 1,
+    protocol_version INTEGER NOT NULL DEFAULT 3,
     latest_version_id BIGINT,
     published_version INTEGER NOT NULL DEFAULT 0,
     creator_member_id BIGINT NOT NULL,
@@ -561,7 +561,7 @@ CREATE TABLE IF NOT EXISTS form_versions (
     schema_revision BIGINT NOT NULL DEFAULT 0,
     content JSONB NOT NULL,
     field_keys JSONB NOT NULL DEFAULT '[]',
-    protocol_version INTEGER NOT NULL DEFAULT 1,
+    protocol_version INTEGER NOT NULL DEFAULT 3,
     published_by_member_id BIGINT NOT NULL,
     published_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP,
     created_at timestamp with time zone
@@ -1007,9 +1007,9 @@ COMMENT ON COLUMN forms.application_id IS '所属应用 ID（同租户，服务�
 COMMENT ON COLUMN forms.code IS '表单稳定公开编码（form_ 前缀）；路由、API 与菜单 target 使用，禁止暴露自增主键';
 COMMENT ON COLUMN forms.name IS '表单名称（trim 后 1–128 字符）；表单名称不进入协议 content';
 COMMENT ON COLUMN forms.form_type IS '表单类型：standard 标准表单 / workflow 流程表单；可经 form-actions:switch-type 切换（ADR-011），切换后原类型流程数据保留，设计器能力以此字段为准';
-COMMENT ON COLUMN forms.draft_content IS '目标保存协议草稿全文 JSONB：根结构 {content:{type:"form",items:[]}}，原样字节存取保证未编辑属性不丢失';
+COMMENT ON COLUMN forms.draft_content IS '目标保存协议草稿全文 JSONB：v3 根结构含 layout/items/layout_fields/field_layout，原样字节存取保证未编辑属性不丢失';
 COMMENT ON COLUMN forms.draft_revision IS '草稿乐观锁口令：每次草稿保存条件递增，客户端原样回传，过期返回 FORM_REVISION_CONFLICT';
-COMMENT ON COLUMN forms.protocol_version IS '协议版本外部承载（协议文档内不携带版本字段，字典 1.3），当前固定 1';
+COMMENT ON COLUMN forms.protocol_version IS '表单保存协议版本（文档内不携带版本字段）；v3 增加表单默认列布局';
 COMMENT ON COLUMN forms.latest_version_id IS '最新发布版本行 ID；NULL=从未发布';
 COMMENT ON COLUMN forms.published_version IS '最新发布号（冗余自最新快照 version_no，0=未发布），供列表展示免 JOIN';
 COMMENT ON COLUMN forms.creator_member_id IS '创建者（租户成员 ID），审计语义';
@@ -1024,7 +1024,7 @@ COMMENT ON COLUMN form_versions.version_no IS '表单内递增发布号 1,2,3…
 COMMENT ON COLUMN form_versions.schema_revision IS '修订口令（= 行 id，发布事务内回填）；与 version_no 共同构成提交定位双因子';
 COMMENT ON COLUMN form_versions.content IS '发布时的目标保存协议全文快照 JSONB，写入后永不更新';
 COMMENT ON COLUMN form_versions.field_keys IS '顶层字段键有序数组 JSONB（widgetName 序列），提交未知键快速拒绝与后续记录索引使用';
-COMMENT ON COLUMN form_versions.protocol_version IS '快照协议版本（与发布时 forms 行一致）';
+COMMENT ON COLUMN form_versions.protocol_version IS '不可变发布快照协议版本；历史 v1/v2 快照读取时迁移为当前结构';
 COMMENT ON COLUMN form_versions.published_by_member_id IS '发布人（租户成员 ID）';
 COMMENT ON COLUMN form_versions.published_at IS '发布时间';
 COMMENT ON COLUMN form_versions.created_at IS '创建时间';

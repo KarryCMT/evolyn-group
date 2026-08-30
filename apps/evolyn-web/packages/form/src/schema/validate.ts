@@ -12,8 +12,12 @@ import {
   WIDGET_SPECS,
   type WidgetPropSpec,
 } from './dictionary';
-import type { FormSchemaDocument, FormWidgetType } from './types';
-import { PUBLISHABLE_WIDGET_TYPES, SUBFORM_ALLOWED_WIDGET_TYPES } from './types';
+import {
+  type FormSchemaDocument,
+  type FormWidgetType,
+  PUBLISHABLE_WIDGET_TYPES,
+  SUBFORM_ALLOWED_WIDGET_TYPES,
+} from './types';
 import { cloneFormSchema } from './clone';
 
 /** 单条校验问题：path 为 JSON Path（如 content.items[2].widget.options[0].value）。 */
@@ -92,9 +96,20 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
     issues.push({ path: 'content', message: 'content 必须是 JSON 对象' });
     return;
   }
-  rejectUnknownKeys(content, ['type', 'items'], 'content', issues);
+  rejectUnknownKeys(
+    content,
+    ['type', 'layout', 'items', 'layout_fields', 'field_layout'],
+    'content',
+    issues,
+  );
   if (content.type !== 'form') {
     issues.push({ path: 'content.type', message: 'content.type 必须固定为 "form"' });
+  }
+  if (!['normal', 'grid-2', 'grid-3', 'grid-4'].includes(String(content.layout))) {
+    issues.push({
+      path: 'content.layout',
+      message: 'layout 必须是 normal / grid-2 / grid-3 / grid-4',
+    });
   }
   if (!Array.isArray(content.items)) {
     issues.push({ path: 'content.items', message: 'content.items 必须是数组' });
@@ -111,6 +126,190 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
   content.items.forEach((item, index) => {
     validateItem(item, `content.items[${index}]`, issues, seenNames);
   });
+  validateLayouts(content, seenNames, issues);
+}
+
+/**
+ * v2 布局引用校验：items 仍是字段定义唯一事实源；布局数组只保存稳定键引用。
+ * 标签页允许引用任意顶层字段（含未来开放的 subform），但不能引用子表单子字段。
+ */
+function validateLayouts(
+  content: Record<string, unknown>,
+  topLevelNames: Set<string>,
+  issues: FormSchemaIssue[],
+): void {
+  const rawLayouts = content.layout_fields;
+  const rawTopLayout = content.field_layout;
+  if (!Array.isArray(rawLayouts)) {
+    issues.push({ path: 'content.layout_fields', message: 'layout_fields 必须是数组' });
+    return;
+  }
+  if (!Array.isArray(rawTopLayout)) {
+    issues.push({ path: 'content.field_layout', message: 'field_layout 必须是数组' });
+    return;
+  }
+  if (rawLayouts.length > FORM_PROTOCOL_LIMITS.maxLayouts) {
+    issues.push({
+      path: 'content.layout_fields',
+      message: `布局数量不能超过 ${FORM_PROTOCOL_LIMITS.maxLayouts}`,
+    });
+  }
+
+  const layoutNames = new Set<string>();
+  const nodeNames = new Set(topLevelNames);
+  const placedReferences = new Map<string, string>();
+
+  rawLayouts.forEach((layout, layoutIndex) => {
+    const path = `content.layout_fields[${layoutIndex}]`;
+    if (!isPlainObject(layout)) {
+      issues.push({ path, message: '布局项必须是 JSON 对象' });
+      return;
+    }
+    rejectUnknownKeys(layout, ['name', 'type', 'tabStyle', 'container'], path, issues);
+    const name = validateStableLayoutName(layout.name, '_layout_', `${path}.name`, issues);
+    if (name) {
+      if (nodeNames.has(name)) {
+        issues.push({ path: `${path}.name`, message: `布局键「${name}」重复` });
+      } else {
+        nodeNames.add(name);
+        layoutNames.add(name);
+      }
+    }
+    if (layout.type !== 'multitab') {
+      issues.push({ path: `${path}.type`, message: '当前协议仅支持 multitab 布局' });
+    }
+    if (layout.tabStyle !== 'style1' && layout.tabStyle !== 'style2') {
+      issues.push({ path: `${path}.tabStyle`, message: 'tabStyle 必须是 style1 / style2' });
+    }
+    if (!Array.isArray(layout.container)) {
+      issues.push({ path: `${path}.container`, message: 'container 必须是标签页数组' });
+      return;
+    }
+    if (
+      layout.container.length < 1 ||
+      layout.container.length > FORM_PROTOCOL_LIMITS.maxTabsPerLayout
+    ) {
+      issues.push({
+        path: `${path}.container`,
+        message: `标签页数量必须在 1–${FORM_PROTOCOL_LIMITS.maxTabsPerLayout} 之间`,
+      });
+    }
+    layout.container.forEach((tab, tabIndex) => {
+      validateTab(
+        tab,
+        `${path}.container[${tabIndex}]`,
+        topLevelNames,
+        nodeNames,
+        placedReferences,
+        issues,
+      );
+    });
+  });
+
+  rawTopLayout.forEach((rawReference, index) => {
+    const path = `content.field_layout[${index}]`;
+    if (typeof rawReference !== 'string' || rawReference === '') {
+      issues.push({ path, message: '顶层布局引用必须是非空字符串' });
+      return;
+    }
+    if (!topLevelNames.has(rawReference) && !layoutNames.has(rawReference)) {
+      issues.push({ path, message: `顶层引用「${rawReference}」不存在` });
+      return;
+    }
+    registerPlacement(rawReference, path, placedReferences, issues);
+  });
+
+  for (const name of topLevelNames) {
+    if (!placedReferences.has(name)) {
+      issues.push({ path: 'content.field_layout', message: `顶层字段「${name}」未加入布局` });
+    }
+  }
+  for (const name of layoutNames) {
+    if (!placedReferences.has(name)) {
+      issues.push({ path: 'content.field_layout', message: `布局「${name}」未加入顶层布局` });
+    }
+  }
+}
+
+function validateTab(
+  rawTab: unknown,
+  path: string,
+  topLevelNames: Set<string>,
+  nodeNames: Set<string>,
+  placedReferences: Map<string, string>,
+  issues: FormSchemaIssue[],
+): void {
+  if (!isPlainObject(rawTab)) {
+    issues.push({ path, message: '标签页必须是 JSON 对象' });
+    return;
+  }
+  rejectUnknownKeys(rawTab, ['name', 'title', 'type', 'field_layout'], path, issues);
+  const name = validateStableLayoutName(rawTab.name, '_tab_', `${path}.name`, issues);
+  if (name) {
+    if (nodeNames.has(name)) {
+      issues.push({ path: `${path}.name`, message: `标签页键「${name}」重复` });
+    } else {
+      nodeNames.add(name);
+    }
+  }
+  if (rawTab.type !== 'tab') {
+    issues.push({ path: `${path}.type`, message: '标签页 type 必须固定为 tab' });
+  }
+  if (typeof rawTab.title !== 'string' || rawTab.title.trim() === '') {
+    issues.push({ path: `${path}.title`, message: '标签页标题不能为空' });
+  } else if (rawTab.title.length > FORM_PROTOCOL_LIMITS.labelMaxLength) {
+    issues.push({
+      path: `${path}.title`,
+      message: `标签页标题不能超过 ${FORM_PROTOCOL_LIMITS.labelMaxLength} 个字符`,
+    });
+  }
+  if (!Array.isArray(rawTab.field_layout)) {
+    issues.push({ path: `${path}.field_layout`, message: '标签页 field_layout 必须是数组' });
+    return;
+  }
+  rawTab.field_layout.forEach((rawReference, index) => {
+    const refPath = `${path}.field_layout[${index}]`;
+    if (typeof rawReference !== 'string' || rawReference === '') {
+      issues.push({ path: refPath, message: '标签页字段引用必须是非空字符串' });
+      return;
+    }
+    if (!topLevelNames.has(rawReference)) {
+      issues.push({ path: refPath, message: `字段引用「${rawReference}」不是顶层字段` });
+      return;
+    }
+    registerPlacement(rawReference, refPath, placedReferences, issues);
+  });
+}
+
+function validateStableLayoutName(
+  value: unknown,
+  prefix: '_layout_' | '_tab_',
+  path: string,
+  issues: FormSchemaIssue[],
+): string | null {
+  if (typeof value !== 'string' || !value.startsWith(prefix) || !WIDGET_NAME_PATTERN.test(value)) {
+    issues.push({ path, message: `${prefix === '_layout_' ? '布局' : '标签页'}键格式不正确` });
+    return null;
+  }
+  if (value.length > FORM_PROTOCOL_LIMITS.widgetNameMaxLength) {
+    issues.push({ path, message: '稳定键不能超过 64 个字符' });
+    return null;
+  }
+  return value;
+}
+
+function registerPlacement(
+  reference: string,
+  path: string,
+  placements: Map<string, string>,
+  issues: FormSchemaIssue[],
+): void {
+  const previous = placements.get(reference);
+  if (previous) {
+    issues.push({ path, message: `引用「${reference}」重复，已在 ${previous} 使用` });
+    return;
+  }
+  placements.set(reference, path);
 }
 
 /**
@@ -135,9 +334,6 @@ function validateItem(
   );
 
   const type = isPlainObject(input.widget) ? String(input.widget.type ?? '') : '';
-  const spec = (WIDGET_SPECS as Record<string, (typeof WIDGET_SPECS)[FormWidgetType] | undefined>)[
-    type
-  ];
 
   validateLabel(input.label, type, `${path}.label`, issues);
   if (typeof input.description !== 'string') {

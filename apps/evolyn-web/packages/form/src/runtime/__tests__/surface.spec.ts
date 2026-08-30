@@ -8,6 +8,7 @@ function schema(): FormSchemaDocument {
   return {
     content: {
       type: 'form',
+      layout: 'normal',
       items: [
         {
           widget: {
@@ -23,6 +24,8 @@ function schema(): FormSchemaDocument {
           lineWidth: 12,
         } as FormItem,
       ],
+      layout_fields: [],
+      field_layout: ['_widget_name'],
     },
   };
 }

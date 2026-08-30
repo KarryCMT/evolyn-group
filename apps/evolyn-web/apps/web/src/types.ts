@@ -1,3 +1,4 @@
+import type { EvolynIconPickerValue } from '@evolyn.do/ui';
 import type { App } from 'vue';
 
 // 模块安装函数：不依赖 vite-ssg 上下文，直接接收 Vue 应用实例
@@ -529,6 +530,7 @@ export interface FormDetail {
   formType: FormType;
   draftRevision: number;
   publishedVersion: number;
+  protocolVersion: number;
   draft: FormSchemaDocument;
   createdAt: string;
   updatedAt: string;
@@ -568,6 +570,7 @@ export interface FormRuntimeBootstrap {
   name: string;
   publishedVersion: number;
   schemaRevision: string;
+  protocolVersion: number;
   content: FormSchemaDocument;
 }
 
@@ -575,4 +578,3 @@ export interface FormRuntimeBootstrap {
 export interface FormRecordSubmitResult {
   recordId: number;
 }
-import type { EvolynIconPickerValue } from '@evolyn.do/ui';
