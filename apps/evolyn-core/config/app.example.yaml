@@ -87,7 +87,7 @@ email:
   smtpHost: 'smtp.qq.com'
   smtpPort: 465
   smtpUsername: '1570606465@qq.com'
-  smtpPassword: 'rmuwzvfvdkroihcc'
+  smtpPassword: ''
   smtpFrom: '1570606465@qq.com'
   smtpImplicitTls: false # 465 等隐式 TLS 端口填写 true；465 端口也会自动识别。
 
