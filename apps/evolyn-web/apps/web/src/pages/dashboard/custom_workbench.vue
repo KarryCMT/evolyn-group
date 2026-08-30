@@ -106,8 +106,13 @@ onBeforeRouteLeave(async () => {
   }
 }
 
-/* 设计器遵循工作台配置稿的浅色画布，避免继承成员端的深色偏好。 */
+/* 浅色模式保留设计器专属的卡片规格；暗黑模式直接继承全局主题变量。 */
 .custom-workbench-page {
+  /* 与成员端工作台保持一致：卡片边界轻、圆角和投影可感知。 */
+  --el-border-radius-base: 10px;
+}
+
+:global(html:not(.dark) .custom-workbench-page) {
   --el-bg-color: #ffffff;
   --el-bg-color-overlay: #ffffff;
   --el-fill-color: #f0f2f5;
@@ -119,8 +124,6 @@ onBeforeRouteLeave(async () => {
   --el-text-color-secondary: #909399;
   --el-border-color: #dcdfe6;
   --el-border-color-light: #e4e7ed;
-  /* 与成员端工作台保持一致：卡片边界轻、圆角和投影可感知。 */
-  --el-border-radius-base: 10px;
   --el-border-color-lighter: rgba(31, 35, 41, 0.06);
   --el-box-shadow-lighter: 0 0 2px 0 rgba(19, 29, 46, 0.02), 0 1px 4px 0 rgba(19, 29, 46, 0.06);
   --el-color-primary: #1677ff;

@@ -181,7 +181,7 @@ function notifyUnavailable() {}
   padding: 0 var(--el-space-xl);
   align-items: center;
   justify-content: space-between;
-  color: #202938;
+  color: var(--el-text-color-primary);
   background: var(--el-bg-color-page);
   font-size: var(--el-font-size-medium);
 
@@ -226,7 +226,7 @@ function notifyUnavailable() {}
     border: 0;
     align-items: center;
     justify-content: center;
-    color: #515968;
+    color: var(--el-text-color-regular);
     background: transparent;
     cursor: pointer;
     transition:
@@ -236,8 +236,8 @@ function notifyUnavailable() {}
       transform 0.18s ease;
 
     &:hover {
-      color: #1e2938;
-      background: rgb(54 65 82 / 8%);
+      color: var(--el-text-color-primary);
+      background: var(--el-fill-color-light);
     }
 
     &:focus-visible {
@@ -323,7 +323,7 @@ function notifyUnavailable() {}
     width: 1px;
     height: 20px;
     margin: 0 var(--el-space-xs);
-    background: #dfe3eb;
+    background: var(--el-border-color-lighter);
   }
 
   &__notice {
