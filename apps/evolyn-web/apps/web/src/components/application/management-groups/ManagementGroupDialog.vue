@@ -221,7 +221,7 @@ watch(visible, (isVisible) => {
   <el-dialog
     v-model="visible"
     class="management-group-dialog"
-    width="min(1140px, calc(100vw - 48px))"
+    width="min(960px, calc(100vw - 48px))"
     :show-close="false"
     :close-on-click-modal="false"
     append-to-body
@@ -493,7 +493,9 @@ watch(visible, (isVisible) => {
 .management-group-dialog__body {
   display: flex;
   box-sizing: border-box;
+  width: 100%;
   min-width: 0;
+  flex: 1;
   padding: var(--el-space-3xl) var(--el-space-3xl);
   flex-direction: column;
   gap: var(--el-space-xl);
@@ -501,6 +503,7 @@ watch(visible, (isVisible) => {
 
 .management-group-dialog__field {
   display: flex;
+  width: 100%;
   flex-direction: column;
   gap: var(--el-space-md);
   color: var(--el-text-color-primary);
