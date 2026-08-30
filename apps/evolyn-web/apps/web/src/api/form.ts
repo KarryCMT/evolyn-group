@@ -87,12 +87,22 @@ export function getFormRuntime(
  */
 export function submitFormRecord(
   payload: {
+    appCode: string;
+    entryCode?: string;
     formCode: string;
     publishedVersion: number;
     schemaRevision: string;
+    // 具体字段包装类型由 @evolyn.do/form/runtime 维护；Web API 层只负责透传。
     values: Record<string, unknown>;
+    hasResult: true;
+    dataOpId: string;
   },
   signal?: AbortSignal,
 ): Promise<FormRecordSubmitResult> {
   return http.post('/form-records', payload, { signal });
+}
+
+/** 每次用户提交生成独立幂等键；同一次 HTTP 调用及其网络重放复用同一载荷。 */
+export function createFormDataOperationId(): string {
+  return globalThis.crypto.randomUUID();
 }

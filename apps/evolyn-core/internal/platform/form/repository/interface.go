@@ -72,7 +72,9 @@ type FormVersionRepository interface {
 // FormRecordRepository 记录仓储（P2：追加写；流程引擎 Phase 3 增补审批
 // 编辑窄口：按 ID 读值与白名单字段合并更新，均经 Service 层快照校验）。
 type FormRecordRepository interface {
-	Create(ctx context.Context, record *model.FormRecord) (*model.FormRecord, error)
+	// CreateIdempotent 按 (tenant_id,data_op_id) 追加记录；幂等键已存在时返回
+	// 原记录且 created=false，调用方继续复核表单/版本/提交人是否为同一次操作。
+	CreateIdempotent(ctx context.Context, record *model.FormRecord) (createdRecord *model.FormRecord, created bool, err error)
 	// GetByID 按行 ID 加载（ctx 租户过滤兜底：跨租户记录即 NotFound）
 	GetByID(ctx context.Context, id uint) (*model.FormRecord, error)
 	// UpdateValues 整体替换 values JSONB（调用方必须先按发布快照校验合并

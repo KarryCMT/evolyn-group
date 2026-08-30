@@ -298,11 +298,17 @@ func (f *fakeVersionRepo) Migrate() error { return nil }
 
 type fakeRecordRepo struct{ records []*model.FormRecord }
 
-func (f *fakeRecordRepo) Create(ctx context.Context, record *model.FormRecord) (*model.FormRecord, error) {
+func (f *fakeRecordRepo) CreateIdempotent(ctx context.Context, record *model.FormRecord) (*model.FormRecord, bool, error) {
+	for _, existing := range f.records {
+		if existing.TenantID == record.TenantID && existing.DataOpID != nil && record.DataOpID != nil &&
+			*existing.DataOpID == *record.DataOpID {
+			return existing, false, nil
+		}
+	}
 	record.ID = uint(len(f.records) + 1)
 	clone := *record
 	f.records = append(f.records, &clone)
-	return &clone, nil
+	return &clone, true, nil
 }
 
 func (f *fakeRecordRepo) GetByID(ctx context.Context, id uint) (*model.FormRecord, error) {
@@ -355,6 +361,12 @@ func tenantCtx(tenantID uint) context.Context {
 
 func validDraft() model.JSONContent {
 	return model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":false},"label":"姓名","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"]}}`)
+}
+
+func submitBool(value bool) *bool { return &value }
+
+func submittedValue(data string, visible bool) model.SubmitFieldValue {
+	return model.SubmitFieldValue{Data: model.JSONContent(data), Visible: submitBool(visible)}
 }
 
 // ---- 用例 ----
@@ -517,23 +529,41 @@ func TestPublishAndRuntimeAndSubmit(t *testing.T) {
 
 	// 提交：历史版本（v1）合法；版本口令不符 409
 	result, err := svc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
-		FormCode: created.Code, PublishedVersion: 1, SchemaRevision: published.SchemaRevision,
-		Values: map[string]model.JSONContent{"_widget_a": model.JSONContent(`"张三"`)},
+		AppCode: "app_x", FormCode: created.Code, PublishedVersion: 1,
+		SchemaRevision: published.SchemaRevision, HasResult: submitBool(true),
+		DataOpID: "6e243bbb-7d57-4e59-952b-d530c53c6561",
+		Values:   map[string]model.SubmitFieldValue{"_widget_a": submittedValue(`"张三"`, true)},
 	})
 	assert.NoError(t, err)
 	assert.NotZero(t, result.RecordID)
 	assert.Equal(t, formRepo.formByCode(created.Code).ID, recordRepo.records[0].FormID)
 
+	// 同一 dataOpId 的网络重放返回原记录，不重复追加。
+	replayed, err := svc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_x", FormCode: created.Code, PublishedVersion: 1,
+		SchemaRevision: published.SchemaRevision, HasResult: submitBool(true),
+		DataOpID: "6e243bbb-7d57-4e59-952b-d530c53c6561",
+		Values:   map[string]model.SubmitFieldValue{"_widget_a": submittedValue(`"张三"`, true)},
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, result.RecordID, replayed.RecordID)
+	assert.Len(t, recordRepo.records, 1)
+
 	_, err = svc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
-		FormCode: created.Code, PublishedVersion: 1, SchemaRevision: "999",
-		Values: map[string]model.JSONContent{"_widget_a": model.JSONContent(`"张三"`)},
+		AppCode: "app_x", FormCode: created.Code, PublishedVersion: 1, SchemaRevision: "999",
+		HasResult: submitBool(true), DataOpID: "c98d5a1f-4719-4129-896a-6a422d7e786c",
+		Values: map[string]model.SubmitFieldValue{"_widget_a": submittedValue(`"张三"`, true)},
 	})
 	assert.ErrorIs(t, err, apperrors.ErrVersionConflict)
 
 	// v1 快照 allowBlank=false：空值提交回填字段错误
 	_, err = svc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
-		FormCode: created.Code, PublishedVersion: 1, SchemaRevision: published.SchemaRevision,
-		Values: map[string]model.JSONContent{"_widget_a": model.JSONContent(`null`)},
+		AppCode: "app_x", FormCode: created.Code, PublishedVersion: 1,
+		SchemaRevision: published.SchemaRevision, HasResult: submitBool(true),
+		DataOpID: "d25ab1f5-4734-4326-a45c-f86b493b7154",
+		Values: map[string]model.SubmitFieldValue{
+			"_widget_a": {Visible: submitBool(true)},
+		},
 	})
 	assert.ErrorIs(t, err, apperrors.ErrRecordInvalid)
 	var biz *httpx.BizError

@@ -72,6 +72,8 @@ type FormRecord struct {
 	ID                  uint            `json:"id" gorm:"autoIncrement;primaryKey"`
 	FormID              uint            `json:"formId" gorm:"not null"`
 	FormVersionID       uint            `json:"formVersionId" gorm:"not null"`
+	DataOpID            *string         `json:"dataOpId" gorm:"size:36"`  // 客户端提交幂等键；历史记录允许 NULL
+	EntryCode           *string         `json:"entryCode" gorm:"size:64"` // 提交入口菜单编码快照；预览直提允许 NULL
 	Values              JSONContent     `json:"values" gorm:"type:jsonb;not null"`
 	SubmittedByMemberID uint            `json:"submittedByMemberId" gorm:"not null"`
 	SubmittedAt         kernel.JSONTime `json:"submittedAt"`

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"evolyn/internal/platform/form/model"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,6 +42,35 @@ func values(pairs ...string) map[string]json.RawMessage {
 		out[pairs[i]] = json.RawMessage(pairs[i+1])
 	}
 	return out
+}
+
+func wrappedValue(data string, visible bool) model.SubmitFieldValue {
+	value := visible
+	return model.SubmitFieldValue{Data: model.JSONContent(data), Visible: &value}
+}
+
+func TestValidateSubmittedRecordValuesEnvelope(t *testing.T) {
+	content := snapshot(
+		snapItem("text", "_widget_visible", "姓名", map[string]any{"allowBlank": false}),
+		snapItem("text", "_widget_hidden", "内部字段", map[string]any{"visible": false}),
+		snapItem("separator", "_widget_sep", "分割线", nil),
+	)
+	cleaned, errs := ValidateSubmittedRecordValues(content, map[string]model.SubmitFieldValue{
+		"_widget_visible": wrappedValue(`"张三"`, true),
+		"_widget_hidden":  wrappedValue("", false),
+	})
+	assert.Empty(t, errs)
+	assert.Equal(t, "张三", cleaned["_widget_visible"])
+	assert.NotContains(t, cleaned, "_widget_hidden")
+
+	_, errs = ValidateSubmittedRecordValues(content, map[string]model.SubmitFieldValue{
+		"_widget_visible": wrappedValue(`"张三"`, false),
+		"_widget_hidden":  wrappedValue(`"越权值"`, false),
+		"_widget_sep":     wrappedValue("", true),
+	})
+	assert.Equal(t, []string{"字段可见状态与发布快照不一致"}, errs["_widget_visible"])
+	assert.Equal(t, []string{"隐藏字段不能提交值"}, errs["_widget_hidden"])
+	assert.Equal(t, []string{"分割线等布局字段不能进入提交值"}, errs["_widget_sep"])
 }
 
 func TestValidateRecordValuesRequired(t *testing.T) {

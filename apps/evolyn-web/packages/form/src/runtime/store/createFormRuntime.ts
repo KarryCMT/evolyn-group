@@ -13,6 +13,7 @@ import type {
   FormDraftPayload,
   FormIssue,
   FormRuntimeState,
+  FormSubmittedFieldValue,
   FormSubmitPayload,
   FormValue,
   FormValueSource,
@@ -22,7 +23,8 @@ import type {
  * 运行时会话工厂：每个 FormRenderer 创建独立 session，不使用全局 store 承载填写值。
  * 所有修改经 setValue/markTouched 等 action 进入，组件只消费只读状态；值表与字段状态
  * 按 widgetName 细粒度响应式追踪，输入一个字段仅重渲染该字段（及 R2 起的规则依赖项）。
- * 静态属性按保存值执行（方案 §3.5）：visible=false 不校验不收集，enable=false 禁用但值仍提交。
+ * 静态属性按保存值执行（方案 §3.5）：visible=false 不校验且只提交可见状态，
+ * enable=false 禁用但已有值仍提交。
  */
 export interface FormRuntimeOptions {
   /** 已发布 Schema（目标协议文档），为运行时唯一输入；工厂内部深拷贝锁定会话。 */
@@ -200,18 +202,21 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     state.issues = state.issues.filter((issue) => issue.source !== 'server');
   }
 
-  /** 组装稳定提交载荷：仅收集可见字段（隐藏字段不渲染不收集），深拷贝值快照。 */
+  /**
+   * 组装稳定提交载荷：数据字段均携带运行时最终 visible；隐藏字段只提交
+   * visible=false，空值省略 data，非空值提交深拷贝快照。
+   */
   function buildSubmitPayload(): FormSubmitPayload {
-    const values: Record<string, FormValue> = {};
+    const values: Record<string, FormSubmittedFieldValue> = {};
     for (const item of dataItems) {
       const key = item.widget.widgetName;
       const visible = state.fieldStates[key]?.visible ?? item.widget.visible;
+      const submitted: FormSubmittedFieldValue = { visible };
+      values[key] = submitted;
       if (!visible) continue;
       const value = state.values[key];
-      values[key] =
-        value === undefined || value === null
-          ? null
-          : (JSON.parse(JSON.stringify(value)) as FormValue);
+      if (value === undefined || value === null || value === '') continue;
+      submitted.data = JSON.parse(JSON.stringify(value)) as FormValue;
     }
     return {
       formId: options.formId ?? '',

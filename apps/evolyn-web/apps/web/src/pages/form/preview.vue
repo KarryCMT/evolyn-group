@@ -9,7 +9,7 @@ import { RiArrowGoBackFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getFormRuntime, submitFormRecord } from '~/api/form';
+import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
 import { loadFormPreviewDocument } from './preview-storage';
 // 运行时样式独立于设计器 style.css，最终用户填写页只加载关键 CSS。
 import '@evolyn.do/form/runtime/style.css';
@@ -93,10 +93,13 @@ const runtimeAdapter: FormRuntimeAdapter = {
     }
     try {
       await submitFormRecord({
+        appCode: appCode.value,
         formCode: payload.formId,
         publishedVersion: payload.publishedVersion,
         schemaRevision: payload.schemaRevision,
         values: payload.values,
+        hasResult: true,
+        dataOpId: createFormDataOperationId(),
       });
       return { accepted: true };
     } catch (error) {

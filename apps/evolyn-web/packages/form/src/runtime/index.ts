@@ -13,6 +13,7 @@ export type {
   FormRuntimeState,
   FormSubmitPayload,
   FormSubmitResult,
+  FormSubmittedFieldValue,
   FormValue,
   FormValueSource,
   RuntimeFieldEmits,

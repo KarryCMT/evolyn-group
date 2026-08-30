@@ -101,7 +101,7 @@ describe('FormRenderer 渲染', () => {
     await wrapper.find('form').trigger('submit');
     expect(submit).toHaveBeenCalledTimes(1);
     const payload = submit.mock.calls[0][0];
-    expect(payload.values).toEqual({ _widget_t: 'ok' });
+    expect(payload.values).toEqual({ _widget_t: { data: 'ok', visible: true } });
   });
 
   it('服务端字段错误回填到对应字段', async () => {

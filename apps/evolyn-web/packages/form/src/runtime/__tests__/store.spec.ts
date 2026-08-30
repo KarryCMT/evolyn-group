@@ -79,7 +79,10 @@ describe('createFormRuntime 初始化', () => {
     expect(runtime.state.fieldStates._widget_disabled.disabled).toBe(true);
     expect(runtime.state.fieldStates._widget_hidden.visible).toBe(false);
     const payload = runtime.buildSubmitPayload();
-    expect(payload.values).toEqual({ _widget_disabled: null });
+    expect(payload.values).toEqual({
+      _widget_disabled: { visible: true },
+      _widget_hidden: { visible: false },
+    });
   });
 });
 
@@ -148,7 +151,10 @@ describe('提交', () => {
       formId: '9',
       publishedVersion: 3,
       schemaRevision: '77',
-      values: { _widget_t: 'ok', _widget_m: [] },
+      values: {
+        _widget_t: { data: 'ok', visible: true },
+        _widget_m: { data: [], visible: true },
+      },
     });
   });
 

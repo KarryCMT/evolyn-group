@@ -269,12 +269,12 @@ func (f *FormController) GetRuntime(c *gin.Context) {
 }
 
 // @Summary 提交表单记录
-// @Description 携带发布双口令提交记录：服务端按对应发布快照逐字段终审（必填/类型/范围/选项命中/隐藏字段携值/未知键），失败返回 FORM_RECORD_INVALID 且 data.fieldErrors 按 widgetName 回填；历史发布版本仍可提交
+// @Description 携带应用/菜单上下文、客户端幂等键、发布双口令与字段 {data,visible} 快照提交记录：服务端按对应发布快照逐字段终审（必填/类型/范围/选项命中/可见状态/隐藏字段携值/未知键），失败返回 FORM_RECORD_INVALID 且 data.fieldErrors 按 widgetName 回填；历史发布版本仍可提交
 // @Accept json
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
-// @Param record body formmodel.SubmitRecordRequest true "表单编码、发布双口令与字段值（键=widgetName）"
+// @Param record body formmodel.SubmitRecordRequest true "提交上下文、发布双口令、幂等键与字段快照（键=widgetName，值={data?,visible}）"
 // @Success 200 {object} httpx.Response{data=formmodel.SubmitRecordResult}
 // @Failure 400 {object} httpx.Response "errCode=FORM_RECORD_INVALID（data.fieldErrors 按字段键回填）"
 // @Failure 409 {object} httpx.Response "errCode=FORM_VERSION_CONFLICT"

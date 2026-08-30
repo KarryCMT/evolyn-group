@@ -6,6 +6,7 @@ import { defineComponent, h } from 'vue';
 import ApplicationWorkspaceFormRuntime from '../ApplicationWorkspaceFormRuntime.vue';
 
 const api = vi.hoisted(() => ({
+  createFormDataOperationId: vi.fn(() => '8f85ff13-a326-45a6-8d09-12b93cc789b0'),
   getFormRuntime: vi.fn(),
   submitFormRecord: vi.fn(),
 }));
@@ -133,5 +134,50 @@ describe('applicationWorkspaceFormRuntime', () => {
       behavior: string;
     }>;
     expect(actions.map((action) => action.behavior)).toEqual(['submit']);
+  });
+
+  it('提交时补齐应用、菜单和幂等上下文，字段值保留 data/visible 包装', async () => {
+    api.getFormRuntime.mockResolvedValue(bootstrap('form_a'));
+    api.submitFormRecord.mockResolvedValue({ recordId: 1 });
+    const wrapper = mount(ApplicationWorkspaceFormRuntime, {
+      props: { appCode: 'app_a', asset: asset('form_a') },
+      global: {
+        directives: { loading: () => undefined },
+        stubs: {
+          ElButton: true,
+          ElResult: StateStub,
+          FormRuntimeSurface: SurfaceStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    const adapter = wrapper.findComponent(SurfaceStub).props('adapter') as {
+      submit: (payload: unknown, signal: AbortSignal) => Promise<{ accepted: boolean }>;
+    };
+    const result = await adapter.submit(
+      {
+        formId: 'form_a',
+        publishedVersion: 1,
+        schemaRevision: '1',
+        values: { _widget_a: { data: '测试', visible: true } },
+      },
+      new AbortController().signal,
+    );
+
+    expect(result.accepted).toBe(true);
+    expect(api.submitFormRecord).toHaveBeenCalledWith(
+      {
+        appCode: 'app_a',
+        entryCode: 'entry_form_a',
+        formCode: 'form_a',
+        publishedVersion: 1,
+        schemaRevision: '1',
+        values: { _widget_a: { data: '测试', visible: true } },
+        hasResult: true,
+        dataOpId: '8f85ff13-a326-45a6-8d09-12b93cc789b0',
+      },
+      expect.any(AbortSignal),
+    );
   });
 });

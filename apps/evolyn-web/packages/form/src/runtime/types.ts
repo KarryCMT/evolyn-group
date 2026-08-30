@@ -50,7 +50,17 @@ export interface FormSubmitPayload {
   formId: string;
   publishedVersion: number;
   schemaRevision: string;
-  values: Record<string, FormValue>;
+  /**
+   * 字段提交快照：每个字段同时携带运行时最终可见状态；空值省略 data，
+   * 避免 null、缺省和空字符串混用。布局控件不进入该映射。
+   */
+  values: Record<string, FormSubmittedFieldValue>;
+}
+
+/** 单字段提交值：data 为字段类型决定的 JSON 值，visible 为规则执行后的最终状态。 */
+export interface FormSubmittedFieldValue {
+  data?: FormValue;
+  visible: boolean;
 }
 
 /** 服务端提交结果；字段级错误按 widgetName 回填，非字段错误经 message 展示在操作区摘要。 */

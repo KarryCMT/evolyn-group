@@ -7,7 +7,7 @@ import { migrateFormSchema } from '@evolyn.do/form/schema';
 import { ApiError } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
 import { shallowRef, watch } from 'vue';
-import { getFormRuntime, submitFormRecord } from '~/api/form';
+import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
 // 应用工作区按需加载最终运行时关键样式，不引入设计器样式图。
 import '@evolyn.do/form/runtime/style.css';
 
@@ -42,10 +42,14 @@ const runtimeAdapter: FormRuntimeAdapter = {
     try {
       await submitFormRecord(
         {
+          appCode: props.appCode,
+          entryCode: props.asset.code,
           formCode: payload.formId,
           publishedVersion: payload.publishedVersion,
           schemaRevision: payload.schemaRevision,
           values: payload.values,
+          hasResult: true,
+          dataOpId: createFormDataOperationId(),
         },
         signal,
       );

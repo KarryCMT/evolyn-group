@@ -580,6 +580,8 @@ CREATE TABLE IF NOT EXISTS form_records (
     tenant_id BIGINT NOT NULL DEFAULT 1,
     form_id BIGINT NOT NULL REFERENCES forms(id),
     form_version_id BIGINT NOT NULL REFERENCES form_versions(id),
+    data_op_id varchar(36),
+    entry_code varchar(64),
     values JSONB NOT NULL,
     submitted_by_member_id BIGINT NOT NULL,
     submitted_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP,
@@ -588,6 +590,12 @@ CREATE TABLE IF NOT EXISTS form_records (
 
 CREATE INDEX IF NOT EXISTS idx_form_records_tenant_form
     ON form_records (tenant_id, form_id, id DESC);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_form_records_tenant_data_op
+    ON form_records (tenant_id, data_op_id);
+
+COMMENT ON COLUMN form_records.data_op_id IS '客户端生成的单次提交幂等 UUID；同一租户内唯一，历史记录允许为空';
+COMMENT ON COLUMN form_records.entry_code IS '触发提交的应用菜单节点公开编码快照；设计预览直提允许为空';
 
 -- 消息中心不可变逻辑消息（000039）：模板渲染后的展示快照固化存储，
 -- 多成员经收件箱共享同一行；(tenant_id, event_id) 唯一承担 Worker 重试幂等

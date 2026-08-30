@@ -2,11 +2,13 @@ package repository
 
 import (
 	"context"
+	"fmt"
 
 	"evolyn/internal/infrastructure"
 	"evolyn/internal/platform/form/model"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type formVersionRepository struct {
@@ -76,11 +78,26 @@ func NewRecordRepository(db *gorm.DB) FormRecordRepository {
 	return &formRecordRepository{db: db}
 }
 
-func (r *formRecordRepository) Create(ctx context.Context, record *model.FormRecord) (*model.FormRecord, error) {
-	if err := infrastructure.ResolveDB(ctx, r.db).Create(record).Error; err != nil {
-		return nil, err
+func (r *formRecordRepository) CreateIdempotent(ctx context.Context, record *model.FormRecord) (*model.FormRecord, bool, error) {
+	if record.DataOpID == nil || *record.DataOpID == "" {
+		return nil, false, fmt.Errorf("form record data operation id is required")
 	}
-	return record, nil
+	db := infrastructure.ResolveDB(ctx, r.db)
+	result := db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "tenant_id"}, {Name: "data_op_id"}},
+		DoNothing: true,
+	}).Create(record)
+	if result.Error != nil {
+		return nil, false, result.Error
+	}
+	if result.RowsAffected > 0 {
+		return record, true, nil
+	}
+	existing := new(model.FormRecord)
+	if err := db.Where("tenant_id = ? AND data_op_id = ?", record.TenantID, *record.DataOpID).First(existing).Error; err != nil {
+		return nil, false, err
+	}
+	return existing, false, nil
 }
 
 func (r *formRecordRepository) GetByID(ctx context.Context, id uint) (*model.FormRecord, error) {
@@ -97,5 +114,9 @@ func (r *formRecordRepository) UpdateValues(ctx context.Context, id uint, values
 }
 
 func (r *formRecordRepository) Migrate() error {
-	return r.db.AutoMigrate(&model.FormRecord{})
+	if err := r.db.AutoMigrate(&model.FormRecord{}); err != nil {
+		return err
+	}
+	return r.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_form_records_tenant_data_op
+		ON form_records (tenant_id, data_op_id)`).Error
 }

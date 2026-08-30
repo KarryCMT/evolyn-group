@@ -111,12 +111,24 @@ type FormRuntime struct {
 	Content          JSONContent `json:"content"`
 }
 
-// SubmitRecordRequest 提交记录（POST /form-records）：双口令定位发布快照。
+// SubmitFieldValue 单字段提交快照：Data 缺省与显式 null 均表示空值；Visible
+// 必须显式携带，由服务端与发布快照复核，避免客户端伪造隐藏状态绕过必填校验。
+type SubmitFieldValue struct {
+	Data    JSONContent `json:"data"`
+	Visible *bool       `json:"visible"`
+}
+
+// SubmitRecordRequest 提交记录（POST /form-records）：应用/菜单上下文、客户端
+// 幂等键、发布双口令及按 widgetName 包装的字段快照共同组成稳定提交协议。
 type SubmitRecordRequest struct {
-	FormCode         string                 `json:"formCode" binding:"required"`
-	PublishedVersion int                    `json:"publishedVersion" binding:"required"`
-	SchemaRevision   string                 `json:"schemaRevision" binding:"required"`
-	Values           map[string]JSONContent `json:"values" binding:"required"`
+	AppCode          string                      `json:"appCode" binding:"required"`
+	EntryCode        string                      `json:"entryCode"`
+	FormCode         string                      `json:"formCode" binding:"required"`
+	PublishedVersion int                         `json:"publishedVersion" binding:"required"`
+	SchemaRevision   string                      `json:"schemaRevision" binding:"required"`
+	Values           map[string]SubmitFieldValue `json:"values" binding:"required"`
+	HasResult        *bool                       `json:"hasResult" binding:"required"`
+	DataOpID         string                      `json:"dataOpId" binding:"required"`
 }
 
 // SubmitRecordResult 提交受理结果。

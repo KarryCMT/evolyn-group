@@ -11,6 +11,8 @@ import (
 	"math"
 	"regexp"
 	"strconv"
+
+	"evolyn/internal/platform/form/model"
 )
 
 // RecordFieldError 按字段键回填的错误集合。
@@ -150,6 +152,62 @@ func ValidateRecordValues(
 	for key := range rawValues {
 		if _, known := fields[key]; !known {
 			fieldErrors[key] = []string{"提交了表单中不存在的字段"}
+		}
+	}
+	return cleaned, fieldErrors
+}
+
+// ValidateSubmittedRecordValues 校验新版字段包装协议并解包 data，再复用
+// ValidateRecordValues 完成类型、范围与必填终审。所有数据字段必须显式携带
+// visible；布局字段不得进入 values，隐藏字段不得携带 data。
+func ValidateSubmittedRecordValues(
+	content map[string]any,
+	submitted map[string]model.SubmitFieldValue,
+) (map[string]any, RecordFieldErrors) {
+	fields, err := buildSnapshotFields(content)
+	if err != nil {
+		return nil, RecordFieldErrors{"": {"表单快照异常，请刷新后重试"}}
+	}
+	rawValues := make(map[string]json.RawMessage, len(submitted))
+	fieldErrors := RecordFieldErrors{}
+	for name, field := range fields {
+		wrapped, exists := submitted[name]
+		if field.widgetType == "separator" || field.widgetType == "button" {
+			if exists {
+				fieldErrors[name] = []string{"分割线等布局字段不能进入提交值"}
+			}
+			continue
+		}
+		if !exists || wrapped.Visible == nil {
+			fieldErrors[name] = []string{"缺少字段可见状态"}
+			continue
+		}
+		if *wrapped.Visible != field.visible {
+			fieldErrors[name] = []string{"字段可见状态与发布快照不一致"}
+			continue
+		}
+		if !field.visible {
+			if len(wrapped.Data) > 0 && !isNullJSON(json.RawMessage(wrapped.Data)) {
+				fieldErrors[name] = []string{"隐藏字段不能提交值"}
+			}
+			continue
+		}
+		if len(wrapped.Data) == 0 {
+			rawValues[name] = json.RawMessage(`null`)
+			continue
+		}
+		rawValues[name] = json.RawMessage(wrapped.Data)
+	}
+	for name := range submitted {
+		if _, known := fields[name]; !known {
+			fieldErrors[name] = []string{"提交了表单中不存在的字段"}
+		}
+	}
+
+	cleaned, valueErrors := ValidateRecordValues(content, rawValues)
+	for name, messages := range valueErrors {
+		if _, exists := fieldErrors[name]; !exists {
+			fieldErrors[name] = messages
 		}
 	}
 	return cleaned, fieldErrors

@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"evolyn/internal/contextx"
@@ -16,6 +18,7 @@ import (
 	"evolyn/internal/platform/httpx"
 	iammodel "evolyn/internal/platform/iam/model"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -176,14 +179,41 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 	if err != nil {
 		return nil, err
 	}
-	// 应用状态门控：归档应用的表单停止受理提交（与 bootstrap 同口径）。
-	app, notFound, err := s.apps.ApplicationByID(ctx, form.ApplicationID)
+	// 应用编码属于提交上下文的一部分：按编码加载并复核表单归属，禁止只凭
+	// formCode 跨应用构造请求；归档应用停止受理提交（与 bootstrap 同口径）。
+	appCode := strings.TrimSpace(req.AppCode)
+	app, notFound, err := s.apps.ApplicationByCode(ctx, appCode)
 	if err != nil {
 		return nil, err
 	}
-	if notFound || app.Status != applicationStatusActive {
+	if notFound || app.ID != form.ApplicationID || app.Status != applicationStatusActive {
 		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid,
-			fmt.Errorf("application %d unavailable for submit", form.ApplicationID))
+			fmt.Errorf("application %s unavailable for form %s submit", appCode, req.FormCode))
+	}
+	entryCode := strings.TrimSpace(req.EntryCode)
+	if entryCode != "" && s.references != nil {
+		references, rerr := s.references.ListFormReferences(ctx, form.ID)
+		if rerr != nil {
+			return nil, rerr
+		}
+		matched := false
+		for _, reference := range references {
+			if reference.ApplicationCode == appCode && reference.EntryID == entryCode {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return nil, httpx.Wrap(apperrors.ErrFormAppInvalid,
+				fmt.Errorf("entry %s does not reference form %s in application %s", entryCode, req.FormCode, appCode))
+		}
+	}
+	if req.HasResult == nil || !*req.HasResult {
+		return nil, httpx.Wrap(apperrors.ErrRecordInvalid, fmt.Errorf("hasResult must be true"))
+	}
+	operationID, err := uuid.Parse(strings.TrimSpace(req.DataOpID))
+	if err != nil {
+		return nil, httpx.Wrap(apperrors.ErrRecordInvalid, fmt.Errorf("invalid dataOpId: %w", err))
 	}
 	version, err := s.versions.GetByFormAndVersionNo(ctx, form.ID, req.PublishedVersion)
 	if err != nil {
@@ -202,11 +232,7 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 	if err := json.Unmarshal([]byte(version.Content), &content); err != nil {
 		return nil, fmt.Errorf("snapshot decode: %w", err)
 	}
-	rawValues := make(map[string]json.RawMessage, len(req.Values))
-	for key, value := range req.Values {
-		rawValues[key] = json.RawMessage(value)
-	}
-	cleaned, fieldErrors := ValidateRecordValues(content, rawValues)
+	cleaned, fieldErrors := ValidateSubmittedRecordValues(content, req.Values)
 	if len(fieldErrors) > 0 {
 		return nil, httpx.Wrap(apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": fieldErrors}),
 			fmt.Errorf("form %s record invalid: %d field(s) rejected", req.FormCode, len(fieldErrors)))
@@ -216,27 +242,45 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 	if err != nil {
 		return nil, err
 	}
-	var record *model.FormRecord
+	var (
+		record  *model.FormRecord
+		created bool
+	)
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		canonicalOperationID := operationID.String()
+		var entryCodeSnapshot *string
+		if entryCode != "" {
+			entryCodeSnapshot = &entryCode
+		}
 		draft := &model.FormRecord{
 			FormID:              form.ID,
 			FormVersionID:       version.ID,
+			DataOpID:            &canonicalOperationID,
+			EntryCode:           entryCodeSnapshot,
 			Values:              model.JSONContent(valuesJSON),
 			SubmittedByMemberID: member.ID,
 			SubmittedAt:         kernel.JSONTime(time.Now()),
 		}
 		draft.TenantID = tenantID
-		created, cerr := s.records.Create(tctx, draft)
+		stored, wasCreated, cerr := s.records.CreateIdempotent(tctx, draft)
 		if cerr != nil {
 			return cerr
 		}
-		record = created
+		if !wasCreated && (stored.FormID != draft.FormID ||
+			stored.FormVersionID != draft.FormVersionID ||
+			stored.SubmittedByMemberID != draft.SubmittedByMemberID ||
+			!sameJSON(stored.Values, draft.Values)) {
+			return httpx.Wrap(apperrors.ErrRecordInvalid,
+				fmt.Errorf("dataOpId %s reused by a different submission", canonicalOperationID))
+		}
+		record = stored
+		created = wasCreated
 		return nil
 	}); err != nil {
 		return nil, err
 	}
 
-	if s.audit != nil {
+	if created && s.audit != nil {
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "submit", ResourceType: "form_record",
 			ResourceID: strconv.FormatUint(uint64(record.ID), 10),
@@ -247,4 +291,14 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		})
 	}
 	return &model.SubmitRecordResult{RecordID: record.ID}, nil
+}
+
+// sameJSON 以解码后的 JSON 值比较幂等重放内容，避免 PostgreSQL jsonb 规范化
+// 键顺序后与客户端原始字节不同而误判为另一笔提交。
+func sameJSON(left, right model.JSONContent) bool {
+	var leftValue, rightValue any
+	if json.Unmarshal(left, &leftValue) != nil || json.Unmarshal(right, &rightValue) != nil {
+		return false
+	}
+	return reflect.DeepEqual(leftValue, rightValue)
 }
