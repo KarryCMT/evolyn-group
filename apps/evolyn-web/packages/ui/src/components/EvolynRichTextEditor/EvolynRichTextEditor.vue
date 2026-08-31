@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, shallowRef, useTemplateRef, watch } from 'vue';
-import type { Editor } from '@tiptap/core';
+import { Extension, type Editor } from '@tiptap/core';
 import Color from '@tiptap/extension-color';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
@@ -18,6 +18,29 @@ import type {
 } from './EvolynRichTextEditor.types';
 
 defineOptions({ name: 'EvolynRichTextEditor' });
+
+const supportedFontSizes = new Set(['12px', '14px', '16px', '18px', '20px', '22px']);
+
+/** 仅将受控字号写入 TextStyle 标记，保证 HTML 与安全净化协议一致。 */
+const FontSize = Extension.create({
+  name: 'fontSize',
+  addGlobalAttributes() {
+    return [
+      {
+        types: ['textStyle'],
+        attributes: {
+          fontSize: {
+            default: null,
+            parseHTML: (element) =>
+              supportedFontSizes.has(element.style.fontSize) ? element.style.fontSize : null,
+            renderHTML: (attributes) =>
+              attributes.fontSize ? { style: `font-size: ${attributes.fontSize}` } : {},
+          },
+        },
+      },
+    ];
+  },
+});
 
 const props = withDefaults(defineProps<EvolynRichTextEditorProps>(), {
   editable: true,
@@ -56,6 +79,7 @@ const editor = useEditor({
     StarterKit.configure({ link: false }),
     Underline,
     TextStyle,
+    FontSize,
     Color,
     TextAlign.configure({ types: ['heading', 'paragraph'] }),
     Link.configure({
@@ -116,6 +140,7 @@ function updateToolbarState() {
     alignLeft: activeEditor.isActive({ textAlign: 'left' }),
     link: activeEditor.isActive('link'),
     color: activeEditor.getAttributes('textStyle').color as string | undefined,
+    fontSize: Number.parseInt(activeEditor.getAttributes('textStyle').fontSize as string, 10) || undefined,
   };
 }
 
@@ -151,6 +176,11 @@ function executeCommand(command: EvolynRichTextFormatCommand) {
 function setColor(color: string) {
   if (!editor.value || toolbarDisabled.value) return;
   editor.value.chain().focus().setColor(color).run();
+}
+
+function setFontSize(fontSize: number) {
+  if (!editor.value || toolbarDisabled.value || !supportedFontSizes.has(`${fontSize}px`)) return;
+  editor.value.chain().focus().setMark('textStyle', { fontSize: `${fontSize}px` }).run();
 }
 
 function openLinkEditor(activeEditor: Editor) {
@@ -267,6 +297,7 @@ defineExpose({ focus, getHTML });
       :state="toolbarState"
       @command="executeCommand"
       @color-change="setColor"
+      @font-size-change="setFontSize"
       @image-select="requestImage"
     />
 

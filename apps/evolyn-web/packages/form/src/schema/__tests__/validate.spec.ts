@@ -206,7 +206,10 @@ describe('validateFormSchema 结构校验', () => {
         enable: true,
         visible: true,
         allowBlank: true,
-        style: 'dashed',
+        content: '区块分隔',
+        direction: 'horizontal',
+        borderStyle: 'double',
+        contentPosition: 'left',
       },
       label: '',
       description: '',
@@ -214,6 +217,13 @@ describe('validateFormSchema 结构校验', () => {
       lineWidth: 12,
     };
     expect(validateFormSchema(documentWith([separator])).valid).toBe(true);
+
+    const invalidSeparator = structuredClone(separator);
+    invalidSeparator.widget.borderStyle = 'wave';
+    expect(validateFormSchema(documentWith([invalidSeparator])).issues).toContainEqual({
+      path: 'content.items[0].widget.borderStyle',
+      message: 'borderStyle 必须是以下枚举值之一：none / hidden / dotted / dashed / solid / double / groove / ridge / inset / outset',
+    });
   });
 
   it('选项数组：必填、条目结构、value 唯一性', () => {
@@ -389,6 +399,20 @@ describe('validatePublishableFormSchema 发布白名单', () => {
     );
     expect(result.valid).toBe(false);
     expect(result.issues[0].path).toBe('content.items[1].widget.type');
+  });
+
+  it('子表单发布校验返回问题而非读取不存在的 content', () => {
+    const subform = createWidgetItem('subform');
+    if (subform.widget.type === 'subform') {
+      subform.widget.items.push(createWidgetItem('user'));
+    }
+
+    const result = validatePublishableFormSchema(documentWith([subform]));
+    expect(result.valid).toBe(false);
+    expect(result.issues.map((issue) => issue.path)).toEqual([
+      'content.items[0].widget.type',
+      'content.items[0].widget.items[0].widget.type',
+    ]);
   });
 });
 

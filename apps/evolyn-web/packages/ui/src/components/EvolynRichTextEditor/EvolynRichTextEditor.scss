@@ -77,6 +77,43 @@
     }
   }
 
+  &__font-size {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    height: var(--evolyn-rich-text-toolbar-button-size);
+
+    select {
+      box-sizing: border-box;
+      width: 48px;
+      height: 100%;
+      padding: 0 var(--el-space-xs);
+      color: inherit;
+      cursor: pointer;
+      border: 0;
+      border-radius: 6px;
+      background: transparent;
+      font-size: var(--el-font-size-extra-small);
+      outline: none;
+
+      &:hover:not(:disabled),
+      &:focus-visible {
+        color: var(--evolyn-rich-text-editor-primary);
+        background: var(--el-color-primary-light-9);
+      }
+
+      &:focus-visible {
+        outline: 2px solid var(--evolyn-rich-text-editor-primary);
+        outline-offset: 2px;
+      }
+
+      &:disabled {
+        cursor: not-allowed;
+        opacity: 0.45;
+      }
+    }
+  }
+
   &__color {
     input {
       position: absolute;

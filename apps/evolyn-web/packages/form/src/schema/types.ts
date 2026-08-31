@@ -160,6 +160,25 @@ export interface ComboCheckWidget extends FormWidgetCommon {
 
 export interface SeparatorWidget extends FormWidgetCommon {
   type: 'separator';
+  /** Element Plus Divider 默认插槽文案，独立于字段通用标题。 */
+  content?: string;
+  /** 对齐 Element Plus direction 属性；垂直分隔线在画布中仍作为独立布局项显示。 */
+  direction?: 'horizontal' | 'vertical';
+  /** 对齐 Element Plus border-style，接受 CSS 的全部标准边框样式。 */
+  borderStyle?:
+    | 'none'
+    | 'hidden'
+    | 'dotted'
+    | 'dashed'
+    | 'solid'
+    | 'double'
+    | 'groove'
+    | 'ridge'
+    | 'inset'
+    | 'outset';
+  /** 对齐 Element Plus content-position；仅横向分割线展示文案位置。 */
+  contentPosition?: 'left' | 'center' | 'right';
+  /** @deprecated v4 历史字段，读取时回退为 borderStyle。 */
   style?: 'solid' | 'dashed';
 }
 

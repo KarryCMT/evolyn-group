@@ -23,6 +23,9 @@ interface RichTextToolbarProps {
   state: EvolynRichTextToolbarState;
 }
 
+/** 与存储协议一致的可选字号，避免输出任意内联样式。 */
+const fontSizes = [12, 14, 16, 18, 20, 22] as const;
+
 const props = withDefaults(defineProps<RichTextToolbarProps>(), {
   disabled: false,
   imageEnabled: false,
@@ -31,6 +34,7 @@ const props = withDefaults(defineProps<RichTextToolbarProps>(), {
 const emit = defineEmits<{
   command: [command: EvolynRichTextFormatCommand];
   colorChange: [color: string];
+  fontSizeChange: [fontSize: number];
   imageSelect: [];
 }>();
 
@@ -40,6 +44,10 @@ function execute(command: EvolynRichTextFormatCommand) {
 
 function changeColor(event: Event) {
   emit('colorChange', (event.target as HTMLInputElement).value);
+}
+
+function changeFontSize(event: Event) {
+  emit('fontSizeChange', Number((event.target as HTMLSelectElement).value));
 }
 </script>
 
@@ -98,6 +106,19 @@ function changeColor(event: Event) {
     >
       <RiAlignLeft aria-hidden="true" />
     </button>
+    <label class="evolyn-rich-text-toolbar__font-size" title="字号">
+      <select
+        :value="props.state.fontSize ?? ''"
+        aria-label="字号"
+        :disabled="props.disabled"
+        @change="changeFontSize"
+      >
+        <option value="" disabled>字号</option>
+        <option v-for="fontSize in fontSizes" :key="fontSize" :value="fontSize">
+          {{ fontSize }}
+        </option>
+      </select>
+    </label>
     <label class="evolyn-rich-text-toolbar__color" title="文字颜色">
       <RiFontColor aria-hidden="true" />
       <input

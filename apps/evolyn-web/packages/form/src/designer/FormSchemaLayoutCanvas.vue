@@ -291,6 +291,8 @@ function allowCanvasMove(event: { related?: Element | null }): boolean {
   border-top: 1px solid var(--el-border-color);
 
   &__list {
+    // min-height 与底部拖放留白必须计入同一高度，避免空画布也产生纵向溢出。
+    box-sizing: border-box;
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     grid-auto-rows: max-content;

@@ -3,13 +3,13 @@ import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do
 import type { FormSchemaDocument } from '@evolyn.do/form/schema';
 import { FormWebRuntimeSurface } from '@evolyn.do/form/runtime-web';
 import { RiCloseFill, RiComputerFill, RiSmartphoneFill } from '@remixicon/vue';
-import { shallowRef } from 'vue';
+import { ref, shallowRef, watch } from 'vue';
 // 预览组件独立加载运行时样式，避免宿主页面依赖设计器样式副作用。
 import '@evolyn.do/form/runtime-web/style.css';
 
 defineOptions({ name: 'FormDesignPreviewDrawer' });
 
-defineProps<{
+const props = defineProps<{
   schema: FormSchemaDocument;
   formId: string;
   adapter: FormRuntimeAdapter;
@@ -25,6 +25,19 @@ const emit = defineEmits<{
 const visible = defineModel<boolean>({ default: false });
 /** 终端视口仅影响预览组件内部布局，不进入表单草稿协议。 */
 const viewport = shallowRef<'desktop' | 'mobile'>('desktop');
+/**
+ * 运行时按不可变 Schema 创建填写会话，设计器草稿却会在原对象上原地修改。
+ * 因此只在预览中以版本键重挂载运行时，使属性编辑立即反映；正式填写页仍维持
+ * 已发布 Schema 的稳定会话，编辑中的填写值不受影响。
+ */
+const runtimeSessionVersion = ref(0);
+watch(
+  () => props.schema,
+  () => {
+    runtimeSessionVersion.value += 1;
+  },
+  { deep: true },
+);
 const previewActions: FormRuntimeActionDefinition[] = [
   {
     key: 'save-draft',
@@ -103,6 +116,7 @@ function setViewport(value: 'desktop' | 'mobile'): void {
     <section class="form-design-preview" aria-label="表单预览内容">
       <div class="form-design-preview__stage" :class="`form-design-preview__stage--${viewport}`">
         <FormWebRuntimeSurface
+          :key="runtimeSessionVersion"
           class="form-design-preview__runtime"
           :schema="schema"
           :form-id="formId"
@@ -246,16 +260,21 @@ function setViewport(value: 'desktop' | 'mobile'): void {
   }
 
   &__stage {
-    width: 704px;
-    max-width: calc(100% - var(--el-space-4xl));
+    box-sizing: border-box;
+    position: relative;
+    width: 780px;
+    max-width: 100%;
     height: 100%;
     min-height: 0;
+    padding: 20px 0 0;
     margin: 0 auto;
     overflow: hidden;
 
     &--mobile {
-      width: 375px;
-      height: calc(100% - var(--el-space-6xl));
+      // 设计器中的移动端预览固定为常用手机视口，运行时内容区自行滚动。
+      width: 286px;
+      height: 599px;
+      padding: 0;
       margin-block: var(--el-space-6xl) 0;
       border: 1px solid var(--el-border-color-lighter);
       border-radius: var(--el-border-radius-large);

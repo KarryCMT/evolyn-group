@@ -20,6 +20,7 @@ import Draggable from 'vuedraggable';
 import type { FormItem, FormWidgetType, SubformWidget } from '../schema/types';
 import { SUBFORM_ALLOWED_WIDGET_TYPES } from '../schema/types';
 import { copyWidgetItem, createWidgetItem, widgetTypeLabel } from '../schema/dictionary';
+import FormSchemaCommonPropertyPanel from './FormSchemaCommonPropertyPanel.vue';
 
 /** 子表单专属属性区：基础信息、子字段、行权限与端侧展示策略集中配置。 */
 const model = defineModel<FormItem<SubformWidget>>({ required: true });
@@ -66,30 +67,7 @@ function normalizeStickyLimits(): void {
 
 <template>
   <el-form class="form-schema-subform-property" label-position="top" @submit.prevent>
-    <section class="form-schema-subform-property__section">
-      <h3 class="form-schema-subform-property__section-title">基础信息</h3>
-      <el-form-item label="标题">
-        <el-input v-model="model.label" :maxlength="64" placeholder="请输入子表单标题" />
-      </el-form-item>
-      <el-checkbox v-model="model.labelHidden">隐藏标题</el-checkbox>
-      <el-form-item label="字段键">
-        <el-input
-          :model-value="widget.widgetName"
-          placeholder="字段值与规则引用的稳定键"
-          @update:model-value="emit('renameKey', String($event ?? ''))"
-        />
-      </el-form-item>
-      <el-form-item label="描述信息">
-        <el-input
-          v-model="model.description"
-          type="textarea"
-          :rows="3"
-          :maxlength="500"
-          show-word-limit
-          placeholder="请输入子表单说明（选填）"
-        />
-      </el-form-item>
-    </section>
+    <FormSchemaCommonPropertyPanel v-model="model" @rename-key="emit('renameKey', $event)" />
 
     <section class="form-schema-subform-property__section">
       <div class="form-schema-subform-property__section-heading">

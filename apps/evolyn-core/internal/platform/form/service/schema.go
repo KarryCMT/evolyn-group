@@ -151,6 +151,11 @@ var widgetSpecs = map[string]widgetSpec{
 		"defaultValue": {kind: kindStringArray, maxItems: protoOptionMax},
 	}},
 	"separator": {label: "分割线", labelOptional: true, props: map[string]propSpec{
+		"content":         {kind: kindString, maxLen: protoLabelMax},
+		"direction":       {kind: kindEnum, enum: []string{"horizontal", "vertical"}},
+		"borderStyle":     {kind: kindEnum, enum: []string{"none", "hidden", "dotted", "dashed", "solid", "double", "groove", "ridge", "inset", "outset"}},
+		"contentPosition": {kind: kindEnum, enum: []string{"left", "center", "right"}},
+		// style 是 v4 历史字段；新设计器统一写入 borderStyle，读取旧草稿时仍允许发布。
 		"style": {kind: kindEnum, enum: []string{"solid", "dashed"}},
 	}},
 	"user": {label: "成员选择", props: map[string]propSpec{

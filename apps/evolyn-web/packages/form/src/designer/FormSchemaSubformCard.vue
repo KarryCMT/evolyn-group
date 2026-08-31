@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { CopyDocument, Delete } from '@element-plus/icons-vue';
+import { EvolynScrollbar } from '@evolyn.do/ui';
 import { ElIcon, ElPopconfirm } from 'element-plus';
 import { computed, nextTick, ref, watch } from 'vue';
 import Draggable from 'vuedraggable';
@@ -111,83 +112,85 @@ function isFormItem(entry: unknown): entry is FormItem {
       </div>
     </header>
 
-    <div ref="tableRef" class="form-schema-subform-card__table" @click.stop>
-      <div class="form-schema-subform-card__index-column" aria-hidden="true">
-        <div class="form-schema-subform-card__column-head"></div>
-        <div class="form-schema-subform-card__column-preview">1</div>
-      </div>
-      <Draggable
-        :model-value="widget.items"
-        :group="{
-          name: FORM_SCHEMA_SUBFORM_DRAG_GROUP,
-          pull: false,
-          put: [FORM_SCHEMA_DRAG_GROUP, FORM_SCHEMA_SUBFORM_DRAG_GROUP],
-        }"
-        :item-key="childKey"
-        class="form-schema-subform-card__columns"
-        ghost-class="form-schema-subform-card__ghost"
-        :animation="180"
-        :dragover-bubble="false"
-        handle=".form-schema-subform-card__column-head"
-        filter="button"
-        :prevent-on-filter="false"
-        :move="allowSubformMove"
-        @update:model-value="emit('replaceChildren', parentKey, $event)"
-      >
-        <template #item="{ element }">
-          <section
-            v-if="isFormItem(element)"
-            class="form-schema-subform-card__column"
-            :class="{ 'is-active': isChildSelected(element) }"
-            :data-child-key="element.widget.widgetName"
-            @click.stop="emit('selectChild', parentKey, element.widget.widgetName)"
-          >
-            <header class="form-schema-subform-card__column-head">
-              <span :title="element.label">{{ element.label }}</span>
-              <div class="form-schema-subform-card__column-actions">
-                <button
-                  type="button"
-                  title="复制子字段"
-                  @click.stop="emit('copyChild', parentKey, element.widget.widgetName)"
-                >
-                  <el-icon><CopyDocument /></el-icon>
-                </button>
-                <el-popconfirm
-                  placement="bottom-end"
-                  :width="200"
-                  hide-icon
-                  confirm-button-type="danger"
-                  title="确定删除此子字段？"
-                  cancel-button-text="取消"
-                  confirm-button-text="删除"
-                  @confirm="emit('removeChild', parentKey, element.widget.widgetName)"
-                >
-                  <template #reference>
-                    <button type="button" title="删除子字段" @click.stop>
-                      <el-icon><Delete /></el-icon>
-                    </button>
-                  </template>
-                </el-popconfirm>
+    <EvolynScrollbar class="form-schema-subform-card__table" @click.stop>
+      <div ref="tableRef" class="form-schema-subform-card__table-content">
+        <div class="form-schema-subform-card__index-column" aria-hidden="true">
+          <div class="form-schema-subform-card__column-head"></div>
+          <div class="form-schema-subform-card__column-preview">1</div>
+        </div>
+        <Draggable
+          :model-value="widget.items"
+          :group="{
+            name: FORM_SCHEMA_SUBFORM_DRAG_GROUP,
+            pull: false,
+            put: [FORM_SCHEMA_DRAG_GROUP, FORM_SCHEMA_SUBFORM_DRAG_GROUP],
+          }"
+          :item-key="childKey"
+          class="form-schema-subform-card__columns"
+          ghost-class="form-schema-subform-card__ghost"
+          :animation="180"
+          :dragover-bubble="false"
+          handle=".form-schema-subform-card__column-head"
+          filter="button"
+          :prevent-on-filter="false"
+          :move="allowSubformMove"
+          @update:model-value="emit('replaceChildren', parentKey, $event)"
+        >
+          <template #item="{ element }">
+            <section
+              v-if="isFormItem(element)"
+              class="form-schema-subform-card__column"
+              :class="{ 'is-active': isChildSelected(element) }"
+              :data-child-key="element.widget.widgetName"
+              @click.stop="emit('selectChild', parentKey, element.widget.widgetName)"
+            >
+              <header class="form-schema-subform-card__column-head">
+                <span :title="element.label">{{ element.label }}</span>
+                <div class="form-schema-subform-card__column-actions">
+                  <button
+                    type="button"
+                    title="复制子字段"
+                    @click.stop="emit('copyChild', parentKey, element.widget.widgetName)"
+                  >
+                    <el-icon><CopyDocument /></el-icon>
+                  </button>
+                  <el-popconfirm
+                    placement="bottom-end"
+                    :width="200"
+                    hide-icon
+                    confirm-button-type="danger"
+                    title="确定删除此子字段？"
+                    cancel-button-text="取消"
+                    confirm-button-text="删除"
+                    @confirm="emit('removeChild', parentKey, element.widget.widgetName)"
+                  >
+                    <template #reference>
+                      <button type="button" title="删除子字段" @click.stop>
+                        <el-icon><Delete /></el-icon>
+                      </button>
+                    </template>
+                  </el-popconfirm>
+                </div>
+              </header>
+              <div class="form-schema-subform-card__column-preview">
+                <FormSchemaItemPreview :item="element" />
               </div>
-            </header>
-            <div class="form-schema-subform-card__column-preview">
-              <FormSchemaItemPreview :item="element" />
-            </div>
-          </section>
-          <div v-else class="form-schema-subform-card__pending">正在添加子字段…</div>
-        </template>
-        <template #footer>
-          <button
-            v-if="widget.items.length === 0"
-            class="form-schema-subform-card__empty"
-            type="button"
-            @click="emit('select', parentKey)"
-          >
-            从左侧拖入字段，或在右侧添加子字段
-          </button>
-        </template>
-      </Draggable>
-    </div>
+            </section>
+            <div v-else class="form-schema-subform-card__pending">正在添加子字段…</div>
+          </template>
+          <template #footer>
+            <button
+              v-if="widget.items.length === 0"
+              class="form-schema-subform-card__empty"
+              type="button"
+              @click="emit('select', parentKey)"
+            >
+              从左侧拖入字段，或在右侧添加子字段
+            </button>
+          </template>
+        </Draggable>
+      </div>
+    </EvolynScrollbar>
   </article>
 </template>
 
@@ -261,15 +264,19 @@ function isFormItem(entry: unknown): entry is FormItem {
   }
 
   &__table {
-    display: flex;
     width: 100%;
     min-height: 96px;
-    overflow-x: auto;
     // 子表单是横向字段表格，拖拽占位块的边框不应触发纵向滚动条。
     overflow-y: hidden;
     background: var(--el-bg-color);
     border: 1px solid var(--el-border-color-lighter);
     border-radius: var(--el-border-radius-base);
+  }
+
+  &__table-content {
+    display: flex;
+    min-width: max-content;
+    min-height: 96px;
   }
 
   &__index-column {

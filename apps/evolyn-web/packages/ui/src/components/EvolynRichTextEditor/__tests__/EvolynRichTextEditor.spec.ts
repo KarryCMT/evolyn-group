@@ -32,6 +32,22 @@ describe('EvolynRichTextEditor', () => {
     );
   });
 
+  it('offers the supported font sizes', async () => {
+    const wrapper = mount(EvolynRichTextEditor, { props: { modelValue: '<p>字号文本</p>' } });
+
+    await vi.waitFor(() => expect(wrapper.find('.tiptap').exists()).toBe(true));
+    const fontSize = wrapper.get<HTMLSelectElement>('[aria-label="字号"]');
+    expect(fontSize.findAll('option').map((option) => option.text())).toEqual([
+      '字号',
+      '12',
+      '14',
+      '16',
+      '18',
+      '20',
+      '22',
+    ]);
+  });
+
   it('opens a compact link editor that accepts every supported protocol', async () => {
     const wrapper = mount(EvolynRichTextEditor, { props: { modelValue: '<p>链接文本</p>' } });
 

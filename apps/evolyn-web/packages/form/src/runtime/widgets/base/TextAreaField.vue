@@ -31,7 +31,7 @@ function onInput(event: Event): void {
     :id="inputId"
     class="evf-textarea"
     :class="{ 'evf-textarea--auto': widget.autoHeight }"
-    rows="3"
+    rows="1"
     :value="modelValue"
     :placeholder="placeholder"
     :maxlength="maxLength"

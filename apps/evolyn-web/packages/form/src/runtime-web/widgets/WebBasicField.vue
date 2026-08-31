@@ -19,6 +19,7 @@ import type {
   DateTimeWidget,
   NumberWidget,
   RadioGroupWidget,
+  SeparatorWidget,
   TextAreaWidget,
   TextWidget,
 } from '../../schema/types';
@@ -50,6 +51,7 @@ const radioWidget = computed(() => props.item.widget as RadioGroupWidget);
 const checkboxWidget = computed(() => props.item.widget as CheckboxGroupWidget);
 const comboWidget = computed(() => props.item.widget as ComboWidget);
 const comboCheckWidget = computed(() => props.item.widget as ComboCheckWidget);
+const separatorWidget = computed(() => props.item.widget as SeparatorWidget);
 const options = computed(() => readWidgetOptions(props.item.widget));
 const inputValue = computed({
   get: () => (typeof props.modelValue === 'string' ? props.modelValue : ''),
@@ -218,8 +220,14 @@ function isString(value: unknown): value is string {
       :value="option.value"
     />
   </el-select>
-  <el-divider v-else-if="type === 'separator'" class="evf-web-basic-field__divider">
-    <span v-if="item.label">{{ item.label }}</span>
+  <el-divider
+    v-else-if="type === 'separator'"
+    class="evf-web-basic-field__divider"
+    :direction="separatorWidget.direction ?? 'horizontal'"
+    :border-style="separatorWidget.borderStyle ?? separatorWidget.style ?? 'solid'"
+    :content-position="separatorWidget.contentPosition ?? 'center'"
+  >
+    <span v-if="separatorWidget.content">{{ separatorWidget.content }}</span>
   </el-divider>
 </template>
 

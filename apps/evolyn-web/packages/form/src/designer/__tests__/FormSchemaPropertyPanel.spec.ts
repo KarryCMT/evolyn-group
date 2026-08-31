@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import { ElSegmented, ElSelect } from 'element-plus';
+import { EvolynRichTextEditor } from '@evolyn.do/ui';
 import type { FormItem, FormMultitabLayout } from '../../schema/types';
 import { createWidgetItem } from '../../schema/dictionary';
 import FormSchemaPropertyPanel from '../FormSchemaPropertyPanel.vue';
@@ -42,11 +43,17 @@ describe('FormSchemaPropertyPanel', () => {
 
   it('字段属性通过副本事件提交，不直接修改父级字段对象', async () => {
     const wrapper = mount(FormSchemaPropertyPanel, { props: { item: field } });
-    await wrapper.find('input[placeholder="请输入字段名称"]').setValue('联系人');
+    await wrapper.find('input[placeholder="请输入标题"]').setValue('联系人');
     await nextTick();
 
     expect(field.label).toBe('姓名');
     expect(wrapper.emitted('update-item')?.at(-1)?.[0]).toMatchObject({ label: '联系人' });
+  });
+
+  it('字段说明使用富文本编辑器', () => {
+    const wrapper = mount(FormSchemaPropertyPanel, { props: { item: field } });
+
+    expect(wrapper.findComponent(EvolynRichTextEditor).exists()).toBe(true);
   });
 
   it('表单属性上抛布局切换，字段宽度按产品映射展示', async () => {

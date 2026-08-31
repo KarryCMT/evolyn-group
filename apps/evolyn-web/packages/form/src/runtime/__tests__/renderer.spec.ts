@@ -79,6 +79,40 @@ describe('FormRenderer 渲染', () => {
     expect(wrapper.find('.evf-field').exists()).toBe(false);
   });
 
+  it('分割线作为无值布局项仍按 Schema 的可见性渲染，并展示描述', () => {
+    const visibleDivider = schema([
+      item(
+        { type: 'separator', widgetName: '_widget_sep' },
+        { description: '<p>用于区分填写区块</p>' },
+      ),
+    ]);
+    const visibleWrapper = mount(FormRenderer, { props: { schema: visibleDivider } });
+    expect(visibleWrapper.find('[role="separator"]').exists()).toBe(true);
+    expect(visibleWrapper.find('.evf-field__description').text()).toBe('用于区分填写区块');
+    expect(
+      visibleWrapper.find('.evf-field__description').element.compareDocumentPosition(
+        visibleWrapper.find('[role="separator"]').element,
+      ),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    const hiddenLabelDivider = schema([
+      item(
+        { type: 'separator', widgetName: '_widget_hidden_label_sep', content: '独立分割线文案' },
+        { label: '隐藏的通用标题', labelHidden: true },
+      ),
+    ]);
+    const hiddenLabelWrapper = mount(FormRenderer, { props: { schema: hiddenLabelDivider } });
+    expect(hiddenLabelWrapper.find('[role="separator"]').exists()).toBe(true);
+    expect(hiddenLabelWrapper.text()).toContain('独立分割线文案');
+    expect(hiddenLabelWrapper.text()).not.toContain('隐藏的通用标题');
+
+    const hiddenDivider = schema([
+      item({ type: 'separator', widgetName: '_widget_hidden_sep', visible: false }),
+    ]);
+    const hiddenWrapper = mount(FormRenderer, { props: { schema: hiddenDivider } });
+    expect(hiddenWrapper.find('[role="separator"]').exists()).toBe(false);
+  });
+
   it('未知控件类型渲染受控「暂不支持」并上报 unsupported-field', () => {
     const doc = schema([item({ type: 'user', widgetName: '_widget_u' })]);
     const wrapper = mount(FormRenderer, {

@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, type Component } from 'vue';
 import type { FormItem } from '../../schema/types';
 import { isLayoutWidgetType } from '../../schema/codec';
+import { sanitizeRichTextDescription } from '../../schema/richTextDescription';
 import { fieldDescriptionId, fieldErrorId, fieldInputId, fieldLabelId } from '../field-dom';
 import { useFormRendererContext } from '../store/injection';
 import type { FormValue } from '../types';
@@ -26,7 +27,15 @@ const isLayout = computed(() => isLayoutWidgetType(props.item.widget.type));
 const widget = computed<Component | null>(() => registry.resolve(props.item.widget.type));
 const state = computed(() => runtime.value?.state.fieldStates[widgetName.value]);
 const modelValue = computed<FormValue>(() => runtime.value?.state.values[widgetName.value] ?? null);
+/**
+ * 分割线等布局项没有填写值，运行时不会为它们建立 fieldState；其显示状态直接
+ * 由 Schema 控件配置决定，避免被数据字段的 state?.visible 错误过滤掉。
+ */
+const isVisible = computed(() =>
+  isLayout.value ? props.item.widget.visible : (state.value?.visible ?? false),
+);
 const showDescription = computed(() => props.item.description !== '');
+const descriptionHtml = computed(() => sanitizeRichTextDescription(props.item.description));
 const inputId = computed(() => fieldInputId(widgetName.value));
 const labelId = computed(() => fieldLabelId(widgetName.value));
 // 桌面 12 栅格占列数；非法值回退整行，移动端由样式强制单列。
@@ -66,26 +75,33 @@ onBeforeUnmount(() => {
 
 <template>
   <div
-    v-if="state?.visible"
+    v-if="isVisible"
     ref="rootRef"
     class="evf-field"
     :class="{
-      'evf-field--error': state.errors.length > 0,
+      'evf-field--error': (state?.errors.length ?? 0) > 0,
       'evf-field--layout': isLayout,
-      'evf-field--disabled': state.disabled,
-      'evf-field--readonly': state.readonly,
+      'evf-field--disabled': state?.disabled ?? false,
+      'evf-field--readonly': state?.readonly ?? false,
     }"
     :style="isLayout ? undefined : { '--evf-field-span': span }"
   >
     <!-- 布局字段（分割线等）跳过通用外壳，直接渲染组件。 -->
     <template v-if="isLayout">
+      <!-- 分割线的说明属于布局提示，放在线条前与设计器画布保持一致。 -->
+      <div
+        v-if="showDescription"
+        :id="fieldDescriptionId(widgetName)"
+        class="evf-field__description"
+        v-html="descriptionHtml"
+      />
       <component
         :is="widget"
         :item="item"
         :model-value="modelValue"
-        :disabled="state.disabled"
-        :readonly="state.readonly"
-        :errors="state.errors"
+        :disabled="false"
+        :readonly="false"
+        :errors="[]"
       />
     </template>
     <template v-else>
@@ -93,9 +109,12 @@ onBeforeUnmount(() => {
         <span v-if="!item.widget.allowBlank" class="evf-field__required" aria-hidden="true">*</span>
         <span class="evf-field__label-text">{{ item.label }}</span>
       </label>
-      <p v-if="showDescription" :id="fieldDescriptionId(widgetName)" class="evf-field__description">
-        {{ item.description }}
-      </p>
+      <div
+        v-if="showDescription"
+        :id="fieldDescriptionId(widgetName)"
+        class="evf-field__description"
+        v-html="descriptionHtml"
+      />
       <div class="evf-field__control">
         <component
           :is="widget ?? UnsupportedField"

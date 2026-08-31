@@ -223,7 +223,8 @@ func TestValidateFormSchemaLabelAndLimits(t *testing.T) {
 	sep := map[string]any{
 		"widget": map[string]any{
 			"type": "separator", "widgetName": "_widget_sep",
-			"enable": true, "visible": true, "allowBlank": true, "style": "dashed",
+			"enable": true, "visible": true, "allowBlank": true,
+			"content": "区块分隔", "direction": "horizontal", "borderStyle": "double", "contentPosition": "left",
 		},
 		"label": "", "description": "", "labelHidden": false, "lineWidth": 12,
 	}

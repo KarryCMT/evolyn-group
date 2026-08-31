@@ -16,17 +16,18 @@ defineEmits<{
 }>();
 
 const hasLabel = computed(() => Boolean(props.item.label.trim()));
+const showLabel = computed(() => !props.item.labelHidden && hasLabel.value);
 const isLayoutItem = computed(() => isLayoutWidgetType(props.item.widget.type));
 </script>
 
 <template>
   <article
     class="form-schema-field-card"
-    :class="{ 'is-active': selected, 'is-label-empty': !hasLabel, 'is-layout': isLayoutItem }"
+    :class="{ 'is-active': selected, 'is-label-empty': !showLabel, 'is-layout': isLayoutItem }"
     @click="$emit('select', item.widget.widgetName)"
   >
     <header class="form-schema-field-card__header">
-      <span v-if="hasLabel" class="form-schema-field-card__label">
+      <span v-if="showLabel" class="form-schema-field-card__label">
         {{ item.label }}
         <span v-if="!item.widget.allowBlank" class="form-schema-field-card__required">*</span>
       </span>

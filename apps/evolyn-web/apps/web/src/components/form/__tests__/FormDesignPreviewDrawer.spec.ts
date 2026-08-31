@@ -2,7 +2,7 @@ import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime-web';
 import type { FormSchemaDocument } from '@evolyn.do/form/schema';
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
-import { defineComponent, h } from 'vue';
+import { defineComponent, h, nextTick, reactive } from 'vue';
 import FormDesignPreviewDrawer from '../FormDesignPreviewDrawer.vue';
 
 const DrawerStub = defineComponent({
@@ -49,6 +49,30 @@ describe('formDesignPreviewDrawer', () => {
 
     expect(wrapper.findComponent(SurfaceStub).vm.$.uid).toBe(initialUid);
     expect(wrapper.findComponent(SurfaceStub).props('layout')).toBe('mobile');
+  });
+
+  it('设计草稿原地更新时重建运行时会话，以同步最新字段属性', async () => {
+    const liveSchema = reactive({
+      content: {
+        type: 'form' as const,
+        layout: 'normal' as const,
+        items: [],
+        layout_fields: [],
+        field_layout: [],
+      },
+    }) as FormSchemaDocument;
+    const wrapper = mount(FormDesignPreviewDrawer, {
+      props: { modelValue: true, schema: liveSchema, formId: 'form_a', adapter },
+      global: {
+        stubs: { ElDrawer: DrawerStub, FormWebRuntimeSurface: SurfaceStub },
+      },
+    });
+    const initialUid = wrapper.findComponent(SurfaceStub).vm.$.uid;
+
+    liveSchema.content.layout = 'grid-2';
+    await nextTick();
+
+    expect(wrapper.findComponent(SurfaceStub).vm.$.uid).not.toBe(initialUid);
   });
 
   it('标准 Drawer header 关闭能力回传 v-model', async () => {

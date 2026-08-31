@@ -14,6 +14,7 @@ import {
 } from './dictionary';
 import {
   type FormSchemaDocument,
+  type FormItem,
   type FormWidgetType,
   PUBLISHABLE_WIDGET_TYPES,
   SUBFORM_ALLOWED_WIDGET_TYPES,
@@ -59,17 +60,17 @@ export function validatePublishableFormSchema(input: unknown): FormSchemaValidat
   const base = validateFormSchema(input);
   if (!base.valid || !base.document) return base;
   const issues: FormSchemaIssue[] = [];
-  collectUnsupportedWidgets(base.document, 'content.items', issues);
+  collectUnsupportedWidgets(base.document.content.items, 'content.items', issues);
   if (issues.length > 0) return { valid: false, document: null, issues };
   return base;
 }
 
 function collectUnsupportedWidgets(
-  document: FormSchemaDocument,
+  items: FormItem[],
   itemsPath: string,
   issues: FormSchemaIssue[],
 ): void {
-  document.content.items.forEach((item, index) => {
+  items.forEach((item, index) => {
     const path = `${itemsPath}[${index}].widget.type`;
     if (!PUBLISHABLE_WIDGET_TYPES.includes(item.widget.type)) {
       issues.push({
@@ -78,7 +79,9 @@ function collectUnsupportedWidgets(
       });
     }
     if (item.widget.type === 'subform') {
-      collectUnsupportedWidgets(item.widget, `${itemsPath}[${index}].widget.items`, issues);
+      // 子表单的字段数组位于 widget.items，而不是文档根 content.items。
+      // 递归直接传入该数组，避免发布校验将子表单控件误作完整表单文档读取。
+      collectUnsupportedWidgets(item.widget.items, `${itemsPath}[${index}].widget.items`, issues);
     }
   });
 }

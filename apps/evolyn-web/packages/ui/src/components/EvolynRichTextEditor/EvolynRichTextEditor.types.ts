@@ -12,6 +12,8 @@ export interface EvolynRichTextToolbarState {
   alignLeft: boolean;
   link: boolean;
   color?: string;
+  /** 当前光标或选区的字号（px）。 */
+  fontSize?: number;
 }
 
 /** 工具栏发出的格式操作。 */
