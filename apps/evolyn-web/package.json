@@ -29,6 +29,8 @@
     "build": "turbo run build",
     "build:docs": "pnpm -F @evolyn.do/docs run build",
     "build:gulp": "gulp -f build/gulpfile.ts",
+    "build:form": "pnpm -F @evolyn.do/form run build",
+    "build:ui": "pnpm -F @evolyn.do/ui run build",
     "test": "turbo run test",
     "test:ui": "pnpm -F @evolyn.do/ui run test:ui",
     "test:coverage": "turbo run test:coverage",

@@ -1,7 +1,7 @@
 <template>
   <div class="form-schema-item-preview" :data-widget-type="widget.type">
     <div
-      v-if="descriptionHtml"
+      v-if="descriptionHtml && widget.type !== 'separator'"
       class="form-schema-item-preview__description"
       v-html="descriptionHtml"
     />
@@ -13,7 +13,8 @@
       :border-style="separatorBorderStyle"
       :content-position="separatorContentPosition"
     >
-      <span v-if="separatorContent">{{ separatorContent }}</span>
+      <span v-if="separatorDescriptionHtml" v-html="separatorDescriptionHtml" />
+      <span v-else-if="separatorContent">{{ separatorContent }}</span>
     </el-divider>
     <!-- 文本/多行文本 -->
     <el-input
@@ -76,6 +77,9 @@ const separatorContentPosition = computed(() =>
 );
 const separatorContent = computed(() =>
   widget.value.type === 'separator' ? (widget.value.content ?? '') : '',
+);
+const separatorDescriptionHtml = computed(() =>
+  widget.value.type === 'separator' ? descriptionHtml.value : '',
 );
 const placeholderText = computed(() => {
   const placeholder = (widget.value as { placeholder?: string }).placeholder;

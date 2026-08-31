@@ -88,13 +88,7 @@ onBeforeUnmount(() => {
   >
     <!-- 布局字段（分割线等）跳过通用外壳，直接渲染组件。 -->
     <template v-if="isLayout">
-      <!-- 分割线的说明属于布局提示，放在线条前与设计器画布保持一致。 -->
-      <div
-        v-if="showDescription"
-        :id="fieldDescriptionId(widgetName)"
-        class="evf-field__description"
-        v-html="descriptionHtml"
-      />
+      <!-- 分割线等布局项自行决定说明内容的呈现位置。 -->
       <component
         :is="widget"
         :item="item"

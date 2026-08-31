@@ -3,6 +3,7 @@ import {
   RiAlignLeft,
   RiBold,
   RiFontColor,
+  RiFontSize,
   RiFormatClear,
   RiImageAddLine,
   RiItalic,
@@ -107,6 +108,7 @@ function changeFontSize(event: Event) {
       <RiAlignLeft aria-hidden="true" />
     </button>
     <label class="evolyn-rich-text-toolbar__font-size" title="字号">
+      <RiFontSize aria-hidden="true" />
       <select
         :value="props.state.fontSize ?? ''"
         aria-label="字号"

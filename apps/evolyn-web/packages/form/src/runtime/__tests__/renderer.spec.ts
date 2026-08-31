@@ -79,7 +79,7 @@ describe('FormRenderer 渲染', () => {
     expect(wrapper.find('.evf-field').exists()).toBe(false);
   });
 
-  it('分割线作为无值布局项仍按 Schema 的可见性渲染，并展示描述', () => {
+  it('分割线作为无值布局项仍按 Schema 的可见性渲染，并将描述作为文案', () => {
     const visibleDivider = schema([
       item(
         { type: 'separator', widgetName: '_widget_sep' },
@@ -88,12 +88,8 @@ describe('FormRenderer 渲染', () => {
     ]);
     const visibleWrapper = mount(FormRenderer, { props: { schema: visibleDivider } });
     expect(visibleWrapper.find('[role="separator"]').exists()).toBe(true);
-    expect(visibleWrapper.find('.evf-field__description').text()).toBe('用于区分填写区块');
-    expect(
-      visibleWrapper.find('.evf-field__description').element.compareDocumentPosition(
-        visibleWrapper.find('[role="separator"]').element,
-      ),
-    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(visibleWrapper.find('.evf-divider__label').text()).toBe('用于区分填写区块');
+    expect(visibleWrapper.find('.evf-field__description').exists()).toBe(false);
 
     const hiddenLabelDivider = schema([
       item(
