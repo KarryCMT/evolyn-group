@@ -73,7 +73,12 @@ function openWorkbenchEditor() {
   void router.push({ name: 'custom_workbench' });
 }
 
-/** 模板中心和通讯录页面尚未落地，先保留可复用的视觉入口。 */
+/** 顶栏通讯录统一进入租户管理中的内部组织，避免与互联组织入口混淆。 */
+function openInternalOrganization() {
+  void router.push({ name: 'tenant-organization' });
+}
+
+/** 模板中心等尚未落地的入口暂保留当前无操作行为。 */
 function notifyUnavailable() {}
 </script>
 
@@ -128,7 +133,7 @@ function notifyUnavailable() {}
             <RiLayoutGridFill />
             <span>模板中心</span>
           </button>
-          <button class="top-navigation__nav-button" type="button" @click="notifyUnavailable">
+          <button class="top-navigation__nav-button" type="button" @click="openInternalOrganization">
             <RiContactsBook3Fill />
             <span>通讯录</span>
           </button>

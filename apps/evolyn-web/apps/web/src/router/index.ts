@@ -1,7 +1,16 @@
+import { useGlobSetting } from '@evolyn.do/hooks';
 import { createRouter, createWebHistory } from 'vue-router';
 import { useAuth } from '~/composables';
-import { useGlobSetting } from '@evolyn.do/hooks';
 import routes from './modules/index';
+
+/**
+ * 构造登录页跳转地址。Vue Router 的对象式 query 会保留路径中的斜杠，
+ * 因此 redirect 必须显式编码，避免回跳地址与外层 URL 结构混淆。
+ */
+function createLoginRedirectPath(redirect: string): string {
+  return `/auth/login?redirect=${encodeURIComponent(redirect)}`;
+}
+
 // 手动维护的路由表：不使用 vite-ssg / unplugin-vue-router 的文件式自动路由，
 // 路由路径与 src/pages/ 目录结构一一对应，新增页面时在此登记
 export const router = createRouter({
@@ -25,7 +34,7 @@ router.beforeEach(async (to) => {
   const { isAuthenticated, userInfo, loadUserInfo } = useAuth();
 
   if (!to.meta.public && !isAuthenticated.value) {
-    return { name: 'login', query: { redirect: to.fullPath } };
+    return createLoginRedirectPath(to.fullPath);
   }
 
   // 仅在已恢复聚合信息时才让已登录用户离开登录页。后端不可用时，
@@ -40,7 +49,7 @@ router.beforeEach(async (to) => {
   if (!to.meta.public && isAuthenticated.value && !userInfo.value) {
     const info = await loadUserInfo();
     if (!info) {
-      return { name: 'login', query: { redirect: to.fullPath } };
+      return createLoginRedirectPath(to.fullPath);
     }
   }
 });

@@ -5,6 +5,7 @@ import type {
   TenantMembership,
   UserInfoResult,
 } from '~/types';
+import { ApiError, getRequestMessage, getToken, removeToken, setToken } from '@evolyn.do/utils';
 import { defineStore } from 'pinia';
 import { computed, shallowRef } from 'vue';
 import {
@@ -15,7 +16,6 @@ import {
   listTenants,
   verifyMfaLogin,
 } from '~/api/auth';
-import { getToken, removeToken, setToken } from '@evolyn.do/utils';
 import { useNotificationStore } from '~/stores/notification';
 
 // 会话域 store（pinia setup store）：token 单例状态 + 登录/登出/切换租户动作 +
@@ -85,14 +85,22 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * 拉取登录聚合信息（/auth/userinfo）并存入 store：属引导增强数据，失败只告警
-   * 不抛出，不阻断登录/注册主流程（保留旧值，消费方按空值自行降级展示）
+   * 拉取登录聚合信息（/auth/userinfo）并存入 store：属引导增强数据，失败不抛出，
+   * 不阻断登录/注册主流程（保留旧值，消费方按空值自行降级展示）。
    */
   async function loadUserInfo() {
     try {
       userInfo.value = await getUserInfo();
     } catch (err) {
       console.warn('[auth] 登录聚合信息拉取失败', err);
+      // 该请求会在登录成功后由 store 内部发起并吞掉异常；5xx 若只写控制台，
+      // 用户会停留在登录页却不知道服务端发生故障，因此在此补充一次可见提示。
+      if (err instanceof ApiError && err.status >= 500) {
+        getRequestMessage().createMessage.error({
+          content: '服务暂时不可用，请稍后重试',
+          key: 'auth_userinfo_server_error',
+        });
+      }
     }
     return userInfo.value;
   }

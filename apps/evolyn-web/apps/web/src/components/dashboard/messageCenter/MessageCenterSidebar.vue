@@ -9,6 +9,7 @@ import {
   RiLinksFill,
   RiMailFill,
   RiSettings3Fill,
+  RiTaskFill,
 } from '@remixicon/vue';
 import { computed } from 'vue';
 
@@ -39,6 +40,8 @@ const enterpriseCategories = computed(() =>
 const categoryIcons = {
   'data-reminder': RiBarChartBoxFill,
   'app-log': RiApps2Fill,
+  // 审批动态使用任务图标，和待办/流转语义保持一致。
+  approval: RiTaskFill,
   'document-activity': RiFileTextFill,
   'usage-reminder': RiLineChartFill,
   'contacts-management': RiContactsBookFill,
