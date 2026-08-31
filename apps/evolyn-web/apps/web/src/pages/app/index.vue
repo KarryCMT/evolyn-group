@@ -23,11 +23,8 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, markRaw, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import {
-  createApplicationMenuGroup,
-  updateApplicationMenuEntry,
-} from '~/api/applications';
-import { createForm, updateForm } from '~/api/form';
+import { createApplicationMenuGroup, updateApplicationMenuEntry } from '~/api/applications';
+import { createForm, deleteForm, updateForm } from '~/api/form';
 import ApplicationEmptyState from '~/components/application/runtime/ApplicationEmptyState.vue';
 import ApplicationWorkspaceShell from '~/components/application/workspace/ApplicationWorkspaceShell.vue';
 import FormAppearanceDialog from '~/components/application/workspace/FormAppearanceDialog.vue';
@@ -100,6 +97,8 @@ const formAppearanceVisible = shallowRef(false);
 /** 当前准备移动的菜单节点；实际位置仅在确认后由服务端原子更新。 */
 const menuMoveTarget = shallowRef<ApplicationWorkspaceAsset | null>(null);
 const menuMoveVisible = shallowRef(false);
+/** 删除请求进行中的表单公开编码，避免同一资产被重复提交删除。 */
+const deletingFormCode = shallowRef('');
 
 /** 弹窗状态只由页面层收口：关闭时同时清理目标，下一次打开必定使用最新菜单快照。 */
 function closeFormAppearanceDialog() {
@@ -432,6 +431,11 @@ function handleWorkspaceAssetAction(payload: {
     return;
   }
 
+  if (payload.action === 'delete' && payload.asset.type === 'form') {
+    void deleteWorkspaceForm(payload.asset);
+    return;
+  }
+
   const actionLabels: Record<ApplicationWorkspaceAssetAction, string> = {
     edit: '编辑',
     rename: '修改名称和图标',
@@ -445,6 +449,58 @@ function handleWorkspaceAssetAction(payload: {
     delete: '删除',
   };
   ElMessage.info(`${actionLabels[payload.action]}「${payload.asset.label}」功能将在后续版本接入`);
+}
+
+/**
+ * 删除侧栏表单：资产删除是唯一入口，后端会原子摘除对应菜单节点。成功后重新
+ * 拉取菜单快照并移除路由中的 formCode，避免已删除资产继续作为当前上下文。
+ */
+async function deleteWorkspaceForm(asset: ApplicationWorkspaceAsset) {
+  const formCode = asset.targetCode;
+  if (!formCode) {
+    ElMessage.error('表单信息不完整，暂无法删除');
+    return;
+  }
+  if (deletingFormCode.value) return;
+
+  try {
+    await ElMessageBox.confirm(
+      `删除「${asset.label}」后，表单将从当前应用菜单移除。已发布版本会保留用于历史记录追溯，是否继续？`,
+      '删除表单',
+      {
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+        type: 'warning',
+      },
+    );
+  } catch {
+    // 取消或关闭确认框属于正常交互，不显示提示。
+    return;
+  }
+
+  deletingFormCode.value = formCode;
+  try {
+    await deleteForm(formCode);
+    if (activeAssetCode.value === asset.code) {
+      workspaceMode.value = 'fill';
+      activeAssetCode.value = '';
+    }
+    await reloadMenu();
+    // 路由参数不能再保留已删除表单，否则页面刷新会反复尝试恢复不存在的节点。
+    await router.replace({ name: 'App', params: { appCode: appCode.value, formCode: '' } });
+    ElMessage.success('表单已删除，并已从应用菜单移除');
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'FORM_NOT_FOUND') {
+      ElMessage.warning('表单已被删除，已为你刷新菜单');
+      await reloadMenu();
+    } else if (error instanceof ApiError && error.errCode === 'FORBIDDEN') {
+      ElMessage.error('你没有删除该表单的权限');
+    } else {
+      ElMessage.error('删除表单失败，请稍后重试');
+    }
+  } finally {
+    deletingFormCode.value = '';
+  }
 }
 
 /**

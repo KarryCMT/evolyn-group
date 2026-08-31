@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { CopyDocument, Delete } from '@element-plus/icons-vue';
 import { ElIcon, ElPopconfirm } from 'element-plus';
-import { computed } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import Draggable from 'vuedraggable';
 import type { FormItem, SubformWidget } from '../schema/types';
 import { SUBFORM_ALLOWED_WIDGET_TYPES } from '../schema/types';
@@ -32,6 +32,7 @@ const emit = defineEmits<{
 const widget = computed(() => props.item.widget);
 const parentKey = computed(() => widget.value.widgetName);
 const isOuterSelected = computed(() => props.selectedKey === parentKey.value);
+const tableRef = ref<HTMLElement>();
 
 function childKey(entry: unknown): string {
   if (isFormItem(entry)) return entry.widget.widgetName;
@@ -41,6 +42,26 @@ function childKey(entry: unknown): string {
 function isChildSelected(item: FormItem): boolean {
   return props.selectedKey === subformSelectionKey(parentKey.value, item.widget.widgetName);
 }
+
+/** 子字段选中时，父级不应因鼠标仍位于其内部而显示悬停/选中视觉。 */
+const hasChildSelected = computed(() => widget.value.items.some(isChildSelected));
+
+/** 新增或选中超出可视区的子字段时，将横向表格定位到该字段，避免字段标题停在裁切边缘。 */
+watch(
+  () => props.selectedKey,
+  async () => {
+    const table = tableRef.value;
+    const child = widget.value.items.find(isChildSelected);
+    if (!table || !child) return;
+
+    await nextTick();
+    const column = Array.from(
+      table.querySelectorAll<HTMLElement>('.form-schema-subform-card__column'),
+    ).find((element) => element.dataset.childKey === child.widget.widgetName);
+    column?.scrollIntoView?.({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+  },
+  { flush: 'post' },
+);
 
 function allowSubformMove(event: { draggedContext?: { element?: unknown } }): boolean {
   const entry = event.draggedContext?.element;
@@ -59,7 +80,7 @@ function isFormItem(entry: unknown): entry is FormItem {
 <template>
   <article
     class="form-schema-subform-card"
-    :class="{ 'is-active': isOuterSelected }"
+    :class="{ 'is-active': isOuterSelected, 'has-child-selected': hasChildSelected }"
     @click="emit('select', parentKey)"
   >
     <header class="form-schema-subform-card__header">
@@ -90,7 +111,7 @@ function isFormItem(entry: unknown): entry is FormItem {
       </div>
     </header>
 
-    <div class="form-schema-subform-card__table" @click.stop>
+    <div ref="tableRef" class="form-schema-subform-card__table" @click.stop>
       <div class="form-schema-subform-card__index-column" aria-hidden="true">
         <div class="form-schema-subform-card__column-head"></div>
         <div class="form-schema-subform-card__column-preview">1</div>
@@ -106,6 +127,10 @@ function isFormItem(entry: unknown): entry is FormItem {
         class="form-schema-subform-card__columns"
         ghost-class="form-schema-subform-card__ghost"
         :animation="180"
+        :dragover-bubble="false"
+        handle=".form-schema-subform-card__column-head"
+        filter="button"
+        :prevent-on-filter="false"
         :move="allowSubformMove"
         @update:model-value="emit('replaceChildren', parentKey, $event)"
       >
@@ -114,10 +139,11 @@ function isFormItem(entry: unknown): entry is FormItem {
             v-if="isFormItem(element)"
             class="form-schema-subform-card__column"
             :class="{ 'is-active': isChildSelected(element) }"
-            @click="emit('selectChild', parentKey, element.widget.widgetName)"
+            :data-child-key="element.widget.widgetName"
+            @click.stop="emit('selectChild', parentKey, element.widget.widgetName)"
           >
             <header class="form-schema-subform-card__column-head">
-              <span>{{ element.label }}</span>
+              <span :title="element.label">{{ element.label }}</span>
               <div class="form-schema-subform-card__column-actions">
                 <button
                   type="button"
@@ -161,10 +187,6 @@ function isFormItem(entry: unknown): entry is FormItem {
           </button>
         </template>
       </Draggable>
-      <div v-if="widget.items.length > 0" class="form-schema-subform-card__tail" aria-hidden="true">
-        <div class="form-schema-subform-card__column-head"></div>
-        <div class="form-schema-subform-card__column-preview"></div>
-      </div>
     </div>
   </article>
 </template>
@@ -181,13 +203,13 @@ function isFormItem(entry: unknown): entry is FormItem {
   border: 1px solid transparent;
   border-radius: var(--el-border-radius-base);
 
-  &:hover,
+  &:hover:not(.has-child-selected),
   &.is-active {
     background: var(--el-color-primary-light-9);
     border-color: var(--el-color-primary-light-7);
   }
 
-  &:hover &__actions,
+  &:hover:not(.has-child-selected) &__actions,
   &.is-active &__actions {
     pointer-events: auto;
     opacity: 1;
@@ -243,6 +265,8 @@ function isFormItem(entry: unknown): entry is FormItem {
     width: 100%;
     min-height: 96px;
     overflow-x: auto;
+    // 子表单是横向字段表格，拖拽占位块的边框不应触发纵向滚动条。
+    overflow-y: hidden;
     background: var(--el-bg-color);
     border: 1px solid var(--el-border-color-lighter);
     border-radius: var(--el-border-radius-base);
@@ -261,6 +285,7 @@ function isFormItem(entry: unknown): entry is FormItem {
 
   &__column,
   &__pending {
+    box-sizing: border-box;
     flex: 0 0 220px;
     min-width: 220px;
     border-right: 1px solid var(--el-border-color-lighter);
@@ -278,9 +303,10 @@ function isFormItem(entry: unknown): entry is FormItem {
 
   &__column-head {
     box-sizing: border-box;
-    display: flex;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    column-gap: var(--el-space-sm);
     align-items: center;
-    justify-content: space-between;
     min-height: 38px;
     padding: 0 var(--el-space-md);
     overflow: hidden;
@@ -293,13 +319,15 @@ function isFormItem(entry: unknown): entry is FormItem {
   }
 
   &__column-head > span {
+    // 网格首列总是扣除操作区后的可用宽度，标题过长时才省略。
+    display: block;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
   &__column-actions {
-    flex-shrink: 0;
-    margin-left: var(--el-space-sm);
+    margin-left: 0;
     opacity: 0;
   }
 
@@ -315,11 +343,6 @@ function isFormItem(entry: unknown): entry is FormItem {
     justify-content: center;
     min-height: 58px;
     padding: var(--el-space-sm);
-  }
-
-  &__tail {
-    flex: 1 0 96px;
-    min-width: 96px;
   }
 
   &__empty {

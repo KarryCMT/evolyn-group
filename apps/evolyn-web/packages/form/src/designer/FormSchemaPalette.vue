@@ -11,9 +11,6 @@
         class="form-schema-palette__list"
         chosen-class="form-schema-palette__chosen"
         fallback-class="form-schema-palette__fallback"
-        :force-fallback="true"
-        :fallback-on-body="true"
-        :fallback-tolerance="3"
         :data-enabled="group.enabled"
         :move="(event) => canDrag(group, event)"
       >

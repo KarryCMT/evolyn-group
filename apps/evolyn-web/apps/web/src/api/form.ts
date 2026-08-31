@@ -52,6 +52,14 @@ export function updateForm(
   return http.patch(`/forms/${code}`, payload);
 }
 
+/**
+ * 删除表单（DELETE /forms/:code）：后端软删表单，并在同一事务内摘除应用菜单
+ * 节点及其收藏关联；已发布版本仍保留以支持历史记录追溯。
+ */
+export function deleteForm(code: string): Promise<null> {
+  return http.delete(`/forms/${code}`);
+}
+
 /** 表单改名兼容入口；新页面应优先使用 updateForm 一次提交完整展示信息。 */
 export function updateFormName(code: string, name: string): Promise<FormDetail> {
   return updateForm(code, { name });

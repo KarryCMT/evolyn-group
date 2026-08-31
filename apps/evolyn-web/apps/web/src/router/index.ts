@@ -28,7 +28,10 @@ router.beforeEach(async (to) => {
     return { name: 'login', query: { redirect: to.fullPath } };
   }
 
-  if (to.name === 'login' && isAuthenticated.value) {
+  // 仅在已恢复聚合信息时才让已登录用户离开登录页。后端不可用时，
+  // userInfo 拉取会失败但本地令牌仍在；若此处仅以 token 判断，会与下方
+  // 「受保护页拉取失败后跳登录」形成 dashboard → login → dashboard 的请求循环。
+  if (to.name === 'login' && isAuthenticated.value && userInfo.value) {
     return { path: '/' };
   }
 

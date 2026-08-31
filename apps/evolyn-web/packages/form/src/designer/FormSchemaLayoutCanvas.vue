@@ -50,6 +50,19 @@ const dragListStyle = computed(
     }) as CSSProperties,
 );
 
+/**
+ * 外层画布与子表格都会接收素材面板，但外层不能在事件目标已落入子表格时接管克隆。
+ * `move` 在插入候选项之后才触发，必须在 Sortable 的 `put` 阶段提前拒绝。
+ */
+const canvasDragGroup = {
+  name: FORM_SCHEMA_DRAG_GROUP,
+  pull: true,
+  put: (_to: unknown, _from: unknown, _dragged: unknown, event: unknown): boolean => {
+    const target = (event as { target?: EventTarget | null } | null)?.target;
+    return !(target instanceof Element && target.closest('.form-schema-subform-card__columns'));
+  },
+};
+
 function itemOf(reference: unknown): FormItem | undefined {
   return typeof reference === 'string' ? itemMap.value.get(reference) : undefined;
 }
@@ -102,18 +115,29 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
   const element = event.draggedContext?.element;
   return typeof element !== 'string' || !element.startsWith('_layout_');
 }
+
+/**
+ * 素材字段可投放到画布，也可投放到子表单。二者是嵌套 Sortable，若外层继续接收
+ * 指针已进入子表单列区的素材克隆，会与内层反复交换占位节点，造成拖拽抖动。
+ */
+function allowCanvasMove(event: { related?: Element | null }): boolean {
+  return !event.related?.closest('.form-schema-subform-card__columns');
+}
 </script>
 
 <template>
   <EvolynScrollbar class="form-schema-layout-canvas">
     <Draggable
       :model-value="document.content.field_layout"
-      :group="{ name: FORM_SCHEMA_DRAG_GROUP, pull: true, put: true }"
+      :group="canvasDragGroup"
       :item-key="referenceKey"
       class="form-schema-layout-canvas__list"
       :style="dragListStyle"
       ghost-class="form-schema-layout-canvas__ghost"
       :animation="180"
+      filter=".form-schema-subform-card__table, .form-schema-subform-card__table *"
+      :prevent-on-filter="false"
+      :move="allowCanvasMove"
       @update:model-value="replaceTop"
     >
       <template #item="{ element }">
@@ -185,12 +209,14 @@ function allowTabMove(event: { draggedContext?: { element?: unknown } }): boolea
               >
                 <Draggable
                   :model-value="tab.field_layout"
-                  :group="{ name: FORM_SCHEMA_DRAG_GROUP, pull: true, put: true }"
+                  :group="canvasDragGroup"
                   :item-key="referenceKey"
                   class="form-schema-layout-canvas__tab-list"
                   :style="dragListStyle"
                   ghost-class="form-schema-layout-canvas__ghost"
                   :animation="180"
+                  filter=".form-schema-subform-card__table, .form-schema-subform-card__table *"
+                  :prevent-on-filter="false"
                   :move="allowTabMove"
                   @update:model-value="replaceTab(element, tab.name, $event)"
                 >

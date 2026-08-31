@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { FormItem, FormSchemaDocument } from '../../schema/types';
 import { createWidgetItem } from '../../schema/dictionary';
 import FormSchemaLayoutCanvas from '../FormSchemaLayoutCanvas.vue';
+import { subformSelectionKey } from '../useFormSchemaEditor';
 
 function field(widgetName: string, lineWidth: number): FormItem {
   return {
@@ -122,8 +123,10 @@ describe('FormSchemaLayoutCanvas', () => {
     );
   });
 
-  it('子表单以横向字段表格渲染并提供嵌套拖入提示', () => {
+  it('选中子字段时不再同时选中子表单', async () => {
     const subform = createWidgetItem('subform');
+    const child = createWidgetItem('textarea');
+    if (subform.widget.type === 'subform') subform.widget.items.push(child);
     const document: FormSchemaDocument = {
       content: {
         type: 'form',
@@ -138,6 +141,17 @@ describe('FormSchemaLayoutCanvas', () => {
     });
 
     expect(wrapper.find('.form-schema-subform-card').classes()).toContain('is-active');
-    expect(wrapper.text()).toContain('从左侧拖入字段，或在右侧添加子字段');
+    await wrapper.find('.form-schema-subform-card__column').trigger('click');
+    expect(wrapper.emitted('selectSubformItem')?.[0]).toEqual([
+      subform.widget.widgetName,
+      child.widget.widgetName,
+    ]);
+    expect(wrapper.emitted('selectItem')).toBeUndefined();
+
+    await wrapper.setProps({
+      selectedKey: subformSelectionKey(subform.widget.widgetName, child.widget.widgetName),
+    });
+    expect(wrapper.find('.form-schema-subform-card').classes()).not.toContain('is-active');
+    expect(wrapper.find('.form-schema-subform-card').classes()).toContain('has-child-selected');
   });
 });
