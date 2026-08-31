@@ -1,6 +1,9 @@
 /** 富文本图片上传函数；组件不感知表单、流程等业务文件归属。 */
 export type EvolynRichTextImageUploader = (file: File) => Promise<string>;
 
+/** 富文本工具栏尺寸；default 对应标准尺寸。 */
+export type EvolynRichTextToolbarSize = 'small' | 'default' | 'large';
+
 /** 工具栏按钮的激活状态。 */
 export interface EvolynRichTextToolbarState {
   bold: boolean;
@@ -24,6 +27,8 @@ export type EvolynRichTextFormatCommand =
 export interface EvolynRichTextEditorProps {
   /** 是否允许编辑；只读时仍展示已格式化内容。 */
   editable?: boolean;
+  /** 工具栏尺寸，default 为标准尺寸。 */
+  toolbarSize?: EvolynRichTextToolbarSize;
   /** 编辑区域最小高度，数字按 px 处理。 */
   minHeight?: number | string;
   /** 图片上传函数，应返回已完成权限校验的图片地址。未提供时禁用图片按钮。 */

@@ -21,6 +21,7 @@ defineOptions({ name: 'EvolynRichTextEditor' });
 
 const props = withDefaults(defineProps<EvolynRichTextEditorProps>(), {
   editable: true,
+  toolbarSize: 'default',
   minHeight: 156,
   imageAccept: () => ['image/jpeg', 'image/png', 'image/webp'],
   maxImageSize: 10 * 1024 * 1024,
@@ -262,6 +263,7 @@ defineExpose({ focus, getHTML });
       v-if="props.editable"
       :disabled="toolbarDisabled"
       :image-enabled="Boolean(props.uploadImage)"
+      :size="props.toolbarSize"
       :state="toolbarState"
       @command="executeCommand"
       @color-change="setColor"
@@ -281,19 +283,23 @@ defineExpose({ focus, getHTML });
         ref="linkInput"
         v-model="linkValue"
         class="evolyn-rich-text-editor__link-input"
-        type="url"
+        type="text"
+        inputmode="url"
+        autocomplete="off"
         placeholder="https://example.com"
         @keydown.esc.prevent="closeLinkEditor"
       />
       <span v-if="linkError" class="evolyn-rich-text-editor__link-error">{{ linkError }}</span>
-      <button class="evolyn-rich-text-editor__link-button" type="submit">确认</button>
-      <button
-        class="evolyn-rich-text-editor__link-button is-secondary"
-        type="button"
-        @click="closeLinkEditor"
-      >
-        取消
-      </button>
+      <div class="evolyn-rich-text-editor__link-actions">
+        <button class="evolyn-rich-text-editor__link-button" type="submit">确认</button>
+        <button
+          class="evolyn-rich-text-editor__link-button is-secondary"
+          type="button"
+          @click="closeLinkEditor"
+        >
+          取消
+        </button>
+      </div>
     </form>
 
     <EditorContent :editor="editor" class="evolyn-rich-text-editor__content" />

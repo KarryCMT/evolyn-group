@@ -13,17 +13,20 @@ import {
 import type {
   EvolynRichTextFormatCommand,
   EvolynRichTextToolbarState,
+  EvolynRichTextToolbarSize,
 } from './EvolynRichTextEditor.types';
 
 interface RichTextToolbarProps {
   disabled?: boolean;
   imageEnabled?: boolean;
+  size?: EvolynRichTextToolbarSize;
   state: EvolynRichTextToolbarState;
 }
 
 const props = withDefaults(defineProps<RichTextToolbarProps>(), {
   disabled: false,
   imageEnabled: false,
+  size: 'default',
 });
 const emit = defineEmits<{
   command: [command: EvolynRichTextFormatCommand];
@@ -41,7 +44,12 @@ function changeColor(event: Event) {
 </script>
 
 <template>
-  <div class="evolyn-rich-text-toolbar" role="toolbar" aria-label="富文本工具栏">
+  <div
+    class="evolyn-rich-text-toolbar"
+    :class="`evolyn-rich-text-toolbar--${props.size}`"
+    role="toolbar"
+    aria-label="富文本工具栏"
+  >
     <button
       class="evolyn-rich-text-toolbar__button"
       :class="{ 'is-active': props.state.bold }"

@@ -22,4 +22,26 @@ describe('EvolynRichTextEditor', () => {
     await vi.waitFor(() => expect(wrapper.find('.tiptap').exists()).toBe(true));
     expect(wrapper.find('[aria-label="插入图片"]').attributes('disabled')).toBeUndefined();
   });
+
+  it('applies the requested toolbar size', async () => {
+    const wrapper = mount(EvolynRichTextEditor, { props: { toolbarSize: 'small' } });
+
+    await vi.waitFor(() => expect(wrapper.find('.tiptap').exists()).toBe(true));
+    expect(wrapper.find('.evolyn-rich-text-toolbar').classes()).toContain(
+      'evolyn-rich-text-toolbar--small',
+    );
+  });
+
+  it('opens a compact link editor that accepts every supported protocol', async () => {
+    const wrapper = mount(EvolynRichTextEditor, { props: { modelValue: '<p>链接文本</p>' } });
+
+    await vi.waitFor(() => expect(wrapper.find('.tiptap').exists()).toBe(true));
+    await wrapper.get('[aria-label="编辑链接"]').trigger('click');
+
+    await vi.waitFor(() =>
+      expect(wrapper.find('.evolyn-rich-text-editor__link-input').exists()).toBe(true),
+    );
+    expect(wrapper.get('.evolyn-rich-text-editor__link-input').attributes('type')).toBe('text');
+    expect(wrapper.find('.evolyn-rich-text-editor__link-actions').exists()).toBe(true);
+  });
 });
