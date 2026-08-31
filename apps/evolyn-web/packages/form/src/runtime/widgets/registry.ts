@@ -61,11 +61,11 @@ export class FormFieldRegistry {
 }
 
 /**
- * 默认注册表：仅含 P2 基础字段（原生 HTML 控件 + 最小 Vue 包装），
+ * 移动端注册表：仅含 P2 基础字段（原生 HTML 控件 + 最小 Vue 包装），
  * 注册键与目标协议 widget.type 一一对应。后续阶段按白名单追加，例如：
  *   registry.register('user', () => import('./heavy/UserField.vue'))
  */
-export function createDefaultFieldRegistry(): FormFieldRegistry {
+export function createMobileFieldRegistry(): FormFieldRegistry {
   const registry = new FormFieldRegistry();
   registry.register('text', { component: TextField });
   registry.register('textarea', { component: TextAreaField });

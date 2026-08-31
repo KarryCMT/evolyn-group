@@ -28,6 +28,22 @@ type FormTargetProjection struct {
 	FormType string
 }
 
+// FormPermissionDirectory 表单资产权限裁剪窄端口（表单权限 P1，S5/S8）：
+// 由 form 域权限组判定器在装配层适配；application 域不反向依赖 form 域包。
+// 入口判定 = view ∨ add（仅录入表单对仅 add 成员可见）；无任何命中（含
+// 禁用组收口）的表单节点在成员侧隐藏，空分组随既有 hasVisibleDescendant 裁剪。
+type FormPermissionDirectory interface {
+	// VisibleFormIDs 返回 ids 中当前成员可入口（view ∨ add）的表单 ID 集；
+	// 未命中的表单 ID 不在结果中。管理员旁路（form-data:admin）由端口实现
+	// 内部判定（全量可见）。
+	VisibleFormIDs(ctx context.Context, memberID uint, formIDs []uint) (map[uint]bool, error)
+}
+
+// FormPermissionDirectoryInjector 菜单服务装配期注入能力（可选）。
+type FormPermissionDirectoryInjector interface {
+	UseFormPermissionDirectory(dir FormPermissionDirectory)
+}
+
 // MenuMaintenance 表单资产菜单节点维护窄端口（M2-资产-1）：表单域在创建/
 // 改名/删除的事务内调用，节点写入与 menu_revision 递增随之加入同一事务；
 // 菜单管理写接口（分组/移动/重排）仍随 M2-菜单-3 落地，本端口只承载

@@ -17,7 +17,7 @@ func snapshot(items ...map[string]any) map[string]any {
 		if item == nil {
 			continue
 		}
-		arr = append(arr, map[string]any(item))
+		arr = append(arr, item)
 	}
 	return map[string]any{"content": map[string]any{"type": "form", "items": arr}}
 }

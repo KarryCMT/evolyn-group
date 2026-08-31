@@ -41,9 +41,20 @@ export function getForm(code: string): Promise<FormDetail> {
   return http.get(`/forms/${code}`);
 }
 
-/** 表单改名（PATCH /forms/:code，白名单字段） */
+/**
+ * 修改表单基础展示信息（PATCH /forms/:code，白名单字段）。名称由 forms
+ * 保存；图标与颜色由服务端在同一事务内同步到应用菜单节点。
+ */
+export function updateForm(
+  code: string,
+  payload: { name?: string; icon?: string; color?: string },
+): Promise<FormDetail> {
+  return http.patch(`/forms/${code}`, payload);
+}
+
+/** 表单改名兼容入口；新页面应优先使用 updateForm 一次提交完整展示信息。 */
 export function updateFormName(code: string, name: string): Promise<FormDetail> {
-  return http.patch(`/forms/${code}`, { name });
+  return updateForm(code, { name });
 }
 
 /**
@@ -92,7 +103,7 @@ export function submitFormRecord(
     formCode: string;
     publishedVersion: number;
     schemaRevision: string;
-    // 具体字段包装类型由 @evolyn.do/form/runtime 维护；Web API 层只负责透传。
+    // 具体字段包装类型由 @evolyn.do/form/runtime-core 维护；Web API 层只负责透传。
     values: Record<string, unknown>;
     hasResult: true;
     dataOpId: string;

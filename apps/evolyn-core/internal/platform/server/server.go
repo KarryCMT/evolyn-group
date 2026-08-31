@@ -17,6 +17,7 @@ import (
 	"evolyn/internal/infrastructure/ipregion"
 	"evolyn/internal/infrastructure/objectstore"
 	apperrors "evolyn/internal/platform/enterpriselog"
+
 	// swagger spec 注册：swag init 生成的 docs 包经 init() 把接口定义
 	// 注册给 gin-swagger，不引入则 /swagger/doc.json 500（页面能开但无内容）
 	_ "evolyn/docs"
@@ -53,11 +54,13 @@ import (
 	filerepository "evolyn/internal/platform/file/repository"
 	fileservice "evolyn/internal/platform/file/service"
 	formcontroller "evolyn/internal/platform/form/controller"
+	formmodel "evolyn/internal/platform/form/model"
 	formrepository "evolyn/internal/platform/form/repository"
 	formservice "evolyn/internal/platform/form/service"
 	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
 	iamcontroller "evolyn/internal/platform/iam/controller"
+	iammodel "evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/repository"
 	"evolyn/internal/platform/iam/service"
 	"evolyn/internal/platform/middleware"
@@ -90,7 +93,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
+func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint:gocyclo // 服务装配：域服务线性注册，复杂度随域数量线性增长
 	// FIX-009：两种 Schema 管理策略互斥，配错即拒绝启动
 	if conf.DB.Migrate && conf.DB.Migrations {
 		return nil, fmt.Errorf("db.migrate (AutoMigrate) and db.migrations (SQL migrations) are mutually exclusive")
@@ -159,6 +162,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	formRepo := formrepository.NewRepository(db)
 	formVersionRepo := formrepository.NewVersionRepository(db)
 	formRecordRepo := formrepository.NewRecordRepository(db)
+	// 资产权限组仓储（000058，表单权限 P1）：组行 + 主体行
+	formPermRepo := formrepository.NewPermissionGroupRepository(db)
 	// 流程引擎仓储（000048/000049，ADR-012）：定义+草稿、不可变发布快照、
 	// 运行态六表（实例/执行路径/节点实例/任务/参与人/操作流水）
 	workflowDefinitionRepo := workflowrepository.NewDefinitionRepository(db)
@@ -211,6 +216,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 			return nil, err
 		}
 		if err := formRecordRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := formPermRepo.Migrate(); err != nil {
 			return nil, err
 		}
 		if err := workflowDefinitionRepo.Migrate(); err != nil {
@@ -483,6 +491,30 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	if injector, ok := formService.(formservice.FormReferenceSourceInjector); ok {
 		injector.UseReferenceSource(formReferenceSource{menu: menuRepo})
 	}
+
+	// 表单权限组（000058，表单权限 P1）：判定器（组绑定判定 + S7 字段合并 +
+	// 内存版数据范围匹配）注入表单服务执行点；主体解析/存在性与展示名经 iam
+	// 仓储窄端口适配；switch-type/发布阻塞判定经只读查询端口注入
+	formPermEvaluator := formservice.NewFormPermissionEvaluator(
+		formPermRepo, formRepo, formVersionRepo, appAccess,
+		formPermissionSubjectSource{users: iamRepo.User(), departments: iamRepo.Department()},
+	)
+	if injector, ok := formService.(formservice.PermissionEvaluatorInjector); ok {
+		injector.UsePermissionEvaluator(formPermEvaluator)
+	}
+	if injector, ok := formService.(formservice.PermissionGroupSourceInjector); ok {
+		injector.UsePermissionGroupSource(formservice.NewPermissionGroupReadSource(formPermRepo))
+	}
+	// 菜单读侧权限裁剪端口（S5/S8）：成员侧表单节点按入口判定（view ∨ add）
+	// 二次裁剪，装配模式同 FormDirectory
+	if injector, ok := menuService.(applicationservice.FormPermissionDirectoryInjector); ok {
+		injector.UseFormPermissionDirectory(formPermissionDirectory{evaluator: formPermEvaluator})
+	}
+	permissionGroupService := formservice.NewPermissionGroupService(
+		txManager, formPermRepo, formRepo, formVersionRepo, auditSvc, appAccess,
+		formPermissionSubjectDirectory{users: iamRepo.User(), departments: iamRepo.Department(), rbac: iamRepo.RBAC()},
+	)
+	permissionGroupController := formcontroller.NewPermissionGroupController(permissionGroupService)
 	formController := formcontroller.NewFormController(formService)
 
 	// 流程引擎域（000048，ADR-012）Definition Engine：定义 CRUD/草稿/发布；
@@ -536,7 +568,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) {
 	notificationController := notificationcontroller.NewNotificationController(notificationInboxService)
 	notificationSettingController := notificationcontroller.NewSettingController(notificationSettingService)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, permissionGroupController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController}
 
 	// 流程延时任务 Worker（Phase 5，000052）：超时自动动作/待办提醒，
 	// 领取走 FOR UPDATE SKIP LOCKED，claim+执行同事务（crash 自动回滚），
@@ -786,6 +818,176 @@ func (d formMenuDirectory) ExistingFormTargets(ctx context.Context, ids []uint) 
 		}
 	}
 	return targets, nil
+}
+
+// formPermissionDirectory 菜单读侧的表单权限裁剪窄端口适配（表单权限 P1，
+// S5/S8）：application 域不反向依赖 form 域，装配层以权限组判定器桥接；
+// 成员仅以 ID 壳传入——判定器内部经权限集窄端口/主体窄端口按 ID 重载真实
+// 身份（不信任调用方快照）
+type formPermissionDirectory struct {
+	evaluator formservice.FormPermissionEvaluator
+}
+
+func (d formPermissionDirectory) VisibleFormIDs(ctx context.Context, memberID uint, formIDs []uint) (map[uint]bool, error) {
+	resolved, err := d.evaluator.EvaluateForForms(ctx, &iammodel.User{ID: memberID}, formIDs)
+	if err != nil {
+		return nil, err
+	}
+	visible := make(map[uint]bool, len(resolved))
+	for formID, permission := range resolved {
+		if permission.EntranceAllowed() { // 入口判定 = view ∨ add（S8）
+			visible[formID] = true
+		}
+	}
+	return visible, nil
+}
+
+// formPermissionSubjectSource 权限组主体解析窄端口适配（表单权限 P1）：
+// 成员 → 部门命中集（直系部门 ∪ 全部祖先，即「部门含子部门」，语义对齐
+// TenantProductAccessEvaluator）与角色 ID 集（含分组角色）；form 域不直连
+// iam 表
+type formPermissionSubjectSource struct {
+	users       repository.UserRepository
+	departments repository.DepartmentRepository
+}
+
+func (s formPermissionSubjectSource) MemberSubject(ctx context.Context, memberID uint) ([]uint, []uint, error) {
+	// 角色集：GetUserByID 预载显式角色与分组角色
+	user, err := s.users.GetUserByID(ctx, memberID)
+	if err != nil {
+		return nil, nil, err
+	}
+	roleIDs := make([]uint, 0, len(user.Roles))
+	for _, role := range user.Roles {
+		roleIDs = append(roleIDs, role.ID)
+	}
+	for _, group := range user.Groups {
+		for _, role := range group.Roles {
+			roleIDs = append(roleIDs, role.ID)
+		}
+	}
+	// 部门集：直系部门向上展开祖先链（visited 兜底数据环）
+	detail, err := s.users.GetMemberDetail(ctx, memberID)
+	if err != nil {
+		return nil, nil, err
+	}
+	direct := make([]uint, 0, len(detail.Departments))
+	for _, dept := range detail.Departments {
+		direct = append(direct, dept.ID)
+	}
+	if len(direct) == 0 {
+		return direct, roleIDs, nil
+	}
+	all, err := s.departments.List(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	parentByID := make(map[uint]*uint, len(all))
+	for i := range all {
+		parent := all[i].ParentId
+		parentByID[all[i].ID] = parent
+	}
+	expanded := make(map[uint]bool, len(direct)*2)
+	queue := append([]uint{}, direct...)
+	for _, id := range direct {
+		expanded[id] = true
+	}
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+		parent, ok := parentByID[current]
+		if !ok || parent == nil || expanded[*parent] {
+			continue
+		}
+		expanded[*parent] = true
+		queue = append(queue, *parent)
+	}
+	departmentIDs := make([]uint, 0, len(expanded))
+	for id := range expanded {
+		departmentIDs = append(departmentIDs, id)
+	}
+	return departmentIDs, roleIDs, nil
+}
+
+// formPermissionSubjectDirectory 权限组主体校验/展示名解析窄端口适配（表单
+// 权限 P1）：成员/部门/角色同租户存在性校验与展示名解析（成员取昵称、
+// 部门/角色取名称；解析不到为空串）
+type formPermissionSubjectDirectory struct {
+	users       repository.UserRepository
+	departments repository.DepartmentRepository
+	rbac        repository.RBACRepository
+}
+
+func (d formPermissionSubjectDirectory) SubjectExists(ctx context.Context, subjectType string, subjectID uint) (bool, error) {
+	switch subjectType {
+	case formmodel.PermissionSubjectMember:
+		_, err := d.users.GetUserByID(ctx, subjectID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return err == nil, err
+	case formmodel.PermissionSubjectDepartment:
+		_, err := d.departments.GetByID(ctx, subjectID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return err == nil, err
+	case formmodel.PermissionSubjectRole:
+		_, err := d.rbac.GetRoleByID(ctx, int(subjectID))
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return false, nil
+		}
+		return err == nil, err
+	default:
+		return false, nil
+	}
+}
+
+func (d formPermissionSubjectDirectory) SubjectNames(
+	ctx context.Context, subjects []formmodel.AssetPermissionGroupSubject,
+) (map[string]map[uint]string, error) {
+	names := map[string]map[uint]string{
+		formmodel.PermissionSubjectMember:     {},
+		formmodel.PermissionSubjectDepartment: {},
+		formmodel.PermissionSubjectRole:       {},
+	}
+	// 部门/角色租内总量有限，整表加载后按 ID 取名；成员按需逐个加载
+	//（单组主体上限 200，且仅配置面读取路径触发）
+	memberIDs := make([]uint, 0)
+	for _, subject := range subjects {
+		switch subject.SubjectType {
+		case formmodel.PermissionSubjectMember:
+			memberIDs = append(memberIDs, subject.SubjectID)
+		}
+	}
+	if len(memberIDs) > 0 {
+		members, err := d.users.List(ctx)
+		if err != nil {
+			return nil, err
+		}
+		byID := make(map[uint]string, len(members))
+		for i := range members {
+			byID[members[i].ID] = members[i].Nickname
+		}
+		for _, id := range memberIDs {
+			names[formmodel.PermissionSubjectMember][id] = byID[id]
+		}
+	}
+	departments, err := d.departments.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range departments {
+		names[formmodel.PermissionSubjectDepartment][departments[i].ID] = departments[i].Name
+	}
+	roles, err := d.rbac.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range roles {
+		names[formmodel.PermissionSubjectRole][roles[i].ID] = roles[i].Name
+	}
+	return names, nil
 }
 
 // formApplicationDirectory 表单域的应用只读目录窄端口适配：form 域不直接依赖

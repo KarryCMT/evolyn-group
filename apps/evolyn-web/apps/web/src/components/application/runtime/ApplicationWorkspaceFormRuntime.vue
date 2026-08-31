@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do/form/runtime';
+import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do/form/runtime-web';
 import type { ApplicationWorkspaceAsset } from '../workspace/applicationWorkspace.types';
 import type { FormRuntimeBootstrap } from '~/types';
-import { FormRuntimeSurface } from '@evolyn.do/form/runtime';
+import { FormWebRuntimeSurface } from '@evolyn.do/form/runtime-web';
 import { migrateFormSchema } from '@evolyn.do/form/schema';
 import { ApiError } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
 import { shallowRef, watch } from 'vue';
 import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
 // 应用工作区按需加载最终运行时关键样式，不引入设计器样式图。
-import '@evolyn.do/form/runtime/style.css';
+import '@evolyn.do/form/runtime-web/style.css';
 
 defineOptions({ name: 'ApplicationWorkspaceFormRuntime' });
 
@@ -174,7 +174,7 @@ function isAbortError(error: unknown): boolean {
       </template>
     </el-result>
 
-    <FormRuntimeSurface
+    <FormWebRuntimeSurface
       v-else-if="bootstrap"
       class="application-workspace-form-runtime__surface"
       :schema="bootstrap.content"

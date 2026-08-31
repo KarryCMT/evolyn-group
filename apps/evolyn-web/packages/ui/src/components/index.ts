@@ -4,5 +4,6 @@ export * from './EvolynDialog';
 export * from './EvolynGrid';
 export * from './EvolynIconPicker';
 export * from './EvolynMemberDepartmentRolePicker';
+export * from './EvolynRichTextEditor';
 export * from './EvolynScrollbar';
 export * from './EvolynTable';

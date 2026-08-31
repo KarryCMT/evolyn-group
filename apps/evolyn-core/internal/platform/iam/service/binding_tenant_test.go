@@ -178,9 +178,18 @@ func (f fakeQuota) CheckAndReserve(ctx context.Context, tenantID uint, key strin
 	return fn(ctx)
 }
 
+// bindingFixtures 租户关系绑定测试夹具集合（结构体返回：各用例按需取用，
+// 避免 4 返回值多空位声明触发 dogsled）
+type bindingFixtures struct {
+	users    *fakeUserRepo
+	roles    *fakeRBACRepo
+	groups   *fakeGroupRepo
+	accounts *fakeAccountRepo
+}
+
 // newBindingFixtures 双租户（1/2）测试夹具：成员 1 与角色 5 同属租户 1；
 // 成员 2、角色 6、分组 7 属租户 2
-func newBindingFixtures() (*fakeUserRepo, *fakeRBACRepo, *fakeGroupRepo, *fakeAccountRepo) {
+func newBindingFixtures() *bindingFixtures {
 	users := &fakeUserRepo{users: map[uint]*model.User{
 		1: {ID: 1, AccountId: 10, Nickname: "member-a", TenantBaseModel: kernel.TenantBaseModel{TenantID: 1}},
 		2: {ID: 2, AccountId: 20, Nickname: "member-b", TenantBaseModel: kernel.TenantBaseModel{TenantID: 2}},
@@ -197,7 +206,7 @@ func newBindingFixtures() (*fakeUserRepo, *fakeRBACRepo, *fakeGroupRepo, *fakeAc
 		10: {ID: 10, Name: "acc-a", Nickname: "acc-a"},
 		30: {ID: 30, Name: "acc-new", Nickname: "acc-new"},
 	}}
-	return users, roles, groups, accounts
+	return &bindingFixtures{users: users, roles: roles, groups: groups, accounts: accounts}
 }
 
 func tenantCtx(t *testing.T, tenantID uint) context.Context {
@@ -208,7 +217,8 @@ func tenantCtx(t *testing.T, tenantID uint) context.Context {
 // ---- FIX-006：跨租户关系绑定必须失败 ----
 
 func TestAddRoleCrossTenantRejected(t *testing.T) {
-	users, roles, _, _ := newBindingFixtures()
+	fx := newBindingFixtures()
+	users, roles := fx.users, fx.roles
 	svc := NewUserService(passThroughTx{}, users, &fakeAccountRepo{}, roles, nil, fakeQuota{}, fakeAudit{})
 
 	// 租户 1 的成员 1 绑定租户 2 的角色 6：必须拒绝且不落关系表
@@ -224,7 +234,8 @@ func TestAddRoleCrossTenantRejected(t *testing.T) {
 }
 
 func TestGroupAddUserCrossTenantRejected(t *testing.T) {
-	users, roles, groups, _ := newBindingFixtures()
+	fx := newBindingFixtures()
+	users, roles, groups := fx.users, fx.roles, fx.groups
 	svc := NewGroupService(groups, users, roles, fakeAudit{})
 
 	// 租户 1 成员 1 加入租户 2 分组 7：拒绝且不落绑定
@@ -240,7 +251,8 @@ func TestGroupAddUserCrossTenantRejected(t *testing.T) {
 }
 
 func TestGroupAddRoleCrossTenantRejected(t *testing.T) {
-	users, roles, groups, _ := newBindingFixtures()
+	fx := newBindingFixtures()
+	users, roles, groups := fx.users, fx.roles, fx.groups
 	svc := NewGroupService(groups, users, roles, fakeAudit{})
 
 	// 租户 1 分组 8 绑定租户 2 角色 6：拒绝
@@ -255,7 +267,8 @@ func TestGroupAddRoleCrossTenantRejected(t *testing.T) {
 // ---- FIX-002/003：租户内重名预检 ----
 
 func TestRoleCreateDuplicateNameRejected(t *testing.T) {
-	_, roles, _, _ := newBindingFixtures()
+	fx := newBindingFixtures()
+	roles := fx.roles
 	svc := NewRBACService(roles, fakeAudit{})
 
 	// 租户 1 已有 role-t1，再建同名：拒绝
@@ -269,7 +282,8 @@ func TestRoleCreateDuplicateNameRejected(t *testing.T) {
 }
 
 func TestGroupCreateDuplicateNameRejected(t *testing.T) {
-	users, roles, groups, _ := newBindingFixtures()
+	fx := newBindingFixtures()
+	users, roles, groups := fx.users, fx.roles, fx.groups
 	svc := NewGroupService(groups, users, roles, fakeAudit{})
 
 	// 租户 2 已有 group-t2，再建同名：拒绝
@@ -285,7 +299,8 @@ func TestGroupCreateDuplicateNameRejected(t *testing.T) {
 // ---- FIX-010：拉人入租户闭环 ----
 
 func TestAddMemberDuplicateRejected(t *testing.T) {
-	users, _, _, accounts := newBindingFixtures()
+	fx := newBindingFixtures()
+	users, accounts := fx.users, fx.accounts
 	svc := NewUserService(passThroughTx{}, users, accounts, nil, nil, fakeQuota{}, fakeAudit{})
 
 	// 账号 10 在租户 1 已有成员（成员 1）：拒绝重复加入
@@ -296,7 +311,8 @@ func TestAddMemberDuplicateRejected(t *testing.T) {
 }
 
 func TestAddMemberQuotaExceeded(t *testing.T) {
-	users, _, _, accounts := newBindingFixtures()
+	fx := newBindingFixtures()
+	users, accounts := fx.users, fx.accounts
 	svc := NewUserService(passThroughTx{}, users, accounts, nil, nil, fakeQuota{exceeded: true}, fakeAudit{})
 
 	_, err := svc.AddMember(tenantCtx(t, 1), &AddMemberRequest{AccountID: 30})
@@ -306,7 +322,8 @@ func TestAddMemberQuotaExceeded(t *testing.T) {
 }
 
 func TestAddMemberHappyPath(t *testing.T) {
-	users, _, _, accounts := newBindingFixtures()
+	fx := newBindingFixtures()
+	users, accounts := fx.users, fx.accounts
 	svc := NewUserService(passThroughTx{}, users, accounts, nil, nil, fakeQuota{}, fakeAudit{})
 
 	member, err := svc.AddMember(tenantCtx(t, 1), &AddMemberRequest{AccountID: 30, Nickname: "新同学"})
@@ -323,7 +340,8 @@ func TestAddMemberHappyPath(t *testing.T) {
 }
 
 func TestAddMemberRequiresTenantContext(t *testing.T) {
-	users, _, _, accounts := newBindingFixtures()
+	fx := newBindingFixtures()
+	users, accounts := fx.users, fx.accounts
 	svc := NewUserService(passThroughTx{}, users, accounts, nil, nil, fakeQuota{}, fakeAudit{})
 
 	// 无租户上下文（如平台域误用）：直接拒绝

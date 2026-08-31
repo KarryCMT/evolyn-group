@@ -43,7 +43,7 @@ func PermissionsOf(user *model.User) map[string]bool {
 
 	for _, role := range roles {
 		for _, rule := range role.Rules {
-			resource := string(rule.Resource)
+			resource := rule.Resource
 			// 聚合操作本身作为键保留（前端可直接判断 edit/view 语义）
 			permissions[resource+":"+string(rule.Operation)] = true
 			for _, verb := range permissionVerbs {
@@ -51,13 +51,15 @@ func PermissionsOf(user *model.User) map[string]bool {
 					permissions[resource+":"+verb] = true
 				}
 			}
-			// form-actions 通配规则额外展开为按钮动作键（动作码不属于 CRUD
-			// 动词集，上面的 Contain 展开覆盖不到）；资源通配（*）按
-			// Authorize 的全资源语义同样放行全部动作键
-			if rule.Operation == model.AllOperation &&
-				(rule.Resource == model.All || rule.Resource == model.FormMenuActionResource) {
-				for _, code := range menuActionCodes {
-					permissions[model.FormMenuActionResource+":"+code] = true
+			// 动作资源（form-actions/form-data）的通配规则额外展开为具体
+			// 动作键（动作码不属于 CRUD 动词集，上面的 Contain 展开覆盖不到）；
+			// 资源通配（*）按 Authorize 的全资源语义同样放行全部动作键。
+			// 精确动作授权（如 {form-data, admin}）由上面的聚合键直接落键
+			if rule.Operation == model.AllOperation {
+				for name, codes := range expandActionKeys(resource) {
+					for _, code := range codes {
+						permissions[name+":"+code] = true
+					}
 				}
 			}
 		}

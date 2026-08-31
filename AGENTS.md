@@ -250,7 +250,18 @@ internal/
                       保留）并落菜单按钮动作授权（动作注册表
                       iam/authorization/menuactions.go + form-actions/menu-
                       favorites 资源，菜单读侧投影 actions 按钮图）；迁移
-                      000037/000038/000044/000045/000046/000047
+                      000037/000038/000044/000045/000046/000047；表单权限组
+                      （P1，docs/低代码平台/表单权限/，迁移 000058）：
+                      asset_permission_groups + subjects 两表承载主体×操作集×
+                      字段矩阵×数据范围整体授权单元，FormPermissionEvaluator
+                      组绑定判定（组内合取防串联越权、form-data:admin 显式旁
+                      路、禁用组收口、deny-by-default 字段默认、入口判定
+                      view ∨ add）+ 权限感知提交管线 + 运行时 permissions 投
+                      影（viewFields/addFields 双矩阵）+ 菜单裁剪窄端口
+                      FormPermissionDirectory + switch-type/发布阻塞；配置面
+                      form-permissions 与数据面 form-data 动作资源注册表
+                      （iam/authorization/actionresources.go）按管理员规则签
+                      名补授
   tenantproduct/    产品中心域（一期，小三层，docs/低代码平台/产品中心/）：
                       平台产品目录/租户产品配置/部门与成员范围关联（迁移
                       000033，四表 + lingyanyun seed + 存量租户回填，目录是

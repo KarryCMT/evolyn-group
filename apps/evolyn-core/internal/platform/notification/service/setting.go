@@ -151,6 +151,8 @@ func projectEventView(
 // PatchPreference 事件偏好更新（文档 9.3）：事务内先比对 revision，再校验
 // 事件/渠道/接收规则，upsert 覆盖行 + 全量替换接收规则，最后以旧 revision
 // 为条件原子递增（零行影响=并发修改，409 拒绝伪成功）。
+//
+//nolint:gocyclo // 分区块字段级白名单逐项处理，与聚合根字段一一对应
 func (s *settingService) PatchPreference(
 	ctx context.Context, tenantID uint, eventCode string, req model.PatchPreferenceRequest,
 ) (*model.PatchPreferenceResponse, error) {

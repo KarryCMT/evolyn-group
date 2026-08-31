@@ -14,7 +14,7 @@ const api = vi.hoisted(() => ({
 vi.mock('~/api/form', () => api);
 
 const SurfaceStub = defineComponent({
-  name: 'FormRuntimeSurface',
+  name: 'FormWebRuntimeSurface',
   props: {
     formId: String,
     actions: Array,
@@ -35,6 +35,7 @@ function asset(targetCode: string): ApplicationWorkspaceAsset {
     code: `entry_${targetCode}`,
     label: targetCode,
     icon: defineComponent({ render: () => null }),
+    iconKey: 'file-list',
     type: 'form',
     targetCode,
     formType: 'standard',
@@ -96,7 +97,7 @@ describe('applicationWorkspaceFormRuntime', () => {
         stubs: {
           ElButton: true,
           ElResult: StateStub,
-          FormRuntimeSurface: SurfaceStub,
+          FormWebRuntimeSurface: SurfaceStub,
         },
       },
     });
@@ -124,7 +125,7 @@ describe('applicationWorkspaceFormRuntime', () => {
         stubs: {
           ElButton: true,
           ElResult: StateStub,
-          FormRuntimeSurface: SurfaceStub,
+          FormWebRuntimeSurface: SurfaceStub,
         },
       },
     });
@@ -146,7 +147,7 @@ describe('applicationWorkspaceFormRuntime', () => {
         stubs: {
           ElButton: true,
           ElResult: StateStub,
-          FormRuntimeSurface: SurfaceStub,
+          FormWebRuntimeSurface: SurfaceStub,
         },
       },
     });

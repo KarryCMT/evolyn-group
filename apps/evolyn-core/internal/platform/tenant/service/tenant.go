@@ -517,6 +517,13 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 动作授权键，动作不对应 URL 门（各域 Service 复核）；存量租户由
 			// 000047 按「管理员规则签名」补授
 			{Resource: iammodel.FormMenuActionResource, Operation: iammodel.AllOperation},
+			// 表单资产权限组配置面（表单权限 P1）：权限组 CRUD 的 Service 层
+			// 复核键；存量租户由 000058 按「管理员规则签名」补授。
+			// 不经管理组间接放行（与 forms 同口径）
+			{Resource: iammodel.FormPermissionResource, Operation: iammodel.AllOperation},
+			// 表单数据面旁路动作键（表单权限 P1，S3）：form-data:* 经动作资源
+			// 注册表展开产出 form-data:admin；存量租户由 000058 补授
+			{Resource: iammodel.FormDataResource, Operation: iammodel.AllOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},

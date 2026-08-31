@@ -514,7 +514,7 @@ func TestPublishAndRuntimeAndSubmit(t *testing.T) {
 	assert.Equal(t, 2, published2.PublishedVersion)
 
 	// bootstrap：最新版本；归属不符/未发布路径
-	runtime, err := svc.GetRuntime(ctx, "app_x", created.Code)
+	runtime, err := svc.GetRuntime(ctx, member, "app_x", created.Code)
 	assert.NoError(t, err)
 	assert.Equal(t, created.Code, runtime.FormCode)
 	assert.Equal(t, 2, runtime.PublishedVersion)
@@ -524,7 +524,7 @@ func TestPublishAndRuntimeAndSubmit(t *testing.T) {
 	items := content["content"].(map[string]any)["items"].([]any)
 	assert.Equal(t, "姓名2", items[0].(map[string]any)["label"])
 
-	_, err = svc.GetRuntime(ctx, "app_archived", created.Code)
+	_, err = svc.GetRuntime(ctx, member, "app_archived", created.Code)
 	assert.ErrorIs(t, err, apperrors.ErrFormNotFound)
 
 	// 提交：历史版本（v1）合法；版本口令不符 409

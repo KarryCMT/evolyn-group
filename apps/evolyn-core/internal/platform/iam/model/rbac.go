@@ -136,6 +136,19 @@ const (
 	// authorization.MenuActionsOf 投影按钮能力——动作授权因此不可能越权放大
 	// URL 访问。
 	FormMenuActionResource = "form-actions"
+	// FormPermissionResource 表单资产权限组的配置面资源（表单权限 P1，设计
+	// §7.1）：权限组 CRUD 与字段清单接口的 Service 层复核键（list/create/
+	// update/delete）。路由挂在 /forms 首段下，中间件 URL 门解析为 forms:*，
+	// 本资源由 Service 层按权限集独立复核——持 forms:* 而无 form-permissions:*
+	// 的成员过不了 Service 门。仅授予租户管理员，不经管理组放行（与 forms 同
+	// 口径）。注意：能配置权限组 ≠ 拥有全部数据权限（S3 分离，数据面见
+	// FormDataResource）。
+	FormPermissionResource = "form-permissions"
+	// FormDataResource 表单数据面旁路动作键资源（表单权限 P1，设计 §7.1/S3）：
+	// 刻意不对应任何 URL 首段，唯一动作码 admin 仅由 form 域判定器在服务层
+	// 消费（form-data:admin 旁路）。通配规则经 authorization 动作资源注册表
+	// 展开产出具体动作键；持 form-permissions:* 不获得本键。
+	FormDataResource = "form-data"
 	// MenuFavoriteResource 与 /menu-favorites 路由保持一致，代表成员对应用
 	// 菜单节点的个人收藏（个人状态而非授权对象：凡节点可见即可收藏）。
 	// create 授予全体成员（收藏），delete 覆盖取消收藏，数据范围由

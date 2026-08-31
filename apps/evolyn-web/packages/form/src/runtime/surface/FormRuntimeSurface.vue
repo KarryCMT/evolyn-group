@@ -10,8 +10,10 @@ import type { FormDraftPayload, FormIssue, FormSubmitPayload, FormValue } from '
 import type { FormFieldRegistry } from '../widgets/registry';
 import FormRenderer from '../renderer/FormRenderer.vue';
 import FormRuntimeActionBar from './FormRuntimeActionBar.vue';
+import FormMultitabRenderer from '../renderer/FormMultitabRenderer.vue';
+import { createWebFieldRegistry } from '../../runtime-web/widgets/registry';
 
-defineOptions({ name: 'FormRuntimeSurface' });
+defineOptions({ name: 'FormWebRuntimeSurface' });
 
 const props = withDefaults(
   defineProps<{
@@ -62,8 +64,11 @@ defineSlots<{
 
 const rendererRef = useTemplateRef<FormRendererExpose>('renderer');
 const runtime = shallowRef<FormRuntime | null>(null);
+// Web 表面在组件生命周期内保持同一注册表，避免字段异步加载缓存被重复清空。
+const webRegistry = createWebFieldRegistry();
 const generatedId = useId().replace(/:/g, '');
 const resolvedFormDomId = computed(() => props.formDomId || `evf-runtime-form-${generatedId}`);
+const resolvedRegistry = computed(() => props.registry ?? webRegistry);
 const surfaceClasses = computed(() => [
   'evf-runtime-surface',
   `evf-runtime-surface--${props.layout}`,
@@ -160,7 +165,8 @@ defineExpose({
           :initial-values="props.initialValues"
           :context-defaults="props.contextDefaults"
           :adapter="props.adapter"
-          :registry="props.registry"
+          :registry="resolvedRegistry"
+          :multitab-renderer="FormMultitabRenderer"
           :form-dom-id="resolvedFormDomId"
           @runtime-change="setRuntime"
           @submit="emit('submit', $event)"

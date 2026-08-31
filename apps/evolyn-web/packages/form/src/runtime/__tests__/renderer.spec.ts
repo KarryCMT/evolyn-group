@@ -215,7 +215,8 @@ describe('FormRenderer 渲染', () => {
     });
 
     const wrapper = mount(FormRenderer, { props: { schema: doc } });
-    expect(wrapper.find('.evf-multitab__pane .evf-field').attributes('style')).toContain(
+    // Core 的默认回退不绑定 UI 库；终端 Surface 注入自己的标签页呈现器。
+    expect(wrapper.find('.evf-plain-multitab__pane .evf-field').attributes('style')).toContain(
       '--evf-field-span: 3',
     );
   });

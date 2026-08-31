@@ -6,6 +6,7 @@ import {
   EvolynGrid,
   EvolynIconPicker,
   EvolynMemberDepartmentRolePicker,
+  EvolynRichTextEditor,
   EvolynScrollbar,
   EvolynTable,
 } from './components';
@@ -19,6 +20,7 @@ const components = [
   EvolynGrid,
   EvolynIconPicker,
   EvolynMemberDepartmentRolePicker,
+  EvolynRichTextEditor,
   EvolynScrollbar,
   EvolynTable,
 ];

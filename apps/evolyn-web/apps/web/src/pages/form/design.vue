@@ -5,7 +5,7 @@ import type {
   FormTabStyle,
   FormWidgetType,
 } from '@evolyn.do/form/designer';
-import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime';
+import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime-core';
 import {
   FORM_PROTOCOL_VERSION,
   FormSchemaCanvas,

@@ -455,6 +455,19 @@ export interface ApplicationMenuGroupMutation {
   menuRevision: number;
 }
 
+/** 更新应用菜单节点请求：移动时传入目标分组编码和当前菜单修订号。 */
+export interface UpdateApplicationMenuEntryPayload {
+  /** 目标分组的菜单节点编码；空字符串表示移动到应用根级。 */
+  parentEntryCode?: string;
+  baseMenuRevision: number;
+}
+
+/** 菜单节点更新后的最小结果；客户端需重新读取菜单快照以获取完整树。 */
+export interface ApplicationMenuEntryMutation {
+  entryId: string;
+  menuRevision: number;
+}
+
 // ---- 版本信息（管理后台「版本信息」页，一期：真实订阅与资源概览）----
 
 /** 订阅状态：active 活动 / expired 已到期（读时投影）/ legacy_pending_review 有效期待确认 */

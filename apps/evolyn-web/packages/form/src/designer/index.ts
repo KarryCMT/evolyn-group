@@ -1,5 +1,6 @@
 // 设计器入口：仅供管理端按需引入，允许依赖拖拽、属性面板等设计态能力；
-// 最终用户填写入口必须使用 @evolyn.do/form/runtime，二者不得交叉引用内部状态。
+// 最终用户填写入口必须使用 @evolyn.do/form/runtime-web 或 runtime-mobile，
+// 二者不得交叉引用内部状态。
 // 设计器状态即目标保存协议文档（content.items），不再存在画布模型→另一份
 // 发布 Schema 的转换路径（ADR-010）。
 

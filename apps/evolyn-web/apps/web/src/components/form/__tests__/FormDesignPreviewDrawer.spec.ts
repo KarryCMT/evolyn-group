@@ -1,4 +1,4 @@
-import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime';
+import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime-web';
 import type { FormSchemaDocument } from '@evolyn.do/form/schema';
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
@@ -19,7 +19,7 @@ const DrawerStub = defineComponent({
 });
 
 const SurfaceStub = defineComponent({
-  name: 'FormRuntimeSurface',
+  name: 'FormWebRuntimeSurface',
   props: {
     layout: String,
     actions: Array,
@@ -37,7 +37,7 @@ describe('formDesignPreviewDrawer', () => {
     const wrapper = mount(FormDesignPreviewDrawer, {
       props: { modelValue: true, schema, formId: 'form_a', adapter },
       global: {
-        stubs: { ElDrawer: DrawerStub, FormRuntimeSurface: SurfaceStub },
+        stubs: { ElDrawer: DrawerStub, FormWebRuntimeSurface: SurfaceStub },
       },
     });
     const surface = wrapper.findComponent(SurfaceStub);
@@ -55,7 +55,7 @@ describe('formDesignPreviewDrawer', () => {
     const wrapper = mount(FormDesignPreviewDrawer, {
       props: { modelValue: true, schema, formId: 'form_a', adapter },
       global: {
-        stubs: { ElDrawer: DrawerStub, FormRuntimeSurface: SurfaceStub },
+        stubs: { ElDrawer: DrawerStub, FormWebRuntimeSurface: SurfaceStub },
       },
     });
 

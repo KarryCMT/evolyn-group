@@ -105,6 +105,8 @@ var resourceRegistry = map[string]ResourceMeta{
 	"notification/custom_recipient":     {CategoryTenantSettings, "提醒对象"},
 	// 应用管理
 	"application/application": {CategoryApplication, "应用"},
+	// 表单权限组（表单权限 P1）：应用后台权限设置的表单资产权限组配置行为
+	"form/form_permission_group": {CategoryApplication, "表单权限组"},
 	// 文件管理
 	"file/file": {CategoryFileStorage, "文件"},
 	// 日志导出（企业日志域自身的导出行为审计）
@@ -157,6 +159,7 @@ var resourceActions = map[string][]string{
 	"notification/notification_setting": {"update"},
 	"notification/custom_recipient":     {"create", "delete"},
 	"application/application":           {"create", "update", "delete"},
+	"form/form_permission_group":        {"create", "update", "delete"},
 	"file/file":                         {"upload_init", "upload_complete", "delete"},
 	"enterpriselog/export":              {"create"},
 }

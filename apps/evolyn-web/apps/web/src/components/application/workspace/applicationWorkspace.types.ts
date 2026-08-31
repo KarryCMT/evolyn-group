@@ -13,6 +13,8 @@ export interface ApplicationWorkspaceAsset {
   code: string;
   label: string;
   icon: Component;
+  /** 后端菜单节点的稳定图标键，供「修改名称和图标」回填当前选择。 */
+  iconKey: string | null;
   type: 'form' | 'dashboard' | 'page' | 'folder';
   /** 资产公开编码；表单节点用于跳转设计器，分组节点为空。 */
   targetCode: string | null;

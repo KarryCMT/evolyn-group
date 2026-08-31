@@ -304,7 +304,7 @@ func (s *adminGroupService) loadMembers(ctx context.Context, group *model.AdminG
 		roleID, err := s.groups.ResolveBuiltinRoleID(ctx)
 		if err != nil {
 			// 内置角色缺失属异常库态：返回空成员而非整体报错，管理面仍可进入
-			return []model.AdminGroupMemberView{}, nil
+			return []model.AdminGroupMemberView{}, nil //nolint:nilerr // 有意降级：异常库态保持管理面可用（见上注释）
 		}
 		users, err := s.groups.ListBuiltinMembers(ctx, roleID)
 		if err != nil {

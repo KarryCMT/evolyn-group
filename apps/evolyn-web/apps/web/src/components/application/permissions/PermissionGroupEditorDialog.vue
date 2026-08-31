@@ -7,6 +7,7 @@ import type {
   PermissionOperation,
 } from './permission.types';
 import { RiCloseFill } from '@remixicon/vue';
+import { ElMessage } from 'element-plus';
 import { computed, ref, shallowRef, watch } from 'vue';
 import PermissionGroupEditorDataPanel from './PermissionGroupEditorDataPanel.vue';
 import PermissionGroupEditorFieldsPanel from './PermissionGroupEditorFieldsPanel.vue';
@@ -53,6 +54,7 @@ const defaultFields: PermissionFieldPermission[] = [
   { field: 'birthday', label: '出生日期', visible: true, editable: true },
 ];
 
+// 默认操作集与设计 §3.2 一致：普通表单 9 项，流程表单在普通操作之上追加 3 项流程专属操作。
 const standardOperations: PermissionOperation[] = [
   'view',
   'add',
@@ -61,14 +63,14 @@ const standardOperations: PermissionOperation[] = [
   'delete',
   'batch_print',
   'batch_modify',
+  'import',
   'export',
 ];
 const workflowOperations: PermissionOperation[] = [
-  'view',
+  ...standardOperations,
   'workflow_owner_transfer',
   'workflow_terminate',
   'workflow_activate',
-  'batch_print',
 ];
 
 const isWorkflow = computed(() => props.assetType === 'workflow-form');
@@ -93,8 +95,33 @@ function close() {
   visible.value = false;
 }
 
+/**
+ * 提交前的配置期校验，与后端设计方案 §4 规则逐字对齐：
+ * 必填字段不得隐藏（否则成员无值可填且值不出网）；操作含「添加」时必填字段必须可编辑
+ * （添加路径没有旧值可回填）。校验失败仅提示，不关闭弹窗，便于返回对应分区修正。
+ */
+function validateDraft(): string | undefined {
+  if (!draft.value) return undefined;
+  const hiddenRequired = draft.value.fields?.find((field) => field.required && !field.visible);
+  if (hiddenRequired) {
+    return `必填字段「${hiddenRequired.label}」不可隐藏，请先在字段权限中恢复其可见性`;
+  }
+  if (draft.value.operations?.includes('add')) {
+    const lockedRequired = draft.value.fields?.find((field) => field.required && !field.editable);
+    if (lockedRequired) {
+      return `操作权限包含「添加」时，必填字段「${lockedRequired.label}」必须可编辑`;
+    }
+  }
+  return undefined;
+}
+
 function confirm() {
   if (!draft.value || confirmDisabled.value) return;
+  const violation = validateDraft();
+  if (violation) {
+    ElMessage.warning(violation);
+    return;
+  }
   emit('confirm', {
     ...draft.value,
     name: draft.value.name.trim(),

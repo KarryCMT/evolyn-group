@@ -610,9 +610,15 @@ func TestCursorCodec(t *testing.T) {
 	assert.NoError(t, err)
 	assert.False(t, has)
 
-	// 非法游标（非 base64 / 缺 ID）一律拒绝
-	_, _, _, err = decodeListCursor("!!not-base64!!")
+	// 非法游标（非 base64 / 缺 ID）一律拒绝，且不得携带部分解析结果
+	sort, id, has, err = decodeListCursor("!!not-base64!!")
 	assert.Error(t, err)
-	_, _, _, err = decodeListCursor(encodeListCursor(0, 0))
+	assert.Zero(t, sort)
+	assert.Zero(t, id)
+	assert.False(t, has)
+	sort, id, has, err = decodeListCursor(encodeListCursor(0, 0))
 	assert.Error(t, err)
+	assert.Zero(t, sort)
+	assert.Zero(t, id)
+	assert.False(t, has)
 }

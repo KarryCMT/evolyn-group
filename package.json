@@ -3,6 +3,7 @@
   "name": "evolyn-group",
   "scripts": {
     "dev:web": "pnpm --dir apps/evolyn-web run dev:web",
+    "dev:install": "pnpm --dir apps/evolyn-web install",
     "dev:core": "cd apps/evolyn-core && make run",
     "dev:core-windows": "pnpm run stop:core && cd apps/evolyn-core && make run-windows",
     "dev:core-mac": "pnpm run stop:core && cd apps/evolyn-core && make run-mac",

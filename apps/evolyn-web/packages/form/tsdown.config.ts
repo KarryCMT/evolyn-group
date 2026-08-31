@@ -56,7 +56,15 @@ const shared = {
 export default defineConfig([
   {
     ...shared,
-    entry: ['src/index.ts', 'src/schema/index.ts', 'src/designer/index.ts', 'src/runtime/index.ts'],
+    entry: [
+      'src/index.ts',
+      'src/schema/index.ts',
+      'src/designer/index.ts',
+      'src/runtime/index.ts',
+      'src/runtime-core/index.ts',
+      'src/runtime-web/index.ts',
+      'src/runtime-mobile/index.ts',
+    ],
     css: {
       fileName: 'style.css',
       minify: false,
@@ -75,6 +83,33 @@ export default defineConfig([
     entry: ['src/runtime/style.ts'],
     css: {
       fileName: 'runtime/style.css',
+      minify: false,
+      splitting: false,
+    },
+  },
+  {
+    ...shared,
+    entry: ['src/runtime-core/style.ts'],
+    css: {
+      fileName: 'runtime-core/style.css',
+      minify: false,
+      splitting: false,
+    },
+  },
+  {
+    ...shared,
+    entry: ['src/runtime-web/style.ts'],
+    css: {
+      fileName: 'runtime-web/style.css',
+      minify: false,
+      splitting: false,
+    },
+  },
+  {
+    ...shared,
+    entry: ['src/runtime-mobile/style.ts'],
+    css: {
+      fileName: 'runtime-mobile/style.css',
       minify: false,
       splitting: false,
     },

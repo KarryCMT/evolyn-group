@@ -188,8 +188,12 @@ func TestRegisterByPhoneExistingPhoneLogsIn(t *testing.T) {
 func TestRegisterByPhoneInvalidPhone(t *testing.T) {
 	svc := newPhoneSvc(newPhoneAccountRepo(), &phoneUserRepo{members: map[uint]*model.User{}})
 
-	_, _, _, err := svc.RegisterByPhone(context.Background(), "12345")
+	// 非法区号直接报错，且不得残留半注册数据（账号/成员/令牌均零值）
+	account, member, token, err := svc.RegisterByPhone(context.Background(), "12345")
 	assert.Error(t, err)
+	assert.Nil(t, account)
+	assert.Nil(t, member)
+	assert.False(t, token)
 }
 
 // ---- ChangePassword：免密账号首设免旧密码，之后恢复常规校验 ----

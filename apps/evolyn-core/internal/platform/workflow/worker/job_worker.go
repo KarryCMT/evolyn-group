@@ -222,7 +222,7 @@ func (w *JobWorker) handleTimeout(ctx context.Context, job *model.Job) error {
 	if err != nil {
 		// 任务不存在（实例被清理等）：幂等空跑，避免无意义重试
 		w.logger.Warnf("timeout job %d: task %d not found, skip", job.ID, job.TaskID)
-		return nil
+		return nil //nolint:nilerr // 有意幂等：任务已消失的 Job 不重试（见上注释）
 	}
 	if task.Status != model.TaskStatusPENDING {
 		// 任务已处理/取消（完成联动取消 Job 失效兜底）：幂等空跑
@@ -255,7 +255,7 @@ func (w *JobWorker) handleReminder(ctx context.Context, job *model.Job) error {
 	task, err := w.tasks.FindTaskByIDForUpdate(ctx, job.TenantID, job.TaskID)
 	if err != nil {
 		w.logger.Warnf("reminder job %d: task %d not found, skip", job.ID, job.TaskID)
-		return nil
+		return nil //nolint:nilerr // 有意幂等：任务已消失的 Job 不重试（见上注释）
 	}
 	if task.Status != model.TaskStatusPENDING {
 		return nil

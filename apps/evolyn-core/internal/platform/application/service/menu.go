@@ -24,17 +24,25 @@ import (
 // menuService 应用菜单服务：读取快照 → 树完整性校验 → 可见性裁剪 →
 // capabilities 派生；分组创建通过统一事务和 menuRevision 条件更新串行化。
 type menuService struct {
-	tx      TxManager
-	repo    repository.MenuRepository
-	audit   auditservice.Recorder
-	access  ApplicationAccessEvaluator
-	formDir FormDirectory
+	tx       TxManager
+	repo     repository.MenuRepository
+	audit    auditservice.Recorder
+	access   ApplicationAccessEvaluator
+	formDir  FormDirectory
+	formPerm FormPermissionDirectory
 }
 
 // NewMenuService 构造菜单服务；访问判定与鉴权中间件同源（复用应用域
 // ApplicationAccessEvaluator，§6.1：Service 复核不能仅依赖中间件）
 func NewMenuService(tx TxManager, repo repository.MenuRepository, audit auditservice.Recorder, access ApplicationAccessEvaluator) ApplicationMenuService {
 	return &menuService{tx: tx, repo: repo, audit: audit, access: access}
+}
+
+// UseFormPermissionDirectory 注入表单权限裁剪窄端口（表单权限 P1，装配期
+// 一次性调用）：成员侧表单节点按「权限组入口判定 view ∨ add」二次裁剪；
+// 未注入时保持既有可见性行为（仅存在性裁剪）。
+func (s *menuService) UseFormPermissionDirectory(dir FormPermissionDirectory) {
+	s.formPerm = dir
 }
 
 // UseFormDirectory 注入表单目录窄端口（装配期一次性调用，M2-资产-1）：
@@ -99,7 +107,18 @@ func (s *menuService) GetMenu(ctx context.Context, member *iammodel.User, code s
 		}
 	}
 
-	return buildMenuSnapshot(perms, snap, existingFormTargets, favorites)
+	// 表单权限 P1（S5/S8）：成员侧表单节点按权限组入口判定二次裁剪。端口
+	// 未接入（nil）时保持既有可见性行为；接入后 visibleFormIDs 仅含成员
+	// 可入口（view ∨ add）的表单，未命中（含禁用组收口）的表单节点隐藏。
+	var visibleFormIDs map[uint]bool
+	if s.formPerm != nil && len(formIDs) > 0 {
+		visibleFormIDs, err = s.formPerm.VisibleFormIDs(ctx, member.ID, formIDs)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return buildMenuSnapshot(perms, snap, existingFormTargets, favorites, visibleFormIDs)
 }
 
 // CreateGroup 创建根分组或二级子分组。条件递增修订号是事务内第一项菜单
@@ -464,7 +483,10 @@ func (s *menuService) RemoveFavorite(ctx context.Context, member *iammodel.User,
 // assetVisible 资产节点可见性判定（M2-资产-1 起按目录端口注入的存在集
 // 执行）：form 节点在表单软删/不存在时不可见；目录未接入（existingFormTargets
 // 为 nil）时保持旧行为——按节点存在性出网。仪表盘/页面域落地后在此扩展。
-var assetVisible = func(entry *model.MenuEntry, existingFormTargets map[uint]FormTargetProjection) bool {
+// 表单权限 P1（S5/S8）：visibleFormIDs 非 nil 时 form 节点叠加权限组入口
+// 判定（view ∨ add）——nil 语义 = 端口未接入保持旧行为，与存在集的 nil 语义
+// 同构；接入后未命中权限组的表单在成员侧隐藏。
+var assetVisible = func(entry *model.MenuEntry, existingFormTargets map[uint]FormTargetProjection, visibleFormIDs map[uint]bool) bool {
 	switch entry.EntryType {
 	case model.MenuEntryTypeForm:
 		if existingFormTargets == nil {
@@ -474,7 +496,13 @@ var assetVisible = func(entry *model.MenuEntry, existingFormTargets map[uint]For
 			return false
 		}
 		target, ok := existingFormTargets[*entry.TargetID]
-		return ok && target.Code != "" && target.FormType != ""
+		if !ok || target.Code == "" || target.FormType == "" {
+			return false
+		}
+		if visibleFormIDs == nil {
+			return true // 权限裁剪端口未接入：仅按存在性放行
+		}
+		return visibleFormIDs[*entry.TargetID]
 	default:
 		return true
 	}
@@ -485,7 +513,8 @@ var assetVisible = func(entry *model.MenuEntry, existingFormTargets map[uint]For
 // ErrMenuInvalid，不把异常数据当正常树交给前端（方案 §6.3）。
 // ADR-011：可见性叠加「对成员隐藏」裁剪；capabilities 携带按钮级 actions
 // （动作注册表 × 权限集 × 应用状态派生）与当前成员收藏状态。
-func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, existingFormTargets map[uint]FormTargetProjection, favorites map[uint]bool) (*model.MenuSnapshot, error) {
+// 表单权限 P1：visibleFormIDs 为权限组入口判定结果（nil = 端口未接入）。
+func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, existingFormTargets map[uint]FormTargetProjection, favorites map[uint]bool, visibleFormIDs map[uint]bool) (*model.MenuSnapshot, error) {
 	byID := make(map[uint]*model.MenuEntry, len(snap.Entries))
 	for i := range snap.Entries {
 		byID[snap.Entries[i].ID] = &snap.Entries[i]
@@ -512,7 +541,7 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 	// 无内容的管理结构。
 	canManageMenu := perms["applications:create"] || perms["applications:patch"]
 	nodeVisible := func(entry *model.MenuEntry) bool {
-		if !assetVisible(entry, existingFormTargets) {
+		if !assetVisible(entry, existingFormTargets, visibleFormIDs) {
 			return false
 		}
 		return !entry.Hidden || canManageMenu

@@ -114,7 +114,7 @@ func (i *ServiceInvoker) Invoke(ctx context.Context, req provider.ServiceRequest
 		i.logCall(req, 0, time.Since(started), err)
 		return nil, fmt.Errorf("服务调用失败: %w", err)
 	}
-	defer httpResp.Body.Close() //nolint:errcheck
+	defer httpResp.Body.Close() //nolint:errcheck // 关闭失败无可恢复动作（响应超限已按失败处理）
 	// 响应体限长读取：超限按失败处理（大报文不进入引擎）
 	bodyBytes, err := io.ReadAll(io.LimitReader(httpResp.Body, model.ServiceMaxResponseBytes+1))
 	duration := time.Since(started)

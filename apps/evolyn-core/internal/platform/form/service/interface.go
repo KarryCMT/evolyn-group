@@ -89,8 +89,15 @@ type FormService interface {
 	Copy(ctx context.Context, member *iammodel.User, code string, req *model.CopyFormRequest) (*model.FormDetail, error)
 	// ListReferences 查看引用视图（ADR-011）：表单被哪些应用菜单引用
 	ListReferences(ctx context.Context, member *iammodel.User, code string) ([]FormReference, error)
-	// GetRuntime 运行时 bootstrap（appCode 归属 + 已发布校验；普通成员可读）
-	GetRuntime(ctx context.Context, appCode, formCode string) (*model.FormRuntime, error)
+	// GetRuntime 运行时 bootstrap（appCode 归属 + 已发布校验；普通成员可读）：
+	// 权限组判定入口（view ∨ add），出网追加 permissions 投影
+	GetRuntime(ctx context.Context, member *iammodel.User, appCode, formCode string) (*model.FormRuntime, error)
 	// SubmitRecord 提交记录：按 (publishedVersion, schemaRevision) 定位快照并按其终审
 	SubmitRecord(ctx context.Context, member *iammodel.User, req *model.SubmitRecordRequest) (*model.SubmitRecordResult, error)
+}
+
+// PermissionEvaluatorInjector 装配期注入能力（可选）：权限组判定器（表单权限
+// P1）。未注入时执行点按 S4 基线放行（存量行为零变更），便于单测桩与灰度装配。
+type PermissionEvaluatorInjector interface {
+	UsePermissionEvaluator(evaluator FormPermissionEvaluator)
 }

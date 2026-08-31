@@ -17,12 +17,24 @@
       "import": "./dist/esm/schema/index.mjs",
       "require": "./dist/cjs/schema/index.js"
     },
-    "./runtime": {
-      "types": "./dist/types/runtime/index.d.ts",
-      "import": "./dist/esm/runtime/index.mjs",
-      "require": "./dist/cjs/runtime/index.js"
+    "./runtime-core": {
+      "types": "./dist/types/runtime-core/index.d.ts",
+      "import": "./dist/esm/runtime-core/index.mjs",
+      "require": "./dist/cjs/runtime-core/index.js"
     },
-    "./runtime/style.css": "./dist/runtime/style.css",
+    "./runtime-core/style.css": "./dist/runtime-core/style.css",
+    "./runtime-web": {
+      "types": "./dist/types/runtime-web/index.d.ts",
+      "import": "./dist/esm/runtime-web/index.mjs",
+      "require": "./dist/cjs/runtime-web/index.js"
+    },
+    "./runtime-web/style.css": "./dist/runtime-web/style.css",
+    "./runtime-mobile": {
+      "types": "./dist/types/runtime-mobile/index.d.ts",
+      "import": "./dist/esm/runtime-mobile/index.mjs",
+      "require": "./dist/cjs/runtime-mobile/index.js"
+    },
+    "./runtime-mobile/style.css": "./dist/runtime-mobile/style.css",
     "./designer": {
       "types": "./dist/types/designer/index.d.ts",
       "import": "./dist/esm/designer/index.mjs",

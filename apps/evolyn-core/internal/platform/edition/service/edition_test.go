@@ -398,7 +398,7 @@ func TestEffectiveLimitsOverridePriority(t *testing.T) {
 	limits, sources := effectiveLimits(version, overrides, false)
 	assert.Equal(t, int64(50), limits[model.ResourceMembers], "manual 是最新运营意图，优先级最高")
 	assert.Equal(t, model.LimitSourceTenantOverride, sources[model.ResourceMembers])
-	assert.Equal(t, int64(5*model.GiB), limits[model.ResourceStorage], "无覆盖键回落快照值")
+	assert.Equal(t, 5*model.GiB, limits[model.ResourceStorage], "无覆盖键回落快照值")
 	assert.Equal(t, model.LimitSourcePlanVersion, sources[model.ResourceStorage])
 
 	// legacy 单独存在时标注 legacy_quota
@@ -449,7 +449,7 @@ func TestGetCurrentExpiryFallback(t *testing.T) {
 	}
 	assert.Equal(t, int64(5), byKey[model.ResourceMembers].Limit, "免费快照 members=5")
 	assert.Equal(t, model.LimitSourceExpiryFallback, byKey[model.ResourceMembers].LimitSource)
-	assert.Equal(t, int64(1*model.GiB), byKey[model.ResourceStorage].Limit, "免费快照存储 1GiB")
+	assert.Equal(t, model.GiB, byKey[model.ResourceStorage].Limit, "免费快照存储 1GiB")
 	assert.Equal(t, "ready", byKey[model.ResourceMembers].MeteringStatus)
 	assert.NotNil(t, byKey[model.ResourceMembers].Usage)
 	assert.Nil(t, byKey[model.ResourceForms].Usage, "待计量键不返回伪零值")
@@ -722,7 +722,7 @@ func TestGuardLimit(t *testing.T) {
 	limit, decided, err = svc.GuardLimit(context.Background(), 31, model.ResourceStorage)
 	require.NoError(t, err)
 	assert.True(t, decided)
-	assert.Equal(t, int64(1*model.GiB), limit)
+	assert.Equal(t, model.GiB, limit)
 
 	// 非存量键 / 无订阅
 	_, decided, err = svc.GuardLimit(context.Background(), 31, model.ResourceForms)

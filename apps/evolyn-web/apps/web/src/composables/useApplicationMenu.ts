@@ -1,8 +1,20 @@
-import { markRaw, readonly, shallowRef, watch, type Component, type Ref } from 'vue';
-import { RiArticleFill, RiBarChartBoxFill, RiFileList3Fill, RiFolder3Fill } from '@remixicon/vue';
-import { getApplicationMenuByCode } from '~/api/applications';
-import type { ApplicationMenu, ApplicationMenuEntry, ApplicationMenuEntryType } from '~/types';
+import type {Component, Ref} from 'vue';
 import type { ApplicationWorkspaceAsset } from '~/components/application/workspace/applicationWorkspace.types';
+import type { ApplicationMenu, ApplicationMenuEntry, ApplicationMenuEntryType } from '~/types';
+import {
+  RiArticleFill,
+  RiBarChartBoxFill,
+  RiBookmark3Fill,
+  RiBriefcase4Fill,
+  RiCalendarCheckFill,
+  RiCheckboxCircleFill,
+  RiContactsBook3Fill,
+  RiFileList3Fill,
+  RiFolder3Fill,
+  RiShoppingCart2Fill,
+} from '@remixicon/vue';
+import {  markRaw, readonly,  shallowRef, watch } from 'vue';
+import { getApplicationMenuByCode } from '~/api/applications';
 
 export type ApplicationMenuStatus = 'loading' | 'ready' | 'error';
 
@@ -16,6 +28,12 @@ const iconByKey: Record<string, Component> = {
   'file-list': markRaw(RiFileList3Fill),
   chart: markRaw(RiBarChartBoxFill),
   article: markRaw(RiArticleFill),
+  bookmark: markRaw(RiBookmark3Fill),
+  briefcase: markRaw(RiBriefcase4Fill),
+  calendar: markRaw(RiCalendarCheckFill),
+  check: markRaw(RiCheckboxCircleFill),
+  contacts: markRaw(RiContactsBook3Fill),
+  'shopping-cart': markRaw(RiShoppingCart2Fill),
 };
 
 const iconByType: Record<ApplicationMenuEntryType, Component> = {
@@ -62,6 +80,7 @@ function buildAssets(menu: ApplicationMenu): ApplicationWorkspaceAsset[] {
       code: entry.entryId,
       label: entry.name,
       icon: resolveIcon(entry),
+      iconKey: entry.icon,
       type,
       // 菜单 entryId 仅用于树节点定位；设计器路由必须使用资产公开编码。
       targetCode: entry.target?.code ?? null,
@@ -91,31 +110,45 @@ export function useApplicationMenu(appCode: Readonly<Ref<string>>) {
   const errorMessage = shallowRef('');
   const menuRevision = shallowRef(0);
   let requestVersion = 0;
+  /** 最近一次成功加载的应用编码；切换应用时才允许清空旧菜单。 */
+  let loadedAppCode = '';
 
   async function load(code = appCode.value) {
     const version = ++requestVersion;
-    assets.value = [];
     errorMessage.value = '';
 
     if (!code) {
+      assets.value = [];
       status.value = 'error';
       errorMessage.value = '应用编码缺失，无法加载菜单';
       return;
     }
 
-    status.value = 'loading';
+    // 同一应用的刷新（例如修改名称/图标后的菜单修订同步）必须保留现有
+    // 资产树与 ready 状态，否则 activeAsset 会暂时变为 null，运行态表单被
+    // v-if 卸载并重新请求，用户会感知为“整页重新加载”。
+    const switchingApplication = code !== loadedAppCode;
+    if (switchingApplication) {
+      assets.value = [];
+      status.value = 'loading';
+    }
     try {
       const menu = await getApplicationMenuByCode(code);
       if (version !== requestVersion) return;
 
       assets.value = buildAssets(menu);
       menuRevision.value = menu.menuRevision;
+      loadedAppCode = code;
       status.value = 'ready';
     } catch (error) {
       if (version !== requestVersion) return;
 
-      status.value = 'error';
-      errorMessage.value = '应用菜单加载失败，请稍后重试';
+      // 后台刷新失败时继续呈现最后一个可用菜单，避免用户正在填写的数据被
+      // 加载占位替换；首次加载与切换应用仍展示完整错误态。
+      if (switchingApplication) {
+        status.value = 'error';
+        errorMessage.value = '应用菜单加载失败，请稍后重试';
+      }
       console.warn('[application-menu] load menu failed', error);
     }
   }

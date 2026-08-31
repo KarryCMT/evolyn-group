@@ -46,6 +46,14 @@ describe('FormRuntimeSurface', () => {
     expect(root.element.children[1]?.classList.contains('evf-runtime-action-bar')).toBe(true);
   });
 
+  it('Web 表面通过 Web Registry 渲染 Element Plus 基础字段', () => {
+    const wrapper = mount(FormRuntimeSurface, {
+      props: { schema: schema() },
+    });
+
+    expect(wrapper.find('.el-input').exists()).toBe(true);
+  });
+
   it('提交动作调用渲染器同一校验/提交链', async () => {
     const submit = vi.fn(async () => ({ accepted: true }));
     const wrapper = mount(FormRuntimeSurface, {

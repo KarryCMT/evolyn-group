@@ -2,10 +2,12 @@ import type {
   ApplicationItem,
   ApplicationListQuery,
   ApplicationMenu,
+  ApplicationMenuEntryMutation,
   ApplicationMenuGroupMutation,
   ApplicationPage,
   CreateApplicationMenuGroupPayload,
   CreateBlankApplicationPayload,
+  UpdateApplicationMenuEntryPayload,
   UpdateApplicationPayload,
 } from '~/types';
 // 应用管理域接口：与后端 /api/v1/applications* 一一对应
@@ -60,6 +62,15 @@ export function createApplicationMenuGroup(
   payload: CreateApplicationMenuGroupPayload,
 ): Promise<ApplicationMenuGroupMutation> {
   return http.post(`/applications/code/${code}/menu/groups`, payload);
+}
+
+/** 移动或更新应用菜单节点；服务端会校验目标分组、层级和菜单修订号。 */
+export function updateApplicationMenuEntry(
+  code: string,
+  entryCode: string,
+  payload: UpdateApplicationMenuEntryPayload,
+): Promise<ApplicationMenuEntryMutation> {
+  return http.patch(`/applications/code/${code}/menu/entries/${entryCode}`, payload);
 }
 
 /**

@@ -1,8 +1,6 @@
-// 运行时入口：只允许静态依赖 Vue、Schema（@evolyn.do/form/schema）、运行时 Store、
-// 校验与基础字段。富文本、签名、附件、成员/部门选择器等重型字段必须以 loader
-// 动态注册（registry.register('user', () => import('./widgets/heavy/UserField.vue'))），
-// 不得在此入口静态 import，否则会被合并进首屏产物。
-// 样式经独立入口 @evolyn.do/form/runtime/style.css 引入，保持首屏 CSS 最小化。
+// Runtime Core 入口：只允许静态依赖 Vue、Schema（@evolyn.do/form/schema）、运行时
+// Store、校验与原生字段回退。终端页面必须使用 runtime-web 或 runtime-mobile 的
+// Surface；富文本、签名、附件、成员/部门选择器等重型字段必须以 loader 动态注册。
 
 export type {
   FieldRuntimeState,
@@ -64,10 +62,8 @@ export type { FormRendererExpose } from './renderer/types';
 export { default as FormSectionRenderer } from './renderer/FormSectionRenderer.vue';
 export { default as FormFieldHost } from './renderer/FormFieldHost.vue';
 export { default as FormFieldError } from './renderer/FormFieldError.vue';
-export { default as FormRuntimeActionBar } from './surface/FormRuntimeActionBar.vue';
-export { default as FormRuntimeSurface } from './surface/FormRuntimeSurface.vue';
 export {
-  createDefaultFieldRegistry,
+  createMobileFieldRegistry,
   FormFieldRegistry,
   type FieldWidgetDefinition,
   type FieldWidgetLoader,

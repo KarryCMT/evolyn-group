@@ -1,0 +1,23 @@
+// Web 运行时的可发布样式入口。
+//
+// 必须通过 Sass 聚合 Element Plus 主题：若在 TS 中直接 import `.scss`，打包器会将
+// 其保留为运行时外部依赖，消费者只引入 `runtime-web/style.css` 时弹层（日期、下拉等）
+// 就没有对应规则，最终退化为浏览器默认排版。
+@use '../../runtime/styles/index.scss';
+
+@use 'element-plus/theme-chalk/src/button.scss';
+@use 'element-plus/theme-chalk/src/checkbox.scss';
+// Element Plus 2.11 的 date-picker.scss 为空占位入口；真正的日历与时间面板
+// 规则由 date-picker-panel / time-picker 承载，不能只引入前者。
+@use 'element-plus/theme-chalk/src/date-picker-panel.scss';
+@use 'element-plus/theme-chalk/src/divider.scss';
+@use 'element-plus/theme-chalk/src/dropdown.scss';
+@use 'element-plus/theme-chalk/src/input-number.scss';
+@use 'element-plus/theme-chalk/src/input.scss';
+@use 'element-plus/theme-chalk/src/option.scss';
+@use 'element-plus/theme-chalk/src/popper.scss';
+@use 'element-plus/theme-chalk/src/radio.scss';
+@use 'element-plus/theme-chalk/src/scrollbar.scss';
+@use 'element-plus/theme-chalk/src/select.scss';
+@use 'element-plus/theme-chalk/src/tabs.scss';
+@use 'element-plus/theme-chalk/src/time-picker.scss';

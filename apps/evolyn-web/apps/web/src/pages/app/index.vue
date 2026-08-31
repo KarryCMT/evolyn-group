@@ -23,10 +23,15 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, markRaw, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { createApplicationMenuGroup } from '~/api/applications';
-import { createForm } from '~/api/form';
+import {
+  createApplicationMenuGroup,
+  updateApplicationMenuEntry,
+} from '~/api/applications';
+import { createForm, updateForm } from '~/api/form';
 import ApplicationEmptyState from '~/components/application/runtime/ApplicationEmptyState.vue';
 import ApplicationWorkspaceShell from '~/components/application/workspace/ApplicationWorkspaceShell.vue';
+import FormAppearanceDialog from '~/components/application/workspace/FormAppearanceDialog.vue';
+import MoveMenuEntryDialog from '~/components/application/workspace/MoveMenuEntryDialog.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { useApplicationHome } from '~/composables/useApplicationHome';
 import { useApplicationMenu } from '~/composables/useApplicationMenu';
@@ -89,6 +94,40 @@ const DEFAULT_FORM_NAME = '未命名表单';
 const creatingAssetType = shallowRef<ApplicationAssetType | null>(null);
 /** 分组创建单独加锁，避免 Prompt 关闭后的请求窗口内再次提交。 */
 const creatingGroup = shallowRef(false);
+/** 当前正修改展示信息的表单节点；仅表单节点可打开此弹窗。 */
+const formAppearanceTarget = shallowRef<ApplicationWorkspaceAsset | null>(null);
+const formAppearanceVisible = shallowRef(false);
+/** 当前准备移动的菜单节点；实际位置仅在确认后由服务端原子更新。 */
+const menuMoveTarget = shallowRef<ApplicationWorkspaceAsset | null>(null);
+const menuMoveVisible = shallowRef(false);
+
+/** 弹窗状态只由页面层收口：关闭时同时清理目标，下一次打开必定使用最新菜单快照。 */
+function closeFormAppearanceDialog() {
+  formAppearanceVisible.value = false;
+  formAppearanceTarget.value = null;
+}
+
+function updateFormAppearanceVisible(visible: boolean) {
+  if (visible) {
+    formAppearanceVisible.value = true;
+    return;
+  }
+  closeFormAppearanceDialog();
+}
+
+/** 移动弹窗关闭时一并清理目标，避免后续菜单刷新后仍引用旧节点。 */
+function closeMenuMoveDialog() {
+  menuMoveVisible.value = false;
+  menuMoveTarget.value = null;
+}
+
+function updateMenuMoveVisible(visible: boolean) {
+  if (visible) {
+    menuMoveVisible.value = true;
+    return;
+  }
+  closeMenuMoveDialog();
+}
 
 /** 递归按编码定位资产节点；菜单为空或未选中时为 null（内容区渲染空态） */
 function findAsset(
@@ -360,11 +399,39 @@ function createWorkspaceAsset(payload: {
   ElMessage.info(`${location}新建${assetLabel}的能力将在后续版本接入`);
 }
 
-/** 菜单写接口尚未落地，浮窗入口先明确反馈能力建设状态，避免静默失效。 */
+/**
+ * 侧栏表单的「编辑」复用表单设计器；其余菜单动作仍待对应写接口落地后接入。
+ * 菜单节点的 targetCode 是表单对外稳定编码，不能使用菜单节点自身的 code。
+ */
 function handleWorkspaceAssetAction(payload: {
   asset: ApplicationWorkspaceAsset;
   action: ApplicationWorkspaceAssetAction;
 }) {
+  if (payload.action === 'move') {
+    menuMoveTarget.value = payload.asset;
+    menuMoveVisible.value = true;
+    return;
+  }
+
+  if (payload.action === 'rename' && payload.asset.type === 'form') {
+    formAppearanceTarget.value = payload.asset;
+    formAppearanceVisible.value = true;
+    return;
+  }
+
+  if (payload.action === 'edit' && payload.asset.type === 'form') {
+    if (!payload.asset.targetCode) {
+      ElMessage.error('表单信息不完整，暂无法打开设计器');
+      return;
+    }
+
+    void router.push({
+      name: 'form-design',
+      params: { appCode: appCode.value, formCode: payload.asset.targetCode },
+    });
+    return;
+  }
+
   const actionLabels: Record<ApplicationWorkspaceAssetAction, string> = {
     edit: '编辑',
     rename: '修改名称和图标',
@@ -378,6 +445,76 @@ function handleWorkspaceAssetAction(payload: {
     delete: '删除',
   };
   ElMessage.info(`${actionLabels[payload.action]}「${payload.asset.label}」功能将在后续版本接入`);
+}
+
+/**
+ * 移动菜单节点：使用菜单快照的 revision 防止并发覆盖，成功后重载完整树。
+ * 根目录以空字符串传给服务端；分组的自环、后代和层级规则由服务端再次复核。
+ */
+async function submitMenuMove(parentEntryCode: string): Promise<boolean> {
+  const target = menuMoveTarget.value;
+  if (!target || menuRevision.value < 1) return false;
+
+  try {
+    await updateApplicationMenuEntry(appCode.value, target.code, {
+      parentEntryCode,
+      baseMenuRevision: menuRevision.value,
+    });
+    await reloadMenu();
+    ElMessage.success(
+      parentEntryCode ? `已将「${target.label}」移入目标分组` : `已将「${target.label}」移至根目录`,
+    );
+    return true;
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'APP_MENU_VERSION_CONFLICT') {
+      ElMessage.warning('应用菜单已更新，已为你刷新，请重新选择目标分组');
+      await reloadMenu();
+    } else if (error instanceof ApiError && error.errCode === 'APP_MENU_PARENT_INVALID') {
+      ElMessage.error('目标分组不存在或已删除，已为你刷新菜单');
+      await reloadMenu();
+    } else if (error instanceof ApiError && error.errCode === 'APP_MENU_MOVE_INVALID') {
+      ElMessage.error('无法移动到该分组，请重新选择');
+    } else if (error instanceof ApiError && error.errCode === 'APP_MENU_DEPTH_EXCEEDED') {
+      ElMessage.error('分组最多支持两级，无法移动至该分组');
+    } else if (
+      error instanceof ApiError &&
+      (error.errCode === 'APP_STATUS_INVALID' || error.errCode === 'APP_PROVISIONING')
+    ) {
+      ElMessage.error('当前应用状态不支持移动菜单');
+    } else {
+      ElMessage.error('移动失败，请稍后重试');
+    }
+    return false;
+  }
+}
+
+/**
+ * 名称和图标由同一 PATCH 原子提交；刷新菜单树后再关闭弹窗，避免名称已变而
+ * 侧栏图标仍为旧值的短暂不一致。ApiError 仅按稳定码分支，其他错误统一脱敏。
+ */
+async function submitFormAppearance(payload: { name: string; icon: string }): Promise<boolean> {
+  const target = formAppearanceTarget.value;
+  if (!target?.targetCode) return false;
+
+  try {
+    await updateForm(target.targetCode, payload);
+    // 后台同步最新 menuRevision；刷新过程保留现有资产树，不中断当前表单填写。
+    void reloadMenu();
+    ElMessage.success('名称和图标已修改');
+    return true;
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'FORM_NAME_INVALID') {
+      ElMessage.error('名称不能为空，且不能超过 128 个字符');
+    } else if (error instanceof ApiError && error.errCode === 'FORM_ICON_INVALID') {
+      ElMessage.error('图标信息无效，请重新选择');
+    } else if (error instanceof ApiError && error.errCode === 'FORM_NOT_FOUND') {
+      ElMessage.error('表单不存在或已被删除，已为你刷新菜单');
+      await reloadMenu();
+    } else {
+      ElMessage.error('修改名称和图标失败，请稍后重试');
+    }
+    return false;
+  }
 }
 
 function reloadWorkspace() {
@@ -400,7 +537,9 @@ function reloadWorkspace() {
         :sub-title="menuErrorMessage"
       >
         <template #extra>
-          <el-button type="primary" @click="reloadMenu()"> 重新加载 </el-button>
+          <el-button type="primary" @click="reloadMenu()">
+            重新加载
+          </el-button>
         </template>
       </el-result>
 
@@ -420,6 +559,27 @@ function reloadWorkspace() {
         @asset-action="handleWorkspaceAssetAction"
         @open-management="openApplicationManagement"
         @update-mode="updateWorkspaceMode"
+      />
+
+      <FormAppearanceDialog
+        v-if="formAppearanceTarget"
+        :model-value="formAppearanceVisible"
+        :initial-name="formAppearanceTarget.label"
+        :initial-icon="formAppearanceTarget.iconKey"
+        :submit="submitFormAppearance"
+        @success="closeFormAppearanceDialog"
+        @update:model-value="updateFormAppearanceVisible"
+      />
+
+      <MoveMenuEntryDialog
+        v-if="menuMoveTarget"
+        :model-value="menuMoveVisible"
+        :application-name="applicationName"
+        :assets="menuAssets"
+        :source-asset="menuMoveTarget"
+        :submit="submitMenuMove"
+        @success="closeMenuMoveDialog"
+        @update:model-value="updateMenuMoveVisible"
       />
     </template>
 
@@ -455,7 +615,9 @@ function reloadWorkspace() {
         sub-title="请返回工作台后重新选择应用。"
       >
         <template #extra>
-          <el-button type="primary" @click="returnToDashboard"> 返回工作台 </el-button>
+          <el-button type="primary" @click="returnToDashboard">
+            返回工作台
+          </el-button>
         </template>
       </el-result>
 
@@ -467,7 +629,9 @@ function reloadWorkspace() {
         :sub-title="errorMessage"
       >
         <template #extra>
-          <el-button type="primary" @click="reloadWorkspace()"> 重新加载 </el-button>
+          <el-button type="primary" @click="reloadWorkspace()">
+            重新加载
+          </el-button>
         </template>
       </el-result>
 

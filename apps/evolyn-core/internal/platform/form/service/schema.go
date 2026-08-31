@@ -660,7 +660,7 @@ func validateWidget(raw any, path string, spec widgetSpec, scopeNames map[string
 	validateWidgetCrossRules(widget, widgetType, path, issues)
 }
 
-func validateWidgetProp(value any, spec propSpec, path, key string, issues *[]SchemaIssue) {
+func validateWidgetProp(value any, spec propSpec, path, key string, issues *[]SchemaIssue) { //nolint:gocyclo // 27 种 widget 协议属性逐 kind 分派，镜像 TS 字典结构
 	switch spec.kind {
 	case kindBoolean:
 		if _, ok := value.(bool); !ok {

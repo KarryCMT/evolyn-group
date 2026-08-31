@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do/form/runtime';
+import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do/form/runtime-web';
 import type { FormSchemaDocument } from '@evolyn.do/form/schema';
-import { FormRuntimeSurface } from '@evolyn.do/form/runtime';
+import { FormWebRuntimeSurface } from '@evolyn.do/form/runtime-web';
 import { RiCloseFill, RiComputerFill, RiSmartphoneFill } from '@remixicon/vue';
 import { shallowRef } from 'vue';
 // 预览组件独立加载运行时样式，避免宿主页面依赖设计器样式副作用。
-import '@evolyn.do/form/runtime/style.css';
+import '@evolyn.do/form/runtime-web/style.css';
 
 defineOptions({ name: 'FormDesignPreviewDrawer' });
 
@@ -102,7 +102,7 @@ function setViewport(value: 'desktop' | 'mobile'): void {
     </template>
     <section class="form-design-preview" aria-label="表单预览内容">
       <div class="form-design-preview__stage" :class="`form-design-preview__stage--${viewport}`">
-        <FormRuntimeSurface
+        <FormWebRuntimeSurface
           class="form-design-preview__runtime"
           :schema="schema"
           :form-id="formId"

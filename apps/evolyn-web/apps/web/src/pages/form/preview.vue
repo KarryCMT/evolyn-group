@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do/form/runtime';
+import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do/form/runtime-web';
 import type { FormSchemaIssue } from '@evolyn.do/form/schema';
 import type { FormSchemaDocument } from '~/types';
-import { FormRuntimeSurface } from '@evolyn.do/form/runtime';
+import { FormWebRuntimeSurface } from '@evolyn.do/form/runtime-web';
 import { migrateFormSchema } from '@evolyn.do/form/schema';
 import { ApiError } from '@evolyn.do/utils';
 import { RiArrowGoBackFill } from '@remixicon/vue';
@@ -12,7 +12,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
 import { loadFormPreviewDocument } from './preview-storage';
 // 运行时样式独立于设计器 style.css，最终用户填写页只加载关键 CSS。
-import '@evolyn.do/form/runtime/style.css';
+import '@evolyn.do/form/runtime-web/style.css';
 
 defineOptions({ name: 'FormPreviewPage' });
 
@@ -169,7 +169,7 @@ function goBack(): void {
     <div class="form-preview-page__body">
       <el-empty v-if="initializing" description="正在加载表单…" />
       <el-empty v-else-if="!documentRef" :description="emptyText" />
-      <FormRuntimeSurface
+      <FormWebRuntimeSurface
         v-else
         class="form-preview-page__runtime"
         :schema="documentRef"

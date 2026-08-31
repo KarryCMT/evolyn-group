@@ -110,3 +110,37 @@ func TestPermissionsOfMenuActionCodes(t *testing.T) {
 	permissions = PermissionsOf(user)
 	assert.False(t, permissions["form-actions:switch-type"])
 }
+
+// TestPermissionsOfFormDataAdmin 表单权限 P1（设计 §7.1 通配展开定版）：
+// 精确授权 form-data:admin、资源通配 form-data:*（AllOperation）、全局通配
+// *:*（All + AllOperation）三者等价产出 form-data:admin；form-permissions:*
+// 不触发数据面旁路（S3 配置面/数据面分离）。
+func TestPermissionsOfFormDataAdmin(t *testing.T) {
+	// 精确动作授权
+	precise := PermissionsOf(&model.User{ID: 1, Roles: []model.Role{
+		{Rules: model.Rules{{Resource: model.FormDataResource, Operation: "admin"}}},
+	}})
+	assert.True(t, precise["form-data:admin"])
+
+	// 资源通配
+	resourceWildcard := PermissionsOf(&model.User{ID: 2, Roles: []model.Role{
+		{Rules: model.Rules{{Resource: model.FormDataResource, Operation: model.AllOperation}}},
+	}})
+	assert.True(t, resourceWildcard["form-data:admin"])
+	assert.True(t, resourceWildcard["form-data:*"])
+
+	// 全局通配
+	globalWildcard := PermissionsOf(&model.User{ID: 3, Roles: []model.Role{
+		{Rules: model.Rules{{Resource: model.All, Operation: model.AllOperation}}},
+	}})
+	assert.True(t, globalWildcard["form-data:admin"])
+	assert.True(t, globalWildcard["form-actions:switch-type"], "全局通配同时展开既有 form-actions 动作键")
+
+	// 配置面全量不产出数据面旁路（S3）
+	configOnly := PermissionsOf(&model.User{ID: 4, Roles: []model.Role{
+		{Rules: model.Rules{{Resource: model.FormPermissionResource, Operation: model.AllOperation}}},
+	}})
+	assert.True(t, configOnly["form-permissions:list"])
+	assert.True(t, configOnly["form-permissions:delete"])
+	assert.False(t, configOnly["form-data:admin"])
+}

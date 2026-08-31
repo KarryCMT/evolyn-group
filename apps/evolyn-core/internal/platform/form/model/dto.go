@@ -101,14 +101,36 @@ type FormPage struct {
 	HasMore    bool          `json:"hasMore"`
 }
 
-// FormRuntime 运行时 bootstrap 出网（后端契约 §2.2）：已发布快照 + 双口令。
+// FormRuntimeFieldPermission 运行时字段权限投影（设计 §8.2 v2.3）：单字段
+// 的权限可见/可编辑（合成规则由前端执行：effectiveVisible = 快照可见 ∧ 权限
+// 可见，effectiveEditable = 快照可见 ∧ 权限可编辑）。
+type FormRuntimeFieldPermission struct {
+	Visible  bool `json:"visible"`
+	Editable bool `json:"editable"`
+}
+
+// FormRuntimePermissions 运行时 permissions 投影：operations 为记录无关操作
+// 可用性（add/import，记录级操作由记录接口逐行判定）；viewFields 与
+// addFields 是两个独立矩阵——viewFields = FieldsForNew("view")（列表/查看
+// 模式列基准），addFields = FieldsForNew("add")（填写模式可填字段），查看与
+// 填写的字段集可能不同（如仅录入组），不得合并或按模式二选一返回。
+type FormRuntimePermissions struct {
+	Operations []string                              `json:"operations" example:"add,import"`
+	ViewFields map[string]FormRuntimeFieldPermission `json:"viewFields"`
+	AddFields  map[string]FormRuntimeFieldPermission `json:"addFields"`
+}
+
+// FormRuntime 运行时 bootstrap 出网（后端契约 §2.2）：已发布快照 + 双口令；
+// Permissions 为权限组投影（无权限组基线 S4 下为全量放行矩阵，判定器未接入
+// 时为 nil）。
 type FormRuntime struct {
-	FormCode         string      `json:"formCode"`
-	Name             string      `json:"name"`
-	PublishedVersion int         `json:"publishedVersion"`
-	SchemaRevision   string      `json:"schemaRevision"`
-	ProtocolVersion  int         `json:"protocolVersion"`
-	Content          JSONContent `json:"content"`
+	FormCode         string                  `json:"formCode"`
+	Name             string                  `json:"name"`
+	PublishedVersion int                     `json:"publishedVersion"`
+	SchemaRevision   string                  `json:"schemaRevision"`
+	ProtocolVersion  int                     `json:"protocolVersion"`
+	Content          JSONContent             `json:"content"`
+	Permissions      *FormRuntimePermissions `json:"permissions,omitempty"`
 }
 
 // SubmitFieldValue 单字段提交快照：Data 缺省与显式 null 均表示空值；Visible

@@ -597,6 +597,65 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_form_records_tenant_data_op
 COMMENT ON COLUMN form_records.data_op_id IS '客户端生成的单次提交幂等 UUID；同一租户内唯一，历史记录允许为空';
 COMMENT ON COLUMN form_records.entry_code IS '触发提交的应用菜单节点公开编码快照；设计预览直提允许为空';
 
+-- 资产权限组（000058，表单权限 P1）：主体范围×操作集×字段矩阵×数据范围的
+-- 整体授权单元；asset_type 现仅 form（类型白名单在 Service 注册表，预留
+-- dashboard 扩展位）。表单存在任一权限组行（含禁用组）即进入授权模型（S5 收口）。
+-- 索引策略定版：不建 values 根列 GIN（模板谓词作用于 values->'F'，GIN 无法命中）
+CREATE TABLE IF NOT EXISTS asset_permission_groups (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL,
+    application_id BIGINT NOT NULL,
+    asset_type VARCHAR(16) NOT NULL DEFAULT 'form',
+    asset_id BIGINT NOT NULL,
+    code VARCHAR(64) NOT NULL,
+    name VARCHAR(64) NOT NULL,
+    description VARCHAR(200) NOT NULL DEFAULT '',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    operations JSONB NOT NULL DEFAULT '[]',
+    field_permissions JSONB NOT NULL DEFAULT '[]',
+    data_scope JSONB NOT NULL DEFAULT '{}',
+    revision BIGINT NOT NULL DEFAULT 1,
+    created_at timestamp with time zone NOT NULL DEFAULT NOW(),
+    updated_at timestamp with time zone NOT NULL DEFAULT NOW(),
+    deleted_at timestamp with time zone,
+    CONSTRAINT uq_asset_permission_groups_code UNIQUE (code)
+);
+
+CREATE INDEX IF NOT EXISTS idx_asset_permission_groups_tenant
+    ON asset_permission_groups (tenant_id, asset_type, asset_id);
+
+COMMENT ON TABLE asset_permission_groups IS '资产权限组（表单权限 P1）：主体范围×操作集×字段矩阵×数据范围的整体授权单元；表单存在任一权限组行（含禁用组）即进入授权模型（S5 收口）';
+COMMENT ON COLUMN asset_permission_groups.code IS '权限组公开编码（fpg_ 前缀服务端生成，出网稳定标识）';
+COMMENT ON COLUMN asset_permission_groups.enabled IS '启用状态；禁用组同样维持收口（S5）但不授权';
+COMMENT ON COLUMN asset_permission_groups.operations IS '操作键 JSONB 数组（view/add/copy/edit/delete/batch_print/batch_modify/import/export + 流程表单 workflow_*）';
+COMMENT ON COLUMN asset_permission_groups.field_permissions IS '字段矩阵 JSONB 数组 [{field,visible,editable}]；缺失字段 deny-by-default（S7）';
+COMMENT ON COLUMN asset_permission_groups.data_scope IS '数据范围 JSONB {match,conditions}（match: all/any；空条件=全部数据 S6）';
+COMMENT ON COLUMN asset_permission_groups.revision IS '整组乐观锁口令（PUT 全量提交，冲突返回 FORM_PERMISSION_REVISION_CONFLICT）';
+
+-- 权限组主体（000058）：成员/部门/角色，判定侧按主体反查。外键 CASCADE 只对
+-- 物理 DELETE 生效：组删除走软删，由 Service 同事务显式硬删本表行；subject_id
+-- 不做外键，角色/部门删除时判定侧容错（解析不到的主体不命中）
+CREATE TABLE IF NOT EXISTS asset_permission_group_subjects (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL,
+    group_id BIGINT NOT NULL,
+    subject_type VARCHAR(16) NOT NULL,
+    subject_id BIGINT NOT NULL,
+    created_at timestamp with time zone NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_asset_permission_group_subjects UNIQUE (group_id, subject_type, subject_id),
+    CONSTRAINT ck_asset_permission_group_subjects_type
+        CHECK (subject_type IN ('member', 'department', 'role')),
+    CONSTRAINT fk_asset_permission_group_subjects_group
+        FOREIGN KEY (group_id) REFERENCES asset_permission_groups (id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_asset_permission_group_subjects_lookup
+    ON asset_permission_group_subjects (tenant_id, subject_type, subject_id);
+
+COMMENT ON TABLE asset_permission_group_subjects IS '资产权限组主体：成员/部门/角色；判定侧按主体反查命中组（部门含子部门，祖先链命中）';
+COMMENT ON COLUMN asset_permission_group_subjects.subject_type IS '主体类型：member/department/role（CHECK 约束）';
+COMMENT ON COLUMN asset_permission_group_subjects.subject_id IS '主体 ID（users.id/departments.id/roles.id；无外键，判定侧容错解析不到的主体）';
+
 -- 消息中心不可变逻辑消息（000039）：模板渲染后的展示快照固化存储，
 -- 多成员经收件箱共享同一行；(tenant_id, event_id) 唯一承担 Worker 重试幂等
 CREATE TABLE IF NOT EXISTS notification_messages (
@@ -2381,3 +2440,33 @@ COMMENT ON COLUMN wf_cc_record.display_name IS '抄送对象显示名快照（�
 COMMENT ON COLUMN wf_cc_record.created_at IS '创建时间';
 COMMENT ON COLUMN wf_operation.payload IS '操作载荷 JSONB（节点 key、意见、转办去向等；敏感字段出网前脱敏）';
 COMMENT ON COLUMN wf_operation.created_at IS '创建时间（追加写）';
+
+-- 权限补授（000058，表单权限 P1）：基线管理员（规则签名 members:* + roles:*
+-- + departments:*，与可改名的角色名无关）补授 form-permissions（配置面 CRUD，
+-- 权限组管理接口 Service 复核键，不经管理组放行）与 form-data（数据面旁路
+-- 键资源，form-data:* 经动作资源注册表展开产出 form-data:admin）
+UPDATE roles
+SET rules = (
+    rules::jsonb || jsonb_build_array(
+        jsonb_build_object('resource', 'form-permissions', 'operation', '*'),
+        jsonb_build_object('resource', 'form-data', 'operation', '*')
+    )
+)::json
+WHERE deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND EXISTS (
+      SELECT 1 FROM json_array_elements(rules) AS rule
+      WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*'
+  )
+  AND EXISTS (
+      SELECT 1 FROM json_array_elements(rules) AS rule
+      WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*'
+  )
+  AND EXISTS (
+      SELECT 1 FROM json_array_elements(rules) AS rule
+      WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*'
+  )
+  AND NOT EXISTS (
+      SELECT 1 FROM json_array_elements(rules) AS rule
+      WHERE rule->>'resource' IN ('form-permissions', 'form-data')
+  );

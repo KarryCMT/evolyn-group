@@ -223,6 +223,20 @@ func (r *Repositories) Init() error {
 			Name:  model.FormMenuActionResource,
 			Scope: model.ClusterScope,
 		},
+		// 表单资产权限组配置面（表单权限 P1）：权限组 CRUD 的 Service 层复核
+		// 键（路由挂 /forms 首段，URL 门为 forms:*）；仅授予租户管理员，不经
+		// 管理组放行，存量租户由 000058 按管理员规则签名补授
+		{
+			Name:  model.FormPermissionResource,
+			Scope: model.ClusterScope,
+		},
+		// 表单数据面旁路动作键资源（表单权限 P1）：唯一动作码 admin 由 form
+		// 域判定器服务层消费（form-data:admin）；授予租户管理员，存量租户由
+		// 000058 按管理员规则签名补授
+		{
+			Name:  model.FormDataResource,
+			Scope: model.ClusterScope,
+		},
 		// 菜单节点个人收藏：凡节点可见即可收藏（create 收藏、delete 取消），
 		// 授予全体成员（authenticated 基线），数据范围由 Repository 的
 		// member_id 双条件兜底

@@ -2,8 +2,8 @@
 
 本目录承载表单设计器的展示组件素材说明（目标保存协议，ADR-010）。设计器核心组件
 （素材面板/画布/属性面板/预览控件）位于 `src/designer/`，随 `@evolyn.do/form/designer`
-入口导出；运行时执行内核位于 `src/runtime/renderer/`，Web 组合表面位于
-`src/runtime/surface/`。
+入口导出；运行时执行内核位于 `src/runtime/renderer/`，终端呈现层分别位于
+`src/runtime-web/` 与 `src/runtime-mobile/`。
 
 ## 设计器（src/designer/）
 
@@ -22,15 +22,16 @@
 
 ## 运行时（src/runtime/）
 
-| 组件                       | 中文名       | 主要职责                                                                                     |
-| -------------------------- | ------------ | -------------------------------------------------------------------------------------------- |
-| `FormRenderer.vue`         | 渲染执行内核 | 校验输入协议、创建运行时会话、渲染字段、执行校验和提交/填写草稿命令，不渲染具体操作按钮。    |
-| `FormRuntimeSurface.vue`   | 运行时表面   | 推荐 Web 组合入口；统一唯一滚动内容区、固定操作区、桌面/移动布局和内置动作分派。             |
-| `FormRuntimeActionBar.vue` | 运行时操作栏 | 根据动作描述符渲染任意数量操作、错误摘要、移动折叠与更多菜单；只发事件，不直接调用业务 API。 |
-| `FormSectionRenderer.vue`  | 区块渲染器   | 按预编译 render plan 分派顶层字段与标签页布局。                                              |
-| `FormMultitabRenderer.vue` | 标签页渲染器 | 渲染 `multitab`，切页保留会话状态，错误定位时先激活字段所属标签页。                          |
-| `FormFieldHost.vue`        | 字段外壳     | 标签/必填/说明/错误/隐藏标签/跨列（lineWidth）/隐藏（visible）的通用展示。                   |
-| `widgets/base/*`           | 基础字段组件 | 9 类基础字段的原生控件实现，按 widget.type 注册。                                            |
+| 组件                                          | 中文名         | 主要职责                                                                                     |
+| --------------------------------------------- | -------------- | -------------------------------------------------------------------------------------------- |
+| `FormRenderer.vue`                            | 渲染执行内核   | 校验输入协议、创建运行时会话、渲染字段、执行校验和提交/填写草稿命令，不渲染具体操作按钮。    |
+| `runtime-web/FormWebRuntimeSurface.vue`       | Web 运行时表面 | 推荐 Web 组合入口；统一唯一滚动内容区、固定操作区与内置动作分派。                            |
+| `runtime-mobile/FormMobileRuntimeSurface.vue` | 移动运行时表面 | 原生字段、移动标签页与安全区操作栏。                                                         |
+| `FormRuntimeActionBar.vue`                    | 运行时操作栏   | 根据动作描述符渲染任意数量操作、错误摘要、移动折叠与更多菜单；只发事件，不直接调用业务 API。 |
+| `FormSectionRenderer.vue`                     | 区块渲染器     | 按预编译 render plan 分派顶层字段与标签页布局。                                              |
+| `FormMultitabRenderer.vue`                    | 标签页渲染器   | 渲染 `multitab`，切页保留会话状态，错误定位时先激活字段所属标签页。                          |
+| `FormFieldHost.vue`                           | 字段外壳       | 标签/必填/说明/错误/隐藏标签/跨列（lineWidth）/隐藏（visible）的通用展示。                   |
+| `widgets/base/*`                              | 基础字段组件   | 9 类基础字段的原生控件实现，按 widget.type 注册。                                            |
 
 > 旧插件设计器遗留组件（PluginDesign\* / FormSubform\* / FormCodeEditor 等）已随
 > FormDocument 协议一并退场，见 docs/低代码平台/表单设计器/迁移清单与验收矩阵.md；

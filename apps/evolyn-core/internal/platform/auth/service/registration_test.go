@@ -85,7 +85,17 @@ type fakeAudit struct{ entries []auditservice.Entry }
 
 func (f *fakeAudit) Record(_ context.Context, e auditservice.Entry) { f.entries = append(f.entries, e) }
 
-func newRegistrationFixtures() (*registrationService, *fakeAccounts, *fakeTenants, *fakeTx, *fakeAudit) {
+// registrationFixtures 注册编排测试夹具集合（结构体返回：各用例按需取用，
+// 避免 5 返回值多空位声明触发 dogsled）
+type registrationFixtures struct {
+	svc      *registrationService
+	accounts *fakeAccounts
+	tenants  *fakeTenants
+	tx       *fakeTx
+	audit    *fakeAudit
+}
+
+func newRegistrationFixtures() *registrationFixtures {
 	accounts := &fakeAccounts{
 		account: &iammodel.Account{ID: 7, Nickname: "138****1234"},
 		member:  &iammodel.User{ID: 9, Nickname: "张三"},
@@ -96,7 +106,7 @@ func newRegistrationFixtures() (*registrationService, *fakeAccounts, *fakeTenant
 	tx := &fakeTx{}
 	audit := &fakeAudit{}
 	svc := NewRegistrationService(tx, accounts, tenants, audit).(*registrationService)
-	return svc, accounts, tenants, tx, audit
+	return &registrationFixtures{svc: svc, accounts: accounts, tenants: tenants, tx: tx, audit: audit}
 }
 
 func registrationReq() *RegistrationRequest {
@@ -112,7 +122,8 @@ func registrationReq() *RegistrationRequest {
 // TestCompleteNewPhone 新手机号全链路：免密注册 → 画像落账号 → 事务内开通
 // 租户 → 解析 owner 成员 → 提交后补记开通审计
 func TestCompleteNewPhone(t *testing.T) {
-	svc, accounts, tenants, _, audit := newRegistrationFixtures()
+	fx := newRegistrationFixtures()
+	svc, accounts, tenants, audit := fx.svc, fx.accounts, fx.tenants, fx.audit
 	// 名下仅有默认租户成员关系（非 owner）：应走开通而非复用
 	accounts.memberships = []iamservice.TenantMembership{
 		{TenantID: tenantmodel.DefaultTenantID, IsOwner: false},
@@ -147,7 +158,8 @@ func TestCompleteNewPhone(t *testing.T) {
 // TestCompleteExistingAccountRestoresSession 已注册手机号再走注册（P1-1）：
 // 仅恢复登录会话——不更新昵称/画像、不创建团队、不切换租户、不落审计
 func TestCompleteExistingAccountRestoresSession(t *testing.T) {
-	svc, accounts, tenants, _, audit := newRegistrationFixtures()
+	fx := newRegistrationFixtures()
+	svc, accounts, tenants, audit := fx.svc, fx.accounts, fx.tenants, fx.audit
 	accounts.created = false
 	accounts.memberships = []iamservice.TenantMembership{
 		{TenantID: tenantmodel.DefaultTenantID, IsOwner: false},
@@ -170,7 +182,8 @@ func TestCompleteExistingAccountRestoresSession(t *testing.T) {
 // 无自有租户（如仅被邀请的成员再走注册页）：按 P1-1 不再借注册向导补开
 // 团队（「继续 onboarding/建团」将走受控接口），仅恢复会话
 func TestCompleteExistingAccountWithoutOwnedTenantDoesNotOpen(t *testing.T) {
-	svc, _, tenants, _, _ := newRegistrationFixtures()
+	fx := newRegistrationFixtures()
+	svc, tenants := fx.svc, fx.tenants
 
 	_, err := svc.Complete(context.Background(), registrationReq())
 	require.NoError(t, err)
@@ -180,7 +193,8 @@ func TestCompleteExistingAccountWithoutOwnedTenantDoesNotOpen(t *testing.T) {
 // TestCompleteTenantOpenFailFailsWhole 新手机号注册时租户开通失败：错误
 // 整体上抛（真实链路下账号/画像随事务回滚，不留半注册数据），且不落审计
 func TestCompleteTenantOpenFailFailsWhole(t *testing.T) {
-	svc, accounts, tenants, tx, audit := newRegistrationFixtures()
+	fx := newRegistrationFixtures()
+	svc, accounts, tenants, tx, audit := fx.svc, fx.accounts, fx.tenants, fx.tx, fx.audit
 	accounts.created = true
 	tenants.err = errors.New("db: insert tenants failed")
 
@@ -193,7 +207,8 @@ func TestCompleteTenantOpenFailFailsWhole(t *testing.T) {
 // TestCompleteEmptyNicknameKeepsDefault 新账号昵称空串：保留注册默认昵称
 // （脱敏手机号），不用空值覆盖
 func TestCompleteEmptyNicknameKeepsDefault(t *testing.T) {
-	svc, accounts, _, _, _ := newRegistrationFixtures()
+	fx := newRegistrationFixtures()
+	svc, accounts := fx.svc, fx.accounts
 	accounts.created = true
 	req := registrationReq()
 	req.Nickname = ""

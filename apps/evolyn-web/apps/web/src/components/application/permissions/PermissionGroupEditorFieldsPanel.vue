@@ -61,6 +61,7 @@ function updatePermission(
           </span>
           <el-checkbox
             :model-value="field.visible"
+            :disabled="field.required && field.visible"
             :aria-label="`${field.label}可见`"
             @update:model-value="updatePermission(field.field, 'visible', $event)"
           />

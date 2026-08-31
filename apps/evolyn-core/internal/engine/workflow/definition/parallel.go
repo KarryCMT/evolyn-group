@@ -33,7 +33,10 @@ type parallelIssue struct {
 // 返回按节点声明顺序排列的区域清单与全部问题（一次报全，便于设计器展示）。
 // 前置假设：节点/边引用完整（validateEdges 已保证），split 出边无条件
 // （「仅 condition 出边可携带条件」规则已覆盖）。
-func analyzeParallelRegions(doc *model.Document) ([]*ParallelRegion, []parallelIssue) {
+//
+//nolint:gocyclo // 并行区域分析：分支封闭性约束逐边检查，拆分会割裂同一约束集
+func analyzeParallelRegions(
+	doc *model.Document) ([]*ParallelRegion, []parallelIssue) {
 	var issues []parallelIssue
 	// 出边邻接表（保持声明顺序，即分支推进顺序）
 	outEdges := make(map[string][]*model.Edge, len(doc.Nodes))

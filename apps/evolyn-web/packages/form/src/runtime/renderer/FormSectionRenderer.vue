@@ -1,14 +1,22 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, type Component } from 'vue';
 import { buildRenderPlan } from './plan';
 import { useFormRendererContext } from '../store/injection';
 import FormFieldHost from './FormFieldHost.vue';
-import FormMultitabRenderer from './FormMultitabRenderer.vue';
+import FormPlainMultitabRenderer from '../../runtime-core/FormPlainMultitabRenderer.vue';
 
 /**
  * 区块渲染器：按预编译 render plan 渲染区块序列。当前为平铺单区块；
  * 后续阶段按显隐规则编译多区块并对非首屏区块延迟挂载。
  */
+const props = withDefaults(
+  defineProps<{
+    /** 终端注入标签页呈现器；Core 只提供无组件库的安全回退。 */
+    multitabRenderer?: Component;
+  }>(),
+  { multitabRenderer: FormPlainMultitabRenderer },
+);
+
 const { runtime } = useFormRendererContext();
 
 const plan = computed(() => (runtime.value ? buildRenderPlan(runtime.value.schema) : null));
@@ -24,7 +32,7 @@ const plan = computed(() => (runtime.value ? buildRenderPlan(runtime.value.schem
     >
       <template v-for="node in section.nodes" :key="node.key">
         <FormFieldHost v-if="node.type === 'field'" :item="node.item" />
-        <FormMultitabRenderer v-else :node="node" />
+        <component :is="props.multitabRenderer" v-else :node="node" />
       </template>
     </section>
   </div>

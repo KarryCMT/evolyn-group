@@ -109,7 +109,7 @@ func menuEntryFixture(id uint, code string, parent *uint, entryType string, sort
 		// 非分组节点必须带资产引用（CHECK 约束）；group 的 TargetType 保持 NULL
 		targetType := entryType
 		entry.TargetType = &targetType
-		targetID := uint(900 + id)
+		targetID := 900 + id
 		entry.TargetID = &targetID
 	}
 	return entry

@@ -56,8 +56,16 @@
   "dependencies": {
     "@remixicon/vue": "catalog:ui",
     "@tanstack/vue-virtual": "catalog:ui",
-    "@visactor/vtable": "catalog:frontend",
+    "@tiptap/extension-color": "catalog:frontend",
+    "@tiptap/extension-image": "catalog:frontend",
+    "@tiptap/extension-link": "catalog:frontend",
+    "@tiptap/extension-text-align": "catalog:frontend",
+    "@tiptap/extension-text-style": "catalog:frontend",
+    "@tiptap/extension-underline": "catalog:frontend",
+    "@tiptap/starter-kit": "catalog:frontend",
+    "@tiptap/vue-3": "catalog:frontend",
     "@visactor/vchart": "catalog:frontend",
+    "@visactor/vtable": "catalog:frontend",
     "cropperjs": "catalog:frontend",
     "gridstack": "catalog:frontend"
   }

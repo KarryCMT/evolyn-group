@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, shallowRef, watch } from 'vue';
+import { onBeforeUnmount, onMounted, shallowRef, watch, type Component } from 'vue';
 import { type FormSchemaIssue, validateFormSchema } from '../../schema/validate';
 import type { FormSchemaDocument } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
@@ -11,9 +11,10 @@ import {
 } from '../store/createFormRuntime';
 import { createFocusRegistry, provideFormRendererContext } from '../store/injection';
 import type { FormDraftPayload, FormSubmitPayload, FormValue } from '../types';
-import { type FormFieldRegistry, createDefaultFieldRegistry } from '../widgets/registry';
+import { type FormFieldRegistry, createMobileFieldRegistry } from '../widgets/registry';
 import FormSectionRenderer from './FormSectionRenderer.vue';
 import type { FormRendererExpose } from './types';
+import FormPlainMultitabRenderer from '../../runtime-core/FormPlainMultitabRenderer.vue';
 
 /**
  * 最终渲染器总装：初始化会话、提供上下文、管理提交与整体状态。
@@ -33,6 +34,8 @@ const props = withDefaults(
     adapter?: FormRuntimeAdapter;
     /** 自定义字段注册表；缺省使用基础字段默认注册表。 */
     registry?: FormFieldRegistry;
+    /** 终端专属布局呈现器；Web 和移动端分别注入自己的标签页实现。 */
+    multitabRenderer?: Component;
     /** 原生 form 的稳定 DOM ID，供外部操作栏通过 form 属性建立语义关联。 */
     formDomId?: string;
   }>(),
@@ -44,6 +47,7 @@ const props = withDefaults(
     contextDefaults: undefined,
     adapter: undefined,
     registry: undefined,
+    multitabRenderer: FormPlainMultitabRenderer,
     formDomId: undefined,
   },
 );
@@ -63,7 +67,7 @@ const runtimeRef = shallowRef<FormRuntime | null>(null);
 const schemaIssues = shallowRef<FormSchemaIssue[]>([]);
 const operationController = shallowRef<AbortController | null>(null);
 // 注册表在会话间复用：字段组件解析与异步包装缓存不应随 Schema 替换丢失。
-const fieldRegistry = props.registry ?? createDefaultFieldRegistry();
+const fieldRegistry = props.registry ?? createMobileFieldRegistry();
 const focusRegistry = createFocusRegistry();
 
 provideFormRendererContext({
@@ -193,6 +197,6 @@ defineExpose(exposed);
         </li>
       </ul>
     </div>
-    <FormSectionRenderer v-else-if="runtimeRef" />
+    <FormSectionRenderer v-else-if="runtimeRef" :multitab-renderer="props.multitabRenderer" />
   </form>
 </template>

@@ -48,6 +48,14 @@ catalogs:
     monaco-editor: ^0.34.1
     vue-router: ^4.6.3
     cropperjs: 1.5.13
+    '@tiptap/extension-color': ^3.30.5
+    '@tiptap/extension-image': ^3.30.5
+    '@tiptap/extension-link': ^3.30.5
+    '@tiptap/extension-text-align': ^3.30.5
+    '@tiptap/extension-text-style': ^3.30.5
+    '@tiptap/extension-underline': ^3.30.5
+    '@tiptap/starter-kit': ^3.30.5
+    '@tiptap/vue-3': ^3.30.5
   lint:
     '@commitlint/cli': ^21.0.0
     '@commitlint/config-conventional': ^21.0.0

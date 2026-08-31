@@ -44,16 +44,18 @@ var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"n
 
 // formService 表单资产服务实现。
 type formService struct {
-	tx         TxManager
-	repo       repository.FormRepository
-	versions   repository.FormVersionRepository
-	records    repository.FormRecordRepository
-	quota      tenantservice.QuotaService
-	audit      auditservice.Recorder
-	access     AccessEvaluator
-	apps       ApplicationDirectory
-	menu       MenuMaintenance
-	references ReferenceSource
+	tx          TxManager
+	repo        repository.FormRepository
+	versions    repository.FormVersionRepository
+	records     repository.FormRecordRepository
+	quota       tenantservice.QuotaService
+	audit       auditservice.Recorder
+	access      AccessEvaluator
+	apps        ApplicationDirectory
+	menu        MenuMaintenance
+	references  ReferenceSource
+	permissions FormPermissionEvaluator   // 权限组判定器（装配期注入；nil=按 S4 基线放行）
+	groups      PermissionGroupReadSource // 权限组只读查询（switch-type/发布阻塞判定）
 }
 
 // NewFormService 构造表单域服务（records 可为 nil：P1 未启记录提交路径；
@@ -92,6 +94,51 @@ func (s *formService) UseReferenceSource(src ReferenceSource) {
 // FormReferenceSourceInjector 装配期注入能力（可选）。
 type FormReferenceSourceInjector interface {
 	UseReferenceSource(src ReferenceSource)
+}
+
+// UsePermissionEvaluator 注入权限组判定器（表单权限 P1，装配期一次性调用）：
+// 未注入时各执行点按 S4 基线放行（存量行为零变更）。
+func (s *formService) UsePermissionEvaluator(evaluator FormPermissionEvaluator) {
+	s.permissions = evaluator
+}
+
+// UsePermissionGroupSource 注入权限组只读查询端口（switch-type 阻塞与发布
+// 阻塞判定使用，装配期一次性调用）。
+func (s *formService) UsePermissionGroupSource(src PermissionGroupReadSource) {
+	s.groups = src
+}
+
+// PermissionGroupSourceInjector 装配期注入能力（可选）。
+type PermissionGroupSourceInjector interface {
+	UsePermissionGroupSource(src PermissionGroupReadSource)
+}
+
+// evaluatePermissions 权限组判定入口：判定器未注入时返回 nil（调用方按 S4
+// 基线走存量路径）。
+func (s *formService) evaluatePermissions(ctx context.Context, member *iammodel.User, formID uint) (*ResolvedFormPermission, error) {
+	if s.permissions == nil {
+		return nil, nil
+	}
+	return s.permissions.Evaluate(ctx, member, formID)
+}
+
+// runtimePermissionsOf 运行时 permissions 投影（设计 §8.2 v2.3）：
+// operations + viewFields/addFields 双矩阵独立出网（查看与填写的字段集可能
+// 不同，不得合并或按模式二选一返回）。
+func runtimePermissionsOf(resolved *ResolvedFormPermission) *model.FormRuntimePermissions {
+	return &model.FormRuntimePermissions{
+		Operations: resolved.RuntimeOperations(),
+		ViewFields: runtimeFieldMatrix(resolved.FieldsForNew(model.PermissionOpView)),
+		AddFields:  runtimeFieldMatrix(resolved.FieldsForNew(model.PermissionOpAdd)),
+	}
+}
+
+func runtimeFieldMatrix(matrix map[string]FieldPermission) map[string]model.FormRuntimeFieldPermission {
+	out := make(map[string]model.FormRuntimeFieldPermission, len(matrix))
+	for key, permission := range matrix {
+		out[key] = model.FormRuntimeFieldPermission{Visible: permission.Visible, Editable: permission.Editable}
+	}
+	return out
 }
 
 // ---- 创建 ----
@@ -359,6 +406,19 @@ func (s *formService) SwitchType(ctx context.Context, member *iammodel.User, cod
 	if req.FormType == form.FormType {
 		return nil, httpx.Wrap(apperrors.ErrFormTypeUnchanged,
 			fmt.Errorf("form %s is already %s", code, form.FormType))
+	}
+	// 类型切换阻塞（§3.3）：目标类型为 standard 且该表单存在任一权限组
+	//（含禁用组）的 operations 含 workflow_* 键时拒绝——不做原子移除，静默
+	// 收回授权会让权限收紧不可见；standard → workflow 方向合法集为超集无需阻塞
+	if req.FormType == model.FormTypeStandard && form.FormType == model.FormTypeWorkflow && s.groups != nil {
+		blocked, err := s.groups.HasWorkflowOperations(ctx, form.ID)
+		if err != nil {
+			return nil, err
+		}
+		if blocked {
+			return nil, httpx.Wrap(apperrors.ErrPermissionBlockedTypeSwitch,
+				fmt.Errorf("form %s has permission groups with workflow operations", code))
+		}
 	}
 	before := form.FormType
 	if err := s.repo.UpdateFormType(ctx, form.ID, req.FormType); err != nil {

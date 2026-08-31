@@ -260,7 +260,7 @@ func (f *FormController) GetRuntime(c *gin.Context) {
 	if !ok {
 		return
 	}
-	runtime, err := f.formService.GetRuntime(c.Request.Context(), appCode, formCode)
+	runtime, err := f.formService.GetRuntime(c.Request.Context(), ginctx.GetUser(c), appCode, formCode)
 	if err != nil {
 		responseError(c, err)
 		return
