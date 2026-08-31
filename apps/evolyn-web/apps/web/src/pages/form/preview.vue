@@ -10,6 +10,7 @@ import { ElMessage } from 'element-plus';
 import { computed, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
+import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
 import { loadFormPreviewDocument } from './preview-storage';
 // 运行时样式独立于设计器 style.css，最终用户填写页只加载关键 CSS。
 import '@evolyn.do/form/runtime-web/style.css';
@@ -177,6 +178,7 @@ function goBack(): void {
         :published-version="runtimeInfo?.publishedVersion ?? 0"
         :schema-revision="runtimeInfo?.schemaRevision ?? ''"
         :adapter="runtimeAdapter"
+        :registry="getMemberFieldRegistry()"
         :actions="runtimeActions"
         layout="auto"
         content-width="860px"

@@ -8,6 +8,7 @@ import { ApiError } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
 import { shallowRef, watch } from 'vue';
 import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
+import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
 // 应用工作区按需加载最终运行时关键样式，不引入设计器样式图。
 import '@evolyn.do/form/runtime-web/style.css';
 
@@ -182,6 +183,7 @@ function isAbortError(error: unknown): boolean {
       :published-version="bootstrap.publishedVersion"
       :schema-revision="bootstrap.schemaRevision"
       :adapter="runtimeAdapter"
+      :registry="getMemberFieldRegistry()"
       :actions="actions"
       layout="auto"
       content-width="1100px"

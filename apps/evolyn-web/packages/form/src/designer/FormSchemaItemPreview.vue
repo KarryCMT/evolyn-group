@@ -48,6 +48,16 @@
       disabled
       :placeholder="placeholderText"
     />
+    <!-- 成员字段的画布预览与最终填写形态一致，但不在设计画布内触发成员目录弹窗。 -->
+    <button
+      v-else-if="widget.type === 'user' || widget.type === 'usergroup'"
+      class="form-schema-item-preview__member"
+      :class="{ 'form-schema-item-preview__member--multiple': widget.type === 'usergroup' }"
+      type="button"
+      disabled
+    >
+      <span class="form-schema-item-preview__member-placeholder">＋ 选择成员</span>
+    </button>
     <!-- 其余控件（P3+ 分组）：统一占位预览 -->
     <el-input v-else disabled :placeholder="`${widgetLabel}（随后续版本开放）`" />
   </div>
@@ -140,6 +150,26 @@ const datePlaceholder = computed(() => {
 
   &__number {
     width: 100%;
+  }
+
+  &__member {
+    display: flex;
+    width: 100%;
+    min-height: 32px;
+    padding: var(--el-space-xs) var(--el-space-sm);
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--el-border-color);
+    border-radius: var(--el-border-radius-small);
+    color: var(--el-text-color-regular);
+    background: var(--el-bg-color);
+    font: inherit;
+    font-size: var(--el-font-size-small);
+    opacity: 1;
+
+    &--multiple {
+      min-height: 62px;
+    }
   }
 }
 </style>

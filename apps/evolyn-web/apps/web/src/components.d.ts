@@ -112,6 +112,8 @@ declare module 'vue' {
     ManagementGroupsEmptyState: typeof import('./components/application/management-groups/ManagementGroupsEmptyState.vue')['default']
     MemberCardDisplay: typeof import('./components/tenant/memberFields/MemberCardDisplay.vue')['default']
     MemberFieldSettings: typeof import('./components/tenant/memberFields/MemberFieldSettings.vue')['default']
+    MemberPickerDialog: typeof import('./components/form/MemberPickerDialog.vue')['default']
+    MemberSelectionField: typeof import('./components/form/MemberSelectionField.vue')['default']
     MessageCenterDrawer: typeof import('./components/dashboard/messageCenter/MessageCenterDrawer.vue')['default']
     MessageCenterSidebar: typeof import('./components/dashboard/messageCenter/MessageCenterSidebar.vue')['default']
     MessageEmptyState: typeof import('./components/dashboard/messageCenter/MessageEmptyState.vue')['default']

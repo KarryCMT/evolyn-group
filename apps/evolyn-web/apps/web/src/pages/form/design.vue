@@ -26,6 +26,7 @@ import {
   RiCheckDoubleFill,
   RiEyeFill,
   RiFileTextFill,
+  RiGroupFill,
   RiHashtag,
   RiLightbulbFlashFill,
   RiMenuFill,
@@ -34,6 +35,7 @@ import {
   RiShareForwardFill,
   RiText,
   RiUploadCloud2Fill,
+  RiUser3Fill,
 } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, ref, shallowRef, watch } from 'vue';
@@ -167,12 +169,14 @@ const paletteGroups = computed<FormSchemaPaletteGroup[]>(() => {
     combo: RiArrowDownBoxFill,
     combocheck: RiCheckDoubleFill,
     separator: RiMenuFill,
+    user: RiUser3Fill,
+    usergroup: RiGroupFill,
   };
   return [
     ...WIDGET_GROUP_META.map((group) => ({
       key: group.key,
       title: group.title,
-      enabled: group.key === 'basic',
+      enabled: group.key === 'basic' || group.key === 'orgfile',
       entries: Object.entries(WIDGET_SPECS)
         .filter(([, spec]) => spec.group === group.key)
         .map(([type, spec]) => ({
@@ -180,7 +184,8 @@ const paletteGroups = computed<FormSchemaPaletteGroup[]>(() => {
           label: spec.label,
           icon: iconOfType[type] ?? RiMenuFill,
           // P4 首先开放子表单设计能力；同组关联字段仍按原计划保持不可添加。
-          enabled: group.key === 'basic' || type === 'subform',
+          enabled:
+            group.key === 'basic' || type === 'subform' || type === 'user' || type === 'usergroup',
         })),
     })),
     {
@@ -425,7 +430,9 @@ function notifyUnavailable(action: string) {
       </div>
     </div>
 
-    <div v-if="loading" class="form-design-page__state" role="status">正在加载表单…</div>
+    <div v-if="loading" class="form-design-page__state" role="status">
+      正在加载表单…
+    </div>
     <div
       v-else-if="loadFailed"
       class="form-design-page__state form-design-page__state--error"

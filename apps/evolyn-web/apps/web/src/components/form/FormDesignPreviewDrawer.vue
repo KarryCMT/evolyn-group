@@ -4,6 +4,7 @@ import type { FormSchemaDocument } from '@evolyn.do/form/schema';
 import { FormWebRuntimeSurface } from '@evolyn.do/form/runtime-web';
 import { RiCloseFill, RiComputerFill, RiSmartphoneFill } from '@remixicon/vue';
 import { ref, shallowRef, watch } from 'vue';
+import { getMemberFieldRegistry } from './memberFieldRegistry';
 // 预览组件独立加载运行时样式，避免宿主页面依赖设计器样式副作用。
 import '@evolyn.do/form/runtime-web/style.css';
 
@@ -121,6 +122,7 @@ function setViewport(value: 'desktop' | 'mobile'): void {
           :schema="schema"
           :form-id="formId"
           :adapter="adapter"
+          :registry="getMemberFieldRegistry()"
           :actions="previewActions"
           :layout="viewport"
           content-width="100%"
