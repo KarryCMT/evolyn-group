@@ -50,6 +50,9 @@ type RegistrationService interface {
 	// AcceptMemberInvite 已登录账号消费单人邀请（POST /auth/invitations/accept）：
 	// 事务内创建成员并迁入邀请档案，与注册链路共用同一邀请消费实现
 	AcceptMemberInvite(ctx context.Context, accountID uint, token string) (*iammodel.User, error)
+	// AcceptPublicInvite 已登录账号消费公开邀请：创建目标租户成员关系，
+	// 由调用方据返回成员切换会话绑定的租户。
+	AcceptPublicInvite(ctx context.Context, accountID uint, token string) (*iammodel.User, error)
 }
 
 // MemberInvitationAccepter 是认证域接受成员邀请所需的最小能力，

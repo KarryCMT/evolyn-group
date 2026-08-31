@@ -334,6 +334,29 @@ func (o *OrganizationRoleController) RemoveMember(c *gin.Context) {
 	httpx.ResponseSuccess(c, nil)
 }
 
+// @Summary 设置成员角色
+// @Description 原子替换成员的全部直接角色，支持传入空列表以解除全部角色
+// @Accept json
+// @Produce json
+// @Tags 角色权限
+// @Security JWT
+// @Param id path int true "成员 ID"
+// @Param body body service.ReplaceMemberRolesRequest true "角色 ID 列表"
+// @Success 200 {object} httpx.Response
+// @Router /api/v1/members/{id}/roles [put]
+func (o *OrganizationRoleController) ReplaceMemberRoles(c *gin.Context) {
+	req := new(service.ReplaceMemberRolesRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	if err := o.service.ReplaceMemberRoles(c.Request.Context(), c.Param("id"), req.RoleIDs); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, nil)
+}
+
 func (o *OrganizationRoleController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/roles/tree", o.Tree)
 	api.POST("/roles/groups", o.CreateGroup)
@@ -348,6 +371,7 @@ func (o *OrganizationRoleController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/roles/:id/members", o.ListMembers)
 	api.POST("/roles/:id/members", o.AddMembers)
 	api.DELETE("/roles/:id/members/:memberId", o.RemoveMember)
+	api.PUT("/members/:id/roles", o.ReplaceMemberRoles)
 }
 
 func parseUintParam(value string) (uint, error) {

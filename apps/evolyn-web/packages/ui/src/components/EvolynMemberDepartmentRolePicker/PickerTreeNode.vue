@@ -76,7 +76,7 @@ function selectNode() {
         <span>{{ node.label }}</span>
       </button>
       <input
-        v-if="mode === 'select'"
+        v-if="mode === 'select' && node.selectable !== false"
         class="evolyn-member-department-role-picker-tree-node__checkbox"
         :type="multiple ? 'checkbox' : 'radio'"
         :aria-label="`选择${node.label}`"

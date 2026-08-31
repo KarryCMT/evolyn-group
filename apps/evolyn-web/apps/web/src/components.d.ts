@@ -154,6 +154,7 @@ declare module 'vue' {
     PermissionQueryMembersDialog: typeof import('./components/tenant/permissionQuery/PermissionQueryMembersDialog.vue')['default']
     PermissionQueryPanel: typeof import('./components/tenant/permissionQuery/PermissionQueryPanel.vue')['default']
     ProfileEditorDialog: typeof import('./components/dashboard/account/ProfileEditorDialog.vue')['default']
+    PublicInvitationRegisterForm: typeof import('./components/auth/PublicInvitationRegisterForm.vue')['default']
     RegisterAccountStep: typeof import('./components/auth/RegisterAccountStep.vue')['default']
     RegisterProfileStep: typeof import('./components/auth/RegisterProfileStep.vue')['default']
     ResetPasswordForm: typeof import('./components/auth/ResetPasswordForm.vue')['default']

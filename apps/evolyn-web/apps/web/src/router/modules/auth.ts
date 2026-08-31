@@ -22,6 +22,12 @@ const authRoutes: RouteRecordRaw[] = [
     meta: { public: true, title: '注册账号' },
   },
   {
+    path: '/auth/invite',
+    name: 'publicInvitationRegister',
+    component: () => import('~/pages/auth/invite.vue'),
+    meta: { public: true, title: '受邀加入企业' },
+  },
+  {
     path: '/auth/forgot-password',
     name: 'forgotPassword',
     component: () => import('~/pages/auth/forgot-password.vue'),

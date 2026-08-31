@@ -115,7 +115,7 @@ function selectNode(node: EvolynMemberDepartmentRolePickerTreeNode) {
             <span>{{ rows[virtualRow.index].node.label }}</span>
           </button>
           <input
-            v-if="mode === 'select'"
+            v-if="mode === 'select' && rows[virtualRow.index].node.selectable !== false"
             class="evolyn-member-department-role-picker-tree-node__checkbox"
             :type="multiple ? 'checkbox' : 'radio'"
             :aria-label="`选择${rows[virtualRow.index].node.label}`"

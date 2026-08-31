@@ -512,7 +512,7 @@ func (ac *AuthController) RegisterComplete(c *gin.Context) {
 		return
 	}
 
-	result, err := ac.registrationService.Complete(c.Request.Context(), &authservice.RegistrationRequest{
+	ac.completeRegistration(c, &authservice.RegistrationRequest{
 		Phone:             req.Phone,
 		Nickname:          req.Nickname,
 		Onboarding:        model.AccountOnboarding{Role: req.Onboarding.Role, Channel: req.Onboarding.Channel},
@@ -521,6 +521,89 @@ func (ac *AuthController) RegisterComplete(c *gin.Context) {
 		PublicInviteToken: req.TenantInvite,
 		MemberInviteToken: req.MemberInvite,
 	})
+}
+
+// publicInvitationRegisterRequest 是公开邀请页的最小注册载荷。公开邀请只需
+// 校验手机号、验证码和成员称呼：企业与账号画像属于自助开通向导，不应强迫
+// 受邀人填写，也不能由受邀人覆盖。
+type publicInvitationRegisterRequest struct {
+	Phone       string `json:"phone" binding:"required,len=11,numeric"`
+	SmsCode     string `json:"smsCode" binding:"required,len=6,numeric"`
+	Nickname    string `json:"nickname" binding:"required,min=2,max=20"`
+	InviteToken string `json:"inviteToken" binding:"required"`
+}
+
+// @Summary 通过公开邀请注册并加入企业
+// @Description 校验注册验证码后，以公开邀请令牌将新账号或已有账号加入目标企业；
+// 不创建企业，也不修改已有账号的资料。
+// @Accept json
+// @Produce json
+// @Tags 认证
+// @Param body body controller.publicInvitationRegisterRequest true "公开邀请注册信息"
+// @Success 200 {object} httpx.Response{data=controller.registerTokenResult}
+// @Failure 400 {object} httpx.Response "errCode=MEMBER_INVITATION_INVALID|DUPLICATE_MEMBER"
+// @Failure 401 {object} httpx.Response "AUTH_SMS_INVALID·验证码错误或已过期"
+// @Router /api/v1/auth/invitations/public/register [post]
+func (ac *AuthController) RegisterPublicInvitation(c *gin.Context) {
+	req := new(publicInvitationRegisterRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	// 公开邀请与普通注册使用同一验证码场景，保证验证码短时、一次性消费。
+	if err := ac.smsService.Verify(c.Request.Context(), sms.SceneRegister, req.Phone, req.SmsCode); err != nil {
+		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
+		return
+	}
+
+	ac.completeRegistration(c, &authservice.RegistrationRequest{
+		Phone:             req.Phone,
+		Nickname:          req.Nickname,
+		PublicInviteToken: req.InviteToken,
+	})
+}
+
+// acceptPublicInvitationRequest 是已有账号加入公开邀请企业的请求载荷。
+type acceptPublicInvitationRequest struct {
+	InviteToken string `json:"inviteToken" binding:"required"`
+}
+
+// @Summary 已有账号加入公开邀请企业
+// @Description 已登录账号消费公开邀请令牌，创建目标企业成员关系；前端使用返回
+// 的成员租户 ID 切换当前会话，确保后续请求立即进入目标企业。
+// @Accept json
+// @Produce json
+// @Tags 认证
+// @Security JWT
+// @Param body body controller.acceptPublicInvitationRequest true "公开邀请令牌"
+// @Success 200 {object} httpx.Response{data=model.User}
+// @Failure 400 {object} httpx.Response "errCode=MEMBER_INVITATION_INVALID"
+// @Failure 409 {object} httpx.Response "errCode=DUPLICATE_MEMBER"
+// @Router /api/v1/auth/invitations/public/accept [post]
+func (ac *AuthController) AcceptPublicInvitation(c *gin.Context) {
+	claims, ok := ac.sessionFrom(c)
+	if !ok {
+		return
+	}
+	req := new(acceptPublicInvitationRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+
+	member, err := ac.registrationService.AcceptPublicInvite(c.Request.Context(), claims.AccountID, req.InviteToken)
+	if err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	httpx.ResponseSuccess(c, member)
+}
+
+// completeRegistration 统一完成注册编排后的会话签发和登录日志写入，确保普通
+// 注册与公开邀请注册在安全会话、审计和返回载荷上完全一致。
+func (ac *AuthController) completeRegistration(c *gin.Context, req *authservice.RegistrationRequest) {
+	result, err := ac.registrationService.Complete(c.Request.Context(), req)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -751,6 +834,8 @@ func (ac *AuthController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/auth/mfa/verify", ac.VerifyMFA)
 	api.DELETE("/auth/token", ac.Logout)
 	api.POST("/auth/register", ac.RegisterComplete)
+	api.POST("/auth/invitations/public/register", ac.RegisterPublicInvitation)
+	api.POST("/auth/invitations/public/accept", ac.AcceptPublicInvitation)
 	api.POST("/auth/password/reset", ac.ResetPassword)
 	api.POST("/auth/tenant", ac.OpenTenant)
 	api.POST("/auth/sms/send", ac.SendSmsCode)

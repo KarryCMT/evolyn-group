@@ -97,6 +97,29 @@ func (s *organizationListService) ListPage(_ context.Context, query model.Member
 	return &model.MemberPage{}, nil
 }
 
+// organizationRoleUsersRepo 仅模拟角色替换所需的成员读取及关系写入。
+// 通过记录 Add/Del 调用，断言服务层只提交差量变更。
+type organizationRoleUsersRepo struct {
+	repository.UserRepository
+	member  *model.User
+	added   []uint
+	removed []uint
+}
+
+func (r *organizationRoleUsersRepo) GetUserByID(_ context.Context, _ uint) (*model.User, error) {
+	return r.member, nil
+}
+
+func (r *organizationRoleUsersRepo) AddRole(_ context.Context, role *model.Role, _ *model.User) error {
+	r.added = append(r.added, role.ID)
+	return nil
+}
+
+func (r *organizationRoleUsersRepo) DelRole(_ context.Context, role *model.Role, _ *model.User) error {
+	r.removed = append(r.removed, role.ID)
+	return nil
+}
+
 func TestOrganizationRoleTreeCreatesDefaultGroupAndMapsUngroupedRoles(t *testing.T) {
 	roleGroups := &organizationRoleGroupsRepo{groups: map[uint]*model.RoleGroup{}}
 	roles := &organizationRolesRepo{roles: map[uint]*model.Role{
@@ -122,4 +145,40 @@ func TestOrganizationRoleListMembersFiltersByRole(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, 9, memberService.query.RoleID)
 	assert.Equal(t, "张三", memberService.query.Keyword)
+}
+
+func TestOrganizationRoleReplaceMemberRolesAppliesOnlyDiff(t *testing.T) {
+	roles := &organizationRolesRepo{roles: map[uint]*model.Role{
+		1: {ID: 1, Name: "旧角色", TenantBaseModel: kernel.TenantBaseModel{TenantID: 7}},
+		2: {ID: 2, Name: "新角色", TenantBaseModel: kernel.TenantBaseModel{TenantID: 7}},
+	}}
+	users := &organizationRoleUsersRepo{member: &model.User{
+		TenantBaseModel: kernel.TenantBaseModel{TenantID: 7},
+		ID:              8,
+		Roles:           []model.Role{{ID: 1, Name: "旧角色"}},
+	}}
+	svc := NewOrganizationRoleService(passThroughTx{}, roles, &organizationRoleGroupsRepo{groups: map[uint]*model.RoleGroup{}}, users, nil, nil)
+
+	err := svc.ReplaceMemberRoles(context.Background(), "8", []uint{2})
+
+	assert.NoError(t, err)
+	assert.Equal(t, []uint{1}, users.removed)
+	assert.Equal(t, []uint{2}, users.added)
+}
+
+func TestOrganizationRoleReplaceMemberRolesRejectsDuplicateRoleID(t *testing.T) {
+	users := &organizationRoleUsersRepo{member: &model.User{
+		TenantBaseModel: kernel.TenantBaseModel{TenantID: 7},
+		ID:              8,
+	}}
+	roles := &organizationRolesRepo{roles: map[uint]*model.Role{
+		2: {ID: 2, Name: "角色", TenantBaseModel: kernel.TenantBaseModel{TenantID: 7}},
+	}}
+	svc := NewOrganizationRoleService(passThroughTx{}, roles, &organizationRoleGroupsRepo{groups: map[uint]*model.RoleGroup{}}, users, nil, nil)
+
+	err := svc.ReplaceMemberRoles(context.Background(), "8", []uint{2, 2})
+
+	assert.ErrorIs(t, err, ErrOrganizationRoleRequestInvalid)
+	assert.Empty(t, users.added)
+	assert.Empty(t, users.removed)
 }

@@ -1,8 +1,9 @@
 import type {
   JwtToken,
-  LoginResult,
   LoginPayload,
+  LoginResult,
   OpenTenantPayload,
+  PublicInvitationRegisterPayload,
   RegisterCompletePayload,
   RegisterResult,
   Tenant,
@@ -57,6 +58,18 @@ export function logout(): Promise<null> {
  */
 export function registerComplete(payload: RegisterCompletePayload): Promise<RegisterResult> {
   return http.post('/auth/register', payload);
+}
+
+/** 公开邀请注册：完成短信验证后，直接加入邀请所属企业。 */
+export function registerPublicInvitation(
+  payload: PublicInvitationRegisterPayload,
+): Promise<RegisterResult> {
+  return http.post('/auth/invitations/public/register', payload);
+}
+
+/** 已登录账号消费公开邀请，随后用返回的 tenantId 切换会话。 */
+export function acceptPublicInvitation(inviteToken: string): Promise<{ tenantId: number }> {
+  return http.post('/auth/invitations/public/accept', { inviteToken });
 }
 
 /** 找回密码：验证码使用 reset 场景，新密码必须先由调用方经 RSA 公钥加密。 */

@@ -85,6 +85,24 @@ type fakeAudit struct{ entries []auditservice.Entry }
 
 func (f *fakeAudit) Record(_ context.Context, e auditservice.Entry) { f.entries = append(f.entries, e) }
 
+// fakeInvitations 仅实现本组用例需要的公开邀请消费能力，其余接口由嵌入的
+// MemberInvitationAccepter 零值覆盖，保持注册编排与 iam 实现解耦。
+type fakeInvitations struct {
+	MemberInvitationAccepter
+	publicMember *iammodel.User
+	accountID    uint
+	token        string
+}
+
+func (f *fakeInvitations) AcceptPublicLink(_ context.Context, accountID uint, nickname, token string) (*iammodel.User, error) {
+	f.accountID = accountID
+	f.token = token
+	if nickname != "" {
+		return nil, errors.New("已有账号不应覆盖昵称")
+	}
+	return f.publicMember, nil
+}
+
 // registrationFixtures 注册编排测试夹具集合（结构体返回：各用例按需取用，
 // 避免 5 返回值多空位声明触发 dogsled）
 type registrationFixtures struct {
@@ -217,4 +235,21 @@ func TestCompleteEmptyNicknameKeepsDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, accounts.updated, 1)
 	assert.Equal(t, "138****1234", accounts.updated[0].Nickname)
+}
+
+// TestAcceptPublicInvite 已登录账号消费公开邀请时，应把账号 ID 与令牌原样
+// 交给 iam 窄接口，并保留空昵称以复用账号昵称回退规则。
+func TestAcceptPublicInvite(t *testing.T) {
+	fx := newRegistrationFixtures()
+	publicMember := &iammodel.User{ID: 21, Nickname: "张三"}
+	publicMember.TenantID = 301
+	invitations := &fakeInvitations{publicMember: publicMember}
+	svc := NewRegistrationService(fx.tx, fx.accounts, fx.tenants, fx.audit, invitations)
+
+	member, err := svc.AcceptPublicInvite(context.Background(), 7, "public-invite-token")
+
+	require.NoError(t, err)
+	assert.Same(t, invitations.publicMember, member)
+	assert.Equal(t, uint(7), invitations.accountID)
+	assert.Equal(t, "public-invite-token", invitations.token)
 }

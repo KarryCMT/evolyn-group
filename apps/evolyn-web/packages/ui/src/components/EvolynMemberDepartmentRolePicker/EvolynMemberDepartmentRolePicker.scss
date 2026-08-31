@@ -1,6 +1,7 @@
 .evolyn-member-department-role-picker {
   position: fixed;
-  z-index: 2000;
+  // 选择器会从成员抽屉等浮层中继续打开，层级必须高于 Element Plus 的 Drawer。
+  z-index: 3000;
   inset: 0;
   display: grid;
   place-items: center;

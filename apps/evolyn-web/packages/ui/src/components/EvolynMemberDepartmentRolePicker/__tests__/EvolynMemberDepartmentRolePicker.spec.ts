@@ -152,6 +152,28 @@ describe('EvolynMemberDepartmentRolePicker', () => {
     ]);
   });
 
+  it('renders role groups as non-selectable hierarchy nodes', async () => {
+    mount(EvolynMemberDepartmentRolePicker, {
+      props: {
+        open: true,
+        selectableTypes: ['role'],
+        roles: [
+          {
+            id: 'default-group',
+            label: '默认',
+            selectable: false,
+            children: [{ id: 'tester', label: '测试' }],
+          },
+        ],
+      },
+      attachTo: document.body,
+    });
+    await nextTick();
+
+    expect(document.body.querySelector('input[aria-label="选择默认"]')).toBeNull();
+    expect(document.body.querySelector('input[aria-label="选择测试"]')).not.toBeNull();
+  });
+
   it('only renders the visible window for large trees and member lists', async () => {
     const largeDepartments = Array.from({ length: 300 }, (_, index) => ({
       id: `department-${index}`,

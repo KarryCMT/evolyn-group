@@ -13,6 +13,11 @@ export interface EvolynMemberDepartmentRolePickerTreeNode {
   keywords?: string[];
   /** 禁用节点会保留展示，但不可新增或移除选择。 */
   disabled?: boolean;
+  /**
+   * 仅作层级分组展示而非可选主体，例如内部组织页的角色展示分组。
+   * 未传时保持可选，兼容既有部门、角色树的交互。
+   */
+  selectable?: boolean;
 }
 
 /** 成员数据由业务侧聚合；组件不依赖具体账号、成员或租户接口模型。 */

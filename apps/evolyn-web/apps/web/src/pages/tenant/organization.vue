@@ -3,6 +3,7 @@ import {
   EvolynMemberDepartmentRolePicker,
   type EvolynMemberDepartmentRolePickerMember,
   type EvolynMemberDepartmentRolePickerSelection,
+  type EvolynMemberDepartmentRolePickerTreeNode,
 } from '@evolyn.do/ui';
 import { ElCheckbox, ElMessage, ElMessageBox } from 'element-plus';
 import { RiCloseFill } from '@remixicon/vue';
@@ -111,12 +112,38 @@ const pickerDepartments = computed(() => [
     })),
   },
 ]);
+/** 成员部门调整保留完整层级；租户根节点只作展示，不能作为成员的部门归属。 */
+function toMemberDepartmentTreeNode(
+  department: OrganizationDepartment,
+  selectable = true,
+): EvolynMemberDepartmentRolePickerTreeNode {
+  return {
+    id: department.id,
+    label: department.name,
+    selectable,
+    children: department.children?.map((child) => toMemberDepartmentTreeNode(child)),
+  };
+}
+const memberDepartmentTree = computed<EvolynMemberDepartmentRolePickerTreeNode[]>(() => [
+  toMemberDepartmentTreeNode(departments.value, false),
+]);
 const pickerMembers = computed(() =>
   availableMembers.value.map((member) => ({
     id: member.id,
     label: member.name,
     departmentIds: member.departmentIds,
     keywords: [member.phone, member.email].filter((value): value is string => Boolean(value)),
+  })),
+);
+// 角色组只是展示层级，叶子角色才是可绑定到成员的授权主体。
+const pickerRoles = computed<EvolynMemberDepartmentRolePickerTreeNode[]>(() =>
+  roleGroups.value.map((group) => ({
+    id: `role-group-${group.id}`,
+    label: group.name,
+    selectable: false,
+    children: roles.value
+      .filter((role) => role.groupId === group.id)
+      .map((role) => ({ id: role.id, label: role.name })),
   })),
 );
 const selectedMemberIds = computed(() => filteredMembers.value.map((member) => member.id));
@@ -285,8 +312,10 @@ async function confirmGroupAdjust() {
 function openMemberPicker() {
   memberPickerVisible.value = true;
 }
-async function confirmMemberPicker(values: { id: string | number }[]) {
-  await addMembers(values.map((value) => String(value)));
+async function confirmMemberPicker(values: EvolynMemberDepartmentRolePickerSelection[]) {
+  // 选择器回传的是选择对象；只传其稳定成员 ID，避免对象经 Number 转换为
+  // NaN 后被 JSON 序列化为 null，导致后端误查成员 ID 0。
+  await addMembers(values.map((value) => String(value.id)));
   ElMessage.success('成员已添加到角色');
 }
 function openMemberEditor(member: OrganizationMember) {
@@ -375,8 +404,11 @@ async function disableMember(member: OrganizationMember) {
 }
 
 function saveMember(member: OrganizationMember) {
+  // 抽屉已经完成服务端资料保存并给出结果提示；此处仅同步列表中缓存的成员快照。
   updateMember(member);
-  ElMessage.success('成员信息已保存');
+  // 抽屉内的部门、角色选择可先于底部资料保存确认；同步当前编辑快照，避免随后
+  // 保存资料时用打开抽屉时的旧关系覆盖列表缓存。
+  if (editingMember.value?.id === member.id) editingMember.value = member;
 }
 async function handleRemoveMember(member: OrganizationMember) {
   if (mode.value === 'role') {
@@ -529,6 +561,8 @@ watch(
       v-model="memberEditorVisible"
       :member="editingMember"
       :role-names="roleNamesForEditor"
+      :department-tree="memberDepartmentTree"
+      :role-tree="pickerRoles"
       @save="saveMember"
     />
     <OrganizationInviteMemberDialog

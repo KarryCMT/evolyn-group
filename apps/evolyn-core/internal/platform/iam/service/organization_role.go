@@ -44,6 +44,12 @@ type OrganizationRoleMemberRequest struct {
 	MemberIDs []uint `json:"memberIds"`
 }
 
+// ReplaceMemberRolesRequest 表达成员的完整直接角色集合；空数组表示解除全部直接角色。
+// 角色组只用于展示，不是可绑定的角色主体。
+type ReplaceMemberRolesRequest struct {
+	RoleIDs []uint `json:"roleIds"`
+}
+
 type ReorderOrganizationRoleGroupRequest struct {
 	GroupIDs []uint `json:"groupIds"`
 }
@@ -67,6 +73,8 @@ type OrganizationRoleService interface {
 	ListMembers(ctx context.Context, roleID string, query model.MemberListQuery) (*model.MemberPage, error)
 	AddMembers(ctx context.Context, roleID string, memberIDs []uint) error
 	RemoveMember(ctx context.Context, roleID, memberID string) error
+	// ReplaceMemberRoles 原子替换成员的全部直接角色，用于成员详情中的角色列表。
+	ReplaceMemberRoles(ctx context.Context, memberID string, roleIDs []uint) error
 }
 
 type organizationRoleService struct {
@@ -448,6 +456,74 @@ func (s *organizationRoleService) RemoveMember(ctx context.Context, roleID, memb
 		return ErrOrganizationRoleRequestInvalid
 	}
 	return s.changeMembers(ctx, roleID, []uint{uint(mID)}, false)
+}
+
+// ReplaceMemberRoles 在一个事务内完成差量解绑和绑定，避免前端逐角色提交导致成员
+// 角色集合只更新一部分。传入的角色及成员均通过租户过滤读取，跨租户引用直接失败。
+func (s *organizationRoleService) ReplaceMemberRoles(ctx context.Context, memberID string, roleIDs []uint) error {
+	mID, err := strconv.Atoi(memberID)
+	if err != nil || mID < 1 {
+		return ErrOrganizationRoleRequestInvalid
+	}
+	if s.tx == nil {
+		return fmt.Errorf("organization role transaction manager is required")
+	}
+
+	member, err := s.users.GetUserByID(ctx, uint(mID))
+	if err != nil {
+		return err
+	}
+	targetRoles := make(map[uint]*model.Role, len(roleIDs))
+	for _, roleID := range roleIDs {
+		if roleID == 0 {
+			return ErrOrganizationRoleRequestInvalid
+		}
+		if _, duplicated := targetRoles[roleID]; duplicated {
+			return ErrOrganizationRoleRequestInvalid
+		}
+		role, err := s.roles.GetRoleByID(ctx, int(roleID))
+		if err != nil {
+			return err
+		}
+		if err := ensureSameTenant(member.TenantID, role.TenantID, "member", member.ID, "role", role.ID); err != nil {
+			return err
+		}
+		targetRoles[roleID] = role
+	}
+
+	currentRoles := make(map[uint]*model.Role, len(member.Roles))
+	for index := range member.Roles {
+		role := &member.Roles[index]
+		currentRoles[role.ID] = role
+	}
+	if err := s.tx.WithinTransaction(ctx, func(txCtx context.Context) error {
+		for roleID, role := range currentRoles {
+			if _, retained := targetRoles[roleID]; retained {
+				continue
+			}
+			if err := s.users.DelRole(txCtx, role, member); err != nil {
+				return err
+			}
+		}
+		for roleID, role := range targetRoles {
+			if _, existed := currentRoles[roleID]; existed {
+				continue
+			}
+			if err := s.users.AddRole(txCtx, role, member); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "iam", Action: "replace", ResourceType: "member_role",
+			ResourceID: memberID, After: map[string]any{"roleIds": roleIDs},
+		})
+	}
+	return nil
 }
 
 func (s *organizationRoleService) changeMembers(ctx context.Context, roleID string, memberIDs []uint, add bool) error {

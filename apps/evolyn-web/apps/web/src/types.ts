@@ -64,6 +64,14 @@ export interface RegisterResult extends JwtToken {
   created: boolean;
 }
 
+/** 公开邀请页的最小注册载荷：注册后直接加入邀请所属企业，不创建新企业。 */
+export interface PublicInvitationRegisterPayload {
+  phone: string;
+  smsCode: string;
+  nickname: string;
+  inviteToken: string;
+}
+
 /** 账号的租户成员关系（service.TenantMembership） */
 export interface TenantMembership {
   tenantId: number;

@@ -97,3 +97,8 @@ export function addRoleMembers(roleId: string, memberIds: string[]): Promise<nul
 export function removeRoleMember(roleId: string, memberId: string): Promise<null> {
   return http.delete(`/roles/${roleId}/members/${memberId}`);
 }
+
+/** 原子替换成员的全部直接角色；空数组表示解除全部直接角色。 */
+export function replaceMemberRoles(memberId: string, roleIds: string[]): Promise<null> {
+  return http.put(`/members/${memberId}/roles`, { roleIds: roleIds.map(Number) });
+}

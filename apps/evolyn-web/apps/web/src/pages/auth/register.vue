@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ApiError, ERROR_CODES } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
 // 注册向导：三步（注册账号 → 选择团队 → 完善信息），全程纯前端采集——
 // 第 1/2 步只做本地校验与暂存，不产生任何服务端写副作用；直到第 3 步
@@ -8,11 +9,9 @@ import { ElMessage } from 'element-plus';
 // - 验证码随最终提交一次性校验：向导停留超 5 分钟有效期将返回 401，
 //   引导回第 1 步重新获取（手机号带回免重填）
 // - 注册全程不设密码：账号为免密状态，密码由用户后续在个人中心首设
-import { computed, shallowRef } from 'vue';
+import { computed, onMounted, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { registerComplete, sendSmsCode } from '~/api/auth';
-import { ERROR_CODES } from '@evolyn.do/utils';
-import { ApiError } from '@evolyn.do/utils';
 import { useAuth } from '~/composables';
 
 const route = useRoute();
@@ -28,6 +27,15 @@ const smsSentVersion = shallowRef(0);
 const phone = shallowRef('');
 const smsCode = shallowRef('');
 const tenantProfile = shallowRef<{ tenantName: string; demand?: string; industry: string }>();
+
+// 兼容已复制的旧公开邀请链接：它们曾指向通用注册向导，现统一迁移到
+// 独立受邀注册页，避免受邀人继续填写不属于自己的企业资料。
+onMounted(() => {
+  const legacyInviteToken = typeof route.query.tenantInvite === 'string' ? route.query.tenantInvite.trim() : '';
+  if (legacyInviteToken) {
+    void router.replace({ name: 'publicInvitationRegister', query: { token: legacyInviteToken } });
+  }
+});
 
 /** 手机号脱敏（138****1234）：第 3 步昵称默认值，与后端免密注册默认昵称同口径 */
 const maskedPhone = computed(() => {
@@ -158,7 +166,7 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
 
     <RegisterProfileStep
       v-else:
-      default-nickname="maskedPhone"
+      :default-nickname="maskedPhone"
       :loading="submitting"
       @submit="handleProfileSubmit"
     />

@@ -155,7 +155,7 @@ export function useMemberDepartmentRolePicker(options: UseMemberDepartmentRolePi
   }
 
   function isDisabled(item: PickerItem, type: EvolynMemberDepartmentRolePickerItemType) {
-    if (item.disabled) return true;
+    if (item.disabled || ('selectable' in item && item.selectable === false)) return true;
     const isExisting = isSelected(item, type);
     const max = toValue(options.max);
     return !isExisting && max !== undefined && options.selection.value.length >= max;

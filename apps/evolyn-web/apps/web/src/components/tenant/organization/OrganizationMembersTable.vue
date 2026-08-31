@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { OrganizationMember, OrganizationMode } from './organization.types';
 import type {
   EvolynTableColumn,
   EvolynTableCustomRender,
@@ -8,7 +9,7 @@ import type {
 import { EvolynTable } from '@evolyn.do/ui';
 import { RiArrowDownSFill, RiDownload2Line, RiSearch2Line } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
-import type { OrganizationMember, OrganizationMode } from './organization.types';
+import { isDark } from '~/composables/dark';
 
 const props = defineProps<{
   mode: OrganizationMode;
@@ -54,6 +55,26 @@ const tableRecords = computed(() =>
   })),
 );
 
+// VTable 的自定义单元格由 Canvas 绘制，无法继承 CSS 变量；按当前主题显式提供色板，
+// 避免深色模式下角色标签仍使用浅色底。
+const tablePalette = computed(() =>
+  isDark.value
+    ? {
+        memberName: '#e5eaf3',
+        roleBackground: '#1d2a3d',
+        roleDot: '#409eff',
+        roleText: '#cbd5e1',
+        action: '#a8b2c1',
+      }
+    : {
+        memberName: '#394150',
+        roleBackground: '#f1f5fd',
+        roleDot: '#377ff5',
+        roleText: '#556071',
+        action: '#344054',
+      },
+);
+
 function memberAt(row: number): OrganizationMember | undefined {
   // VTable 的第 0 行是表头；customRender 与 click-cell 返回的是表格行号，
   // 因此需换算为 records 下标。否则首条成员会回落为占位头像且姓名/角色为空。
@@ -65,7 +86,13 @@ function memberInitial(member: OrganizationMember | undefined) {
   return member?.name.trim().slice(0, 1) || '成';
 }
 
+function roleTagWidth(roleLabel: string) {
+  // 角色标签由 Canvas 绘制，不能依靠内容自动撑开；预留图标与左右边距后按文字长度计算。
+  return Math.min(216, Math.max(104, Array.from(roleLabel).length * 15 + 48));
+}
+
 const columns = computed<EvolynTableColumn[]>(() => {
+  const palette = tablePalette.value;
   const avatar: EvolynTableCustomRenderElement = {
     type: 'circle',
     x: CELL_HORIZONTAL_PADDING + 14,
@@ -95,7 +122,7 @@ const columns = computed<EvolynTableColumn[]>(() => {
           x: CELL_HORIZONTAL_PADDING + 36,
           y: ROW_HEIGHT / 2,
           text: member?.name ?? '',
-          fill: '#394150',
+          fill: palette.memberName,
           fontSize: 16,
           textBaseline: 'middle',
         },
@@ -105,7 +132,7 @@ const columns = computed<EvolynTableColumn[]>(() => {
   const roleRender: EvolynTableCustomRender = ({ row }): EvolynTableCustomRenderObj => {
     const roleLabel = memberAt(row)?.roleNames.join('、') ?? '';
     return {
-      expectedWidth: 190,
+      expectedWidth: 240,
       expectedHeight: ROW_HEIGHT,
       elements: roleLabel
         ? [
@@ -113,16 +140,16 @@ const columns = computed<EvolynTableColumn[]>(() => {
               type: 'rect',
               x: CELL_HORIZONTAL_PADDING,
               y: 17,
-              width: 88,
+              width: roleTagWidth(roleLabel),
               height: 30,
-              fill: '#f1f5fd',
+              fill: palette.roleBackground,
             },
             {
               type: 'text',
               x: CELL_HORIZONTAL_PADDING + 11,
               y: ROW_HEIGHT / 2,
               text: '●',
-              fill: '#377ff5',
+              fill: palette.roleDot,
               fontSize: 13,
               textBaseline: 'middle',
             },
@@ -131,7 +158,7 @@ const columns = computed<EvolynTableColumn[]>(() => {
               x: CELL_HORIZONTAL_PADDING + 27,
               y: ROW_HEIGHT / 2,
               text: roleLabel,
-              fill: '#556071',
+              fill: palette.roleText,
               fontSize: 15,
               textBaseline: 'middle',
             },
@@ -148,7 +175,7 @@ const columns = computed<EvolynTableColumn[]>(() => {
         x: 36,
         y: ROW_HEIGHT / 2,
         text: '⋮',
-        fill: '#344054',
+        fill: palette.action,
         fontSize: 25,
         textAlign: 'center',
         textBaseline: 'middle',
@@ -165,7 +192,7 @@ const columns = computed<EvolynTableColumn[]>(() => {
       { field: 'phone', title: '手机', minWidth: 170 },
       // 常见企业邮箱长度超过 170px，固定更宽列避免列表中被过早截断。
       { field: 'email', title: '邮箱', width: 240 },
-      { field: 'roleLabel', title: '角色', width: 190, customRender: roleRender },
+      { field: 'roleLabel', title: '角色', width: 240, customRender: roleRender },
     );
   } else {
     baseColumns.push(
@@ -265,6 +292,7 @@ function removeCurrentMember() {
         :columns="columns"
         :records="tableRecords"
         :options="tableOptions"
+        :theme="isDark ? 'dark' : 'light'"
         empty-text="暂无成员"
         @click-cell="onCellClick"
       />

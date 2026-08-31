@@ -1,14 +1,14 @@
+import type {
+  MemberInvitationImportResult,
+  MemberInvitationPayload,
+  PublicMemberInvitationLinkDto,
+} from '~/api/member';
 import { computed, reactive, shallowRef } from 'vue';
 import {
   createMemberInvitation,
   getPublicMemberInvitationLink,
   importMemberInvitations,
   updatePublicMemberInvitationLink,
-} from '~/api/member';
-import type {
-  MemberInvitationImportResult,
-  MemberInvitationPayload,
-  PublicMemberInvitationLinkDto,
 } from '~/api/member';
 
 export type MemberInvitationTab = 'manual' | 'batch' | 'public';
@@ -49,7 +49,7 @@ export function useMemberInvitation() {
 
   const publicInvitationUrl = computed(() => {
     if (!publicLink.value?.token || typeof window === 'undefined') return '';
-    return `${window.location.origin}/auth/register?tenantInvite=${publicLink.value.token}`;
+    return `${window.location.origin}/auth/invite?token=${publicLink.value.token}`;
   });
 
   function clearManualForm() {

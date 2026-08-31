@@ -85,6 +85,11 @@ export function updateMemberStatus(id: string, status: MemberStatus): Promise<nu
   return http.put(`/members/${id}/status`, { status });
 }
 
+/** 整体替换成员的部门归属；空数组表示解除全部部门归属。 */
+export function updateMemberDepartments(memberId: string, departmentIds: string[]): Promise<null> {
+  return http.put(`/members/${memberId}/departments`, { departmentIds: departmentIds.map(Number) });
+}
+
 /** 保存手动填写的待接受成员邀请。 */
 export function createMemberInvitation(
   payload: MemberInvitationPayload,

@@ -149,6 +149,15 @@ func (s *registrationService) AcceptMemberInvite(ctx context.Context, accountID 
 	return s.invites.AcceptPersonalInvite(ctx, accountID, token)
 }
 
+// AcceptPublicInvite 已登录账号消费公开邀请。成员称呼传空时由 iam 成员服务
+// 按账号昵称回退，避免公开链接覆盖已有账号资料。
+func (s *registrationService) AcceptPublicInvite(ctx context.Context, accountID uint, token string) (*iammodel.User, error) {
+	if s.invites == nil || accountID == 0 || token == "" {
+		return nil, iamservice.ErrMemberInvitationInvalid
+	}
+	return s.invites.AcceptPublicLink(ctx, accountID, "", token)
+}
+
 // resolveTenant 租户决策：账号名下已有自有租户则复用（向导重试幂等），
 // 否则在本事务内自助开通。复用路径仅回填后续所需的租户 ID（签发与审计
 // 都不再需要完整租户实体）
