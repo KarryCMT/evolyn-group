@@ -26,7 +26,7 @@ import (
 // ---- 发布（P2，后端契约 §2.2） ----
 
 // Publish 发布：草稿口令复核 → 白名单校验 → 严格字典校验 → 事务内创建不可变快照
-// 并回写 forms.latest_version_id/published_version。历史版本不被触碰。
+// 并回写 tn_forms.latest_version_id/published_version。历史版本不被触碰。
 func (s *formService) Publish(ctx context.Context, member *iammodel.User, code string, req *model.PublishRequest) (*model.PublishResult, error) {
 	if !s.access.Permissions(ctx, member)["forms:create"] {
 		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot publish form %s", code))
@@ -251,7 +251,7 @@ func (s *formService) GetRuntime(ctx context.Context, member *iammodel.User, app
 // ---- 记录提交（P2） ----
 
 // SubmitRecord 提交：按 (form_id, version_no) 定位版本（历史版本合法），复核修订口令；
-// 逐字段按快照校验值（错误按 widgetName 回填），校验通过后落 form_records。
+// 逐字段按快照校验值（错误按 widgetName 回填），校验通过后落 tn_form_records。
 func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, req *model.SubmitRecordRequest) (*model.SubmitRecordResult, error) {
 	tenantID, ok := contextx.TenantIDFromContext(ctx)
 	if !ok {

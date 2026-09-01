@@ -164,7 +164,7 @@ func TestSECTenant001MemberCrossTenantRead(t *testing.T) {
 	assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
 
 	// 数据未受影响：beta 成员仍在库
-	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM users WHERE id = ?", env.betaMember.ID))
+	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM tn_users WHERE id = ?", env.betaMember.ID))
 }
 
 // SEC-TENANT-002：伪造他租成员 ID 更新（加载即被过滤拒绝）
@@ -176,7 +176,7 @@ func TestSECTenant002MemberCrossTenantUpdate(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.EqualValues(t, 1, env.rawCount(t,
-		"SELECT COUNT(*) FROM users WHERE id = ? AND nickname = ?", env.betaMember.ID, env.betaMember.Nickname),
+		"SELECT COUNT(*) FROM tn_users WHERE id = ? AND nickname = ?", env.betaMember.ID, env.betaMember.Nickname),
 		"beta 成员昵称不得被篡改")
 }
 
@@ -187,7 +187,7 @@ func TestSECTenant003MemberCrossTenantDelete(t *testing.T) {
 	err := env.userSvc.Delete(itCtx(env.alpha.ID), strconv.FormatUint(uint64(env.betaMember.ID), 10))
 	assert.Error(t, err)
 
-	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM users WHERE id = ?", env.betaMember.ID),
+	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM tn_users WHERE id = ?", env.betaMember.ID),
 		"beta 成员不得被删除")
 }
 
@@ -201,8 +201,8 @@ func TestSECTenant004MemberCrossTenantRoleBinding(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.EqualValues(t, 0, env.rawCount(t,
-		"SELECT COUNT(*) FROM user_roles WHERE user_id = ? AND role_id = ?", env.alphaMember.ID, env.roleBeta.ID),
-		"user_roles 不得产生跨租户污染行")
+		"SELECT COUNT(*) FROM tn_user_roles WHERE user_id = ? AND role_id = ?", env.alphaMember.ID, env.roleBeta.ID),
+		"tn_user_roles 不得产生跨租户污染行")
 }
 
 // SEC-TENANT-005：把他租成员加入本租分组（group AddMember）
@@ -215,9 +215,9 @@ func TestSECTenant005GroupCrossTenantAddMember(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.EqualValues(t, 0, env.rawCount(t,
-		"SELECT COUNT(*) FROM user_groups WHERE user_id = ? AND group_id = ?", env.alphaMember.ID, env.groupBeta.ID))
+		"SELECT COUNT(*) FROM tn_user_groups WHERE user_id = ? AND group_id = ?", env.alphaMember.ID, env.groupBeta.ID))
 	assert.EqualValues(t, 0, env.rawCount(t,
-		"SELECT COUNT(*) FROM user_groups WHERE group_id = ?", env.groupBeta.ID),
+		"SELECT COUNT(*) FROM tn_user_groups WHERE group_id = ?", env.groupBeta.ID),
 		"beta 分组成员关系不得被污染")
 }
 
@@ -231,7 +231,7 @@ func TestSECTenant006GroupCrossTenantAddRole(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.EqualValues(t, 0, env.rawCount(t,
-		"SELECT COUNT(*) FROM group_roles WHERE group_id = ? AND role_id = ?", env.groupAlpha.ID, env.roleBeta.ID))
+		"SELECT COUNT(*) FROM tn_group_roles WHERE group_id = ? AND role_id = ?", env.groupAlpha.ID, env.roleBeta.ID))
 }
 
 // SEC-TENANT-007：伪造他租角色/分组 ID 更新/删除——必须显式拒绝，
@@ -246,7 +246,7 @@ func TestSECTenant007RoleCrossTenantUpdateDelete(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.EqualValues(t, 1, env.rawCount(t,
-		"SELECT COUNT(*) FROM roles WHERE id = ? AND name = ?", env.roleBeta.ID, env.roleBeta.Name),
+		"SELECT COUNT(*) FROM tn_roles WHERE id = ? AND name = ?", env.roleBeta.ID, env.roleBeta.Name),
 		"beta 角色不得被篡改或删除")
 
 	// 分组同维度：伪造他租分组 ID 的更新/删除同样必须拒绝
@@ -255,7 +255,7 @@ func TestSECTenant007RoleCrossTenantUpdateDelete(t *testing.T) {
 	assert.Error(t, err)
 	err = env.groupSvc.Delete(itCtx(env.alpha.ID), gid)
 	assert.Error(t, err)
-	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM groups WHERE id = ?", env.groupBeta.ID),
+	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM tn_groups WHERE id = ?", env.groupBeta.ID),
 		"beta 分组不得被删除")
 }
 
@@ -271,11 +271,11 @@ func TestSECTenant008AddMemberCrossTenantDepartment(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.EqualValues(t, 0, env.rawCount(t,
-		"SELECT COUNT(*) FROM users WHERE account_id = ? AND tenant_id = ?", env.victim.ID, env.alpha.ID),
+		"SELECT COUNT(*) FROM tn_users WHERE account_id = ? AND tenant_id = ?", env.victim.ID, env.alpha.ID),
 		"部门绑定失败后成员必须整体回滚（真实事务）")
 	assert.EqualValues(t, 0, env.rawCount(t,
-		"SELECT COUNT(*) FROM department_users WHERE department_id = ?", env.deptBeta.ID),
-		"department_users 不得产生污染行")
+		"SELECT COUNT(*) FROM tn_department_users WHERE department_id = ?", env.deptBeta.ID),
+		"tn_department_users 不得产生污染行")
 }
 
 // SEC-TENANT-009：拉人入租时伪造他租角色（FIX-021：整个 AddMember 回滚）
@@ -288,15 +288,15 @@ func TestSECTenant009AddMemberCrossTenantRole(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.EqualValues(t, 0, env.rawCount(t,
-		"SELECT COUNT(*) FROM users WHERE account_id = ? AND tenant_id = ?", env.victim.ID, env.alpha.ID),
+		"SELECT COUNT(*) FROM tn_users WHERE account_id = ? AND tenant_id = ?", env.victim.ID, env.alpha.ID),
 		"角色绑定失败后成员必须整体回滚（真实事务）")
 	// 仅统计 alpha 侧成员的绑定行：beta owner 与其 tenant-admin 的合法
 	// 绑定（role_id 相同）不得计入污染
 	assert.EqualValues(t, 0, env.rawCount(t, `
-		SELECT COUNT(*) FROM user_roles ur
-		JOIN users u ON u.id = ur.user_id
+		SELECT COUNT(*) FROM tn_user_roles ur
+		JOIN tn_users u ON u.id = ur.user_id
 		WHERE u.tenant_id = ? AND ur.role_id = ?`, env.alpha.ID, env.roleBeta.ID),
-		"user_roles 不得产生跨租户污染行")
+		"tn_user_roles 不得产生跨租户污染行")
 }
 
 // SEC-TENANT-010：列表查询严格按租户隔离（无跨租户数据泄漏）
@@ -384,19 +384,19 @@ func TestIntegrationTXTenantOpenAtomic(t *testing.T) {
 
 	tenant := env.openTenant(t, "sec-gamma", "owner-gamma")
 
-	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM tenants WHERE code = ?", "sec-gamma"))
-	assert.EqualValues(t, 3, env.rawCount(t, "SELECT COUNT(*) FROM roles WHERE tenant_id = ?", tenant.ID))
-	assert.EqualValues(t, 3, env.rawCount(t, "SELECT COUNT(*) FROM groups WHERE tenant_id = ?", tenant.ID))
+	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM pf_tenants WHERE code = ?", "sec-gamma"))
+	assert.EqualValues(t, 3, env.rawCount(t, "SELECT COUNT(*) FROM tn_roles WHERE tenant_id = ?", tenant.ID))
+	assert.EqualValues(t, 3, env.rawCount(t, "SELECT COUNT(*) FROM tn_groups WHERE tenant_id = ?", tenant.ID))
 	assert.EqualValues(t, 3, env.rawCount(t, `
-		SELECT COUNT(*) FROM group_roles gr
-		JOIN groups g ON g.id = gr.group_id
+		SELECT COUNT(*) FROM tn_group_roles gr
+		JOIN tn_groups g ON g.id = gr.group_id
 		WHERE g.tenant_id = ?`, tenant.ID))
 
 	// owner 成员恰好绑定一个角色，且该角色属于本租户（防跨租户绑定回归）
 	assert.EqualValues(t, 1, env.rawCount(t, `
-		SELECT COUNT(*) FROM user_roles ur
-		JOIN users u ON u.id = ur.user_id
-		JOIN roles r ON r.id = ur.role_id
+		SELECT COUNT(*) FROM tn_user_roles ur
+		JOIN tn_users u ON u.id = ur.user_id
+		JOIN tn_roles r ON r.id = ur.role_id
 		WHERE u.tenant_id = ? AND r.tenant_id = ? AND r.name = ?`,
 		tenant.ID, tenant.ID, tenantservice.TenantAdminRole),
 		"owner 必须绑定本租户的 tenant-admin")
@@ -408,9 +408,9 @@ func TestIntegrationTXTenantOpenAtomic(t *testing.T) {
 		OwnerName: "owner-gamma", OwnerPassword: "secret123",
 	})
 	assert.Error(t, err, "重名账号必须使开通失败")
-	assert.EqualValues(t, 0, env.rawCount(t, "SELECT COUNT(*) FROM tenants WHERE code = ?", "sec-gamma-2"),
+	assert.EqualValues(t, 0, env.rawCount(t, "SELECT COUNT(*) FROM pf_tenants WHERE code = ?", "sec-gamma-2"),
 		"失败开通不得留下租户行")
-	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM accounts WHERE name = ?", "owner-gamma"),
+	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM pf_accounts WHERE name = ?", "owner-gamma"),
 		"不得产生重复账号")
 }
 
@@ -428,9 +428,9 @@ func TestIntegrationTXMemberAddMemberRollback(t *testing.T) {
 	assert.Error(t, err)
 
 	assert.EqualValues(t, 0, env.rawCount(t,
-		"SELECT COUNT(*) FROM users WHERE account_id = ? AND tenant_id = ?", victim2.ID, env.alpha.ID),
+		"SELECT COUNT(*) FROM tn_users WHERE account_id = ? AND tenant_id = ?", victim2.ID, env.alpha.ID),
 		"成员必须整体回滚")
 	assert.EqualValues(t, 0, env.rawCount(t,
-		"SELECT COUNT(*) FROM department_users WHERE user_id NOT IN (SELECT id FROM users)"),
+		"SELECT COUNT(*) FROM tn_department_users WHERE user_id NOT IN (SELECT id FROM tn_users)"),
 		"不得残留指向已回滚成员的部门关系")
 }

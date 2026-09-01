@@ -42,7 +42,7 @@ type AuthController struct {
 	smsService          *sms.Service
 	// 令牌吊销器：登出时拉黑 jti（P2-8，存量无 sid 令牌兼容）
 	revoker *auth.TokenRevoker
-	// 设备会话服务（ADR-009）：登录链路统一签发/校验/撤销 account_sessions
+	// 设备会话服务（ADR-009）：登录链路统一签发/校验/撤销 pf_account_sessions
 	sessions securityservice.SessionService
 	// MFA 服务：启用后，登录第一步只创建短时 challenge，验证成功才签发会话。
 	mfa securityservice.MFAService
@@ -66,7 +66,7 @@ func NewAuthController(accountService service.AccountService, registrationServic
 		pkiKeypair:          pkiKeypair,
 		loginLog:            loginLog,
 		revoker:             revoker,
-		// 登录会话服务必须保留到控制器，loginSession 才会创建 account_sessions
+		// 登录会话服务必须保留到控制器，loginSession 才会创建 pf_account_sessions
 		// 并把 SID 签入 JWT；遗漏注入会静默回退为存量无 SID 令牌。
 		sessions:   sessions,
 		mfa:        mfa,

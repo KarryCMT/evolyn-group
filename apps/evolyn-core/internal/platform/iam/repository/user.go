@@ -48,47 +48,47 @@ func (u *userRepository) List(ctx context.Context) (model.Users, error) {
 // ListPage 组织成员分页查询。先按 members 主表计数和分页，再 Preload 多对多
 // 部门/角色，避免多关联 JOIN 令分页重复或 total 失真。
 func (u *userRepository) ListPage(ctx context.Context, params model.MemberListQuery) (model.Users, int64, error) {
-	// JOIN accounts 仅用于过滤有效账号与关键词匹配；必须限定主查询为 users.*。
+	// JOIN pf_accounts 仅用于过滤有效账号与关键词匹配；必须限定主查询为 tn_users.*。
 	// 否则 PostgreSQL 返回的 accounts 列会与 users 的同名列混在一起，GORM 扫描时
 	// 可能将 members.account_id 覆盖为零值，进而使创建者资料显示为空。
-	query := u.withContext(ctx).Model(&model.User{}).Select("users.*").
-		Joins("JOIN accounts ON accounts.id = users.account_id AND accounts.deleted_at IS NULL")
+	query := u.withContext(ctx).Model(&model.User{}).Select("tn_users.*").
+		Joins("JOIN pf_accounts ON pf_accounts.id = tn_users.account_id AND pf_accounts.deleted_at IS NULL")
 
 	if params.DepartmentID > 0 {
-		query = query.Joins("JOIN department_users ON department_users.user_id = users.id").
-			Where("department_users.department_id = ?", params.DepartmentID)
+		query = query.Joins("JOIN tn_department_users ON tn_department_users.user_id = tn_users.id").
+			Where("tn_department_users.department_id = ?", params.DepartmentID)
 	}
 	if params.RoleID > 0 {
 		// 按角色筛选只连接关系表，成员完整角色列表仍由 Preload 返回，供组织页
 		// 在同一行展示成员拥有的全部角色。
-		query = query.Joins("JOIN user_roles ON user_roles.user_id = users.id").
-			Where("user_roles.role_id = ?", params.RoleID)
+		query = query.Joins("JOIN tn_user_roles ON tn_user_roles.user_id = tn_users.id").
+			Where("tn_user_roles.role_id = ?", params.RoleID)
 	}
 	if params.Keyword != "" {
 		keyword := "%" + params.Keyword + "%"
 		query = query.Where(
-			"users.nickname ILIKE ? OR accounts.nickname ILIKE ? OR accounts.name ILIKE ? OR accounts.phone ILIKE ? OR accounts.email ILIKE ?",
+			"tn_users.nickname ILIKE ? OR pf_accounts.nickname ILIKE ? OR pf_accounts.name ILIKE ? OR pf_accounts.phone ILIKE ? OR pf_accounts.email ILIKE ?",
 			keyword, keyword, keyword, keyword, keyword,
 		)
 	}
 	switch params.Status {
 	case model.MemberStatusActive, model.MemberStatusDisabled, model.MemberStatusResigned:
-		query = query.Where("users.status = ?", params.Status)
+		query = query.Where("tn_users.status = ?", params.Status)
 	default:
-		query = query.Where("users.status IN ?", []string{model.MemberStatusActive, model.MemberStatusDisabled})
+		query = query.Where("tn_users.status IN ?", []string{model.MemberStatusActive, model.MemberStatusDisabled})
 	}
 
 	var total int64
-	// Distinct 会把当前链的 Select 改为 users.id。计数使用独立会话，避免后续
+	// Distinct 会把当前链的 Select 改为 tn_users.id。计数使用独立会话，避免后续
 	// Find 只取回 id，导致创建者的 account_id、昵称等字段全部成为零值。
 	countQuery := query.Session(&gorm.Session{})
-	if err := countQuery.Distinct("users.id").Count(&total).Error; err != nil {
+	if err := countQuery.Distinct("tn_users.id").Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	users := make(model.Users, 0)
 	if err := query.Preload("Account").Preload("Roles").Preload(model.DepartmentAssociation).
-		Order("users.id").Offset((params.Page - 1) * params.PageSize).Limit(params.PageSize).
+		Order("tn_users.id").Offset((params.Page - 1) * params.PageSize).Limit(params.PageSize).
 		Find(&users).Error; err != nil {
 		return nil, 0, err
 	}
@@ -220,10 +220,10 @@ func (u *userRepository) GetGroups(ctx context.Context, user *model.User) ([]mod
 func (u *userRepository) PurgeByAccount(ctx context.Context, accountID uint) error {
 	db := u.withContext(ctx)
 	for _, stmt := range []string{
-		`DELETE FROM department_users WHERE user_id IN (SELECT id FROM users WHERE account_id = ?)`,
-		`DELETE FROM user_groups WHERE user_id IN (SELECT id FROM users WHERE account_id = ?)`,
-		`DELETE FROM user_roles WHERE user_id IN (SELECT id FROM users WHERE account_id = ?)`,
-		`DELETE FROM users WHERE account_id = ?`,
+		`DELETE FROM tn_department_users WHERE user_id IN (SELECT id FROM tn_users WHERE account_id = ?)`,
+		`DELETE FROM tn_user_groups WHERE user_id IN (SELECT id FROM tn_users WHERE account_id = ?)`,
+		`DELETE FROM tn_user_roles WHERE user_id IN (SELECT id FROM tn_users WHERE account_id = ?)`,
+		`DELETE FROM tn_users WHERE account_id = ?`,
 	} {
 		if err := db.Exec(stmt, accountID).Error; err != nil {
 			return err

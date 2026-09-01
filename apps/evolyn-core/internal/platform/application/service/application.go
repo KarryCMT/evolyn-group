@@ -192,7 +192,7 @@ func (s *applicationService) provisionBlank(
 }
 
 // newApplicationCode 生成应用编码：app_ + 16 位随机 hex。租户内唯一由
-// uk_applications_tenant_code 部分唯一索引兜底，随机空间下冲突可忽略
+// uk_tn_applications_tenant_code 部分唯一索引兜底，随机空间下冲突可忽略
 func newApplicationCode() (string, error) {
 	buf := make([]byte, 8)
 	if _, err := rand.Read(buf); err != nil {

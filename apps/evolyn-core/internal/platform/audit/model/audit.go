@@ -36,7 +36,7 @@ type AuditLog struct {
 }
 
 func (*AuditLog) TableName() string {
-	return "audit_logs"
+	return "tn_audit_logs"
 }
 
 // JSONText JSONB 列载体：空串落 NULL，序列化失败在写入前拦截。

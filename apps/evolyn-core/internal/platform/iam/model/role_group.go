@@ -16,4 +16,8 @@ type RoleGroup struct {
 	kernel.TenantBaseModel
 }
 
+// TableName 显式映射租户角色展示分组表（000063 命名空间前缀 tn_），避免
+// 依赖 GORM 默认推导
+func (*RoleGroup) TableName() string { return "tn_role_groups" }
+
 const DefaultRoleGroupName = "默认"

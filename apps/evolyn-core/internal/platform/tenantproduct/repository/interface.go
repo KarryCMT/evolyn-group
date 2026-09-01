@@ -3,7 +3,7 @@
 // 本域租户表带 tenant_id 但由服务层显式传 tenantID 条件定位（口径同
 // edition 域）：租户开通事务（NewTenantContext 指向新租户）与访问判定
 // 等调用方的 ctx 租户不必然等于目标租户，显式条件消除歧义，不依赖
-// GORM 租户 Callback；users/departments/department_users 的读取同理
+// GORM 租户 Callback；users/departments/tn_department_users 的读取同理
 package repository
 
 import (
@@ -63,7 +63,7 @@ type Repository interface {
 	// deptIDs（含子部门展开后的集合）的 active 成员去重计数；两清单皆空返回 0
 	CountActiveMembersInScope(ctx context.Context, tenantID uint, memberIDs, deptIDs []uint) (int64, error)
 	// MemberInDepartments 成员是否直接归属 deptIDs 中任一部门
-	// （department_users 关联命中；deptIDs 应为展开后的有效部门集合）
+	// （tn_department_users 关联命中；deptIDs 应为展开后的有效部门集合）
 	MemberInDepartments(ctx context.Context, tenantID, memberID uint, deptIDs []uint) (bool, error)
 
 	// Migrate 开发/测试 AutoMigrate 路径（FIX-009：生产只走 SQL 迁移）

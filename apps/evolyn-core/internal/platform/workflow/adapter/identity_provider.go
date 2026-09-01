@@ -3,7 +3,7 @@
 // 审批人快照在任务创建事务内一次性固化（v1.1 定版）。
 //
 // 租户隔离：Model(&iammodel.User{}) 路径由 GORM 租户 Callback 自动过滤；
-// Table()/JOIN 聚合路径 Schema 未解析，必须显式携带 users.tenant_id 条件
+// Table()/JOIN 聚合路径 Schema 未解析，必须显式携带 tn_users.tenant_id 条件
 // （与 enterpriseLog 域 JOIN 查询同口径）。
 package adapter
 
@@ -30,7 +30,7 @@ func NewIdentityProvider(base *gorm.DB) *IdentityProvider {
 }
 
 // activeMemberScope 在任成员条件（active 且未离职），配合 Model(users) 使用。
-func activeMemberScope() string { return "users.status = ? AND users.resigned_at IS NULL" }
+func activeMemberScope() string { return "tn_users.status = ? AND tn_users.resigned_at IS NULL" }
 
 // ValidateMembers 校验成员集合同租户（ctx 租户过滤）且在任（active 未离职）。
 func (p *IdentityProvider) ValidateMembers(ctx context.Context, tenantID uint, memberIDs []uint) error {
@@ -59,9 +59,9 @@ func (p *IdentityProvider) MemberDisplayName(ctx context.Context, tenantID, memb
 	}
 	if err := infrastructure.ResolveDB(ctx, p.db).
 		Table("users").
-		Select("users.nickname AS member_nickname, COALESCE(accounts.nickname, '') AS account_nickname, COALESCE(accounts.name, '') AS account_name").
-		Joins("LEFT JOIN accounts ON accounts.id = users.account_id").
-		Where("users.id = ? AND users.tenant_id = ?", memberID, tenantID).
+		Select("tn_users.nickname AS member_nickname, COALESCE(pf_accounts.nickname, '') AS account_nickname, COALESCE(pf_accounts.name, '') AS account_name").
+		Joins("LEFT JOIN pf_accounts ON pf_accounts.id = tn_users.account_id").
+		Where("tn_users.id = ? AND tn_users.tenant_id = ?", memberID, tenantID).
 		Take(&row).Error; err != nil {
 		return ""
 	}
@@ -85,9 +85,9 @@ func (p *IdentityProvider) ResolveTenantAdmins(ctx context.Context, tenantID uin
 	rows := make([]iammodel.User, 0)
 	if err := infrastructure.ResolveDB(ctx, p.db).
 		Model(&iammodel.User{}).
-		Joins("JOIN user_roles ON user_roles.user_id = users.id").
-		Joins("JOIN roles ON roles.id = user_roles.role_id").
-		Where("roles.name = ?", tenantAdminRoleName).
+		Joins("JOIN tn_user_roles ON tn_user_roles.user_id = tn_users.id").
+		Joins("JOIN tn_roles ON tn_roles.id = tn_user_roles.role_id").
+		Where("tn_roles.name = ?", tenantAdminRoleName).
 		Where(activeMemberScope(), iammodel.MemberStatusActive).
 		Find(&rows).Error; err != nil {
 		return nil, err
@@ -104,16 +104,16 @@ func (p *IdentityProvider) ResolveTenantAdmins(ctx context.Context, tenantID uin
 
 // MemberContext 成员运行上下文：starter.user_id 取登录名（账号 name，全局
 // 唯一的组织维度键），starter.department_id 取首个归属部门（多部门成员取
-// department_users 最小部门 ID，表达式场景的确定性约定）。
+// tn_department_users 最小部门 ID，表达式场景的确定性约定）。
 func (p *IdentityProvider) MemberContext(ctx context.Context, tenantID, memberID uint) (string, uint, error) {
 	var row struct {
 		AccountName string
 	}
 	if err := infrastructure.ResolveDB(ctx, p.db).
 		Table("users").
-		Select("COALESCE(accounts.name, '') AS account_name").
-		Joins("LEFT JOIN accounts ON accounts.id = users.account_id").
-		Where("users.id = ? AND users.tenant_id = ?", memberID, tenantID).
+		Select("COALESCE(pf_accounts.name, '') AS account_name").
+		Joins("LEFT JOIN pf_accounts ON pf_accounts.id = tn_users.account_id").
+		Where("tn_users.id = ? AND tn_users.tenant_id = ?", memberID, tenantID).
 		Take(&row).Error; err != nil {
 		return "", 0, err
 	}
@@ -122,10 +122,10 @@ func (p *IdentityProvider) MemberContext(ctx context.Context, tenantID, memberID
 	}
 	// 归属关系行不存在时取 0（成员无部门是合法状态，不视为错误）
 	if err := infrastructure.ResolveDB(ctx, p.db).
-		Table("department_users").
-		Select("COALESCE(MIN(department_users.department_id), 0) AS department_id").
-		Joins("JOIN departments ON departments.id = department_users.department_id AND departments.tenant_id = ?", tenantID).
-		Where("department_users.user_id = ?", memberID).
+		Table("tn_department_users").
+		Select("COALESCE(MIN(tn_department_users.department_id), 0) AS department_id").
+		Joins("JOIN tn_departments ON tn_departments.id = tn_department_users.department_id AND tn_departments.tenant_id = ?", tenantID).
+		Where("tn_department_users.user_id = ?", memberID).
 		Take(&deptRow).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return "", 0, err
 	}

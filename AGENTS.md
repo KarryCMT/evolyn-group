@@ -82,14 +82,14 @@ internal/
                       （发起/详情/同意，行锁推进）全套接口，workflows 资源
                       基线管理员补授、workflow-instances/workflow-tasks
                       授全体成员（TaskActor 实例级校验兜底）；Phase 3 已
-                      落地（迁移 000050 departments.leader_member_id）：
+                      落地（迁移 000050 tn_departments.leader_member_id）：
                       身份/组织/业务数据三条窄端口适配器（identity/
                       organization/form_provider）+ 条件节点执行器与
                       Expr 发布预编译产物缓存 + form.* 表达式数据源与
                       starter.* 上下文填充 + role/form_field/
                       department_manager Resolver（解析失败租户管理员兜底）
                       + 审批编辑字段权限过滤（同事务经 Form Domain
-                      WorkflowRecordStore 窄端口写回 form_records）；
+                      WorkflowRecordStore 窄端口写回 tn_form_records）；
                       Phase 4 已落地（迁移 000051 wf_cc_record）：完整人工
                       Task Engine——Reject terminate 联动/ReturnToStarter+
                       发起人 Resubmit（WAITING_RESUBMIT）/Withdraw 撤回窗口/
@@ -110,7 +110,7 @@ internal/
                       状态机不变）；Phase 6 已落地：workflow.* 事件接入
                       既有 notification 域 Outbox——事件适配器桥接
                       EventPublisher.PublishInTx（同一审批事务写
-                      notification_outbox_events，发布失败 best-effort
+                      tn_notification_outbox_events，发布失败 best-effort
                       不回滚审批），通知目录追增「审批动态」分类与 7 个
                       消费事件（待办/转办/催办受众=任务参与人快照，
                       通过/驳回/终止/退回受众=发起人，动作
@@ -190,7 +190,7 @@ internal/
                        ——登录/注册即登录各路径令牌签发后 best-effort 落库，
                        登录地写时经 ipregion 离线解析；账号自查分页查询经
                        iam 账号控制器 GET /accounts/me/login-logs 暴露，
-                       与 audit_logs（业务操作审计）职责互斥）
+                       与 tn_audit_logs（业务操作审计）职责互斥）
     iam/              身份域（域内 controller→service→repository 小三层）：
                        account 平台账号（PUT /accounts/me 自助资料（个人
                        中心入口）含 onboarding JSONB 画像，昵称变更同事务
@@ -200,15 +200,15 @@ internal/
                        密码；迁移 000010/000011）/ user 租户成员 /
                        group / rbac / department；memberfield 成员信息管理
                        （docs/低代码平台/成员信息管理/，迁移 000031：
-                       tenant_member_field_settings 租户字段显示策略
+                       tn_member_field_settings 租户字段显示策略
                        ——服务端字段注册表 + 乐观锁单字段即时 PATCH，租户
-                       开通事务预置默认配置、读取侧幂等兜底；member_profiles
+                       开通事务预置默认配置、读取侧幂等兜底；tn_member_profiles
                        正式成员扩展档案——本人按 personalVisible/personalEditable
                        裁剪读写、管理员全量 + cardVisible 服务端裁剪卡片视图；
                        单人邀请 token 接受事务（建成员/迁档案/绑部门/置
                        accepted，注册编排与 POST /auth/invitations/accept
                        两入口））；admingroup 管理组（权限中心-管理员模块，
-                       迁移 000032：admin_groups + admin_group_members——
+                       迁移 000032：tn_admin_groups + tn_admin_group_members——
                        内置系统管理员组由 tenant-admin 角色绑定实时推导成员
                        （单一事实源），自定义组经 scope_config JSONB 承载
                        部门/角色/互联组织/应用带范围委托；/admin-groups CRUD
@@ -224,7 +224,7 @@ internal/
     application/      应用管理域（M2，小三层，docs/低代码平台/应用管理/）：
                       空白应用创建/列表/详情/更新/软删 + apps 配额（M2-A）；
                       应用菜单只读接口 GET /applications/code/:code/menu
-                      （M2-菜单-1，迁移 000016：application_menu_entries
+                      （M2-菜单-1，迁移 000016：tn_application_menu_entries
                       节点表 + applications.menu_revision 菜单乐观并发口令，
                       读取走单条 SQL 快照保证修订号与节点同快照；分组创建
                       POST /applications/code/:code/menu/groups 已接入事务、
@@ -232,7 +232,7 @@ internal/
     edition/          版本信息域（一期，小三层，docs/低代码平台/版本信息/）：
                       套餐目录/不可变套餐版本快照/租户订阅/特批权益覆盖
                       （迁移 000030，四表 + 三档 seed + 存量回填）；活动订阅
-                      是权益事实源，tenants.plan/quotas 退为 QuotaService
+                      是权益事实源，pf_tenants.plan/quotas 退为 QuotaService
                       过渡兼容投影（同事务同步）；租户侧 GET /editions/current
                       （editions:get 仅授租户管理员）+ 平台侧人工授予/取消/
                       可授予版本列表；读时到期投影 expired + EditionWorker
@@ -241,13 +241,13 @@ internal/
                       经 SubscriptionSeeder 同事务补种初始订阅
     form/             表单资产域（ADR-010，docs/低代码平台/表单设计器/）：表单资产与
                       草稿（forms.draft_content 目标保存协议全文 + draft_revision
-                      乐观锁）、不可变发布快照（form_versions：version_no +
-                      schema_revision 双口令）、记录提交（form_records：按快照终审，
+                      乐观锁）、不可变发布快照（tn_form_versions：version_no +
+                      schema_revision 双口令）、记录提交（tn_form_records：按快照终审，
                       错误按 widgetName 回填）；服务层含与前端逐字一致的协议校验器
                       与基础字段值校验器（schema.go/value.go 镜像 TS 字典）；
                       权限资源 forms（管理员）/form-records（全体成员提交）、
                       forms 配额键（QuotaService 计数器注入）；M2-资产-1 最小
-                      纵切：创建/改名/删除同事务维护 application_menu_entries
+                      纵切：创建/改名/删除同事务维护 tn_application_menu_entries
                       的 form 节点并递增 menu_revision，菜单读侧经 FormDirectory
                       窄端口做存在性裁剪与 target 投影（跨域双向窄端口装配）；
                       000044 将 form_type（standard/workflow）固化为创建后不可变
@@ -259,7 +259,7 @@ internal/
                       favorites 资源，菜单读侧投影 actions 按钮图）；迁移
                       000037/000038/000044/000045/000046/000047；表单权限组
                       （P1，docs/低代码平台/表单权限/，迁移 000058）：
-                      asset_permission_groups + subjects 两表承载主体×操作集×
+                      tn_asset_permission_groups + subjects 两表承载主体×操作集×
                       字段矩阵×数据范围整体授权单元，FormPermissionEvaluator
                       组绑定判定（组内合取防串联越权、form-data:admin 显式旁
                       路、禁用组收口、deny-by-default 字段默认、入口判定
@@ -287,12 +287,12 @@ internal/
                       settings/admin-groups，与角色名无关
     enterpriselog/    企业日志域（一期，小三层，docs/低代码平台/企业日志/）：
                       管理后台 /tenant/enterprise-logs 的登录日志/操作日志
-                      只读查询与导出编排（迁移 000036：login_logs 补
-                      actor_name_snapshot、audit_logs 补 event_code/
+                      只读查询与导出编排（迁移 000036：pf_login_logs 补
+                      actor_name_snapshot、tn_audit_logs 补 event_code/
                       category_code/快照/summary 展示投影 + 租户维度索引 +
-                      enterprise_log_exports 导出任务表）；不接管登录/审计
+                      tn_enterprise_log_exports 导出任务表）；不接管登录/审计
                       写入（分属 auth/loginlog 与 audit 域），仓储显式租户
-                      条件 + JOIN users/accounts 显示名兜底 + keyset 导出
+                      条件 + JOIN tn_users/accounts 显示名兜底 + keyset 导出
                       扫描；GET /enterprise-logs/login|operations|operation-
                       categories + POST/GET /enterprise-logs/exports（同步
                       生成 CSV、24h 有效、单次上限 5 万行；enterprise-logs:
@@ -303,11 +303,11 @@ internal/
                       「历史操作记录」
   notification/     消息中心域（P1+P2，小三层，docs/低代码平台/消息中心/）：
                       租户×成员站内收件箱与租户通知设置（迁移 000039 七表：
-                      不可变 notification_messages（纯文本快照物化时固化，
+                      不可变 tn_notification_messages（纯文本快照物化时固化，
                       (tenant_id,event_id) 唯一幂等）+ notification_member_
                       inboxes（扇出/已读，查询显式 tenant_id+member_id 双
                       条件，过期消息 SQL 侧排除）+ 设置聚合/偏好覆盖/接收
-                      规则/自定义提醒对象 + notification_outbox_events）；
+                      规则/自定义提醒对象 + tn_notification_outbox_events）；
                       业务域经 EventPublisher.PublishInTx 在自身事务内写
                       Outbox（application 域创建/删除应用已发布
                       application.asset.changed 真实事件），Dispatcher 以
@@ -335,7 +335,11 @@ internal/
                       适配器解析显式成员）；邮件/短信外部渠道与云币计费
                       为 P3
 migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
-                      命名 NNNNNN_name.(up|down).sql，版本号只增不复用）
+                      命名 NNNNNN_name.(up|down).sql，版本号只增不复用。
+                      000063 起业务表名统一命名空间前缀：pf_ 平台 / sys_ 系统 /
+                      tn_ 租户 / wf_ 流程引擎（方案见 docs/低代码平台/数据库表
+                      命名空间前缀调整方案.md）；000063 之前迁移文件内保留当时
+                      旧表名，勿据其回改代码；索引/约束/序列名同规则带前缀）
 scripts/              db.sql（终态快照，与迁移链一致）、cert.sh（本地证书）
 ```
 
@@ -373,7 +377,7 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
   取连接以加入 ctx 传播的事务；跨租户 Update/Delete 必须先加载再写，
   禁止「租户过滤 0 行影响却返回成功」；审计在事务提交后独立写入（best-effort）。
 - 账号×成员拆分（ADR-006）是现行模型基线：登录身份（name/phone/password/
-  OAuth 凭证）只挂 `accounts`；租户内身份（昵称/部门/分组/角色）挂 `users`。
+  OAuth 凭证）只挂 `pf_accounts`；租户内身份（昵称/部门/分组/角色）挂 `tn_users`。
   迁移期字段残留由启动幂等回填处理，新代码不要声明旧列。
 - 路由双域隔离（整改 FIX-008）：`/api/v1/platform/*` 只走
   Authentication + PlatformAuthorization（无租户上下文），平台控制器实现

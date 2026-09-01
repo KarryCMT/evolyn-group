@@ -48,7 +48,7 @@ type Tenant struct {
 }
 
 func (*Tenant) TableName() string {
-	return "tenants"
+	return "pf_tenants"
 }
 
 // TenantConfig 租户级配置（架构文档 26.5 config JSONB，对标灵衍云 tenant 域）

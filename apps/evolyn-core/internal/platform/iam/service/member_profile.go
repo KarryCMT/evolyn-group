@@ -18,7 +18,7 @@ import (
 
 // memberProfileService 正式成员扩展档案（成员信息管理二期）：
 // 「字段 key → 档案值」的组装与读写裁剪。值来源跨 users/accounts/关系表与
-// member_profiles（不重复存储手机/邮箱/部门/角色，文档 4.2）；
+// tn_member_profiles（不重复存储手机/邮箱/部门/角色，文档 4.2）；
 // 本人读取按 personalVisible 裁剪、写入仅放行 personalEditable 的扩展字段；
 // 管理员读写不裁剪，卡片视图按 cardVisible 服务端裁剪后下发
 type memberProfileService struct {

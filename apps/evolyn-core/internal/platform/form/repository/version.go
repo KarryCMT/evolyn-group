@@ -117,6 +117,6 @@ func (r *formRecordRepository) Migrate() error {
 	if err := r.db.AutoMigrate(&model.FormRecord{}); err != nil {
 		return err
 	}
-	return r.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_form_records_tenant_data_op
-		ON form_records (tenant_id, data_op_id)`).Error
+	return r.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_form_records_tenant_data_op
+		ON tn_form_records (tenant_id, data_op_id)`).Error
 }

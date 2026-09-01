@@ -85,7 +85,7 @@ func (p *PlatformEditionController) GetTenantEdition(c *gin.Context) {
 // Grant 人工授予/替换/取消租户订阅。
 //
 // @Summary 人工授予或取消租户订阅
-// @Description action=grant：校验套餐版本与授予规则（试用必须带 endsAt、存储整 GiB）后单事务完成关旧订阅、建新订阅、覆盖替换与 tenants.plan/quotas 兼容投影同步；action=cancel：取消当前订阅并降级免费版。提交后写审计日志
+// @Description action=grant：校验套餐版本与授予规则（试用必须带 endsAt、存储整 GiB）后单事务完成关旧订阅、建新订阅、覆盖替换与 pf_tenants.plan/quotas 兼容投影同步；action=cancel：取消当前订阅并降级免费版。提交后写审计日志
 // @Accept json
 // @Produce json
 // @Tags 平台版本管理

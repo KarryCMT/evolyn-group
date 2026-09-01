@@ -246,11 +246,11 @@ func (r *tenantProductRepository) CountActiveMembersInScope(ctx context.Context,
 
 	// 去重计数：直接命中成员清单 ∪ 归属选中部门（含子部门展开集）的成员
 	query = query.Where(
-		"(id IN ? OR EXISTS (SELECT 1 FROM department_users du WHERE du.user_id = users.id AND du.department_id IN ?))",
+		"(id IN ? OR EXISTS (SELECT 1 FROM tn_department_users du WHERE du.user_id = tn_users.id AND du.department_id IN ?))",
 		memberIDs, deptIDs,
 	)
 	var count int64
-	err := query.Distinct("users.id").Count(&count).Error
+	err := query.Distinct("tn_users.id").Count(&count).Error
 	return count, err
 }
 
@@ -261,8 +261,8 @@ func (r *tenantProductRepository) MemberInDepartments(ctx context.Context, tenan
 	// 部门归属与租户绑定校验以 departments 行为准：跨租户/已删部门不会命中
 	var count int64
 	err := r.withContext(ctx).
-		Table("department_users du").
-		Joins("JOIN departments d ON d.id = du.department_id").
+		Table("tn_department_users du").
+		Joins("JOIN tn_departments d ON d.id = du.department_id").
 		Where("du.user_id = ? AND du.department_id IN ? AND d.tenant_id = ? AND d.deleted_at IS NULL", memberID, deptIDs, tenantID).
 		Count(&count).Error
 	if err != nil {
@@ -285,11 +285,11 @@ func (r *tenantProductRepository) Migrate() error {
 	// GORM 标签表达不了部分唯一索引与 CHECK 约束，幂等 SQL 补齐，
 	// 使开发库约束与 migrations 终态一致（口径同 iam 域 ensurePartialUniqueIndexes）
 	for _, stmt := range []string{
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_product_catalogs_code ON product_catalogs (code) WHERE deleted_at IS NULL`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tenant_product_configs_tenant_product_active ON tenant_product_configs (tenant_id, product_id) WHERE deleted_at IS NULL`,
-		`CREATE INDEX IF NOT EXISTS idx_tenant_product_configs_tenant ON tenant_product_configs (tenant_id) WHERE deleted_at IS NULL`,
-		`ALTER TABLE tenant_product_configs DROP CONSTRAINT IF EXISTS ck_tenant_product_configs_scope_mode`,
-		`ALTER TABLE tenant_product_configs ADD CONSTRAINT ck_tenant_product_configs_scope_mode CHECK (scope_mode IN ('all', 'partial'))`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_pf_product_catalogs_code ON pf_product_catalogs (code) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_product_configs_tenant_product_active ON tn_product_configs (tenant_id, product_id) WHERE deleted_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_tn_product_configs_tenant ON tn_product_configs (tenant_id) WHERE deleted_at IS NULL`,
+		`ALTER TABLE tn_product_configs DROP CONSTRAINT IF EXISTS ck_tn_product_configs_scope_mode`,
+		`ALTER TABLE tn_product_configs ADD CONSTRAINT ck_tn_product_configs_scope_mode CHECK (scope_mode IN ('all', 'partial'))`,
 	} {
 		if err := r.db.Exec(stmt).Error; err != nil {
 			return err

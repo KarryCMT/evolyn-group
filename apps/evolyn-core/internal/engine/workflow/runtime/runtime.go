@@ -45,7 +45,7 @@ type Runtime struct {
 	serviceInvoker provider.ServiceInvoker
 
 	// business 业务数据窄端口（第 15 章，Phase 3）：form.* 表达式数据源与
-	// 审批编辑写回的唯一通道，内核不感知 form_records；可为 nil（单测）
+	// 审批编辑写回的唯一通道，内核不感知 tn_form_records；可为 nil（单测）
 	business provider.BusinessDataProvider
 	// identity 身份窄端口：starter.* 表达式上下文填充；可为 nil（单测）
 	identity provider.IdentityProvider
@@ -333,7 +333,7 @@ func (r *Runtime) Approve(ctx context.Context, in ApproveInput) (*ApproveResult,
 //   - 携带编辑值但实例未绑定表单/端口未装配：WORKFLOW_FORM_FIELD_FORBIDDEN；
 //   - 请求字段未获节点 editable/required 授权：WORKFLOW_FORM_FIELD_FORBIDDEN；
 //   - 授权字段经业务数据窄端口由 Form Domain 按冻结快照校验，校验失败
-//     整体报错（同事务回滚），内核不做任何 form_records 直改。
+//     整体报错（同事务回滚），内核不做任何 tn_form_records 直改。
 func (r *Runtime) applyFormValues(ctx context.Context, instance *model.Instance, node *model.Node, values map[string]any) error {
 	if len(values) == 0 {
 		return nil

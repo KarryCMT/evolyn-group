@@ -260,7 +260,7 @@ func TestTXMember004PartialRoleBindingRollsBack(t *testing.T) {
 	store, users, depts, rbac, accounts := newTxMemberFixtures()
 	// 租户 1 的第二个角色，绑定它时注入失败
 	store.roles[7] = &model.Role{ID: 7, Name: "role-t1b", TenantBaseModel: kernel.TenantBaseModel{TenantID: 1}}
-	users.failAddRoleFor = map[uint]error{7: errors.New("db: insert user_roles failed")}
+	users.failAddRoleFor = map[uint]error{7: errors.New("db: insert tn_user_roles failed")}
 	svc := NewUserService(rollbackTx{store}, users, accounts, rbac, depts, nil, fakeAudit{})
 
 	// 角色 5 绑定成功后角色 7 失败：Role1 不得保留（禁止部分成功状态）

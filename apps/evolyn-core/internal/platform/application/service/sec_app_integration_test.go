@@ -107,7 +107,7 @@ func appCtx(tenantID uint) context.Context {
 func (e *appEnv) setAppsLimit(t *testing.T, tenantID uint, limit int64) {
 	t.Helper()
 	assert.NoError(t, e.db.Exec(
-		`UPDATE tenants SET quotas = quotas || ('{"apps": ' || ? || '}')::jsonb WHERE id = ?`,
+		`UPDATE pf_tenants SET quotas = quotas || ('{"apps": ' || ? || '}')::jsonb WHERE id = ?`,
 		strconv.FormatInt(limit, 10), tenantID,
 	).Error)
 }
@@ -169,7 +169,7 @@ func TestSECAPP001CrossTenantAccess(t *testing.T) {
 	assert.Equal(t, created.ID, byCode.ID)
 
 	// beta 行仍在库（软删未发生）
-	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM applications WHERE id = ?", created.ID))
+	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM tn_applications WHERE id = ?", created.ID))
 }
 
 // SEC-APP-002：以租户 A 上下文绑定租户 B 的成员为 owner/creator → 拒绝，
@@ -180,8 +180,8 @@ func TestSECAPP002CrossTenantMemberBinding(t *testing.T) {
 	_, err := env.appSvc.CreateBlank(appCtx(env.alpha.ID), env.betaMember, blankReq("伪造应用"))
 	assert.True(t, errors.Is(err, apperrors.ErrMemberInvalid))
 
-	assert.Zero(t, env.rawCount(t, "SELECT COUNT(*) FROM applications WHERE tenant_id = ?", env.alpha.ID))
-	assert.Zero(t, env.rawCount(t, "SELECT COUNT(*) FROM application_installations WHERE tenant_id = ?", env.alpha.ID))
+	assert.Zero(t, env.rawCount(t, "SELECT COUNT(*) FROM tn_applications WHERE tenant_id = ?", env.alpha.ID))
+	assert.Zero(t, env.rawCount(t, "SELECT COUNT(*) FROM tn_application_installations WHERE tenant_id = ?", env.alpha.ID))
 }
 
 // SEC-APP-003：租户过滤的列表只返回本租户应用
@@ -269,7 +269,7 @@ func TestSECAPP006ForgedMemberObject(t *testing.T) {
 	})
 
 	// 数据未受伪造对象影响
-	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM applications WHERE id = ?", created.ID))
+	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM tn_applications WHERE id = ?", created.ID))
 }
 
 // QUOTA-APP-001：apps 配额上限拦截第 N+1 个应用，安装记录成对出现
@@ -288,8 +288,8 @@ func TestQUOTAAPP001LimitEnforced(t *testing.T) {
 	assert.True(t, errors.Is(err, tenantservice.ErrQuotaExceeded), "got: %v", err)
 
 	// 拒绝后不留半写状态：应用数=2、安装记录=2
-	assert.EqualValues(t, 2, env.rawCount(t, "SELECT COUNT(*) FROM applications WHERE tenant_id = ?", env.alpha.ID))
-	assert.EqualValues(t, 2, env.rawCount(t, "SELECT COUNT(*) FROM application_installations WHERE tenant_id = ?", env.alpha.ID))
+	assert.EqualValues(t, 2, env.rawCount(t, "SELECT COUNT(*) FROM tn_applications WHERE tenant_id = ?", env.alpha.ID))
+	assert.EqualValues(t, 2, env.rawCount(t, "SELECT COUNT(*) FROM tn_application_installations WHERE tenant_id = ?", env.alpha.ID))
 }
 
 // QUOTA-APP-002：并发创建不超过上限——CheckAndReserve 的事务内行锁串行化
@@ -328,7 +328,7 @@ func TestQUOTAAPP002ConcurrentCreate(t *testing.T) {
 
 	assert.Equal(t, limit, success, "成功数应恰为上限")
 	assert.Equal(t, total-limit, rejected)
-	assert.EqualValues(t, limit, env.rawCount(t, "SELECT COUNT(*) FROM applications WHERE tenant_id = ?", env.alpha.ID))
+	assert.EqualValues(t, limit, env.rawCount(t, "SELECT COUNT(*) FROM tn_applications WHERE tenant_id = ?", env.alpha.ID))
 }
 
 // SEC-APP-004：普通成员（仅 authenticated 系统组基线，无显式角色）的
@@ -351,7 +351,7 @@ func TestSECAPP004PlainMemberCapabilities(t *testing.T) {
 	// 写路径复核：普通成员删除被 403 拒绝
 	err = env.appSvc.Delete(appCtx(env.alpha.ID), plain, created.ID)
 	assert.True(t, errors.Is(err, apperrors.ErrForbidden))
-	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM applications WHERE id = ?", created.ID))
+	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM tn_applications WHERE id = ?", created.ID))
 }
 
 // QUOTA-APP-003：软删释放配额名额（计数口径排除 deleted_at 非空行）
@@ -370,7 +370,7 @@ func TestQUOTAAPP003SoftDeleteReleasesQuota(t *testing.T) {
 	// 软删后名额释放，可再次创建；安装记录为追加写保留
 	second, err := env.appSvc.CreateBlank(appCtx(env.alpha.ID), env.alphaMember, blankReq("第二个"))
 	assert.NoError(t, err)
-	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM applications WHERE tenant_id = ? AND deleted_at IS NULL", env.alpha.ID))
-	assert.EqualValues(t, 2, env.rawCount(t, "SELECT COUNT(*) FROM application_installations WHERE tenant_id = ?", env.alpha.ID))
+	assert.EqualValues(t, 1, env.rawCount(t, "SELECT COUNT(*) FROM tn_applications WHERE tenant_id = ? AND deleted_at IS NULL", env.alpha.ID))
+	assert.EqualValues(t, 2, env.rawCount(t, "SELECT COUNT(*) FROM tn_application_installations WHERE tenant_id = ?", env.alpha.ID))
 	_ = second
 }

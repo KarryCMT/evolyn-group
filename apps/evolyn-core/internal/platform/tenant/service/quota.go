@@ -70,7 +70,7 @@ type StorageQuotaService interface {
 // ExpiryGuard 订阅到期守卫（版本信息一期，设计 4.4.1）：消费者侧窄接口，
 // 由 edition 服务结构性实现，装配期经 UseExpiryGuard 注入（此前为 nil 走
 // 旧语义，不影响存量测试）。守卫返回 decided=true 时以「免费快照 + 仅有效
-// manual 覆盖」的解析结果替代旧 tenants.plan/quotas 读取——不复用
+// manual 覆盖」的解析结果替代旧 pf_tenants.plan/quotas 读取——不复用
 // Quotas.Get(plan=free)，避免旧 quotas 中残留的试用投影在降级任务落库前
 // 把上限放大回旧档位（页面与写路径同档位降级）
 type ExpiryGuard interface {

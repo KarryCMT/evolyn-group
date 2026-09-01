@@ -31,7 +31,7 @@ const (
 
 // 覆盖来源（设计 4.4.4）
 const (
-	OverrideSourceLegacy = "legacy" // 旧 tenants.quotas 迁移，只读
+	OverrideSourceLegacy = "legacy" // 旧 pf_tenants.quotas 迁移，只读
 	OverrideSourceManual = "manual" // 平台运营特批
 	OverrideSourceTrial  = "trial"  // 试用临时特批，与订阅同日到期
 )
@@ -74,7 +74,7 @@ type EditionPlan struct {
 	UpdatedAt kernel.JSONTime `json:"updatedAt"`
 }
 
-func (*EditionPlan) TableName() string { return "edition_plans" }
+func (*EditionPlan) TableName() string { return "pf_edition_plans" }
 
 // EditionPlanVersion 套餐版本：不可变权益快照。已发布只能新增不能修改
 type EditionPlanVersion struct {
@@ -91,9 +91,9 @@ type EditionPlanVersion struct {
 	UpdatedAt             kernel.JSONTime  `json:"updatedAt"`
 }
 
-func (*EditionPlanVersion) TableName() string { return "edition_plan_versions" }
+func (*EditionPlanVersion) TableName() string { return "pf_edition_plan_versions" }
 
-// TenantSubscription 租户订阅：权益事实源。tenant_subscriptions 由平台侧
+// TenantSubscription 租户订阅：权益事实源。tn_subscriptions 由平台侧
 // 与 worker 经显式 tenant_id 条件读写（仓储统一剥离租户上下文），不依赖
 // GORM 租户 Callback 过滤
 type TenantSubscription struct {
@@ -116,10 +116,10 @@ type TenantSubscription struct {
 	Entitlements *EntitlementSet `json:"-" gorm:"-"`
 }
 
-func (*TenantSubscription) TableName() string { return "tenant_subscriptions" }
+func (*TenantSubscription) TableName() string { return "tn_subscriptions" }
 
 // TenantEntitlementOverride 特批权益覆盖：manual/trial/legacy 三来源，
-// 无软删（替换即物理删除，审计经 audit_logs 留痕）
+// 无软删（替换即物理删除，审计经 tn_audit_logs 留痕）
 type TenantEntitlementOverride struct {
 	ID                uint             `json:"id" gorm:"autoIncrement;primaryKey"`
 	TenantID          uint             `json:"tenantId" gorm:"not null;index"`
@@ -134,7 +134,7 @@ type TenantEntitlementOverride struct {
 	UpdatedAt         kernel.JSONTime  `json:"updatedAt"`
 }
 
-func (*TenantEntitlementOverride) TableName() string { return "tenant_entitlement_overrides" }
+func (*TenantEntitlementOverride) TableName() string { return "tn_entitlement_overrides" }
 
 // ---- 权益快照 JSONB 载体 ----
 

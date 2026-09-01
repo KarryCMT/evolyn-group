@@ -29,7 +29,7 @@ type Message struct {
 	CreatedAt kernel.JSONTime `json:"createdAt"`
 }
 
-func (*Message) TableName() string { return "notification_messages" }
+func (*Message) TableName() string { return "tn_notification_messages" }
 
 // MemberInbox 站内信扇出与已读状态：所有查询/更新必须显式携带
 // tenant_id + member_id 双条件（SEC-NOTIFICATION-* 防横向越权）。
@@ -45,7 +45,7 @@ type MemberInbox struct {
 	TenantID uint `json:"tenantId" gorm:"index;not null;default:1"`
 }
 
-func (*MemberInbox) TableName() string { return "notification_member_inboxes" }
+func (*MemberInbox) TableName() string { return "tn_notification_member_inboxes" }
 
 // InboxRow 收件箱列表行（收件箱 JOIN 逻辑消息的读取投影）
 type InboxRow struct {

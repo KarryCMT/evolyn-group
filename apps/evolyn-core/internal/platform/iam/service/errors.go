@@ -33,7 +33,7 @@ var (
 	ErrNotMember = httpx.NewBiz("AUTH_NOT_MEMBER", "该账号不属于此租户", http.StatusForbidden)
 
 	// ErrDuplicatePhone 手机号已被其他账号绑定（上线前整改 P2，换绑流程）：
-	// 手机号全局唯一（部分唯一索引 uk_accounts_phone 兜底）；409
+	// 手机号全局唯一（部分唯一索引 uk_pf_accounts_phone 兜底）；409
 	ErrDuplicatePhone = httpx.NewBiz("DUPLICATE_PHONE", "该手机号已被其他账号绑定", http.StatusConflict)
 
 	// ErrPhoneInvalid 手机号格式非法（与 sms 域 AUTH_PHONE_INVALID 同码同文案：

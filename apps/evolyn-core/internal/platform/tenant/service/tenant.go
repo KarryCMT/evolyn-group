@@ -31,7 +31,7 @@ type TxManager interface {
 
 // SubscriptionSeeder 开通事务内补种初始订阅（版本信息一期）：消费者侧窄
 // 接口，由 edition 服务结构性实现，装配期可选注入（nil 时开通不落订阅，
-// 读取侧按 tenants.plan 合成兜底视图）。活动订阅是权益事实源，新租户
+// 读取侧按 pf_tenants.plan 合成兜底视图）。活动订阅是权益事实源，新租户
 // 开通必须同事务补齐，避免「开通即缺事实源」
 type SubscriptionSeeder interface {
 	// SeedInitial 在调用方事务内为新租户补种初始订阅；planCode 取开通
@@ -609,7 +609,7 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 }
 
 // seedBuiltinAdminGroup 开通事务内预置内置系统管理员组（幂等，权限中心-
-// 管理员模块）：每租户一行 built_in 组，成员不落 admin_group_members——
+// 管理员模块）：每租户一行 built_in 组，成员不落 tn_admin_group_members——
 // 由 owner 刚绑定的 tenant-admin 角色实时推导，保持单一事实源
 func (s *tenantService) seedBuiltinAdminGroup(bctx context.Context, tenantID uint) error {
 	tctx := contextx.NewTenantContext(bctx, tenantID)

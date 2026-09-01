@@ -1,6 +1,6 @@
 // ---- SEC-FPERM-* 真实 PostgreSQL 集成测试矩阵（表单权限组 P1） ----
 //
-// 验证链路覆盖：迁移链 000058（asset_permission_groups + subjects，含外键
+// 验证链路覆盖：迁移链 000058（tn_asset_permission_groups + subjects，含外键
 // 与 CHECK）→ 权限组 CRUD（乐观锁/上限/主体存在性/软删级联硬删）→
 // FormPermissionEvaluator（S4/S5/S2/S7 + 管理员旁路）→ 执行点（菜单裁剪
 // view∨add、运行时 permissions 投影、提交权限管线、switch-type/发布阻塞）。
@@ -467,8 +467,8 @@ func TestSECFPERM001GroupCRUDAndCascade(t *testing.T) {
 	assert.NoError(t, env.permSvc.DeleteGroup(ctx, env.alphaOwner, form.Code, created.Code))
 	var subjectCount int64
 	assert.NoError(t, env.db.WithContext(ctx).Raw(
-		`SELECT COUNT(*) FROM asset_permission_group_subjects s
-		 JOIN asset_permission_groups g ON g.id = s.group_id WHERE g.code = ?`, created.Code,
+		`SELECT COUNT(*) FROM tn_asset_permission_group_subjects s
+		 JOIN tn_asset_permission_groups g ON g.id = s.group_id WHERE g.code = ?`, created.Code,
 	).Scan(&subjectCount).Error)
 	assert.Equal(t, int64(0), subjectCount, "删除权限组须同事务硬删主体行")
 	rows, err := env.permSvc.ListGroups(ctx, env.alphaOwner, form.Code)
@@ -810,7 +810,7 @@ func TestSECFPERM009AuditEvents(t *testing.T) {
 
 	var count int64
 	assert.NoError(t, env.db.WithContext(ctx).Raw(
-		`SELECT COUNT(*) FROM audit_logs WHERE module = 'form' AND resource_type = 'form_permission_group' AND action = 'create'`,
+		`SELECT COUNT(*) FROM tn_audit_logs WHERE module = 'form' AND resource_type = 'form_permission_group' AND action = 'create'`,
 	).Scan(&count).Error)
 	assert.GreaterOrEqual(t, count, int64(1), "权限组创建审计事件落库")
 }

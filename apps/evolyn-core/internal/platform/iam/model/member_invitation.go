@@ -65,7 +65,7 @@ type MemberInvitation struct {
 	kernel.TenantBaseModel
 }
 
-func (*MemberInvitation) TableName() string { return "member_invitations" }
+func (*MemberInvitation) TableName() string { return "tn_member_invitations" }
 
 // TenantPublicInvitationLink 是租户公开邀请的开关和不可预测 token。
 type TenantPublicInvitationLink struct {
@@ -77,7 +77,7 @@ type TenantPublicInvitationLink struct {
 	kernel.TenantBaseModel
 }
 
-func (*TenantPublicInvitationLink) TableName() string { return "tenant_public_invitation_links" }
+func (*TenantPublicInvitationLink) TableName() string { return "tn_public_invitation_links" }
 
 // MemberInvitationBatchResult 为批量导入提供逐行可见的成功/失败结果。
 type MemberInvitationBatchResult struct {

@@ -89,7 +89,7 @@ func (r *messageRepository) ListInbox(
 	cursor model.CursorPayload, hasCursor bool,
 ) ([]model.InboxRow, bool, error) {
 	query := r.withContext(ctx).
-		Table("notification_member_inboxes AS i").
+		Table("tn_notification_member_inboxes AS i").
 		Select(`
 			i.id AS inbox_id,
 			i.read_at,
@@ -101,7 +101,7 @@ func (r *messageRepository) ListInbox(
 			m.content,
 			m.action,
 			m.created_at`).
-		Joins("JOIN notification_messages m ON m.id = i.message_id").
+		Joins("JOIN tn_notification_messages m ON m.id = i.message_id").
 		Where("i.tenant_id = ? AND i.member_id = ? AND i.category_code = ?", tenantID, memberID, q.CategoryID).
 		Where("m.expires_at > now()")
 	if q.EventCode != "" {
@@ -133,9 +133,9 @@ func (r *messageRepository) CountUnreadByCategory(
 ) ([]model.CategoryUnreadView, error) {
 	rows := make([]model.CategoryUnreadView, 0)
 	err := r.withContext(ctx).
-		Table("notification_member_inboxes AS i").
+		Table("tn_notification_member_inboxes AS i").
 		Select("i.category_code AS category_id, COUNT(*) AS unread_count").
-		Joins("JOIN notification_messages m ON m.id = i.message_id").
+		Joins("JOIN tn_notification_messages m ON m.id = i.message_id").
 		Where("i.tenant_id = ? AND i.member_id = ? AND i.read_at IS NULL", tenantID, memberID).
 		Where("m.expires_at > now()").
 		Group("i.category_code").
@@ -155,7 +155,7 @@ func (r *messageRepository) GetInboxReadState(
 		ReadAt *time.Time
 	}
 	err := r.withContext(ctx).
-		Table("notification_member_inboxes").
+		Table("tn_notification_member_inboxes").
 		Select("read_at").
 		Where("tenant_id = ? AND member_id = ? AND id = ?", tenantID, memberID, inboxID).
 		Take(&row).Error
@@ -188,7 +188,7 @@ func (r *messageRepository) MarkCategoryRead(
 		Where("tenant_id = ? AND member_id = ? AND category_code = ? AND read_at IS NULL", tenantID, memberID, categoryCode)
 	if eventCode != "" {
 		query = query.Where(
-			"message_id IN (SELECT id FROM notification_messages WHERE event_code = ?)", eventCode)
+			"message_id IN (SELECT id FROM tn_notification_messages WHERE event_code = ?)", eventCode)
 	}
 	if hasThrough {
 		query = query.Where("occurred_at <= ?", through)
@@ -201,11 +201,11 @@ func (r *messageRepository) MarkCategoryRead(
 // 不支持 LIMIT）；返回本批实际删除行数，0 表示本轮清理完成
 func (r *messageRepository) DeleteExpiredInboxes(ctx context.Context, batch int) (int64, error) {
 	result := r.withContext(ctx).Exec(`
-		DELETE FROM notification_member_inboxes
+		DELETE FROM tn_notification_member_inboxes
 		WHERE id IN (
 		    SELECT i.id
-		    FROM notification_member_inboxes i
-		    JOIN notification_messages m ON m.id = i.message_id
+		    FROM tn_notification_member_inboxes i
+		    JOIN tn_notification_messages m ON m.id = i.message_id
 		    WHERE m.expires_at <= now()
 		    LIMIT ?
 		)`, batch)
@@ -215,13 +215,13 @@ func (r *messageRepository) DeleteExpiredInboxes(ctx context.Context, batch int)
 // DeleteOrphanExpiredMessages 保留清理第二步：删已无收件箱引用的过期消息
 func (r *messageRepository) DeleteOrphanExpiredMessages(ctx context.Context, batch int) (int64, error) {
 	result := r.withContext(ctx).Exec(`
-		DELETE FROM notification_messages
+		DELETE FROM tn_notification_messages
 		WHERE id IN (
 		    SELECT m.id
-		    FROM notification_messages m
+		    FROM tn_notification_messages m
 		    WHERE m.expires_at <= now()
 		      AND NOT EXISTS (
-		          SELECT 1 FROM notification_member_inboxes i WHERE i.message_id = m.id
+		          SELECT 1 FROM tn_notification_member_inboxes i WHERE i.message_id = m.id
 		      )
 		    LIMIT ?
 		)`, batch)

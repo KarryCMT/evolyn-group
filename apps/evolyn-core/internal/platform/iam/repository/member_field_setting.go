@@ -77,8 +77,8 @@ func (r *memberFieldSettingRepository) Migrate() error {
 	// AutoMigrate 表达不了部分唯一索引（FIX-009 口径），幂等 SQL 补齐与
 	// migrations 终态一致
 	for _, stmt := range []string{
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_member_field_settings_tenant_field ON tenant_member_field_settings (tenant_id, field_key) WHERE deleted_at IS NULL`,
-		`CREATE INDEX IF NOT EXISTS idx_member_field_settings_tenant_updated ON tenant_member_field_settings (tenant_id, updated_at) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_member_field_settings_tenant_field ON tn_member_field_settings (tenant_id, field_key) WHERE deleted_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_tn_member_field_settings_tenant_updated ON tn_member_field_settings (tenant_id, updated_at) WHERE deleted_at IS NULL`,
 	} {
 		if err := r.db.Exec(stmt).Error; err != nil {
 			return err
@@ -148,8 +148,8 @@ func (r *memberProfileRepository) Migrate() error {
 		return err
 	}
 	for _, stmt := range []string{
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_member_profiles_tenant_member ON member_profiles (tenant_id, member_id) WHERE deleted_at IS NULL`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_member_profiles_tenant_identifier ON member_profiles (tenant_id, identifier) WHERE identifier <> '' AND deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_member_profiles_tenant_member ON tn_member_profiles (tenant_id, member_id) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_member_profiles_tenant_identifier ON tn_member_profiles (tenant_id, identifier) WHERE identifier <> '' AND deleted_at IS NULL`,
 	} {
 		if err := r.db.Exec(stmt).Error; err != nil {
 			return err

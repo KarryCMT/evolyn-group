@@ -715,7 +715,7 @@ func (s *accountService) ChangePassword(ctx context.Context, accountID uint, old
 }
 
 // ensurePhoneAvailable 换绑前置校验：格式合法且未被其他账号占用。
-// 服务层预检给调用方友好业务码，数据库部分唯一索引（uk_accounts_phone）
+// 服务层预检给调用方友好业务码，数据库部分唯一索引（uk_pf_accounts_phone）
 // 兜底并发竞态（详见 ChangePhone 的 23505 映射）
 func (s *accountService) ensurePhoneAvailable(ctx context.Context, phone string) error {
 	if !accountPhonePattern.MatchString(phone) {

@@ -46,7 +46,7 @@ func TestMemberFieldINTSnapshotAndIsolation(t *testing.T) {
 	alphaSnapshot, err := env.fieldSvc.GetSnapshot(itCtx(env.alpha.ID))
 	assert.NoError(t, err)
 	assert.Len(t, alphaSnapshot.Fields, 15)
-	assert.EqualValues(t, 15, env.rawCount(t, "SELECT COUNT(*) FROM tenant_member_field_settings WHERE tenant_id = ?", env.alpha.ID))
+	assert.EqualValues(t, 15, env.rawCount(t, "SELECT COUNT(*) FROM tn_member_field_settings WHERE tenant_id = ?", env.alpha.ID))
 
 	// alpha 开启 alias（可见+可编辑+卡片），beta 不受影响
 	_, err = env.fieldSvc.UpdateField(itCtx(env.alpha.ID), iammodel.MemberFieldKeyAlias, &MemberFieldSettingUpdateRequest{
@@ -60,7 +60,7 @@ func TestMemberFieldINTSnapshotAndIsolation(t *testing.T) {
 	assert.False(t, betaAlias.PersonalVisible, "租户间字段配置互不影响")
 	// beta 仅注册表默认可见字段（name/mobile/email）为 true，未被 alpha 变更波及
 	assert.EqualValues(t, 3, env.rawCount(t,
-		"SELECT COUNT(*) FROM tenant_member_field_settings WHERE tenant_id = ? AND personal_visible", env.beta.ID))
+		"SELECT COUNT(*) FROM tn_member_field_settings WHERE tenant_id = ? AND personal_visible", env.beta.ID))
 
 	// 二次读取走库内行（不再补齐），数值保持
 	again, err := env.fieldSvc.GetSnapshot(itCtx(env.alpha.ID))
@@ -170,7 +170,7 @@ func TestMemberProfileINTAdminViewAndValidation(t *testing.T) {
 	assert.ErrorIs(t, err, ErrMemberProfileInvalid)
 	var dupCount int64
 	assert.NoError(t, env.db.Raw(
-		"SELECT COUNT(*) FROM member_profiles WHERE tenant_id = ? AND identifier = 'A-0001'",
+		"SELECT COUNT(*) FROM tn_member_profiles WHERE tenant_id = ? AND identifier = 'A-0001'",
 		env.alpha.ID).Scan(&dupCount).Error)
 	assert.EqualValues(t, 1, dupCount, "同租户同编号仍只有一条有效档案")
 	// 同成员重写自身编号不受自身占用影响（excludeMemberID 语义）
@@ -225,7 +225,7 @@ func TestInviteINTAcceptPersonalInviteTx(t *testing.T) {
 
 	// 邀请状态 accepted（重复消费按无效拒绝）
 	assert.EqualValues(t, 1, env.rawCount(t,
-		"SELECT COUNT(*) FROM member_invitations WHERE id = ? AND status = 'accepted'", created.ID))
+		"SELECT COUNT(*) FROM tn_member_invitations WHERE id = ? AND status = 'accepted'", created.ID))
 	_, err = env.inviteSvc.AcceptPersonalInvite(bg, invitee.ID, created.InviteToken)
 	assert.ErrorIs(t, err, ErrMemberInvitationAcceptInvalid)
 
@@ -240,9 +240,9 @@ func TestInviteINTAcceptPersonalInviteTx(t *testing.T) {
 	assert.ErrorIs(t, err, ErrMemberInvitationAcceptInvalid)
 	// 未接受的邀请保持 pending，且该账号未产生成员（无半写状态）
 	assert.EqualValues(t, 1, env.rawCount(t,
-		"SELECT COUNT(*) FROM member_invitations WHERE id = ? AND status = 'pending'", created2.ID))
+		"SELECT COUNT(*) FROM tn_member_invitations WHERE id = ? AND status = 'pending'", created2.ID))
 	var otherMemberCount int64
-	assert.NoError(t, env.db.Raw("SELECT COUNT(*) FROM users WHERE account_id = ?", other.ID).Scan(&otherMemberCount).Error)
+	assert.NoError(t, env.db.Raw("SELECT COUNT(*) FROM tn_users WHERE account_id = ?", other.ID).Scan(&otherMemberCount).Error)
 	assert.EqualValues(t, 0, otherMemberCount)
 }
 
@@ -264,12 +264,12 @@ func TestInviteINTAcceptRejectsInvalidProfile(t *testing.T) {
 	assert.ErrorIs(t, err, ErrMemberProfileInvalid)
 	// 无成员、无档案、邀请保持 pending（事务回滚）
 	var memberCount, profileCount int64
-	assert.NoError(t, env.db.Raw("SELECT COUNT(*) FROM users WHERE tenant_id = ? AND account_id = ?", env.alpha.ID, invitee.ID).Scan(&memberCount).Error)
+	assert.NoError(t, env.db.Raw("SELECT COUNT(*) FROM tn_users WHERE tenant_id = ? AND account_id = ?", env.alpha.ID, invitee.ID).Scan(&memberCount).Error)
 	assert.EqualValues(t, 0, memberCount)
-	assert.NoError(t, env.db.Raw("SELECT COUNT(*) FROM member_profiles WHERE tenant_id = ?", env.alpha.ID).Scan(&profileCount).Error)
+	assert.NoError(t, env.db.Raw("SELECT COUNT(*) FROM tn_member_profiles WHERE tenant_id = ?", env.alpha.ID).Scan(&profileCount).Error)
 	assert.EqualValues(t, 0, profileCount)
 	assert.EqualValues(t, 1, env.rawCount(t,
-		"SELECT COUNT(*) FROM member_invitations WHERE id = ? AND status = 'pending'", created.ID))
+		"SELECT COUNT(*) FROM tn_member_invitations WHERE id = ? AND status = 'pending'", created.ID))
 }
 
 // MEMBER-FIELD-INT-3：字段配置更新在真库的锁定项拒绝（数据库行已存在路径）
@@ -287,7 +287,7 @@ func TestMemberFieldINTLockedRejected(t *testing.T) {
 	// 库内锁定字段配置保持默认
 	var visible bool
 	assert.NoError(t, env.db.Raw(
-		"SELECT personal_visible FROM tenant_member_field_settings WHERE tenant_id = ? AND field_key = 'mobile'",
+		"SELECT personal_visible FROM tn_member_field_settings WHERE tenant_id = ? AND field_key = 'mobile'",
 		env.alpha.ID).Scan(&visible).Error)
 	assert.True(t, visible)
 }

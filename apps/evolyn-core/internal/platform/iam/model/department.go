@@ -30,5 +30,5 @@ type Department struct {
 }
 
 func (*Department) TableName() string {
-	return "departments"
+	return "tn_departments"
 }

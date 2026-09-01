@@ -15,7 +15,7 @@ import (
 	"evolyn/internal/engine/workflow/provider"
 )
 
-// fakeBusinessData BusinessDataProvider 内存桩：模拟 form_records 值读写。
+// fakeBusinessData BusinessDataProvider 内存桩：模拟 tn_form_records 值读写。
 type fakeBusinessData struct {
 	values   map[string]any
 	updated  []map[string]any

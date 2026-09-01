@@ -18,11 +18,15 @@ type Group struct {
 	Name     string `json:"name" gorm:"size:100;not null;index"` // 租户内唯一：服务层预检 + 部分唯一索引兜底（FIX-003）
 	Kind     string `json:"kind" gorm:"size:100"`
 	Describe string `json:"describe" gorm:"size:1024;"`
-	Users    []User `json:"users" gorm:"many2many:user_groups;"`
-	Roles    []Role `json:"roles" gorm:"many2many:group_roles;"`
+	Users    []User `json:"users" gorm:"many2many:tn_user_groups;"`
+	Roles    []Role `json:"roles" gorm:"many2many:tn_group_roles;"`
 
 	kernel.TenantBaseModel
 }
+
+// TableName 显式映射租户用户组表（000063 命名空间前缀 tn_），避免依赖
+// GORM 默认推导
+func (*Group) TableName() string { return "tn_groups" }
 
 type CreatedGroup struct {
 	Name     string `json:"name"`

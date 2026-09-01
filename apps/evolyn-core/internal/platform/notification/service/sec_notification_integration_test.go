@@ -151,7 +151,7 @@ func TestNotificationIntegration(t *testing.T) {
 		return errors.New("business rollback")
 	})
 	require.Error(t, rollbackErr)
-	assert.EqualValues(t, 0, rawCount("notification_outbox_events"), "业务事务回滚时 Outbox 必须同步回滚")
+	assert.EqualValues(t, 0, rawCount("tn_notification_outbox_events"), "业务事务回滚时 Outbox 必须同步回滚")
 
 	// ---- NOTIFICATION-OUTBOX-INT：提交后 Dispatcher 物化且重放幂等 ----
 	require.NoError(t, txManager.WithinTransaction(contextx.NewTenantContext(ctx, alpha.ID), func(tctx context.Context) error {
@@ -174,9 +174,9 @@ func TestNotificationIntegration(t *testing.T) {
 	processed, err := dispatcher.DispatchBatch(ctx)
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, processed, 2)
-	assert.EqualValues(t, 2, rawCount("notification_messages"))
+	assert.EqualValues(t, 2, rawCount("tn_notification_messages"))
 	// actor=owner 且 tenant_admin 实时推导亦为 owner：去重后单成员单收件箱行
-	assert.EqualValues(t, 2, rawCount("notification_member_inboxes"))
+	assert.EqualValues(t, 2, rawCount("tn_notification_member_inboxes"))
 
 	// 幂等重放：同 event_id 二次入队（吞并）+ 再物化一轮不新增消息/收件箱
 	require.NoError(t, txManager.WithinTransaction(contextx.NewTenantContext(ctx, alpha.ID), func(tctx context.Context) error {
@@ -189,8 +189,8 @@ func TestNotificationIntegration(t *testing.T) {
 	}))
 	_, err = dispatcher.DispatchBatch(ctx)
 	require.NoError(t, err)
-	assert.EqualValues(t, 2, rawCount("notification_messages"), "同 event_id 重放不得新增逻辑消息")
-	assert.EqualValues(t, 2, rawCount("notification_member_inboxes"), "重复解析同一成员不得新增收件箱行")
+	assert.EqualValues(t, 2, rawCount("tn_notification_messages"), "同 event_id 重放不得新增逻辑消息")
+	assert.EqualValues(t, 2, rawCount("tn_notification_member_inboxes"), "重复解析同一成员不得新增收件箱行")
 
 	// 消息内容为模板渲染的纯文本快照（actorName 固化）
 	alphaPage, err := inboxSvc.ListInbox(ctx, alpha.ID, alphaMember.ID, model.InboxQuery{
@@ -275,8 +275,8 @@ func TestNotificationIntegration(t *testing.T) {
 	}))
 	_, err = dispatcher.DispatchBatch(ctx)
 	require.NoError(t, err)
-	assert.EqualValues(t, 3, rawCount("notification_messages"))
-	assert.EqualValues(t, 2, rawCount("notification_member_inboxes"),
+	assert.EqualValues(t, 3, rawCount("tn_notification_messages"))
+	assert.EqualValues(t, 2, rawCount("tn_notification_member_inboxes"),
 		"接收规则改为仅自定义联系人后不得产生站内收件箱行")
 
 	// 删除被引用联系人 → 409 + usedByEventCodes
@@ -304,9 +304,9 @@ func TestNotificationIntegration(t *testing.T) {
 
 	// ---- 保留清理：先删收件箱行再删无引用消息 ----
 	require.NoError(t, dispatcher.CleanupExpiredOnce(ctx))
-	assert.EqualValues(t, 2, rawCount("notification_member_inboxes"), "未过期收件箱行不受清理影响")
+	assert.EqualValues(t, 2, rawCount("tn_notification_member_inboxes"), "未过期收件箱行不受清理影响")
 	var expiredLeft int64
-	require.NoError(t, db.Raw("SELECT COUNT(*) FROM notification_messages WHERE event_id = 'it:expired'").Scan(&expiredLeft).Error)
+	require.NoError(t, db.Raw("SELECT COUNT(*) FROM tn_notification_messages WHERE event_id = 'it:expired'").Scan(&expiredLeft).Error)
 	assert.EqualValues(t, 0, expiredLeft, "过期且无收件箱引用的消息应被成批硬删")
 }
 

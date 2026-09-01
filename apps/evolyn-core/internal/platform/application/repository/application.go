@@ -99,11 +99,11 @@ func (r *applicationRepository) CountBillableByTenant(ctx context.Context, tenan
 }
 
 // Migrate 开发/测试路径：AutoMigrate 建表 + 补齐 GORM 标签表达不了的
-// 软删部分唯一索引（与迁移链 uk_applications_tenant_code 同名同构）
+// 软删部分唯一索引（与迁移链 uk_tn_applications_tenant_code 同名同构）
 func (r *applicationRepository) Migrate() error {
 	if err := r.db.AutoMigrate(&model.Application{}, &model.Installation{}); err != nil {
 		return err
 	}
-	return r.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_applications_tenant_code
+	return r.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_applications_tenant_code
 		ON applications (tenant_id, code) WHERE deleted_at IS NULL`).Error
 }

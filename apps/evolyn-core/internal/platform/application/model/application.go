@@ -62,7 +62,7 @@ type Application struct {
 	kernel.TenantBaseModel
 }
 
-func (*Application) TableName() string { return "applications" }
+func (*Application) TableName() string { return "tn_applications" }
 
 // Installation 安装记录：应用创建来源快照（§6.5），一应用一条、追加写。
 // 刻意不嵌 TenantBaseModel（无软删/更新语义）：读取一律经 application_id
@@ -80,7 +80,7 @@ type Installation struct {
 	InstalledAt         kernel.JSONTime `json:"installedAt"`
 }
 
-func (*Installation) TableName() string { return "application_installations" }
+func (*Installation) TableName() string { return "tn_application_installations" }
 
 // Config 应用级小型配置 JSONB 载体：空值落 '{}'（列 NOT NULL DEFAULT '{}'
 // 与迁移一致）。仅承载开关/偏好类小配置，严禁混入表单/页面/流程大定义（§6.2）

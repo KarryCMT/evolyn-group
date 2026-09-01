@@ -14,7 +14,7 @@ type Setting struct {
 	kernel.TenantBaseModel
 }
 
-func (*Setting) TableName() string { return "tenant_notification_settings" }
+func (*Setting) TableName() string { return "tn_notification_settings" }
 
 // Preference 事件偏好覆盖：只保存对事件注册表默认值的覆盖，无覆盖行时
 // 投影注册表默认值（recipients_overridden 区分默认对象与显式配置为空）。
@@ -32,7 +32,7 @@ type Preference struct {
 	UpdatedAt kernel.JSONTime `json:"updatedAt"`
 }
 
-func (*Preference) TableName() string { return "tenant_notification_preferences" }
+func (*Preference) TableName() string { return "tn_notification_preferences" }
 
 // 接收对象类型（target_kind 稳定枚举）
 const (
@@ -55,7 +55,7 @@ type PreferenceRecipient struct {
 }
 
 func (*PreferenceRecipient) TableName() string {
-	return "tenant_notification_preference_recipients"
+	return "tn_notification_preference_recipients"
 }
 
 // CustomRecipient 租户自定义外部提醒对象：软删除保留关联历史，删除前校验
@@ -70,7 +70,7 @@ type CustomRecipient struct {
 	kernel.TenantBaseModel
 }
 
-func (*CustomRecipient) TableName() string { return "tenant_notification_custom_recipients" }
+func (*CustomRecipient) TableName() string { return "tn_notification_custom_recipients" }
 
 // ---- 通知设置聚合出网 DTO ----
 

@@ -21,7 +21,7 @@ const (
 // LoginLog 登录日志：账号维度追加写流水，无更新/软删语义。
 // 平台级资源（登录发生在租户上下文建立之前，ADR-006）——tenant_id/member_id
 // 为本次会话绑定的快照，刻意不挂 TenantBaseModel：避免 GORM 租户 Callback 把
-// 「按账号查」污染成「按租户查」（与 audit_logs 同口径）
+// 「按账号查」污染成「按租户查」（与 tn_audit_logs 同口径）
 type LoginLog struct {
 	ID        uint   `json:"id" gorm:"autoIncrement;primaryKey"`
 	AccountID uint   `json:"accountId" gorm:"index;not null"`                // 登录账号（主查询维度）
@@ -40,5 +40,5 @@ type LoginLog struct {
 }
 
 func (*LoginLog) TableName() string {
-	return "login_logs"
+	return "pf_login_logs"
 }

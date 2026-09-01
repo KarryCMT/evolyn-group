@@ -40,6 +40,10 @@ type Role struct {
 	kernel.TenantBaseModel
 }
 
+// TableName 显式映射租户角色表（000063 命名空间前缀 tn_），避免依赖
+// GORM 默认推导
+func (*Role) TableName() string { return "tn_roles" }
+
 const (
 	AllOperation  Operation = "*"
 	EditOperation Operation = "edit"
@@ -162,3 +166,7 @@ type Resource struct {
 	Scope Scope  `json:"scope"`
 	Kind  string `json:"kind"`
 }
+
+// TableName 显式映射全局 RBAC 资源目录表（000063 命名空间前缀 sys_，
+// 系统级全局定义数据，不属于单一租户）
+func (*Resource) TableName() string { return "sys_resources" }

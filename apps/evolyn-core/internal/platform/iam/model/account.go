@@ -30,7 +30,7 @@ type Account struct {
 	// Avatar 保存经裁剪和压缩后的 data URL，避免客户端存储原始大图。
 	Avatar string `json:"avatar" gorm:"type:text"`
 	// 账号注册引导画像（注册向导第 3 步「完善信息」）：角色/了解渠道是
-	// 「人」的属性挂账号；租户级画像见 tenants.config 的 onboarding 段
+	// 「人」的属性挂账号；租户级画像见 pf_tenants.config 的 onboarding 段
 	Onboarding AccountOnboarding `json:"onboarding" gorm:"type:jsonb;not null;default:'{}'"`
 	AuthInfos  []AuthInfo        `json:"authInfos" gorm:"foreignKey:AccountId;references:ID"`
 
@@ -38,7 +38,7 @@ type Account struct {
 }
 
 func (*Account) TableName() string {
-	return "accounts"
+	return "pf_accounts"
 }
 
 // AccountOnboarding 账号注册引导画像（JSONB，迁移 000010）：
@@ -85,5 +85,5 @@ type AuthInfo struct {
 }
 
 func (*AuthInfo) TableName() string {
-	return "auth_infos"
+	return "pf_auth_infos"
 }

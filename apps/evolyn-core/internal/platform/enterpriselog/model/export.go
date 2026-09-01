@@ -68,7 +68,7 @@ func (f *FiltersJSON) Scan(v interface{}) error {
 	return nil
 }
 
-// ExportTask 企业日志导出任务（enterprise_log_exports，000036）：追加型任务
+// ExportTask 企业日志导出任务（tn_enterprise_log_exports，000036）：追加型任务
 // 记录，显式 tenant 过滤（平台级表，不走租户 Callback）；一期同步生成、
 // 内容内联存储（file_data），异步导出与对象存储文件引用随留存策略批次接入
 type ExportTask struct {
@@ -87,7 +87,7 @@ type ExportTask struct {
 	CreatedAt kernel.JSONTime  `json:"createdAt"`
 }
 
-func (*ExportTask) TableName() string { return "enterprise_log_exports" }
+func (*ExportTask) TableName() string { return "tn_enterprise_log_exports" }
 
 // ExportTaskView 导出任务出网视图（任务状态查询与创建响应共用）：
 // 不回传文件内容，下载走专用端点（复核导出权限与租户归属）

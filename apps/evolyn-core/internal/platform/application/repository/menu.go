@@ -69,8 +69,8 @@ SELECT a.id AS app_id,
                FILTER (WHERE e.id IS NOT NULL),
            '[]'::jsonb
        ) AS entries
-FROM applications a
-LEFT JOIN application_menu_entries e
+FROM tn_applications a
+LEFT JOIN tn_application_menu_entries e
     ON e.application_id = a.id
    AND e.tenant_id = a.tenant_id
    AND e.deleted_at IS NULL
@@ -126,7 +126,7 @@ GROUP BY a.id, a.code, a.status, a.provision_status, a.menu_revision`
 // ---- M2-资产-1：表单资产节点维护（全部在调用方事务内执行） ----
 
 // newMenuEntryCode 生成菜单节点编码：menu_ + 16 位随机 hex。租户内唯一由
-// uk_application_menu_entries_tenant_code 部分唯一索引兜底（软删释放）。
+// uk_tn_application_menu_entries_tenant_code 部分唯一索引兜底（软删释放）。
 func newMenuEntryCode() (string, error) {
 	buf := make([]byte, 8)
 	if _, err := rand.Read(buf); err != nil {
@@ -214,7 +214,7 @@ func (r *menuRepository) SoftDeleteByFormTarget(ctx context.Context, application
 }
 
 // BumpMenuRevision 菜单写入的并发口令：同事务条件递增（SQL 表达式避免
-// 读改写竞态，口径同 applications.menu_revision 约定）。
+// 读改写竞态，口径同 tn_applications.menu_revision 约定）。
 func (r *menuRepository) BumpMenuRevision(ctx context.Context, applicationID uint) error {
 	return infrastructure.ResolveDB(ctx, r.db).Model(&model.Application{}).
 		Where("id = ?", applicationID).
@@ -312,12 +312,12 @@ SELECT a.code AS application_code,
        e.name AS entry_name,
        e.entry_type AS entry_type,
        p.code AS parent_entry_code
-FROM application_menu_entries e
-INNER JOIN applications a
+FROM tn_application_menu_entries e
+INNER JOIN tn_applications a
     ON a.id = e.application_id
    AND a.tenant_id = e.tenant_id
    AND a.deleted_at IS NULL
-LEFT JOIN application_menu_entries p
+LEFT JOIN tn_application_menu_entries p
     ON p.id = e.parent_entry_id
    AND p.deleted_at IS NULL
 WHERE e.tenant_id = ?
@@ -331,20 +331,20 @@ ORDER BY a.code ASC, e.sort_order ASC, e.code ASC`
 }
 
 // Migrate 开发/测试路径：AutoMigrate 建表 + 补齐 GORM 标签表达不了的
-// 部分索引（与迁移链 000016 同名同构）；applications.menu_revision 列
+// 部分索引（与迁移链 000016 同名同构）；tn_applications.menu_revision 列
 // 由 Application 模型 AutoMigrate 自动补齐
 func (r *menuRepository) Migrate() error {
 	if err := r.db.AutoMigrate(&model.MenuEntry{}, &model.MenuEntryFavorite{}); err != nil {
 		return err
 	}
 	statements := []string{
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_application_menu_entries_tenant_code
-			ON application_menu_entries (tenant_id, code) WHERE deleted_at IS NULL`,
-		`CREATE INDEX IF NOT EXISTS idx_application_menu_entries_app_parent_sort
-			ON application_menu_entries (tenant_id, application_id, parent_entry_id, sort_order, code)
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_application_menu_entries_tenant_code
+			ON tn_application_menu_entries (tenant_id, code) WHERE deleted_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_tn_application_menu_entries_app_parent_sort
+			ON tn_application_menu_entries (tenant_id, application_id, parent_entry_id, sort_order, code)
 			WHERE deleted_at IS NULL`,
-		`CREATE INDEX IF NOT EXISTS idx_application_menu_entries_app_target
-			ON application_menu_entries (tenant_id, application_id, target_type, target_id)
+		`CREATE INDEX IF NOT EXISTS idx_tn_application_menu_entries_app_target
+			ON tn_application_menu_entries (tenant_id, application_id, target_type, target_id)
 			WHERE deleted_at IS NULL AND target_id IS NOT NULL`,
 	}
 	for _, stmt := range statements {

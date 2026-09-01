@@ -28,7 +28,7 @@ func (t FormType) Valid() bool {
 }
 
 // Form 表单资产（含草稿）：租户内从属于应用；草稿全文为目标保存协议文档，
-// draft_revision 为草稿乐观锁口令；发布快照另存 form_versions（不可变）。
+// draft_revision 为草稿乐观锁口令；发布快照另存 tn_form_versions（不可变）。
 type Form struct {
 	ID               uint        `json:"id" gorm:"autoIncrement;primaryKey"`
 	ApplicationID    uint        `json:"applicationId" gorm:"not null"`                     // 所属应用（同租户，Service 层校验）
@@ -45,7 +45,7 @@ type Form struct {
 	kernel.TenantBaseModel
 }
 
-func (*Form) TableName() string { return "forms" }
+func (*Form) TableName() string { return "tn_forms" }
 
 // FormVersion 不可变发布快照：发布事务内一次写入，之后不存在更新路径；
 // schema_revision 即行 id（出网字符串），提交校验与记录归属的双口令之一。
@@ -64,7 +64,7 @@ type FormVersion struct {
 	CreatedAt kernel.JSONTime `json:"createdAt"`
 }
 
-func (*FormVersion) TableName() string { return "form_versions" }
+func (*FormVersion) TableName() string { return "tn_form_versions" }
 
 // FormRecord 记录提交：追加写，values 为服务端按发布快照校验通过后的值
 // （键=widgetName）；form_version_id 固定受理时所依据的版本（历史版本合法）。
@@ -82,7 +82,7 @@ type FormRecord struct {
 	CreatedAt kernel.JSONTime `json:"createdAt"`
 }
 
-func (*FormRecord) TableName() string { return "form_records" }
+func (*FormRecord) TableName() string { return "tn_form_records" }
 
 // JSONContent JSONB 原文载体：保存协议要求「未编辑属性不丢失」，因此草稿/快照
 // 一律原样字节存取（校验在 Service 层完成），不经 map 往返避免键序与空值失真。

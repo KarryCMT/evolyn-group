@@ -34,7 +34,7 @@ type ProductCatalog struct {
 	UpdatedAt kernel.JSONTime `json:"updatedAt"`
 }
 
-func (*ProductCatalog) TableName() string { return "product_catalogs" }
+func (*ProductCatalog) TableName() string { return "pf_product_catalogs" }
 
 // TenantProductConfig 租户产品主配置：每租户每产品一条有效记录（部分唯一
 // 索引保证）。Revision 是配置乐观锁版本，启停与范围替换成功后递增；
@@ -50,7 +50,7 @@ type TenantProductConfig struct {
 	kernel.TenantBaseModel
 }
 
-func (*TenantProductConfig) TableName() string { return "tenant_product_configs" }
+func (*TenantProductConfig) TableName() string { return "tn_product_configs" }
 
 // TenantProductDepartment 部门范围关联：仅 partial 时有记录，全量替换
 // （先删后插）无软删。子部门经读时递归展开命中，不在此复制子部门 ID
@@ -62,7 +62,7 @@ type TenantProductDepartment struct {
 	CreatedAt             kernel.JSONTime `json:"createdAt"`
 }
 
-func (*TenantProductDepartment) TableName() string { return "tenant_product_departments" }
+func (*TenantProductDepartment) TableName() string { return "tn_product_departments" }
 
 // TenantProductMember 成员范围关联：仅 partial 时有记录，全量替换无软删。
 // 成员离职/禁用后历史关联保留供审计，但读取与访问判定均忽略（文档 5.5）
@@ -74,4 +74,4 @@ type TenantProductMember struct {
 	CreatedAt             kernel.JSONTime `json:"createdAt"`
 }
 
-func (*TenantProductMember) TableName() string { return "tenant_product_members" }
+func (*TenantProductMember) TableName() string { return "tn_product_members" }

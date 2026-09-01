@@ -37,4 +37,4 @@ type OutboxEvent struct {
 	CreatedAt kernel.JSONTime `json:"createdAt"`
 }
 
-func (*OutboxEvent) TableName() string { return "notification_outbox_events" }
+func (*OutboxEvent) TableName() string { return "tn_notification_outbox_events" }

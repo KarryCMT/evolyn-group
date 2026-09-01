@@ -1,6 +1,6 @@
 // Package service 版本信息域服务（一期）：权益解析、订阅查询、人工授予、
-// 到期投影与幂等降级。活动订阅及其套餐版本是权益事实源，tenants.plan/
-// tenants.quotas 仅为 QuotaService 过渡期的兼容投影，订阅变更在同一事务内
+// 到期投影与幂等降级。活动订阅及其套餐版本是权益事实源，pf_tenants.plan/
+// pf_tenants.quotas 仅为 QuotaService 过渡期的兼容投影，订阅变更在同一事务内
 // 同步两侧（设计 4.4.1）
 package service
 
@@ -34,7 +34,7 @@ type EditionService interface {
 
 	// GuardLimit 到期守卫（tenant 域 QuotaService 集成，设计 4.4.1）：
 	// 活动订阅已到期时返回 decided=true 与「免费快照 + 仅有效 manual 覆盖」
-	// 的生效上限，QuotaService 以其替代旧 tenants.plan/quotas 读取；
+	// 的生效上限，QuotaService 以其替代旧 pf_tenants.plan/quotas 读取；
 	// 未到期/无订阅/非存量键返回 decided=false 继续走旧路径
 	GuardLimit(ctx context.Context, tenantID uint, resourceKey string) (limit int64, decided bool, err error)
 	// SeedInitial 租户创建事务内补种初始订阅（tenant 域集成）：free/pro

@@ -42,7 +42,7 @@ type MenuActionSpec struct {
 	Landed bool
 }
 
-// 节点类型字面量与 application_menu_entries.entry_type 对齐（form 节点的
+// 节点类型字面量与 tn_application_menu_entries.entry_type 对齐（form 节点的
 // target.formType 只影响「切换类型」的展示文案，不影响授权键，注册表按
 // entry_type 建档即可）。仪表盘资产域未落地，动作先以 Landed=false 占位，
 // 避免仪表盘节点出现后投影出死按钮。

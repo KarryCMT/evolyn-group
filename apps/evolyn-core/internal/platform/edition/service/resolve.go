@@ -22,7 +22,7 @@ type resolvedEdition struct {
 }
 
 // resolveCurrent 解析租户当前生效的订阅与快照：
-//   - 无订阅记录（迁移前数据异常兜底）：按 tenants.plan 合成 active 视图；
+//   - 无订阅记录（迁移前数据异常兜底）：按 pf_tenants.plan 合成 active 视图；
 //   - legacy_pending_review：按订阅快照展示「有效期待确认」，不参与降级；
 //   - active 且已过 ends_at：投影 expired，快照切到免费版（fallback）。
 func (s *editionService) resolveCurrent(ctx context.Context, tenantID uint, now time.Time) (*resolvedEdition, error) {
@@ -74,7 +74,7 @@ func (s *editionService) loadVersion(ctx context.Context, versionID uint) (*mode
 	return version, nil
 }
 
-// synthesizeFromTenant 无订阅记录时的兜底视图：按 tenants.plan 反查最新
+// synthesizeFromTenant 无订阅记录时的兜底视图：按 pf_tenants.plan 反查最新
 // 已发布版本合成 active 订阅（不落库）。仅在迁移回填缺漏等异常场景触发，
 // 保证页面可用；plan 非法时回落免费版
 func (s *editionService) synthesizeFromTenant(ctx context.Context, tenantID uint, now time.Time) (*resolvedEdition, error) {
@@ -156,7 +156,7 @@ func overridePriority(source string) int {
 	}
 }
 
-// projectCompatQuotas 计算旧 tenants.quotas 投影（设计 4.4.1）：effective
+// projectCompatQuotas 计算旧 pf_tenants.quotas 投影（设计 4.4.1）：effective
 // 为新键空间的生效值；逐键换算到旧键后，仅保留与套餐默认不同的项，缺省
 // 键交由 DefaultQuotas 兜底——由此 QuotaService 的
 // Quotas.Get(plan, key, 0) 读取结果与页面解析恒一致。storage_bytes 按

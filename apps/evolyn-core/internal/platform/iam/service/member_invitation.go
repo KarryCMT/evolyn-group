@@ -194,7 +194,7 @@ func (s *memberInvitationService) AcceptPublicLink(ctx context.Context, accountI
 //  1. 校验邀请 token、状态与受邀手机号/邮箱与当前账号的匹配关系；
 //  2. 复用 AddMember 创建正式成员（配额/重复成员/同租户校验）并绑定邀请档案
 //     中的部门归属；
-//  3. 将邀请草稿档案（编号/别名/工号等）迁入 member_profiles；
+//  3. 将邀请草稿档案（编号/别名/工号等）迁入 tn_member_profiles；
 //  4. 邀请状态置 accepted（条件更新，重复消费按冲突回滚）。
 //
 // 事务提交后以 best-effort 追加审计日志。token 查询剥离调用链租户，
@@ -223,7 +223,7 @@ func (s *memberInvitationService) AcceptPersonalInvite(ctx context.Context, acco
 	}
 
 	// 邀请草稿档案 → 统一字段 key（文档 3.1 对应关系）；非法日期/长度
-	// 在接受时拦截，避免脏档案进入正式 member_profiles
+	// 在接受时拦截，避免脏档案进入正式 tn_member_profiles
 	attributes := inviteProfileAttributes(invitation.Profile)
 	if err := validateExtensionValues(attributes); err != nil {
 		return nil, err

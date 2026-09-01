@@ -18,7 +18,7 @@ func NewRepository(db *gorm.DB) AuditRepository {
 	return &auditRepository{db: db}
 }
 
-// Create 审计落库：显式不含租户 Callback 语义（audit_logs 的 tenant_id 由
+// Create 审计落库：显式不含租户 Callback 语义（tn_audit_logs 的 tenant_id 由
 // 调用方填充，平台级操作为 0）。取连接统一走 ResolveDB：审计通常在业务事务
 // 提交后独立写入（失败策略见 audit/service），若调用方仍在事务内则随事务提交
 func (r *auditRepository) Create(ctx context.Context, log *model.AuditLog) error {

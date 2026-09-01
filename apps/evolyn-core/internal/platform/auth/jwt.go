@@ -17,7 +17,7 @@ const (
 // CustomClaims JWT 载荷（ADR-006 账号×成员拆分 + ADR-009 会话化）：
 //   - AccountID/Name：平台账号（登录身份）
 //   - MemberID/TenantID：本次会话绑定的成员关系与租户（切换租户即重签 token）
-//   - SID/SessionTokenVersion：设备级会话（account_sessions）；切换租户
+//   - SID/SessionTokenVersion：设备级会话（pf_account_sessions）；切换租户
 //     复用 SID 递增版本重签。存量令牌无 sid（兼容期，中间件跳过会话校验）
 //
 // TenantID 为租户上下文的唯一来源，由租户中间件在 Authentication 之后提取（架构文档 26.4）
@@ -25,7 +25,7 @@ type CustomClaims struct {
 	AccountID uint `json:"accountId"`
 	MemberID  uint `json:"memberId"`
 	TenantID  uint `json:"tenantId"`
-	// SessionVersion 与 accounts.session_version 对齐；密码更新后版本递增，
+	// SessionVersion 与 pf_accounts.session_version 对齐；密码更新后版本递增，
 	// 认证中间件拒绝旧版本，保证找回密码会中止全部既有会话。
 	SessionVersion uint64 `json:"sessionVersion"`
 	Name           string `json:"name"`

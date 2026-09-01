@@ -38,7 +38,7 @@ type MenuEntry struct {
 	kernel.TenantBaseModel
 }
 
-func (*MenuEntry) TableName() string { return "application_menu_entries" }
+func (*MenuEntry) TableName() string { return "tn_application_menu_entries" }
 
 // MenuEntryFavorite 成员对菜单节点的个人收藏（ADR-011）：个人状态而非授权
 // 对象，不参与菜单共享结构与修订号；(member_id, entry_id) 唯一幂等；
@@ -52,7 +52,7 @@ type MenuEntryFavorite struct {
 	CreatedAt     kernel.JSONTime `json:"createdAt"`
 }
 
-func (*MenuEntryFavorite) TableName() string { return "application_menu_favorites" }
+func (*MenuEntryFavorite) TableName() string { return "tn_application_menu_favorites" }
 
 // MenuEntryTarget 出网资产引用：code 为资产域稳定公开编码（由资产查询投影），
 // 不是数据库自增主键；formType 仅在 form 目标上返回，其他资产类型省略。

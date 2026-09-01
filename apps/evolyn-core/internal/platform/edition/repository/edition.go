@@ -102,9 +102,9 @@ type VersionWithPlan struct {
 func (r *editionRepository) GetPlanVersionWithPlan(ctx context.Context, id uint) (*model.EditionPlanVersion, *model.EditionPlan, error) {
 	var row VersionWithPlan
 	err := r.withContext(ctx).
-		Table("edition_plan_versions AS v").
+		Table("pf_edition_plan_versions AS v").
 		Select("v.*, p.code AS plan_code, p.name AS plan_name, p.kind AS plan_kind, p.status AS plan_status").
-		Joins("JOIN edition_plans p ON p.id = v.plan_id").
+		Joins("JOIN pf_edition_plans p ON p.id = v.plan_id").
 		Where("v.id = ?", id).
 		Take(&row).Error
 	if err != nil {
@@ -136,9 +136,9 @@ func (r *editionRepository) GetLatestPublishedByCompat(ctx context.Context, comp
 func (r *editionRepository) ListPublishedBaseVersions(ctx context.Context) ([]model.EditionPlanVersion, []model.EditionPlan, error) {
 	var rows []VersionWithPlan
 	err := r.withContext(ctx).
-		Table("edition_plan_versions AS v").
+		Table("pf_edition_plan_versions AS v").
 		Select("v.*, p.code AS plan_code, p.name AS plan_name, p.kind AS plan_kind, p.status AS plan_status").
-		Joins("JOIN edition_plans p ON p.id = v.plan_id").
+		Joins("JOIN pf_edition_plans p ON p.id = v.plan_id").
 		Where("p.kind = ? AND p.status = ? AND v.retired_at IS NULL", "base", "active").
 		Order("p.code ASC, v.version DESC").
 		Find(&rows).Error

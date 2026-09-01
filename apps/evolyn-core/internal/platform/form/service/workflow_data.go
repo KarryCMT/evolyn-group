@@ -1,6 +1,6 @@
 // 记录数据窄端口（流程引擎 Phase 3，ADR-012 第 15 章）。
 //
-// Workflow 禁止直接 UPDATE form_records（第 15.1 章铁律）：审批编辑与
+// Workflow 禁止直接 UPDATE tn_form_records（第 15.1 章铁律）：审批编辑与
 // 表达式取数一律经本端口由表单域完成——合并结果按记录绑定的发布快照
 // 整体终审（ValidateRecordValues），校验失败整体报错（同事务回滚），
 // 与提交记录共用同一套校验与错误协议（FORM_RECORD_INVALID + fieldErrors）。

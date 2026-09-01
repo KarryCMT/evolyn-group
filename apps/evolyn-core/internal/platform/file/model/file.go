@@ -21,10 +21,10 @@ type File struct {
 	State        string           `json:"state" gorm:"size:16;not null"`
 	ExpiresAt    *kernel.JSONTime `json:"expiresAt,omitempty"`
 	// CreatorMemberID 是文件归属成员，用于上传者访问边界；它不同于继承的
-	// CreatorID（创建账号审计字段，accounts.id）。
+	// CreatorID（创建账号审计字段，pf_accounts.id）。
 	CreatorMemberID uint `json:"-" gorm:"column:creator_member_id;not null"`
 
 	kernel.TenantBaseModel
 }
 
-func (*File) TableName() string { return "files" }
+func (*File) TableName() string { return "tn_files" }

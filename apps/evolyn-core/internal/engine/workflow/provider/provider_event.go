@@ -7,7 +7,7 @@ import (
 
 // EventPublisher 领域事件发布窄端口（第 18 章）：内核声明的最小契约，
 // 平台适配层桥接既有 notification 域 EventPublisher.PublishInTx /
-// notification_outbox_events，不新建 domain_outbox。
+// tn_notification_outbox_events，不新建 domain_outbox。
 //
 // 事务原则（18.3）：人工审批状态更新 + wf_operation + outbox 发布记录
 // 必须同一数据库事务（实现侧经 ResolveDB 加入调用方事务）；通知/Webhook

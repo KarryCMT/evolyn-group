@@ -82,7 +82,7 @@ func (r *Repositories) AdminGroup() AdminGroupRepository {
 	return r.adminGroup
 }
 
-// Migrate iam 域表迁移：account/auth_infos → user → group → role/resource → department。
+// Migrate iam 域表迁移：account/pf_auth_infos → user → group → role/resource → department。
 // AutoMigrate 仅开发/测试路径（FIX-009）：GORM 标签表达不了 PG 部分唯一索引，
 // 此处用幂等 SQL 补齐，使开发库约束与 migrations 终态一致
 // （FIX-002/003/004/017；外键约束只在 migrations 路径落地）
@@ -101,14 +101,14 @@ func (r *Repositories) Migrate() error {
 // ensurePartialUniqueIndexes 补齐软删除友好的租户内唯一索引（与迁移链同名同构）
 func (r *Repositories) ensurePartialUniqueIndexes() error {
 	for _, stmt := range []string{
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_roles_tenant_name ON roles (tenant_id, name) WHERE deleted_at IS NULL`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_role_groups_tenant_name ON role_groups (tenant_id, name) WHERE deleted_at IS NULL`,
-		`CREATE INDEX IF NOT EXISTS idx_role_groups_tenant_sort ON role_groups (tenant_id, sort, id) WHERE deleted_at IS NULL`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_groups_tenant_name ON groups (tenant_id, name) WHERE deleted_at IS NULL`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_users_tenant_account ON users (tenant_id, account_id) WHERE deleted_at IS NULL`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_auth_identity ON auth_infos (auth_type, auth_id) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_roles_tenant_name ON roles (tenant_id, name) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_role_groups_tenant_name ON tn_role_groups (tenant_id, name) WHERE deleted_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_tn_role_groups_tenant_sort ON tn_role_groups (tenant_id, sort, id) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_groups_tenant_name ON groups (tenant_id, name) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_users_tenant_account ON users (tenant_id, account_id) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_pf_auth_identity ON pf_auth_infos (auth_type, auth_id) WHERE deleted_at IS NULL`,
 		// 000007：phone 非空才参与唯一（未填账号落 '' 不互斥）
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_accounts_phone ON accounts (phone) WHERE phone <> '' AND deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_pf_accounts_phone ON accounts (phone) WHERE phone <> '' AND deleted_at IS NULL`,
 	} {
 		if err := r.db.Exec(stmt).Error; err != nil {
 			return err
@@ -277,11 +277,11 @@ func (r *Repositories) Init() error {
 
 // backfillAccountSplit 账号×成员拆分的存量回填（ADR-006，幂等可重跑）：
 //  1. 老用户行按同 ID 复制为平台账号（登录名/密码/邮箱/头像随迁）；
-//  2. users.account_id 对齐自身 ID（同 ID 复制策略使成员与账号一一对应）；
-//  3. auth_infos.account_id 从旧 user_id 回填；
+//  2. tn_users.account_id 对齐自身 ID（同 ID 复制策略使成员与账号一一对应）；
+//  3. pf_auth_infos.account_id 从旧 user_id 回填；
 //  4. 未设置 owner 的租户，owner 指向租内最小 ID 成员的账号。
 //
-// 旧列（users.name、auth_infos.user_id 等）不删除，代码不再声明即无业务影响；
+// 旧列（tn_users.name、pf_auth_infos.user_id 等）不删除，代码不再声明即无业务影响；
 // 新库由 db.sql/迁移链保证干净——引用旧列的语句（第 1/3 步）先探测列存在再
 // 执行，新模型库直接跳过，否则 SQL 因 42703（列不存在）使启动必然失败
 func (r *Repositories) backfillAccountSplit() error {
@@ -293,32 +293,32 @@ func (r *Repositories) backfillAccountSplit() error {
 	if hasUsersLegacyName {
 		// 同 ID 复制：避免 name/email 冲突重复导入
 		if err := r.db.Exec(`
-			INSERT INTO accounts (id, name, nickname, email, password, avatar, created_at, updated_at)
+			INSERT INTO pf_accounts (id, name, nickname, email, password, avatar, created_at, updated_at)
 			SELECT u.id, u.name, u.name, u.email, u.password, u.avatar, u.created_at, u.updated_at
-			FROM users u
-			WHERE NOT EXISTS (SELECT 1 FROM accounts a WHERE a.id = u.id OR a.name = u.name)
+			FROM tn_users u
+			WHERE NOT EXISTS (SELECT 1 FROM pf_accounts a WHERE a.id = u.id OR a.name = u.name)
 		`).Error; err != nil {
 			return err
 		}
 	}
 
 	if err := r.db.Exec(`
-		UPDATE users SET account_id = id
-		WHERE account_id = 0 AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = users.id)
+		UPDATE tn_users SET account_id = id
+		WHERE account_id = 0 AND EXISTS (SELECT 1 FROM pf_accounts a WHERE a.id = tn_users.id)
 	`).Error; err != nil {
 		return err
 	}
 
-	// 第 3 步依赖旧列 auth_infos.user_id，新模型库（仅 account_id）跳过
-	hasAuthInfosUserID, err := r.legacyColumnExists("auth_infos", "user_id")
+	// 第 3 步依赖旧列 pf_auth_infos.user_id，新模型库（仅 account_id）跳过
+	hasAuthInfosUserID, err := r.legacyColumnExists("pf_auth_infos", "user_id")
 	if err != nil {
 		return err
 	}
 	if hasAuthInfosUserID {
 		if err := r.db.Exec(`
-			UPDATE auth_infos SET account_id = user_id
+			UPDATE pf_auth_infos SET account_id = user_id
 			WHERE (account_id = 0 OR account_id IS NULL)
-			  AND EXISTS (SELECT 1 FROM accounts a WHERE a.id = auth_infos.user_id)
+			  AND EXISTS (SELECT 1 FROM pf_accounts a WHERE a.id = pf_auth_infos.user_id)
 		`).Error; err != nil {
 			return err
 		}
@@ -327,8 +327,8 @@ func (r *Repositories) backfillAccountSplit() error {
 	// FIX-016：owner 为可空外键，NULL = 未设置；无成员的租户保持 NULL
 	//（子查询无行时自然写 NULL，不再落 0 哨兵）
 	if err := r.db.Exec(`
-		UPDATE tenants t SET owner_account_id = (
-			SELECT u.account_id FROM users u
+		UPDATE pf_tenants t SET owner_account_id = (
+			SELECT u.account_id FROM tn_users u
 			WHERE u.tenant_id = t.id AND u.account_id > 0
 			ORDER BY u.id LIMIT 1)
 		WHERE owner_account_id IS NULL

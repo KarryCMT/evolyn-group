@@ -29,25 +29,26 @@ func TestMigrateINT001EmptyDatabaseUp(t *testing.T) {
 	// 版本登记完整：全部版本（与 migrations/*.up.sql 数量一致，新增随链顺延）落库
 	var count int64
 	assert.NoError(t, db.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&count).Error)
-	// 与 migrations/*.up.sql 数量一致（000058 表单资产权限组，随链顺延更新）
-	assert.EqualValues(t, 58, count)
+	// 与 migrations/*.up.sql 数量一致（000063 表命名空间前缀，随链顺延更新）
+	assert.EqualValues(t, 63, count)
 
-	// 关键业务表已建齐（表名与迁移链一致）
+	// 关键业务表已建齐（表名与迁移链一致；000063 起 pf_/sys_/tn_ 命名空间前缀）
 	for _, table := range []string{
-		"accounts", "auth_infos", "tenants", "users", "groups", "role_groups", "roles",
-		"resources", "departments", "audit_logs", "login_logs",
-		"user_roles", "user_groups", "group_roles", "department_users",
-		"member_invitations", "tenant_public_invitation_links",
-		"tenant_member_field_settings", "member_profiles",
-		"admin_groups", "admin_group_members",
-		"product_catalogs", "tenant_product_configs",
-		"tenant_product_departments", "tenant_product_members",
-		"notification_messages", "notification_member_inboxes",
-		"notification_outbox_events", "tenant_notification_settings",
-		"tenant_notification_preferences",
-		"tenant_notification_preference_recipients",
-		"tenant_notification_custom_recipients",
-		"forms", "form_versions", "form_records",
+		"pf_accounts", "pf_auth_infos", "pf_tenants", "tn_users", "tn_groups",
+		"tn_role_groups", "tn_roles", "sys_resources", "tn_departments",
+		"tn_audit_logs", "pf_login_logs",
+		"tn_user_roles", "tn_user_groups", "tn_group_roles", "tn_department_users",
+		"tn_member_invitations", "tn_public_invitation_links",
+		"tn_member_field_settings", "tn_member_profiles",
+		"tn_admin_groups", "tn_admin_group_members",
+		"pf_product_catalogs", "tn_product_configs",
+		"tn_product_departments", "tn_product_members",
+		"tn_notification_messages", "tn_notification_member_inboxes",
+		"tn_notification_outbox_events", "tn_notification_settings",
+		"tn_notification_preferences",
+		"tn_notification_preference_recipients",
+		"tn_notification_custom_recipients",
+		"tn_forms", "tn_form_versions", "tn_form_records",
 		"wf_definition", "wf_definition_version",
 		"wf_instance", "wf_execution", "wf_node_instance",
 		"wf_task", "wf_task_actor", "wf_operation",
@@ -71,7 +72,7 @@ func TestMigrateINT002IdempotentReplay(t *testing.T) {
 
 	var count int64
 	assert.NoError(t, db.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&count).Error)
-	assert.EqualValues(t, 58, count, "重放不得产生重复版本记录")
+	assert.EqualValues(t, 63, count, "重放不得产生重复版本记录")
 }
 
 // MIGRATE-INT-003：已执行迁移内容被篡改（checksum 改变）必须拒绝

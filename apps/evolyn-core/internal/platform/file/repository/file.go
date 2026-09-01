@@ -68,6 +68,6 @@ func (r *fileRepository) Migrate() error {
 	if err := r.db.AutoMigrate(&model.File{}); err != nil {
 		return err
 	}
-	return r.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_files_tenant_code
+	return r.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_files_tenant_code
 		ON files (tenant_id, code) WHERE deleted_at IS NULL`).Error
 }

@@ -48,7 +48,7 @@ func (r *settingsRepository) Get(ctx context.Context, accountID uint) (*model.Se
 
 func (r *settingsRepository) LockAccountRow(ctx context.Context, accountID uint) error {
 	var id uint
-	return resolve(ctx, r.db).Raw("SELECT id FROM accounts WHERE id = ? FOR UPDATE", accountID).Scan(&id).Error
+	return resolve(ctx, r.db).Raw("SELECT id FROM pf_accounts WHERE id = ? FOR UPDATE", accountID).Scan(&id).Error
 }
 
 func (r *settingsRepository) Upsert(ctx context.Context, settings *model.SecuritySettings) error {

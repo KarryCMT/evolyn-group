@@ -166,10 +166,10 @@ type RoleGroupRepository interface {
 }
 
 // AdminGroupRepository 管理组（权限中心-管理员模块）数据访问。
-// 内置系统管理员组（built_in）的成员不落 admin_group_members：经
+// 内置系统管理员组（built_in）的成员不落 tn_admin_group_members：经
 // ResolveBuiltinRoleID + ListBuiltinMembers/CountBuiltinMembers 由
 // tenant-admin 角色绑定实时推导，与租户域 seed 同一事实源。
-// 注：admin_group_members 含 tenant_id 列，与主表 join 会使 Callback 注入的
+// 注：tn_admin_group_members 含 tenant_id 列，与主表 join 会使 Callback 注入的
 // 不限定租户条件产生歧义列——按成员取组一律走两段查询（ID 清单 + 批量取组）
 type AdminGroupRepository interface {
 	GetByID(ctx context.Context, id uint) (*model.AdminGroup, error)
@@ -189,7 +189,7 @@ type AdminGroupRepository interface {
 	DeleteMembersOfGroup(ctx context.Context, groupID uint) error
 	// DeleteMembersOfMember 成员离职/删除路径清理其全部管理组绑定
 	DeleteMembersOfMember(ctx context.Context, memberID uint) error
-	// 内置组代理（成员读写经 user_roles 的 tenant-admin 绑定）
+	// 内置组代理（成员读写经 tn_user_roles 的 tenant-admin 绑定）
 	ResolveBuiltinRoleID(ctx context.Context) (uint, error)
 	ListBuiltinMembers(ctx context.Context, roleID uint) ([]model.User, error)
 	CountBuiltinMembers(ctx context.Context, roleID uint) (int64, error)

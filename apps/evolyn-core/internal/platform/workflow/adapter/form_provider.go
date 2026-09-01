@@ -2,7 +2,7 @@
 // provider.BusinessDataProvider，桥接表单域 WorkflowRecordStore 窄端口。
 //
 // 本适配器是第 15.1 章「Workflow 不直接写表单数据」铁律的唯一豁口：
-// 内核只感知 BusinessRef 与 map 值，form_records 的读写、发布快照终审
+// 内核只感知 BusinessRef 与 map 值，tn_form_records 的读写、发布快照终审
 // 全部发生在表单域服务内。
 package adapter
 

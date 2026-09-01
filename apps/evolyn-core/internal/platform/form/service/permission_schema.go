@@ -1,5 +1,5 @@
 // 权限组配置期校验器（表单权限 P1，设计 §3/§4/§5）：
-//   - 操作键按 forms.form_type 分派合法集（standard 出现 workflow_* 整体拒绝）；
+//   - 操作键按 tn_forms.form_type 分派合法集（standard 出现 workflow_* 整体拒绝）；
 //   - 字段矩阵按字段清单逐项校验（deny-by-default 语义见判定器，配置期只管
 //     「键在清单内 + visible/editable 不矛盾 + 必填协调两规则」）；
 //   - 数据范围按字段 widget.type（datetime 系再按 props.format）分派类型类，

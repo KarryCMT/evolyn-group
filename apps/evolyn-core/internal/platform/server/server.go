@@ -156,7 +156,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	editionRepo := editionrepository.NewRepository(db)
 	// 产品中心域仓储（一期）：平台产品目录 + 租户产品配置 + 范围关联
 	tenantProductRepo := tenantproductrepository.NewRepository(db)
-	// 企业日志域仓储（000036）：login_logs/audit_logs 只读查询 + 导出任务
+	// 企业日志域仓储（000036）：pf_login_logs/tn_audit_logs 只读查询 + 导出任务
 	enterpriseLogRepo := enterpriselogrepository.NewRepository(db)
 	// 表单资产域仓储（000037/000038，ADR-010）：表单+草稿、不可变发布快照、记录
 	formRepo := formrepository.NewRepository(db)

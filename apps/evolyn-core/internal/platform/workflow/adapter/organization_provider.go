@@ -35,11 +35,11 @@ func (p *OrganizationProvider) ResolveRoleMembers(ctx context.Context, tenantID 
 	rows := make([]iammodel.User, 0)
 	if err := infrastructure.ResolveDB(ctx, p.db).
 		Model(&iammodel.User{}).
-		Joins("JOIN user_roles ON user_roles.user_id = users.id").
-		Joins("JOIN roles ON roles.id = user_roles.role_id").
-		Where("roles.name = ?", roleCode).
-		Where("users.status = ?", iammodel.MemberStatusActive).
-		Where("users.resigned_at IS NULL").
+		Joins("JOIN tn_user_roles ON tn_user_roles.user_id = tn_users.id").
+		Joins("JOIN tn_roles ON tn_roles.id = tn_user_roles.role_id").
+		Where("tn_roles.name = ?", roleCode).
+		Where("tn_users.status = ?", iammodel.MemberStatusActive).
+		Where("tn_users.resigned_at IS NULL").
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}
@@ -51,10 +51,10 @@ func (p *OrganizationProvider) ResolveDepartmentMembers(ctx context.Context, ten
 	rows := make([]iammodel.User, 0)
 	if err := infrastructure.ResolveDB(ctx, p.db).
 		Model(&iammodel.User{}).
-		Joins("JOIN department_users ON department_users.user_id = users.id").
-		Where("department_users.department_id = ?", deptID).
-		Where("users.status = ?", iammodel.MemberStatusActive).
-		Where("users.resigned_at IS NULL").
+		Joins("JOIN tn_department_users ON tn_department_users.user_id = tn_users.id").
+		Where("tn_department_users.department_id = ?", deptID).
+		Where("tn_users.status = ?", iammodel.MemberStatusActive).
+		Where("tn_users.resigned_at IS NULL").
 		Find(&rows).Error; err != nil {
 		return nil, err
 	}

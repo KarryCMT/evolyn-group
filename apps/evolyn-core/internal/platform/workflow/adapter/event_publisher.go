@@ -20,7 +20,7 @@ import (
 
 // EventPublisher 引擎事件发布适配器（Phase 6 Existing Outbox Integration，
 // 第 18 章）：把引擎内核经窄端口发布的 workflow.* 事件桥接到既有 notification
-// 域 EventPublisher.PublishInTx——同一业务事务内写 notification_outbox_events，
+// 域 EventPublisher.PublishInTx——同一业务事务内写 tn_notification_outbox_events，
 // 由既有 Dispatcher 异步扇出；不新建 domain_outbox。
 //
 // 边界语义：

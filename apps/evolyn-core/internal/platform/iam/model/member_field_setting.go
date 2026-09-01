@@ -91,7 +91,7 @@ func MemberFieldDefinitionByKey(key string) (MemberFieldDefinition, bool) {
 	return MemberFieldDefinition{}, false
 }
 
-// IsMemberExtensionFieldKey 是否为 member_profiles.attributes 承载的扩展字段
+// IsMemberExtensionFieldKey 是否为 tn_member_profiles.attributes 承载的扩展字段
 // key（通用成员资料接口唯一可写的字段集合）
 func IsMemberExtensionFieldKey(key string) bool {
 	switch key {
@@ -120,7 +120,7 @@ type MemberFieldSetting struct {
 	kernel.TenantBaseModel
 }
 
-func (*MemberFieldSetting) TableName() string { return "tenant_member_field_settings" }
+func (*MemberFieldSetting) TableName() string { return "tn_member_field_settings" }
 
 // MemberFieldSettingView 管理端字段配置快照的单字段视图：注册表元数据
 // （key/label/type/锁定）+ 租户配置值，前端以响应覆盖本地状态

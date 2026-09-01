@@ -79,7 +79,7 @@ func (r *adminGroupRepository) Delete(ctx context.Context, id uint) error {
 
 func (r *adminGroupRepository) ListMemberIDs(ctx context.Context, groupID uint) ([]uint, error) {
 	ids := make([]uint, 0)
-	// 单表查询：admin_group_members 含 tenant_id，Callback 注入过滤；
+	// 单表查询：tn_admin_group_members 含 tenant_id，Callback 注入过滤；
 	// 不与主表 join，避免不带表名限定的 tenant_id 条件产生歧义列
 	if err := r.withContext(ctx).Model(&model.AdminGroupMember{}).
 		Where("admin_group_id = ?", groupID).
@@ -162,15 +162,15 @@ func (r *adminGroupRepository) DeleteMembersOfGroup(ctx context.Context, groupID
 
 // ListBuiltinMembers 内置系统管理员组成员：由 tenant-admin 角色绑定实时推导
 // （不落成员表）。roleID 由服务层先按名解析（Callback 已过滤租户）；
-// user_roles 无 tenant_id 列，join 后 Callback 注入的不限定条件落在 users 上
+// tn_user_roles 无 tenant_id 列，join 后 Callback 注入的不限定条件落在 users 上
 func (r *adminGroupRepository) ListBuiltinMembers(ctx context.Context, roleID uint) ([]model.User, error) {
 	users := make([]model.User, 0)
 	err := r.withContext(ctx).
-		Joins("JOIN user_roles ur ON ur.user_id = users.id").
+		Joins("JOIN tn_user_roles ur ON ur.user_id = tn_users.id").
 		Where("ur.role_id = ?", roleID).
-		Where("users.status <> ?", model.MemberStatusResigned).
+		Where("tn_users.status <> ?", model.MemberStatusResigned).
 		Preload("Account").Preload(model.DepartmentAssociation).
-		Order("users.id").
+		Order("tn_users.id").
 		Find(&users).Error
 	if err != nil {
 		return nil, err
@@ -182,9 +182,9 @@ func (r *adminGroupRepository) ListBuiltinMembers(ctx context.Context, roleID ui
 func (r *adminGroupRepository) CountBuiltinMembers(ctx context.Context, roleID uint) (int64, error) {
 	var count int64
 	err := r.withContext(ctx).Model(&model.User{}).
-		Joins("JOIN user_roles ur ON ur.user_id = users.id").
+		Joins("JOIN tn_user_roles ur ON ur.user_id = tn_users.id").
 		Where("ur.role_id = ?", roleID).
-		Where("users.status <> ?", model.MemberStatusResigned).
+		Where("tn_users.status <> ?", model.MemberStatusResigned).
 		Count(&count).Error
 	if err != nil {
 		return 0, err
@@ -209,10 +209,10 @@ func (r *adminGroupRepository) Migrate() error {
 	// AutoMigrate 表达不了部分唯一索引与表级约束（FIX-009 口径），幂等 SQL
 	// 补齐与 migrations 终态一致
 	for _, stmt := range []string{
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_admin_groups_tenant_name ON admin_groups (tenant_id, name) WHERE deleted_at IS NULL`,
-		`CREATE INDEX IF NOT EXISTS idx_admin_groups_tenant_scope ON admin_groups (tenant_id, scope) WHERE deleted_at IS NULL`,
-		`CREATE UNIQUE INDEX IF NOT EXISTS uk_admin_group_member ON admin_group_members (admin_group_id, member_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_admin_group_members_member ON admin_group_members (tenant_id, member_id)`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_admin_groups_tenant_name ON tn_admin_groups (tenant_id, name) WHERE deleted_at IS NULL`,
+		`CREATE INDEX IF NOT EXISTS idx_tn_admin_groups_tenant_scope ON tn_admin_groups (tenant_id, scope) WHERE deleted_at IS NULL`,
+		`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_admin_group_member ON tn_admin_group_members (admin_group_id, member_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_tn_admin_group_members_member ON tn_admin_group_members (tenant_id, member_id)`,
 	} {
 		if err := r.db.Exec(stmt).Error; err != nil {
 			return err

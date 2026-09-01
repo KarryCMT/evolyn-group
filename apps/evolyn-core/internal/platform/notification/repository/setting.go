@@ -207,8 +207,8 @@ func (r *settingRepository) FindRecipientUsage(ctx context.Context, tenantID, re
 	codes := make([]string, 0)
 	err := r.withContext(ctx).Raw(`
 		SELECT DISTINCT p.event_code
-		FROM tenant_notification_preference_recipients pr
-		JOIN tenant_notification_preferences p ON p.id = pr.preference_id
+		FROM tn_notification_preference_recipients pr
+		JOIN tn_notification_preferences p ON p.id = pr.preference_id
 		WHERE pr.tenant_id = ? AND pr.custom_recipient_id = ?
 		ORDER BY p.event_code`, tenantID, recipientID).
 		Scan(&codes).Error

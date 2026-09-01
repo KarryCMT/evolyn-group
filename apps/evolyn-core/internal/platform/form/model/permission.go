@@ -17,7 +17,7 @@ import (
 // 扩展无需 DDL，约束与代码同源）
 const PermissionAssetTypeForm = "form"
 
-// 权限组主体类型稳定枚举（asset_permission_group_subjects.subject_type CHECK 同源）
+// 权限组主体类型稳定枚举（tn_asset_permission_group_subjects.subject_type CHECK 同源）
 const (
 	PermissionSubjectMember     = "member"
 	PermissionSubjectDepartment = "department"
@@ -222,7 +222,7 @@ type AssetPermissionGroup struct {
 	ID               uint                     `json:"id" gorm:"autoIncrement;primaryKey"`
 	ApplicationID    uint                     `json:"applicationId" gorm:"not null"` // 冗余归属，Service 校验与资产一致
 	AssetType        string                   `json:"assetType" gorm:"size:16;not null;default:form"`
-	AssetID          uint                     `json:"assetId" gorm:"not null"` // form → forms.id（内部主键）
+	AssetID          uint                     `json:"assetId" gorm:"not null"` // form → tn_forms.id（内部主键）
 	Code             string                   `json:"code" gorm:"size:64;not null"`
 	Name             string                   `json:"name" gorm:"size:64;not null"`
 	Description      string                   `json:"description" gorm:"size:200;not null;default:''"`
@@ -235,7 +235,7 @@ type AssetPermissionGroup struct {
 	kernel.TenantBaseModel
 }
 
-func (*AssetPermissionGroup) TableName() string { return "asset_permission_groups" }
+func (*AssetPermissionGroup) TableName() string { return "tn_asset_permission_groups" }
 
 // AssetPermissionGroupSubject 权限组主体：随组软删/硬删联动（DELETE Service
 // 同事务显式硬删，外键仅兜底物理清理路径）。subject_id 无外键，判定侧容错。
@@ -249,7 +249,7 @@ type AssetPermissionGroupSubject struct {
 	TenantID uint `json:"tenantId" gorm:"index;not null;default:1"`
 }
 
-func (*AssetPermissionGroupSubject) TableName() string { return "asset_permission_group_subjects" }
+func (*AssetPermissionGroupSubject) TableName() string { return "tn_asset_permission_group_subjects" }
 
 // ---- 出入网 DTO ----
 

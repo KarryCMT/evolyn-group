@@ -445,7 +445,7 @@ func TestTXTenant003SeedRoleFailRollsBackAll(t *testing.T) {
 // TX-TENANT-004：Group-Role Binding 失败，所有 Provisioning 数据全部回滚
 func TestTXTenant004GroupRoleBindingFailRollsBackAll(t *testing.T) {
 	store, tenantRepo, iam, audit := newOpenFixtures()
-	iam.group.failAddRole = errors.New("db: insert group_roles failed")
+	iam.group.failAddRole = errors.New("db: insert tn_group_roles failed")
 	svc := newOpenService(store, openRollbackTx{store}, tenantRepo, iam, audit)
 
 	_, err := svc.Open(context.Background(), openRequest())

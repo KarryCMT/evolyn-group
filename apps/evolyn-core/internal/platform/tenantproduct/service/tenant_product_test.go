@@ -36,7 +36,7 @@ type fakeRepo struct {
 	scopeMember map[uint][]uint // configID → memberIDs
 	departments map[uint][]iammodel.Department
 	members     map[uint][]iammodel.User
-	// memberDepts: tenantID → memberID → departmentIDs（模拟 department_users）
+	// memberDepts: tenantID → memberID → departmentIDs（模拟 tn_department_users）
 	memberDepts map[uint]map[uint][]uint
 	updateErr   error // 注入更新故障（验证审计只在提交成功后记录）
 	nextID      uint

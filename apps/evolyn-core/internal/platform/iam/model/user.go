@@ -37,15 +37,15 @@ type User struct {
 	ResignedAt *kernel.JSONTime `json:"resignedAt"`
 	// Account 仅供成员列表读模型聚合账号资料，避免把平台账号作为成员接口的持久化写入字段。
 	Account     *Account     `json:"-" gorm:"foreignKey:AccountId;references:ID"`
-	Departments []Department `json:"departments" gorm:"many2many:department_users;"`
-	Groups      []Group      `json:"groups" gorm:"many2many:user_groups;"`
-	Roles       []Role       `json:"roles" gorm:"many2many:user_roles;"`
+	Departments []Department `json:"departments" gorm:"many2many:tn_department_users;"`
+	Groups      []Group      `json:"groups" gorm:"many2many:tn_user_groups;"`
+	Roles       []Role       `json:"roles" gorm:"many2many:tn_user_roles;"`
 
 	kernel.TenantBaseModel
 }
 
 func (*User) TableName() string {
-	return "users"
+	return "tn_users"
 }
 
 // CacheKey Redis Key 规范：{resource}:{tenant}:{rest}（架构文档 18/26.4 章）。

@@ -1,6 +1,6 @@
-// Package repository 企业日志域数据访问（000036）：login_logs / audit_logs
+// Package repository 企业日志域数据访问（000036）：pf_login_logs / tn_audit_logs
 // 的只读查询（显式租户条件——两表为平台级表，无租户 Callback 语义）与
-// enterprise_log_exports 任务存取。列表统一按 (created_at DESC, id DESC)
+// tn_enterprise_log_exports 任务存取。列表统一按 (created_at DESC, id DESC)
 // 稳定排序；导出扫描走时间+ID 的 keyset 游标，避免深分页扫描
 package repository
 

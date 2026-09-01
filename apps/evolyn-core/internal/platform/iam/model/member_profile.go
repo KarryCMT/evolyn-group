@@ -8,7 +8,7 @@ import (
 	kernel "evolyn/internal/model"
 )
 
-// MemberProfileAttributes 正式成员的租户内扩展档案（member_profiles.attributes）。
+// MemberProfileAttributes 正式成员的租户内扩展档案（tn_member_profiles.attributes）。
 // 只允许字段注册表中定义的扩展 key（alias/employeeId/gender/position/employment/
 // hireDate/workplace/birthday/education），日期统一 YYYY-MM-DD、文本最长 50 字符，
 // 由服务层校验（文档 4.2）。不重复存储手机号、邮箱、部门和角色。
@@ -48,7 +48,7 @@ type MemberProfile struct {
 	kernel.TenantBaseModel
 }
 
-func (*MemberProfile) TableName() string { return "member_profiles" }
+func (*MemberProfile) TableName() string { return "tn_member_profiles" }
 
 // MemberProfileView 成员资料读取视图：Values 为「字段 key → 展示值」映射
 // （部门/角色为逗号分隔名称），读取侧已按字段配置裁剪；

@@ -3,7 +3,7 @@ package model
 import "time"
 
 // LoginLogRow 登录日志读取行（仓储 → 服务层）：出网投影的原料。
-// DisplayName 为 JOIN users/accounts 兜底的当前成员显示名——仅存量历史行
+// DisplayName 为 JOIN tn_users/accounts 兜底的当前成员显示名——仅存量历史行
 // （actor_name_snapshot 为空）使用，新写入行优先展示快照
 type LoginLogRow struct {
 	ID                uint

@@ -1,7 +1,7 @@
 // Package event Workflow 领域事件目录（第 18.2 章，Phase 0 冻结事件名）。
 //
 // V1 不一定全部对外消费，但事件名称先行冻结：接入既有 Outbox
-// （notification_outbox_events / 既有 Dispatcher），不新建 domain_outbox；
+// （tn_notification_outbox_events / 既有 Dispatcher），不新建 domain_outbox；
 // 消费方按事件名注册处理器，新增事件显式追加常量，禁止字符串散落。
 package event
 

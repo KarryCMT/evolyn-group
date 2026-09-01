@@ -87,13 +87,13 @@ func (t *tenantRepository) GetByID(ctx context.Context, id uint) (*model.Tenant,
 	return tenant, nil
 }
 
-// LockByID 事务内锁定租户行：SELECT id FROM tenants WHERE id=? FOR UPDATE。
+// LockByID 事务内锁定租户行：SELECT id FROM pf_tenants WHERE id=? FOR UPDATE。
 // tenants 表无 tenant_id 列，原生 SQL 不经租户 Callback（语义即全局按主键）；
 // 行不存在时不报错（租户存在性由请求链前置保证），锁在无事务 ctx 下即释放
 func (t *tenantRepository) LockByID(ctx context.Context, id uint) error {
 	var locked uint
 	return t.withContext(ctx).
-		Raw("SELECT id FROM tenants WHERE id = ? FOR UPDATE", id).Scan(&locked).Error
+		Raw("SELECT id FROM pf_tenants WHERE id = ? FOR UPDATE", id).Scan(&locked).Error
 }
 
 // GetByIDs 批量取租户（成员关系列表组装用）；ids 为空返回空集
@@ -300,7 +300,7 @@ func (t *tenantRepository) ListPurgeable(ctx context.Context, now time.Time) ([]
 }
 
 // PurgeTenantData 物理清理租户业务数据（FIX-012）：
-//  1. 关系表（user_roles/user_groups/group_roles/department_users）按租户
+//  1. 关系表（tn_user_roles/tn_user_groups/tn_group_roles/tn_department_users）按租户
 //     维度的成员/分组/角色/部门硬删——这些表无 GORM 模型与软删语义；
 //  2. 租户内四张业务表硬删（Unscoped，注销清理即销毁，不保留软删行）；
 //  3. 租户行保留并落 purged_at 墓碑（code 唯一约束防止注销编码复用）。
@@ -309,14 +309,14 @@ func (t *tenantRepository) ListPurgeable(ctx context.Context, now time.Time) ([]
 func (t *tenantRepository) PurgeTenantData(ctx context.Context, tenantID uint) error {
 	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		for _, stmt := range []string{
-			`DELETE FROM user_roles WHERE user_id IN (SELECT id FROM users WHERE tenant_id = ?)`,
-			`DELETE FROM user_groups WHERE user_id IN (SELECT id FROM users WHERE tenant_id = ?)`,
-			`DELETE FROM group_roles WHERE group_id IN (SELECT id FROM groups WHERE tenant_id = ?)`,
-			`DELETE FROM department_users WHERE department_id IN (SELECT id FROM departments WHERE tenant_id = ?)`,
-			`DELETE FROM users WHERE tenant_id = ?`,
-			`DELETE FROM groups WHERE tenant_id = ?`,
-			`DELETE FROM roles WHERE tenant_id = ?`,
-			`DELETE FROM departments WHERE tenant_id = ?`,
+			`DELETE FROM tn_user_roles WHERE user_id IN (SELECT id FROM tn_users WHERE tenant_id = ?)`,
+			`DELETE FROM tn_user_groups WHERE user_id IN (SELECT id FROM tn_users WHERE tenant_id = ?)`,
+			`DELETE FROM tn_group_roles WHERE group_id IN (SELECT id FROM tn_groups WHERE tenant_id = ?)`,
+			`DELETE FROM tn_department_users WHERE department_id IN (SELECT id FROM tn_departments WHERE tenant_id = ?)`,
+			`DELETE FROM tn_users WHERE tenant_id = ?`,
+			`DELETE FROM tn_groups WHERE tenant_id = ?`,
+			`DELETE FROM tn_roles WHERE tenant_id = ?`,
+			`DELETE FROM tn_departments WHERE tenant_id = ?`,
 		} {
 			if err := tx.Exec(stmt, tenantID).Error; err != nil {
 				return err

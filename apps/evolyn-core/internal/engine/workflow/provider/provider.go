@@ -23,7 +23,7 @@ type BusinessRef struct {
 }
 
 // BusinessDataProvider 业务数据窄端口（第 15.1 章铁律的唯一豁口）：
-// Workflow 禁止直接 UPDATE form_records，表单读写必须经本端口由
+// Workflow 禁止直接 UPDATE tn_form_records，表单读写必须经本端口由
 // Form Domain 完成校验（Schema Snapshot 约束、字段类型与必填）。
 type BusinessDataProvider interface {
 	// GetData 读取绑定表单快照的业务数据（表达式 form.* 数据源）

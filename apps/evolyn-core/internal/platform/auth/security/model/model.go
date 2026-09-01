@@ -51,7 +51,7 @@ type SecuritySettings struct {
 }
 
 func (*SecuritySettings) TableName() string {
-	return "account_security_settings"
+	return "pf_account_security_settings"
 }
 
 // MFAFactor 已验证的 MFA 因子；secret 仅密文（见 security service 加密），
@@ -70,7 +70,7 @@ type MFAFactor struct {
 }
 
 func (*MFAFactor) TableName() string {
-	return "account_mfa_factors"
+	return "pf_account_mfa_factors"
 }
 
 // RecoveryCode 一次性恢复码：只存摘要（sha256），明文仅创建时展示一次
@@ -83,7 +83,7 @@ type RecoveryCode struct {
 }
 
 func (*RecoveryCode) TableName() string {
-	return "account_mfa_recovery_codes"
+	return "pf_account_mfa_recovery_codes"
 }
 
 // AccountSession 设备级逻辑会话：sid 进 JWT，token_version 随租户切换重签递增
@@ -107,7 +107,7 @@ type AccountSession struct {
 }
 
 func (*AccountSession) TableName() string {
-	return "account_sessions"
+	return "pf_account_sessions"
 }
 
 // NewSID 会话公开标识：随机 16 字节 hex（32 字符），与 jti 同源口径
@@ -132,7 +132,7 @@ type SecurityEvent struct {
 }
 
 func (*SecurityEvent) TableName() string {
-	return "account_security_events"
+	return "pf_account_security_events"
 }
 
 // EventMetadata 安全事件元数据（JSONB）
