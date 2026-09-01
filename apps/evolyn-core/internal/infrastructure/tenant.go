@@ -29,6 +29,14 @@ func TenantScope(tenantID uint) func(*gorm.DB) *gorm.DB {
 // 现状（P0）service 层尚未线程化 context，无租户上下文时 Callback 无副作用；
 // M1 ctx 线程化后即全面生效，两条数据路径（GORM/pgx）都不允许业务侧手写租户条件
 func RegisterTenantCallbacks(db *gorm.DB) error {
+	// 操作者字段与租户字段都由请求上下文注入。即使业务层构造了模型，也不能
+	// 伪造当前登录账号；系统任务没有 Actor 时则保留数据库 NULL。
+	if err := db.Callback().Create().Before("gorm:create").Register("evolyn:actor_create", actorCreateCallback); err != nil {
+		return err
+	}
+	if err := db.Callback().Update().Before("gorm:update").Register("evolyn:actor_update", actorUpdateCallback); err != nil {
+		return err
+	}
 	if err := db.Callback().Create().Before("gorm:create").Register("evolyn:tenant_create", tenantCreateCallback); err != nil {
 		return err
 	}
@@ -42,6 +50,36 @@ func RegisterTenantCallbacks(db *gorm.DB) error {
 		return err
 	}
 	return nil
+}
+
+// actorCreateCallback 以平台账号作为统一操作者身份，同时写入创建人与更新人。
+// GORM 的 SetColumn 对结构体和 map 更新均生效；未认证路径不触碰字段，保留 NULL。
+func actorCreateCallback(tx *gorm.DB) {
+	if tx.Statement.Schema == nil || tx.Statement.Schema.LookUpField("CreatorID") == nil {
+		return
+	}
+	actor, ok := contextx.ActorFromContext(tx.Statement.Context)
+	if !ok || actor.AccountID == 0 {
+		return
+	}
+	accountID := actor.AccountID
+	tx.Statement.SetColumn("CreatorID", &accountID)
+	if tx.Statement.Schema.LookUpField("UpdaterID") != nil {
+		tx.Statement.SetColumn("UpdaterID", &accountID)
+	}
+}
+
+// actorUpdateCallback 仅刷新最后更新账号。创建人不可由普通更新路径改变。
+func actorUpdateCallback(tx *gorm.DB) {
+	if tx.Statement.Schema == nil || tx.Statement.Schema.LookUpField("UpdaterID") == nil {
+		return
+	}
+	actor, ok := contextx.ActorFromContext(tx.Statement.Context)
+	if !ok || actor.AccountID == 0 {
+		return
+	}
+	accountID := actor.AccountID
+	tx.Statement.SetColumn("UpdaterID", &accountID)
 }
 
 func tenantCreateCallback(tx *gorm.DB) {

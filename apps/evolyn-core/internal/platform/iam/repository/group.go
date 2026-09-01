@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	groupUpdateFields = []string{"Describe", "Roles", "UpdaterId"}
+	groupUpdateFields = []string{"Describe", "Roles"}
 )
 
 type groupRepository struct {
@@ -41,7 +41,6 @@ func (g *groupRepository) List(ctx context.Context) ([]model.Group, error) {
 }
 
 func (g *groupRepository) Create(ctx context.Context, user *model.User, group *model.Group) (*model.Group, error) {
-	group.CreatorId = user.ID
 	group.Users = []model.User{*user}
 	err := g.withContext(ctx).Create(group).Error
 	return group, err
