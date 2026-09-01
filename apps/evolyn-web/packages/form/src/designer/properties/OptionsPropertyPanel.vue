@@ -16,6 +16,7 @@ import type {
   RadioGroupWidget,
 } from '../../schema/types';
 import { computed } from 'vue';
+import DefaultValueModeSelect from './DefaultValueModeSelect.vue';
 import FormSchemaPropertySection from './FormSchemaPropertySection.vue';
 
 type OptionsWidget = RadioGroupWidget | CheckboxGroupWidget | ComboWidget | ComboCheckWidget;
@@ -52,6 +53,7 @@ function removeOption(index: number) {
     </el-radio-group>
   </FormSchemaPropertySection>
   <FormSchemaPropertySection title="默认值">
+    <DefaultValueModeSelect />
     <el-select
       v-if="isMultiple"
       v-model="widget.defaultValue"

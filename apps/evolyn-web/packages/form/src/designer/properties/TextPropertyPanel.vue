@@ -3,6 +3,7 @@ import { ElCheckbox, ElInput, ElOption, ElSelect } from 'element-plus';
 import { computed } from 'vue';
 import type { FormItem, TextWidget } from '../../schema/types';
 import FormSchemaCommonPropertyPanel from '../FormSchemaCommonPropertyPanel.vue';
+import DefaultValueModeSelect from './DefaultValueModeSelect.vue';
 
 /**
  * 单行文本专属属性面板只承载格式与默认值；标题、描述、提示文字、校验、权限和
@@ -33,15 +34,7 @@ const widget = computed(() => model.value.widget as TextWidget);
 
       <section class="text-property__section">
         <h3 class="text-property__heading">默认值</h3>
-        <!-- 当前仅保存固定默认值；联动与公式默认值将在规则运行时开放后接入。 -->
-        <el-select
-          class="text-property__select"
-          model-value="custom"
-          disabled
-          aria-label="默认值类型"
-        >
-          <el-option label="自定义" value="custom" />
-        </el-select>
+        <DefaultValueModeSelect />
         <el-input
           v-model="widget.defaultValue"
           class="text-property__default-value"

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ElInput, ElOption, ElSelect } from 'element-plus';
 import type { DateTimeWidget } from '../../schema/types';
+import DefaultValueModeSelect from './DefaultValueModeSelect.vue';
 import FormSchemaPropertySection from './FormSchemaPropertySection.vue';
 defineProps<{ widget: DateTimeWidget }>();
 </script>
@@ -14,6 +15,7 @@ defineProps<{ widget: DateTimeWidget }>();
     </el-select>
   </FormSchemaPropertySection>
   <FormSchemaPropertySection title="默认值">
+    <DefaultValueModeSelect />
     <el-input v-model="widget.defaultValue" :maxlength="32" aria-label="默认值" />
   </FormSchemaPropertySection>
 </template>

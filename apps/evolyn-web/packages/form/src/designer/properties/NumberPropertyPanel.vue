@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ElInputNumber } from 'element-plus';
 import type { NumberWidget } from '../../schema/types';
+import DefaultValueModeSelect from './DefaultValueModeSelect.vue';
 import FormSchemaPropertySection from './FormSchemaPropertySection.vue';
 defineProps<{ widget: NumberWidget }>();
 </script>
 <template>
   <FormSchemaPropertySection title="默认值">
+    <DefaultValueModeSelect />
     <el-input-number
       :model-value="widget.defaultValue ?? undefined"
       placeholder="不设置"

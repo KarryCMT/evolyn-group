@@ -93,6 +93,45 @@ describe('FormSchemaPropertyPanel', () => {
     expect(wrapper.text()).not.toContain('最大长度');
   });
 
+  it('单行文本默认值来源可在自定义、数据联动和公式编辑之间选择', async () => {
+    const wrapper = mount(FormSchemaPropertyPanel, { props: { item: field } });
+    const defaultValueType = wrapper.find('[aria-label="默认值类型"]');
+
+    expect(defaultValueType.attributes('disabled')).toBeUndefined();
+    await defaultValueType.trigger('click');
+    await nextTick();
+
+    expect(document.body.textContent).toContain('自定义');
+    expect(document.body.textContent).toContain('数据联动');
+    expect(document.body.textContent).toContain('公式编辑');
+  });
+
+  it('默认值来源下拉复用于所有支持默认值的控件，分割线和标签页不展示', () => {
+    for (const type of [
+      'textarea',
+      'number',
+      'datetime',
+      'radiogroup',
+      'checkboxgroup',
+      'combo',
+      'combocheck',
+    ] as const) {
+      const wrapper = mount(FormSchemaPropertyPanel, { props: { item: createWidgetItem(type) } });
+      expect(wrapper.find('[aria-label="默认值类型"]').exists()).toBe(true);
+    }
+
+    expect(
+      mount(FormSchemaPropertyPanel, { props: { item: createWidgetItem('separator') } })
+        .find('[aria-label="默认值类型"]')
+        .exists(),
+    ).toBe(false);
+    expect(
+      mount(FormSchemaPropertyPanel, { props: { layout } })
+        .find('[aria-label="默认值类型"]')
+        .exists(),
+    ).toBe(false);
+  });
+
   it('其他字段复用单行文本的公共分区，并在提示文字与校验之间放置专属配置', () => {
     const number = createWidgetItem('number');
     const wrapper = mount(FormSchemaPropertyPanel, { props: { item: number } });
