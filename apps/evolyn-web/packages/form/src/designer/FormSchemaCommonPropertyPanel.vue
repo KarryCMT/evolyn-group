@@ -201,7 +201,7 @@ const promptText = computed({
   &--reference {
     display: flex;
     flex-direction: column;
-    gap: var(--el-space-xl);
+    gap: var(--el-space-lg);
     padding: var(--el-space-lg) var(--el-space-lg) var(--el-space-lg);
   }
 
