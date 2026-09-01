@@ -87,7 +87,7 @@ function isActive(path: string, nestedPath?: string) {
 
   &__item {
     display: flex;
-    min-height: 40px;
+    min-height: 30px;
     align-items: center;
     gap: var(--el-space-lg);
     padding: 0 var(--el-space-lg);
