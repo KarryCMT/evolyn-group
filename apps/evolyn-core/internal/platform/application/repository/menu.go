@@ -29,6 +29,7 @@ func NewMenuRepository(db *gorm.DB) MenuRepository {
 type menuSnapshotRow struct {
 	AppID              uint
 	AppCode            string
+	AppName            string
 	AppStatus          string
 	AppProvisionStatus string
 	MenuRevision       int64
@@ -61,6 +62,7 @@ func (r *menuRepository) GetSnapshot(ctx context.Context, tenantID uint, code st
 	const query = `
 SELECT a.id AS app_id,
        a.code AS app_code,
+       a.name AS app_name,
        a.status AS app_status,
        a.provision_status AS app_provision_status,
        a.menu_revision AS menu_revision,
@@ -77,7 +79,7 @@ LEFT JOIN tn_application_menu_entries e
 WHERE a.tenant_id = ?
   AND a.code = ?
   AND a.deleted_at IS NULL
-GROUP BY a.id, a.code, a.status, a.provision_status, a.menu_revision`
+GROUP BY a.id, a.code, a.name, a.status, a.provision_status, a.menu_revision`
 
 	var row menuSnapshotRow
 	if err := infrastructure.ResolveDB(ctx, r.db).Raw(query, tenantID, code).Scan(&row).Error; err != nil {
@@ -116,6 +118,7 @@ GROUP BY a.id, a.code, a.status, a.provision_status, a.menu_revision`
 	return &MenuSnapshot{
 		ApplicationID:   row.AppID,
 		ApplicationCode: row.AppCode,
+		ApplicationName: row.AppName,
 		Status:          row.AppStatus,
 		ProvisionStatus: row.AppProvisionStatus,
 		MenuRevision:    row.MenuRevision,

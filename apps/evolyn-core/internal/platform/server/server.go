@@ -17,6 +17,8 @@ import (
 	"evolyn/internal/infrastructure/ipregion"
 	"evolyn/internal/infrastructure/objectstore"
 	apperrors "evolyn/internal/platform/enterpriselog"
+	productlogapperrors "evolyn/internal/platform/productlog"
+	productlogmodel "evolyn/internal/platform/productlog/model"
 
 	// swagger spec 注册：swag init 生成的 docs 包经 init() 把接口定义
 	// 注册给 gin-swagger，不引入则 /swagger/doc.json 500（页面能开但无内容）
@@ -67,6 +69,9 @@ import (
 	notificationcontroller "evolyn/internal/platform/notification/controller"
 	notificationrepository "evolyn/internal/platform/notification/repository"
 	notificationservice "evolyn/internal/platform/notification/service"
+	productlogcontroller "evolyn/internal/platform/productlog/controller"
+	productlogrepository "evolyn/internal/platform/productlog/repository"
+	productlogservice "evolyn/internal/platform/productlog/service"
 	tenantcontroller "evolyn/internal/platform/tenant/controller"
 	tenantrepository "evolyn/internal/platform/tenant/repository"
 	tenantservice "evolyn/internal/platform/tenant/service"
@@ -158,6 +163,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	tenantProductRepo := tenantproductrepository.NewRepository(db)
 	// 企业日志域仓储（000036）：pf_login_logs/tn_audit_logs 只读查询 + 导出任务
 	enterpriseLogRepo := enterpriselogrepository.NewRepository(db)
+	// 产品日志域仓储（000064）：tn_audit_logs 产品分类只读查询 + 导出任务
+	productLogRepo := productlogrepository.NewRepository(db)
 	// 表单资产域仓储（000037/000038，ADR-010）：表单+草稿、不可变发布快照、记录
 	formRepo := formrepository.NewRepository(db)
 	formVersionRepo := formrepository.NewVersionRepository(db)
@@ -207,6 +214,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 			return nil, err
 		}
 		if err := enterpriseLogRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := productLogRepo.Migrate(); err != nil {
 			return nil, err
 		}
 		if err := formRepo.Migrate(); err != nil {
@@ -472,6 +482,16 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	)
 	enterpriseLogController := enterpriselogcontroller.NewEnterpriseLogController(enterpriseLogService, authorizer)
 
+	// 产品日志域（000064）：应用内操作流水只读查询 + 导出编排；成员/应用
+	// 目录与下载复核经窄端口适配（域间不直接耦合 iam/application）
+	productLogService := productlogservice.NewProductLogService(
+		productLogRepo,
+		productLogMemberDirectory{users: iamRepo.User()},
+		productLogApplicationDirectory{applications: applicationRepo},
+		auditSvc,
+	)
+	productLogController := productlogcontroller.NewProductLogController(productLogService, authorizer)
+
 	// M2-资产-1：菜单读侧接入表单目录（存在性裁剪 + target 投影），
 	// 由表单仓储经装配层适配，application 域不依赖 form 域
 	if injector, ok := menuService.(applicationservice.MenuFormDirectoryInjector); ok {
@@ -513,6 +533,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	permissionGroupService := formservice.NewPermissionGroupService(
 		txManager, formPermRepo, formRepo, formVersionRepo, auditSvc, appAccess,
 		formPermissionSubjectDirectory{users: iamRepo.User(), departments: iamRepo.Department(), rbac: iamRepo.RBAC()},
+		formApplicationDirectory{applications: applicationRepo},
 	)
 	permissionGroupController := formcontroller.NewPermissionGroupController(permissionGroupService)
 	formController := formcontroller.NewFormController(formService)
@@ -521,6 +542,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// DSL 校验以引擎内核严格校验器为唯一事实源，权限集经窄端口与鉴权同源
 	workflowService := workflowservice.NewDefinitionService(
 		txManager, workflowDefinitionRepo, workflowVersionRepo, appAccess, auditSvc,
+		workflowApplicationDirectory{forms: formRepo, applications: applicationRepo},
 	)
 	workflowController := workflowcontroller.NewWorkflowController(workflowService)
 
@@ -568,7 +590,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	notificationController := notificationcontroller.NewNotificationController(notificationInboxService)
 	notificationSettingController := notificationcontroller.NewSettingController(notificationSettingService)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, formController, permissionGroupController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, productLogController, formController, permissionGroupController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController}
 
 	// 流程延时任务 Worker（Phase 5，000052）：超时自动动作/待办提醒，
 	// 领取走 FOR UPDATE SKIP LOCKED，claim+执行同事务（crash 自动回滚），
@@ -1080,7 +1102,7 @@ func (d formApplicationDirectory) ApplicationByID(ctx context.Context, id uint) 
 		}
 		return formservice.ApplicationView{}, false, err
 	}
-	return formservice.ApplicationView{ID: app.ID, Status: app.Status}, false, nil
+	return formservice.ApplicationView{ID: app.ID, Status: app.Status, Code: app.Code, Name: app.Name}, false, nil
 }
 
 func (d formApplicationDirectory) ApplicationByCode(ctx context.Context, code string) (formservice.ApplicationView, bool, error) {
@@ -1091,7 +1113,7 @@ func (d formApplicationDirectory) ApplicationByCode(ctx context.Context, code st
 		}
 		return formservice.ApplicationView{}, false, err
 	}
-	return formservice.ApplicationView{ID: app.ID, Status: app.Status}, false, nil
+	return formservice.ApplicationView{ID: app.ID, Status: app.Status, Code: app.Code, Name: app.Name}, false, nil
 }
 
 // auditActorNamer 审计操作者显示名解析窄端口适配（000036 企业日志）：
@@ -1126,6 +1148,102 @@ func (d enterpriseLogMemberDirectory) ValidateMember(ctx context.Context, tenant
 	}
 	_ = member
 	return nil
+}
+
+// productLogMemberDirectory 产品日志成员目录窄端口适配（000064）：操作人
+// 筛选的归属校验与筛选项聚合。校验口径同企业日志（租户上下文包裹后经成员
+// 仓储查询，跨租户/已删成员 NotFound → ErrMemberInvalid）；筛选项取有效
+// 成员首页（上限 productlogservice 包内限制）
+type productLogMemberDirectory struct {
+	users repository.UserRepository
+}
+
+func (d productLogMemberDirectory) ValidateMember(ctx context.Context, tenantID, memberID uint) error {
+	if _, err := d.users.GetUserByID(contextx.NewTenantContext(ctx, tenantID), memberID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return productlogapperrors.ErrMemberInvalid
+		}
+		return httpx.Wrap(httpx.NewBiz(httpx.CodeInternalServer, "成员校验失败", http.StatusInternalServerError), err)
+	}
+	return nil
+}
+
+func (d productLogMemberDirectory) ListMembers(ctx context.Context, tenantID uint) ([]productlogmodel.MemberOption, error) {
+	const optionPageSize = 500
+	users, _, err := d.users.ListPage(
+		contextx.NewTenantContext(ctx, tenantID),
+		iammodel.MemberListQuery{Page: 1, PageSize: optionPageSize},
+	)
+	if err != nil {
+		return nil, httpx.Wrap(httpx.NewBiz(httpx.CodeInternalServer, "成员清单读取失败", http.StatusInternalServerError), err)
+	}
+	options := make([]productlogmodel.MemberOption, 0, len(users))
+	for _, u := range users {
+		options = append(options, productlogmodel.MemberOption{MemberID: u.ID, Name: u.Nickname})
+	}
+	return options, nil
+}
+
+// productLogApplicationDirectory 产品日志应用目录窄端口适配（000064）：
+// 应用筛选的归属校验与筛选项聚合。校验以租户上下文包裹后经应用仓储查询
+// （跨租户/软删应用 NotFound → ErrApplicationInvalid）；筛选项仅返回有效
+// 应用——已删除应用只在列表结果中按快照展示，不作为可选筛选项
+type productLogApplicationDirectory struct {
+	applications applicationrepository.ApplicationRepository
+}
+
+func (d productLogApplicationDirectory) ValidateApplication(ctx context.Context, tenantID, applicationID uint) error {
+	if _, err := d.applications.GetByID(contextx.NewTenantContext(ctx, tenantID), applicationID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return productlogapperrors.ErrApplicationInvalid
+		}
+		return httpx.Wrap(httpx.NewBiz(httpx.CodeInternalServer, "应用校验失败", http.StatusInternalServerError), err)
+	}
+	return nil
+}
+
+func (d productLogApplicationDirectory) ListApplications(ctx context.Context, tenantID uint) ([]productlogmodel.ApplicationOption, error) {
+	const optionLimit = 500
+	apps, _, err := d.applications.List(
+		contextx.NewTenantContext(ctx, tenantID),
+		applicationrepository.ListParams{Limit: optionLimit},
+	)
+	if err != nil {
+		return nil, httpx.Wrap(httpx.NewBiz(httpx.CodeInternalServer, "应用清单读取失败", http.StatusInternalServerError), err)
+	}
+	options := make([]productlogmodel.ApplicationOption, 0, len(apps))
+	for _, app := range apps {
+		options = append(options, productlogmodel.ApplicationOption{
+			ApplicationID: app.ID, Code: app.Code, Name: app.Name,
+		})
+	}
+	return options, nil
+}
+
+// workflowApplicationDirectory 流程域应用目录窄端口适配（000064）：流程
+// 定义经 form_code 绑定表单，装配层以 form+application 仓储链式解析所属
+// 应用视图（任一环 NotFound 均按 notFound 透出，审计跳过快照不阻断）
+type workflowApplicationDirectory struct {
+	forms        formrepository.FormRepository
+	applications applicationrepository.ApplicationRepository
+}
+
+func (d workflowApplicationDirectory) ApplicationByFormCode(ctx context.Context, formCode string) (workflowservice.ApplicationView, bool, error) {
+	form, err := d.forms.GetByCode(ctx, formCode)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return workflowservice.ApplicationView{}, true, nil
+		}
+		return workflowservice.ApplicationView{}, false, err
+	}
+	app, err := d.applications.GetByID(ctx, form.ApplicationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return workflowservice.ApplicationView{}, true, nil
+		}
+		return workflowservice.ApplicationView{}, false, err
+	}
+	return workflowservice.ApplicationView{ID: app.ID, Code: app.Code, Name: app.Name}, false, nil
 }
 
 // notificationMemberDirectory 消息中心成员目录窄端口适配：扇出前的成员

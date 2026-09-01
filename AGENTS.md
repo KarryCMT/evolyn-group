@@ -301,6 +301,27 @@ internal/
                       注册表（service/events.go）按 module+resourceType+action
                       推导事件码/分类/脱敏摘要，存量历史行读取侧降级
                       「历史操作记录」
+  productlog/       产品日志域（一期，小三层，docs/低代码平台/产品日志/，
+                      迁移 000064）：管理后台「产品日志」只读与导出编排——
+                      tn_audit_logs 按产品分类白名单（audit 注册表
+                      product_events.go：application/application_menu/form/
+                      workflow/data/app_permission 六分类，与企业日志目录
+                      category_code 互斥、企业日志查询侧排除产品分类）受控
+                      投影读取 + tn_product_log_exports 导出任务表（一期同步
+                      生成 CSV、24h 有效、上限 5 万行）；审计事实源仍在 audit
+                      域：Entry 扩展应用维度快照三元组（application_id/code/
+                      name_snapshot 写时固化，应用删除后历史展示不失真），
+                      application/menu/form（含权限组与记录提交）/workflow
+                      写路径已接入产品事件（资源级动词覆盖，如「创建表单」）；
+                      API：GET /product-logs（分类/事件/成员/应用/关键词/
+                      日期筛选，keyset 导出扫描）+ /product-logs/options
+                      （分类事件码+操作人+有效应用，服务端下发不硬编码）+
+                      /product-logs/exports（创建/状态/下载复核
+                      product-logs:export）；product-logs:view/export 仅授
+                      租户管理员（规则签名补授，不经管理组放行）；导出行为
+                      落企业治理类审计（productlog.export.create）；前端：
+                      api/productLog.ts + pages/tenant/product-logs.vue
+                      （VTable 列表接真实接口）
   notification/     消息中心域（P1+P2，小三层，docs/低代码平台/消息中心/）：
                       租户×成员站内收件箱与租户通知设置（迁移 000039 七表：
                       不可变 tn_notification_messages（纯文本快照物化时固化，

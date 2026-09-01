@@ -39,38 +39,41 @@
           @rename-key="$emit('rename-key', $event)"
         />
         <el-form v-else-if="draftItem" label-position="top" size="default" @submit.prevent>
-          <FormSchemaCommonPropertyPanel
-            v-model="draftItem"
-            :is-separator="isSeparator"
-            @rename-key="$emit('rename-key', $event)"
-          />
+          <TextPropertyPanel v-if="widget.type === 'text'" v-model="draftItem" />
 
-          <!-- —— 控件专属属性（字段字典 §3 逐控件） —— -->
-          <TextPropertyPanel v-if="widget.type === 'text'" :widget="widget" />
-          <TextareaPropertyPanel v-else-if="widget.type === 'textarea'" :widget="widget" />
-          <NumberPropertyPanel v-else-if="widget.type === 'number'" :widget="widget" />
-          <DateTimePropertyPanel v-else-if="widget.type === 'datetime'" :widget="widget" />
-          <SeparatorPropertyPanel v-else-if="widget.type === 'separator'" :widget="widget" />
-          <OptionsPropertyPanel v-else-if="hasOptions" :widget="widget" />
+          <template v-else>
+            <FormSchemaCommonPropertyPanel
+              v-model="draftItem"
+              :is-separator="isSeparator"
+              @rename-key="$emit('rename-key', $event)"
+            />
 
-          <p
-            v-if="
-              ![
-                'text',
-                'textarea',
-                'number',
-                'datetime',
-                'radiogroup',
-                'checkboxgroup',
-                'combo',
-                'combocheck',
-                'separator',
-              ].includes(widget.type)
-            "
-            class="form-schema-property__deferred"
-          >
-            该控件的专属配置已按协议保存，运行能力随后续版本开放。
-          </p>
+            <!-- —— 控件专属属性（字段字典 §3 逐控件） —— -->
+            <TextareaPropertyPanel v-if="widget.type === 'textarea'" :widget="widget" />
+            <NumberPropertyPanel v-else-if="widget.type === 'number'" :widget="widget" />
+            <DateTimePropertyPanel v-else-if="widget.type === 'datetime'" :widget="widget" />
+            <SeparatorPropertyPanel v-else-if="widget.type === 'separator'" :widget="widget" />
+            <OptionsPropertyPanel v-else-if="optionsWidget" :widget="optionsWidget" />
+
+            <p
+              v-if="
+                ![
+                  'text',
+                  'textarea',
+                  'number',
+                  'datetime',
+                  'radiogroup',
+                  'checkboxgroup',
+                  'combo',
+                  'combocheck',
+                  'separator',
+                ].includes(widget.type)
+              "
+              class="form-schema-property__deferred"
+            >
+              该控件的专属配置已按协议保存，运行能力随后续版本开放。
+            </p>
+          </template>
         </el-form>
       </EvolynScrollbar>
     </template>
@@ -87,9 +90,6 @@
             @keyup.enter="updateFormName"
           />
         </el-form-item>
-        <p class="form-schema-property__hint">
-          表单名称保存为资产信息，不会写入字段配置；按 Enter 或离开输入框即可保存。
-        </p>
         <el-form-item label="表单布局">
           <el-select
             :model-value="formLayout"
@@ -103,34 +103,26 @@
             />
           </el-select>
         </el-form-item>
-        <p class="form-schema-property__hint">
-          切换布局会同步重置顶层及标签页内普通字段的宽度，之后仍可逐字段调整。
-        </p>
       </el-form>
     </EvolynScrollbar>
   </aside>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { EvolynScrollbar } from '@evolyn.do/ui';
-import {
-  ElForm,
-  ElFormItem,
-  ElInput,
-  ElInputNumber,
-  ElOption,
-  ElSegmented,
-  ElSelect,
-} from 'element-plus';
+import { ElForm, ElFormItem, ElInput, ElOption, ElSegmented, ElSelect } from 'element-plus';
 import type {
   FormItem,
   FormLayoutMode,
   FormMultitabLayout,
   FormTabStyle,
   SubformWidget,
+  CheckboxGroupWidget,
+  ComboCheckWidget,
+  ComboWidget,
+  RadioGroupWidget,
 } from '../schema/types';
-import { cloneFormSchema } from '../schema/clone';
 import { widgetTypeLabel } from '../schema/dictionary';
 import FormSchemaCommonPropertyPanel from './FormSchemaCommonPropertyPanel.vue';
 import DateTimePropertyPanel from './properties/DateTimePropertyPanel.vue';
@@ -165,24 +157,24 @@ const props = withDefaults(
 );
 
 const emit = defineEmits<{
-  (event: 'rename-key', key: string): void;
-  (event: 'update-item', item: FormItem): void;
-  (event: 'update-form-name', name: string): void;
-  (event: 'update-form-layout', layout: FormLayoutMode): void;
-  (event: 'set-tab-style', style: FormTabStyle): void;
-  (event: 'add-tab'): void;
-  (event: 'remove-tab', tabName: string): void;
-  (event: 'duplicate-tab', tabName: string): void;
-  (event: 'rename-tab', tabName: string, title: string): void;
-  (event: 'reorder-tabs', tabNames: string[]): void;
+  'rename-key': [key: string];
+  'update-item': [item: FormItem];
+  'update-form-name': [name: string];
+  'update-form-layout': [layout: FormLayoutMode];
+  'set-tab-style': [style: FormTabStyle];
+  'add-tab': [];
+  'remove-tab': [tabName: string];
+  'duplicate-tab': [tabName: string];
+  'rename-tab': [tabName: string, title: string];
+  'reorder-tabs': [tabNames: string[]];
 }>();
 
-const activeTab = ref<'field' | 'form'>('field');
-const propertyTabs = [
+const activeTab = shallowRef<'field' | 'form'>('field');
+const propertyTabs: Array<{ label: string; value: 'field' | 'form' }> = [
   { label: '字段属性', value: 'field' },
   { label: '表单属性', value: 'form' },
-] as const;
-const formNameDraft = ref(props.formName);
+];
+const formNameDraft = shallowRef(props.formName);
 const draftItem = ref<FormItem>();
 const widget = computed(() => draftItem.value!.widget);
 const isSubform = computed(() => widget.value.type === 'subform');
@@ -194,9 +186,18 @@ const subformDraft = computed<FormItem<SubformWidget>>({
 });
 const typeLabel = computed(() => widgetTypeLabel(widget.value.type));
 const isSeparator = computed(() => widget.value.type === 'separator');
-const hasOptions = computed(() =>
-  ['radiogroup', 'checkboxgroup', 'combo', 'combocheck'].includes(widget.value.type),
-);
+type OptionsWidget = RadioGroupWidget | CheckboxGroupWidget | ComboWidget | ComboCheckWidget;
+const optionsWidget = computed<OptionsWidget | null>(() => {
+  switch (widget.value.type) {
+    case 'radiogroup':
+    case 'checkboxgroup':
+    case 'combo':
+    case 'combocheck':
+      return widget.value;
+    default:
+      return null;
+  }
+});
 const formLayoutOptions: ReadonlyArray<{ label: string; value: FormLayoutMode }> = [
   { label: '单列', value: 'normal' },
   { label: '双列', value: 'grid-2' },
@@ -217,7 +218,7 @@ watch(
   () => props.item,
   (item) => {
     if (sameJSON(item, draftItem.value)) return;
-    draftItem.value = item ? cloneFormSchema(item) : undefined;
+    draftItem.value = item ? cloneItem(item) : undefined;
   },
   { immediate: true, deep: true },
 );
@@ -226,13 +227,21 @@ watch(
   draftItem,
   (item) => {
     if (!item || sameJSON(item, props.item)) return;
-    emit('update-item', cloneFormSchema(item));
+    emit('update-item', cloneItem(item));
   },
   { deep: true },
 );
 
 function sameJSON(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+/**
+ * 属性面板只接受经 Schema 校验的 JSON 安全字段项；深拷贝可隔离外部响应式对象，
+ * 避免草稿编辑直接改写画布源数据。
+ */
+function cloneItem(item: FormItem): FormItem {
+  return JSON.parse(JSON.stringify(item)) as FormItem;
 }
 
 /** 仅在名称确有变化且非空时通知页面调用资产改名接口。 */
@@ -312,7 +321,7 @@ function updateFormName(): void {
   &__body {
     flex: 1;
     min-height: 0;
-    padding: var(--el-space-xl);
+    padding: var(--el-space-sm);
 
     .el-form-item {
       margin-bottom: var(--el-space-lg);

@@ -50,6 +50,8 @@ type ApplicationRepository interface {
 type MenuSnapshot struct {
 	ApplicationID   uint
 	ApplicationCode string
+	// ApplicationName 应用名称（000064：菜单写路径审计的应用维度快照源）
+	ApplicationName string
 	Status          string
 	ProvisionStatus string
 	MenuRevision    int64

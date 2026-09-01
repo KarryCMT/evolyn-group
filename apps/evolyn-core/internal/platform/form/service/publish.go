@@ -119,6 +119,7 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 	}
 
 	if s.audit != nil {
+		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "publish", ResourceType: "form",
 			ResourceID: form.Code,
@@ -126,6 +127,10 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 				"publishedVersion": result.PublishedVersion,
 				"schemaRevision":   result.SchemaRevision,
 			},
+			TargetName:      form.Name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	return result, nil
@@ -364,6 +369,10 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 				"formCode":         req.FormCode,
 				"publishedVersion": req.PublishedVersion,
 			},
+			TargetName:      form.Name,
+			ApplicationID:   app.ID,
+			ApplicationCode: app.Code,
+			ApplicationName: app.Name,
 		})
 	}
 	return &model.SubmitRecordResult{RecordID: record.ID}, nil

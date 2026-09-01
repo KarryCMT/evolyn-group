@@ -5,6 +5,7 @@ import { ElSegmented, ElSelect } from 'element-plus';
 import { EvolynRichTextEditor } from '@evolyn.do/ui';
 import type { FormItem, FormMultitabLayout } from '../../schema/types';
 import { createWidgetItem } from '../../schema/dictionary';
+import FormSchemaCommonPropertyPanel from '../FormSchemaCommonPropertyPanel.vue';
 import FormSchemaPropertyPanel from '../FormSchemaPropertyPanel.vue';
 
 const layout: FormMultitabLayout = {
@@ -54,6 +55,28 @@ describe('FormSchemaPropertyPanel', () => {
     const wrapper = mount(FormSchemaPropertyPanel, { props: { item: field } });
 
     expect(wrapper.findComponent(EvolynRichTextEditor).exists()).toBe(true);
+  });
+
+  it('单行文本按属性分区展示标题、默认值、校验、权限、宽度和安全栏位', () => {
+    const wrapper = mount(FormSchemaPropertyPanel, { props: { item: field } });
+
+    expect(wrapper.findComponent(FormSchemaCommonPropertyPanel).exists()).toBe(true);
+    expect(wrapper.find('[aria-label="字段类型"]').exists()).toBe(true);
+    expect(wrapper.find('input[placeholder="字段值与规则引用的稳定键"]').exists()).toBe(false);
+    expect(wrapper.findAll('h3').map((node) => node.text())).toEqual([
+      '描述信息',
+      '提示文字',
+      '格式',
+      '默认值',
+      '校验',
+      '字段权限',
+      '字段宽度',
+      '字段安全',
+    ]);
+    expect(wrapper.text()).toContain('不允许重复值');
+    expect(wrapper.text()).toContain('脱敏显示');
+    expect(wrapper.text()).not.toContain('最小长度');
+    expect(wrapper.text()).not.toContain('最大长度');
   });
 
   it('表单属性上抛布局切换，字段宽度按产品映射展示', async () => {

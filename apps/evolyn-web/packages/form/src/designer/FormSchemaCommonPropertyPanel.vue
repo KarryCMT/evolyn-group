@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { EvolynRichTextEditor } from '@evolyn.do/ui';
-import { ElCheckbox, ElFormItem, ElInput, ElSwitch } from 'element-plus';
+import { QuestionFilled } from '@element-plus/icons-vue';
+import { ElCheckbox, ElFormItem, ElIcon, ElInput, ElSwitch, ElTooltip } from 'element-plus';
+import { computed } from 'vue';
 import type { FormItem } from '../schema/types';
-import { FORM_FIELD_WIDTH_OPTIONS } from '../schema/dictionary';
+import { FORM_FIELD_WIDTH_OPTIONS, WIDGET_SPECS } from '../schema/dictionary';
 
 /**
  * 所有字段共享的属性区。字段类型差异只在外层面板的专属区出现，避免标题、说明、
@@ -13,14 +15,36 @@ const props = withDefaults(
   defineProps<{
     isSeparator?: boolean;
     showWidth?: boolean;
+    /** reference 按字段属性标准分区重排；default 保持其他控件现有布局。 */
+    arrangement?: 'default' | 'reference';
+    showWidgetName?: boolean;
   }>(),
-  { isSeparator: false, showWidth: true },
+  { isSeparator: false, showWidth: true, arrangement: 'default', showWidgetName: true },
 );
 const emit = defineEmits<{ renameKey: [key: string] }>();
+
+/** 有占位提示能力的字段统一由公共属性区维护，专属面板不重复声明该配置。 */
+const supportsPromptText = computed(
+  () => 'placeholder' in WIDGET_SPECS[model.value.widget.type].props,
+);
+const promptText = computed({
+  get: () => {
+    const value = (model.value.widget as { placeholder?: unknown }).placeholder;
+    return typeof value === 'string' ? value : '';
+  },
+  set: (value: string) => {
+    const widget = model.value.widget as { placeholder?: string };
+    if ('placeholder' in widget) widget.placeholder = value;
+  },
+});
 </script>
 
 <template>
-  <section class="form-schema-common-property" aria-label="通用属性">
+  <section
+    v-if="props.arrangement === 'default'"
+    class="form-schema-common-property"
+    aria-label="通用属性"
+  >
     <el-form-item label="标题">
       <el-input v-model="model.label" :maxlength="64" placeholder="请输入标题" />
     </el-form-item>
@@ -31,7 +55,7 @@ const emit = defineEmits<{ renameKey: [key: string] }>();
     >
       显示标题
     </el-checkbox>
-    <el-form-item label="字段键（widgetName）">
+    <el-form-item v-if="props.showWidgetName" label="字段键（widgetName）">
       <el-input
         :model-value="model.widget.widgetName"
         placeholder="字段值与规则引用的稳定键"
@@ -78,12 +102,156 @@ const emit = defineEmits<{ renameKey: [key: string] }>();
       </div>
     </el-form-item>
   </section>
+  <section v-else class="form-schema-common-property form-schema-common-property--reference">
+    <div class="form-schema-common-property__reference-title-row">
+      <label
+        class="form-schema-common-property__reference-label form-schema-common-property__reference-label--required"
+        for="reference-property-label"
+      >
+        标题
+      </label>
+      <slot name="title-suffix" />
+    </div>
+    <el-input
+      id="reference-property-label"
+      v-model="model.label"
+      :maxlength="64"
+      aria-label="标题"
+      placeholder="请输入标题"
+    />
+    <el-checkbox
+      :model-value="!model.labelHidden"
+      class="form-schema-common-property__reference-show-title"
+      @update:model-value="model.labelHidden = !$event"
+    >
+      显示标题
+    </el-checkbox>
+
+    <section class="form-schema-common-property__reference-section">
+      <h3 class="form-schema-common-property__reference-heading">描述信息</h3>
+      <EvolynRichTextEditor
+        v-model="model.description"
+        :min-height="96"
+        aria-label="字段说明"
+        toolbar-size="small"
+      />
+    </section>
+
+    <section v-if="supportsPromptText" class="form-schema-common-property__reference-section">
+      <h3 class="form-schema-common-property__reference-heading">
+        提示文字
+        <el-tooltip content="填写字段前展示的输入提示" placement="top">
+          <el-icon class="form-schema-common-property__reference-help" aria-label="提示文字说明">
+            <QuestionFilled />
+          </el-icon>
+        </el-tooltip>
+      </h3>
+      <el-input v-model="promptText" :maxlength="100" aria-label="提示文字" />
+    </section>
+
+    <slot name="after-prompt" />
+
+    <section v-if="!props.isSeparator" class="form-schema-common-property__reference-section">
+      <h3 class="form-schema-common-property__reference-heading">校验</h3>
+      <div class="form-schema-common-property__reference-checks">
+        <el-checkbox
+          :model-value="!model.widget.allowBlank"
+          @update:model-value="model.widget.allowBlank = !$event"
+        >
+          必填
+        </el-checkbox>
+        <!-- 重复值校验需要服务端唯一索引，能力开放前公共栏位不可操作。 -->
+        <el-checkbox disabled>不允许重复值</el-checkbox>
+      </div>
+    </section>
+
+    <section class="form-schema-common-property__reference-section">
+      <h3 class="form-schema-common-property__reference-heading">字段权限</h3>
+      <div class="form-schema-common-property__reference-checks">
+        <el-checkbox v-model="model.widget.visible">可见</el-checkbox>
+        <el-checkbox v-model="model.widget.enable">可编辑</el-checkbox>
+      </div>
+    </section>
+
+    <section
+      v-if="props.showWidth && !props.isSeparator"
+      class="form-schema-common-property__reference-section"
+    >
+      <h3 class="form-schema-common-property__reference-heading">字段宽度</h3>
+      <div class="form-schema-common-property__width-options" role="group" aria-label="字段宽度">
+        <button
+          v-for="(option, index) in FORM_FIELD_WIDTH_OPTIONS"
+          :key="`${option.label}-${index}`"
+          type="button"
+          :class="{ 'is-active': model.lineWidth === option.value }"
+          :aria-pressed="model.lineWidth === option.value"
+          @click="model.lineWidth = option.value"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+    </section>
+
+    <slot name="after-width" />
+  </section>
 </template>
 
 <style scoped lang="scss">
 .form-schema-common-property {
+  &--reference {
+    display: flex;
+    flex-direction: column;
+    gap: var(--el-space-xl);
+    padding: var(--el-space-lg) var(--el-space-lg) var(--el-space-lg);
+  }
+
   &__show-title {
     margin: calc(var(--el-space-sm) * -1) 0 var(--el-space-lg);
+  }
+
+  &__reference-title-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 104px;
+    gap: var(--el-space-md);
+    align-items: center;
+    margin-bottom: calc(var(--el-space-md) * -1);
+  }
+
+  &__reference-label,
+  &__reference-heading {
+    margin: 0;
+    font-size: var(--el-font-size-medium);
+    font-weight: 600;
+    line-height: 1.5;
+    color: var(--el-text-color-primary);
+  }
+
+  &__reference-label--required::before {
+    margin-right: 2px;
+    color: var(--el-color-danger);
+    content: '*';
+  }
+
+  &__reference-show-title {
+    margin-top: calc(var(--el-space-md) * -1);
+  }
+
+  &__reference-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--el-space-md);
+  }
+
+  &__reference-checks {
+    display: flex;
+    flex-direction: column;
+    gap: var(--el-space-lg);
+    align-items: flex-start;
+  }
+
+  &__reference-help {
+    color: var(--el-text-color-secondary);
+    cursor: help;
   }
 
   &__switches {

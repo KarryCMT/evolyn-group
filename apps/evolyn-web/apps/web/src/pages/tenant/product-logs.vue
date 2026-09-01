@@ -7,11 +7,23 @@ import {
 } from '@evolyn.do/ui';
 import { RiDownload2Fill, RiInformationFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
-import { computed, reactive, shallowRef, useTemplateRef } from 'vue';
+import { computed, onMounted, reactive, shallowRef, useTemplateRef, watch } from 'vue';
+import {
+  createProductLogExport,
+  downloadProductLogExport,
+  listProductLogOptions,
+  listProductLogs,
+  type ProductApplicationOption,
+  type ProductCategoryOption,
+  type ProductExportTaskView,
+  type ProductLogFilterQuery,
+  type ProductMemberOption,
+} from '~/api/productLog';
 import { isDark } from '~/composables/dark';
 
 defineOptions({ name: 'TenantProductLogsPage' });
 
+/** 表格行（服务端受控投影；所属应用/对象为写时快照，空值渲染「—」） */
 interface ProductLogRecord {
   id: number;
   operator: string;
@@ -24,10 +36,11 @@ interface ProductLogRecord {
   ip: string;
 }
 
+/** 筛选草稿（查询点击后才生效，修改不自动请求） */
 interface ProductLogFilters {
-  category: string;
-  operationType: string;
-  operator: string;
+  categoryCode: string;
+  eventCode: string;
+  memberId?: number;
   startDate: string;
   endDate: string;
   applicationOrTarget: string;
@@ -37,194 +50,34 @@ const PAGE_SIZE = 12;
 const ROW_HEIGHT = 56;
 const CELL_HORIZONTAL_PADDING = 12;
 
-const categoryOptions = ['全部', '应用管理', '表单管理', '流程管理', '应用权限'];
-const operationTypeOptions = [
-  '创建表单',
-  '删除表单',
-  '修改表单设计',
-  '修改表单名称',
-  '开启流程分析',
-  '添加普通管理员组',
-  '开启应用管理组',
-];
-const applicationOptions = ['测试应用', '简道云示例应用', 'IT项目管理'];
+// ---- 筛选项（分类/操作类型/操作人/应用均由 options 接口下发，不硬编码） ----
+const categoryOptions = shallowRef<ProductCategoryOption[]>([]);
+const memberOptions = shallowRef<ProductMemberOption[]>([]);
+const applicationOptions = shallowRef<ProductApplicationOption[]>([]);
 
-/** 前端还原阶段的本地展示数据；后端产品日志接口接入后替换为分页结果。 */
-const records: ProductLogRecord[] = [
-  [
-    '李同学',
-    '2026-08-25 22:44:30',
-    '表单管理',
-    '删除表单',
-    '测试应用',
-    '未命名表单',
-    '删除了表单「未命名表单」',
-    '27.46.93.4',
-  ],
-  [
-    '李同学',
-    '2026-08-25 22:44:26',
-    '表单管理',
-    '删除表单',
-    '测试应用',
-    '未命名表单',
-    '删除了表单「未命名表单」',
-    '27.46.93.4',
-  ],
-  [
-    '李同学',
-    '2026-08-25 22:44:23',
-    '表单管理',
-    '删除表单',
-    '测试应用',
-    '未命名表单名称',
-    '删除了表单「未命名表单名称」',
-    '27.46.93.4',
-  ],
-  [
-    '李同学',
-    '2026-08-24 23:17:25',
-    '应用权限',
-    '添加普通管理员组',
-    '—',
-    '测试',
-    '添加了普通管理员组「测试」',
-    '183.238.228.138',
-  ],
-  [
-    '李同学',
-    '2026-08-24 12:46:29',
-    '流程管理',
-    '开启流程分析',
-    '简道云示例应用',
-    '采购申请',
-    '开启了表单「采购申请」的流程分析',
-    '27.46.93.3',
-  ],
-  [
-    '李同学',
-    '2026-08-24 07:22:58',
-    '表单管理',
-    '修改表单设计',
-    '简道云示例应用',
-    '订单管理',
-    '修改了表单「订单管理」的表单设计',
-    '183.238.228.138',
-  ],
-  [
-    '李同学',
-    '2026-08-24 07:22:41',
-    '表单管理',
-    '修改表单设计',
-    '简道云示例应用',
-    '订单管理',
-    '修改了表单「订单管理」的表单设计，删除了 1 个字段',
-    '183.238.228.138',
-  ],
-  [
-    '李同学',
-    '2026-08-23 23:46:19',
-    '应用权限',
-    '开启应用管理组',
-    '—',
-    '测试',
-    '开启了应用管理组',
-    '27.46.93.4',
-  ],
-  [
-    '李同学',
-    '2026-08-23 13:12:50',
-    '表单管理',
-    '修改表单设计',
-    'IT项目管理',
-    '1.1 项目档案',
-    '修改了表单「1.1 项目档案」的表单设计，删除了 2 个字段',
-    '183.238.228.138',
-  ],
-  [
-    '李同学',
-    '2026-08-23 10:37:13',
-    '表单管理',
-    '创建表单',
-    '测试应用',
-    '未命名表单',
-    '创建了表单「未命名表单」',
-    '183.238.228.139',
-  ],
-  [
-    '李同学',
-    '2026-08-23 10:33:32',
-    '表单管理',
-    '创建表单',
-    '测试应用',
-    '未命名表单',
-    '创建了表单「未命名表单」',
-    '183.238.228.138',
-  ],
-  [
-    '李同学',
-    '2026-08-23 10:13:51',
-    '表单管理',
-    '修改表单名称',
-    '测试应用',
-    '未命名的',
-    '将表单「未命名的」重命名为「未命名表单」',
-    '183.238.228.138',
-  ],
-  [
-    '李同学',
-    '2026-08-23 09:51:25',
-    '应用权限',
-    '调整表单权限',
-    '测试应用',
-    '未命名的',
-    '修改了权限组「添加并管理本人数据」的成员范围',
-    '27.46.93.3',
-  ],
-  [
-    '李同学',
-    '2026-08-23 09:46:03',
-    '表单管理',
-    '创建表单',
-    '测试应用',
-    '未命名表单',
-    '创建了表单「未命名表单」',
-    '183.238.228.138',
-  ],
-  [
-    '王同学',
-    '2026-08-22 16:20:18',
-    '应用管理',
-    '修改应用名称',
-    '销售管理',
-    '销售管理',
-    '将应用「销售管理」重命名为「销售管理」',
-    '119.123.31.10',
-  ],
-].map(
-  ([operator, operatedAt, category, operationType, application, target, detail, ip], index) => ({
-    id: index + 1,
-    operator,
-    operatedAt,
-    category,
-    operationType,
-    application,
-    target,
-    detail,
-    ip,
-  }),
-);
+/** 操作类型清单：选中日志范围时收敛到该范围事件，未选时展示全部 */
+const eventOptions = computed(() => {
+  if (!filters.categoryCode) {
+    return categoryOptions.value.flatMap((category) => category.events);
+  }
+  return (
+    categoryOptions.value.find((category) => category.code === filters.categoryCode)?.events ?? []
+  );
+});
 
 const filters = reactive<ProductLogFilters>({
-  category: 'all',
-  operationType: '',
-  operator: '',
+  categoryCode: '',
+  eventCode: '',
+  memberId: undefined,
   startDate: '',
   endDate: '',
   applicationOrTarget: '',
 });
-const appliedFilters = shallowRef<ProductLogFilters>({ ...filters });
+/** 已生效筛选快照（查询按钮触发刷新；翻页沿用） */
+const appliedFilters = shallowRef<ProductLogFilterQuery>({});
 const currentPage = shallowRef(1);
+const total = shallowRef(0);
+const pageRecords = shallowRef<ProductLogRecord[]>([]);
 const tableRoot = useTemplateRef<HTMLElement>('tableRoot');
 
 /** VTable 是画布渲染，通过实际级联主题值生成首列文字头像。 */
@@ -235,33 +88,6 @@ const canvasTokens = computed(() => {
     primary: read('--el-color-primary', '#1677ff'),
     text: read('--el-text-color-regular', '#606266'),
   };
-});
-
-const filteredRecords = computed(() => {
-  const query = appliedFilters.value;
-  const keyword = query.applicationOrTarget.trim();
-  const operator = query.operator.trim();
-  return records.filter((record) => {
-    const date = record.operatedAt.slice(0, 10);
-    const matchesKeyword =
-      !keyword ||
-      record.application.includes(keyword) ||
-      record.target.includes(keyword) ||
-      record.detail.includes(keyword);
-    return (
-      (query.category === 'all' || record.category === query.category) &&
-      (!query.operationType || record.operationType === query.operationType) &&
-      (!operator || record.operator.includes(operator)) &&
-      (!query.startDate || date >= query.startDate) &&
-      (!query.endDate || date <= query.endDate) &&
-      matchesKeyword
-    );
-  });
-});
-
-const pageRecords = computed(() => {
-  const start = (currentPage.value - 1) * PAGE_SIZE;
-  return filteredRecords.value.slice(start, start + PAGE_SIZE);
 });
 
 /** VTable 的第 0 行是表头，富单元格行号须换算为当前页记录下标。 */
@@ -324,37 +150,113 @@ const columns = computed<EvolynTableColumn[]>(() => {
 
 const tableOptions = { defaultHeaderRowHeight: 42, defaultRowHeight: ROW_HEIGHT };
 
+/** 应用/对象选择值 → 查询参数：命中应用名走应用 ID 精确过滤，自由输入按关键词匹配 */
+function resolveApplicationOrTarget(
+  value: string,
+): Pick<ProductLogFilterQuery, 'applicationId' | 'keyword'> {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return {};
+  }
+  const matched = applicationOptions.value.find((application) => application.name === trimmed);
+  return matched ? { applicationId: matched.applicationId } : { keyword: trimmed };
+}
+
+/** 筛选草稿 → 查询参数（日期闭区间直传，服务端换算半开区间） */
+function buildQuery(): ProductLogFilterQuery {
+  return {
+    categoryCode: filters.categoryCode || undefined,
+    eventCode: filters.eventCode || undefined,
+    memberId: filters.memberId,
+    startAt: filters.startDate || undefined,
+    endAt: filters.endDate || undefined,
+    ...resolveApplicationOrTarget(filters.applicationOrTarget),
+  };
+}
+
+/** 拉取当前页数据（查询与翻页共用；失败保持原列表并提示） */
+async function fetchPage() {
+  try {
+    const page = await listProductLogs({
+      ...appliedFilters.value,
+      page: currentPage.value,
+      pageSize: PAGE_SIZE,
+    });
+    pageRecords.value = page.items.map((item, index) => ({
+      id: (currentPage.value - 1) * PAGE_SIZE + index + 1,
+      operator: item.actorName,
+      operatedAt: item.operatedAt,
+      category: item.categoryName,
+      operationType: item.eventName,
+      application: item.applicationName || '—',
+      target: item.targetName || '—',
+      detail: item.summary,
+      ip: item.ip,
+    }));
+    total.value = page.total;
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '产品日志查询失败');
+  }
+}
+
 function queryLogs() {
   if (filters.startDate && filters.endDate && filters.startDate > filters.endDate) {
     ElMessage.warning('开始日期不能晚于结束日期');
     return;
   }
-  appliedFilters.value = { ...filters };
-  currentPage.value = 1;
+  appliedFilters.value = buildQuery();
+  // 已在第 1 页时页码不变、watch 不触发，需显式拉取；否则翻回第 1 页由 watch 拉取
+  if (currentPage.value === 1) {
+    void fetchPage();
+  } else {
+    currentPage.value = 1;
+  }
 }
 
-function exportLogs() {
-  const header = ['操作人', '操作时间', '操作类型', '所属应用', '操作对象', '操作详情', 'IP'];
-  const rows = filteredRecords.value.map((record) => [
-    record.operator,
-    record.operatedAt,
-    record.operationType,
-    record.application,
-    record.target,
-    record.detail,
-    record.ip,
-  ]);
-  const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
-  const csv = [header, ...rows].map((row) => row.map(escape).join(',')).join('\n');
-  const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = '产品日志.csv';
-  anchor.click();
-  URL.revokeObjectURL(url);
-  ElMessage.success(`已导出 ${rows.length} 条产品日志`);
+/** 翻页沿用已生效筛选；日志范围切换时联动清空操作类型草稿，避免失效事件码 */
+watch(currentPage, fetchPage);
+watch(
+  () => filters.categoryCode,
+  () => {
+    filters.eventCode = '';
+  },
+);
+
+/** 导出当前筛选条件下的全部已授权数据（非当前页）：创建任务 → 同步就绪即下载 */
+async function exportLogs() {
+  let task: ProductExportTaskView;
+  try {
+    task = await createProductLogExport(appliedFilters.value);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '产品日志导出失败');
+    return;
+  }
+  try {
+    const blob = await downloadProductLogExport(task.id);
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = task.fileName || '产品日志.csv';
+    anchor.click();
+    URL.revokeObjectURL(url);
+    ElMessage.success(`已导出 ${task.total} 条产品日志`);
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '导出文件下载失败');
+  }
 }
+
+onMounted(async () => {
+  // 首屏并行拉取筛选项与首页数据（筛选失败不阻塞列表）
+  void fetchPage();
+  try {
+    const options = await listProductLogOptions();
+    categoryOptions.value = options.categories;
+    memberOptions.value = options.members;
+    applicationOptions.value = options.applications;
+  } catch {
+    ElMessage.warning('筛选项加载失败，请刷新重试');
+  }
+});
 </script>
 
 <template>
@@ -362,26 +264,39 @@ function exportLogs() {
     <section class="product-logs-page__filters" aria-label="产品日志筛选">
       <label class="product-logs-page__filter">
         <span>日志范围</span>
-        <el-select v-model="filters.category">
+        <el-select v-model="filters.categoryCode">
+          <el-option label="全部" value="" />
           <el-option
             v-for="category in categoryOptions"
-            :key="category"
-            :label="category"
-            :value="category === '全部' ? 'all' : category"
+            :key="category.code"
+            :label="category.name"
+            :value="category.code"
           />
         </el-select>
       </label>
 
       <label class="product-logs-page__filter">
         <span>操作类型</span>
-        <el-select v-model="filters.operationType" clearable placeholder="全部">
-          <el-option v-for="type in operationTypeOptions" :key="type" :label="type" :value="type" />
+        <el-select v-model="filters.eventCode" clearable placeholder="全部">
+          <el-option
+            v-for="event in eventOptions"
+            :key="event.code"
+            :label="event.name"
+            :value="event.code"
+          />
         </el-select>
       </label>
 
       <label class="product-logs-page__filter">
         <span>操作人</span>
-        <el-input v-model="filters.operator" clearable placeholder="请输入操作人" />
+        <el-select v-model="filters.memberId" clearable filterable placeholder="全部">
+          <el-option
+            v-for="member in memberOptions"
+            :key="member.memberId"
+            :label="member.name"
+            :value="member.memberId"
+          />
+        </el-select>
       </label>
 
       <label class="product-logs-page__filter product-logs-page__filter--date">
@@ -411,7 +326,12 @@ function exportLogs() {
           default-first-option
           placeholder="搜索并选择应用/对象"
         >
-          <el-option v-for="item in applicationOptions" :key="item" :label="item" :value="item" />
+          <el-option
+            v-for="application in applicationOptions"
+            :key="application.applicationId"
+            :label="application.name"
+            :value="application.name"
+          />
         </el-select>
       </label>
     </section>
@@ -440,11 +360,11 @@ function exportLogs() {
     </div>
 
     <footer class="product-logs-page__footer">
-      <span>共 {{ filteredRecords.length }} 条</span>
+      <span>共 {{ total }} 条</span>
       <el-pagination
         v-model:current-page="currentPage"
         :page-size="PAGE_SIZE"
-        :total="filteredRecords.length"
+        :total="total"
         layout="prev, pager, next"
       />
     </footer>

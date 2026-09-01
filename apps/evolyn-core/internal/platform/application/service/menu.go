@@ -157,6 +157,9 @@ func (s *menuService) CreateGroup(ctx context.Context, member *iammodel.User, co
 	}
 
 	var created *model.MenuEntry
+	// 应用维度快照（000064）：事务内读取，提交后供审计固化
+	var appID uint
+	var appCode, appName string
 	if s.tx == nil {
 		return nil, errors.New("application menu transaction manager is required")
 	}
@@ -205,6 +208,7 @@ func (s *menuService) CreateGroup(ctx context.Context, member *iammodel.User, co
 		if err != nil {
 			return err
 		}
+		appID, appCode, appName = snap.ApplicationID, snap.ApplicationCode, snap.ApplicationName
 		created, err = s.repo.CreateGroupEntry(tctx, &model.MenuEntry{
 			TenantID:      tenantID,
 			ApplicationID: snap.ApplicationID,
@@ -236,6 +240,10 @@ func (s *menuService) CreateGroup(ctx context.Context, member *iammodel.User, co
 				"parentEntryId":   parentCode,
 				"name":            name,
 			},
+			// 应用维度快照（000064）：菜单操作归属产品日志的菜单配置分类
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	return result, nil
@@ -301,6 +309,9 @@ func (s *menuService) UpdateEntry(ctx context.Context, member *iammodel.User, co
 
 	var updated *model.MenuEntry
 	var newRevision int64
+	// 应用维度快照（000064）：事务内读取，提交后供审计固化
+	var appID uint
+	var appCode, appName string
 	if s.tx == nil {
 		return nil, errors.New("application menu transaction manager is required")
 	}
@@ -369,6 +380,7 @@ func (s *menuService) UpdateEntry(ctx context.Context, member *iammodel.User, co
 		if err := s.repo.UpdateEntryFields(tctx, snap.ApplicationID, entry.ID, fields); err != nil {
 			return err
 		}
+		appID, appCode, appName = snap.ApplicationID, snap.ApplicationCode, snap.ApplicationName
 		updated = entry
 		newRevision = req.BaseMenuRevision + 1
 		return nil
@@ -388,6 +400,10 @@ func (s *menuService) UpdateEntry(ctx context.Context, member *iammodel.User, co
 				"hidden":          req.Hidden,
 				"parentEntryCode": newParentCode,
 			},
+			// 应用维度快照（000064）：菜单操作归属产品日志的菜单配置分类
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	return &model.MenuEntryMutation{EntryID: updated.Code, MenuRevision: newRevision}, nil

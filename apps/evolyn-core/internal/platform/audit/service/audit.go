@@ -85,6 +85,14 @@ func (s *auditService) Record(ctx context.Context, e Entry) {
 	log.EventCode, log.CategoryCode, log.Summary = projectEvent(e, targetName)
 	log.TargetNameSnapshot = truncateRunes(targetName, 256)
 
+	// 产品日志应用维度快照（000064）：应用内操作写时固化，0 视为非应用内操作
+	if e.ApplicationID != 0 {
+		appID := e.ApplicationID
+		log.ApplicationID = &appID
+		log.ApplicationCode = truncateRunes(e.ApplicationCode, 128)
+		log.ApplicationNameSnapshot = truncateRunes(e.ApplicationName, 256)
+	}
+
 	log.ActorNameSnapshot = e.ActorName
 	if log.ActorNameSnapshot == "" && log.MemberID != 0 && s.actorNamer != nil {
 		log.ActorNameSnapshot = truncateRunes(s.actorNamer.MemberDisplayName(ctx, log.MemberID), 128)

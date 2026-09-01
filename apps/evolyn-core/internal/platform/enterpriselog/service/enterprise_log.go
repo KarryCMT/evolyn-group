@@ -127,11 +127,12 @@ func (s *enterpriseLogService) ListOperationLogs(ctx context.Context, tenantID u
 	}
 
 	rows, total, err := s.repo.ListAuditLogs(ctx, repository.AuditLogFilter{
-		TenantID:     tenantID,
-		MemberID:     q.MemberID,
-		CategoryCode: q.CategoryCode,
-		EventCode:    q.EventCode,
-		Range:        rng,
+		TenantID:          tenantID,
+		MemberID:          q.MemberID,
+		CategoryCode:      q.CategoryCode,
+		EventCode:         q.EventCode,
+		Range:             rng,
+		ExcludeCategories: auditservice.ProductCategoryCodes(),
 	}, (page-1)*pageSize, pageSize)
 	if err != nil {
 		return nil, err
@@ -234,6 +235,7 @@ func (s *enterpriseLogService) CreateExport(ctx context.Context, tenantID uint, 
 		_, total, err = s.repo.ListAuditLogs(ctx, repository.AuditLogFilter{
 			TenantID: tenantID, MemberID: req.MemberID,
 			CategoryCode: req.CategoryCode, EventCode: req.EventCode, Range: rng,
+			ExcludeCategories: auditservice.ProductCategoryCodes(),
 		}, 0, 1)
 	}
 	if err != nil {
@@ -271,6 +273,7 @@ func (s *enterpriseLogService) CreateExport(ctx context.Context, tenantID uint, 
 	}, repository.AuditLogFilter{
 		TenantID: tenantID, MemberID: req.MemberID,
 		CategoryCode: req.CategoryCode, EventCode: req.EventCode, Range: rng,
+		ExcludeCategories: auditservice.ProductCategoryCodes(),
 	}, int(total))
 	if err != nil {
 		task.Status = model.ExportStatusFailed

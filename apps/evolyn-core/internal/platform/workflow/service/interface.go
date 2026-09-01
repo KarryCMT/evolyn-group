@@ -16,6 +16,23 @@ type AccessEvaluator interface {
 	Permissions(ctx context.Context, member *iammodel.User) map[string]bool
 }
 
+// ApplicationDirectory 应用目录窄端口（000064 产品日志）：流程定义经
+// form_code 绑定表单，再由表单归属应用；装配层以 form+application 仓储
+// 适配，workflow 域不直接依赖 form/application 域
+type ApplicationDirectory interface {
+	// ApplicationByFormCode 按表单编码解析所属应用视图（ctx 租户过滤：
+	// 跨租户/不存在即 notFound）
+	ApplicationByFormCode(ctx context.Context, formCode string) (app ApplicationView, notFound bool, err error)
+}
+
+// ApplicationView 应用只读视图（workflow 域关心的最小字段）：审计事件的
+// 应用维度快照源
+type ApplicationView struct {
+	ID   uint
+	Code string
+	Name string
+}
+
 // DefinitionService 流程定义域服务接口。
 type DefinitionService interface {
 	// Create 创建流程定义（草稿初始化为最小合法 DSL：start → end）

@@ -34,6 +34,9 @@ type AuditLogFilter struct {
 	CategoryCode string
 	EventCode    string
 	Range        LogTimeRange
+	// ExcludeCategories 排除的日志范围码（产品日志/企业日志查询范围互斥：
+	// 企业日志排除产品分类，见 audit/service.ProductCategoryCodes）
+	ExcludeCategories []string
 }
 
 // Repository 企业日志域仓储

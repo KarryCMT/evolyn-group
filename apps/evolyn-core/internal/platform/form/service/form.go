@@ -194,6 +194,7 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 	}
 
 	if s.audit != nil {
+		appID, appCode, appName := s.appSnapshot(ctx, created.ApplicationID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "create", ResourceType: "form",
 			ResourceID: created.Code,
@@ -201,6 +202,10 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 				"name": created.Name, "formType": created.FormType,
 				"applicationId": created.ApplicationID,
 			},
+			TargetName:      created.Name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	return detailOf(created), nil
@@ -370,11 +375,16 @@ func (s *formService) Update(ctx context.Context, member *iammodel.User, code st
 		return nil, err
 	}
 	if s.audit != nil && len(auditAfter) > 0 {
+		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "update", ResourceType: "form",
-			ResourceID: form.Code,
-			Before:     auditBefore,
-			After:      auditAfter,
+			ResourceID:      form.Code,
+			Before:          auditBefore,
+			After:           auditAfter,
+			TargetName:      form.Name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	updated, err := s.loadByCode(ctx, code)
@@ -425,11 +435,16 @@ func (s *formService) SwitchType(ctx context.Context, member *iammodel.User, cod
 		return nil, err
 	}
 	if s.audit != nil {
+		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "switch-type", ResourceType: "form",
-			ResourceID: form.Code,
-			Before:     map[string]any{"formType": before},
-			After:      map[string]any{"formType": req.FormType},
+			ResourceID:      form.Code,
+			Before:          map[string]any{"formType": before},
+			After:           map[string]any{"formType": req.FormType},
+			TargetName:      form.Name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	updated, err := s.loadByCode(ctx, code)
@@ -519,6 +534,10 @@ func (s *formService) Copy(ctx context.Context, member *iammodel.User, code stri
 				"targetApplication": targetAppID,
 				"formType":          created.FormType,
 			},
+			TargetName:      created.Name,
+			ApplicationID:   targetApp.ID,
+			ApplicationCode: targetApp.Code,
+			ApplicationName: targetApp.Name,
 		})
 	}
 	return detailOf(created), nil
@@ -563,10 +582,15 @@ func (s *formService) Delete(ctx context.Context, member *iammodel.User, code st
 		return err
 	}
 	if s.audit != nil {
+		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "delete", ResourceType: "form",
-			ResourceID: form.Code,
-			After:      map[string]any{"name": form.Name},
+			ResourceID:      form.Code,
+			After:           map[string]any{"name": form.Name},
+			TargetName:      form.Name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	return nil
@@ -608,10 +632,15 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 			fmt.Errorf("form %s draft revision %d stale", code, req.DraftRevision))
 	}
 	if s.audit != nil {
+		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "update-draft", ResourceType: "form",
-			ResourceID: form.Code,
-			After:      map[string]any{"draftRevision": req.DraftRevision + 1},
+			ResourceID:      form.Code,
+			After:           map[string]any{"draftRevision": req.DraftRevision + 1},
+			TargetName:      form.Name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	return &model.SaveDraftResult{DraftRevision: req.DraftRevision + 1}, nil
@@ -621,6 +650,20 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 
 // loadByCode 按稳定公开编码加载：跨租户表现为 NotFound（租户 Callback 过滤）；仅「确实无此行」
 // 包装 FORM_NOT_FOUND，基础设施错误原样上抛。
+// appSnapshot 解析表单所属应用的审计快照三元组（000064 产品日志）：
+// 应用目录未注入/应用不存在时返回零值，审计照常落库（产品日志按空应用
+// 展示「—」），不因快照解析失败阻断业务
+func (s *formService) appSnapshot(ctx context.Context, applicationID uint) (id uint, code, name string) {
+	if s.apps == nil || applicationID == 0 {
+		return 0, "", ""
+	}
+	app, notFound, err := s.apps.ApplicationByID(ctx, applicationID)
+	if err != nil || notFound {
+		return 0, "", ""
+	}
+	return app.ID, app.Code, app.Name
+}
+
 func (s *formService) loadByCode(ctx context.Context, code string) (*model.Form, error) {
 	form, err := s.repo.GetByCode(ctx, code)
 	if err != nil {

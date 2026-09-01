@@ -12,7 +12,7 @@
         chosen-class="form-schema-palette__chosen"
         fallback-class="form-schema-palette__fallback"
         :data-enabled="group.enabled"
-        :move="(event) => canDrag(group, event)"
+        :move="createMoveGuard(group)"
       >
         <template #item="{ element }">
           <button
@@ -74,6 +74,14 @@ function canDrag(
 ): boolean {
   const entry = event.draggedContext?.element;
   return Boolean(entry && entryEnabled(group, entry));
+}
+
+/**
+ * vuedraggable 将 move 声明为宽泛的 Function，模板内联回调会丢失事件参数类型。
+ * 在脚本侧封装守卫，既保留分组上下文，也让拖拽事件具备明确的最小类型契约。
+ */
+function createMoveGuard(group: FormSchemaPaletteGroup) {
+  return (event: Parameters<typeof canDrag>[1]): boolean => canDrag(group, event);
 }
 </script>
 

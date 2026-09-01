@@ -120,6 +120,12 @@ const (
 	// 导出任务创建（enterprise-logs:export 语义）。该资源不接受管理组间接
 	// 放行——如需委派应增加细粒度数据范围设计，而非复用管理组全量范围。
 	EnterpriseLogResource = "enterprise-logs"
+	// ProductLogResource 与 /product-logs 路由保持一致，代表产品日志
+	//（应用内操作流水的只读查询与导出，000064）权限：view 覆盖列表/筛选
+	// 项/任务状态查询，create 覆盖导出任务创建与下载复核
+	//（product-logs:export 语义）。初始仅授予租户管理员，不接受管理组
+	// 间接放行——委派须另行设计应用范围/数据范围，不默认放开所有应用日志。
+	ProductLogResource = "product-logs"
 	// FormResource 与 /forms 路由保持一致，代表表单资产的设计与管理权限
 	//（创建/列表/详情/改名/草稿/发布/删除，ADR-010）。发布复用 create 动词。
 	FormResource = "forms"

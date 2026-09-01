@@ -367,6 +367,9 @@ CREATE TABLE IF NOT EXISTS tn_audit_logs (
     actor_name_snapshot varchar(128) NOT NULL DEFAULT '',
     target_name_snapshot varchar(256) NOT NULL DEFAULT '',
     summary varchar(1000) NOT NULL DEFAULT '',
+    application_id BIGINT NULL,
+    application_code varchar(128) NOT NULL DEFAULT '',
+    application_name_snapshot varchar(256) NOT NULL DEFAULT '',
     created_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP
 );
 
@@ -376,6 +379,7 @@ CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_resource ON tn_audit_logs (resource
 CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_tenant_created ON tn_audit_logs (tenant_id, created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_tenant_category_created ON tn_audit_logs (tenant_id, category_code, created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_tenant_member_created ON tn_audit_logs (tenant_id, member_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_tenant_application_created ON tn_audit_logs (tenant_id, application_id, created_at DESC, id DESC);
 
 -- 登录日志（000013）：会话建立事件流水，账号维度追加写；与 tn_audit_logs 职责互斥
 CREATE TABLE IF NOT EXISTS pf_login_logs (
@@ -415,6 +419,24 @@ CREATE TABLE IF NOT EXISTS tn_enterprise_log_exports (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tn_enterprise_log_exports_tenant ON tn_enterprise_log_exports (tenant_id, id DESC);
+
+-- 产品日志导出任务（000064）：一期同步生成、内容内联存储，异步导出与对象
+-- 存储文件引用随留存策略批次接入
+CREATE TABLE IF NOT EXISTS tn_product_log_exports (
+    id BIGSERIAL PRIMARY KEY NOT NULL,
+    tenant_id BIGINT NOT NULL,
+    account_id BIGINT NOT NULL DEFAULT 0,
+    member_id BIGINT NOT NULL DEFAULT 0,
+    filters JSONB NOT NULL DEFAULT '{}'::jsonb,
+    total BIGINT NOT NULL DEFAULT 0,
+    status varchar(16) NOT NULL DEFAULT 'pending',
+    file_name varchar(128) NOT NULL DEFAULT '',
+    file_data TEXT NOT NULL DEFAULT '',
+    expires_at timestamp with time zone,
+    created_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_tn_product_log_exports_tenant ON tn_product_log_exports (tenant_id, id DESC);
 
 -- 应用实例（000014，M2-A）：status 仅 active/archived，删除只写 deleted_at；
 -- provision_status 独立表达实例化进度（M2-A 空白应用同步创建即 ready）
@@ -1021,6 +1043,9 @@ COMMENT ON COLUMN tn_audit_logs.category_code IS '稳定日志范围码：member
 COMMENT ON COLUMN tn_audit_logs.actor_name_snapshot IS '操作人显示名快照（写时固化，成员资料变更不影响历史展示）';
 COMMENT ON COLUMN tn_audit_logs.target_name_snapshot IS '目标资源展示名快照（成员/部门/角色/应用等当时名称）';
 COMMENT ON COLUMN tn_audit_logs.summary IS '服务端生成并经脱敏的操作详情，可直接展示与导出；不含密码/验证码/令牌/私钥/完整手机号邮箱等敏感值';
+COMMENT ON COLUMN tn_audit_logs.application_id IS '应用内操作所属应用 ID（产品日志查询与租户归属校验维度）；NULL=非应用内操作或历史数据。应用维度查询必须以前置 tenant_id 为首列，禁止仅凭本列查询';
+COMMENT ON COLUMN tn_audit_logs.application_code IS '应用稳定编码快照（写时固化，应用删除后历史展示不依赖当前应用行）';
+COMMENT ON COLUMN tn_audit_logs.application_name_snapshot IS '应用名称快照（写时固化，应用改名/删除后历史展示一致）';
 COMMENT ON COLUMN tn_audit_logs.created_at IS '记录发生时间，默认当前时间';
 
 COMMENT ON TABLE pf_login_logs IS '登录日志：会话建立事件流水（登录/注册即登录），账号维度自查（ADR-006 平台级）；与 tn_audit_logs 职责互斥，登录不写业务审计';
@@ -1050,6 +1075,19 @@ COMMENT ON COLUMN tn_enterprise_log_exports.file_name IS '导出文件名（下�
 COMMENT ON COLUMN tn_enterprise_log_exports.file_data IS '导出文件内容（一期 CSV 内联存储；异步批改对象存储文件引用后本列退化为空串）';
 COMMENT ON COLUMN tn_enterprise_log_exports.expires_at IS '导出文件过期时间，过期后不可下载';
 COMMENT ON COLUMN tn_enterprise_log_exports.created_at IS '任务创建时间';
+
+COMMENT ON TABLE tn_product_log_exports IS '产品日志导出任务（000064）：固化提交时的筛选条件/申请人/租户/数据量/状态与过期时间；一期同步生成、内容内联存储，异步导出与对象存储文件引用随留存策略批次接入';
+COMMENT ON COLUMN tn_product_log_exports.id IS '自增主键';
+COMMENT ON COLUMN tn_product_log_exports.tenant_id IS '所属租户；任务状态读取与下载均复核归属，跨租户不可见';
+COMMENT ON COLUMN tn_product_log_exports.account_id IS '申请人平台账号 ID';
+COMMENT ON COLUMN tn_product_log_exports.member_id IS '申请人租户成员 ID，0=未解析到成员';
+COMMENT ON COLUMN tn_product_log_exports.filters IS '提交时固化的筛选条件快照 JSONB（成员/日志范围/事件码/应用/关键词/时间范围），与列表查询参数同构';
+COMMENT ON COLUMN tn_product_log_exports.total IS '导出数据量（行数）';
+COMMENT ON COLUMN tn_product_log_exports.status IS '任务状态：pending 生成中 / ready 就绪 / failed 生成失败';
+COMMENT ON COLUMN tn_product_log_exports.file_name IS '导出文件名（下载 Content-Disposition 用）';
+COMMENT ON COLUMN tn_product_log_exports.file_data IS '导出文件内容（一期 CSV 内联存储；异步批改对象存储文件引用后本列退化为空串）';
+COMMENT ON COLUMN tn_product_log_exports.expires_at IS '导出文件过期时间，过期后不可下载';
+COMMENT ON COLUMN tn_product_log_exports.created_at IS '任务创建时间';
 
 COMMENT ON TABLE tn_applications IS '应用实例（租户内一级资源，M2-A）：空白/模板安装创建的低代码应用；owner/creator 引用租户成员，删除只写 deleted_at（状态列不设 deleted）';
 COMMENT ON COLUMN tn_applications.id IS '自增主键';
@@ -1919,6 +1957,22 @@ WHERE deleted_at IS NULL
   AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'tn_roles' AND rule->>'operation' = '*')
   AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'tn_departments' AND rule->>'operation' = '*')
   AND NOT EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'enterprise-logs');
+
+-- 产品日志（000064）：基线管理员按签名补授 product-logs 资源
+--（view 覆盖查询、create 覆盖导出任务创建，与迁移 000064 同口径）
+UPDATE tn_roles
+SET rules = (
+    rules::jsonb || jsonb_build_array(
+        jsonb_build_object('resource', 'product-logs', 'operation', 'view'),
+        jsonb_build_object('resource', 'product-logs', 'operation', 'create')
+    )
+)::json
+WHERE deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*')
+  AND NOT EXISTS (SELECT 1 FROM json_array_elements(rules) AS rule WHERE rule->>'resource' = 'product-logs');
 
 -- 表单资产（000037，ADR-010）：基线管理员按签名补授 tn_forms 资源（全量管理；
 -- 发布复用 create 动词，一期不拆独立发布权）

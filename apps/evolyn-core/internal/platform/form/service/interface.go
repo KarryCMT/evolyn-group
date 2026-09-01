@@ -41,9 +41,12 @@ type ApplicationDirectory interface {
 }
 
 // ApplicationView 应用只读视图（form 域关心的最小字段）。
+// Code/Name 供审计事件的应用维度快照固化（000064 产品日志）。
 type ApplicationView struct {
 	ID     uint
 	Status string
+	Code   string
+	Name   string
 }
 
 // FormReference 引用视图条目（ADR-011「查看引用视图」）：表单被哪个应用

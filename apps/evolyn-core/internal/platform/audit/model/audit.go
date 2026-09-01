@@ -27,12 +27,17 @@ type AuditLog struct {
 	// 企业日志展示投影（000036）：事件码/分类由审计服务按事件注册表生成，
 	// 快照与摘要写时固化；存量历史行为空串，展示降级为「历史操作记录」。
 	// before/after 仍是受控内部审计快照，不直接出网
-	EventCode          string          `json:"eventCode" gorm:"size:100;not null;default:''"`          // 稳定事件码：模块.资源类型.动作
-	CategoryCode       string          `json:"categoryCode" gorm:"size:64;not null;default:''"`        // 稳定日志范围码（见 service 分类常量）
-	ActorNameSnapshot  string          `json:"actorNameSnapshot" gorm:"size:128;not null;default:''"`  // 操作人显示名快照
-	TargetNameSnapshot string          `json:"targetNameSnapshot" gorm:"size:256;not null;default:''"` // 目标资源展示名快照
-	Summary            string          `json:"summary" gorm:"size:1000;not null;default:''"`           // 服务端生成且脱敏的操作详情
-	CreatedAt          kernel.JSONTime `json:"createdAt"`
+	EventCode          string `json:"eventCode" gorm:"size:100;not null;default:''"`          // 稳定事件码：模块.资源类型.动作
+	CategoryCode       string `json:"categoryCode" gorm:"size:64;not null;default:''"`        // 稳定日志范围码（见 service 分类常量）
+	ActorNameSnapshot  string `json:"actorNameSnapshot" gorm:"size:128;not null;default:''"`  // 操作人显示名快照
+	TargetNameSnapshot string `json:"targetNameSnapshot" gorm:"size:256;not null;default:''"` // 目标资源展示名快照
+	Summary            string `json:"summary" gorm:"size:1000;not null;default:''"`           // 服务端生成且脱敏的操作详情
+	// 产品日志应用维度投影（000064）：应用内操作写时固化应用标识与名称快照，
+	// 应用删除/改名后历史展示不失真；非应用内操作为 NULL/空串
+	ApplicationID           *uint           `json:"applicationId" gorm:"index"`
+	ApplicationCode         string          `json:"applicationCode" gorm:"size:128;not null;default:''"`         // 应用稳定编码快照
+	ApplicationNameSnapshot string          `json:"applicationNameSnapshot" gorm:"size:256;not null;default:''"` // 应用名称快照
+	CreatedAt               kernel.JSONTime `json:"createdAt"`
 }
 
 func (*AuditLog) TableName() string {

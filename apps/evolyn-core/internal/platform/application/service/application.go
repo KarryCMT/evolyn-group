@@ -125,12 +125,16 @@ func (s *applicationService) CreateBlank(ctx context.Context, member *iammodel.U
 		return nil, err
 	}
 
-	// 审计在事务提交成功后独立写入（best-effort，失败不回滚已建应用）
+	// 审计在事务提交成功后独立写入（best-effort，失败不回滚已建应用）；
+	// 应用维度快照（000064）随事件固化，产品日志按所属应用展示/筛选
 	if s.audit != nil {
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "application", Action: "create", ResourceType: "application",
-			ResourceID: strconv.FormatUint(uint64(app.ID), 10),
-			After:      map[string]any{"name": app.Name, "source": app.SourceType},
+			ResourceID:      strconv.FormatUint(uint64(app.ID), 10),
+			After:           map[string]any{"name": app.Name, "source": app.SourceType},
+			ApplicationID:   app.ID,
+			ApplicationCode: app.Code,
+			ApplicationName: app.Name,
 		})
 	}
 
@@ -362,6 +366,10 @@ func (s *applicationService) Update(ctx context.Context, member *iammodel.User, 
 			ResourceID: strconv.FormatUint(uint64(app.ID), 10),
 			Before:     before,
 			After:      fields,
+			// 应用维度快照（000064）：改名后历史行仍展示当时名称
+			ApplicationID:   app.ID,
+			ApplicationCode: app.Code,
+			ApplicationName: app.Name,
 		})
 	}
 
@@ -406,6 +414,10 @@ func (s *applicationService) Delete(ctx context.Context, member *iammodel.User, 
 			Module: "application", Action: "delete", ResourceType: "application",
 			ResourceID: strconv.FormatUint(uint64(app.ID), 10),
 			After:      map[string]any{"name": app.Name, "source": app.SourceType},
+			// 应用维度快照（000064）：应用删除后产品日志仍按快照展示归属
+			ApplicationID:   app.ID,
+			ApplicationCode: app.Code,
+			ApplicationName: app.Name,
 		})
 	}
 	return nil

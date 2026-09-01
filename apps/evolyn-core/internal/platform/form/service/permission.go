@@ -72,6 +72,7 @@ type permissionGroupService struct {
 	audit     auditservice.Recorder
 	access    AccessEvaluator
 	directory PermissionSubjectDirectory
+	apps      ApplicationDirectory // 应用目录窄端口（000064：审计应用维度快照；nil=跳过）
 }
 
 // NewPermissionGroupService 构造权限组配置面服务（directory 为主体窄端口，
@@ -84,8 +85,28 @@ func NewPermissionGroupService(
 	audit auditservice.Recorder,
 	access AccessEvaluator,
 	directory PermissionSubjectDirectory,
+	apps ...ApplicationDirectory,
 ) PermissionGroupService {
-	return &permissionGroupService{tx: tx, groups: groups, forms: forms, versions: versions, audit: audit, access: access, directory: directory}
+	svc := &permissionGroupService{tx: tx, groups: groups, forms: forms, versions: versions, audit: audit, access: access, directory: directory}
+	for _, d := range apps {
+		if d != nil {
+			svc.apps = d
+		}
+	}
+	return svc
+}
+
+// appSnapshot 权限组所属表单的应用审计快照（口径同 formService.appSnapshot）：
+// 目录未注入/应用不存在时返回零值，不阻断审计
+func (s *permissionGroupService) appSnapshot(ctx context.Context, applicationID uint) (id uint, code, name string) {
+	if s.apps == nil || applicationID == 0 {
+		return 0, "", ""
+	}
+	app, notFound, err := s.apps.ApplicationByID(ctx, applicationID)
+	if err != nil || notFound {
+		return 0, "", ""
+	}
+	return app.ID, app.Code, app.Name
 }
 
 // ---- 权限组清单 ----
@@ -161,6 +182,7 @@ func (s *permissionGroupService) CreateGroup(
 	}
 
 	if s.audit != nil {
+		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "create", ResourceType: "form_permission_group",
 			ResourceID: group.Code,
@@ -168,6 +190,10 @@ func (s *permissionGroupService) CreateGroup(
 				"formCode": form.Code, "name": group.Name, "enabled": group.Enabled,
 				"operations": group.Operations.String(),
 			},
+			TargetName:      group.Name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	return s.buildView(ctx, group, normalized.subjects), nil
@@ -221,6 +247,7 @@ func (s *permissionGroupService) UpdateGroup(
 	}
 
 	if updated && s.audit != nil {
+		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "update", ResourceType: "form_permission_group",
 			ResourceID: group.Code,
@@ -229,6 +256,10 @@ func (s *permissionGroupService) UpdateGroup(
 				"formCode": form.Code, "name": normalized.name, "enabled": normalized.enabled,
 				"operations": strings.Join(normalized.operations, ","), "revision": req.BaseRevision + 1,
 			},
+			TargetName:      normalized.name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	group.Name = normalized.name
@@ -266,10 +297,15 @@ func (s *permissionGroupService) DeleteGroup(ctx context.Context, member *iammod
 		return err
 	}
 	if s.audit != nil {
+		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "delete", ResourceType: "form_permission_group",
-			ResourceID: group.Code,
-			After:      map[string]any{"formCode": form.Code, "name": group.Name},
+			ResourceID:      group.Code,
+			After:           map[string]any{"formCode": form.Code, "name": group.Name},
+			TargetName:      group.Name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
 		})
 	}
 	return nil

@@ -67,6 +67,10 @@ func applyAuditLogFilter(q *gorm.DB, f AuditLogFilter) *gorm.DB {
 	if f.EventCode != "" {
 		q = q.Where("tn_audit_logs.event_code = ?", f.EventCode)
 	}
+	// 产品分类排除（范围互斥）：企业日志不展示应用内操作流水
+	if len(f.ExcludeCategories) > 0 {
+		q = q.Where("tn_audit_logs.category_code NOT IN ?", f.ExcludeCategories)
+	}
 	if !f.Range.Start.IsZero() {
 		q = q.Where("tn_audit_logs.created_at >= ?", f.Range.Start)
 	}

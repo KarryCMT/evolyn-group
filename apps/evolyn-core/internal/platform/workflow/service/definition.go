@@ -46,20 +46,24 @@ type definitionService struct {
 	versions repository.VersionRepository
 	access   AccessEvaluator
 	audit    auditservice.Recorder
+	// apps 应用目录窄端口（000064：审计应用维度快照）；nil=跳过快照
+	apps ApplicationDirectory
 	// validator 引擎严格校验器（无状态，构造一次复用）；发布前的 Expr
 	// 预编译经 enginedefinition.Compile 独立把关（双保险：校验 + 编译）
 	validator *enginedefinition.Validator
 }
 
-// NewDefinitionService 构造流程定义服务（audit 可为 nil：跳过审计记录，便于单测桩）。
+// NewDefinitionService 构造流程定义服务（audit 可为 nil：跳过审计记录，便于
+// 单测桩；apps 为可选的应用目录窄端口，000064 审计应用维度快照用）。
 func NewDefinitionService(
 	tx TxManager,
 	repo repository.DefinitionRepository,
 	versions repository.VersionRepository,
 	access AccessEvaluator,
 	audit auditservice.Recorder,
+	apps ...ApplicationDirectory,
 ) DefinitionService {
-	return &definitionService{
+	svc := &definitionService{
 		tx:        tx,
 		repo:      repo,
 		versions:  versions,
@@ -67,6 +71,25 @@ func NewDefinitionService(
 		audit:     audit,
 		validator: enginedefinition.NewValidator(nil),
 	}
+	for _, d := range apps {
+		if d != nil {
+			svc.apps = d
+		}
+	}
+	return svc
+}
+
+// appSnapshot 经 form_code 绑定解析定义所属应用的审计快照三元组
+// （000064 产品日志）：未绑定/目录未注入/解析失败返回零值，审计照常落库
+func (s *definitionService) appSnapshot(ctx context.Context, formCode string) (id uint, code, name string) {
+	if s.apps == nil || strings.TrimSpace(formCode) == "" {
+		return 0, "", ""
+	}
+	app, notFound, err := s.apps.ApplicationByFormCode(ctx, formCode)
+	if err != nil || notFound {
+		return 0, "", ""
+	}
+	return app.ID, app.Code, app.Name
 }
 
 // minimalDraft 最小合法 DSL（新定义草稿初值）：start → end，开箱即可发布。
@@ -282,6 +305,20 @@ func (s *definitionService) Update(ctx context.Context, member *iammodel.User, c
 	if err := s.repo.UpdateMeta(ctx, def.ID, name, description); err != nil {
 		return nil, err
 	}
+	// 元数据变更审计（000064 产品日志：流程管理分类）
+	if s.audit != nil {
+		appID, appCode, appName := s.appSnapshot(ctx, def.FormCode)
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "workflow", Action: "update", ResourceType: "workflow",
+			ResourceID:      def.Code,
+			Before:          map[string]any{"name": def.Name, "description": def.Description},
+			After:           map[string]any{"name": name, "description": description},
+			TargetName:      name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
+		})
+	}
 	return s.Get(ctx, member, code)
 }
 
@@ -314,6 +351,20 @@ func (s *definitionService) SaveDraft(ctx context.Context, member *iammodel.User
 	if !saved {
 		return nil, httpx.Wrap(wfapp.ErrRevisionConflict,
 			fmt.Errorf("workflow %s draft revision %d stale", code, req.DraftRevision))
+	}
+	// 草稿保存审计（000064 产品日志：与表单域草稿保存同口径，动作登记为
+	// update-draft——事件码机械生成、展示复用「更新流程」口径、不进筛选项）
+	if s.audit != nil {
+		appID, appCode, appName := s.appSnapshot(ctx, def.FormCode)
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "workflow", Action: "update-draft", ResourceType: "workflow",
+			ResourceID:      def.Code,
+			After:           map[string]any{"draftRevision": req.DraftRevision + 1},
+			TargetName:      def.Name,
+			ApplicationID:   appID,
+			ApplicationCode: appCode,
+			ApplicationName: appName,
+		})
 	}
 	return &model.SaveDraftResult{DraftRevision: req.DraftRevision + 1}, nil
 }

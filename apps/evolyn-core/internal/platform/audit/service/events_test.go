@@ -123,13 +123,14 @@ func TestCatalogCategoriesCoversRegisteredEvents(t *testing.T) {
 		byCode[c.Code] = c
 	}
 
-	// 设计文档点名的核心分类齐备
+	// 设计文档点名的核心分类齐备（企业日志目录不含产品分类）
 	for _, code := range []string{
 		CategoryMemberManagement, CategoryOrganization, CategoryRolePermission,
-		CategoryTenantSettings, CategoryApplication,
+		CategoryTenantSettings, CategoryLogExport,
 	} {
 		assert.Contains(t, byCode, code)
 	}
+	assert.NotContains(t, byCode, CategoryProductApplication, "应用管理归属产品日志目录")
 
 	member := byCode[CategoryMemberManagement]
 	found := false
