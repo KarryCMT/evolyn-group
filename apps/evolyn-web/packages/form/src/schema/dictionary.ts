@@ -196,7 +196,18 @@ export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
       direction: { kind: 'enum', values: ['horizontal', 'vertical'] },
       borderStyle: {
         kind: 'enum',
-        values: ['none', 'hidden', 'dotted', 'dashed', 'solid', 'double', 'groove', 'ridge', 'inset', 'outset'],
+        values: [
+          'none',
+          'hidden',
+          'dotted',
+          'dashed',
+          'solid',
+          'double',
+          'groove',
+          'ridge',
+          'inset',
+          'outset',
+        ],
       },
       contentPosition: { kind: 'enum', values: ['left', 'center', 'right'] },
       // v4 历史草稿兼容：新建与编辑面板只写 borderStyle。

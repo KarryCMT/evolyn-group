@@ -1,173 +1,169 @@
 <script setup lang="ts">
-import { RiSearch2Fill } from '@remixicon/vue';
-import { computed, ref, watch } from 'vue';
-import type { WorkflowField, WorkflowFieldPermission, WorkflowNode } from '../schema';
+import { RiDeleteBin6Fill } from '@remixicon/vue';
+import { ElButton, ElInput, ElScrollbar, ElTag } from 'element-plus';
+import { computed } from 'vue';
+import type {
+  WorkflowActorOptions,
+  WorkflowDocument,
+  WorkflowEdge,
+  WorkflowField,
+  WorkflowNode,
+} from '../schema';
+import WorkflowApprovalPanel from './panels/WorkflowApprovalPanel.vue';
+import WorkflowCcPanel from './panels/WorkflowCcPanel.vue';
+import WorkflowConditionPanel from './panels/WorkflowConditionPanel.vue';
+import WorkflowEdgePanel from './panels/WorkflowEdgePanel.vue';
+import WorkflowServicePanel from './panels/WorkflowServicePanel.vue';
 
+/**
+ * 属性面板壳：按选中对象（节点/连线）分发到对应配置面板。
+ * 面板只发语义化补丁事件，文档变更统一由 WorkflowDesigner 落到 DSL。
+ */
 defineOptions({ name: 'WorkflowInspector' });
 
 const props = defineProps<{
+  document: WorkflowDocument;
+  selectedNode: WorkflowNode | null;
+  selectedEdge: WorkflowEdge | null;
   fields: readonly WorkflowField[];
-  node: WorkflowNode | null;
+  actorOptions: WorkflowActorOptions | undefined;
+  readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
-  updateNode: [nodeId: string, patch: Partial<WorkflowNode>];
+  updateNodeName: [nodeKey: string, name: string];
+  updateNodeConfig: [nodeKey: string, config: WorkflowNode['config']];
+  updateEdgeCondition: [edgeKey: string, expression: string | null];
+  removeNode: [nodeKey: string];
+  removeEdge: [edgeKey: string];
 }>();
 
-type InspectorTab = 'node' | 'workflow';
-type NodeTab = 'permissions' | 'actions' | 'rules';
+const TYPE_TAG_LABELS: Record<string, string> = {
+  start: '发起节点',
+  approval: '审批节点',
+  condition: '条件分支',
+  cc: '抄送节点',
+  service: '服务调用',
+  parallel: '并行网关',
+  end: '结束节点',
+};
 
-const activeTab = ref<InspectorTab>('node');
-const activeNodeTab = ref<NodeTab>('permissions');
-const keyword = ref('');
-const filteredFields = computed(() => {
-  const normalized = keyword.value.trim().toLocaleLowerCase();
-  if (!normalized) return props.fields;
-  return props.fields.filter((field) => field.label.toLocaleLowerCase().includes(normalized));
-});
-
-watch(
-  () => props.node?.id,
-  () => {
-    activeTab.value = 'node';
-    activeNodeTab.value = 'permissions';
-    keyword.value = '';
-  },
+const typeTag = computed(() =>
+  props.selectedNode ? (TYPE_TAG_LABELS[props.selectedNode.type] ?? '节点') : '',
 );
 
-function updateName(name: string) {
-  if (!props.node || !name.trim()) return;
-  emit('updateNode', props.node.id, { name: name.trim() });
+/** 名称直接回写 DSL 节点（start 名称用于发起语义展示，同样可改） */
+const editableName = computed(() => props.selectedNode !== null);
+
+function submitName(value: string) {
+  if (!props.selectedNode) return;
+  const trimmed = value.trim();
+  if (trimmed) emit('updateNodeName', props.selectedNode.key, trimmed);
 }
 
-function updatePermission(fieldId: string, key: keyof WorkflowFieldPermission, checked: boolean) {
-  if (!props.node) return;
-  const current = props.node.fieldPermissions[fieldId] ?? defaultPermission();
-  emit('updateNode', props.node.id, {
-    fieldPermissions: {
-      ...props.node.fieldPermissions,
-      [fieldId]: { ...current, [key]: checked },
-    },
-  });
-}
-
-function defaultPermission(): WorkflowFieldPermission {
-  return { visible: true, editable: true, confidential: false };
+/** 条件表达式统一出口：null = 默认分支（清空 condition），字符串 = 条件分支 */
+function applyCondition(edgeKey: string, expression: string | null) {
+  emit(
+    'updateEdgeCondition',
+    edgeKey,
+    expression !== null && expression.trim() === '' ? '' : expression,
+  );
 }
 </script>
 
 <template>
   <aside class="workflow-inspector" aria-label="流程属性">
-    <nav class="workflow-inspector__tabs" aria-label="流程属性标签">
-      <button
-        class="workflow-inspector__tab"
-        :class="{ 'workflow-inspector__tab--active': activeTab === 'node' }"
-        type="button"
-        @click="activeTab = 'node'"
-      >
-        节点属性
-      </button>
-      <button
-        class="workflow-inspector__tab"
-        :class="{ 'workflow-inspector__tab--active': activeTab === 'workflow' }"
-        type="button"
-        @click="activeTab = 'workflow'"
-      >
-        流程属性
-      </button>
-    </nav>
-
-    <div v-if="activeTab === 'workflow'" class="workflow-inspector__empty-state">
-      流程全局属性将在版本、通知和限时规则接入后提供。
-    </div>
-
-    <template v-else-if="node">
-      <div class="workflow-inspector__node-header">
-        <label class="workflow-inspector__name-label" for="workflow-node-name">节点名称</label>
-        <span class="workflow-inspector__node-id">节点 ID：{{ node.id }}</span>
-        <input
-          id="workflow-node-name"
-          class="workflow-inspector__name-input"
-          :value="node.name"
-          @change="updateName(($event.target as HTMLInputElement).value)"
-        />
-      </div>
-
-      <nav class="workflow-inspector__node-tabs" aria-label="节点配置标签">
-        <button
-          v-for="tab in [
-            { key: 'permissions', label: '字段权限' },
-            { key: 'actions', label: '节点操作' },
-            { key: 'rules', label: '流转规则' },
-          ]"
-          :key="tab.key"
-          class="workflow-inspector__node-tab"
-          :class="{ 'workflow-inspector__node-tab--active': activeNodeTab === tab.key }"
-          type="button"
-          @click="activeNodeTab = tab.key as NodeTab"
-        >
-          {{ tab.label }}
-        </button>
-      </nav>
-
-      <template v-if="activeNodeTab === 'permissions'">
-        <label class="workflow-inspector__search">
-          <RiSearch2Fill />
-          <input v-model="keyword" type="search" placeholder="搜索字段" />
-        </label>
-        <div class="workflow-inspector__permission-header">
-          <span>字段</span>
-          <span>可见</span>
-          <span>可编辑</span>
-          <span>简报</span>
-        </div>
-        <div class="workflow-inspector__permission-list">
-          <div
-            v-for="field in filteredFields"
-            :key="field.id"
-            class="workflow-inspector__permission-row"
+    <ElScrollbar class="workflow-inspector__scroll">
+      <template v-if="selectedNode">
+        <div class="workflow-inspector__header">
+          <ElTag class="workflow-inspector__type" size="small" effect="light">{{ typeTag }}</ElTag>
+          <ElButton
+            v-if="!readonly && selectedNode.type !== 'start'"
+            type="danger"
+            text
+            size="small"
+            :icon="RiDeleteBin6Fill"
+            @click="emit('removeNode', selectedNode.key)"
           >
-            <span class="workflow-inspector__field-label">{{ field.label }}</span>
-            <input
-              type="checkbox"
-              :checked="node.fieldPermissions[field.id]?.visible ?? true"
-              aria-label="字段可见"
-              @change="
-                updatePermission(field.id, 'visible', ($event.target as HTMLInputElement).checked)
-              "
-            />
-            <input
-              type="checkbox"
-              :checked="node.fieldPermissions[field.id]?.editable ?? true"
-              aria-label="字段可编辑"
-              @change="
-                updatePermission(field.id, 'editable', ($event.target as HTMLInputElement).checked)
-              "
-            />
-            <input
-              type="checkbox"
-              :checked="node.fieldPermissions[field.id]?.confidential ?? false"
-              aria-label="字段简报"
-              @change="
-                updatePermission(
-                  field.id,
-                  'confidential',
-                  ($event.target as HTMLInputElement).checked,
-                )
-              "
-            />
-          </div>
-          <p v-if="!filteredFields.length" class="workflow-inspector__empty-fields">
-            未找到匹配字段
-          </p>
+            删除节点
+          </ElButton>
         </div>
-      </template>
-      <div v-else class="workflow-inspector__empty-state">
-        {{ activeNodeTab === 'actions' ? '节点操作' : '流转规则' }}将在下一阶段接入。
-      </div>
-    </template>
 
-    <div v-else class="workflow-inspector__empty-state">请选择流程节点以设置属性。</div>
+        <div class="workflow-inspector__field">
+          <label class="workflow-inspector__label" :for="`workflow-node-name-${selectedNode.key}`">
+            节点名称
+          </label>
+          <ElInput
+            :id="`workflow-node-name-${selectedNode.key}`"
+            :model-value="selectedNode.name"
+            :disabled="!editableName || readonly"
+            @change="submitName"
+          />
+        </div>
+
+        <WorkflowApprovalPanel
+          v-if="selectedNode.type === 'approval'"
+          :node="selectedNode"
+          :fields="fields"
+          :actor-options="actorOptions"
+          @update-config="
+            (config) => {
+              if (selectedNode) emit('updateNodeConfig', selectedNode.key, config);
+            }
+          "
+        />
+        <WorkflowConditionPanel
+          v-else-if="selectedNode.type === 'condition'"
+          :node="selectedNode"
+          :document="document"
+          @update-edge-condition="applyCondition"
+        />
+        <WorkflowCcPanel
+          v-else-if="selectedNode.type === 'cc'"
+          :node="selectedNode"
+          :fields="fields"
+          :actor-options="actorOptions"
+          @update-config="
+            (config) => {
+              if (selectedNode) emit('updateNodeConfig', selectedNode.key, config);
+            }
+          "
+        />
+        <WorkflowServicePanel
+          v-else-if="selectedNode.type === 'service'"
+          :node="selectedNode"
+          @update-config="
+            (config) => {
+              if (selectedNode) emit('updateNodeConfig', selectedNode.key, config);
+            }
+          "
+        />
+        <p v-else class="workflow-inspector__hint">
+          {{
+            selectedNode.type === 'start'
+              ? '流程入口：实例从该节点发起，配置请在流程设置中调整。'
+              : selectedNode.type === 'parallel'
+                ? '并行网关由 split/join 成对协作，V1 设计器暂不提供并行编排，请通过 DSL 配置。'
+                : '流程终点：到达即实例完成。'
+          }}
+        </p>
+      </template>
+
+      <template v-else-if="selectedEdge">
+        <WorkflowEdgePanel
+          :edge="selectedEdge"
+          :document="document"
+          @update-condition="(expression) => applyCondition(selectedEdge!.key, expression)"
+          @remove-edge="
+            () => {
+              if (selectedEdge) emit('removeEdge', selectedEdge.key);
+            }
+          "
+        />
+      </template>
+
+      <p v-else class="workflow-inspector__hint">请选择流程节点或连线以设置属性。</p>
+    </ElScrollbar>
   </aside>
 </template>
 
@@ -180,212 +176,38 @@ function defaultPermission(): WorkflowFieldPermission {
   background: var(--el-bg-color);
   border-left: 1px solid var(--el-border-color-lighter);
 
-  &__tabs,
-  &__node-tabs {
-    display: flex;
-    align-items: stretch;
-  }
-
-  &__tabs {
-    height: 64px;
-    min-height: 64px;
-    border-bottom: 1px solid var(--el-border-color-lighter);
-  }
-
-  &__tab,
-  &__node-tab {
-    border: 0;
-    cursor: pointer;
-
-    &:focus-visible {
-      outline: 2px solid var(--el-color-primary);
-      outline-offset: -2px;
-    }
-  }
-
-  &__tab {
-    position: relative;
-    flex: 1;
-    color: var(--el-text-color-regular);
-    font-size: 16px;
-    font-weight: 650;
-    background: transparent;
-
-    &:hover {
-      color: var(--el-color-primary);
-      background: var(--el-color-primary-light-9);
-    }
-
-    &--active {
-      color: var(--el-color-primary);
-
-      &::after {
-        position: absolute;
-        right: 20px;
-        bottom: 0;
-        left: 20px;
-        height: 3px;
-        content: '';
-        background: var(--el-color-primary);
-      }
-    }
-  }
-
-  &__node-header {
-    display: grid;
-    padding: 16px;
-    grid-template-columns: 1fr auto;
-    gap: 10px;
-    border-bottom: 1px solid var(--el-border-color-lighter);
-  }
-
-  &__name-label {
-    color: var(--el-text-color-primary);
-    font-size: 14px;
-    font-weight: 650;
-  }
-
-  &__node-id {
-    color: var(--el-text-color-secondary);
-    font-size: 12px;
-  }
-
-  &__name-input {
-    width: 100%;
-    height: 36px;
-    padding: 0 10px;
-    grid-column: 1 / -1;
-    color: var(--el-text-color-primary);
-    background: var(--el-bg-color);
-    border: 1px solid var(--el-border-color);
-    border-radius: var(--el-border-radius-base);
-    outline: none;
-
-    &:focus {
-      border-color: var(--el-color-primary);
-      box-shadow: 0 0 0 2px var(--el-color-primary-light-8);
-    }
-  }
-
-  &__node-tabs {
-    margin: 14px 12px 10px;
-    padding: 3px;
-    background: var(--el-fill-color-light);
-    border-radius: var(--el-border-radius-base);
-  }
-
-  &__node-tab {
-    min-width: 0;
-    height: 32px;
-    padding: 0 7px;
-    flex: 1;
-    color: var(--el-text-color-regular);
-    font-size: 13px;
-    white-space: nowrap;
-    background: transparent;
-    border-radius: calc(var(--el-border-radius-base) - 2px);
-
-    &:hover {
-      color: var(--el-color-primary);
-      background: var(--el-color-primary-light-9);
-    }
-
-    &--active {
-      color: var(--el-color-primary);
-      font-weight: 650;
-      background: var(--el-bg-color);
-      box-shadow: var(--el-box-shadow-lighter);
-    }
-  }
-
-  &__search {
-    display: flex;
-    height: 36px;
-    margin: 0 12px 10px;
-    padding: 0 10px;
-    align-items: center;
-    gap: 8px;
-    color: var(--el-text-color-secondary);
-    background: var(--el-fill-color-light);
-    border-radius: var(--el-border-radius-base);
-
-    svg {
-      width: 16px;
-      height: 16px;
-    }
-
-    input {
-      width: 100%;
-      min-width: 0;
-      color: var(--el-text-color-primary);
-      background: transparent;
-      border: 0;
-      outline: 0;
-    }
-  }
-
-  &__permission-header,
-  &__permission-row {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) 38px 54px 38px;
-    align-items: center;
-    column-gap: 4px;
-  }
-
-  &__permission-header {
-    min-height: 32px;
-    padding: 0 12px;
-    color: var(--el-text-color-regular);
-    font-size: 13px;
-    font-weight: 650;
-    text-align: center;
-
-    span:first-child {
-      text-align: left;
-    }
-  }
-
-  &__permission-list {
+  &__scroll {
     min-height: 0;
-    overflow: auto;
+    flex: 1;
   }
 
-  &__permission-row {
-    min-height: 42px;
-    padding: 0 12px;
+  &__header {
+    display: flex;
+    padding: var(--el-space-md) var(--el-space-md) var(--el-space-xs);
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  &__field {
+    display: flex;
+    padding: 0 var(--el-space-md) var(--el-space-sm);
+    flex-direction: column;
+    gap: var(--el-space-xs);
+    border-bottom: 1px solid var(--el-border-color-lighter);
+    margin-bottom: var(--el-space-sm);
+  }
+
+  &__label {
     color: var(--el-text-color-primary);
     font-size: 14px;
-
-    &:hover {
-      background: var(--el-fill-color-light);
-    }
-
-    input {
-      width: 16px;
-      height: 16px;
-      margin: 0 auto;
-      accent-color: var(--el-color-primary);
-      cursor: pointer;
-    }
+    font-weight: 600;
   }
 
-  &__field-label {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  &__empty-state,
-  &__empty-fields {
-    padding: 28px 20px;
+  &__hint {
+    padding: var(--el-space-lg) var(--el-space-md);
     color: var(--el-text-color-secondary);
     font-size: 14px;
     line-height: 1.8;
-    text-align: center;
-  }
-
-  &__empty-fields {
-    margin: 0;
   }
 }
 </style>

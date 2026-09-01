@@ -22,11 +22,7 @@ const emit = defineEmits<{ renameKey: [key: string] }>();
 <template>
   <section class="form-schema-common-property" aria-label="通用属性">
     <el-form-item label="标题">
-      <el-input
-        v-model="model.label"
-        :maxlength="64"
-        placeholder="请输入标题"
-      />
+      <el-input v-model="model.label" :maxlength="64" placeholder="请输入标题" />
     </el-form-item>
     <el-checkbox
       :model-value="!model.labelHidden"

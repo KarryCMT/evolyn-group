@@ -50,8 +50,8 @@ watch(visible, (isVisible) => {
       class="add-administrator-group-dialog__input"
       placeholder="请输入管理组名称"
       maxlength="30"
-      show-word-limit:
-      disabled="submitting"
+      show-word-limit
+      :disabled="submitting"
       @keyup.enter="submit"
     />
     <footer class="add-administrator-group-dialog__footer">

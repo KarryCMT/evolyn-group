@@ -31,7 +31,8 @@ const tenantProfile = shallowRef<{ tenantName: string; demand?: string; industry
 // 兼容已复制的旧公开邀请链接：它们曾指向通用注册向导，现统一迁移到
 // 独立受邀注册页，避免受邀人继续填写不属于自己的企业资料。
 onMounted(() => {
-  const legacyInviteToken = typeof route.query.tenantInvite === 'string' ? route.query.tenantInvite.trim() : '';
+  const legacyInviteToken =
+    typeof route.query.tenantInvite === 'string' ? route.query.tenantInvite.trim() : '';
   if (legacyInviteToken) {
     void router.replace({ name: 'publicInvitationRegister', query: { token: legacyInviteToken } });
   }

@@ -140,7 +140,8 @@ function updateToolbarState() {
     alignLeft: activeEditor.isActive({ textAlign: 'left' }),
     link: activeEditor.isActive('link'),
     color: activeEditor.getAttributes('textStyle').color as string | undefined,
-    fontSize: Number.parseInt(activeEditor.getAttributes('textStyle').fontSize as string, 10) || undefined,
+    fontSize:
+      Number.parseInt(activeEditor.getAttributes('textStyle').fontSize as string, 10) || undefined,
   };
 }
 
@@ -180,7 +181,11 @@ function setColor(color: string) {
 
 function setFontSize(fontSize: number) {
   if (!editor.value || toolbarDisabled.value || !supportedFontSizes.has(`${fontSize}px`)) return;
-  editor.value.chain().focus().setMark('textStyle', { fontSize: `${fontSize}px` }).run();
+  editor.value
+    .chain()
+    .focus()
+    .setMark('textStyle', { fontSize: `${fontSize}px` })
+    .run();
 }
 
 function openLinkEditor(activeEditor: Editor) {

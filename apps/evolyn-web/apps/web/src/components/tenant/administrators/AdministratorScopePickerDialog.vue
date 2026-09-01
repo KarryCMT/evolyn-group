@@ -124,8 +124,8 @@ function submit() {
           :data="treeData"
           node-key="key"
           show-checkbox
-          default-expand-all:
-          default-checked-keys="defaultCheckedKeys"
+          default-expand-all
+          :default-checked-keys="defaultCheckedKeys"
           :props="{ label: 'label', children: 'children' }"
           :filter-node-method="filterNode"
         />

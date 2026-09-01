@@ -133,7 +133,11 @@ function notifyUnavailable() {}
             <RiLayoutGridFill />
             <span>模板中心</span>
           </button>
-          <button class="top-navigation__nav-button" type="button" @click="openInternalOrganization">
+          <button
+            class="top-navigation__nav-button"
+            type="button"
+            @click="openInternalOrganization"
+          >
             <RiContactsBook3Fill />
             <span>通讯录</span>
           </button>

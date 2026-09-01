@@ -1,5 +1,12 @@
 <script setup lang="ts">
-import { RiPlayFill, RiStopFill, RiUser3Fill } from '@remixicon/vue';
+import {
+  RiBookmarkFill,
+  RiGitBranchFill,
+  RiPlayFill,
+  RiServerFill,
+  RiStopFill,
+  RiUser3Fill,
+} from '@remixicon/vue';
 import { computed } from 'vue';
 import type { WorkflowNodeType } from '../schema';
 
@@ -9,6 +16,7 @@ interface LogicFlowNodeProperties {
   workflowType?: WorkflowNodeType;
   label?: string;
   selected?: boolean;
+  error?: boolean;
 }
 
 interface LogicFlowVueNode {
@@ -26,16 +34,35 @@ const label = computed(() => props.node.properties?.label ?? '未命名节点');
 const nodeClasses = computed(() => [
   'workflow-node-card',
   `workflow-node-card--${nodeType.value}`,
-  { 'workflow-node-card--selected': props.node.properties?.selected },
+  {
+    'workflow-node-card--selected': props.node.properties?.selected,
+    'workflow-node-card--error': props.node.properties?.error,
+  },
 ]);
+
+/** 节点类型图标：起止用状态色胶囊，业务节点用主题色线性图标 */
+const typeIcon = computed(() => {
+  switch (nodeType.value) {
+    case 'start':
+      return RiPlayFill;
+    case 'condition':
+      return RiGitBranchFill;
+    case 'cc':
+      return RiBookmarkFill;
+    case 'service':
+      return RiServerFill;
+    case 'end':
+      return RiStopFill;
+    default:
+      return RiUser3Fill;
+  }
+});
 </script>
 
 <template>
   <div :class="nodeClasses">
     <span class="workflow-node-card__icon" aria-hidden="true">
-      <RiPlayFill v-if="nodeType === 'start'" />
-      <RiUser3Fill v-else-if="nodeType === 'approval'" />
-      <RiStopFill v-else />
+      <component :is="typeIcon" />
     </span>
     <span class="workflow-node-card__label">{{ label }}</span>
   </div>
@@ -74,6 +101,13 @@ const nodeClasses = computed(() => [
     background: var(--el-bg-color);
   }
 
+  // 校验错误态：红色描边优先级最高，与错误面板/边高亮同语义
+  &--error,
+  &--error:hover {
+    border-color: var(--el-color-danger);
+    background: var(--el-color-danger-light-9);
+  }
+
   &--start,
   &--end {
     border-radius: 999px;
@@ -87,6 +121,7 @@ const nodeClasses = computed(() => [
     display: inline-flex;
     width: 20px;
     height: 20px;
+    flex-shrink: 0;
     align-items: center;
     justify-content: center;
     color: var(--el-color-white);
@@ -99,7 +134,10 @@ const nodeClasses = computed(() => [
     }
   }
 
-  &--approval &__icon {
+  &--approval &__icon,
+  &--condition &__icon,
+  &--cc &__icon,
+  &--service &__icon {
     width: 20px;
     height: 20px;
     color: var(--el-color-primary);
@@ -114,6 +152,11 @@ const nodeClasses = computed(() => [
   &--end &__icon {
     color: var(--el-color-white);
     background: var(--el-text-color-secondary);
+  }
+
+  &--error &__icon {
+    color: var(--el-color-danger);
+    background: transparent;
   }
 
   &__label {

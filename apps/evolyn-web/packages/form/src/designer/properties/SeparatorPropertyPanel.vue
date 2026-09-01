@@ -4,9 +4,16 @@ import type { SeparatorWidget } from '../../schema/types';
 const props = defineProps<{ widget: SeparatorWidget }>();
 
 const borderStyles = [
-  ['solid', '实线'], ['dashed', '虚线'], ['dotted', '点线'], ['double', '双线'],
-  ['groove', '凹槽'], ['ridge', '脊线'], ['inset', '内嵌'], ['outset', '外凸'],
-  ['none', '无边框'], ['hidden', '隐藏'],
+  ['solid', '实线'],
+  ['dashed', '虚线'],
+  ['dotted', '点线'],
+  ['double', '双线'],
+  ['groove', '凹槽'],
+  ['ridge', '脊线'],
+  ['inset', '内嵌'],
+  ['outset', '外凸'],
+  ['none', '无边框'],
+  ['hidden', '隐藏'],
 ] as const;
 </script>
 <template>
@@ -21,7 +28,12 @@ const borderStyles = [
   </el-form-item>
   <el-form-item label="线条样式">
     <el-select v-model="props.widget.borderStyle" placeholder="实线">
-      <el-option v-for="[value, label] in borderStyles" :key="value" :label="label" :value="value" />
+      <el-option
+        v-for="[value, label] in borderStyles"
+        :key="value"
+        :label="label"
+        :value="value"
+      />
     </el-select>
   </el-form-item>
   <el-form-item v-if="props.widget.direction !== 'vertical'" label="文案位置">

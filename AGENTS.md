@@ -149,7 +149,14 @@ internal/
                       定义冻结不支持退回发起人（重提交会二次扇出致
                       join 计数失真，Runtime 拒绝 + 任务详情允许动作
                       投影剔除 return-to-starter 同口径），无新增迁移
-                      （000049 已预留 parent_execution_id）
+                      （000049 已预留 parent_execution_id）；Phase 9 已落地
+                      （迁移 000060 wf_definition.form_code 表单绑定 + 引擎
+                      Settings.designer 显式声明设计器私有坐标）：LogicFlow 可视化
+                      流程设计器——前端 @evolyn.do/workflow 包（DSL v1 协议层/图
+                      适配/六类节点画布/属性面板/条件出边编辑/发布 issues 画布定位
+                      高亮/版本历史与只读快照预览），主应用流程型表单工作区
+                      「流程设计」页（pages/form/workflow.vue）按 formCode 定位或
+                      懒建定义并接保存草稿/发布全链路
     server/           HTTP 服务器装配与路由注册（依赖注入汇聚点）
     controller/       Controller 注册契约（RegisterRoute/Name；
                       PlatformController 标记平台运营域归属）与 AppConf
@@ -408,6 +415,13 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
   别名；运行时样式独立走 `@evolyn.do/form/runtime/style.css`，不得静态引入设计器
   或重型字段模块；发布白名单 PUBLISHABLE_WIDGET_TYPES 前后端各一份保持一致，
   tsdown 构建必须保持单图（见 tsdown.config.ts 注释，分组双写会丢公共导出））、
+  `workflow`（流程可视化设计器，Phase 9：`schema/` 为 Workflow DSL v1 前端协议层
+  （types 与后端 internal/engine/workflow/model/dsl.go 逐字对齐、lifecycle 不可变
+  文档操作、validate 即时校验镜像后端校验器错误码）、`adapters/graph.ts` DSL↔
+  LogicFlow 投影（画布坐标持久化于 settings.designer.layout，分层自动布局兜底）、
+  `designer/` LogicFlow 画布 + 素材面板 + 按节点类型属性面板（审批人/会签/字段
+  权限/条件出边/服务调用）+ 只读预览与校验错误高亮；铁律 LogicFlow Graph !=
+  Workflow Runtime Model，LogicFlow 只负责编辑体验）、
   `utils`、`hooks`、`directives`、
   `lint-configs`（eslint/prettier/stylelint/commitlint/typescript 配置）。
 - 文档站 `apps/docs/`（VitePress）。依赖版本走 `pnpm-workspace.yaml` 的

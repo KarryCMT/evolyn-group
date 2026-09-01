@@ -1,11 +1,5 @@
 <script setup lang="ts">
-import {
-  RiArrowGoBackFill,
-  RiArrowGoForwardFill,
-  RiTargetFill,
-  RiZoomInFill,
-  RiZoomOutFill,
-} from '@remixicon/vue';
+import { RiTargetFill, RiZoomInFill, RiZoomOutFill } from '@remixicon/vue';
 
 defineOptions({ name: 'WorkflowCanvasControls' });
 
@@ -15,8 +9,6 @@ defineProps<{
 
 const emit = defineEmits<{
   fitView: [];
-  redo: [];
-  undo: [];
   zoomIn: [];
   zoomOut: [];
 }>();
@@ -25,13 +17,6 @@ const emit = defineEmits<{
 <template>
   <div class="workflow-canvas-controls" aria-label="流程画布控制">
     <div class="workflow-canvas-controls__zoom">
-      <button type="button" aria-label="撤销" @click="emit('undo')">
-        <RiArrowGoBackFill />
-      </button>
-      <button type="button" aria-label="重做" @click="emit('redo')">
-        <RiArrowGoForwardFill />
-      </button>
-      <span class="workflow-canvas-controls__divider" aria-hidden="true" />
       <button type="button" aria-label="缩小" @click="emit('zoomOut')">
         <RiZoomOutFill />
       </button>
@@ -55,20 +40,17 @@ const emit = defineEmits<{
   pointer-events: none;
 
   &__zoom {
-    display: flex;
-    align-items: center;
-    pointer-events: auto;
-  }
-
-  &__zoom {
     position: absolute;
     right: 0;
     bottom: 0;
+    display: flex;
+    align-items: center;
     padding: 4px;
     background: var(--el-bg-color);
     border: 1px solid var(--el-border-color-lighter);
     border-radius: var(--el-border-radius-base);
     box-shadow: var(--el-box-shadow-lighter);
+    pointer-events: auto;
   }
 
   &__zoom button {
@@ -119,11 +101,6 @@ const emit = defineEmits<{
 @media (max-width: 700px) {
   .workflow-canvas-controls {
     inset: 8px;
-
-    &__zoom {
-      right: 0;
-      bottom: 0;
-    }
   }
 }
 </style>

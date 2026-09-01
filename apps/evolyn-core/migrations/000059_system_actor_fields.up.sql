@@ -18,10 +18,16 @@ WHERE g.updater_id IS NOT NULL
   AND u.id = g.updater_id
   AND u.tenant_id = g.tenant_id;
 
--- files 与 role_groups 原有 creator_id 都是成员归属字段，不能改写为账号
--- 审计字段；先改列名保留既有业务语义，再由下方统一补齐账号审计列。
-ALTER TABLE files RENAME COLUMN creator_id TO creator_member_id;
-ALTER TABLE role_groups RENAME COLUMN creator_id TO creator_member_id;
+UPDATE role_groups AS rg
+SET creator_id = u.account_id
+FROM users AS u
+WHERE rg.creator_id IS NOT NULL
+  AND rg.creator_id <> 0
+  AND u.id = rg.creator_id
+  AND u.tenant_id = rg.tenant_id;
+
+ALTER TABLE role_groups ALTER COLUMN creator_id DROP NOT NULL;
+ALTER TABLE role_groups ALTER COLUMN creator_id DROP DEFAULT;
 
 DO $$
 DECLARE
@@ -48,5 +54,3 @@ END $$;
 
 COMMENT ON COLUMN groups.creator_id IS '创建账号 ID（accounts.id）；由 000059 从历史成员 ID 转换';
 COMMENT ON COLUMN groups.updater_id IS '最后更新账号 ID（accounts.id）；由 000059 从历史成员 ID 转换';
-COMMENT ON COLUMN files.creator_member_id IS '文件归属成员 ID（users.id），用于上传者访问边界';
-COMMENT ON COLUMN role_groups.creator_member_id IS '创建角色组的成员 ID（users.id）';

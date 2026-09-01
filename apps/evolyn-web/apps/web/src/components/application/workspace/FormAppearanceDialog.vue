@@ -63,14 +63,18 @@ const rules: FormRules<FormAppearanceDraft> = {
 };
 
 // 每次由菜单操作重新打开时，从最新菜单快照初始化，取消不会写回任何数据。
-watch(visible, (isVisible) => {
-  if (!isVisible) return;
-  draft.name = props.initialName;
-  draft.icon = iconOptions.some((option) => option.key === props.initialIcon)
-    ? String(props.initialIcon)
-    : 'file-list';
-  formRef.value?.clearValidate();
-}, { immediate: true });
+watch(
+  visible,
+  (isVisible) => {
+    if (!isVisible) return;
+    draft.name = props.initialName;
+    draft.icon = iconOptions.some((option) => option.key === props.initialIcon)
+      ? String(props.initialIcon)
+      : 'file-list';
+    formRef.value?.clearValidate();
+  },
+  { immediate: true },
+);
 
 function selectIcon(icon: string) {
   if (!submitting.value) draft.icon = icon;
@@ -103,9 +107,7 @@ async function confirm() {
   >
     <template #header>
       <header class="form-appearance-dialog__header">
-        <h2 class="form-appearance-dialog__heading">
-          修改名称和图标
-        </h2>
+        <h2 class="form-appearance-dialog__heading">修改名称和图标</h2>
         <button
           class="form-appearance-dialog__close"
           type="button"
@@ -152,12 +154,8 @@ async function confirm() {
 
     <template #footer>
       <footer class="form-appearance-dialog__footer">
-        <el-button :disabled="submitting" @click="visible = false">
-          取消
-        </el-button>
-        <el-button type="primary" :loading="submitting" @click="confirm">
-          确定
-        </el-button>
+        <el-button :disabled="submitting" @click="visible = false"> 取消 </el-button>
+        <el-button type="primary" :loading="submitting" @click="confirm"> 确定 </el-button>
       </footer>
     </template>
   </el-dialog>

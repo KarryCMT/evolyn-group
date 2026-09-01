@@ -42,6 +42,9 @@ func (r *definitionRepository) List(ctx context.Context, params ListParams) ([]m
 	if params.HasCursor {
 		query = query.Where("id < ?", params.AfterID)
 	}
+	if params.FormCode != "" {
+		query = query.Where("form_code = ?", params.FormCode)
+	}
 	// limit+1 探测下一页
 	rows := make([]model.WfDefinition, 0, params.Limit+1)
 	if err := query.Limit(params.Limit + 1).Find(&rows).Error; err != nil {

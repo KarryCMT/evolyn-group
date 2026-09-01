@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -93,6 +94,20 @@ func validateDescription(description string) (string, bool) {
 	return trimmed, utf8.RuneCountInString(trimmed) <= maxDescriptionRunes
 }
 
+// validateFormCode 绑定表单编码校验（000060）：空串=独立定义；
+// 非空必须为 form_ 前缀且 ≤64 字符（与 forms.code 公开口径一致，
+// 存在性由表单域自治，流程域只按 code 字符串关联不跨域校验）。
+func validateFormCode(formCode string) (string, bool) {
+	trimmed := trimSpace(formCode)
+	if trimmed == "" {
+		return "", true
+	}
+	if len(trimmed) > 64 || !strings.HasPrefix(trimmed, "form_") {
+		return "", false
+	}
+	return trimmed, true
+}
+
 func trimSpace(s string) string {
 	start, end := 0, len(s)
 	for start < end && isSpaceByte(s[start]) {
@@ -159,6 +174,10 @@ func (s *definitionService) Create(ctx context.Context, member *iammodel.User, r
 	if !ok {
 		return nil, wfapp.ErrWorkflowDescriptionInvalid
 	}
+	formCode, ok := validateFormCode(req.FormCode)
+	if !ok {
+		return nil, wfapp.ErrWorkflowFormCodeInvalid
+	}
 	tenantID, okTenant := contextx.TenantIDFromContext(ctx)
 	if !okTenant {
 		return nil, fmt.Errorf("tenant context required")
@@ -175,6 +194,7 @@ func (s *definitionService) Create(ctx context.Context, member *iammodel.User, r
 		Code:            code,
 		Name:            name,
 		Description:     description,
+		FormCode:        formCode,
 		DraftContent:    minimalDraft(),
 		DraftRevision:   1,
 		CreatorMemberID: member.ID,
@@ -209,7 +229,7 @@ func (s *definitionService) List(ctx context.Context, member *iammodel.User, que
 	if err != nil {
 		return nil, fmt.Errorf("无效的分页游标: %w", err)
 	}
-	rows, hasMore, err := s.repo.List(ctx, repository.ListParams{Limit: limit, HasCursor: hasCursor, AfterID: afterID})
+	rows, hasMore, err := s.repo.List(ctx, repository.ListParams{Limit: limit, HasCursor: hasCursor, AfterID: afterID, FormCode: query.FormCode})
 	if err != nil {
 		return nil, err
 	}
@@ -456,6 +476,7 @@ func toSummary(def *model.WfDefinition) model.WorkflowSummary {
 		Code:             def.Code,
 		Name:             def.Name,
 		Description:      def.Description,
+		FormCode:         def.FormCode,
 		PublishedVersion: def.PublishedVersion,
 		DraftRevision:    def.DraftRevision,
 		CreatorMemberID:  def.CreatorMemberID,

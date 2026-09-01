@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import LogicFlow from '@logicflow/core';
+import LogicFlow, { PolylineEdge, PolylineEdgeModel } from '@logicflow/core';
 import { register } from '@logicflow/vue-node-registry';
 import {
   type ShallowRef,
@@ -9,7 +9,8 @@ import {
   useTemplateRef,
   watch,
 } from 'vue';
-import type { WorkflowDocument, WorkflowNode, WorkflowNodeType } from '../schema';
+import { toGraphData } from '../adapters/graph';
+import type { WorkflowDocument, WorkflowNodeType, WorkflowPosition } from '../schema';
 import WorkflowCanvasControls from './WorkflowCanvasControls.vue';
 import WorkflowNodeCard from './WorkflowNodeCard.vue';
 import { WorkflowVueNodeView } from './WorkflowVueNodeView';
@@ -18,41 +19,63 @@ defineOptions({ name: 'WorkflowCanvas' });
 
 const props = defineProps<{
   document: WorkflowDocument;
-  selectedNodeId: string | null;
+  selectedNodeKey: string | null;
+  selectedEdgeKey: string | null;
+  errorNodeKeys?: ReadonlySet<string>;
+  errorEdgeKeys?: ReadonlySet<string>;
+  /** 只读模式：禁止拖拽节点/连线锚点，仅保留浏览（版本预览） */
+  readonly?: boolean;
 }>();
 
 const emit = defineEmits<{
-  selectNode: [nodeId: string];
-  updateNodePosition: [nodeId: string, position: WorkflowNode['position']];
+  selectNode: [nodeKey: string];
+  selectEdge: [edgeKey: string];
+  updateNodePosition: [nodeKey: string, position: WorkflowPosition];
+  connectEdge: [source: string, target: string];
 }>();
 
 const canvasRef = useTemplateRef<HTMLElement>('canvasRef');
 const logicFlow: ShallowRef<LogicFlow | null> = shallowRef(null);
 const zoomPercent = shallowRef(100);
-const activeNodeId = shallowRef<string | null>(props.selectedNodeId);
 let resizeObserver: ResizeObserver | null = null;
 
-function renderGraph() {
-  logicFlow.value?.render(toGraphData(props.document));
-}
+/** 全部协议节点类型注册为 Vue 卡片节点（parallel 协议层支持，一并注册） */
+const NODE_TYPES: WorkflowNodeType[] = [
+  'start',
+  'approval',
+  'condition',
+  'cc',
+  'service',
+  'parallel',
+  'end',
+];
 
 /**
- * 节点选择由 Vue 卡片自行呈现，LogicFlow 只高亮关联边。
- * 这样既保留清晰的选中反馈，也不会叠加引擎默认的深色节点轮廓。
+ * 流程连线模型：校验错误态整条描红（properties.error 由图数据投影注入），
+ * 其余样式沿用 LogicFlow 主题；颜色统一走主题 CSS 变量适配暗色模式。
  */
-function syncSelection() {
-  const instance = logicFlow.value;
-  if (!instance) return;
+class WorkflowEdgeModel extends PolylineEdgeModel {
+  override getEdgeStyle() {
+    const style = super.getEdgeStyle();
+    if ((this.properties as { error?: boolean }).error) {
+      style.stroke = 'var(--el-color-danger)';
+    } else {
+      style.stroke = 'var(--el-color-primary-light-5)';
+    }
+    style.strokeWidth = 2;
+    return style;
+  }
+}
 
-  instance.graphModel.clearSelectElements();
-  props.document.nodes.forEach((node) => {
-    instance.setProperties(node.id, { selected: node.id === activeNodeId.value });
-  });
-  if (!activeNodeId.value) return;
-
-  instance.getNodeEdges(activeNodeId.value).forEach((edge) => {
-    instance.selectElementById(edge.id, true);
-  });
+function renderGraph() {
+  logicFlow.value?.render(
+    toGraphData(props.document, {
+      selectedNodeKey: props.selectedNodeKey,
+      selectedEdgeKey: props.selectedEdgeKey,
+      errorNodeKeys: props.errorNodeKeys,
+      errorEdgeKeys: props.errorEdgeKeys,
+    }),
+  );
 }
 
 function resizeCanvas() {
@@ -62,24 +85,10 @@ function resizeCanvas() {
   instance.resize(element.clientWidth, element.clientHeight);
 }
 
-function selectNode(nodeId: string) {
-  activeNodeId.value = nodeId;
-  syncSelection();
-  emit('selectNode', nodeId);
-}
-
-/** LogicFlow 将缩放状态保留在画布内，控制条只派发命令，避免引入第二份图状态。 */
+/** LogicFlow 将缩放状态保留在画布内，控制条只派发命令，避免引入第二份图状态 */
 function syncZoom() {
   const scale = logicFlow.value?.getTransform().SCALE_X ?? 1;
   zoomPercent.value = Math.round(scale * 100);
-}
-
-function undo() {
-  logicFlow.value?.undo();
-}
-
-function redo() {
-  logicFlow.value?.redo();
 }
 
 function zoomIn() {
@@ -105,28 +114,21 @@ onMounted(() => {
     container: element,
     width: element.clientWidth,
     height: element.clientHeight,
-    edgeType: 'polyline',
+    // 连线类型即自定义流程边（错误态描红）；节点视觉由 Vue 卡片承担
+    edgeType: 'workflow-edge',
     grid: true,
-    history: true,
+    history: false, // DSL 文档是唯一事实源，撤销/重做由应用层按需实现
     edgeSelectedOutline: false,
-    hideAnchors: true,
+    // 编辑态悬停展示连接锚点；只读态完全隐藏
+    hideAnchors: props.readonly === true,
+    adjustNodePosition: props.readonly !== true,
+    adjustEdge: false,
     hoverOutline: false,
     nodeSelectedOutline: false,
     nodeTextEdit: false,
     textEdit: false,
     snapline: true,
     style: {
-      rect: {
-        radius: 10,
-        fill: 'var(--el-bg-color)',
-        stroke: 'var(--el-color-primary-light-5)',
-        strokeWidth: 1.5,
-      },
-      circle: {
-        fill: 'var(--el-bg-color)',
-        stroke: 'var(--el-color-primary-light-5)',
-        strokeWidth: 1.5,
-      },
       polyline: { stroke: 'var(--el-color-primary-light-5)', strokeWidth: 2 },
       arrow: {
         fill: 'var(--el-color-primary-light-5)',
@@ -134,49 +136,58 @@ onMounted(() => {
         offset: 8,
         verticalLength: 5,
       },
-      nodeText: { color: 'var(--el-text-color-primary)', fontSize: 15 },
+      edgeText: {
+        color: 'var(--el-text-color-secondary)',
+        fontSize: 12,
+        textWidth: 120,
+        background: { fill: 'var(--el-fill-color-lighter)' },
+      },
     },
   });
   logicFlow.value = instance;
-  register(
-    { type: 'workflow-start', component: WorkflowNodeCard, view: WorkflowVueNodeView },
-    instance,
-  );
-  register(
-    { type: 'workflow-approval', component: WorkflowNodeCard, view: WorkflowVueNodeView },
-    instance,
-  );
-  register(
-    { type: 'workflow-end', component: WorkflowNodeCard, view: WorkflowVueNodeView },
-    instance,
-  );
 
-  instance.on('node:click', ({ data }) => selectNode(String(data.id)));
+  instance.register({
+    type: 'workflow-edge',
+    view: PolylineEdge,
+    model: WorkflowEdgeModel,
+  });
+  for (const type of NODE_TYPES) {
+    register(
+      { type: `workflow-${type}`, component: WorkflowNodeCard, view: WorkflowVueNodeView },
+      instance,
+    );
+  }
+
+  instance.on('node:click', ({ data }) => emit('selectNode', String(data.id)));
+  instance.on('edge:click', ({ data }) => emit('selectEdge', String(data.id)));
+  instance.on('blank:click', () => renderGraph());
   instance.on('node:drop', ({ data }) => {
     emit('updateNodePosition', String(data.id), { x: data.x, y: data.y });
   });
+  // 锚点连线完成：以 DSL 结构层接管（生成协议边 key），临时边由重渲染替换
+  instance.on('edge:connect', ({ data }) => {
+    if (props.readonly) return;
+    const source = String(data.sourceNodeId);
+    const target = String(data.targetNodeId);
+    if (source && target && source !== target) emit('connectEdge', source, target);
+  });
   instance.on('graph:transform', syncZoom);
   renderGraph();
-  syncSelection();
 
   resizeObserver = new ResizeObserver(resizeCanvas);
   resizeObserver.observe(element);
 });
 
 watch(
-  () => props.document,
-  () => {
-    renderGraph();
-    syncSelection();
-  },
-);
-watch(
-  () => props.selectedNodeId,
-  (nodeId) => {
-    if (nodeId === activeNodeId.value) return;
-    activeNodeId.value = nodeId;
-    syncSelection();
-  },
+  () => [
+    props.document,
+    props.selectedNodeKey,
+    props.selectedEdgeKey,
+    props.errorNodeKeys,
+    props.errorEdgeKeys,
+  ],
+  () => renderGraph(),
+  { deep: false },
 );
 
 onBeforeUnmount(() => {
@@ -185,35 +196,6 @@ onBeforeUnmount(() => {
   logicFlow.value?.destroy();
   logicFlow.value = null;
 });
-
-function toGraphData(document: WorkflowDocument): LogicFlow.GraphConfigData {
-  return {
-    nodes: document.nodes.map((node) => ({
-      id: node.id,
-      type: resolveLogicFlowNodeType(node.type),
-      x: node.position.x,
-      y: node.position.y,
-      text: '',
-      properties: {
-        width: node.type === 'approval' ? 210 : 174,
-        height: node.type === 'approval' ? 58 : 48,
-        workflowType: node.type,
-        label: node.name,
-        selected: node.id === activeNodeId.value,
-      },
-    })),
-    edges: document.edges.map((edge) => ({
-      id: edge.id,
-      type: 'polyline',
-      sourceNodeId: edge.sourceNodeId,
-      targetNodeId: edge.targetNodeId,
-    })),
-  };
-}
-
-function resolveLogicFlowNodeType(type: WorkflowNodeType) {
-  return `workflow-${type}`;
-}
 </script>
 
 <template>
@@ -222,8 +204,6 @@ function resolveLogicFlowNodeType(type: WorkflowNodeType) {
     <WorkflowCanvasControls
       :zoom-percent="zoomPercent"
       @fit-view="fitView"
-      @redo="redo"
-      @undo="undo"
       @zoom-in="zoomIn"
       @zoom-out="zoomOut"
     />
@@ -254,7 +234,7 @@ function resolveLogicFlowNodeType(type: WorkflowNodeType) {
     }
 
     // LogicFlow 会在节点点击后聚焦 SVG 容器；浏览器焦点框和引擎 outline
-    // 都是矩形，会与起止节点的胶囊轮廓形成截图中的双层边框。
+    // 都是矩形，会与起止节点的胶囊轮廓形成双层边框。
     :deep(.lf-node:focus),
     :deep(.lf-edge:focus) {
       outline: none;
@@ -274,6 +254,11 @@ function resolveLogicFlowNodeType(type: WorkflowNodeType) {
     :deep(.lf-edge-selected .lf-arrow path) {
       fill: var(--el-color-primary) !important;
       stroke: var(--el-color-primary) !important;
+    }
+
+    :deep(.lf-anchor) {
+      fill: var(--el-color-primary);
+      stroke: var(--el-bg-color);
     }
   }
 }

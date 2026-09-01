@@ -26,13 +26,9 @@ const contentPosition = computed(() => widget.value.contentPosition ?? 'center')
     :class="[`evf-divider--${direction}`, `evf-divider--content-${contentPosition}`]"
     :style="{ '--evf-divider-border-style': borderStyle }"
     role="separator"
-    :aria-label="hasDescription ? undefined : (hasLabel ? widget.content : undefined)"
+    :aria-label="hasDescription ? undefined : hasLabel ? widget.content : undefined"
   >
-    <span
-      v-if="hasDescription"
-      class="evf-divider__label"
-      v-html="descriptionHtml"
-    />
+    <span v-if="hasDescription" class="evf-divider__label" v-html="descriptionHtml" />
     <span v-else-if="hasLabel" class="evf-divider__label">{{ widget.content }}</span>
   </div>
 </template>

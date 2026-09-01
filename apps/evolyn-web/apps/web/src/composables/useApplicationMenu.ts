@@ -1,4 +1,4 @@
-import type {Component, Ref} from 'vue';
+import type { Component, Ref } from 'vue';
 import type { ApplicationWorkspaceAsset } from '~/components/application/workspace/applicationWorkspace.types';
 import type { ApplicationMenu, ApplicationMenuEntry, ApplicationMenuEntryType } from '~/types';
 import {
@@ -13,7 +13,7 @@ import {
   RiFolder3Fill,
   RiShoppingCart2Fill,
 } from '@remixicon/vue';
-import {  markRaw, readonly,  shallowRef, watch } from 'vue';
+import { markRaw, readonly, shallowRef, watch } from 'vue';
 import { getApplicationMenuByCode } from '~/api/applications';
 
 export type ApplicationMenuStatus = 'loading' | 'ready' | 'error';

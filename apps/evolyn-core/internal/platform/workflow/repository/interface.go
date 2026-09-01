@@ -16,6 +16,8 @@ type ListParams struct {
 	Cursor    string
 	HasCursor bool
 	AfterID   uint // 游标行 ID（取 id 严格小于该值的下一页）
+	// FormCode 精确过滤（非空时只返回绑定了该表单的未删除定义，000060）
+	FormCode string
 }
 
 // DefinitionRepository 流程定义仓储。

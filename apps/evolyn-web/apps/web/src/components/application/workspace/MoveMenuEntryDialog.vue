@@ -95,9 +95,7 @@ async function confirm() {
   >
     <template #header>
       <header class="move-menu-entry-dialog__header">
-        <h2 class="move-menu-entry-dialog__heading">
-          移动
-        </h2>
+        <h2 class="move-menu-entry-dialog__heading">移动</h2>
         <button
           class="move-menu-entry-dialog__close"
           type="button"
@@ -111,14 +109,14 @@ async function confirm() {
     </template>
 
     <section class="move-menu-entry-dialog__body" aria-labelledby="move-menu-entry-prompt">
-      <p id="move-menu-entry-prompt" class="move-menu-entry-dialog__prompt">
-        请选择目标位置
-      </p>
+      <p id="move-menu-entry-prompt" class="move-menu-entry-dialog__prompt">请选择目标位置</p>
 
       <div class="move-menu-entry-dialog__tree" role="tree" aria-label="目标分组">
         <button
           class="move-menu-entry-dialog__application"
-          :class="{ 'move-menu-entry-dialog__application--selected': selectedGroupCode === ROOT_ENTRY_CODE }"
+          :class="{
+            'move-menu-entry-dialog__application--selected': selectedGroupCode === ROOT_ENTRY_CODE,
+          }"
           type="button"
           role="treeitem"
           :aria-selected="selectedGroupCode === ROOT_ENTRY_CODE"
@@ -129,7 +127,9 @@ async function confirm() {
           <span class="move-menu-entry-dialog__application-icon" aria-hidden="true">
             <RiApps2Fill />
           </span>
-          <span class="move-menu-entry-dialog__group-name">{{ props.applicationName }}（根目录）</span>
+          <span class="move-menu-entry-dialog__group-name"
+            >{{ props.applicationName }}（根目录）</span
+          >
           <span
             v-if="selectedGroupCode === ROOT_ENTRY_CODE"
             class="move-menu-entry-dialog__selected-mark"
@@ -168,9 +168,7 @@ async function confirm() {
 
     <template #footer>
       <footer class="move-menu-entry-dialog__footer">
-        <el-button :disabled="submitting" @click="visible = false">
-          取消
-        </el-button>
+        <el-button :disabled="submitting" @click="visible = false"> 取消 </el-button>
         <el-button
           type="primary"
           :disabled="selectedGroupCode === null"

@@ -430,9 +430,7 @@ function notifyUnavailable(action: string) {
       </div>
     </div>
 
-    <div v-if="loading" class="form-design-page__state" role="status">
-      正在加载表单…
-    </div>
+    <div v-if="loading" class="form-design-page__state" role="status">正在加载表单…</div>
     <div
       v-else-if="loadFailed"
       class="form-design-page__state form-design-page__state--error"

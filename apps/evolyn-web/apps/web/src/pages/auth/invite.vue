@@ -16,7 +16,9 @@ const { applyJwt, isAuthenticated, loadUserInfo, switchTenant } = useAuth();
 
 const submitting = shallowRef(false);
 const smsSentVersion = shallowRef(0);
-const inviteToken = computed(() => (typeof route.query.token === 'string' ? route.query.token.trim() : ''));
+const inviteToken = computed(() =>
+  typeof route.query.token === 'string' ? route.query.token.trim() : '',
+);
 const invalidInvitation = computed(() => !inviteToken.value);
 // 完整邀请地址作为 redirect 的单个 query 值传递，必须先编码。
 const loginRedirectPath = computed(
@@ -95,9 +97,7 @@ async function handleExistingAccountJoin() {
     <template #after-title>
       <p class="public-invitation-page__login-tip">
         已有账号？
-        <router-link :to="loginRedirectPath">
-          直接登录
-        </router-link>
+        <router-link :to="loginRedirectPath"> 直接登录 </router-link>
       </p>
     </template>
 

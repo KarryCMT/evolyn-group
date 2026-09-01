@@ -77,7 +77,14 @@ function handleSendCode() {
     @submit.prevent="handleSubmit"
   >
     <el-form-item prop="phone">
-      <el-input v-model="form.phone" name="phone" placeholder="你的手机号" autocomplete="tel" clearable :prefix-icon="Iphone">
+      <el-input
+        v-model="form.phone"
+        name="phone"
+        placeholder="你的手机号"
+        autocomplete="tel"
+        clearable
+        :prefix-icon="Iphone"
+      >
         <template #prepend>
           <span class="public-invitation-register-form__prefix">+86</span>
         </template>
@@ -85,9 +92,20 @@ function handleSendCode() {
     </el-form-item>
 
     <el-form-item prop="smsCode">
-      <el-input v-model="form.smsCode" name="sms-code" placeholder="收到的验证码" autocomplete="one-time-code" maxlength="6">
+      <el-input
+        v-model="form.smsCode"
+        name="sms-code"
+        placeholder="收到的验证码"
+        autocomplete="one-time-code"
+        maxlength="6"
+      >
         <template #suffix>
-          <button class="public-invitation-register-form__send" type="button" :disabled="countdown > 0 || loading" @click="handleSendCode">
+          <button
+            class="public-invitation-register-form__send"
+            type="button"
+            :disabled="countdown > 0 || loading"
+            @click="handleSendCode"
+          >
             {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
           </button>
         </template>
@@ -95,7 +113,16 @@ function handleSendCode() {
     </el-form-item>
 
     <el-form-item prop="nickname">
-      <el-input v-model="form.nickname" name="nickname" placeholder="你的姓名" autocomplete="name" maxlength="20" clearable :prefix-icon="User" @keyup.enter="handleSubmit" />
+      <el-input
+        v-model="form.nickname"
+        name="nickname"
+        placeholder="你的姓名"
+        autocomplete="name"
+        maxlength="20"
+        clearable
+        :prefix-icon="User"
+        @keyup.enter="handleSubmit"
+      />
     </el-form-item>
 
     <p class="public-invitation-register-form__agreement">
@@ -105,7 +132,12 @@ function handleSendCode() {
       <a @click.prevent="ElMessage.info('隐私声明文档即将上线')">《隐私声明》</a>
     </p>
 
-    <el-button class="public-invitation-register-form__submit" type="primary" native-type="submit" :loading="loading">
+    <el-button
+      class="public-invitation-register-form__submit"
+      type="primary"
+      native-type="submit"
+      :loading="loading"
+    >
       注册并加入
     </el-button>
   </el-form>

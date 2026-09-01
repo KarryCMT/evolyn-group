@@ -599,3 +599,62 @@ export interface FormRuntimeBootstrap {
 export interface FormRecordSubmitResult {
   recordId: number;
 }
+
+/* ---- 流程引擎（/workflows，Phase 9 流程设计器） ---- */
+
+/** Workflow DSL v1 文档：结构与 @evolyn.do/workflow 协议层同源 */
+export type WorkflowDocumentDto = import('@evolyn.do/workflow').WorkflowDocument;
+
+/** 流程定义列表条目（草稿全文不出网，详情接口携带） */
+export interface WorkflowSummaryDto {
+  code: string;
+  name: string;
+  description: string;
+  /** 绑定的表单公开编码（form_ 前缀）；空串=独立定义 */
+  formCode: string;
+  publishedVersion: number;
+  draftRevision: number;
+  creatorMemberId: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** 流程定义详情：含 DSL 草稿全文与修订口令 */
+export interface WorkflowDetailDto extends WorkflowSummaryDto {
+  draft: WorkflowDocumentDto;
+}
+
+/** GET /workflows 游标分页结果 */
+export interface WorkflowPageDto {
+  items: WorkflowSummaryDto[];
+  nextCursor: string;
+}
+
+/** PUT /workflows/:code/draft 结果：新口令供下次保存回传 */
+export interface WorkflowDraftSaveResult {
+  draftRevision: number;
+}
+
+/** POST /workflows/:code/publish 结果 */
+export interface WorkflowPublishResult {
+  versionNo: number;
+}
+
+/** 发布版本条目（快照全文不出网，详情接口携带） */
+export interface WorkflowVersionDto {
+  versionNo: number;
+  publishedByMemberId: number;
+  publishedAt: string;
+}
+
+/** 发布版本详情：冻结的 DSL 快照全文 */
+export interface WorkflowVersionDetailDto extends WorkflowVersionDto {
+  dsl: WorkflowDocumentDto;
+}
+
+/** WORKFLOW_DEFINITION_INVALID 的 issues 负载（前后端同形） */
+export interface WorkflowValidationIssueDto {
+  path: string;
+  code: string;
+  message: string;
+}

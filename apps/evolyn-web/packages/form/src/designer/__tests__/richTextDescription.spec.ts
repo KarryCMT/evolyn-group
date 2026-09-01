@@ -20,7 +20,9 @@ describe('sanitizeRichTextDescription', () => {
 
   it('仅保留支持的字号', () => {
     expect(
-      sanitizeRichTextDescription('<p><span style="font-size: 22px; color: #1677ff">字号</span></p>'),
+      sanitizeRichTextDescription(
+        '<p><span style="font-size: 22px; color: #1677ff">字号</span></p>',
+      ),
     ).toBe('<p><span style="color: #1677ff; font-size: 22px">字号</span></p>');
     expect(sanitizeRichTextDescription('<p style="font-size: 24px">无效字号</p>')).toBe(
       '<p>无效字号</p>',

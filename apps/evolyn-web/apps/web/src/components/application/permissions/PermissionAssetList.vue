@@ -90,7 +90,8 @@ const visibleRows = computed<VisibleAssetRow[]>(() => {
   const searching = Boolean(normalizedKeyword.value);
   const walk = (list: PermissionAsset[], depth: number) => {
     for (const asset of list) {
-      const expanded = Boolean(asset.children?.length) && (searching || !collapsedGroupIds.value.has(asset.id));
+      const expanded =
+        Boolean(asset.children?.length) && (searching || !collapsedGroupIds.value.has(asset.id));
       rows.push({ asset, depth, expanded });
       if (expanded) walk(asset.children!, depth + 1);
     }
@@ -159,15 +160,15 @@ function updateKeyword(event: Event) {
               :show-after="300"
               :disabled="!(hoveredRowId === row.asset.id && hoveredRowOverflowing)"
             >
-              <span data-asset-name class="permission-asset-list__name">{{
-                row.asset.name
-              }}</span>
+              <span data-asset-name class="permission-asset-list__name">{{ row.asset.name }}</span>
             </el-tooltip>
           </button>
           <button
             v-else
             class="permission-asset-list__asset"
-            :class="{ 'permission-asset-list__asset--active': props.selectedAssetId === row.asset.id }"
+            :class="{
+              'permission-asset-list__asset--active': props.selectedAssetId === row.asset.id,
+            }"
             :style="rowIndentStyle(row.depth)"
             type="button"
             @click="emit('select', row.asset.id)"
@@ -180,9 +181,7 @@ function updateKeyword(event: Event) {
               :show-after="300"
               :disabled="!(hoveredRowId === row.asset.id && hoveredRowOverflowing)"
             >
-              <span data-asset-name class="permission-asset-list__name">{{
-                row.asset.name
-              }}</span>
+              <span data-asset-name class="permission-asset-list__name">{{ row.asset.name }}</span>
             </el-tooltip>
           </button>
         </template>

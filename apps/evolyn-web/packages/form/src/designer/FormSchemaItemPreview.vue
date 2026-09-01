@@ -80,7 +80,9 @@ const separatorDirection = computed(() =>
   widget.value.type === 'separator' ? (widget.value.direction ?? 'horizontal') : 'horizontal',
 );
 const separatorBorderStyle = computed(() =>
-  widget.value.type === 'separator' ? (widget.value.borderStyle ?? widget.value.style ?? 'solid') : 'solid',
+  widget.value.type === 'separator'
+    ? (widget.value.borderStyle ?? widget.value.style ?? 'solid')
+    : 'solid',
 );
 const separatorContentPosition = computed(() =>
   widget.value.type === 'separator' ? (widget.value.contentPosition ?? 'center') : 'center',

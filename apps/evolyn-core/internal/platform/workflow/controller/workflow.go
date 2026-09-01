@@ -52,14 +52,14 @@ func workflowCodeFromParam(c *gin.Context) (string, bool) {
 }
 
 // @Summary 创建流程定义
-// @Description 在当前租户创建流程定义（名称必填），草稿初始化为最小合法 DSL（start → end），开箱即可发布
+// @Description 在当前租户创建流程定义（名称必填），草稿初始化为最小合法 DSL（start → end），开箱即可发布；formCode 可选绑定流程型表单（一条表单租户内至多一条定义）
 // @Accept json
 // @Produce json
 // @Tags 流程管理
 // @Security JWT
-// @Param workflow body model.CreateWorkflowRequest true "流程名称与可选描述"
+// @Param workflow body model.CreateWorkflowRequest true "流程名称、可选描述与可选绑定表单编码"
 // @Success 201 {object} httpx.Response{data=model.WorkflowDetail}
-// @Failure 400 {object} httpx.Response "errCode=WORKFLOW_NAME_INVALID/WORKFLOW_DESCRIPTION_INVALID"
+// @Failure 400 {object} httpx.Response "errCode=WORKFLOW_NAME_INVALID/WORKFLOW_DESCRIPTION_INVALID/WORKFLOW_FORM_CODE_INVALID"
 // @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
 // @Router /api/v1/workflows [post]
 func (f *WorkflowController) Create(c *gin.Context) {
@@ -83,13 +83,15 @@ func (f *WorkflowController) Create(c *gin.Context) {
 // @Security JWT
 // @Param limit query int false "每页数量，默认 20，上限 100"
 // @Param cursor query string false "分页游标（上一页 nextCursor 原样回传）"
+// @Param formCode query string false "按绑定表单编码精确过滤（流程设计页定位定义）"
 // @Success 200 {object} httpx.Response{data=model.WorkflowPage}
 // @Router /api/v1/workflows [get]
 func (f *WorkflowController) List(c *gin.Context) {
 	limit, _ := strconv.Atoi(c.Query("limit"))
 	page, err := f.definitionService.List(c.Request.Context(), ginctx.GetUser(c), model.ListWorkflowsQuery{
-		Limit:  limit,
-		Cursor: c.Query("cursor"),
+		Limit:    limit,
+		Cursor:   c.Query("cursor"),
+		FormCode: strings.TrimSpace(c.Query("formCode")),
 	})
 	if err != nil {
 		responseError(c, err)

@@ -19,6 +19,7 @@ type WfDefinition struct {
 	Code             string     `json:"code" gorm:"size:64;not null"` // wf_ 前缀稳定公开编码（路由/API 使用）
 	Name             string     `json:"name" gorm:"size:128;not null"`
 	Description      string     `json:"description" gorm:"size:512;not null;default:''"`
+	FormCode         string     `json:"formCode" gorm:"size:64;not null;default:''"` // 绑定表单公开编码（000060）：流程型表单的流程设计页定位口令；空串=独立定义
 	DraftContent     DSLContent `json:"draft" gorm:"type:jsonb;not null"`
 	DraftRevision    int64      `json:"draftRevision" gorm:"not null;default:1"` // 草稿乐观锁：保存条件递增
 	LatestVersionID  *uint      `json:"latestVersionId"`                         // 最新发布版本；NULL=从未发布

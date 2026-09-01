@@ -52,7 +52,7 @@ const visibleMembers = computed(() => {
   const selectedDepartmentIds =
     departmentFilterId.value === null
       ? null
-      : departmentSubtrees.value.get(departmentFilterId.value) ?? new Set<number>();
+      : (departmentSubtrees.value.get(departmentFilterId.value) ?? new Set<number>());
   return members.value.filter((member) => {
     const memberDepartmentIds = member.departments.map((department) => department.id);
     if (
@@ -139,12 +139,13 @@ watch(visible, (open) => {
     </header>
     <section class="form-member-picker__selected" aria-label="已选成员">
       <span v-for="id in selected" :key="id" class="form-member-picker__tag">
-        <i>{{ memberName(id).slice(0, 1) }}</i>{{ memberName(id) }}
+        <i>{{ memberName(id).slice(0, 1) }}</i
+        >{{ memberName(id) }}
         <RiCloseFill @click="removeMember(id)" />
       </span>
     </section>
     <label class="form-member-picker__search">
-      <RiSearchFill /><input v-model="keyword" placeholder="搜索（多个关键词用空格隔开）">
+      <RiSearchFill /><input v-model="keyword" placeholder="搜索（多个关键词用空格隔开）" />
     </label>
     <div class="form-member-picker__tabs" role="tablist" aria-label="成员选择来源">
       <button
@@ -201,60 +202,226 @@ watch(visible, (open) => {
         >
           <span class="form-member-picker__avatar">{{ member.name.slice(0, 1) }}</span>
           <span>{{ member.name }}</span>
-          <span class="form-member-picker__member-department">{{ member.departments.map((item) => item.name).join('、') }}</span>
+          <span class="form-member-picker__member-department">{{
+            member.departments.map((item) => item.name).join('、')
+          }}</span>
           <el-checkbox v-if="multiple" :model-value="selectedSet.has(String(member.id))" />
           <el-radio v-else :model-value="selected[0]" :value="String(member.id)" />
         </label>
-        <p v-if="!loading && !loadError && !visibleMembers.length" class="form-member-picker__empty">
+        <p
+          v-if="!loading && !loadError && !visibleMembers.length"
+          class="form-member-picker__empty"
+        >
           没有符合条件的成员
         </p>
       </div>
     </section>
-    <section v-else class="form-member-picker__dynamic-empty">
-      动态参数将在流程表单中提供。
-    </section>
+    <section v-else class="form-member-picker__dynamic-empty">动态参数将在流程表单中提供。</section>
     <footer class="form-member-picker__footer">
-      <el-button @click="visible = false">
-        取消
-      </el-button><el-button type="primary" @click="confirm">
-        确定
-      </el-button>
+      <el-button @click="visible = false"> 取消 </el-button
+      ><el-button type="primary" @click="confirm"> 确定 </el-button>
     </footer>
   </el-dialog>
 </template>
 
 <style scoped lang="scss">
-:global(.form-member-picker) { border-radius: var(--el-border-radius-large); }
-:global(.form-member-picker .el-dialog__header) { display: none; }
-:global(.form-member-picker .el-dialog__body) { padding: 0; }
+:global(.form-member-picker) {
+  border-radius: var(--el-border-radius-large);
+}
+:global(.form-member-picker .el-dialog__header) {
+  display: none;
+}
+:global(.form-member-picker .el-dialog__body) {
+  padding: 0;
+}
 .form-member-picker {
-  &__header, &__footer, &__member, &__all, &__search, &__tag { display: flex; align-items: center; }
-  &__header { height: 46px; padding: 0 var(--el-space-xl); border-bottom: 1px solid var(--el-border-color); justify-content: space-between; }
-  &__header h2 { margin: 0; font-size: var(--el-font-size-medium); }
-  &__header button { display: inline-flex; padding: var(--el-space-xs); border: 0; color: var(--el-text-color-secondary); background: transparent; cursor: pointer; }
-  &__header svg { width: 20px; height: 20px; }
-  &__selected { display: flex; min-height: 44px; max-height: 108px; margin: var(--el-space-xl) var(--el-space-xl) var(--el-space-md); padding: var(--el-space-sm); gap: var(--el-space-sm); overflow-y: auto; border: 1px dashed var(--el-border-color); border-radius: var(--el-border-radius-base); }
-  &__tag { height: 28px; padding: 0 var(--el-space-sm); gap: var(--el-space-xs); color: var(--el-text-color-regular); background: var(--el-fill-color-light); border-radius: var(--el-border-radius-small); font-size: var(--el-font-size-small); }
-  &__tag i, &__avatar { display: inline-flex; width: 20px; height: 20px; align-items: center; justify-content: center; color: var(--el-color-white); background: var(--el-color-primary); border-radius: var(--el-border-radius-half); font-size: var(--el-font-size-extra-small); font-style: normal; }
-  &__tag svg { cursor: pointer; }
-  &__search { height: 30px; margin: 0 var(--el-space-xl); padding: 0 var(--el-space-sm); gap: var(--el-space-xs); color: var(--el-text-color-secondary); background: var(--el-fill-color-light); border-radius: var(--el-border-radius-small); }
-  &__search input { width: 100%; border: 0; outline: 0; color: var(--el-text-color-regular); background: transparent; font: inherit; font-size: var(--el-font-size-small); }
-  &__tabs { display: flex; gap: var(--el-space-xl); height: 42px; margin: 0 var(--el-space-xl); border-bottom: 1px solid var(--el-border-color-lighter); }
-  &__tabs button { padding: 0; border: 0; border-bottom: 2px solid transparent; color: var(--el-text-color-regular); background: transparent; cursor: pointer; font: inherit; font-size: var(--el-font-size-small); }
-  &__tab--active { color: var(--el-color-primary) !important; border-bottom-color: var(--el-color-primary) !important; }
-  &__body { display: grid; min-height: 274px; margin: var(--el-space-sm) var(--el-space-xl) 0; grid-template-columns: 1fr 1fr; }
-  &__tree { padding: var(--el-space-sm); border-right: 1px solid var(--el-border-color-lighter); }
-  &__tree :deep(.el-tree) { --el-tree-node-content-height: 30px; background: transparent; font-size: var(--el-font-size-small); }
-  &__all { width: 100%; height: 32px; padding: 0 var(--el-space-sm); gap: var(--el-space-xs); border: 0; border-radius: var(--el-border-radius-small); color: var(--el-text-color-regular); background: transparent; text-align: left; cursor: pointer; }
-  &__all--active { color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
-  &__results { min-width: 0; padding: var(--el-space-sm); }
-  &__result-title { margin: 0 0 var(--el-space-sm); color: var(--el-color-primary); font-size: var(--el-font-size-small); }
-  &__member { height: 32px; padding: 0 var(--el-space-xs); gap: var(--el-space-sm); border-radius: var(--el-border-radius-small); color: var(--el-text-color-regular); font-size: var(--el-font-size-small); cursor: pointer; }
-  &__member:hover { background: var(--el-fill-color-light); }
-  &__member .el-checkbox, &__member .el-radio { margin-left: auto; }
-  &__member-department { overflow: hidden; margin-left: auto; color: var(--el-text-color-secondary); text-overflow: ellipsis; white-space: nowrap; font-size: var(--el-font-size-extra-small); }
-  &__empty, &__dynamic-empty { padding: var(--el-space-3xl); margin: 0; color: var(--el-text-color-secondary); text-align: center; font-size: var(--el-font-size-small); }
-  &__dynamic-empty { min-height: 274px; }
-  &__footer { height: 52px; padding: 0 var(--el-space-xl); border-top: 1px solid var(--el-border-color); justify-content: flex-end; gap: var(--el-space-sm); }
+  &__header,
+  &__footer,
+  &__member,
+  &__all,
+  &__search,
+  &__tag {
+    display: flex;
+    align-items: center;
+  }
+  &__header {
+    height: 46px;
+    padding: 0 var(--el-space-xl);
+    border-bottom: 1px solid var(--el-border-color);
+    justify-content: space-between;
+  }
+  &__header h2 {
+    margin: 0;
+    font-size: var(--el-font-size-medium);
+  }
+  &__header button {
+    display: inline-flex;
+    padding: var(--el-space-xs);
+    border: 0;
+    color: var(--el-text-color-secondary);
+    background: transparent;
+    cursor: pointer;
+  }
+  &__header svg {
+    width: 20px;
+    height: 20px;
+  }
+  &__selected {
+    display: flex;
+    min-height: 44px;
+    max-height: 108px;
+    margin: var(--el-space-xl) var(--el-space-xl) var(--el-space-md);
+    padding: var(--el-space-sm);
+    gap: var(--el-space-sm);
+    overflow-y: auto;
+    border: 1px dashed var(--el-border-color);
+    border-radius: var(--el-border-radius-base);
+  }
+  &__tag {
+    height: 28px;
+    padding: 0 var(--el-space-sm);
+    gap: var(--el-space-xs);
+    color: var(--el-text-color-regular);
+    background: var(--el-fill-color-light);
+    border-radius: var(--el-border-radius-small);
+    font-size: var(--el-font-size-small);
+  }
+  &__tag i,
+  &__avatar {
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    align-items: center;
+    justify-content: center;
+    color: var(--el-color-white);
+    background: var(--el-color-primary);
+    border-radius: var(--el-border-radius-half);
+    font-size: var(--el-font-size-extra-small);
+    font-style: normal;
+  }
+  &__tag svg {
+    cursor: pointer;
+  }
+  &__search {
+    height: 30px;
+    margin: 0 var(--el-space-xl);
+    padding: 0 var(--el-space-sm);
+    gap: var(--el-space-xs);
+    color: var(--el-text-color-secondary);
+    background: var(--el-fill-color-light);
+    border-radius: var(--el-border-radius-small);
+  }
+  &__search input {
+    width: 100%;
+    border: 0;
+    outline: 0;
+    color: var(--el-text-color-regular);
+    background: transparent;
+    font: inherit;
+    font-size: var(--el-font-size-small);
+  }
+  &__tabs {
+    display: flex;
+    gap: var(--el-space-xl);
+    height: 42px;
+    margin: 0 var(--el-space-xl);
+    border-bottom: 1px solid var(--el-border-color-lighter);
+  }
+  &__tabs button {
+    padding: 0;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    color: var(--el-text-color-regular);
+    background: transparent;
+    cursor: pointer;
+    font: inherit;
+    font-size: var(--el-font-size-small);
+  }
+  &__tab--active {
+    color: var(--el-color-primary) !important;
+    border-bottom-color: var(--el-color-primary) !important;
+  }
+  &__body {
+    display: grid;
+    min-height: 274px;
+    margin: var(--el-space-sm) var(--el-space-xl) 0;
+    grid-template-columns: 1fr 1fr;
+  }
+  &__tree {
+    padding: var(--el-space-sm);
+    border-right: 1px solid var(--el-border-color-lighter);
+  }
+  &__tree :deep(.el-tree) {
+    --el-tree-node-content-height: 30px;
+    background: transparent;
+    font-size: var(--el-font-size-small);
+  }
+  &__all {
+    width: 100%;
+    height: 32px;
+    padding: 0 var(--el-space-sm);
+    gap: var(--el-space-xs);
+    border: 0;
+    border-radius: var(--el-border-radius-small);
+    color: var(--el-text-color-regular);
+    background: transparent;
+    text-align: left;
+    cursor: pointer;
+  }
+  &__all--active {
+    color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+  }
+  &__results {
+    min-width: 0;
+    padding: var(--el-space-sm);
+  }
+  &__result-title {
+    margin: 0 0 var(--el-space-sm);
+    color: var(--el-color-primary);
+    font-size: var(--el-font-size-small);
+  }
+  &__member {
+    height: 32px;
+    padding: 0 var(--el-space-xs);
+    gap: var(--el-space-sm);
+    border-radius: var(--el-border-radius-small);
+    color: var(--el-text-color-regular);
+    font-size: var(--el-font-size-small);
+    cursor: pointer;
+  }
+  &__member:hover {
+    background: var(--el-fill-color-light);
+  }
+  &__member .el-checkbox,
+  &__member .el-radio {
+    margin-left: auto;
+  }
+  &__member-department {
+    overflow: hidden;
+    margin-left: auto;
+    color: var(--el-text-color-secondary);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--el-font-size-extra-small);
+  }
+  &__empty,
+  &__dynamic-empty {
+    padding: var(--el-space-3xl);
+    margin: 0;
+    color: var(--el-text-color-secondary);
+    text-align: center;
+    font-size: var(--el-font-size-small);
+  }
+  &__dynamic-empty {
+    min-height: 274px;
+  }
+  &__footer {
+    height: 52px;
+    padding: 0 var(--el-space-xl);
+    border-top: 1px solid var(--el-border-color);
+    justify-content: flex-end;
+    gap: var(--el-space-sm);
+  }
 }
 </style>

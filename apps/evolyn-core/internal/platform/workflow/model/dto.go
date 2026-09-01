@@ -13,6 +13,10 @@ import (
 type CreateWorkflowRequest struct {
 	Name        string `json:"name"`        // 必填，trim 后 1–128 字符
 	Description string `json:"description"` // 可选，≤512 字符
+	// FormCode 可选：绑定的表单公开编码（form_ 前缀）。流程型表单的流程
+	// 设计页懒建定义时传入，租户内一条表单至多绑定一条未删除定义
+	//（uk_wf_definition_form_code 兜底）；空串=独立定义。
+	FormCode string `json:"formCode"`
 }
 
 // UpdateWorkflowRequest 白名单更新（PATCH，指针区分未提交字段）。
@@ -48,6 +52,7 @@ type WorkflowSummary struct {
 	Code             string          `json:"code"`
 	Name             string          `json:"name"`
 	Description      string          `json:"description"`
+	FormCode         string          `json:"formCode"`
 	PublishedVersion int             `json:"publishedVersion"`
 	DraftRevision    int64           `json:"draftRevision"`
 	CreatorMemberID  uint            `json:"creatorMemberId"`
@@ -71,6 +76,8 @@ type WorkflowPage struct {
 type ListWorkflowsQuery struct {
 	Limit  int
 	Cursor string
+	// FormCode 精确过滤：流程设计页按绑定表单定位定义（空=不过滤）
+	FormCode string
 }
 
 // VersionSummary 发布版本条目（快照全文不出网，详情接口携带）。

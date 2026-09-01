@@ -222,7 +222,8 @@ describe('validateFormSchema 结构校验', () => {
     invalidSeparator.widget.borderStyle = 'wave';
     expect(validateFormSchema(documentWith([invalidSeparator])).issues).toContainEqual({
       path: 'content.items[0].widget.borderStyle',
-      message: 'borderStyle 必须是以下枚举值之一：none / hidden / dotted / dashed / solid / double / groove / ridge / inset / outset',
+      message:
+        'borderStyle 必须是以下枚举值之一：none / hidden / dotted / dashed / solid / double / groove / ridge / inset / outset',
     });
   });
 

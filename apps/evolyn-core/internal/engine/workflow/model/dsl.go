@@ -7,6 +7,8 @@
 // 不建 wf_node / wf_edge 独立表）。
 package model
 
+import "encoding/json"
+
 // DSLSchemaVersion Workflow DSL v1 协议版本号；校验器只接受本值。
 // 协议演进时递增次版本并同步前后端与迁移器，禁止静默放宽。
 const DSLSchemaVersion = "1.0"
@@ -284,9 +286,15 @@ type Edge struct {
 	Condition *EdgeCondition `json:"condition,omitempty"`
 }
 
-// Settings 顶层流程设置（V1 预留空结构，字段随里程碑显式追加，
-// 不开放自由键值避免协议漂移）。
-type Settings struct{}
+// Settings 顶层流程设置（不开放自由键值避免协议漂移，字段随里程碑显式追加）。
+type Settings struct {
+	// Designer 设计器私有数据（Phase 9）：画布坐标等仅服务编辑体验的状态，
+	// 结构由前端设计器定义（如 settings.designer.layout[nodeKey] = {x,y}）。
+	// 引擎校验器与运行时完全不读取；草稿/发布快照按原始字节存取（DSLContent），
+	// 该字段随文档整体往返持久化、进快照不影响运行语义——即
+	// 「LogicFlow Graph != Workflow Runtime Model」原则的协议层落点。
+	Designer json.RawMessage `json:"designer,omitempty"`
+}
 
 // Document Workflow DSL v1 顶层结构：草稿与发布快照的唯一事实形态，
 // 整体内嵌于 wf_definition.draft_content / wf_definition_version.dsl_snapshot。

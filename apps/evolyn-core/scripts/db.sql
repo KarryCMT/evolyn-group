@@ -2027,6 +2027,7 @@ CREATE TABLE IF NOT EXISTS wf_definition (
     code varchar(64) NOT NULL,
     name varchar(128) NOT NULL,
     description varchar(512) NOT NULL DEFAULT '',
+    form_code varchar(64) NOT NULL DEFAULT '',
     draft_content JSONB NOT NULL,
     draft_revision BIGINT NOT NULL DEFAULT 1,
     latest_version_id BIGINT,
@@ -2048,6 +2049,16 @@ CREATE INDEX IF NOT EXISTS idx_wf_definition_tenant
 CREATE UNIQUE INDEX IF NOT EXISTS uk_wf_definition_tenant_code
     ON wf_definition (tenant_id, code)
     WHERE deleted_at IS NULL;
+
+-- 表单绑定（000060）：流程型表单的流程设计页定位口令，一条表单租户内至多
+-- 绑定一条未删除定义；空串=独立定义
+CREATE UNIQUE INDEX IF NOT EXISTS uk_wf_definition_form_code
+    ON wf_definition (tenant_id, form_code)
+    WHERE deleted_at IS NULL AND form_code <> '';
+
+CREATE INDEX IF NOT EXISTS idx_wf_definition_form_code
+    ON wf_definition (tenant_id, form_code)
+    WHERE deleted_at IS NULL AND form_code <> '';
 
 -- 不可变发布快照（追加写）：发布时 DSL 全文整体冻结，发布前必须通过严格校验
 -- 与 Expr 预编译；(definition_id, version_no) 唯一保证并发发布不重号
@@ -2100,6 +2111,7 @@ COMMENT ON COLUMN wf_definition.tenant_id IS '所属租户 ID';
 COMMENT ON COLUMN wf_definition.code IS '稳定公开编码（wf_ 前缀 + 16 位随机 hex）：路由/API/菜单 target 使用；租户内未删除行唯一';
 COMMENT ON COLUMN wf_definition.name IS '流程名称（trim 后 1–128 字符）；不进入 DSL 文档';
 COMMENT ON COLUMN wf_definition.description IS '流程描述（≤512 字符）；不进入 DSL 文档';
+COMMENT ON COLUMN wf_definition.form_code IS '绑定的表单公开编码（form_ 前缀，forms.code）：流程型表单的工作区流程设计页定位口令，一条表单租户内至多绑定一条未删除定义；空串=独立定义（不属于任何表单）';
 COMMENT ON COLUMN wf_definition.draft_content IS 'Workflow DSL v1 草稿全文 JSONB：{schemaVersion:"1.0",nodes:[],edges:[],settings:{}}，原样字节存取；保存与发布前经引擎严格校验器校验';
 COMMENT ON COLUMN wf_definition.draft_revision IS '草稿乐观锁口令：每次草稿保存条件递增，客户端原样回传，过期返回 WORKFLOW_REVISION_CONFLICT';
 COMMENT ON COLUMN wf_definition.latest_version_id IS '最新发布版本行 ID；NULL=从未发布';

@@ -36,6 +36,9 @@ var (
 	// ErrWorkflowCodeInvalid 路由编码不符合 wf_ 前缀约定（客户端错误）
 	ErrWorkflowCodeInvalid = httpx.NewBiz("WORKFLOW_CODE_INVALID", "无效的流程编码", http.StatusBadRequest)
 
+	// ErrWorkflowFormCodeInvalid 绑定表单编码不符合 form_ 前缀约定（000060 表单绑定）
+	ErrWorkflowFormCodeInvalid = httpx.NewBiz("WORKFLOW_FORM_CODE_INVALID", "无效的绑定表单编码", http.StatusBadRequest)
+
 	// ErrVersionNotFound 指定发布版本不存在（版本以 version_no 标识，历史版本均可读）
 	ErrVersionNotFound = httpx.NewBiz("WORKFLOW_VERSION_NOT_FOUND", "流程版本不存在", http.StatusNotFound)
 

@@ -593,9 +593,7 @@ function reloadWorkspace() {
         :sub-title="menuErrorMessage"
       >
         <template #extra>
-          <el-button type="primary" @click="reloadMenu()">
-            重新加载
-          </el-button>
+          <el-button type="primary" @click="reloadMenu()"> 重新加载 </el-button>
         </template>
       </el-result>
 
@@ -671,9 +669,7 @@ function reloadWorkspace() {
         sub-title="请返回工作台后重新选择应用。"
       >
         <template #extra>
-          <el-button type="primary" @click="returnToDashboard">
-            返回工作台
-          </el-button>
+          <el-button type="primary" @click="returnToDashboard"> 返回工作台 </el-button>
         </template>
       </el-result>
 
@@ -685,9 +681,7 @@ function reloadWorkspace() {
         :sub-title="errorMessage"
       >
         <template #extra>
-          <el-button type="primary" @click="reloadWorkspace()">
-            重新加载
-          </el-button>
+          <el-button type="primary" @click="reloadWorkspace()"> 重新加载 </el-button>
         </template>
       </el-result>
 
