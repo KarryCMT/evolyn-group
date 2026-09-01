@@ -1,12 +1,10 @@
 <script setup lang="ts">
-import { CopyDocument, Delete, Rank } from '@element-plus/icons-vue';
+import { RiDeleteBin6Fill, RiDragMoveFill, RiFileCopyFill } from '@remixicon/vue';
 import {
-  ElButton,
   ElCheckbox,
   ElForm,
   ElFormItem,
   ElIcon,
-  ElInput,
   ElInputNumber,
   ElOption,
   ElRadio,
@@ -67,187 +65,200 @@ function normalizeStickyLimits(): void {
 
 <template>
   <el-form class="form-schema-subform-property" label-position="top" @submit.prevent>
-    <FormSchemaCommonPropertyPanel v-model="model" @rename-key="emit('renameKey', $event)" />
+    <FormSchemaCommonPropertyPanel
+      v-model="model"
+      arrangement="reference"
+      :show-widget-name="false"
+      @rename-key="emit('renameKey', $event)"
+    >
+      <template #title-suffix>
+        <!-- 子表单也沿用只读类型栏位，保持全部字段属性的顶部结构一致。 -->
+        <el-select model-value="subform" disabled aria-label="字段类型">
+          <el-option label="子表单" value="subform" />
+        </el-select>
+      </template>
 
-    <section class="form-schema-subform-property__section">
-      <div class="form-schema-subform-property__section-heading">
-        <h3 class="form-schema-subform-property__section-title">子字段</h3>
-        <span>{{ widget.items.length }}/200</span>
-      </div>
-      <Draggable
-        v-model="widget.items"
-        item-key="widget.widgetName"
-        handle=".form-schema-subform-property__drag"
-        class="form-schema-subform-property__children"
-        :animation="180"
-      >
-        <template #item="{ element, index }">
-          <div class="form-schema-subform-property__child">
-            <button
-              class="form-schema-subform-property__drag"
-              type="button"
-              title="拖拽排序"
-              aria-label="拖拽排序"
-            >
-              <el-icon><Rank /></el-icon>
-            </button>
-            <span class="form-schema-subform-property__child-type">{{
-              widgetTypeLabel(element.widget.type)
-            }}</span>
-            <span class="form-schema-subform-property__child-label">{{ element.label }}</span>
-            <button type="button" title="复制子字段" @click="copyChild(index)">
-              <el-icon><CopyDocument /></el-icon>
-            </button>
-            <button type="button" title="删除子字段" @click="removeChild(index)">
-              <el-icon><Delete /></el-icon>
-            </button>
+      <!-- 子表单专属设置同样放在公共说明之后、公共校验之前。 -->
+      <template #after-prompt>
+        <section class="form-schema-subform-property__section">
+          <div class="form-schema-subform-property__section-heading">
+            <h3 class="form-schema-subform-property__section-title">子字段</h3>
+            <span>{{ widget.items.length }}/200</span>
           </div>
-        </template>
-      </Draggable>
-      <el-select
-        v-model="addType"
-        class="form-schema-subform-property__add"
-        placeholder="＋ 添加子字段"
-        :disabled="widget.items.length >= 200"
-        @change="addChild"
-      >
-        <el-option
-          v-for="option in allowedOptions"
-          :key="option.value"
-          :label="option.label"
-          :value="option.value"
-        />
-      </el-select>
-      <p class="form-schema-subform-property__hint">
-        可从左侧直接拖入；标签页、分割线、富文本和子表单不能嵌套。
-      </p>
-    </section>
-
-    <section class="form-schema-subform-property__section">
-      <h3 class="form-schema-subform-property__section-title">校验</h3>
-      <el-checkbox
-        :model-value="!widget.allowBlank"
-        @update:model-value="widget.allowBlank = !$event"
-      >
-        必填
-      </el-checkbox>
-      <div class="form-schema-subform-property__row-limits">
-        <el-form-item label="最少行数">
-          <el-input-number
-            :model-value="widget.minRowCount ?? undefined"
-            :min="0"
-            :max="200"
-            placeholder="不限"
-            @update:model-value="widget.minRowCount = $event ?? null"
-          />
-        </el-form-item>
-        <el-form-item label="最多行数">
-          <el-input-number
-            :model-value="widget.maxRowCount ?? undefined"
-            :min="1"
-            :max="200"
-            placeholder="不限"
-            @update:model-value="widget.maxRowCount = $event ?? null"
-          />
-        </el-form-item>
-      </div>
-    </section>
-
-    <section class="form-schema-subform-property__section">
-      <div class="form-schema-subform-property__switch-row">
-        <div>
-          <h3 class="form-schema-subform-property__section-title">快速填报</h3>
-          <p>连续录入多行时保留上一行可复用内容</p>
-        </div>
-        <el-switch
-          v-model="widget.quickFill"
-          :disabled="!widget.subformCreate || !widget.subformEdit"
-        />
-      </div>
-      <div class="form-schema-subform-property__notice">
-        需同时开启“可新增记录”和“可编辑已有记录”权限后才会生效。
-      </div>
-    </section>
-
-    <section class="form-schema-subform-property__section">
-      <h3 class="form-schema-subform-property__section-title">字段权限</h3>
-      <div class="form-schema-subform-property__permission-list">
-        <el-checkbox v-model="widget.visible">可见</el-checkbox>
-        <el-checkbox v-model="widget.enable">可编辑</el-checkbox>
-        <div class="form-schema-subform-property__permission-children">
-          <el-checkbox v-model="widget.subformCreate" :disabled="!widget.enable"
-            >可新增记录</el-checkbox
+          <Draggable
+            v-model="widget.items"
+            item-key="widget.widgetName"
+            handle=".form-schema-subform-property__drag"
+            class="form-schema-subform-property__children"
+            :animation="180"
           >
-          <el-checkbox v-model="widget.subformInsert" :disabled="!widget.enable"
-            >可插入记录</el-checkbox
-          >
-          <el-checkbox v-model="widget.subformEdit" :disabled="!widget.enable"
-            >可编辑已有记录</el-checkbox
-          >
-          <el-checkbox v-model="widget.subformDelete" :disabled="!widget.enable"
-            >可删除已有记录</el-checkbox
-          >
-        </div>
-      </div>
-    </section>
-
-    <section class="form-schema-subform-property__section">
-      <h3 class="form-schema-subform-property__section-title">子表单展示样式</h3>
-      <el-radio-group v-model="device" class="form-schema-subform-property__device" size="default">
-        <el-radio-button value="pc">电脑端</el-radio-button>
-        <el-radio-button value="mobile">移动端</el-radio-button>
-      </el-radio-group>
-
-      <template v-if="device === 'pc'">
-        <div class="form-schema-subform-property__inline-control">
-          <el-checkbox v-model="widget.pcStickyColumn.enable">固定前</el-checkbox>
+            <template #item="{ element, index }">
+              <div class="form-schema-subform-property__child">
+                <button
+                  class="form-schema-subform-property__drag"
+                  type="button"
+                  title="拖拽排序"
+                  aria-label="拖拽排序"
+                >
+                  <el-icon><RiDragMoveFill /></el-icon>
+                </button>
+                <span class="form-schema-subform-property__child-type">{{
+                  widgetTypeLabel(element.widget.type)
+                }}</span>
+                <span class="form-schema-subform-property__child-label">{{ element.label }}</span>
+                <button type="button" title="复制子字段" @click="copyChild(index)">
+                  <el-icon><RiFileCopyFill /></el-icon>
+                </button>
+                <button type="button" title="删除子字段" @click="removeChild(index)">
+                  <el-icon><RiDeleteBin6Fill /></el-icon>
+                </button>
+              </div>
+            </template>
+          </Draggable>
           <el-select
-            v-model="widget.pcStickyColumn.limit"
-            :disabled="!widget.pcStickyColumn.enable"
+            v-model="addType"
+            class="form-schema-subform-property__add"
+            placeholder="＋ 添加子字段"
+            :disabled="widget.items.length >= 200"
+            @change="addChild"
           >
             <el-option
-              v-for="count in maxStickyColumns"
-              :key="count"
-              :label="`${count}列`"
-              :value="count"
+              v-for="option in allowedOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
             />
           </el-select>
-        </div>
-      </template>
-      <template v-else>
-        <el-radio-group
-          v-model="widget.mobileViewStyle"
-          class="form-schema-subform-property__mobile-style"
-        >
-          <el-radio value="vertical">纵向平铺</el-radio>
-          <el-radio value="horizontal">横向表格</el-radio>
-        </el-radio-group>
-        <div class="form-schema-subform-property__inline-control">
-          <el-checkbox v-model="widget.mobileStickyColumn.enable">固定前</el-checkbox>
-          <el-select
-            v-model="widget.mobileStickyColumn.limit"
-            :disabled="!widget.mobileStickyColumn.enable || widget.mobileViewStyle !== 'horizontal'"
+          <p class="form-schema-subform-property__hint">
+            可从左侧直接拖入；标签页、分割线、富文本和子表单不能嵌套。
+          </p>
+        </section>
+
+        <section class="form-schema-subform-property__section">
+          <h3 class="form-schema-subform-property__section-title">行数限制</h3>
+          <div class="form-schema-subform-property__row-limits">
+            <el-form-item label="最少行数">
+              <el-input-number
+                :model-value="widget.minRowCount ?? undefined"
+                :min="0"
+                :max="200"
+                placeholder="不限"
+                @update:model-value="widget.minRowCount = $event ?? null"
+              />
+            </el-form-item>
+            <el-form-item label="最多行数">
+              <el-input-number
+                :model-value="widget.maxRowCount ?? undefined"
+                :min="1"
+                :max="200"
+                placeholder="不限"
+                @update:model-value="widget.maxRowCount = $event ?? null"
+              />
+            </el-form-item>
+          </div>
+        </section>
+
+        <section class="form-schema-subform-property__section">
+          <div class="form-schema-subform-property__switch-row">
+            <div>
+              <h3 class="form-schema-subform-property__section-title">快速填报</h3>
+              <p>连续录入多行时保留上一行可复用内容</p>
+            </div>
+            <el-switch
+              v-model="widget.quickFill"
+              :disabled="!widget.subformCreate || !widget.subformEdit"
+            />
+          </div>
+          <div class="form-schema-subform-property__notice">
+            需同时开启“可新增记录”和“可编辑已有记录”权限后才会生效。
+          </div>
+        </section>
+
+        <section class="form-schema-subform-property__section">
+          <h3 class="form-schema-subform-property__section-title">子表单权限</h3>
+          <div class="form-schema-subform-property__permission-list">
+            <div class="form-schema-subform-property__permission-children">
+              <el-checkbox v-model="widget.subformCreate" :disabled="!widget.enable"
+                >可新增记录</el-checkbox
+              >
+              <el-checkbox v-model="widget.subformInsert" :disabled="!widget.enable"
+                >可插入记录</el-checkbox
+              >
+              <el-checkbox v-model="widget.subformEdit" :disabled="!widget.enable"
+                >可编辑已有记录</el-checkbox
+              >
+              <el-checkbox v-model="widget.subformDelete" :disabled="!widget.enable"
+                >可删除已有记录</el-checkbox
+              >
+            </div>
+          </div>
+        </section>
+
+        <section class="form-schema-subform-property__section">
+          <h3 class="form-schema-subform-property__section-title">子表单展示样式</h3>
+          <el-radio-group
+            v-model="device"
+            class="form-schema-subform-property__device"
+            size="default"
           >
-            <el-option
-              v-for="count in maxStickyColumns"
-              :key="count"
-              :label="`${count}列`"
-              :value="count"
-            />
-          </el-select>
-        </div>
-        <el-form-item v-if="widget.mobileViewStyle === 'vertical'" label="数据收起时显示的简报">
-          <el-select v-model="widget.mobileSummaryFieldCount">
-            <el-option
-              v-for="count in 5"
-              :key="count"
-              :label="`前${count}个字段的值`"
-              :value="count"
-            />
-          </el-select>
-        </el-form-item>
+            <el-radio-button value="pc">电脑端</el-radio-button>
+            <el-radio-button value="mobile">移动端</el-radio-button>
+          </el-radio-group>
+
+          <template v-if="device === 'pc'">
+            <div class="form-schema-subform-property__inline-control">
+              <el-checkbox v-model="widget.pcStickyColumn.enable">固定前</el-checkbox>
+              <el-select
+                v-model="widget.pcStickyColumn.limit"
+                :disabled="!widget.pcStickyColumn.enable"
+              >
+                <el-option
+                  v-for="count in maxStickyColumns"
+                  :key="count"
+                  :label="`${count}列`"
+                  :value="count"
+                />
+              </el-select>
+            </div>
+          </template>
+          <template v-else>
+            <el-radio-group
+              v-model="widget.mobileViewStyle"
+              class="form-schema-subform-property__mobile-style"
+            >
+              <el-radio value="vertical">纵向平铺</el-radio>
+              <el-radio value="horizontal">横向表格</el-radio>
+            </el-radio-group>
+            <div class="form-schema-subform-property__inline-control">
+              <el-checkbox v-model="widget.mobileStickyColumn.enable">固定前</el-checkbox>
+              <el-select
+                v-model="widget.mobileStickyColumn.limit"
+                :disabled="
+                  !widget.mobileStickyColumn.enable || widget.mobileViewStyle !== 'horizontal'
+                "
+              >
+                <el-option
+                  v-for="count in maxStickyColumns"
+                  :key="count"
+                  :label="`${count}列`"
+                  :value="count"
+                />
+              </el-select>
+            </div>
+            <el-form-item v-if="widget.mobileViewStyle === 'vertical'" label="数据收起时显示的简报">
+              <el-select v-model="widget.mobileSummaryFieldCount">
+                <el-option
+                  v-for="count in 5"
+                  :key="count"
+                  :label="`前${count}个字段的值`"
+                  :value="count"
+                />
+              </el-select>
+            </el-form-item>
+          </template>
+        </section>
       </template>
-    </section>
+    </FormSchemaCommonPropertyPanel>
   </el-form>
 </template>
 

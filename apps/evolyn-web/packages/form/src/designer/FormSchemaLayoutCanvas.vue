@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Delete } from '@element-plus/icons-vue';
+import { RiDeleteBin6Fill } from '@remixicon/vue';
 import { EvolynScrollbar } from '@evolyn.do/ui';
 import { ElIcon, ElPopconfirm, ElTabPane, ElTabs } from 'element-plus';
 import { computed, reactive, type CSSProperties } from 'vue';
@@ -190,7 +190,7 @@ function allowCanvasMove(event: { related?: Element | null }): boolean {
                     aria-label="删除标签页"
                     @click.stop
                   >
-                    <el-icon><Delete /></el-icon>
+                    <el-icon><RiDeleteBin6Fill /></el-icon>
                   </button>
                 </template>
               </el-popconfirm>

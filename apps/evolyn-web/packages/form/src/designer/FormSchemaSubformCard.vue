@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CopyDocument, Delete } from '@element-plus/icons-vue';
+import { RiDeleteBin6Fill, RiFileCopyFill } from '@remixicon/vue';
 import { EvolynScrollbar } from '@evolyn.do/ui';
 import { ElIcon, ElPopconfirm } from 'element-plus';
 import { computed, nextTick, ref, watch } from 'vue';
@@ -91,7 +91,7 @@ function isFormItem(entry: unknown): entry is FormItem {
       </span>
       <div class="form-schema-subform-card__actions">
         <button type="button" title="复制子表单" @click.stop="emit('copy', item)">
-          <el-icon><CopyDocument /></el-icon>
+          <el-icon><RiFileCopyFill /></el-icon>
         </button>
         <el-popconfirm
           placement="bottom-end"
@@ -105,7 +105,7 @@ function isFormItem(entry: unknown): entry is FormItem {
         >
           <template #reference>
             <button type="button" title="删除子表单" @click.stop>
-              <el-icon><Delete /></el-icon>
+              <el-icon><RiDeleteBin6Fill /></el-icon>
             </button>
           </template>
         </el-popconfirm>
@@ -152,7 +152,7 @@ function isFormItem(entry: unknown): entry is FormItem {
                     title="复制子字段"
                     @click.stop="emit('copyChild', parentKey, element.widget.widgetName)"
                   >
-                    <el-icon><CopyDocument /></el-icon>
+                    <el-icon><RiFileCopyFill /></el-icon>
                   </button>
                   <el-popconfirm
                     placement="bottom-end"
@@ -166,7 +166,7 @@ function isFormItem(entry: unknown): entry is FormItem {
                   >
                     <template #reference>
                       <button type="button" title="删除子字段" @click.stop>
-                        <el-icon><Delete /></el-icon>
+                        <el-icon><RiDeleteBin6Fill /></el-icon>
                       </button>
                     </template>
                   </el-popconfirm>

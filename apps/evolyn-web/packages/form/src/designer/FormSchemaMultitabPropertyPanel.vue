@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CopyDocument, Delete, Plus, Rank } from '@element-plus/icons-vue';
+import { RiAddFill, RiDeleteBin6Fill, RiDragMoveFill, RiFileCopyFill } from '@remixicon/vue';
 import {
   ElButton,
   ElForm,
@@ -59,7 +59,7 @@ function reorder(entries: FormMultitabLayout['container']): void {
           <template #item="{ element: tab }">
             <div class="form-schema-multitab-property__tab">
               <span class="form-schema-multitab-property__drag" title="拖拽排序">
-                <el-icon><Rank /></el-icon>
+                <el-icon><RiDragMoveFill /></el-icon>
               </span>
               <el-input
                 :model-value="tab.title"
@@ -70,7 +70,7 @@ function reorder(entries: FormMultitabLayout['container']): void {
               <el-button
                 text
                 title="复制标签页"
-                :icon="CopyDocument"
+                :icon="RiFileCopyFill"
                 :disabled="layout.container.length >= 20"
                 @click="emit('duplicateTab', tab.name)"
               />
@@ -78,7 +78,7 @@ function reorder(entries: FormMultitabLayout['container']): void {
                 text
                 type="danger"
                 title="删除标签页"
-                :icon="Delete"
+                :icon="RiDeleteBin6Fill"
                 :disabled="layout.container.length <= 1"
                 @click="emit('removeTab', tab.name)"
               />
@@ -88,7 +88,7 @@ function reorder(entries: FormMultitabLayout['container']): void {
 
         <el-button
           class="form-schema-multitab-property__add"
-          :icon="Plus"
+          :icon="RiAddFill"
           :disabled="layout.container.length >= 20"
           @click="emit('addTab')"
         >

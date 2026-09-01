@@ -95,7 +95,8 @@ const separatorDescriptionHtml = computed(() =>
 );
 const placeholderText = computed(() => {
   const placeholder = (widget.value as { placeholder?: string }).placeholder;
-  return placeholder || '请输入';
+  if (placeholder !== undefined) return placeholder;
+  return widget.value.type === 'combo' || widget.value.type === 'combocheck' ? '请选择' : '请输入';
 });
 const datePlaceholder = computed(() => {
   switch ((widget.value as { format?: string }).format) {

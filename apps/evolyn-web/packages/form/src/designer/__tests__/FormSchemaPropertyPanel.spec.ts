@@ -1,7 +1,6 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
-import { ElSegmented, ElSelect } from 'element-plus';
 import { EvolynRichTextEditor } from '@evolyn.do/ui';
 import type { FormItem, FormMultitabLayout } from '../../schema/types';
 import { createWidgetItem } from '../../schema/dictionary';
@@ -48,13 +47,28 @@ describe('FormSchemaPropertyPanel', () => {
     await nextTick();
 
     expect(field.label).toBe('姓名');
-    expect(wrapper.emitted('update-item')?.at(-1)?.[0]).toMatchObject({ label: '联系人' });
+    const updates = wrapper.emitted('update-item') ?? [];
+    expect(updates[updates.length - 1]?.[0]).toMatchObject({ label: '联系人' });
   });
 
   it('字段说明使用富文本编辑器', () => {
     const wrapper = mount(FormSchemaPropertyPanel, { props: { item: field } });
 
     expect(wrapper.findComponent(EvolynRichTextEditor).exists()).toBe(true);
+  });
+
+  it('提示文字读取并写入字段 placeholder，缺省时展示画布的默认占位文案', async () => {
+    const wrapper = mount(FormSchemaPropertyPanel, { props: { item: field } });
+    const promptInput = wrapper.find('input[aria-label="提示文字"]');
+
+    expect((promptInput.element as HTMLInputElement).value).toBe('请输入');
+    await promptInput.setValue('请输入姓名');
+    await nextTick();
+
+    const updates = wrapper.emitted('update-item') ?? [];
+    expect(updates[updates.length - 1]?.[0]).toMatchObject({
+      widget: { placeholder: '请输入姓名' },
+    });
   });
 
   it('单行文本按属性分区展示标题、默认值、校验、权限、宽度和安全栏位', () => {
@@ -79,17 +93,44 @@ describe('FormSchemaPropertyPanel', () => {
     expect(wrapper.text()).not.toContain('最大长度');
   });
 
+  it('其他字段复用单行文本的公共分区，并在提示文字与校验之间放置专属配置', () => {
+    const number = createWidgetItem('number');
+    const wrapper = mount(FormSchemaPropertyPanel, { props: { item: number } });
+
+    expect(wrapper.find('[aria-label="字段类型"]').exists()).toBe(true);
+    expect(wrapper.findAll('h3').map((node) => node.text())).toEqual([
+      '描述信息',
+      '提示文字',
+      '默认值',
+      '数值范围',
+      '校验',
+      '字段权限',
+      '字段宽度',
+    ]);
+    expect(wrapper.text()).not.toContain('字段安全');
+    expect(wrapper.text()).not.toContain('脱敏显示');
+  });
+
+  it('多行文本同样不展示字符长度限制栏位', () => {
+    const textarea = createWidgetItem('textarea');
+    const wrapper = mount(FormSchemaPropertyPanel, { props: { item: textarea } });
+
+    expect(wrapper.text()).not.toContain('字符长度');
+    expect(wrapper.text()).not.toContain('最小长度');
+    expect(wrapper.text()).not.toContain('最大长度');
+  });
+
   it('表单属性上抛布局切换，字段宽度按产品映射展示', async () => {
     const wrapper = mount(FormSchemaPropertyPanel, { props: { formLayout: 'grid-2' } });
-    wrapper.findComponent(ElSegmented).vm.$emit('update:modelValue', 'form');
+    wrapper.findComponent({ name: 'ElSegmented' }).vm.$emit('update:modelValue', 'form');
     await nextTick();
 
-    const layoutSelect = wrapper.findComponent(ElSelect);
+    const layoutSelect = wrapper.findComponent({ name: 'ElSelect' });
     layoutSelect.vm.$emit('update:modelValue', 'grid-4');
     expect(wrapper.emitted('update-form-layout')?.[0]).toEqual(['grid-4']);
 
     await wrapper.setProps({ item: field });
-    wrapper.findComponent(ElSegmented).vm.$emit('update:modelValue', 'field');
+    wrapper.findComponent({ name: 'ElSegmented' }).vm.$emit('update:modelValue', 'field');
     await nextTick();
     expect(wrapper.text()).toContain('1/4');
     expect(wrapper.text()).toContain('2/3');

@@ -11,7 +11,7 @@
     </div>
 
     <template v-if="activeTab === 'field'">
-      <header v-if="draftItem || layout" class="form-schema-property__header">
+      <header v-if="layout" class="form-schema-property__header">
         <span class="form-schema-property__type-tag">{{ layout ? '布局' : typeLabel }}</span>
         <span class="form-schema-property__title">
           {{ layout ? '标签页' : draftItem?.label || typeLabel }}
@@ -44,35 +44,38 @@
           <template v-else>
             <FormSchemaCommonPropertyPanel
               v-model="draftItem"
+              arrangement="reference"
               :is-separator="isSeparator"
+              :title-required="!isSeparator"
+              :show-widget-name="false"
               @rename-key="$emit('rename-key', $event)"
-            />
-
-            <!-- —— 控件专属属性（字段字典 §3 逐控件） —— -->
-            <TextareaPropertyPanel v-if="widget.type === 'textarea'" :widget="widget" />
-            <NumberPropertyPanel v-else-if="widget.type === 'number'" :widget="widget" />
-            <DateTimePropertyPanel v-else-if="widget.type === 'datetime'" :widget="widget" />
-            <SeparatorPropertyPanel v-else-if="widget.type === 'separator'" :widget="widget" />
-            <OptionsPropertyPanel v-else-if="optionsWidget" :widget="optionsWidget" />
-
-            <p
-              v-if="
-                ![
-                  'text',
-                  'textarea',
-                  'number',
-                  'datetime',
-                  'radiogroup',
-                  'checkboxgroup',
-                  'combo',
-                  'combocheck',
-                  'separator',
-                ].includes(widget.type)
-              "
-              class="form-schema-property__deferred"
             >
-              该控件的专属配置已按协议保存，运行能力随后续版本开放。
-            </p>
+              <template #title-suffix>
+                <!-- 当前协议不支持在线切换字段类型，保留只读类型栏位统一布局。 -->
+                <el-select
+                  class="form-schema-property__type-select"
+                  :model-value="widget.type"
+                  disabled
+                  aria-label="字段类型"
+                >
+                  <el-option :label="typeLabel" :value="widget.type" />
+                </el-select>
+              </template>
+
+              <template #after-prompt>
+                <!-- 控件专属配置统一置于公共提示文字之后、校验之前。 -->
+                <TextareaPropertyPanel v-if="widget.type === 'textarea'" :widget="widget" />
+                <NumberPropertyPanel v-else-if="widget.type === 'number'" :widget="widget" />
+                <DateTimePropertyPanel v-else-if="widget.type === 'datetime'" :widget="widget" />
+                <SeparatorPropertyPanel v-else-if="widget.type === 'separator'" :widget="widget" />
+                <OptionsPropertyPanel v-else-if="optionsWidget" :widget="optionsWidget" />
+                <FormSchemaPropertySection v-else title="专属设置">
+                  <p class="form-schema-property__deferred">
+                    该控件的专属配置已按协议保存，运行能力随后续版本开放。
+                  </p>
+                </FormSchemaPropertySection>
+              </template>
+            </FormSchemaCommonPropertyPanel>
           </template>
         </el-form>
       </EvolynScrollbar>
@@ -130,6 +133,7 @@ import MultitabPropertyPanel from './properties/MultitabPropertyPanel.vue';
 import NumberPropertyPanel from './properties/NumberPropertyPanel.vue';
 import OptionsPropertyPanel from './properties/OptionsPropertyPanel.vue';
 import SeparatorPropertyPanel from './properties/SeparatorPropertyPanel.vue';
+import FormSchemaPropertySection from './properties/FormSchemaPropertySection.vue';
 import SubformPropertyPanel from './properties/SubformPropertyPanel.vue';
 import TextareaPropertyPanel from './properties/TextareaPropertyPanel.vue';
 import TextPropertyPanel from './properties/TextPropertyPanel.vue';
@@ -337,6 +341,17 @@ function updateFormName(): void {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--el-space-md);
+  }
+
+  &__control-label {
+    display: block;
+    margin-bottom: var(--el-space-xs);
+    font-size: var(--el-font-size-extra-small);
+    color: var(--el-text-color-regular);
+  }
+
+  &__type-select {
+    width: 100%;
   }
 
   &__options {

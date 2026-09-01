@@ -54,7 +54,7 @@ const widget = computed(() => model.value.widget as TextWidget);
     <template #after-width>
       <section class="text-property__section">
         <h3 class="text-property__heading">字段安全</h3>
-        <!-- 脱敏展示依赖运行时掩码策略，能力开放前不写入 Schema。 -->
+        <!-- 脱敏展示仅适用于单行文本，能力开放前不写入 Schema。 -->
         <el-checkbox disabled>脱敏显示</el-checkbox>
       </section>
     </template>

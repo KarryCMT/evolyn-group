@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { CopyDocument, Delete } from '@element-plus/icons-vue';
+import { RiDeleteBin6Fill, RiFileCopyFill } from '@remixicon/vue';
 import { ElIcon, ElPopconfirm } from 'element-plus';
 import { computed } from 'vue';
 import type { FormItem } from '../schema/types';
@@ -47,7 +47,7 @@ const isCompactFullRow = computed(
       </span>
       <div class="form-schema-field-card__actions">
         <button type="button" title="复制字段" @click.stop="$emit('copy', item)">
-          <el-icon><CopyDocument /></el-icon>
+          <el-icon><RiFileCopyFill /></el-icon>
         </button>
         <el-popconfirm
           placement="bottom-end"
@@ -61,7 +61,7 @@ const isCompactFullRow = computed(
         >
           <template #reference>
             <button type="button" title="删除字段" @click.stop>
-              <el-icon><Delete /></el-icon>
+              <el-icon><RiDeleteBin6Fill /></el-icon>
             </button>
           </template>
         </el-popconfirm>

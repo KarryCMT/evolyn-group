@@ -13,7 +13,7 @@ const emit = defineEmits<RuntimeFieldEmits>();
 
 const widget = computed(() => props.item.widget as TextWidget);
 const inputId = computed(() => fieldInputId(props.item.widget.widgetName));
-const placeholder = computed(() => widget.value.placeholder ?? '');
+const placeholder = computed(() => widget.value.placeholder ?? '请输入');
 const maxLength = computed(() => widget.value.maxLength ?? undefined);
 const modelValue = computed(() => (typeof props.modelValue === 'string' ? props.modelValue : ''));
 const describedBy = computed(() =>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { EvolynRichTextEditor } from '@evolyn.do/ui';
-import { QuestionFilled } from '@element-plus/icons-vue';
+import { RiQuestionFill } from '@remixicon/vue';
 import { ElCheckbox, ElFormItem, ElIcon, ElInput, ElSwitch, ElTooltip } from 'element-plus';
 import { computed } from 'vue';
 import type { FormItem } from '../schema/types';
@@ -18,8 +18,15 @@ const props = withDefaults(
     /** reference 按字段属性标准分区重排；default 保持其他控件现有布局。 */
     arrangement?: 'default' | 'reference';
     showWidgetName?: boolean;
+    titleRequired?: boolean;
   }>(),
-  { isSeparator: false, showWidth: true, arrangement: 'default', showWidgetName: true },
+  {
+    isSeparator: false,
+    showWidth: true,
+    arrangement: 'default',
+    showWidgetName: true,
+    titleRequired: true,
+  },
 );
 const emit = defineEmits<{ renameKey: [key: string] }>();
 
@@ -27,14 +34,31 @@ const emit = defineEmits<{ renameKey: [key: string] }>();
 const supportsPromptText = computed(
   () => 'placeholder' in WIDGET_SPECS[model.value.widget.type].props,
 );
+/**
+ * 画布预览与运行时都有默认占位文案；属性面板读取缺省值时也展示同一文案，
+ * 避免画布显示「请输入」而“提示文字”输入框为空。
+ */
+const promptTextFallback = computed(() => {
+  switch (model.value.widget.type) {
+    case 'datetime':
+      return '请选择日期时间';
+    case 'combo':
+    case 'combocheck':
+      return '请选择';
+    default:
+      return '请输入';
+  }
+});
 const promptText = computed({
   get: () => {
     const value = (model.value.widget as { placeholder?: unknown }).placeholder;
-    return typeof value === 'string' ? value : '';
+    return typeof value === 'string' ? value : promptTextFallback.value;
   },
   set: (value: string) => {
     const widget = model.value.widget as { placeholder?: string };
-    if ('placeholder' in widget) widget.placeholder = value;
+    if ('placeholder' in WIDGET_SPECS[model.value.widget.type].props) {
+      widget.placeholder = value;
+    }
   },
 });
 </script>
@@ -105,7 +129,8 @@ const promptText = computed({
   <section v-else class="form-schema-common-property form-schema-common-property--reference">
     <div class="form-schema-common-property__reference-title-row">
       <label
-        class="form-schema-common-property__reference-label form-schema-common-property__reference-label--required"
+        class="form-schema-common-property__reference-label"
+        :class="{ 'form-schema-common-property__reference-label--required': props.titleRequired }"
         for="reference-property-label"
       >
         标题
@@ -142,7 +167,7 @@ const promptText = computed({
         提示文字
         <el-tooltip content="填写字段前展示的输入提示" placement="top">
           <el-icon class="form-schema-common-property__reference-help" aria-label="提示文字说明">
-            <QuestionFilled />
+            <RiQuestionFill />
           </el-icon>
         </el-tooltip>
       </h3>
