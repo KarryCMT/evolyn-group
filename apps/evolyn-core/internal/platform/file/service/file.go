@@ -65,16 +65,16 @@ func (s *fileService) CreateUpload(ctx context.Context, member *iammodel.User, r
 	jsonExpiresAt := kernelTime(expiresAt)
 	objectKey := strings.Trim(s.storage.Prefix+"/tenant/"+fmt.Sprint(tenantID)+"/file/"+code, "/")
 	file := &filemodel.File{
-		Code:         code,
-		Bucket:       s.storage.Bucket,
-		ObjectKey:    objectKey,
-		OriginalName: strings.TrimSpace(req.Filename),
-		ContentType:  strings.TrimSpace(req.ContentType),
-		DeclaredSize: req.Size,
-		SHA256:       strings.ToLower(strings.TrimSpace(req.SHA256)),
-		State:        filemodel.FileStateUploading,
-		ExpiresAt:    &jsonExpiresAt,
-		CreatorID:    member.ID,
+		Code:            code,
+		Bucket:          s.storage.Bucket,
+		ObjectKey:       objectKey,
+		OriginalName:    strings.TrimSpace(req.Filename),
+		ContentType:     strings.TrimSpace(req.ContentType),
+		DeclaredSize:    req.Size,
+		SHA256:          strings.ToLower(strings.TrimSpace(req.SHA256)),
+		State:           filemodel.FileStateUploading,
+		ExpiresAt:       &jsonExpiresAt,
+		CreatorMemberID: member.ID,
 	}
 	if err := s.tx.WithinTransaction(ctx, func(txCtx context.Context) error {
 		return s.quota.CheckAndReserveStorage(txCtx, tenantID, req.Size, func(ctx context.Context) error {
@@ -248,7 +248,7 @@ func (s *fileService) fileForMember(ctx context.Context, member *iammodel.User, 
 	if err != nil {
 		return nil, err
 	}
-	if file.CreatorID != member.ID {
+	if file.CreatorMemberID != member.ID {
 		// 文件引用与业务资源权限尚未落地前，上传者是最小访问边界；后续由
 		// file_references 的所属业务资源授权替代这条临时约束。
 		return nil, filedomain.ErrNotFound

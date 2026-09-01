@@ -167,7 +167,6 @@ CREATE TABLE IF NOT EXISTS tenant_public_invitation_links (
     tenant_id BIGINT NOT NULL,
     token varchar(64) NOT NULL,
     enabled boolean NOT NULL DEFAULT false,
-    creator_member_id BIGINT NOT NULL DEFAULT 0,
     creator_id BIGINT,
     updater_id BIGINT,
     created_at timestamp with time zone,
@@ -226,6 +225,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_groups_tenant_name
 CREATE TABLE IF NOT EXISTS role_groups (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     name varchar(100) NOT NULL,
+    creator_member_id BIGINT NOT NULL DEFAULT 0,
     creator_id BIGINT,
     updater_id BIGINT,
     sort INTEGER NOT NULL DEFAULT 0,
@@ -851,7 +851,7 @@ CREATE TABLE IF NOT EXISTS files (
     sha256 varchar(64) NULL,
     state varchar(16) NOT NULL,
     expires_at timestamp with time zone NULL,
-    creator_id BIGINT NOT NULL,
+    creator_member_id BIGINT NOT NULL,
     creator_id BIGINT,
     updater_id BIGINT,
     created_at timestamp with time zone,
@@ -949,8 +949,8 @@ COMMENT ON COLUMN groups.id IS '自增主键';
 COMMENT ON COLUMN groups.name IS '分组名，租户内唯一（软删友好部分唯一索引 uk_groups_tenant_name，FIX-003）';
 COMMENT ON COLUMN groups.kind IS '分组类型：system=系统组 / custom=自定义组';
 COMMENT ON COLUMN groups.describe IS '分组描述（列名沿用历史拼写）';
-COMMENT ON COLUMN groups.creator_id IS '创建人成员 ID';
-COMMENT ON COLUMN groups.updater_id IS '最后更新人成员 ID';
+COMMENT ON COLUMN groups.creator_id IS '创建账号 ID（accounts.id）';
+COMMENT ON COLUMN groups.updater_id IS '最后更新账号 ID（accounts.id）';
 COMMENT ON COLUMN groups.tenant_id IS '所属租户 ID';
 COMMENT ON COLUMN groups.created_at IS '创建时间';
 COMMENT ON COLUMN groups.updated_at IS '更新时间';
@@ -982,7 +982,9 @@ COMMENT ON COLUMN roles.deleted_at IS '软删除时间，NULL=未删除';
 COMMENT ON TABLE role_groups IS '角色展示分组：仅供内部组织页归类角色，不参与权限继承';
 COMMENT ON COLUMN role_groups.id IS '自增主键';
 COMMENT ON COLUMN role_groups.name IS '角色组名称，租户内未删除记录唯一';
-COMMENT ON COLUMN role_groups.creator_id IS '创建该角色组的成员 ID';
+COMMENT ON COLUMN role_groups.creator_member_id IS '创建该角色组的成员 ID（users.id）';
+COMMENT ON COLUMN role_groups.creator_id IS '创建账号 ID（accounts.id）';
+COMMENT ON COLUMN role_groups.updater_id IS '最后更新账号 ID（accounts.id）';
 COMMENT ON COLUMN role_groups.sort IS '角色组在内部组织左侧角色树中的展示顺序，数值越小越靠前';
 COMMENT ON COLUMN role_groups.tenant_id IS '所属租户 ID';
 COMMENT ON COLUMN role_groups.created_at IS '创建时间';
@@ -2521,3 +2523,28 @@ WHERE deleted_at IS NULL
       SELECT 1 FROM json_array_elements(rules) AS rule
       WHERE rule->>'resource' IN ('form-permissions', 'form-data')
   );
+
+-- 统一账号审计字段（000059）：creator_id / updater_id 始终引用 accounts.id。
+DO $$
+DECLARE
+    table_name text;
+BEGIN
+    FOREACH table_name IN ARRAY ARRAY[
+        'accounts', 'auth_infos', 'tenants',
+        'users', 'departments', 'groups', 'role_groups', 'roles',
+        'member_invitations', 'tenant_public_invitation_links',
+        'tenant_member_field_settings', 'member_profiles', 'admin_groups',
+        'applications', 'application_menu_entries', 'forms',
+        'asset_permission_groups', 'files',
+        'tenant_notification_settings', 'tenant_notification_custom_recipients',
+        'tenant_product_configs',
+        'wf_definition', 'wf_instance', 'wf_execution', 'wf_node_instance',
+        'wf_task', 'wf_task_actor'
+    ] LOOP
+        EXECUTE format('COMMENT ON COLUMN %I.creator_id IS %L', table_name, '创建账号 ID（accounts.id）；NULL 表示系统或无认证操作');
+        EXECUTE format('COMMENT ON COLUMN %I.updater_id IS %L', table_name, '最后更新账号 ID（accounts.id）；NULL 表示系统或尚未有认证更新');
+    END LOOP;
+END $$;
+
+COMMENT ON COLUMN files.creator_member_id IS '文件归属成员 ID（users.id），用于上传者访问边界';
+COMMENT ON COLUMN role_groups.creator_member_id IS '创建角色组的成员 ID（users.id）';
