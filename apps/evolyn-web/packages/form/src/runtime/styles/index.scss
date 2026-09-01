@@ -415,7 +415,6 @@
     max(var(--el-space-lg), env(safe-area-inset-bottom));
   background: var(--el-bg-color);
   border-top: 1px solid var(--el-border-color-lighter);
-  box-shadow: var(--el-box-shadow-lighter);
 
   &__issues {
     display: flex;

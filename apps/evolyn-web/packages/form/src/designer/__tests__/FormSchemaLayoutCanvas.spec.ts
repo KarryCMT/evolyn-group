@@ -2,6 +2,7 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import type { FormItem, FormSchemaDocument } from '../../schema/types';
 import { createWidgetItem } from '../../schema/dictionary';
+import FormSchemaFieldCard from '../FormSchemaFieldCard.vue';
 import FormSchemaLayoutCanvas from '../FormSchemaLayoutCanvas.vue';
 import { subformSelectionKey } from '../useFormSchemaEditor';
 
@@ -22,6 +23,26 @@ function field(widgetName: string, lineWidth: number): FormItem {
 }
 
 describe('FormSchemaLayoutCanvas', () => {
+  it('整行普通字段在画布中收窄预览卡片，宽内容字段保持铺满', () => {
+    const compactItem = createWidgetItem('text');
+    compactItem.lineWidth = 12;
+    expect(
+      mount(FormSchemaFieldCard, { props: { item: compactItem, selected: false } })
+        .find('.form-schema-field-card')
+        .classes(),
+    ).toContain('is-compact-full-row');
+
+    for (const type of ['separator', 'subform', 'richtext'] as const) {
+      const fullWidthItem = createWidgetItem(type);
+      fullWidthItem.lineWidth = 12;
+      expect(
+        mount(FormSchemaFieldCard, { props: { item: fullWidthItem, selected: false } })
+          .find('.form-schema-field-card')
+          .classes(),
+      ).not.toContain('is-compact-full-row');
+    }
+  });
+
   it('顶层与标签页字段共用 12 栅格 lineWidth，标签页容器跨整行', () => {
     const document: FormSchemaDocument = {
       content: {

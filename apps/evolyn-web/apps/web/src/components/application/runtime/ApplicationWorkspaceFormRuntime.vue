@@ -186,7 +186,7 @@ function isAbortError(error: unknown): boolean {
       :registry="getMemberFieldRegistry()"
       :actions="actions"
       layout="auto"
-      content-width="1100px"
+      content-width="100%"
       @unsupported-field="onUnsupportedField"
       @submit-success="onSubmitSuccess"
     />

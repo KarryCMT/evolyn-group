@@ -18,12 +18,26 @@ defineEmits<{
 const hasLabel = computed(() => Boolean(props.item.label.trim()));
 const showLabel = computed(() => !props.item.labelHidden && hasLabel.value);
 const isLayoutItem = computed(() => isLayoutWidgetType(props.item.widget.type));
+// 整行数据字段只收窄设计器中的卡片预览，保留栅格占位，避免后续字段回填到同一行。
+// 标签页、子表单、分割线和富文本均为宽内容，始终占满各自容器。
+const isCompactFullRow = computed(
+  () =>
+    props.item.lineWidth === 12 &&
+    !isLayoutItem.value &&
+    props.item.widget.type !== 'subform' &&
+    props.item.widget.type !== 'richtext',
+);
 </script>
 
 <template>
   <article
     class="form-schema-field-card"
-    :class="{ 'is-active': selected, 'is-label-empty': !showLabel, 'is-layout': isLayoutItem }"
+    :class="{
+      'is-active': selected,
+      'is-label-empty': !showLabel,
+      'is-layout': isLayoutItem,
+      'is-compact-full-row': isCompactFullRow,
+    }"
     @click="$emit('select', item.widget.widgetName)"
   >
     <header class="form-schema-field-card__header">
@@ -79,6 +93,10 @@ const isLayoutItem = computed(() => isLayoutWidgetType(props.item.widget.type));
   &.is-active {
     background-color: var(--el-color-primary-light-9);
     border-color: var(--el-color-primary-light-9);
+  }
+  &.is-compact-full-row {
+    width: 354px;
+    max-width: 100%;
   }
   &:hover &__actions,
   &.is-active &__actions {
