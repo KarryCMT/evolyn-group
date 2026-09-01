@@ -2,6 +2,7 @@ package service
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"evolyn/internal/platform/form/model"
@@ -293,14 +294,14 @@ func TestValidateFormSchemaSubformWhitelist(t *testing.T) {
 }
 
 func TestValidatePublishable(t *testing.T) {
-	// 基础 9 类可发布
-	basic := []string{"text", "textarea", "number", "datetime", "radiogroup", "checkboxgroup", "combo", "combocheck", "separator"}
+	// 基础字段与成员选择字段可发布
+	basic := []string{"text", "textarea", "number", "datetime", "radiogroup", "checkboxgroup", "combo", "combocheck", "separator", "user", "usergroup"}
 	items := make([]any, 0, len(basic))
 	for i, widgetType := range basic {
 		item := validTextItem()
 		w := item["widget"].(map[string]any)
 		w["type"] = widgetType
-		w["widgetName"] = "_widget_b" + string(rune('0'+i))
+		w["widgetName"] = fmt.Sprintf("_widget_b%d", i)
 		delete(w, "placeholder") // 仅 text/textarea/number/combo 系携带 placeholder
 		if widgetType == "radiogroup" || widgetType == "checkboxgroup" || widgetType == "combo" || widgetType == "combocheck" {
 			w["options"] = []any{map[string]any{"label": "A", "value": "a"}}
@@ -309,13 +310,13 @@ func TestValidatePublishable(t *testing.T) {
 	}
 	assert.Empty(t, ValidatePublishable(doc(items...)))
 
-	// 白名单外（user）给出精确路径
-	user := validTextItem()
-	userWidget := user["widget"].(map[string]any)
-	userWidget["type"] = "user"
-	userWidget["widgetName"] = "_widget_u1"
-	delete(userWidget, "placeholder")
-	issues := ValidatePublishable(doc(validTextItem(), user))
+	// 白名单外（dept）给出精确路径
+	dept := validTextItem()
+	deptWidget := dept["widget"].(map[string]any)
+	deptWidget["type"] = "dept"
+	deptWidget["widgetName"] = "_widget_d1"
+	delete(deptWidget, "placeholder")
+	issues := ValidatePublishable(doc(validTextItem(), dept))
 	assert.Equal(t, "content.items[1].widget.type", issues[0].Path)
 }
 

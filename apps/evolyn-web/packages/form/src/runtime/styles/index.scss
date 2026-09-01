@@ -90,6 +90,13 @@
     grid-column: 1 / -1;
     padding-top: var(--evf-space-md);
   }
+
+  // 与设计画布的 FormSchemaFieldCard 保持一致：整行普通字段仍占据一行，
+  // 但交互卡片只使用紧凑宽度，不会因宿主工作区变宽而被无意义地拉伸。
+  &--compact-full-row {
+    width: 354px;
+    max-width: 100%;
+  }
 }
 
 .evf-field__label {

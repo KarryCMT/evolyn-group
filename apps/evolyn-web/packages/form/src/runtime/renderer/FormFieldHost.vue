@@ -43,6 +43,16 @@ const span = computed(() => {
   const width = props.item.lineWidth;
   return Number.isInteger(width) && width >= 1 && width <= 12 ? width : 12;
 });
+// 设计画布会为整行的常规数据字段保留完整栅格、但只显示 354px 预览卡片。
+// 运行时复用同一视觉语义，避免保存后在大工作区突然拉伸为整行；布局及宽内容
+// 字段仍按栅格占满，保证分割线、子表单等内容有足够空间。
+const isCompactFullRow = computed(
+  () =>
+    span.value === 12 &&
+    !isLayout.value &&
+    props.item.widget.type !== 'subform' &&
+    props.item.widget.type !== 'richtext',
+);
 
 function onUpdateModelValue(value: FormValue): void {
   runtime.value?.setValue(widgetName.value, value, 'user');
@@ -83,6 +93,7 @@ onBeforeUnmount(() => {
       'evf-field--layout': isLayout,
       'evf-field--disabled': state?.disabled ?? false,
       'evf-field--readonly': state?.readonly ?? false,
+      'evf-field--compact-full-row': isCompactFullRow,
     }"
     :style="isLayout ? undefined : { '--evf-field-span': span }"
   >

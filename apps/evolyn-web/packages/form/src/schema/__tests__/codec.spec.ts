@@ -141,11 +141,17 @@ describe('validateWidgetValue 值校验（与后端文案一致）', () => {
     expect(validateWidgetValue(multi, ['a', 'b'])).toEqual([]);
   });
 
-  it('布局项不做值校验；未开放控件保留必填语义（其余值校验随阶段落地）', () => {
+  it('布局项不做值校验；成员字段校验选择值形状', () => {
     const separator = item({ type: 'separator', widgetName: '_widget_s', allowBlank: true });
     expect(validateWidgetValue(separator, 'anything')).toEqual([]);
     const user = item({ type: 'user', widgetName: '_widget_u', allowBlank: false });
-    expect(validateWidgetValue(user, null)).toEqual(['请输入字段']);
-    expect(validateWidgetValue(user, { id: 'm1' })).toEqual([]);
+    expect(validateWidgetValue(user, null)).toEqual(['请选择字段']);
+    expect(validateWidgetValue(user, { id: 'm1' })).toEqual(['字段的值类型不正确']);
+    expect(validateWidgetValue(user, 'm1')).toEqual([]);
+
+    const usergroup = item({ type: 'usergroup', widgetName: '_widget_ug', allowBlank: false });
+    expect(validateWidgetValue(usergroup, [])).toEqual(['请选择字段']);
+    expect(validateWidgetValue(usergroup, ['m1', 'm1'])).toEqual(['字段的值存在重复成员']);
+    expect(validateWidgetValue(usergroup, ['m1', 'm2'])).toEqual([]);
   });
 });

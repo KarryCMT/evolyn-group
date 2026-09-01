@@ -11,6 +11,7 @@ import (
 	"math"
 	"regexp"
 	"strconv"
+	"strings"
 
 	"evolyn/internal/platform/form/model"
 )
@@ -232,7 +233,7 @@ func isEmptyValue(value any) bool {
 
 func choosingVerb(widgetType string) string {
 	switch widgetType {
-	case "datetime", "radiogroup", "checkboxgroup", "combo", "combocheck":
+	case "datetime", "radiogroup", "checkboxgroup", "combo", "combocheck", "user", "usergroup":
 		return "选择"
 	default:
 		return "输入"
@@ -258,10 +259,48 @@ func validateFieldValue(field snapshotField, value any) []string {
 		return validateSingleOptionValue(field, value)
 	case "checkboxgroup", "combocheck":
 		return validateMultiOptionValue(field, value)
+	case "user":
+		return validateMemberValue(field, value)
+	case "usergroup":
+		return validateMemberGroupValue(field, value)
 	default:
 		// 白名单外控件不可发布，正常到不了这里；防御性拒绝。
 		return []string{fmt.Sprintf("字段类型「%s」暂不支持提交", field.widgetType)}
 	}
+}
+
+// validateMemberValue 只接受成员目录返回的稳定字符串 ID。成员有效性和字段范围由
+// 选择器保证；提交侧仍须拒绝对象、数字等越过 UI 构造的值。
+func validateMemberValue(field snapshotField, value any) []string {
+	memberID, ok := value.(string)
+	if !ok || strings.TrimSpace(memberID) == "" {
+		return []string{fmt.Sprintf("%s的值类型不正确", field.label)}
+	}
+	return nil
+}
+
+// validateMemberGroupValue 保留选择顺序，但拒绝非字符串、重复成员及超出 Schema
+// defaultValue 同口径的 200 人上限，避免异常的大数组进入记录 JSONB。
+func validateMemberGroupValue(field snapshotField, value any) []string {
+	members, ok := value.([]any)
+	if !ok {
+		return []string{fmt.Sprintf("%s的值类型不正确", field.label)}
+	}
+	if len(members) > 200 {
+		return []string{fmt.Sprintf("%s最多选择 200 名成员", field.label)}
+	}
+	seen := make(map[string]struct{}, len(members))
+	for _, rawMemberID := range members {
+		memberID, ok := rawMemberID.(string)
+		if !ok || strings.TrimSpace(memberID) == "" {
+			return []string{fmt.Sprintf("%s的值类型不正确", field.label)}
+		}
+		if _, duplicated := seen[memberID]; duplicated {
+			return []string{fmt.Sprintf("%s的值存在重复成员", field.label)}
+		}
+		seen[memberID] = struct{}{}
+	}
+	return nil
 }
 
 func validateTextValue(field snapshotField, value any) []string {

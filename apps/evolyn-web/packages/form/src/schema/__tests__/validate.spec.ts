@@ -379,7 +379,7 @@ describe('validateFormSchema 结构校验', () => {
 });
 
 describe('validatePublishableFormSchema 发布白名单', () => {
-  it('基础 9 类可发布', () => {
+  it('基础字段与成员选择字段可发布', () => {
     const items = [
       'text',
       'textarea',
@@ -390,13 +390,15 @@ describe('validatePublishableFormSchema 发布白名单', () => {
       'combo',
       'combocheck',
       'separator',
+      'user',
+      'usergroup',
     ].map((type) => createWidgetItem(type as never));
     expect(validatePublishableFormSchema(documentWith(items)).valid).toBe(true);
   });
 
-  it('白名单外控件返回精确路径（如 user）', () => {
+  it('白名单外控件返回精确路径（如 dept）', () => {
     const result = validatePublishableFormSchema(
-      documentWith([createWidgetItem('text'), createWidgetItem('user')]),
+      documentWith([createWidgetItem('text'), createWidgetItem('dept')]),
     );
     expect(result.valid).toBe(false);
     expect(result.issues[0].path).toBe('content.items[1].widget.type');
@@ -405,7 +407,7 @@ describe('validatePublishableFormSchema 发布白名单', () => {
   it('子表单发布校验返回问题而非读取不存在的 content', () => {
     const subform = createWidgetItem('subform');
     if (subform.widget.type === 'subform') {
-      subform.widget.items.push(createWidgetItem('user'));
+      subform.widget.items.push(createWidgetItem('dept'));
     }
 
     const result = validatePublishableFormSchema(documentWith([subform]));

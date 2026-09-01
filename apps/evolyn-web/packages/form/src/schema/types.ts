@@ -51,7 +51,10 @@ export type FormWidgetType =
   | 'richtext'
   | 'button';
 
-/** P2 发布白名单（字段字典 §6）：9 类基础字段，前后端各维护一份并保持一致。 */
+/**
+ * 已开放运行时的发布白名单（字段字典 §6）：基础字段及成员单选/多选。
+ * 前后端各维护一份并保持一致，新增类型时必须同时补齐运行组件与值校验。
+ */
 export const PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'text',
   'textarea',
@@ -62,6 +65,8 @@ export const PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'combo',
   'combocheck',
   'separator',
+  'user',
+  'usergroup',
 ];
 
 /** 选项结构：label/value 均为 1–100 字符，组内 value 唯一。 */

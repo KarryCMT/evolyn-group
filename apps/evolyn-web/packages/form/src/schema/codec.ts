@@ -1,9 +1,9 @@
 /**
- * 字段值编解码与校验（P2 基础字段，字段字典 §4）。
+ * 字段值编解码与校验（字段字典 §4）。
  *
  * 浏览器与后端（internal/platform/form 的 Go 值校验器）共享同一套语义与错误文案，
  * 浏览器校验只改善交互，服务端复核才是最终裁决（方案 §3.7）。
- * P2 仅实现 9 类基础字段；其余控件在发布白名单开放前不参与值校验（直接保存 JSON 原值）。
+ * 当前已实现基础字段与成员单选/多选；其余控件在发布白名单开放前不参与值校验。
  */
 
 import type {
@@ -33,7 +33,11 @@ const CHOOSING_WIDGET_TYPES: ReadonlySet<string> = new Set([
   'checkboxgroup',
   'combo',
   'combocheck',
+  'user',
+  'usergroup',
 ]);
+
+const MAX_MEMBER_SELECTION_COUNT = 200;
 
 export function isLayoutWidgetType(type: string): boolean {
   return LAYOUT_WIDGET_TYPES.has(type);
@@ -88,7 +92,7 @@ export function readWidgetOptions(widget: FormItemWidget): FormWidgetOption[] {
 
 /**
  * 按控件类型归一化值，防止脏数据（历史版本、外部写入）进入值表：
- * 单选文本类收敛 string|null、数字收敛有限 number|null、多选收敛 string[]；
+ * 单选文本类收敛 string|null、数字收敛有限 number|null、成员及其他多选收敛 string[]；
  * 未开放运行能力的控件保留 JSON 安全原值，由后续阶段的专属校验接管。
  */
 export function normalizeWidgetValue(widget: FormItemWidget, value: unknown): FormJsonValue {
@@ -98,6 +102,7 @@ export function normalizeWidgetValue(widget: FormItemWidget, value: unknown): Fo
     case 'datetime':
     case 'radiogroup':
     case 'combo':
+    case 'user':
       return typeof value === 'string' ? value : null;
     case 'number':
       if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -107,6 +112,7 @@ export function normalizeWidgetValue(widget: FormItemWidget, value: unknown): Fo
       return null;
     case 'checkboxgroup':
     case 'combocheck':
+    case 'usergroup':
       if (!Array.isArray(value)) return [];
       return value.filter((entry): entry is string => typeof entry === 'string');
     default:
@@ -141,10 +147,33 @@ export function validateWidgetValue(item: FormItem, value: unknown): string[] {
     case 'checkboxgroup':
     case 'combocheck':
       return validateMultiOptionValue(item.label, widget, value);
+    case 'user':
+      return validateMemberValue(item.label, value);
+    case 'usergroup':
+      return validateMemberGroupValue(item.label, value);
     default:
       // 未开放运行能力的控件：结构校验在保存/发布侧执行，值校验随各阶段落地。
       return [];
   }
+}
+
+/** 成员 ID 由运行时选择器产出；值层只约束稳定的字符串标识形状。 */
+function validateMemberValue(label: string, value: unknown): string[] {
+  return typeof value === 'string' && value.trim() !== '' ? [] : [`${label}的值类型不正确`];
+}
+
+/** 多成员字段保留选择顺序，但不允许空标识、重复成员或超出协议上限。 */
+function validateMemberGroupValue(label: string, value: unknown): string[] {
+  if (!Array.isArray(value)) return [`${label}的值类型不正确`];
+  if (value.length > MAX_MEMBER_SELECTION_COUNT)
+    return [`${label}最多选择 ${MAX_MEMBER_SELECTION_COUNT} 名成员`];
+  const selected = new Set<string>();
+  for (const memberID of value) {
+    if (typeof memberID !== 'string' || memberID.trim() === '') return [`${label}的值类型不正确`];
+    if (selected.has(memberID)) return [`${label}的值存在重复成员`];
+    selected.add(memberID);
+  }
+  return [];
 }
 
 function choosingVerb(type: string): string {

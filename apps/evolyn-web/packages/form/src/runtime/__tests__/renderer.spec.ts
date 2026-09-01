@@ -211,6 +211,18 @@ describe('FormRenderer 渲染', () => {
     expect((wrapper.find('input').element as HTMLInputElement).disabled).toBe(true);
   });
 
+  it('整行普通字段复用画布的 354px 紧凑宽度，布局字段保持整行', () => {
+    const compact = mount(FormRenderer, {
+      props: { schema: schema([item({ type: 'text', widgetName: '_widget_compact' })]) },
+    });
+    expect(compact.find('.evf-field').classes()).toContain('evf-field--compact-full-row');
+
+    const divider = mount(FormRenderer, {
+      props: { schema: schema([item({ type: 'separator', widgetName: '_widget_divider' })]) },
+    });
+    expect(divider.find('.evf-field').classes()).not.toContain('evf-field--compact-full-row');
+  });
+
   it('按 field_layout 编译标签页并保持字段定义单一事实源', () => {
     const first = item({ type: 'text', widgetName: '_widget_top' });
     const detail = item({ type: 'text', widgetName: '_widget_detail' }, { lineWidth: 3 });

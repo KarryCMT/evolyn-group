@@ -82,11 +82,13 @@ var (
 	emailPattern      = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]+$`)
 )
 
-// publishableWidgetTypes P2 发布白名单（字段字典 §6；与 TS PUBLISHABLE_WIDGET_TYPES 一致）。
+// publishableWidgetTypes 已开放运行时的发布白名单（字段字典 §6；与 TS
+// PUBLISHABLE_WIDGET_TYPES 一致）。成员选择字段的实际目录交互由 Web 宿主适配，
+// 此处只负责协议与提交值的服务端终审。
 var publishableWidgetTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
-	"separator": true,
+	"separator": true, "user": true, "usergroup": true,
 }
 
 // subformAllowedTypes 子表单子项白名单：禁止无行值语义的 separator/richtext/subform。
