@@ -145,7 +145,7 @@ func (s *organizationRoleService) CreateGroup(ctx context.Context, creatorID uin
 	if err != nil {
 		return nil, err
 	}
-	group, err := s.roleGroups.Create(ctx, &model.RoleGroup{Name: name, CreatorID: creatorID, Sort: len(groups)})
+	group, err := s.roleGroups.Create(ctx, &model.RoleGroup{Name: name, CreatorMemberID: creatorID, Sort: len(groups)})
 	if err != nil {
 		return nil, err
 	}

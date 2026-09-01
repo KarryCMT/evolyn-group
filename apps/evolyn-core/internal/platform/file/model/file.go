@@ -20,7 +20,9 @@ type File struct {
 	SHA256       string           `json:"sha256,omitempty" gorm:"size:64"`
 	State        string           `json:"state" gorm:"size:16;not null"`
 	ExpiresAt    *kernel.JSONTime `json:"expiresAt,omitempty"`
-	CreatorID    uint             `json:"creatorId" gorm:"not null"`
+	// CreatorMemberID 是文件归属成员，用于上传者访问边界；它不同于继承的
+	// CreatorID（创建账号审计字段，accounts.id）。
+	CreatorMemberID uint `json:"-" gorm:"column:creator_member_id;not null"`
 
 	kernel.TenantBaseModel
 }
