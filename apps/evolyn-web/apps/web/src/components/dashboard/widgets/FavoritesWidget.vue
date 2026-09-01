@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
-import { DataAnalysis } from '@element-plus/icons-vue';
+import { RiBarChartBoxFill } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
 import type { DashboardWidgetContent } from '~/types/dashboard';
 import FavoritesWorkspaceDialog from '../favorites/FavoritesWorkspaceDialog.vue';
@@ -37,7 +37,7 @@ const visibleApplications = computed(() => favoriteApplications.value.slice(0, 4
       </el-button>
     </template>
     <div v-if="isRecent" class="favorites-widget favorites-widget--recent">
-      <el-button text class="favorites-widget__recent-item" :icon="DataAnalysis">
+      <el-button text class="favorites-widget__recent-item" :icon="RiBarChartBoxFill">
         合同统计看板
       </el-button>
     </div>

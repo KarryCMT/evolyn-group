@@ -1,6 +1,12 @@
 <script setup lang="ts">
 import type { FavoriteApplication } from './favoriteCatalog';
-import { ArrowDown, ArrowRight, Check, Close, Search } from '@element-plus/icons-vue';
+import {
+  RiArrowDownSFill,
+  RiArrowRightSFill,
+  RiCheckFill,
+  RiCloseFill,
+  RiSearchFill,
+} from '@remixicon/vue';
 import { computed, shallowRef, watch } from 'vue';
 import { favoriteApplicationCatalog } from './favoriteCatalog';
 
@@ -92,7 +98,7 @@ function confirm() {
         <el-button
           text
           class="favorite-picker-dialog__close"
-          :icon="Close"
+          :icon="RiCloseFill"
           aria-label="关闭"
           @click="visible = false"
         />
@@ -103,7 +109,7 @@ function confirm() {
       <el-input
         v-model="searchText"
         class="favorite-picker-dialog__search"
-        :prefix-icon="Search"
+        :prefix-icon="RiSearchFill"
         placeholder="搜索应用"
         clearable
       />
@@ -125,7 +131,7 @@ function confirm() {
               @click="toggleExpanded(application.id)"
             >
               <el-icon>
-                <component :is="isExpanded(application) ? ArrowDown : ArrowRight" />
+                <component :is="isExpanded(application) ? RiArrowDownSFill : RiArrowRightSFill" />
               </el-icon>
             </button>
             <span v-else class="favorite-picker-dialog__indent" aria-hidden="true" />
@@ -147,7 +153,7 @@ function confirm() {
               @click="toggleSelection(application.id)"
             >
               <el-icon v-if="isChecked(application.id)">
-                <Check />
+                <RiCheckFill />
               </el-icon>
             </button>
           </div>
@@ -182,7 +188,7 @@ function confirm() {
                 @click="toggleSelection(child.id)"
               >
                 <el-icon v-if="isChecked(child.id)">
-                  <Check />
+                  <RiCheckFill />
                 </el-icon>
               </button>
             </div>

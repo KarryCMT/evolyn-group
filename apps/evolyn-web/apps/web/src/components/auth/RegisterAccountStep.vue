@@ -5,7 +5,7 @@
 // 向导第 3 步「进入产品」的最终提交，验证码也在彼时一次性校验
 import { reactive, useTemplateRef, watch } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import { Iphone } from '@element-plus/icons-vue';
+import { RiSmartphoneFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { useSmsCountdown } from '~/composables/useSmsCountdown';
 
@@ -93,7 +93,7 @@ function handleSendCode() {
         placeholder="你的手机号"
         autocomplete="tel"
         clearable
-        :prefix-icon="Iphone"
+        :prefix-icon="RiSmartphoneFill"
       >
         <template #prepend><span class="auth-phone-prefix">+86</span></template>
       </el-input>

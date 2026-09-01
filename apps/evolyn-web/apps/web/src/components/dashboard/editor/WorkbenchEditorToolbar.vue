@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElButtonGroup } from 'element-plus';
-import { Cellphone, Monitor, View } from '@element-plus/icons-vue';
+import { RiComputerFill, RiEyeFill, RiSmartphoneFill } from '@remixicon/vue';
 
 defineOptions({ name: 'WorkbenchEditorToolbar' });
 
@@ -28,17 +28,17 @@ const emit = defineEmits<{
       <el-button-group>
         <el-button
           :type="device === 'desktop' ? 'primary' : 'default'"
-          :icon="Monitor"
+          :icon="RiComputerFill"
           @click="emit('update:device', 'desktop')"
         />
         <el-button
           :type="device === 'mobile' ? 'primary' : 'default'"
-          :icon="Cellphone"
+          :icon="RiSmartphoneFill"
           @click="emit('update:device', 'mobile')"
         />
       </el-button-group>
       <el-button @click="emit('pageStyle')">页面样式</el-button>
-      <el-button :icon="View" @click="emit('preview')">预览</el-button>
+      <el-button :icon="RiEyeFill" @click="emit('preview')">预览</el-button>
       <el-button type="primary" :loading="isSaving" @click="emit('save')">
         {{ isSaving ? '保存中' : '保存' }}
       </el-button>

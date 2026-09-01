@@ -4,7 +4,7 @@
 // 表单仅企业名称/需求/行业三项，按钮为全宽「下一步」主按钮
 import { reactive, useTemplateRef } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import { OfficeBuilding } from '@element-plus/icons-vue';
+import { RiBuildingFill } from '@remixicon/vue';
 
 defineProps<{
   /** 提交中：按钮显示 loading 并防重复提交 */
@@ -81,7 +81,7 @@ async function handleSubmit() {
         placeholder="请输入企业/团队名称"
         maxlength="50"
         clearable
-        :prefix-icon="OfficeBuilding"
+        :prefix-icon="RiBuildingFill"
       />
     </el-form-item>
 

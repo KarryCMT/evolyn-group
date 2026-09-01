@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FavoriteApplication } from './favoriteCatalog';
-import { Close, Plus } from '@element-plus/icons-vue';
+import { RiAddFill, RiCloseFill } from '@remixicon/vue';
 
 defineOptions({ name: 'FavoritesDialog' });
 
@@ -32,7 +32,7 @@ const visible = defineModel<boolean>({ default: false });
         <el-button
           text
           class="favorites-dialog__close"
-          :icon="Close"
+          :icon="RiCloseFill"
           aria-label="关闭"
           @click="visible = false"
         />
@@ -43,7 +43,7 @@ const visible = defineModel<boolean>({ default: false });
       <section class="favorites-dialog__panel" aria-labelledby="favorites-list-heading">
         <header class="favorites-dialog__panel-header">
           <h2 id="favorites-list-heading" class="favorites-dialog__panel-title">我的收藏</h2>
-          <el-button text class="favorites-dialog__add" :icon="Plus" @click="emit('add')">
+          <el-button text class="favorites-dialog__add" :icon="RiAddFill" @click="emit('add')">
             添加
           </el-button>
         </header>

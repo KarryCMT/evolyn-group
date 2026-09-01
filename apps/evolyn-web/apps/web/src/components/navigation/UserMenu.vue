@@ -5,7 +5,6 @@ import { useRouter } from 'vue-router';
 // el-dropdown / el-avatar 等组件必须走模板标签由 unplugin-vue-components 按需注入
 // 组件与样式，显式 import 会绕过 resolver 导致组件样式丢失
 import { ElMessage } from 'element-plus';
-import { UserFilled } from '@element-plus/icons-vue';
 import {
   RiArrowRightSFill,
   RiComputerFill,
@@ -13,6 +12,7 @@ import {
   RiLogoutBoxFill,
   RiSettings3Fill,
   RiStarFill,
+  RiUserFill,
   RiVipDiamondFill,
 } from '@remixicon/vue';
 import { useAuth } from '~/composables';
@@ -65,12 +65,12 @@ async function handleLogout() {
 <template>
   <el-dropdown placement="bottom-end" popper-class="user-menu-popper" @command="onCommand">
     <!-- 触发器：顶栏小头像 -->
-    <el-avatar class="user-menu__trigger" :size="24" :src="avatar" :icon="UserFilled" />
+    <el-avatar class="user-menu__trigger" :size="24" :src="avatar" :icon="RiUserFill" />
     <template #dropdown>
       <div class="user-menu">
         <!-- 用户信息区：头像 + 昵称/「我创建的」标签 + 公司名 -->
         <div class="user-menu__profile">
-          <el-avatar class="user-menu__avatar" :size="40" :src="avatar" :icon="UserFilled" />
+          <el-avatar class="user-menu__avatar" :size="40" :src="avatar" :icon="RiUserFill" />
           <div class="user-menu__meta">
             <div class="user-menu__name-row">
               <span class="user-menu__name">{{ panelName }}</span>

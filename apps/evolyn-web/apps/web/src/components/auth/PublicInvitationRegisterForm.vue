@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { FormInstance, FormRules } from 'element-plus';
-import { Iphone, User } from '@element-plus/icons-vue';
+import { RiSmartphoneFill, RiUserFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 // 公开邀请注册表单只承担收集与本地校验；发送短信和最终注册由页面编排，
 // 使接口副作用和成功后的会话跳转保持在路由层。
@@ -83,7 +83,7 @@ function handleSendCode() {
         placeholder="你的手机号"
         autocomplete="tel"
         clearable
-        :prefix-icon="Iphone"
+        :prefix-icon="RiSmartphoneFill"
       >
         <template #prepend>
           <span class="public-invitation-register-form__prefix">+86</span>
@@ -120,7 +120,7 @@ function handleSendCode() {
         autocomplete="name"
         maxlength="20"
         clearable
-        :prefix-icon="User"
+        :prefix-icon="RiUserFill"
         @keyup.enter="handleSubmit"
       />
     </el-form-item>

@@ -2,7 +2,7 @@
 // 顶栏语言切换（占位）：i18n 方案落地前仅记录选择并提示，
 // 落地后在此接入 vue-i18n 的 locale 切换
 import { computed, shallowRef } from 'vue';
-import { ArrowDown } from '@element-plus/icons-vue';
+import { RiArrowDownSFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 
 /** 本地语言偏好存储键 */
@@ -29,7 +29,7 @@ function handleChange(value: string | number | object) {
   <el-dropdown class="locale-switch" trigger="click" @command="handleChange">
     <span class="locale-switch__trigger" role="button" tabindex="0">
       {{ currentLabel }}
-      <el-icon class="locale-switch__arrow"><ArrowDown /></el-icon>
+      <el-icon class="locale-switch__arrow"><RiArrowDownSFill /></el-icon>
     </span>
     <template #dropdown>
       <el-dropdown-menu>

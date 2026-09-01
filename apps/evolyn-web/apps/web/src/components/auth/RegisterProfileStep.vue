@@ -5,7 +5,7 @@
 // 注册全程不设密码：账号为免密状态，密码由用户后续在个人中心自行首设
 import { reactive, useTemplateRef } from 'vue';
 import type { FormInstance, FormRules } from 'element-plus';
-import { User } from '@element-plus/icons-vue';
+import { RiUserFill } from '@remixicon/vue';
 
 const props = defineProps<{
   /** 昵称默认值：取第 1 步注册手机号的脱敏形式，降低输入成本 */
@@ -91,7 +91,7 @@ async function handleSubmit() {
         placeholder="你的姓名"
         maxlength="20"
         clearable
-        :prefix-icon="User"
+        :prefix-icon="RiUserFill"
       />
     </el-form-item>
 
