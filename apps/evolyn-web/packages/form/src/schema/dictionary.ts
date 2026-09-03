@@ -145,7 +145,49 @@ export const FIELD_SHOW_CONDITION_METHODS: Readonly<Record<string, readonly Fiel
 /** includeCurrentMember 仅对成员类字段开放（user/usergroup）。 */
 export const FIELD_SHOW_CURRENT_MEMBER_TYPES: ReadonlySet<string> = new Set(['user', 'usergroup']);
 
-/** 方法展示名（设计器条件行与自然语言摘要共用）。 */
+// ---- 不可见字段赋值（v6，docs/低代码平台/表单设计器/不可见字段赋值前后端设计方案.md） ----
+
+/** 不可见字段赋值策略上限（v6 设计方案 §3.1）。 */
+export const SUBMIT_RULE_LIMITS = {
+  /** widget_submit_rules 键数上限。 */
+  maxSpecialRules: 500,
+} as const;
+
+/** 新建表单的默认策略：空值（v6 设计方案 §3.1）。 */
+export const DEFAULT_SUBMIT_RULE = 2 as const;
+
+/** 策略展示名（设计器选择框/对话框/摘要卡共用）。 */
+export const SUBMIT_RULE_LABELS: Readonly<Record<number, string>> = {
+  1: '保持原值',
+  2: '空值',
+  3: '始终重新计算',
+};
+
+/**
+ * 可配置特殊赋值规则的顶层控件集（v6 设计方案 §3.2）：必须具备普通用户提交
+ * 值语义——布局控件（separator/button）、无用户值的展示/系统控件（richtext/
+ * sn/linkquery）与尚未开放运行能力的控件（subform 整体等）均不可配置。
+ * 与后端 Go 侧 submitRuleEligibleTypes 逐条一致。
+ */
+export const SUBMIT_RULE_ELIGIBLE_WIDGET_TYPES: readonly FormWidgetType[] = [
+  'text',
+  'textarea',
+  'number',
+  'datetime',
+  'radiogroup',
+  'checkboxgroup',
+  'combo',
+  'combocheck',
+  'user',
+  'usergroup',
+];
+
+/**
+ * 「始终重新计算（3）」是否可配置：依赖服务端确定性派生计算执行器
+ * （设计方案 §1.1/§8.2 P3）。执行器与相同 Web 执行器交付前，配置器必须将
+ * recompute 置为不可选，校验器对任何生效的 3 直接拒绝。
+ */
+export const SUBMIT_RULE_RECOMPUTE_SUPPORTED = false; /** 方法展示名（设计器条件行与自然语言摘要共用）。 */
 export const FIELD_SHOW_METHOD_LABELS: Readonly<Record<FieldShowMethod, string>> = {
   eq: '等于',
   ne: '不等于',

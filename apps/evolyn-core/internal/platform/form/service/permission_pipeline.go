@@ -1,4 +1,5 @@
-// 权限感知提交管线（表单权限 P1，设计 §4/S9 定版）：edit 提交不复用
+// 权限感知提交管线（表单权限 P1，设计 §4/S9 定版；v6 起仅服务 v≤5 历史快照，
+// v6 快照由 value_resolution.go 的 ResolveSubmittedValues 接管）：edit 提交不复用
 // ValidateSubmittedRecordValues，而是按三阶段执行：
 //
 //	① 信封解包——每个数据字段必须携带 visible 且等于「静态可见 ∧ 显隐规则

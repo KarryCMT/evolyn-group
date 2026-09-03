@@ -31,6 +31,8 @@ function documentOf(items: FormItem[]): FormSchemaDocument {
       layout_fields: [],
       field_layout: items.map((item) => item.widget.widgetName),
       fieldShowRules: [],
+      submitRule: 2,
+      widget_submit_rules: {},
     },
   };
 }
@@ -306,9 +308,71 @@ function rulesDocumentOf(
       layout_fields: [],
       field_layout: items.map((entry) => entry.widget.widgetName),
       fieldShowRules,
+      submitRule: 2,
+      widget_submit_rules: {},
     },
   };
 }
+
+// ---- v6 不可见字段赋值：信封口径与策略预演 ----
+
+describe('createFormRuntime 不可见字段赋值（v6）', () => {
+  it('提交信封携带有效可见性（静态 ∧ 权限 ∧ 规则），不可见字段不带 data', () => {
+    const schema = rulesDocumentOf(
+      [
+        item({
+          type: 'radiogroup',
+          widgetName: '_widget_status',
+          options: [
+            { label: '未开始', value: 'todo' },
+            { label: '进行中', value: 'doing' },
+          ],
+        }),
+        item({ type: 'text', widgetName: '_widget_eta' }),
+      ],
+      [
+        {
+          id: '_field_show_rule_eta',
+          filter: {
+            rel: 'and',
+            cond: [{ field: '_widget_status', type: 'radiogroup', method: 'eq', value: ['todo'] }],
+          },
+          fields: ['_widget_eta'],
+        },
+      ],
+    );
+    const runtime = createFormRuntime({
+      schema,
+      // 权限矩阵：仅状态字段对操作者可见（eta 权限隐藏）。
+      fieldPermissions: {
+        _widget_status: { visible: true, editable: true },
+        _widget_eta: { visible: false, editable: false },
+      },
+    });
+    runtime.setValue('_widget_status', 'todo');
+    const payload = runtime.buildSubmitPayload();
+    // eta 权限隐藏 → 有效不可见：信封 visible=false、无 data（服务端按策略决议）。
+    expect(payload.values['_widget_eta']!).toEqual({ visible: false });
+    expect(payload.values['_widget_status']!).toEqual({ visible: true, data: 'todo' });
+  });
+
+  it('submitStrategyOf 按特殊规则优先口径预演（§5.2）', () => {
+    const schema = rulesDocumentOf([item({ type: 'text', widgetName: '_widget_a' })], []);
+    (schema.content as unknown as Record<string, unknown>).submitRule = 1;
+    (schema.content as unknown as Record<string, unknown>).widget_submit_rules = { _widget_a: 2 };
+    const runtime = createFormRuntime({ schema });
+    expect(runtime.submitStrategyOf('_widget_a')).toBe(2);
+    expect(runtime.submitStrategyOf('_widget_other')).toBe(1);
+  });
+
+  it('旧快照缺策略键时回退默认「空值」', () => {
+    const schema = rulesDocumentOf([item({ type: 'text', widgetName: '_widget_a' })], []);
+    delete (schema.content as unknown as Record<string, unknown>).submitRule;
+    delete (schema.content as unknown as Record<string, unknown>).widget_submit_rules;
+    const runtime = createFormRuntime({ schema });
+    expect(runtime.submitStrategyOf('_widget_a')).toBe(2);
+  });
+});
 
 describe('createFormRuntime 显隐规则引擎', () => {
   const outingForm = () =>
@@ -558,6 +622,5 @@ describe('createFormRuntime 字段权限合成（v5）', () => {
       initialValues: { _widget_src: '甲' },
     });
     expect(runtime.state.fieldStates['_widget_target']!.visible).toBe(true);
-    expect(runtime.state.fieldStates['_widget_target']!.envelopeVisible).toBe(true);
   });
 });

@@ -66,6 +66,8 @@ describe('FormSchemaLayoutCanvas', () => {
         ],
         field_layout: ['_widget_top', '_layout_tabs'],
         fieldShowRules: [],
+        submitRule: 2,
+        widget_submit_rules: {},
       },
     };
 
@@ -99,6 +101,8 @@ describe('FormSchemaLayoutCanvas', () => {
         layout_fields: [],
         field_layout: [item.widget.widgetName],
         fieldShowRules: [],
+        submitRule: 2,
+        widget_submit_rules: {},
       },
     };
 
@@ -134,6 +138,8 @@ describe('FormSchemaLayoutCanvas', () => {
         ],
         field_layout: ['_layout_empty_tabs'],
         fieldShowRules: [],
+        submitRule: 2,
+        widget_submit_rules: {},
       },
     };
 
@@ -159,6 +165,8 @@ describe('FormSchemaLayoutCanvas', () => {
         layout_fields: [],
         field_layout: [subform.widget.widgetName],
         fieldShowRules: [],
+        submitRule: 2,
+        widget_submit_rules: {},
       },
     };
     const wrapper = mount(FormSchemaLayoutCanvas, {

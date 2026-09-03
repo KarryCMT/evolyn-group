@@ -36,6 +36,8 @@ const schema: FormSchemaDocument = {
     layout_fields: [],
     field_layout: [],
     fieldShowRules: [],
+    submitRule: 2,
+    widget_submit_rules: {},
   },
 };
 const adapter: FormRuntimeAdapter = { submit: async () => ({ accepted: true }) };
@@ -70,6 +72,8 @@ describe('formDesignPreviewDrawer', () => {
         layout_fields: [],
         field_layout: [],
         fieldShowRules: [],
+        submitRule: 2,
+        widget_submit_rules: {},
       },
     }) as FormSchemaDocument;
     const wrapper = mount(FormDesignPreviewDrawer, {

@@ -29,7 +29,6 @@ const state = computed<FieldRuntimeState>(
   () =>
     runtime.value?.state.fieldStates[widgetName.value] ?? {
       visible: false,
-      envelopeVisible: false,
       disabled: false,
       readonly: false,
       touched: false,

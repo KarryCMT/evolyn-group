@@ -31,6 +31,11 @@ const shared = {
   },
   format: ['esm', 'cjs'],
   hash: false,
+  // 将设计器空状态插图内联为 data URL：表单包被工作区应用消费时，不依赖 dist/assets
+  // 的相对路径，从而避免插图请求落到宿主应用的错误目录。
+  loader: {
+    '.png': 'base64',
+  },
   minify: false,
   outDir: 'dist',
   outExtensions: resolveOutExtensions,

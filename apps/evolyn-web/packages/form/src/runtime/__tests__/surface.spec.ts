@@ -27,6 +27,8 @@ function schema(): FormSchemaDocument {
       layout_fields: [],
       field_layout: ['_widget_name'],
       fieldShowRules: [],
+      submitRule: 2,
+      widget_submit_rules: {},
     },
   };
 }

@@ -39,8 +39,9 @@ type TxManager interface {
 	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }
 
-// emptyFormDocument 空协议文档（新表单草稿初值）。
-var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[],"layout_fields":[],"field_layout":[]}}`)
+// emptyFormDocument 空协议文档（新表单草稿初值）：v6 起携带 fieldShowRules /
+// submitRule / widget_submit_rules 三个必填键，默认策略为空值（2）。
+var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[],"layout_fields":[],"field_layout":[],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{}}}`)
 
 // formService 表单资产服务实现。
 type formService struct {

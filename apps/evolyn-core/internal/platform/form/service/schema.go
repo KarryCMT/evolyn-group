@@ -398,6 +398,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	if protocolVersion >= 5 {
 		contentKeys = append(contentKeys, "fieldShowRules")
 	}
+	if protocolVersion >= model.InvisibleValuePolicyVersion {
+		contentKeys = append(contentKeys, "submitRule", "widget_submit_rules")
+	}
 	rejectUnknownKeys(content, contentKeys, "content", issues)
 	if content["type"] != "form" {
 		*issues = append(*issues, SchemaIssue{Path: "content.type", Message: `content.type 必须固定为 "form"`})
@@ -431,6 +434,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	}
 	if protocolVersion >= 5 {
 		validateFieldShowRules(content, issues)
+	}
+	if protocolVersion >= model.InvisibleValuePolicyVersion {
+		validateSubmitRules(content, issues)
 	}
 }
 
@@ -1200,13 +1206,22 @@ func containsString(list []string, target string) bool {
 	return false
 }
 
-// asInteger JSON 数字（float64）收敛为整型；非数字或非整数返回 false
+// asInteger JSON 数字（float64）收敛为整型；非数字或非整数返回 false。
+// 同时容忍 int/int64（测试桩与内存构造的快照，与 value.go jsonInt 同口径）。
 func asInteger(value any) (int, bool) {
-	num, ok := value.(float64)
-	if !ok || num != math.Trunc(num) || math.Abs(num) > 1<<31 {
+	switch v := value.(type) {
+	case float64:
+		if v != math.Trunc(v) || math.Abs(v) > 1<<31 {
+			return 0, false
+		}
+		return int(v), true
+	case int:
+		return v, true
+	case int64:
+		return int(v), true
+	default:
 		return 0, false
 	}
-	return int(num), true
 }
 
 func inRange(value float64, spec propSpec) bool {
@@ -1746,4 +1761,115 @@ func detectFieldShowRuleCycle(
 			"显隐规则存在循环依赖：%s（涉及规则 %s）",
 			strings.Join(cycle, " → "), joined),
 	})
+}
+
+// ---- 不可见字段赋值校验（v6，与 TS validate.ts 的 validateSubmitRules 逐字镜像） ----
+
+// validateSubmitRules 结构、可处理性、值形状、冗余配置与 recompute 能力门控
+// 校验（v6 设计方案 §3.2）。键按字典序遍历保证 issues 确定性。
+func validateSubmitRules(content map[string]any, issues *[]SchemaIssue) {
+	submitRule, ruleOK := asInteger(content["submitRule"])
+	if !ruleOK || submitRule < 1 || submitRule > 3 {
+		*issues = append(*issues, SchemaIssue{
+			Path:    "content.submitRule",
+			Message: "submitRule 必须是 1 / 2 / 3 之一（1=保持原值，2=空值，3=始终重新计算）",
+		})
+		ruleOK = false
+	}
+
+	rawRules, ok := content["widget_submit_rules"].(map[string]any)
+	if !ok {
+		*issues = append(*issues, SchemaIssue{
+			Path:    "content.widget_submit_rules",
+			Message: "widget_submit_rules 必须是对象（v6 起必填，空对象合法）",
+		})
+		return
+	}
+	if len(rawRules) > submitRuleMaxSpecialRules {
+		*issues = append(*issues, SchemaIssue{
+			Path:    "content.widget_submit_rules",
+			Message: fmt.Sprintf("特殊字段赋值规则数量不能超过 %d", submitRuleMaxSpecialRules),
+		})
+	}
+
+	topWidgets := map[string]string{}
+	items, _ := content["items"].([]any)
+	for _, rawItem := range items {
+		item, _ := rawItem.(map[string]any)
+		if item == nil {
+			continue
+		}
+		widget, _ := item["widget"].(map[string]any)
+		if widget == nil {
+			continue
+		}
+		if name, _ := widget["widgetName"].(string); name != "" {
+			widgetType, _ := widget["type"].(string)
+			topWidgets[name] = widgetType
+		}
+	}
+
+	for _, key := range sortedMapKeys(rawRules) {
+		entryPath := "content.widget_submit_rules." + key
+		widgetType, exists := topWidgets[key]
+		if !exists {
+			*issues = append(*issues, SchemaIssue{
+				Path: entryPath, Message: fmt.Sprintf("特殊规则字段「%s」不存在", key),
+			})
+			continue
+		}
+		if !submitRuleEligibleTypes[widgetType] {
+			*issues = append(*issues, SchemaIssue{
+				Path:    entryPath,
+				Message: fmt.Sprintf("字段「%s」的类型不支持配置特殊赋值规则", key),
+			})
+			continue
+		}
+		value, valueOK := asInteger(rawRules[key])
+		if !valueOK || value < 1 || value > 3 {
+			*issues = append(*issues, SchemaIssue{
+				Path:    entryPath,
+				Message: fmt.Sprintf("「%s」的特殊规则必须是 1 / 2 / 3 之一", key),
+			})
+			continue
+		}
+		if ruleOK && value == submitRule {
+			*issues = append(*issues, SchemaIssue{
+				Path:    entryPath,
+				Message: fmt.Sprintf("字段「%s」的特殊规则与默认策略相同，无需单独配置", key),
+			})
+			continue
+		}
+		if value == submitRuleRecompute && !recomputeSupported(widgetType) {
+			*issues = append(*issues, SchemaIssue{
+				Path: entryPath,
+				Message: fmt.Sprintf(
+					"「始终重新计算」需要派生计算执行器，当前尚未开放，暂不能配置字段「%s」", key),
+			})
+		}
+	}
+
+	// submitRule=3 时，未被覆盖为 1/2 的可处理字段必须全部可重算（§3.2）：
+	// 当前尚无可重算字段，存在任一未被覆盖字段即拒绝保存。
+	if ruleOK && submitRule == submitRuleRecompute {
+		uncovered := false
+		for name, widgetType := range topWidgets {
+			if !submitRuleEligibleTypes[widgetType] {
+				continue
+			}
+			if override, covered := asInteger(rawRules[name]); covered && override != submitRuleRecompute {
+				continue
+			}
+			if !recomputeSupported(widgetType) {
+				uncovered = true
+				break
+			}
+		}
+		if uncovered {
+			*issues = append(*issues, SchemaIssue{
+				Path:    "content.submitRule",
+				Message: "默认策略「始终重新计算」要求全部可处理字段支持重算，当前尚未开放",
+			})
+		}
+	}
 }

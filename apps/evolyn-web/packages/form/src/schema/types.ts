@@ -9,7 +9,7 @@
  */
 
 /** 协议版本常量；递增时必须同步版本迁移器（migrate.ts）与字段字典。 */
-export const FORM_PROTOCOL_VERSION = 5 as const;
+export const FORM_PROTOCOL_VERSION = 6 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -448,6 +448,19 @@ export interface FormContent {
    * 展示，不参与运行结果。
    */
   fieldShowRules: FieldShowRule[];
+  /**
+   * 不可见字段赋值默认策略（v6，docs/低代码平台/表单设计器/不可见字段赋值
+   * 前后端设计方案.md）：所有未设特殊规则的不可见可处理字段的兜底策略。
+   * 1=保持原值（仅编辑/流程后续提交有基线时生效）、2=空值（新建默认）、
+   * 3=始终重新计算（派生执行器交付前不可配置）。
+   */
+  submitRule: SubmitRule;
+  /**
+   * 特殊字段赋值规则（v6）：键为顶层具备值语义的 widgetName，值优先于
+   * submitRule；与默认策略相同的冗余项由校验器拒绝，设计器切换默认策略时
+   * 自动移除。空对象必须原样保留。
+   */
+  widget_submit_rules: Record<string, SubmitRule>;
 }
 
 /** 表单级默认列布局；字段仍可通过 lineWidth 单独覆盖实际宽度。 */
@@ -534,3 +547,11 @@ export interface FieldShowRule {
   /** 条件成立后显示的目标字段（顶层 widgetName，1–100 项，组内不得重复）。 */
   fields: string[];
 }
+
+// ---- 不可见字段赋值（v6） ----
+
+/**
+ * 不可见字段赋值策略枚举（v6 设计方案 §3）：字段对本次操作者有效不可见时，
+ * 服务端对其记录值的处理方式。值形态沿用参考实现的整数载荷，禁止字符串数字。
+ */
+export type SubmitRule = 1 | 2 | 3;

@@ -8,7 +8,7 @@ import {
 } from '../dictionary';
 import { cloneFormSchema } from '../clone';
 import { migrateFormSchema } from '../migrate';
-import type { FormSchemaDocument } from '../types';
+import { FORM_PROTOCOL_VERSION, type FormSchemaDocument } from '../types';
 import { validateFormSchema, validatePublishableFormSchema } from '../validate';
 
 function subformConfig() {
@@ -56,6 +56,8 @@ function documentWith(items: unknown[]): unknown {
       layout_fields: [],
       field_layout,
       fieldShowRules: [],
+      submitRule: 2,
+      widget_submit_rules: {},
     },
   };
 }
@@ -115,6 +117,8 @@ describe('validateFormSchema 结构校验', () => {
           layout_fields: [],
           field_layout: [],
           fieldShowRules: [],
+          submitRule: 2,
+          widget_submit_rules: {},
           extra: 1,
         },
       }).issues[0]!.path,
@@ -368,6 +372,8 @@ describe('validateFormSchema 结构校验', () => {
         ],
         field_layout: ['_layout_tabs'],
         fieldShowRules: [],
+        submitRule: 2,
+        widget_submit_rules: {},
       },
     };
     expect(validateFormSchema(document).valid).toBe(true);
@@ -464,7 +470,7 @@ describe('migrateFormSchema / cloneFormSchema', () => {
     expect(result.document?.content.layout_fields).toEqual([]);
     expect(result.document?.content.field_layout).toEqual(['_widget_a1']);
     expect(result.document?.content.layout).toBe('normal');
-    expect(result.protocolVersion).toBe(5);
+    expect(result.protocolVersion).toBe(FORM_PROTOCOL_VERSION);
   });
 
   it('v2 引用文档迁移为当前版本时补单列布局', () => {
@@ -704,7 +710,9 @@ describe('validateFormSchema 字段显隐规则（v5）', () => {
     const migrated = migrateFormSchema(v4, 4);
     expect(migrated.issues).toEqual([]);
     expect(migrated.document?.content.fieldShowRules).toEqual([]);
-    expect(migrated.protocolVersion).toBe(5);
+    expect(migrated.document?.content.submitRule).toBe(2);
+    expect(migrated.document?.content.widget_submit_rules).toEqual({});
+    expect(migrated.protocolVersion).toBe(FORM_PROTOCOL_VERSION);
   });
 });
 
@@ -719,6 +727,8 @@ describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
         items: [dept, target],
         layout_fields: [],
         field_layout: ['_widget_dept', '_widget_target'],
+        submitRule: 2,
+        widget_submit_rules: {},
         fieldShowRules: [
           {
             id: 'r1',
@@ -766,3 +776,108 @@ function rulesDocument(rules: unknown, extraItems: unknown[] = []): unknown {
     },
   };
 }
+
+describe('validateFormSchema 不可见字段赋值（v6）', () => {
+  it('合法：默认策略 1/2、特殊规则 1/2 与空对象', () => {
+    const base = documentWith([textItem()]);
+    expect(validateFormSchema(base).issues).toEqual([]);
+    (base as { content: Record<string, unknown> }).content.submitRule = 1;
+    expect(validateFormSchema(base).issues).toEqual([]);
+    (base as { content: Record<string, unknown> }).content.widget_submit_rules = { _widget_a1: 2 };
+    expect(validateFormSchema(base).issues).toEqual([]);
+  });
+
+  it('缺键、非法枚举与字符串数字拒绝', () => {
+    const missing = documentWith([textItem()]) as { content: Record<string, unknown> };
+    delete missing.content.submitRule;
+    delete missing.content.widget_submit_rules;
+    const result = validateFormSchema(missing);
+    expect(result.issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining(['content.submitRule', 'content.widget_submit_rules']),
+    );
+
+    const bad = documentWith([textItem()]) as { content: Record<string, unknown> };
+    bad.content.submitRule = '2';
+    expect(
+      validateFormSchema(bad).issues.some((issue) => issue.path === 'content.submitRule'),
+    ).toBe(true);
+
+    bad.content.submitRule = 2;
+    bad.content.widget_submit_rules = { _widget_a1: '1' };
+    expect(
+      validateFormSchema(bad).issues.some(
+        (issue) => issue.path === 'content.widget_submit_rules._widget_a1',
+      ),
+    ).toBe(true);
+  });
+
+  it('未知字段与不可处理类型拒绝', () => {
+    const doc = documentWith([
+      textItem(),
+      textItem({ type: 'separator', widgetName: '_widget_sep', label: '' }),
+      textItem({ type: 'sn', widgetName: '_widget_sn' }),
+    ]) as { content: Record<string, unknown> };
+    doc.content.widget_submit_rules = { _widget_ghost: 1, _widget_sep: 1, _widget_sn: 1 };
+    const paths = validateFormSchema(doc).issues.map((issue) => issue.path);
+    expect(paths).toEqual(
+      expect.arrayContaining([
+        'content.widget_submit_rules._widget_ghost',
+        'content.widget_submit_rules._widget_sep',
+        'content.widget_submit_rules._widget_sn',
+      ]),
+    );
+  });
+
+  it('与默认策略相同的冗余配置拒绝保存', () => {
+    const doc = documentWith([textItem()]) as { content: Record<string, unknown> };
+    doc.content.widget_submit_rules = { _widget_a1: 2 };
+    const result = validateFormSchema(doc);
+    expect(result.issues[0]!.path).toBe('content.widget_submit_rules._widget_a1');
+    expect(result.issues[0]!.message).toContain('与默认策略相同');
+  });
+
+  it('recompute 在派生执行器交付前拒绝（特殊规则与默认策略两口径）', () => {
+    const doc = documentWith([textItem()]) as { content: Record<string, unknown> };
+    doc.content.widget_submit_rules = { _widget_a1: 3 };
+    expect(
+      validateFormSchema(doc).issues.some(
+        (issue) => issue.path === 'content.widget_submit_rules._widget_a1',
+      ),
+    ).toBe(true);
+
+    doc.content.submitRule = 3;
+    doc.content.widget_submit_rules = {};
+    expect(
+      validateFormSchema(doc).issues.some((issue) => issue.path === 'content.submitRule'),
+    ).toBe(true);
+
+    // submitRule=3 且全部可处理字段覆盖为 1/2：无未覆盖字段即不触发门控。
+    doc.content.widget_submit_rules = { _widget_a1: 1 };
+    expect(validateFormSchema(doc).issues).toEqual([]);
+  });
+});
+
+describe('migrateFormSchema v5/v4 → v6', () => {
+  it('v5 文档迁移补默认空值策略与空规则对象', () => {
+    const v5 = documentWith([textItem()]) as { content: Record<string, unknown> };
+    delete v5.content.submitRule;
+    delete v5.content.widget_submit_rules;
+    const migrated = migrateFormSchema(v5, 5);
+    expect(migrated.issues).toEqual([]);
+    expect(migrated.document?.content.submitRule).toBe(2);
+    expect(migrated.document?.content.widget_submit_rules).toEqual({});
+    expect(migrated.protocolVersion).toBe(FORM_PROTOCOL_VERSION);
+  });
+
+  it('v4 文档一次性补齐 fieldShowRules 与 v6 策略键', () => {
+    const v4 = documentWith([textItem()]) as { content: Record<string, unknown> };
+    delete v4.content.fieldShowRules;
+    delete v4.content.submitRule;
+    delete v4.content.widget_submit_rules;
+    const migrated = migrateFormSchema(v4, 4);
+    expect(migrated.issues).toEqual([]);
+    expect(migrated.document?.content.fieldShowRules).toEqual([]);
+    expect(migrated.document?.content.submitRule).toBe(2);
+    expect(migrated.document?.content.widget_submit_rules).toEqual({});
+  });
+});

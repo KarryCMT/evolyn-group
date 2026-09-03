@@ -73,6 +73,8 @@ function bootstrap(formCode: string): FormRuntimeBootstrap {
         layout_fields: [],
         field_layout: [],
         fieldShowRules: [],
+        submitRule: 2,
+        widget_submit_rules: {},
       },
     },
   };

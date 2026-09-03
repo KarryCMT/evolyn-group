@@ -12,6 +12,9 @@ import {
   FIELD_SHOW_EMPTY_METHODS,
   FIELD_SHOW_RULE_LIMITS,
   FORM_PROTOCOL_LIMITS,
+  SUBMIT_RULE_ELIGIBLE_WIDGET_TYPES,
+  SUBMIT_RULE_LIMITS,
+  SUBMIT_RULE_RECOMPUTE_SUPPORTED,
   WIDGET_OPTION_LIMITS,
   WIDGET_SPECS,
   type WidgetPropSpec,
@@ -131,7 +134,16 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
   }
   rejectUnknownKeys(
     content,
-    ['type', 'layout', 'items', 'layout_fields', 'field_layout', 'fieldShowRules'],
+    [
+      'type',
+      'layout',
+      'items',
+      'layout_fields',
+      'field_layout',
+      'fieldShowRules',
+      'submitRule',
+      'widget_submit_rules',
+    ],
     'content',
     issues,
   );
@@ -161,6 +173,7 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
   });
   validateLayouts(content, seenNames, issues);
   validateFieldShowRules(content, issues);
+  validateSubmitRules(content, issues);
 }
 
 /**
@@ -407,8 +420,98 @@ function validateFieldShowRules(content: Record<string, unknown>, issues: FormSc
   detectFieldShowRuleCycle(rawRules, targetOwner, issues);
 }
 
-/** 单条件校验：字段存在性/类型指纹/方法×值形状/成员开关。 */
-function validateFieldShowCondition(
+/**
+ * 不可见字段赋值校验（v6 设计方案 §3.2）：submitRule 枚举、widget_submit_rules
+ * 键可处理性与值形状、冗余配置拒绝与 recompute 能力门控。与后端 schema.go 的
+ * validateSubmitRules 逐字镜像。
+ */
+function validateSubmitRules(content: Record<string, unknown>, issues: FormSchemaIssue[]): void {
+  const submitRule = content.submitRule;
+  const ruleOK = isInteger(submitRule) && submitRule >= 1 && submitRule <= 3;
+  if (!ruleOK) {
+    issues.push({
+      path: 'content.submitRule',
+      message: 'submitRule 必须是 1 / 2 / 3 之一（1=保持原值，2=空值，3=始终重新计算）',
+    });
+  }
+
+  const rawRules = content.widget_submit_rules;
+  if (!isPlainObject(rawRules)) {
+    issues.push({
+      path: 'content.widget_submit_rules',
+      message: 'widget_submit_rules 必须是对象（v6 起必填，空对象合法）',
+    });
+    return;
+  }
+  if (Object.keys(rawRules).length > SUBMIT_RULE_LIMITS.maxSpecialRules) {
+    issues.push({
+      path: 'content.widget_submit_rules',
+      message: `特殊字段赋值规则数量不能超过 ${SUBMIT_RULE_LIMITS.maxSpecialRules}`,
+    });
+  }
+
+  const topItems = new Map<string, Record<string, unknown>>();
+  for (const item of content.items as FormItem[]) {
+    if (isPlainObject(item) && isPlainObject(item.widget)) {
+      const name = String(item.widget.widgetName ?? '');
+      if (name) topItems.set(name, item.widget);
+    }
+  }
+
+  for (const [key, rawValue] of Object.entries(rawRules)) {
+    const entryPath = `content.widget_submit_rules.${key}`;
+    const widget = topItems.get(key);
+    if (!widget) {
+      issues.push({ path: entryPath, message: `特殊规则字段「${key}」不存在` });
+      continue;
+    }
+    if (!SUBMIT_RULE_ELIGIBLE_WIDGET_TYPES.includes(widget.type as FormWidgetType)) {
+      issues.push({
+        path: entryPath,
+        message: `字段「${key}」的类型不支持配置特殊赋值规则`,
+      });
+      continue;
+    }
+    if (!isInteger(rawValue) || rawValue < 1 || rawValue > 3) {
+      issues.push({
+        path: entryPath,
+        message: `「${key}」的特殊规则必须是 1 / 2 / 3 之一`,
+      });
+      continue;
+    }
+    if (ruleOK && rawValue === submitRule) {
+      issues.push({
+        path: entryPath,
+        message: `字段「${key}」的特殊规则与默认策略相同，无需单独配置`,
+      });
+      continue;
+    }
+    if (rawValue === 3 && !SUBMIT_RULE_RECOMPUTE_SUPPORTED) {
+      issues.push({
+        path: entryPath,
+        message: `「始终重新计算」需要派生计算执行器，当前尚未开放，暂不能配置字段「${key}」`,
+      });
+    }
+  }
+
+  // submitRule=3 时，未被覆盖为 1/2 的可处理字段必须全部可重算（§3.2）：
+  // 当前尚无可重算字段，存在任一未被覆盖字段即拒绝保存。
+  if (ruleOK && submitRule === 3 && !SUBMIT_RULE_RECOMPUTE_SUPPORTED) {
+    const uncovered = [...topItems.entries()].some(
+      ([name, widget]) =>
+        SUBMIT_RULE_ELIGIBLE_WIDGET_TYPES.includes(widget.type as FormWidgetType) &&
+        !(isInteger(rawRules[name]) && rawRules[name] !== 3),
+    );
+    if (uncovered) {
+      issues.push({
+        path: 'content.submitRule',
+        message: '默认策略「始终重新计算」要求全部可处理字段支持重算，当前尚未开放',
+      });
+    }
+  }
+}
+
+/** 单条件校验：字段存在性/类型指纹/方法×值形状/成员开关。 */ function validateFieldShowCondition(
   rawCondition: unknown,
   condPath: string,
   topItems: TopLevelIndex,

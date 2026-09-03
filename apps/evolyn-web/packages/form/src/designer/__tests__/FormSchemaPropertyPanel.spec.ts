@@ -2,7 +2,12 @@ import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
 import { EvolynRichTextEditor } from '@evolyn.do/ui';
-import type { FormItem, FormMultitabLayout } from '../../schema/types';
+import type {
+  FormItem,
+  FormMultitabLayout,
+  FormSchemaDocument,
+  SubmitRule,
+} from '../../schema/types';
 import { createWidgetItem } from '../../schema/dictionary';
 import FormSchemaCommonPropertyPanel from '../FormSchemaCommonPropertyPanel.vue';
 import FormSchemaPropertyPanel from '../FormSchemaPropertyPanel.vue';
@@ -176,6 +181,29 @@ describe('FormSchemaPropertyPanel', () => {
     expect(wrapper.text()).toContain('整行');
   });
 
+  it('字段显隐规则使用全宽入口，并在已有规则时展示配置数量', async () => {
+    const wrapper = mount(FormSchemaPropertyPanel, {
+      props: {
+        fieldShowRules: [
+          {
+            id: 'rule_show_detail',
+            filter: { rel: 'and', cond: [] },
+            fields: ['_widget_name'],
+          },
+        ],
+      },
+    });
+    wrapper.findComponent({ name: 'ElSegmented' }).vm.$emit('update:modelValue', 'form');
+    await nextTick();
+
+    const entry = wrapper.find('.form-schema-property__show-rules-entry');
+    expect(entry.exists()).toBe(true);
+    expect(entry.classes()).toContain('el-button--primary');
+    expect(entry.text()).toBe('管理显隐规则');
+    expect(wrapper.text()).toContain('已配置 1 条规则');
+    expect(wrapper.find('[aria-label="字段显隐规则说明"]').exists()).toBe(true);
+  });
+
   it('子表单属性区展示子字段、权限与双端样式配置', () => {
     const subform = createWidgetItem('subform');
     const wrapper = mount(FormSchemaPropertyPanel, { props: { item: subform } });
@@ -186,5 +214,87 @@ describe('FormSchemaPropertyPanel', () => {
     expect(wrapper.text()).toContain('子表单展示样式');
     expect(wrapper.text()).toContain('电脑端');
     expect(wrapper.text()).toContain('移动端');
+  });
+});
+
+describe('FormSchemaPropertyPanel 不可见字段赋值（v6）', () => {
+  const schemaDocument: FormSchemaDocument = {
+    content: {
+      type: 'form',
+      layout: 'normal',
+      items: [
+        {
+          widget: {
+            type: 'text',
+            widgetName: '_widget_name',
+            enable: true,
+            visible: true,
+            allowBlank: true,
+          },
+          label: '姓名',
+          description: '',
+          labelHidden: false,
+          lineWidth: 12,
+        },
+        {
+          widget: {
+            type: 'number',
+            widgetName: '_widget_amount',
+            enable: true,
+            visible: true,
+            allowBlank: true,
+          },
+          label: '金额',
+          description: '',
+          labelHidden: false,
+          lineWidth: 12,
+        },
+      ] as FormItem[],
+      layout_fields: [],
+      field_layout: ['_widget_name', '_widget_amount'],
+      fieldShowRules: [],
+      submitRule: 2 as SubmitRule,
+      widget_submit_rules: { _widget_name: 1 } as Record<string, SubmitRule>,
+    },
+  };
+
+  async function mountFormTab() {
+    const wrapper = mount(FormSchemaPropertyPanel, {
+      props: {
+        schemaDocument,
+        submitRule: 2,
+        widgetSubmitRules: { _widget_name: 1 },
+      },
+    });
+    wrapper.findComponent({ name: 'ElSegmented' }).vm.$emit('update:modelValue', 'form');
+    await nextTick();
+    return wrapper;
+  }
+
+  it('默认赋值策略的三个选项均可选择并上抛', async () => {
+    const wrapper = await mountFormTab();
+    // 表单属性页有两个选择框（表单布局 / 不可见字段赋值），取后者。
+    const selects = wrapper.findAllComponents({ name: 'ElSelect' });
+    expect(selects.length).toBeGreaterThanOrEqual(2);
+    selects[selects.length - 1]!.vm.$emit('update:modelValue', 3);
+    await nextTick();
+    expect(wrapper.emitted('update-submit-rule')?.[0]).toEqual([3]);
+    expect(wrapper.text()).toContain('空值');
+    expect(wrapper.find('[aria-label="配置特殊字段赋值规则"]').exists()).toBe(true);
+  });
+
+  it('存在特殊规则时展示摘要卡：默认收起、展开后按策略分组只显示标签', async () => {
+    const wrapper = await mountFormTab();
+    const summary = wrapper.find('.form-schema-property__submit-rule-summary');
+    expect(summary.exists()).toBe(true);
+    // 初始收起：分组内容不渲染。
+    expect(wrapper.find('.form-schema-property__submit-rule-summary-body').exists()).toBe(false);
+    await wrapper.find('.form-schema-property__submit-rule-summary-toggle').trigger('click');
+    expect(wrapper.find('.form-schema-property__submit-rule-summary-body').exists()).toBe(true);
+    // 分组展示策略名与字段标签，不暴露 widgetName。
+    const text = wrapper.find('.form-schema-property__submit-rule-summary-body').text();
+    expect(text).toContain('保持原值');
+    expect(text).toContain('姓名');
+    expect(text).not.toContain('_widget_name');
   });
 });

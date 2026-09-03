@@ -314,7 +314,7 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		return nil, fmt.Errorf("snapshot decode: %w", err)
 	}
 
-	cleaned, err := s.validateSubmitValues(ctx, member, form, content, req.Values)
+	cleaned, err := s.validateSubmitValues(ctx, member, form, version, content, req.Values)
 	if err != nil {
 		return nil, err
 	}
@@ -401,10 +401,11 @@ func (s *formService) validateSubmitEntry(ctx context.Context, form *model.Form,
 // validateSubmitValues 提交值校验入口：权限组判定（P1，S5/S8）+ 字段终审。
 // 判定器未注入或 Baseline（无任何权限组行）时走存量校验路径（S4 存量行为
 // 零变更）；否则先判定 AllowsNewRecord("add")（未命中 → FORM_PERMISSION_
-// DENIED），再走权限感知提交管线（不可编辑字段拒绝携带数据，可编辑字段集 =
-// 含 add 组矩阵并集；add 不受数据范围约束）。
+// DENIED）。v6 起快照经 ResolveSubmittedValues 按「有效可见性 → 不可见字段
+// 赋值策略 → 值终审」决议（不可编辑字段拒绝携带数据，可编辑字段集 = 含 add
+// 组矩阵并集；add 不受数据范围约束）；v6 前快照保持旧静态可见语义。
 func (s *formService) validateSubmitValues(
-	ctx context.Context, member *iammodel.User, form *model.Form,
+	ctx context.Context, member *iammodel.User, form *model.Form, version *model.FormVersion,
 	content map[string]any, submitted map[string]model.SubmitFieldValue,
 ) (map[string]any, error) {
 	resolved, err := s.evaluatePermissions(ctx, member, form.ID)
@@ -417,14 +418,22 @@ func (s *formService) validateSubmitValues(
 		cleaned     map[string]any
 		fieldErrors RecordFieldErrors
 	)
-	if resolved != nil {
-		if !resolved.AllowsNewRecord(model.PermissionOpAdd) {
-			return nil, httpx.Wrap(apperrors.ErrPermissionDenied,
-				fmt.Errorf("member %d cannot add records of form %s", member.ID, form.Code))
+	if resolved != nil && !resolved.AllowsNewRecord(model.PermissionOpAdd) {
+		return nil, httpx.Wrap(apperrors.ErrPermissionDenied,
+			fmt.Errorf("member %d cannot add records of form %s", member.ID, form.Code))
+	}
+	switch {
+	case version.ProtocolVersion >= model.InvisibleValuePolicyVersion:
+		var permissions map[string]FieldPermission
+		if resolved != nil {
+			permissions = resolved.FieldsForNew(model.PermissionOpAdd)
 		}
+		cleaned, fieldErrors = ResolveSubmittedValues(
+			content, submitted, permissions, nil, currentMemberID)
+	case resolved != nil:
 		cleaned, fieldErrors = ValidateSubmittedRecordValuesWithPermission(
 			content, submitted, resolved.FieldsForNew(model.PermissionOpAdd), nil, currentMemberID)
-	} else {
+	default:
 		cleaned, fieldErrors = ValidateSubmittedRecordValues(content, submitted, currentMemberID)
 	}
 	if len(fieldErrors) > 0 {

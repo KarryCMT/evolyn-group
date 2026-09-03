@@ -31,6 +31,8 @@ function contentWith(rules: FieldShowRule[]): FormContent {
     layout_fields: [],
     field_layout: [],
     fieldShowRules: rules,
+    submitRule: 2,
+    widget_submit_rules: {},
   };
 }
 

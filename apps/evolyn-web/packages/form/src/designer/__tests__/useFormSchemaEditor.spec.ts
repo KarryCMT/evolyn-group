@@ -50,6 +50,8 @@ describe('useFormSchemaEditor', () => {
         layout_fields: [],
         field_layout: ['_widget_a'],
         fieldShowRules: [],
+        submitRule: 2,
+        widget_submit_rules: {},
       },
     };
     editor.replaceDocument(next);
@@ -258,5 +260,67 @@ describe('useFormSchemaEditor 字段显隐规则依赖维护', () => {
     const free = editor.addItem('text');
     expect(editor.removeItem(free.widget.widgetName)).toBe(true);
     expect(editor.items.value).toHaveLength(1);
+  });
+});
+
+// ---- v6 不可见字段赋值管理 ----
+
+describe('useFormSchemaEditor 不可见字段赋值（v6）', () => {
+  it('setSubmitRule 自动移除与新默认相同的冗余映射', () => {
+    const editor = useFormSchemaEditor();
+    const first = editor.addItem('text').widget.widgetName;
+    const second = editor.addItem('number').widget.widgetName;
+    // 默认策略 2：两个 1 均为非默认例外，全部保留。
+    editor.applyWidgetSubmitRules({ [first]: 1, [second]: 1 });
+    expect(editor.widgetSubmitRules.value).toEqual({ [first]: 1, [second]: 1 });
+    // 切换默认为 1 后，两条映射都与默认相同 → 全部剔除。
+    editor.setSubmitRule(1);
+    expect(editor.submitRule.value).toBe(1);
+    expect(editor.widgetSubmitRules.value).toEqual({});
+    // 与默认不同的例外照常保留。
+    editor.applyWidgetSubmitRules({ [first]: 2 });
+    expect(editor.widgetSubmitRules.value).toEqual({ [first]: 2 });
+  });
+
+  it('applyWidgetSubmitRules 归一化落盘（剔除与默认相同项）', () => {
+    const editor = useFormSchemaEditor();
+    const key = editor.addItem('text').widget.widgetName;
+    editor.applyWidgetSubmitRules({ [key]: 2 });
+    expect(editor.widgetSubmitRules.value).toEqual({});
+  });
+
+  it('字段改名时特殊规则键原子同步', () => {
+    const editor = useFormSchemaEditor();
+    const item = editor.addItem('text');
+    editor.applyWidgetSubmitRules({ [item.widget.widgetName]: 1 });
+    editor.selectItem(item.widget.widgetName);
+    editor.renameItemKey('_widget_renamed');
+    expect(editor.widgetSubmitRules.value).toEqual({ _widget_renamed: 1 });
+  });
+
+  it('被特殊规则引用的字段不可删除', () => {
+    const editor = useFormSchemaEditor();
+    const item = editor.addItem('text');
+    editor.applyWidgetSubmitRules({ [item.widget.widgetName]: 1 });
+    expect(editor.removeItem(item.widget.widgetName)).toBe(false);
+    editor.applyWidgetSubmitRules({});
+    expect(editor.removeItem(item.widget.widgetName)).toBe(true);
+  });
+
+  it('旧文档缺 v6 键时防御性补默认（submitRule=2、空映射）', () => {
+    const editor = useFormSchemaEditor();
+    const legacy = {
+      content: {
+        type: 'form',
+        layout: 'normal',
+        items: [],
+        layout_fields: [],
+        field_layout: [],
+        fieldShowRules: [],
+      },
+    } as unknown as FormSchemaDocument;
+    editor.replaceDocument(legacy);
+    expect(editor.submitRule.value).toBe(2);
+    expect(editor.widgetSubmitRules.value).toEqual({});
   });
 });

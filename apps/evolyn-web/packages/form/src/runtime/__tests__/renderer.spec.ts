@@ -29,6 +29,8 @@ const schema = (items: FormItem[]): FormSchemaDocument => ({
     layout_fields: [],
     field_layout: items.map((entry) => entry.widget.widgetName),
     fieldShowRules: [],
+    submitRule: 2,
+    widget_submit_rules: {},
   },
 });
 
@@ -44,6 +46,8 @@ describe('FormRenderer 渲染', () => {
             layout_fields: [],
             field_layout: [],
             fieldShowRules: [],
+            submitRule: 2,
+            widget_submit_rules: {},
           },
         },
       },
@@ -251,6 +255,8 @@ describe('FormRenderer 渲染', () => {
         ],
         field_layout: ['_widget_top', '_layout_tabs'],
         fieldShowRules: [],
+        submitRule: 2,
+        widget_submit_rules: {},
       },
     };
     const plan = buildRenderPlan(doc);

@@ -275,7 +275,19 @@ internal/
                       （schema.go/validate.ts）、纯求值器（service/rules.go 与
                       packages/form schema/rules.ts，条件源不可见即条件不成立），
                       提交终审按动态可见性复核信封 visible（含权限管线合成），
-                      运行时 setValue 沿编译产物定向重算下游可见性
+                      运行时 setValue 沿编译产物定向重算下游可见性；不可见字段
+                      赋值（v6，本目录 不可见字段赋值前后端设计方案.md）：
+                      content.submitRule 默认策略 + widget_submit_rules 字段级
+                      例外（键=顶层值语义 widgetName，值 1 保持原值/2 空值/
+                      3 始终重新计算，执行器交付前 3 不可配置），前后端镜像
+                      校验器（schema.go/validate.ts）+ 策略/空值/值决议纯服务
+                      （invisible_value_policy.go/visibility.go/
+                      value_resolution.go，与前端 schema/invisible-value-policy.ts
+                      同语义）；信封 visible 升级为有效可见性（静态∧权限∧规则），
+                      有效不可见字段禁携 data、按 clear 类型化空值/preserve 锁定
+                      基线/recompute 执行器决议，新建与流程写回（记录基线+受信
+                      patch）共用 ResolveSubmittedValues/ResolveMergedRecordValues，
+                      v6 前快照保持旧静态可见语义
   tenantproduct/    产品中心域（一期，小三层，docs/低代码平台/产品中心/）：
                       平台产品目录/租户产品配置/部门与成员范围关联（迁移
                       000033，四表 + lingyanyun seed + 存量租户回填，目录是
@@ -446,7 +458,9 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
   useFormSchemaEditor，页面状态即协议文档），主入口 `@evolyn.do/form` 为兼容期
   别名；运行时样式独立走 `@evolyn.do/form/runtime/style.css`，不得静态引入设计器
   或重型字段模块；发布白名单 PUBLISHABLE_WIDGET_TYPES 前后端各一份保持一致，
-  tsdown 构建必须保持单图（见 tsdown.config.ts 注释，分组双写会丢公共导出））、
+  tsdown 构建必须保持单图（见 tsdown.config.ts 注释，分组双写会丢公共导出）、
+  `schema/invisible-value-policy.ts` v6 不可见字段赋值策略解析与客户端预演
+  （设计器区块/对话框与运行时信封共用，禁在组件内分散写策略判断））、
   `workflow`（流程可视化设计器，Phase 9：`schema/` 为 Workflow DSL v1 前端协议层
   （types 与后端 internal/engine/workflow/model/dsl.go 逐字对齐、lifecycle 不可变
   文档操作、validate 即时校验镜像后端校验器错误码）、`adapters/graph.ts` DSL↔

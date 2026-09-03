@@ -56,7 +56,7 @@ func doc(items ...any) []byte {
 	}
 	raw, _ := json.Marshal(map[string]any{"content": map[string]any{
 		"type": "form", "layout": "normal", "items": items, "layout_fields": []any{}, "field_layout": fieldLayout,
-		"fieldShowRules": []any{},
+		"fieldShowRules": []any{}, "submitRule": 2, "widget_submit_rules": map[string]any{},
 	}})
 	return raw
 }
@@ -77,8 +77,10 @@ func TestValidateFormSchemaMultitabWithSubformReference(t *testing.T) {
 				"field_layout": []any{"_widget_sub"},
 			}},
 		}},
-		"field_layout":   []any{"_layout_tabs"},
-		"fieldShowRules": []any{},
+		"field_layout":        []any{"_layout_tabs"},
+		"fieldShowRules":      []any{},
+		"submitRule":          2,
+		"widget_submit_rules": map[string]any{},
 	}}
 	raw, _ := json.Marshal(document)
 	assert.Empty(t, ValidateFormSchema(raw))
@@ -519,4 +521,84 @@ func TestValidatePublishableConditionSource(t *testing.T) {
 		}
 	}
 	assert.True(t, found)
+}
+
+// ---- 不可见字段赋值校验（v6，与 TS validate.spec.ts 对拍） ----
+
+// submitRulesDoc 在合法文档上叠加 v6 策略键（nil 表示显式删除该键）。
+func submitRulesDoc(submitRule any, special map[string]any) []byte {
+	var root map[string]any
+	if err := json.Unmarshal(doc(validTextItem()), &root); err != nil {
+		panic(err)
+	}
+	content := root["content"].(map[string]any)
+	if submitRule == nil {
+		delete(content, "submitRule")
+	} else {
+		content["submitRule"] = submitRule
+	}
+	if special == nil {
+		delete(content, "widget_submit_rules")
+	} else {
+		content["widget_submit_rules"] = special
+	}
+	raw, _ := json.Marshal(root)
+	return raw
+}
+
+func TestValidateFormSchemaSubmitRules(t *testing.T) {
+	// 合法：默认策略 1/2、特殊规则 1/2、空对象。
+	assert.Empty(t, ValidateFormSchema(submitRulesDoc(1, map[string]any{})))
+	assert.Empty(t, ValidateFormSchema(submitRulesDoc(2, map[string]any{})))
+	assert.Empty(t, ValidateFormSchema(submitRulesDoc(2, map[string]any{"_widget_a1": 1})))
+
+	// 缺键 / 非法枚举 / 字符串数字。
+	issues := ValidateFormSchema(submitRulesDoc(nil, nil))
+	assert.True(t, containsPath(issues, "content.submitRule"))
+	assert.True(t, containsPath(issues, "content.widget_submit_rules"))
+	issues = ValidateFormSchema(submitRulesDoc("2", map[string]any{}))
+	assert.True(t, containsPath(issues, "content.submitRule"))
+	issues = ValidateFormSchema(submitRulesDoc(2, map[string]any{"_widget_a1": "1"}))
+	assert.True(t, containsPath(issues, "content.widget_submit_rules._widget_a1"))
+
+	// 未知字段与不可处理类型（布局/系统控件）。
+	snItem := map[string]any{
+		"widget": map[string]any{
+			"type": "sn", "widgetName": "_widget_sn",
+			"enable": true, "visible": true, "allowBlank": true,
+		},
+		"label": "流水号", "description": "", "labelHidden": false, "lineWidth": 12,
+	}
+	var root map[string]any
+	assert.NoError(t, json.Unmarshal(doc(validTextItem(), snItem), &root))
+	root["content"].(map[string]any)["submitRule"] = 2
+	root["content"].(map[string]any)["widget_submit_rules"] = map[string]any{"_widget_ghost": 1, "_widget_sn": 1}
+	raw, _ := json.Marshal(root)
+	issues = ValidateFormSchema(raw)
+	assert.True(t, containsPath(issues, "content.widget_submit_rules._widget_ghost"))
+	assert.True(t, containsPath(issues, "content.widget_submit_rules._widget_sn"))
+
+	// 与默认策略相同的冗余配置拒绝。
+	issues = ValidateFormSchema(submitRulesDoc(2, map[string]any{"_widget_a1": 2}))
+	assert.True(t, containsPath(issues, "content.widget_submit_rules._widget_a1"))
+
+	// recompute 能力门控：特殊规则 3 与默认策略 3 均拒绝（P3 交付执行器前）。
+	issues = ValidateFormSchema(submitRulesDoc(2, map[string]any{"_widget_a1": 3}))
+	assert.True(t, containsPath(issues, "content.widget_submit_rules._widget_a1"))
+	issues = ValidateFormSchema(submitRulesDoc(3, map[string]any{}))
+	assert.True(t, containsPath(issues, "content.submitRule"))
+	// submitRule=3 且全部可处理字段覆盖为 1/2：无未覆盖字段，不触发默认策略门控。
+	assert.Empty(t, ValidateFormSchema(submitRulesDoc(3, map[string]any{"_widget_a1": 1})))
+}
+
+// 版本门控：v5 文档在 v5 合法、在 v6 缺键拒绝；v6 键在 v5 为未知键。
+func TestValidateFormSchemaSubmitRuleVersionGating(t *testing.T) {
+	v5Doc := []byte(`{"content":{"type":"form","layout":"normal","items":[],"layout_fields":[],"field_layout":[],"fieldShowRules":[]}}`)
+	assert.Empty(t, ValidateFormSchema(v5Doc, 5))
+	assert.True(t, containsPath(ValidateFormSchema(v5Doc, model.CurrentProtocolVersion), "content.submitRule"))
+
+	v6Only := submitRulesDoc(2, map[string]any{})
+	issues := ValidateFormSchema(v6Only, 5)
+	assert.True(t, containsPath(issues, "content.submitRule"))
+	assert.True(t, containsPath(issues, "content.widget_submit_rules"))
 }

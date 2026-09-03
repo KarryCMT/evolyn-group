@@ -13,7 +13,12 @@ import {
   matchFieldShowRule,
   type CompiledFieldShowRules,
 } from '../../schema/rules';
-import type { FormItem, FormSchemaDocument } from '../../schema/types';
+import {
+  readInvisibleValuePolicy,
+  resolveSubmitStrategy,
+  type InvisibleValuePolicyView,
+} from '../../schema/invisible-value-policy';
+import type { FormItem, FormSchemaDocument, SubmitRule } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
 import type {
   FieldRuntimeState,
@@ -31,10 +36,12 @@ import type {
  * 运行时会话工厂：每个 FormRenderer 创建独立 session，不使用全局 store 承载填写值。
  * 所有修改经 setValue/markTouched 等 action 进入，组件只消费只读状态；值表与字段状态
  * 按 widgetName 细粒度响应式追踪，输入一个字段仅重渲染该字段及其规则依赖项。
- * 静态属性按保存值执行（方案 §3.5）：visible=false 不校验且只提交可见状态，
+ * 静态属性按保存值执行（方案 §3.5）：visible=false 不校验且不进入提交载荷，
  * enable=false 禁用但已有值仍提交。
- * v5 显隐规则：初始化与值变化时按编译产物计算 effectiveVisible =
- * 静态 visible ∧ 规则命中；隐藏字段保留会话值、清除错误、不进入提交载荷。
+ * v5 显隐规则 + v6 信封语义：初始化与值变化时按编译产物计算有效可见性
+ * effectiveVisible = 静态 visible ∧ 权限可见 ∧ 规则命中；该口径同时驱动渲染与
+ * 提交信封——隐藏字段保留会话值、清除错误、不携带 data，落库值由服务端按
+ * 不可见字段赋值策略（submitRule / widget_submit_rules）终审决议。
  */
 export interface FormRuntimeOptions {
   /** 已发布 Schema（目标协议文档），为运行时唯一输入；工厂内部深拷贝锁定会话。 */
@@ -87,6 +94,11 @@ export interface FormRuntime {
   markTouched(key: string): void;
   validateField(key: string): readonly string[];
   validateVisibleFields(): boolean;
+  /**
+   * 字段的不可见赋值策略（v6 §5.2 客户端预演）：供预览调试与宿主展示
+   * 「将保留原值 / 将清空」提示；权威决议在服务端。
+   */
+  submitStrategyOf(key: string): SubmitRule;
   /** 服务端字段错误按 widgetName 回填（提交失败处理）。 */
   applyServerFieldErrors(fieldErrors: Record<string, string[]>): void;
   addServerIssue(message: string): void;
@@ -108,6 +120,8 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   // 显隐规则编译产物：无规则时整体短路，不产生任何求值开销（v5 设计方案 §6.1）。
   const compiledRules: CompiledFieldShowRules = compileFieldShowRules(schema.content);
   const ruleById = new Map(compiledRules.rules.map((rule) => [rule.id, rule]));
+  // v6 不可见字段赋值策略解析（防御式：旧快照缺键回退默认「空值」）。
+  const submitPolicy: InvisibleValuePolicyView = readInvisibleValuePolicy(schema.content);
   // 字段权限矩阵：未提供（预览/草稿回放）视为全量放行；提供后缺失键
   // deny-by-default，与后端 FieldsForNew 投影同口径（设计方案 §4.2）。
   const permissions = options.fieldPermissions;
@@ -117,12 +131,11 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     permissions === undefined || (permissions[key]?.editable ?? false);
 
   /** 字段静态状态按保存值执行：visible 决定收集，enable 取反映射禁用；
-   * 权限矩阵叠加可见/可编辑合成（v5：静态 ∧ 权限 ∧ 规则）。 */
+   * v6 有效可见性 = 静态 ∧ 权限 ∧ 规则（渲染与信封同口径）。 */
   function createFieldState(item: FormItem): FieldRuntimeState {
     const key = item.widget.widgetName;
     return {
       visible: item.widget.visible && permissionVisible(key),
-      envelopeVisible: item.widget.visible,
       disabled: !item.widget.enable || !permissionEditable(key),
       readonly: false,
       touched: false,
@@ -234,20 +247,18 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   }
 
   /**
-   * 可见性落地（双口径）：渲染可见 = 静态 ∧ 权限 ∧ 规则命中；信封可见 =
-   * 静态 ∧ 规则命中（与权限解耦，权限隐藏字段携带空 data）。隐藏保留
-   * 会话值（再次显示恢复原值）并清除该字段错误；重新显示时对已触碰字段
-   * 立即重校验（设计方案 §4.2 数据保留约定）。
+   * 可见性落地（v6 单口径）：渲染与信封同为「静态 ∧ 权限 ∧ 规则命中」。
+   * 隐藏保留会话值（再次显示恢复原值的体验缓存，正式记录值由服务端策略
+   * 决议）并清除该字段错误；重新显示时对已触碰字段立即重校验
+   * （v5 设计方案 §4.2 数据保留约定）。
    */
   function setFieldVisible(key: string, ruleMatched: boolean): void {
     const fieldState = state.fieldStates[key];
     const staticVisible = itemMap.get(key)?.widget.visible ?? false;
     const nextVisible = staticVisible && permissionVisible(key) && ruleMatched;
-    const nextEnvelope = staticVisible && ruleMatched;
     if (!fieldState) return;
-    if (fieldState.visible === nextVisible && fieldState.envelopeVisible === nextEnvelope) return;
+    if (fieldState.visible === nextVisible) return;
     fieldState.visible = nextVisible;
-    fieldState.envelopeVisible = nextEnvelope;
     if (!nextVisible) {
       fieldState.errors = [];
     } else if (fieldState.touched) {
@@ -322,19 +333,17 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   }
 
   /**
-   * 组装稳定提交载荷：数据字段均携带运行时最终 visible；隐藏字段只提交
-   * visible=false，空值省略 data，非空值提交深拷贝快照。
+   * 组装稳定提交载荷：数据字段均携带有效可见性（静态 ∧ 权限 ∧ 规则）；
+   * 有效不可见字段一律不带 data——落库值由服务端按不可见字段赋值策略决议，
+   * 前端不预测更不伪造。
    */
   function buildSubmitPayload(): FormSubmitPayload {
     const values: Record<string, FormSubmittedFieldValue> = {};
     for (const item of dataItems) {
       const key = item.widget.widgetName;
       const fieldState = state.fieldStates[key];
-      // 信封 visible 与渲染 visible 分离：权限隐藏字段携带信封口径 + 空
-      // data，交由服务端权限管线复核回填（越权拒绝不在前端伪造）。
       const visible = fieldState?.visible ?? item.widget.visible;
-      const envelope = fieldState?.envelopeVisible ?? item.widget.visible;
-      const submitted: FormSubmittedFieldValue = { visible: envelope };
+      const submitted: FormSubmittedFieldValue = { visible };
       values[key] = submitted;
       if (!visible || !permissionEditable(key)) continue;
       const value = state.values[key];
@@ -434,6 +443,11 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     return state.dirtyKeys.size > 0;
   }
 
+  /** 字段的不可见赋值策略（v6 客户端预演入口，§5.2）。 */
+  function submitStrategyOf(key: string): SubmitRule {
+    return resolveSubmitStrategy(submitPolicy, key);
+  }
+
   return {
     schema,
     state,
@@ -442,6 +456,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     markTouched,
     validateField,
     validateVisibleFields,
+    submitStrategyOf,
     applyServerFieldErrors,
     addServerIssue,
     clearServerIssues,

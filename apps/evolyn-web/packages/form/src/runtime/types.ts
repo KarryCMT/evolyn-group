@@ -18,15 +18,11 @@ export type FormRuntimeOperation = 'submit' | 'save-draft';
 /** 单字段运行时状态；FieldHost 只按自身 widgetName 订阅，避免整表重渲染。 */
 export interface FieldRuntimeState {
   /**
-   * 渲染可见性（v5 设计方案 §4.2）：静态 visible ∧ 权限可见 ∧ 显隐规则命中，
-   * 决定字段是否渲染、校验与本地交互。
+   * 有效可见性（v6 设计方案 §4.2）：静态 visible ∧ 权限可见 ∧ 显隐规则命中。
+   * 同时决定渲染与提交信封——v6 起服务端按同一口径复核 visible，权限隐藏
+   * 字段不再携带「快照可见 + 空 data」的旧信封，改由不可见字段赋值策略决议。
    */
   visible: boolean;
-  /**
-   * 信封可见性（提交口径）：静态 visible ∧ 显隐规则命中，与资产权限解耦——
-   * 权限隐藏字段照常携带该口径 + 空 data，由服务端权限管线复核回填。
-   */
-  envelopeVisible: boolean;
   disabled: boolean;
   readonly: boolean;
   touched: boolean;

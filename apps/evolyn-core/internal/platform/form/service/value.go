@@ -192,7 +192,9 @@ func validateRecordValues(
 }
 
 // ValidateSubmittedRecordValues 校验新版字段包装协议并解包 data，再复用
-// 终审完成类型、范围与必填复核。所有数据字段必须显式携带 visible 且与
+// 终审完成类型、范围与必填复核（v≤5 快照的存量入口；v6 起由
+// value_resolution.go 的 ResolveSubmittedValues 按「有效可见性 → 不可见字段
+// 赋值策略 → 值终审」管线接管）。所有数据字段必须显式携带 visible 且与
 // 「静态可见 ∧ 显隐规则求值结果」一致；布局字段不得进入 values，隐藏字段
 // 不得携带 data（v5 起浏览器可见性只是交互，服务端按提交值独立重算终审）。
 func ValidateSubmittedRecordValues(

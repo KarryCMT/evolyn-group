@@ -201,7 +201,7 @@ const permTestDoc = `{"content":{"type":"form","layout":"grid-2","items":[
   {"widget":{"type":"text","widgetName":"secret","visible":true,"allowBlank":true},"label":"密级"},
   {"widget":{"type":"datetime","widgetName":"created_day","visible":true,"allowBlank":true,"format":"date"},"label":"日期"},
   {"widget":{"type":"checkboxgroup","widgetName":"tags","visible":true,"allowBlank":true,"options":[{"value":"a","label":"A"},{"value":"b","label":"B"}]},"label":"标签"}
-]}}`
+],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{}}}`
 
 func permTestDocMap(t *testing.T) map[string]any {
 	t.Helper()
@@ -649,17 +649,24 @@ func (f fakePermEvaluator) EvaluateForForms(ctx context.Context, member *iammode
 	return result, nil
 }
 
-// 提交执行点（S8/S5）：无 add 组 → FORM_PERMISSION_DENIED；命中 add 组时
-// 走权限感知管线（不可编辑字段携带数据整体拒绝；权限隐藏字段空 data 通过）
+// 提交执行点（S8/S5）：无 add 组 → FORM_PERMISSION_DENIED；命中 add 组时走
+// v6 值决议管线（信封 visible = 静态 ∧ 权限 ∧ 规则的有效可见性；有效不可见
+// 字段不得携带 data，按不可见字段赋值策略决议落库值）。
 func TestSubmitRecordPermissionExecution(t *testing.T) {
-	// 信封协议要求全部数据字段显式携带可见状态；entries 仅覆盖携带数据的字段
+	// 信封协议要求全部数据字段显式携带与服务端一致的有效可见状态：
+	// 矩阵内 name/amount 可见可编辑，其余字段权限隐藏（信封 visible=false）。
 	submitValues := func(entries map[string]string) map[string]model.SubmitFieldValue {
+		visibility := map[string]bool{
+			"name": true, "amount": true, "secret": false, "created_day": false, "tags": false,
+		}
 		values := map[string]model.SubmitFieldValue{}
-		for _, field := range []string{"name", "amount", "secret", "created_day", "tags"} {
-			values[field] = model.SubmitFieldValue{Visible: submitBool(true)}
+		for field, visible := range visibility {
+			values[field] = model.SubmitFieldValue{Visible: submitBool(visible)}
 		}
 		for name, data := range entries {
-			values[name] = model.SubmitFieldValue{Data: model.JSONContent(data), Visible: submitBool(true)}
+			value := values[name]
+			value.Data = model.JSONContent(data)
+			values[name] = value
 		}
 		return values
 	}
@@ -716,7 +723,8 @@ func TestSubmitRecordPermissionExecution(t *testing.T) {
 	})
 	assert.ErrorIs(t, err, apperrors.ErrRecordInvalid)
 
-	// 权限隐藏字段（secret）空 data + 快照可见性信封 → 通过，落库值不含 secret
+	// 权限隐藏字段（secret）信封 visible=false + 空 data → 通过；
+	// 落库值由不可见字段赋值策略决议（默认空值：单值 null、多选 []）
 	result, err := svc.SubmitRecord(tenantCtx(1), member, &model.SubmitRecordRequest{
 		AppCode: "app_x", FormCode: "form_test", PublishedVersion: 1,
 		SchemaRevision: published.SchemaRevision, HasResult: submitBool(true),
@@ -728,9 +736,11 @@ func TestSubmitRecordPermissionExecution(t *testing.T) {
 	var stored map[string]any
 	assert.NoError(t, json.Unmarshal(recordRepo.records[0].Values, &stored))
 	assert.Equal(t, "张三", stored["name"])
-	// 不可编辑的 secret 以 null 落库（与既有空值语义一致），携带的「越权」值被拒收
+	assert.Equal(t, float64(88), stored["amount"])
+	// 权限隐藏字段按默认「空值」策略写入类型化空值，此前提交的「越权」值被拒收
 	assert.Nil(t, stored["secret"])
-	assert.Nil(t, stored["tags"])
+	assert.Equal(t, []any{}, stored["tags"])
+	assert.Nil(t, stored["created_day"])
 }
 
 // publishForTest 测试助手：直接走版本仓储发布（绕过 Service 权限复核）

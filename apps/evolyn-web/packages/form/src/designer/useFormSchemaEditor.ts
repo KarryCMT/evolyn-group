@@ -9,6 +9,10 @@ import {
   generateTabName,
 } from '../schema/dictionary';
 import { isLayoutWidgetType } from '../schema/codec';
+import {
+  isSubmitRuleEligibleType,
+  normalizeWidgetSubmitRules,
+} from '../schema/invisible-value-policy';
 import type {
   FieldShowRule,
   FormItem,
@@ -16,6 +20,7 @@ import type {
   FormMultitabLayout,
   FormSchemaDocument,
   FormWidgetType,
+  SubmitRule,
   SubformWidget,
 } from '../schema/types';
 import { SUBFORM_ALLOWED_WIDGET_TYPES } from '../schema/types';
@@ -50,6 +55,8 @@ export function createEmptyFormSchemaDocument(): FormSchemaDocument {
       layout_fields: [],
       field_layout: [],
       fieldShowRules: [],
+      submitRule: 2,
+      widget_submit_rules: {},
     },
   };
 }
@@ -67,11 +74,11 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
 
   const items = computed(() => document.value.content.items);
   const layouts = computed(() => document.value.content.layout_fields);
-  // v5 显隐规则：防御性兜底旧文档缺键（正规读取路径经迁移器补齐）。
-  if (!Array.isArray(document.value.content.fieldShowRules)) {
-    document.value.content.fieldShowRules = [];
-  }
+  // v5 显隐规则 + v6 不可见字段赋值：防御性兜底旧文档缺键（正规读取路径经迁移器补齐）。
+  normalizeContentKeys(document.value.content);
   const fieldShowRules = computed(() => document.value.content.fieldShowRules);
+  const submitRule = computed(() => document.value.content.submitRule);
+  const widgetSubmitRules = computed(() => document.value.content.widget_submit_rules);
   // items 可能瞬时混有素材面板拖入的临时对象（仅 paletteType 标记、无 widget，
   // 会在 add 事件内被真实字段项替换）；所有遍历必须经 widgetOf 收窄，避免
   // undefined.widgetName 在响应式重算路径上抛错。
@@ -190,9 +197,10 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     subform.items.splice(0, subform.items.length, ...next.slice(0, 200));
   }
 
-  /** 删除顶层字段：被显隐规则引用时阻断，直至规则被修改或删除（§5.2）。 */
+  /** 删除顶层字段：被显隐规则或特殊赋值规则引用时阻断，直至规则被处理（§5.2/v6 §3.2）。 */
   function removeItem(key: string): boolean {
     if (fieldShowRulesReferencing(key).length > 0) return false;
+    if (widgetSubmitRulesOf(key) !== undefined) return false;
     const index = items.value.findIndex((item) => widgetOf(item)?.widgetName === key);
     if (index === -1) return false;
     items.value.splice(index, 1);
@@ -232,6 +240,8 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     replaceReferenceEverywhere(previousKey, nextKey);
     // 显隐规则以 widgetName 引用条件源与目标：改名必须原子同步（设计方案 §5.2）。
     replaceFieldShowRuleReferences(previousKey, nextKey);
+    // 特殊字段赋值规则同样以 widgetName 为键：改名原子同步（v6 §3.2）。
+    replaceWidgetSubmitRuleReferences(previousKey, nextKey);
     selectedKey.value = nextKey;
   }
 
@@ -262,12 +272,21 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     if ((typeChanged || hiddenTurn) && fieldShowRulesReferencing(previousKey).length > 0) {
       return false;
     }
+    // 特殊赋值规则依赖字段的值语义：类型变更为不可处理控件时阻断（v6 §3.2）。
+    if (
+      typeChanged &&
+      widgetSubmitRulesOf(previousKey) !== undefined &&
+      !isSubmitRuleEligibleType(next.widget.type)
+    ) {
+      return false;
+    }
     // 子表单是横向明细容器，属性回写不能改变其整行宽度约束。
     if (next.widget.type === 'subform') next.lineWidth = 12;
     items.value.splice(index, 1, next);
     if (next.widget.widgetName !== previousKey) {
       replaceReferenceEverywhere(previousKey, next.widget.widgetName);
       replaceFieldShowRuleReferences(previousKey, next.widget.widgetName);
+      replaceWidgetSubmitRuleReferences(previousKey, next.widget.widgetName);
       selectedKey.value = next.widget.widgetName;
     }
     return true;
@@ -429,9 +448,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
 
   /** 整体替换文档（草稿加载/保存回读）。 */
   function replaceDocument(next: FormSchemaDocument): void {
-    if (!Array.isArray(next.content.fieldShowRules)) {
-      next.content.fieldShowRules = [];
-    }
+    normalizeContentKeys(next.content);
     document.value = next;
     selectedKey.value = '';
   }
@@ -481,6 +498,40 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
       return;
     }
     rules.splice(0, rules.length, ...ruleIds.map((id) => ruleMap.get(id)!));
+  }
+
+  // ---- v6 不可见字段赋值管理（§5.1：默认策略与特殊规则同一属性页配置） ----
+
+  /** 读取字段的特殊赋值规则（未配置返回 undefined）。 */
+  function widgetSubmitRulesOf(key: string): SubmitRule | undefined {
+    return document.value.content.widget_submit_rules[key];
+  }
+
+  /**
+   * 切换表单默认策略：自动移除与新默认相同的冗余映射（§3.1——校验器对
+   * 冗余项拒绝保存，设计器在切换侧先行归一化）。
+   */
+  function setSubmitRule(rule: SubmitRule): void {
+    const content = document.value.content;
+    content.submitRule = rule;
+    content.widget_submit_rules = normalizeWidgetSubmitRules(content.widget_submit_rules, rule);
+  }
+
+  /** 整体替换特殊规则映射（对话框「确定」提交归一化结果）。 */
+  function applyWidgetSubmitRules(rules: Record<string, SubmitRule>): void {
+    document.value.content.widget_submit_rules = normalizeWidgetSubmitRules(
+      rules,
+      document.value.content.submitRule,
+    );
+  }
+
+  /** 就地替换特殊规则键（字段改名时原子同步）。 */
+  function replaceWidgetSubmitRuleReferences(previousKey: string, nextKey: string): void {
+    const rules = document.value.content.widget_submit_rules;
+    if (!(previousKey in rules)) return;
+    const value = rules[previousKey]!;
+    delete rules[previousKey];
+    rules[nextKey] = value;
   }
 
   function layoutByName(name: string): FormMultitabLayout | undefined {
@@ -602,6 +653,8 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     items,
     layouts,
     fieldShowRules,
+    submitRule,
+    widgetSubmitRules,
     selectedKey,
     selectedItem,
     selectedLayout,
@@ -618,6 +671,9 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     renameItemKey,
     updateSelectedItem,
     fieldShowRulesReferencing,
+    widgetSubmitRulesOf,
+    setSubmitRule,
+    applyWidgetSubmitRules,
     addMultitab,
     addTab,
     removeTab,
@@ -635,4 +691,19 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     removeFieldShowRule,
     reorderFieldShowRules,
   };
+}
+
+/** 防御性补齐 v5/v6 表单级键（正规读取路径经迁移器补齐，这里兜底直载旧文档）。 */
+function normalizeContentKeys(content: FormSchemaDocument['content']): void {
+  if (!Array.isArray(content.fieldShowRules)) content.fieldShowRules = [];
+  if (!isSubmitRuleValue(content.submitRule)) content.submitRule = 2;
+  if (!isPlainRecord(content.widget_submit_rules)) content.widget_submit_rules = {};
+}
+
+function isSubmitRuleValue(value: unknown): value is SubmitRule {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 3;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

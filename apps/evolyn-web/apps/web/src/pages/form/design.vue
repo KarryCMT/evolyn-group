@@ -226,19 +226,25 @@ function renameSelectedTab(tabName: string, title: string): void {
   if (selectedLayout.value) editor.renameTab(selectedLayout.value.name, tabName, title);
 }
 
-/** 被显隐规则引用的字段不可直接删除：提示先在表单属性中处理规则（§5.2）。 */
+/** 被显隐规则或特殊赋值规则引用的字段不可直接删除：提示先在表单属性中处理规则（§5.2 / v6 §3.2）。 */
 function onRemoveItem(key: string): void {
   if (editor.removeItem(key)) return;
   const ruleCount = editor.fieldShowRulesReferencing(key).length;
+  if (ruleCount > 0) {
+    ElMessage.warning(
+      `该字段被 ${ruleCount} 条字段显隐规则引用，请先在「表单属性 → 字段显隐规则」中修改或删除相关规则`,
+    );
+    return;
+  }
   ElMessage.warning(
-    `该字段被 ${ruleCount} 条字段显隐规则引用，请先在「表单属性 → 字段显隐规则」中修改或删除相关规则`,
+    '该字段被特殊字段赋值规则引用，请先在「表单属性 → 不可见字段赋值」中移除相关配置',
   );
 }
 
 /** 类型变更或转为静态隐藏同样受规则依赖保护；改名等其余更新照常通过。 */
 function onUpdateSelectedItem(next: FormItem): void {
   if (editor.updateSelectedItem(next)) return;
-  ElMessage.warning('该字段被字段显隐规则引用，不能变更类型或设为静态隐藏，请先处理相关规则');
+  ElMessage.warning('该字段被字段显隐或赋值规则引用，不能变更类型或设为静态隐藏，请先处理相关规则');
 }
 
 function reorderSelectedTabs(tabNames: string[]): void {
@@ -479,6 +485,8 @@ function notifyUnavailable(action: string) {
         :form-name-saving="renaming"
         :schema-document="document"
         :field-show-rules="document.content.fieldShowRules"
+        :submit-rule="document.content.submitRule"
+        :widget-submit-rules="document.content.widget_submit_rules"
         @rename-key="editor.renameItemKey"
         @update-item="onUpdateSelectedItem"
         @update-form-name="onUpdateFormName"
@@ -493,6 +501,8 @@ function notifyUnavailable(action: string) {
         @remove-field-show-rule="editor.removeFieldShowRule"
         @duplicate-field-show-rule="editor.duplicateFieldShowRule"
         @reorder-field-show-rules="editor.reorderFieldShowRules"
+        @update-submit-rule="editor.setSubmitRule"
+        @update-widget-submit-rules="editor.applyWidgetSubmitRules"
       />
     </div>
 

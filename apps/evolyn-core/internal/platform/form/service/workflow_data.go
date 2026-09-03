@@ -58,15 +58,30 @@ func (s *formService) UpdateRecordValues(ctx context.Context, recordID uint, pat
 	}
 
 	// 合并：以既有值为底，patch 覆盖（显式 null 即清空语义，与字典 1.2 一致）
-	merged := make(map[string]any)
-	if err := json.Unmarshal([]byte(record.Values), &merged); err != nil {
+	baseline := make(map[string]any)
+	if err := json.Unmarshal([]byte(record.Values), &baseline); err != nil {
 		return fmt.Errorf("record %d values decode: %w", recordID, err)
+	}
+	merged := make(map[string]any, len(baseline)+len(patch))
+	for key, value := range baseline {
+		merged[key] = value
 	}
 	for key, value := range patch {
 		merged[key] = value
 	}
 
-	// 复用提交校验：把合并结果回转 RawMessage 交给同一套快照终审
+	// 复用提交校验：把合并结果回转 RawMessage 交给同一套快照终审。
+	// v6 起快照经 ResolveMergedRecordValues 按记录基线执行不可见字段赋值
+	// 策略（§6.2：两条路径共用同一值决议器）；v6 前快照保持旧静态可见语义。
+	var cleaned map[string]any
+	if version.ProtocolVersion >= model.InvisibleValuePolicyVersion {
+		cleaned, fieldErrors := ResolveMergedRecordValues(content, merged, baseline)
+		if len(fieldErrors) > 0 {
+			return fmt.Errorf("record %d merge: %w", recordID,
+				apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": fieldErrors}))
+		}
+		return s.persistResolvedValues(ctx, recordID, cleaned)
+	}
 	rawValues := make(map[string]json.RawMessage, len(merged))
 	for key, value := range merged {
 		raw, err := json.Marshal(value)
@@ -81,7 +96,11 @@ func (s *formService) UpdateRecordValues(ctx context.Context, recordID uint, pat
 		return fmt.Errorf("record %d merge: %w", recordID,
 			apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": fieldErrors}))
 	}
+	return s.persistResolvedValues(ctx, recordID, cleaned)
+}
 
+// persistResolvedValues 落库决议后的记录值。
+func (s *formService) persistResolvedValues(ctx context.Context, recordID uint, cleaned map[string]any) error {
 	valuesJSON, err := json.Marshal(cleaned)
 	if err != nil {
 		return err

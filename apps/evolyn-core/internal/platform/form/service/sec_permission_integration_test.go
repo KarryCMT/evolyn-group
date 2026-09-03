@@ -242,7 +242,7 @@ func fpermDoc(items ...fpermField) string {
 		body += fmt.Sprintf(`{"widget":%s,"label":"%s","description":"","labelHidden":false,"lineWidth":6}`, widget, item.label)
 		layout += fmt.Sprintf("%q", item.name)
 	}
-	return fmt.Sprintf(`{"content":{"type":"form","layout":"grid-2","items":[%s],"layout_fields":[],"field_layout":[%s],"fieldShowRules":[]}}`, body, layout)
+	return fmt.Sprintf(`{"content":{"type":"form","layout":"grid-2","items":[%s],"layout_fields":[],"field_layout":[%s],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{}}}`, body, layout)
 }
 
 // ---- 适配器（与 server 装配同构的最小测试适配） ----

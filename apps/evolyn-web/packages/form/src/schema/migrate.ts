@@ -5,7 +5,8 @@
  * FORM_PROTOCOL_VERSION 常量）。迁移器职责是「读入 → 迁移为当前版本 → 校验」三步；
  * v1 会补齐平铺引用，v1/v2 再补默认单列；v1–v3 为子表单补齐 v4 展示与权限配置，
  * 所有受支持版本都会把子表单归一化为整行宽度；v4 及更早版本补齐 v5 的
- * fieldShowRules 空数组。禁止在旧版本校验器内隐式兼容新结构。
+ * fieldShowRules 空数组；v5 及更早版本补齐 v6 的 submitRule 默认空值策略与
+ * widget_submit_rules 空对象。禁止在旧版本校验器内隐式兼容新结构。
  */
 
 import { cloneFormSchema } from './clone';
@@ -63,6 +64,9 @@ export function migrateFormSchema(
   if (sourceVersion <= 4 && isV1Document(candidate)) {
     candidate = normalizeFieldShowRulesV5(candidate);
   }
+  if (sourceVersion <= 5 && isV1Document(candidate)) {
+    candidate = normalizeSubmitRulesV6(candidate);
+  }
   const result = validateFormSchema(candidate);
   if (!result.valid || !result.document) {
     return { document: null, issues: result.issues, protocolVersion: FORM_PROTOCOL_VERSION };
@@ -103,6 +107,31 @@ function normalizeFieldShowRulesV5(input: unknown): unknown {
     content.fieldShowRules = [];
   }
   return document;
+}
+
+/**
+ * v5 → v6：补齐 submitRule 默认空值策略与 widget_submit_rules 空对象
+ * （v6 起 content 必填键）。v4 数据同时经 v5 归一化，一次补齐三键；
+ * 升级后保持原行为——所有不可见字段仍按空值写入。
+ */
+function normalizeSubmitRulesV6(input: unknown): unknown {
+  const document = cloneFormSchema(input as FormSchemaDocument);
+  const content = document.content as unknown as Record<string, unknown>;
+  if (!isSubmitRuleValue(content.submitRule)) {
+    content.submitRule = 2;
+  }
+  if (!isPlainRecord(content.widget_submit_rules)) {
+    content.widget_submit_rules = {};
+  }
+  return document;
+}
+
+function isSubmitRuleValue(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 3;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 function isV2Document(
