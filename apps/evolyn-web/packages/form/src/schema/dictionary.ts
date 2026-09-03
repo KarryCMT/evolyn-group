@@ -7,7 +7,14 @@
  * 修改本表必须同步：字段字典文档、Go 侧镜像表、发布白名单与测试用例。
  */
 
-import type { FormItem, FormLayoutMode, FormWidgetOption, FormWidgetType } from './types';
+import type {
+  FieldShowMethod,
+  FieldShowRule,
+  FormItem,
+  FormLayoutMode,
+  FormWidgetOption,
+  FormWidgetType,
+} from './types';
 
 /** 表单布局切换时批量投影到普通字段的 12 栅格宽度。 */
 export const FORM_LAYOUT_LINE_WIDTH: Readonly<Record<FormLayoutMode, number>> = {
@@ -96,6 +103,67 @@ export const FORM_PROTOCOL_LIMITS = {
   lineWidthRange: { min: 1, max: 12 } as const,
   placeholderMaxLength: 100,
 } as const;
+
+/** 字段显隐规则上限（v5 设计方案 §3.2/§4.1）。 */
+export const FIELD_SHOW_RULE_LIMITS = {
+  /** 规则数上限；数组顺序仅用于设计器展示，不是优先级。 */
+  maxRules: 200,
+  /** 单规则条件数上限。 */
+  maxConditions: 20,
+  /** 单规则目标字段数上限。 */
+  maxTargets: 100,
+  /** in/notIn 与多选 containsX 方法的值条目上限。 */
+  maxValues: 200,
+  /** 规则 id 长度上限。 */
+  idMaxLength: 64,
+} as const;
+
+/** 空值方法集合：不携带 value（设计方案 §3.3）。 */
+export const FIELD_SHOW_EMPTY_METHODS: ReadonlySet<string> = new Set(['isEmpty', 'notEmpty']);
+
+/**
+ * 可作为显隐规则条件源的控件类型及可用方法（设计方案 §3.3）：
+ * 仅顶层、具有值语义的基础字段与组织字段；separator/button/subform 及
+ * 未开放值语义的控件不得作为条件源。新增控件必须同时登记值形态、
+ * 可用方法、比较器（rules.ts）与服务端测试。
+ */
+export const FIELD_SHOW_CONDITION_METHODS: Readonly<Record<string, readonly FieldShowMethod[]>> = {
+  text: ['eq', 'ne', 'contains', 'notContains', 'isEmpty', 'notEmpty'],
+  textarea: ['eq', 'ne', 'contains', 'notContains', 'isEmpty', 'notEmpty'],
+  number: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between', 'isEmpty', 'notEmpty'],
+  datetime: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between', 'isEmpty', 'notEmpty'],
+  radiogroup: ['eq', 'ne', 'in', 'notIn', 'isEmpty', 'notEmpty'],
+  combo: ['eq', 'ne', 'in', 'notIn', 'isEmpty', 'notEmpty'],
+  user: ['eq', 'ne', 'in', 'notIn', 'isEmpty', 'notEmpty'],
+  dept: ['eq', 'ne', 'in', 'notIn', 'isEmpty', 'notEmpty'],
+  checkboxgroup: ['containsAny', 'containsAll', 'containsNone', 'isEmpty', 'notEmpty'],
+  combocheck: ['containsAny', 'containsAll', 'containsNone', 'isEmpty', 'notEmpty'],
+  usergroup: ['containsAny', 'containsAll', 'containsNone', 'isEmpty', 'notEmpty'],
+  deptgroup: ['containsAny', 'containsAll', 'containsNone', 'isEmpty', 'notEmpty'],
+};
+
+/** includeCurrentMember 仅对成员类字段开放（user/usergroup）。 */
+export const FIELD_SHOW_CURRENT_MEMBER_TYPES: ReadonlySet<string> = new Set(['user', 'usergroup']);
+
+/** 方法展示名（设计器条件行与自然语言摘要共用）。 */
+export const FIELD_SHOW_METHOD_LABELS: Readonly<Record<FieldShowMethod, string>> = {
+  eq: '等于',
+  ne: '不等于',
+  contains: '包含',
+  notContains: '不包含',
+  isEmpty: '为空',
+  notEmpty: '不为空',
+  gt: '大于',
+  gte: '大于等于',
+  lt: '小于',
+  lte: '小于等于',
+  between: '介于',
+  in: '属于',
+  notIn: '不属于',
+  containsAny: '包含任一',
+  containsAll: '包含全部',
+  containsNone: '均不包含',
+};
 
 /** 控件字典：27 种类型的完整声明。 */
 export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
@@ -423,6 +491,21 @@ export function generateTabName(): string {
   return `_tab_${Date.now()}${String(widgetNameSeed).padStart(4, '0')}`;
 }
 
+/** 生成显隐规则稳定 id：`_field_show_rule_` 前缀 + 时间戳 + 递增序号。 */
+export function generateFieldShowRuleId(): string {
+  widgetNameSeed = (widgetNameSeed + 1) % 10000;
+  return `_field_show_rule_${Date.now()}${String(widgetNameSeed).padStart(4, '0')}`;
+}
+
+/** 新建显隐规则（设计器「添加显隐规则」用）：空条件占位由编辑器补全后再落盘。 */
+export function createFieldShowRule(): FieldShowRule {
+  return {
+    id: generateFieldShowRuleId(),
+    filter: { rel: 'and', cond: [] },
+    fields: [],
+  };
+}
+
 const defaultOptions = (): FormWidgetOption[] => [
   { label: '选项1', value: '选项1' },
   { label: '选项2', value: '选项2' },
@@ -455,7 +538,8 @@ export function createWidgetItem(type: FormWidgetType): FormItem {
     });
   }
   return {
-    widget: widget as FormItem['widget'],
+    // widget 由上方分支动态组装（选项类/子表单附加键），经 unknown 收窄为控件联合。
+    widget: widget as unknown as FormItem['widget'],
     label: spec.label,
     description: '',
     labelHidden: false,

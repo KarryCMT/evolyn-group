@@ -9,6 +9,7 @@ import { RiArrowGoBackFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { useAuth } from '~/composables/auth';
 import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
 import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
 import { loadFormPreviewDocument } from './preview-storage';
@@ -19,6 +20,13 @@ defineOptions({ name: 'FormPreviewPage' });
 
 const route = useRoute();
 const router = useRouter();
+const { userInfo } = useAuth();
+
+/** 当前登录成员 ID：显隐规则 includeCurrentMember 的前端求值注入源。 */
+const currentMemberId = computed(() => {
+  const id = userInfo.value?.member?.id;
+  return id === undefined || id === null ? undefined : String(id);
+});
 
 /**
  * 表单填写/预览页（P2 闭环）：
@@ -35,6 +43,8 @@ const runtimeInfo = shallowRef<{
   name: string;
   publishedVersion: number;
   schemaRevision: string;
+  /** 填写模式（add）字段权限矩阵：未下发时全量放行。 */
+  fieldPermissions?: Record<string, { visible: boolean; editable: boolean }>;
 } | null>(null);
 const emptyText = shallowRef('未找到可预览的表单，请先在表单设计器中编辑并点击预览');
 const initializing = shallowRef(true);
@@ -61,6 +71,7 @@ void (async () => {
       name: bootstrap.name,
       publishedVersion: bootstrap.publishedVersion,
       schemaRevision: bootstrap.schemaRevision,
+      fieldPermissions: bootstrap.permissions?.addFields,
     };
     const migrated = migrateFormSchema(bootstrap.content, bootstrap.protocolVersion);
     adopt(migrated.document, migrated.issues);
@@ -177,6 +188,8 @@ function goBack(): void {
         :form-id="formCode"
         :published-version="runtimeInfo?.publishedVersion ?? 0"
         :schema-revision="runtimeInfo?.schemaRevision ?? ''"
+        :current-member-id="currentMemberId"
+        :field-permissions="runtimeInfo?.fieldPermissions"
         :adapter="runtimeAdapter"
         :registry="getMemberFieldRegistry()"
         :actions="runtimeActions"

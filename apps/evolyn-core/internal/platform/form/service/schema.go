@@ -101,6 +101,35 @@ var subformAllowedTypes = map[string]bool{
 	"lookup": true, "aggregation": true, "sn": true, "button": true,
 }
 
+// 字段显隐规则（v5）：上限、方法矩阵与开关集合，与 TS dictionary 的
+// FIELD_SHOW_RULE_LIMITS / FIELD_SHOW_CONDITION_METHODS 等逐条一致。
+const (
+	showRuleMaxRules   = 200
+	showRuleMaxConds   = 20
+	showRuleMaxTargets = 100
+	showRuleMaxValues  = 200
+	showRuleIDMax      = 64
+)
+
+var fieldShowConditionMethods = map[string][]string{
+	"text":          {"eq", "ne", "contains", "notContains", "isEmpty", "notEmpty"},
+	"textarea":      {"eq", "ne", "contains", "notContains", "isEmpty", "notEmpty"},
+	"number":        {"eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "notEmpty"},
+	"datetime":      {"eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "notEmpty"},
+	"radiogroup":    {"eq", "ne", "in", "notIn", "isEmpty", "notEmpty"},
+	"combo":         {"eq", "ne", "in", "notIn", "isEmpty", "notEmpty"},
+	"user":          {"eq", "ne", "in", "notIn", "isEmpty", "notEmpty"},
+	"dept":          {"eq", "ne", "in", "notIn", "isEmpty", "notEmpty"},
+	"checkboxgroup": {"containsAny", "containsAll", "containsNone", "isEmpty", "notEmpty"},
+	"combocheck":    {"containsAny", "containsAll", "containsNone", "isEmpty", "notEmpty"},
+	"usergroup":     {"containsAny", "containsAll", "containsNone", "isEmpty", "notEmpty"},
+	"deptgroup":     {"containsAny", "containsAll", "containsNone", "isEmpty", "notEmpty"},
+}
+
+var fieldShowEmptyMethods = map[string]bool{"isEmpty": true, "notEmpty": true}
+
+var fieldShowCurrentMemberTypes = map[string]bool{"user": true, "usergroup": true}
+
 var textProps = map[string]propSpec{
 	"placeholder":  {kind: kindString, maxLen: protoPlaceholderMax},
 	"minLength":    {kind: kindInteger, min: f64(0), max: f64(1000)},
@@ -277,7 +306,47 @@ func ValidatePublishable(raw []byte, versions ...int) []SchemaIssue {
 	items := content["items"].([]any)
 	issues := make([]SchemaIssue, 0)
 	collectUnsupported(items, "content.items", &issues)
+	collectUnsupportedConditionSources(content, &issues)
 	return issues
+}
+
+// collectUnsupportedConditionSources 发布期条件源白名单：未开放运行能力的
+// 字段不能作为条件源（设计方案 §3.3；与 TS collectUnsupportedConditionSources 一致）。
+func collectUnsupportedConditionSources(content map[string]any, issues *[]SchemaIssue) {
+	typesByName := map[string]string{}
+	items, _ := content["items"].([]any)
+	for _, rawItem := range items {
+		item, _ := rawItem.(map[string]any)
+		widget, _ := item["widget"].(map[string]any)
+		name, _ := widget["widgetName"].(string)
+		widgetType, _ := widget["type"].(string)
+		if name != "" {
+			typesByName[name] = widgetType
+		}
+	}
+	rawRules, _ := content["fieldShowRules"].([]any)
+	for ruleIndex, rawRule := range rawRules {
+		rule, _ := rawRule.(map[string]any)
+		if rule == nil {
+			continue
+		}
+		filter, _ := rule["filter"].(map[string]any)
+		conditions, _ := filter["cond"].([]any)
+		for condIndex, rawCondition := range conditions {
+			condition, _ := rawCondition.(map[string]any)
+			if condition == nil {
+				continue
+			}
+			field, _ := condition["field"].(string)
+			widgetType, known := typesByName[field]
+			if known && !publishableWidgetTypes[widgetType] {
+				*issues = append(*issues, SchemaIssue{
+					Path:    fmt.Sprintf("content.fieldShowRules[%d].filter.cond[%d].field", ruleIndex, condIndex),
+					Message: fmt.Sprintf("条件字段「%s」的运行能力尚未开放，暂不能发布", field),
+				})
+			}
+		}
+	}
 }
 
 func collectUnsupported(items []any, itemsPath string, issues *[]SchemaIssue) {
@@ -326,6 +395,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	if protocolVersion >= 3 {
 		contentKeys = append(contentKeys, "layout")
 	}
+	if protocolVersion >= 5 {
+		contentKeys = append(contentKeys, "fieldShowRules")
+	}
 	rejectUnknownKeys(content, contentKeys, "content", issues)
 	if content["type"] != "form" {
 		*issues = append(*issues, SchemaIssue{Path: "content.type", Message: `content.type 必须固定为 "form"`})
@@ -356,6 +428,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	}
 	if protocolVersion >= 2 {
 		validateLayouts(content, scopeNames, issues)
+	}
+	if protocolVersion >= 5 {
+		validateFieldShowRules(content, issues)
 	}
 }
 
@@ -1161,4 +1236,514 @@ func formatNumber(v float64) string {
 		return fmt.Sprintf("%d", int64(v))
 	}
 	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%f", v), "0"), ".")
+}
+
+// ---- 字段显隐规则校验（v5，与 TS validate.ts 逐字镜像） ----
+
+// showTopItem 顶层字段索引条目。
+type showTopItem struct {
+	widget map[string]any
+	label  string
+}
+
+// showTargetOwner 目标字段的归属规则（唯一性校验与环错误定位）。
+type showTargetOwner struct {
+	ruleID    string
+	ruleIndex int
+}
+
+// validateFieldShowRules 结构、字段引用、类型指纹、方法×值形状、目标唯一性、
+// 自引用与依赖图成环校验（设计方案 §4.1）。
+func validateFieldShowRules(content map[string]any, issues *[]SchemaIssue) {
+	rawRules, ok := content["fieldShowRules"].([]any)
+	if !ok {
+		*issues = append(*issues, SchemaIssue{
+			Path: "content.fieldShowRules", Message: "fieldShowRules 必须是数组（v5 起必填）",
+		})
+		return
+	}
+	if len(rawRules) > showRuleMaxRules {
+		*issues = append(*issues, SchemaIssue{
+			Path: "content.fieldShowRules", Message: fmt.Sprintf("显隐规则数量不能超过 %d", showRuleMaxRules),
+		})
+	}
+	topItems := map[string]showTopItem{}
+	items, _ := content["items"].([]any)
+	for _, rawItem := range items {
+		item, _ := rawItem.(map[string]any)
+		if item == nil {
+			continue
+		}
+		widget, _ := item["widget"].(map[string]any)
+		if widget == nil {
+			continue
+		}
+		name, _ := widget["widgetName"].(string)
+		label, _ := item["label"].(string)
+		if name != "" {
+			topItems[name] = showTopItem{widget: widget, label: label}
+		}
+	}
+
+	seenRuleIDs := map[string]bool{}
+	targetOwner := map[string]showTargetOwner{}
+
+	for ruleIndex, rawRule := range rawRules {
+		rulePath := fmt.Sprintf("content.fieldShowRules[%d]", ruleIndex)
+		rule, ok := rawRule.(map[string]any)
+		if !ok {
+			*issues = append(*issues, SchemaIssue{Path: rulePath, Message: "规则必须是 JSON 对象"})
+			continue
+		}
+		rejectUnknownKeys(rule, []string{"id", "filter", "fields"}, rulePath, issues)
+
+		ruleID, _ := rule["id"].(string)
+		switch {
+		case ruleID == "":
+			*issues = append(*issues, SchemaIssue{Path: rulePath + ".id", Message: "id 必须是非空字符串"})
+		case len(ruleID) > showRuleIDMax:
+			*issues = append(*issues, SchemaIssue{
+				Path: rulePath + ".id", Message: fmt.Sprintf("id 不能超过 %d 个字符", showRuleIDMax),
+			})
+		case seenRuleIDs[ruleID]:
+			*issues = append(*issues, SchemaIssue{
+				Path: rulePath + ".id", Message: fmt.Sprintf("规则 id「%s」重复", ruleID),
+			})
+		default:
+			seenRuleIDs[ruleID] = true
+		}
+
+		filter, filterOK := rule["filter"].(map[string]any)
+		if !filterOK {
+			*issues = append(*issues, SchemaIssue{Path: rulePath + ".filter", Message: "filter 必须是 {rel, cond} 对象"})
+		} else {
+			rejectUnknownKeys(filter, []string{"rel", "cond"}, rulePath+".filter", issues)
+			if filter["rel"] != "and" && filter["rel"] != "or" {
+				*issues = append(*issues, SchemaIssue{Path: rulePath + ".filter.rel", Message: "rel 必须是 and / or"})
+			}
+			conditions, condArray := filter["cond"].([]any)
+			if !condArray {
+				*issues = append(*issues, SchemaIssue{Path: rulePath + ".filter.cond", Message: "cond 必须是数组"})
+			} else if len(conditions) < 1 || len(conditions) > showRuleMaxConds {
+				*issues = append(*issues, SchemaIssue{
+					Path:    rulePath + ".filter.cond",
+					Message: fmt.Sprintf("条件数量必须在 1–%d 之间", showRuleMaxConds),
+				})
+			}
+		}
+
+		fields, fieldsArray := rule["fields"].([]any)
+		if !fieldsArray {
+			*issues = append(*issues, SchemaIssue{Path: rulePath + ".fields", Message: "fields 必须是数组"})
+			continue
+		}
+		if len(fields) < 1 || len(fields) > showRuleMaxTargets {
+			*issues = append(*issues, SchemaIssue{
+				Path:    rulePath + ".fields",
+				Message: fmt.Sprintf("目标字段数量必须在 1–%d 之间", showRuleMaxTargets),
+			})
+		}
+		ownTargets := map[string]bool{}
+		for fieldIndex, rawTarget := range fields {
+			fieldPath := fmt.Sprintf("%s.fields[%d]", rulePath, fieldIndex)
+			target, isString := rawTarget.(string)
+			if !isString || target == "" {
+				*issues = append(*issues, SchemaIssue{Path: fieldPath, Message: "目标字段必须是非空字符串"})
+				continue
+			}
+			entry, exists := topItems[target]
+			if !exists {
+				*issues = append(*issues, SchemaIssue{
+					Path: fieldPath, Message: fmt.Sprintf("目标字段「%s」不存在", target),
+				})
+				continue
+			}
+			widgetType, _ := entry.widget["type"].(string)
+			if widgetType == "separator" || widgetType == "button" {
+				*issues = append(*issues, SchemaIssue{
+					Path: fieldPath, Message: fmt.Sprintf("布局控件「%s」不能作为显隐目标", target),
+				})
+				continue
+			}
+			if visible, isBool := entry.widget["visible"].(bool); isBool && !visible {
+				*issues = append(*issues, SchemaIssue{
+					Path:    fieldPath,
+					Message: fmt.Sprintf("目标字段「%s」是静态隐藏字段，不能作为显隐目标", target),
+				})
+				continue
+			}
+			if ownTargets[target] {
+				*issues = append(*issues, SchemaIssue{
+					Path: fieldPath, Message: fmt.Sprintf("目标字段「%s」重复", target),
+				})
+				continue
+			}
+			ownTargets[target] = true
+			if previous, taken := targetOwner[target]; taken {
+				*issues = append(*issues, SchemaIssue{
+					Path:    fieldPath,
+					Message: fmt.Sprintf("目标字段「%s」已被规则「%s」使用", target, previous.ruleID),
+				})
+				continue
+			}
+			targetOwner[target] = showTargetOwner{ruleID: ruleID, ruleIndex: ruleIndex}
+		}
+
+		// 条件行校验（目标不完整时仍尽力校验，错误定位到具体条件行）。
+		if !filterOK {
+			continue
+		}
+		conditions, _ := filter["cond"].([]any)
+		for condIndex, rawCondition := range conditions {
+			validateFieldShowCondition(
+				rawCondition, fmt.Sprintf("%s.filter.cond[%d]", rulePath, condIndex), topItems, issues)
+		}
+	}
+
+	detectFieldShowRuleCycle(rawRules, targetOwner, issues)
+}
+
+// validateFieldShowCondition 单条件校验：字段存在性/类型指纹/方法×值形状/成员开关。
+func validateFieldShowCondition(rawCondition any, condPath string, topItems map[string]showTopItem, issues *[]SchemaIssue) {
+	condition, ok := rawCondition.(map[string]any)
+	if !ok {
+		*issues = append(*issues, SchemaIssue{Path: condPath, Message: "条件必须是 JSON 对象"})
+		return
+	}
+	rejectUnknownKeys(condition, []string{"field", "type", "method", "value", "includeCurrentMember"}, condPath, issues)
+	field, isString := condition["field"].(string)
+	if !isString || field == "" {
+		*issues = append(*issues, SchemaIssue{Path: condPath + ".field", Message: "条件字段必须是非空字符串"})
+		return
+	}
+	entry, exists := topItems[field]
+	if !exists {
+		*issues = append(*issues, SchemaIssue{
+			Path: condPath + ".field", Message: fmt.Sprintf("条件字段「%s」不存在", field),
+		})
+		return
+	}
+	actualType, _ := entry.widget["type"].(string)
+	if condition["type"] != actualType {
+		*issues = append(*issues, SchemaIssue{
+			Path:    condPath + ".type",
+			Message: fmt.Sprintf("条件类型指纹与字段「%s」的实际类型不一致", field),
+		})
+	}
+	methods, supported := fieldShowConditionMethods[actualType]
+	if !supported {
+		*issues = append(*issues, SchemaIssue{
+			Path:    condPath + ".field",
+			Message: fmt.Sprintf("控件「%s」不能作为显隐规则条件字段", actualType),
+		})
+		return
+	}
+	if visible, isBool := entry.widget["visible"].(bool); isBool && !visible {
+		*issues = append(*issues, SchemaIssue{
+			Path:    condPath + ".field",
+			Message: fmt.Sprintf("条件字段「%s」是静态隐藏字段，不能作为条件源", field),
+		})
+	}
+	method, isString := condition["method"].(string)
+	if !isString || !containsString(methods, method) {
+		*issues = append(*issues, SchemaIssue{
+			Path:    condPath + ".method",
+			Message: "method 必须是以下枚举值之一：" + strings.Join(methods, " / "),
+		})
+		return
+	}
+
+	if includeCurrent, present := condition["includeCurrentMember"]; present {
+		if !fieldShowCurrentMemberTypes[actualType] {
+			*issues = append(*issues, SchemaIssue{
+				Path: condPath + ".includeCurrentMember", Message: "includeCurrentMember 仅成员字段可用",
+			})
+		} else if _, isBool := includeCurrent.(bool); !isBool {
+			*issues = append(*issues, SchemaIssue{
+				Path: condPath + ".includeCurrentMember", Message: "includeCurrentMember 必须是布尔值",
+			})
+		}
+	}
+
+	validateFieldShowConditionValue(condition, method, entry, condPath, issues)
+}
+
+// validateFieldShowConditionValue 条件值形状校验（设计方案 §3.3 方法×值矩阵）。
+func validateFieldShowConditionValue(
+	condition map[string]any, method string, entry showTopItem, condPath string, issues *[]SchemaIssue,
+) {
+	widgetType, _ := entry.widget["type"].(string)
+	value, hasValue := condition["value"]
+	if fieldShowEmptyMethods[method] {
+		if hasValue {
+			*issues = append(*issues, SchemaIssue{Path: condPath + ".value", Message: "空值方法不允许携带 value"})
+		}
+		return
+	}
+	if !hasValue {
+		*issues = append(*issues, SchemaIssue{Path: condPath + ".value", Message: "缺少比较值 value"})
+		return
+	}
+	values, isArray := value.([]any)
+	if !isArray {
+		*issues = append(*issues, SchemaIssue{Path: condPath + ".value", Message: "value 必须是数组"})
+		return
+	}
+
+	// 数量约束：单值方法恰 1 项；between 恰 2 项且有序；集合方法 1–200 项。
+	multiSelect := widgetType == "checkboxgroup" || widgetType == "combocheck" ||
+		widgetType == "usergroup" || widgetType == "deptgroup"
+	switch {
+	case method == "between":
+		if len(values) != 2 || !showOrderedPairOK(widgetType, values[0], values[1], entry.widget) {
+			*issues = append(*issues, SchemaIssue{
+				Path:    condPath + ".value",
+				Message: "between 的 value 必须恰好 2 项且下界不大于上界",
+			})
+		}
+	case multiSelect || method == "in" || method == "notIn":
+		if len(values) < 1 || len(values) > showRuleMaxValues {
+			*issues = append(*issues, SchemaIssue{
+				Path:    condPath + ".value",
+				Message: fmt.Sprintf("该方法的 value 必须是 1–%d 项", showRuleMaxValues),
+			})
+		}
+	default:
+		if len(values) != 1 {
+			*issues = append(*issues, SchemaIssue{
+				Path: condPath + ".value", Message: "该方法的 value 必须恰好 1 项",
+			})
+		}
+	}
+
+	// 逐项形状：文本/数值/日期/选项命中/成员部门标识。
+	optionValues := optionValuesOrNil(entry.widget)
+	textCap := 0
+	switch widgetType {
+	case "text":
+		textCap = 1000
+	case "textarea":
+		textCap = 2000
+	}
+	seen := map[string]bool{}
+	for index, rawItem := range values {
+		itemPath := fmt.Sprintf("%s.value[%d]", condPath, index)
+		if widgetType == "number" {
+			if num, ok := rawItem.(float64); !ok || math.IsNaN(num) || math.IsInf(num, 0) {
+				*issues = append(*issues, SchemaIssue{Path: itemPath, Message: "value 条目必须是有限数值"})
+			}
+			continue
+		}
+		if widgetType == "datetime" {
+			text, isString := rawItem.(string)
+			format, _ := entry.widget["format"].(string)
+			if format == "" {
+				format = "datetime"
+			}
+			if !isString || !isCanonicalDateTime(text, format) {
+				*issues = append(*issues, SchemaIssue{Path: itemPath, Message: "value 条目的日期格式不正确"})
+			}
+			continue
+		}
+		text, isString := rawItem.(string)
+		if !isString || text == "" {
+			*issues = append(*issues, SchemaIssue{Path: itemPath, Message: "value 条目必须是非空字符串"})
+			continue
+		}
+		if textCap > 0 && len([]rune(text)) > textCap {
+			*issues = append(*issues, SchemaIssue{
+				Path: itemPath, Message: fmt.Sprintf("value 条目不能超过 %d 个字符", textCap),
+			})
+			continue
+		}
+		if optionValues != nil && !optionValues.Contains(text) {
+			*issues = append(*issues, SchemaIssue{Path: itemPath, Message: "value 条目不在字段选项范围内"})
+			continue
+		}
+		if optionValues == nil && textCap == 0 && len(text) > protoNameMax {
+			// 成员/部门标识只校验形状，不查目录（设计方案 §4.1）。
+			*issues = append(*issues, SchemaIssue{
+				Path: itemPath, Message: fmt.Sprintf("value 条目不能超过 %d 个字符", protoNameMax),
+			})
+			continue
+		}
+		if seen[text] {
+			*issues = append(*issues, SchemaIssue{Path: itemPath, Message: "value 存在重复项"})
+		}
+		seen[text] = true
+	}
+}
+
+// showOrderedPairOK between 下界 ≤ 上界（number 数值序、datetime 规范字符串字典序）。
+func showOrderedPairOK(widgetType string, lower, upper any, widget map[string]any) bool {
+	if widgetType == "number" {
+		left, leftOK := lower.(float64)
+		right, rightOK := upper.(float64)
+		return leftOK && rightOK && !math.IsNaN(left) && !math.IsInf(left, 0) &&
+			!math.IsNaN(right) && !math.IsInf(right, 0) && left <= right
+	}
+	if widgetType == "datetime" {
+		left, leftOK := lower.(string)
+		right, rightOK := upper.(string)
+		if !leftOK || !rightOK {
+			return false
+		}
+		format, _ := widget["format"].(string)
+		if format == "" {
+			format = "datetime"
+		}
+		return isCanonicalDateTime(left, format) && isCanonicalDateTime(right, format) && left <= right
+	}
+	return false
+}
+
+// optionValuesOrNil 选项类控件返回选项 value 集合；其余返回 nil（不做选项命中校验）。
+func optionValuesOrNil(widget map[string]any) stringSet {
+	widgetType, _ := widget["type"].(string)
+	if !optionWidgetTypes[widgetType] {
+		return nil
+	}
+	return optionValues(widget)
+}
+
+// detectFieldShowRuleCycle 依赖图环检测：按规则数组序构图（与 TS 同构遍历），
+// 发现环即报错并给出参与环的规则 id 与字段路径。
+func detectFieldShowRuleCycle(
+	rawRules []any,
+	targetOwner map[string]showTargetOwner,
+	issues *[]SchemaIssue,
+) {
+	adjacency := map[string][]string{}
+	edgeAnchor := map[string][2]int{}
+	nodes := []string{}
+	nodeSeen := map[string]bool{}
+	addNode := func(node string) {
+		if node != "" && !nodeSeen[node] {
+			nodeSeen[node] = true
+			nodes = append(nodes, node)
+		}
+	}
+	pushEdge := func(source, target string, ruleIndex, fieldIndex int) {
+		key := source + "→" + target
+		if _, exists := edgeAnchor[key]; !exists {
+			edgeAnchor[key] = [2]int{ruleIndex, fieldIndex}
+		}
+		if !containsString(adjacency[source], target) {
+			adjacency[source] = append(adjacency[source], target)
+		}
+	}
+	for ruleIndex, rawRule := range rawRules {
+		rule, ok := rawRule.(map[string]any)
+		if !ok {
+			continue
+		}
+		filter, _ := rule["filter"].(map[string]any)
+		conditions, _ := filter["cond"].([]any)
+		fields, _ := rule["fields"].([]any)
+		for fieldIndex, rawTarget := range fields {
+			target, isString := rawTarget.(string)
+			if !isString {
+				continue
+			}
+			for _, rawCondition := range conditions {
+				condition, _ := rawCondition.(map[string]any)
+				if condition == nil {
+					continue
+				}
+				source, _ := condition["field"].(string)
+				if source == "" {
+					continue
+				}
+				pushEdge(source, target, ruleIndex, fieldIndex)
+				addNode(source)
+				addNode(target)
+			}
+		}
+	}
+	if len(nodes) == 0 {
+		return
+	}
+
+	const ( //nolint:deadcode // 调色板常量与 TS 对齐
+		white = 0
+		gray  = 1
+		black = 2
+	)
+	color := make(map[string]int, len(nodes))
+	var cycle []string
+	findCycle := func() []string {
+		for _, start := range nodes {
+			if color[start] != white {
+				continue
+			}
+			color[start] = gray
+			type frame struct {
+				node      string
+				edgeIndex int
+			}
+			stack := []frame{{node: start}}
+			path := []string{start}
+			for len(stack) > 0 {
+				current := &stack[len(stack)-1]
+				neighbors := adjacency[current.node]
+				if current.edgeIndex >= len(neighbors) {
+					color[current.node] = black
+					stack = stack[:len(stack)-1]
+					path = path[:len(path)-1]
+					continue
+				}
+				neighbor := neighbors[current.edgeIndex]
+				current.edgeIndex++
+				switch color[neighbor] {
+				case gray:
+					// 回边：从 path 中 neighbor 的位置截取环。
+					startAt := 0
+					for i := len(path) - 1; i >= 0; i-- {
+						if path[i] == neighbor {
+							startAt = i
+							break
+						}
+					}
+					return append(append([]string{}, path[startAt:]...), neighbor)
+				case white:
+					color[neighbor] = gray
+					path = append(path, neighbor)
+					stack = append(stack, frame{node: neighbor})
+				}
+			}
+		}
+		return nil
+	}
+	cycle = findCycle()
+	if cycle == nil {
+		return
+	}
+	// 参与环的规则 id（按环上边归属去重，保持出现顺序）。
+	var ruleIDs []string
+	for i := 0; i+1 < len(cycle); i++ {
+		if _, exists := edgeAnchor[cycle[i]+"→"+cycle[i+1]]; !exists {
+			continue
+		}
+		owner, taken := targetOwner[cycle[i+1]]
+		if taken && owner.ruleID != "" && !containsString(ruleIDs, owner.ruleID) {
+			ruleIDs = append(ruleIDs, owner.ruleID)
+		}
+	}
+	joined := "未知"
+	if len(ruleIDs) > 0 {
+		joined = strings.Join(ruleIDs, "、")
+	}
+	closing, exists := edgeAnchor[cycle[len(cycle)-2]+"→"+cycle[len(cycle)-1]]
+	if !exists {
+		for _, anchor := range edgeAnchor {
+			closing = anchor
+			break
+		}
+	}
+	*issues = append(*issues, SchemaIssue{
+		Path: fmt.Sprintf("content.fieldShowRules[%d].fields[%d]", closing[0], closing[1]),
+		Message: fmt.Sprintf(
+			"显隐规则存在循环依赖：%s（涉及规则 %s）",
+			strings.Join(cycle, " → "), joined),
+	})
 }

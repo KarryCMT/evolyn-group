@@ -9,7 +9,7 @@
  */
 
 /** 协议版本常量；递增时必须同步版本迁移器（migrate.ts）与字段字典。 */
-export const FORM_PROTOCOL_VERSION = 4 as const;
+export const FORM_PROTOCOL_VERSION = 5 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -442,6 +442,12 @@ export interface FormContent {
   layout_fields: FormMultitabLayout[];
   /** 顶层字段与布局节点的唯一排列序列。 */
   field_layout: string[];
+  /**
+   * 字段显隐规则（v5，docs/低代码平台/表单设计器/字段显隐规则设计方案.md）：
+   * 表单级唯一事实源，禁止向 widget 增加等价私有属性；数组顺序仅用于设计器
+   * 展示，不参与运行结果。
+   */
+  fieldShowRules: FieldShowRule[];
 }
 
 /** 表单级默认列布局；字段仍可通过 lineWidth 单独覆盖实际宽度。 */
@@ -468,4 +474,63 @@ export interface FormMultitabLayout {
 /** 目标保存协议根结构：设计器草稿、发布快照与运行时输入的同一形状。 */
 export interface FormSchemaDocument {
   content: FormContent;
+}
+
+// ---- 字段显隐规则（v5）----
+
+/**
+ * 条件比较方法（设计方案 §3.3）：方法与控件值协议严格绑定，发布白名单外
+ * 控件不得作为条件源；空值判断使用 isEmpty/notEmpty 专用方法，禁止把空值
+ * 塞入 value。
+ */
+export type FieldShowMethod =
+  | 'eq'
+  | 'ne'
+  | 'contains'
+  | 'notContains'
+  | 'isEmpty'
+  | 'notEmpty'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'between'
+  | 'in'
+  | 'notIn'
+  | 'containsAny'
+  | 'containsAll'
+  | 'containsNone';
+
+/** 单条显隐条件：{field, type, method, value?, includeCurrentMember?}。 */
+export interface FieldShowCondition {
+  /** 条件源字段：顶层 widgetName（不进入子表单行）。 */
+  field: string;
+  /** 类型指纹：必须与 field 解析出的 widget.type 一致，防止字段类型变更后误解释值。 */
+  type: FormWidgetType;
+  method: FieldShowMethod;
+  /**
+   * 比较常量数组（稳定值而非选项标签）；条目仅为字符串或有限数值
+   * （选项值/成员部门 ID/日期规范串/数值），isEmpty/notEmpty 不携带。
+   */
+  value?: Array<string | number>;
+  /** 仅 user / usergroup：true 时把当前登录成员加入比较集合；匿名填写不加入任何值。 */
+  includeCurrentMember?: boolean;
+}
+
+/** 条件组：rel 决定「所有条件成立 / 任一条件成立」。 */
+export interface FieldShowRuleFilter {
+  rel: 'and' | 'or';
+  cond: FieldShowCondition[];
+}
+
+/**
+ * 单条显隐规则：条件成立时显示 fields 列出的顶层字段（含整个子表单）。
+ * 同一目标字段只能属于一条规则；规则图（条件源 → 目标字段）不得成环。
+ */
+export interface FieldShowRule {
+  /** 设计器列表键与错误定位；表单内唯一，不随标签修改。 */
+  id: string;
+  filter: FieldShowRuleFilter;
+  /** 条件成立后显示的目标字段（顶层 widgetName，1–100 项，组内不得重复）。 */
+  fields: string[];
 }

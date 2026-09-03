@@ -4,8 +4,8 @@
  * 文档内不携带版本号：协议版本由持久层外部承载（forms.protocol_version 列 +
  * FORM_PROTOCOL_VERSION 常量）。迁移器职责是「读入 → 迁移为当前版本 → 校验」三步；
  * v1 会补齐平铺引用，v1/v2 再补默认单列；v1–v3 为子表单补齐 v4 展示与权限配置，
- * 所有受支持版本都会把子表单归一化为整行宽度。
- * 禁止在旧版本校验器内隐式兼容新结构。
+ * 所有受支持版本都会把子表单归一化为整行宽度；v4 及更早版本补齐 v5 的
+ * fieldShowRules 空数组。禁止在旧版本校验器内隐式兼容新结构。
  */
 
 import { cloneFormSchema } from './clone';
@@ -28,6 +28,13 @@ export function migrateFormSchema(
   input: unknown,
   sourceVersion: number = FORM_PROTOCOL_VERSION,
 ): FormSchemaMigrationResult {
+  if (sourceVersion < 1 || sourceVersion > FORM_PROTOCOL_VERSION) {
+    return {
+      document: null,
+      issues: [{ path: 'content', message: `不支持的表单协议版本：${sourceVersion}` }],
+      protocolVersion: sourceVersion,
+    };
+  }
   let candidate = input;
   if (sourceVersion === 1 && isV1Document(candidate)) {
     const document = candidate as {
@@ -49,15 +56,12 @@ export function migrateFormSchema(
         layout: 'normal',
       },
     };
-  } else if (sourceVersion !== 3 && sourceVersion !== FORM_PROTOCOL_VERSION) {
-    return {
-      document: null,
-      issues: [{ path: 'content', message: `不支持的表单协议版本：${sourceVersion}` }],
-      protocolVersion: sourceVersion,
-    };
   }
   if (isV1Document(candidate)) {
     candidate = normalizeSubformV4(candidate, sourceVersion <= 3);
+  }
+  if (sourceVersion <= 4 && isV1Document(candidate)) {
+    candidate = normalizeFieldShowRulesV5(candidate);
   }
   const result = validateFormSchema(candidate);
   if (!result.valid || !result.document) {
@@ -87,6 +91,16 @@ function normalizeSubformV4(input: unknown, fillMissingConfig: boolean): unknown
     widget.mobileStickyColumn ??= { enable: false, limit: 1 };
     widget.mobileViewStyle ??= 'vertical';
     widget.mobileSummaryFieldCount ??= 3;
+  }
+  return document;
+}
+
+/** v4 → v5：补齐 fieldShowRules 空数组（v5 起 content 必填键）。 */
+function normalizeFieldShowRulesV5(input: unknown): unknown {
+  const document = cloneFormSchema(input as FormSchemaDocument);
+  const content = document.content as unknown as Record<string, unknown>;
+  if (!Array.isArray(content.fieldShowRules)) {
+    content.fieldShowRules = [];
   }
   return document;
 }

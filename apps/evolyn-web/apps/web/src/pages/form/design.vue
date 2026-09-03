@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type {
+  FormItem,
   FormSchemaIssue,
   FormSchemaPaletteGroup,
   FormTabStyle,
@@ -225,6 +226,21 @@ function renameSelectedTab(tabName: string, title: string): void {
   if (selectedLayout.value) editor.renameTab(selectedLayout.value.name, tabName, title);
 }
 
+/** 被显隐规则引用的字段不可直接删除：提示先在表单属性中处理规则（§5.2）。 */
+function onRemoveItem(key: string): void {
+  if (editor.removeItem(key)) return;
+  const ruleCount = editor.fieldShowRulesReferencing(key).length;
+  ElMessage.warning(
+    `该字段被 ${ruleCount} 条字段显隐规则引用，请先在「表单属性 → 字段显隐规则」中修改或删除相关规则`,
+  );
+}
+
+/** 类型变更或转为静态隐藏同样受规则依赖保护；改名等其余更新照常通过。 */
+function onUpdateSelectedItem(next: FormItem): void {
+  if (editor.updateSelectedItem(next)) return;
+  ElMessage.warning('该字段被字段显隐规则引用，不能变更类型或设为静态隐藏，请先处理相关规则');
+}
+
 function reorderSelectedTabs(tabNames: string[]): void {
   if (selectedLayout.value) editor.reorderTabs(selectedLayout.value.name, tabNames);
 }
@@ -447,7 +463,7 @@ function notifyUnavailable(action: string) {
         @select-item="editor.selectItem"
         @select-layout="editor.selectLayout"
         @copy-item="editor.copyItem"
-        @remove-item="editor.removeItem"
+        @remove-item="onRemoveItem"
         @select-subform-item="editor.selectSubformItem"
         @copy-subform-item="editor.copySubformItem"
         @remove-subform-item="editor.removeSubformItem"
@@ -461,8 +477,10 @@ function notifyUnavailable(action: string) {
         :form-layout="document.content.layout"
         :form-name="formName"
         :form-name-saving="renaming"
+        :schema-document="document"
+        :field-show-rules="document.content.fieldShowRules"
         @rename-key="editor.renameItemKey"
-        @update-item="editor.updateSelectedItem"
+        @update-item="onUpdateSelectedItem"
         @update-form-name="onUpdateFormName"
         @update-form-layout="editor.setFormLayout"
         @set-tab-style="setSelectedTabStyle"
@@ -471,6 +489,10 @@ function notifyUnavailable(action: string) {
         @duplicate-tab="duplicateSelectedTab"
         @rename-tab="renameSelectedTab"
         @reorder-tabs="reorderSelectedTabs"
+        @save-field-show-rule="editor.saveFieldShowRule"
+        @remove-field-show-rule="editor.removeFieldShowRule"
+        @duplicate-field-show-rule="editor.duplicateFieldShowRule"
+        @reorder-field-show-rules="editor.reorderFieldShowRules"
       />
     </div>
 

@@ -50,9 +50,9 @@ export class FormFieldRegistry {
     const asyncComponent = defineAsyncComponent({
       loader: definition.loader as FieldWidgetLoader,
       // 重型模块加载失败可整页重试，不在字段级静默吞错。
-      onError(error, retry, fail, attempts) {
+      onError(_error, retry, fail, attempts) {
         if (attempts <= 2) retry();
-        else fail(error as Error);
+        else fail();
       },
     });
     this.asyncCache.set(type, asyncComponent);

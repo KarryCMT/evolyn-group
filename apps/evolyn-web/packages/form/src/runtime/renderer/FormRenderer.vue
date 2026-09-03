@@ -10,7 +10,12 @@ import {
   createFormRuntime,
 } from '../store/createFormRuntime';
 import { createFocusRegistry, provideFormRendererContext } from '../store/injection';
-import type { FormDraftPayload, FormSubmitPayload, FormValue } from '../types';
+import type {
+  FormDraftPayload,
+  FormRuntimeFieldPermission,
+  FormSubmitPayload,
+  FormValue,
+} from '../types';
 import { type FormFieldRegistry, createMobileFieldRegistry } from '../widgets/registry';
 import FormSectionRenderer from './FormSectionRenderer.vue';
 import type { FormRendererExpose } from './types';
@@ -31,6 +36,10 @@ const props = withDefaults(
     initialValues?: Record<string, FormValue>;
     /** 记录上下文默认值（当前成员、当前日期等）。 */
     contextDefaults?: Record<string, FormValue>;
+    /** 当前登录成员 ID：显隐规则 includeCurrentMember 的注入源。 */
+    currentMemberId?: string;
+    /** 字段权限矩阵（bootstrap permissions 按模式投影）；未提供全量放行。 */
+    fieldPermissions?: Record<string, FormRuntimeFieldPermission>;
     adapter?: FormRuntimeAdapter;
     /** 自定义字段注册表；缺省使用基础字段默认注册表。 */
     registry?: FormFieldRegistry;
@@ -45,6 +54,8 @@ const props = withDefaults(
     schemaRevision: '',
     initialValues: undefined,
     contextDefaults: undefined,
+    currentMemberId: undefined,
+    fieldPermissions: undefined,
     adapter: undefined,
     registry: undefined,
     multitabRenderer: FormPlainMultitabRenderer,
@@ -90,6 +101,8 @@ watch(
     () => props.schemaRevision,
     () => props.initialValues,
     () => props.contextDefaults,
+    () => props.currentMemberId,
+    () => props.fieldPermissions,
     () => props.adapter,
   ],
   ([schema]) => {
@@ -106,6 +119,8 @@ watch(
         schemaRevision: props.schemaRevision,
         initialValues: props.initialValues,
         contextDefaults: props.contextDefaults,
+        currentMemberId: props.currentMemberId,
+        fieldPermissions: props.fieldPermissions,
         adapter: props.adapter,
       });
     } else {

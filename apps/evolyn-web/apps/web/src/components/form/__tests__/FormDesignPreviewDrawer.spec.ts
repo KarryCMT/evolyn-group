@@ -1,6 +1,7 @@
 import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime-web';
 import type { FormSchemaDocument } from '@evolyn.do/form/schema';
 import { mount } from '@vue/test-utils';
+import { createPinia } from 'pinia';
 import { describe, expect, it } from 'vitest';
 import { defineComponent, h, nextTick, reactive } from 'vue';
 import FormDesignPreviewDrawer from '../FormDesignPreviewDrawer.vue';
@@ -28,7 +29,14 @@ const SurfaceStub = defineComponent({
 });
 
 const schema: FormSchemaDocument = {
-  content: { type: 'form', layout: 'normal', items: [], layout_fields: [], field_layout: [] },
+  content: {
+    type: 'form',
+    layout: 'normal',
+    items: [],
+    layout_fields: [],
+    field_layout: [],
+    fieldShowRules: [],
+  },
 };
 const adapter: FormRuntimeAdapter = { submit: async () => ({ accepted: true }) };
 
@@ -37,6 +45,8 @@ describe('formDesignPreviewDrawer', () => {
     const wrapper = mount(FormDesignPreviewDrawer, {
       props: { modelValue: true, schema, formId: 'form_a', adapter },
       global: {
+        // 组件 setup 读取 auth store（当前成员注入），挂载需提供 Pinia。
+        plugins: [createPinia()],
         stubs: { ElDrawer: DrawerStub, FormWebRuntimeSurface: SurfaceStub },
       },
     });
@@ -59,11 +69,14 @@ describe('formDesignPreviewDrawer', () => {
         items: [],
         layout_fields: [],
         field_layout: [],
+        fieldShowRules: [],
       },
     }) as FormSchemaDocument;
     const wrapper = mount(FormDesignPreviewDrawer, {
       props: { modelValue: true, schema: liveSchema, formId: 'form_a', adapter },
       global: {
+        // 组件 setup 读取 auth store（当前成员注入），挂载需提供 Pinia。
+        plugins: [createPinia()],
         stubs: { ElDrawer: DrawerStub, FormWebRuntimeSurface: SurfaceStub },
       },
     });
@@ -79,6 +92,8 @@ describe('formDesignPreviewDrawer', () => {
     const wrapper = mount(FormDesignPreviewDrawer, {
       props: { modelValue: true, schema, formId: 'form_a', adapter },
       global: {
+        // 组件 setup 读取 auth store（当前成员注入），挂载需提供 Pinia。
+        plugins: [createPinia()],
         stubs: { ElDrawer: DrawerStub, FormWebRuntimeSurface: SurfaceStub },
       },
     });

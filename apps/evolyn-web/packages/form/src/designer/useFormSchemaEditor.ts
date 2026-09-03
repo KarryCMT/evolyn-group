@@ -1,13 +1,16 @@
-import { computed, ref } from 'vue';
+import { computed, ref, type Ref } from 'vue';
 import {
   copyWidgetItem,
+  createFieldShowRule,
   createWidgetItem,
   FORM_LAYOUT_LINE_WIDTH,
+  generateFieldShowRuleId,
   generateLayoutName,
   generateTabName,
 } from '../schema/dictionary';
 import { isLayoutWidgetType } from '../schema/codec';
 import type {
+  FieldShowRule,
   FormItem,
   FormLayoutMode,
   FormMultitabLayout,
@@ -40,7 +43,14 @@ export function parseSubformSelection(
 /** 空表单协议文档（新建/草稿初始化用）。 */
 export function createEmptyFormSchemaDocument(): FormSchemaDocument {
   return {
-    content: { type: 'form', layout: 'normal', items: [], layout_fields: [], field_layout: [] },
+    content: {
+      type: 'form',
+      layout: 'normal',
+      items: [],
+      layout_fields: [],
+      field_layout: [],
+      fieldShowRules: [],
+    },
   };
 }
 
@@ -50,24 +60,42 @@ export function createEmptyFormSchemaDocument(): FormSchemaDocument {
  * 增删/复制经本 hook 落盘前动作统一收口；持久化由页面接草稿接口。
  */
 export function useFormSchemaEditor(initial?: FormSchemaDocument) {
-  const document = ref<FormSchemaDocument>(initial ?? createEmptyFormSchemaDocument());
+  // as 收窄 ref 的 UnwrapRef 展开结果（递归协议类型会过度实例化 TS2589）；
+  // 文档只含 JSON 安全值，不存在嵌套 ref，运行时行为与深解包完全一致。
+  const document = ref(initial ?? createEmptyFormSchemaDocument()) as Ref<FormSchemaDocument>;
   const selectedKey = ref('');
 
   const items = computed(() => document.value.content.items);
   const layouts = computed(() => document.value.content.layout_fields);
+  // v5 显隐规则：防御性兜底旧文档缺键（正规读取路径经迁移器补齐）。
+  if (!Array.isArray(document.value.content.fieldShowRules)) {
+    document.value.content.fieldShowRules = [];
+  }
+  const fieldShowRules = computed(() => document.value.content.fieldShowRules);
   // items 可能瞬时混有素材面板拖入的临时对象（仅 paletteType 标记、无 widget，
   // 会在 add 事件内被真实字段项替换）；所有遍历必须经 widgetOf 收窄，避免
   // undefined.widgetName 在响应式重算路径上抛错。
-  const widgetOf = (item: FormItem) => (item as FormItem & Partial<FormSchemaPaletteDrag>).widget;
-  const selectedItem = computed(() => {
-    const nested = parseSubformSelection(selectedKey.value);
+  // 轻量结构收窄（避免 FormItem 与拖拽载荷的交叉联合在推断中过度展开）：
+  // items 可能瞬时混有素材面板拖入的临时对象（仅 paletteType 标记、无 widget）。
+  type ItemWithWidget = { widget?: { widgetName?: string; type?: string } };
+  const widgetOf = (item: ItemWithWidget | null | undefined) => item?.widget;
+  // 以独立函数承载查找并显式标注返回类型，避免与素材拖拽临时结构相交的
+  // 联合类型在 computed 泛型推断中过度展开（TS2589）。
+  function findSelectedItem(key: string): FormItem | undefined {
+    const nested = parseSubformSelection(key);
     if (!nested) {
-      return items.value.find((item) => widgetOf(item)?.widgetName === selectedKey.value);
+      for (const item of items.value) {
+        if (widgetOf(item)?.widgetName === key) return item;
+      }
+      return undefined;
     }
-    return subformWidgetOf(nested.parentKey)?.items.find(
-      (item) => item.widget.widgetName === nested.childKey,
-    );
-  });
+    const children = subformWidgetOf(nested.parentKey)?.items ?? [];
+    for (const item of children) {
+      if (item.widget.widgetName === nested.childKey) return item;
+    }
+    return undefined;
+  }
+  const selectedItem = computed((): FormItem | undefined => findSelectedItem(selectedKey.value));
   const selectedLayout = computed(() =>
     layouts.value.find((layout) => layout.name === selectedKey.value),
   );
@@ -162,17 +190,20 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     subform.items.splice(0, subform.items.length, ...next.slice(0, 200));
   }
 
-  function removeItem(key: string): void {
+  /** 删除顶层字段：被显隐规则引用时阻断，直至规则被修改或删除（§5.2）。 */
+  function removeItem(key: string): boolean {
+    if (fieldShowRulesReferencing(key).length > 0) return false;
     const index = items.value.findIndex((item) => widgetOf(item)?.widgetName === key);
-    if (index === -1) return;
+    if (index === -1) return false;
     items.value.splice(index, 1);
     removeReferenceEverywhere(key);
     if (selectedKey.value === key) {
       // 相邻项也可能是瞬时拖入的临时对象，经 widgetOf 收窄后再取键。
       const neighbor = items.value[index] ?? items.value[index - 1];
-      selectedKey.value =
-        neighbor && widgetOf(neighbor)?.widgetName ? widgetOf(neighbor)!.widgetName : '';
+      const neighborKey = widgetOf(neighbor)?.widgetName;
+      selectedKey.value = neighborKey ?? '';
     }
+    return true;
   }
 
   function selectItem(key: string): void {
@@ -199,36 +230,47 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
       return;
     }
     replaceReferenceEverywhere(previousKey, nextKey);
+    // 显隐规则以 widgetName 引用条件源与目标：改名必须原子同步（设计方案 §5.2）。
+    replaceFieldShowRuleReferences(previousKey, nextKey);
     selectedKey.value = nextKey;
   }
 
-  /** 属性面板提交完整字段副本；替换定义同时保持布局引用与选中键一致。 */
-  function updateSelectedItem(next: FormItem): void {
+  /** 属性面板提交完整字段副本；替换定义同时保持布局引用与选中键一致。
+   * 类型变更或转为静态隐藏的字段被显隐规则引用时阻断（§5.2：条件指纹
+   * 失配与不可达语义必须在规则侧先行处理）。 */
+  function updateSelectedItem(next: FormItem): boolean {
     const current = selectedItem.value;
-    if (!current) return;
+    if (!current) return false;
     const nested = parseSubformSelection(selectedKey.value);
     if (nested) {
       const subform = subformWidgetOf(nested.parentKey);
       const index = subform?.items.findIndex(
         (item) => item.widget.widgetName === current.widget.widgetName,
       );
-      if (!subform || index === undefined || index < 0) return;
+      if (!subform || index === undefined || index < 0) return false;
       subform.items.splice(index, 1, next);
       selectedKey.value = subformSelectionKey(nested.parentKey, next.widget.widgetName);
-      return;
+      return true;
     }
     const index = items.value.findIndex(
       (item) => widgetOf(item)?.widgetName === current.widget.widgetName,
     );
-    if (index < 0) return;
+    if (index < 0) return false;
     const previousKey = current.widget.widgetName;
+    const typeChanged = next.widget.type !== current.widget.type;
+    const hiddenTurn = current.widget.visible && !next.widget.visible;
+    if ((typeChanged || hiddenTurn) && fieldShowRulesReferencing(previousKey).length > 0) {
+      return false;
+    }
     // 子表单是横向明细容器，属性回写不能改变其整行宽度约束。
     if (next.widget.type === 'subform') next.lineWidth = 12;
     items.value.splice(index, 1, next);
     if (next.widget.widgetName !== previousKey) {
       replaceReferenceEverywhere(previousKey, next.widget.widgetName);
+      replaceFieldShowRuleReferences(previousKey, next.widget.widgetName);
       selectedKey.value = next.widget.widgetName;
     }
+    return true;
   }
 
   /** 新增标签页布局；布局是引用容器，不进入 content.items。 */
@@ -251,13 +293,33 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     layout.container.push(createTab(`标签页${layout.container.length + 1}`));
   }
 
+  /** 引用指定字段（条件源或目标）的显隐规则清单：删除/变更前的依赖提示。 */
+  function fieldShowRulesReferencing(key: string): FieldShowRule[] {
+    return document.value.content.fieldShowRules.filter(
+      (rule) =>
+        rule.fields.includes(key) || rule.filter.cond.some((condition) => condition.field === key),
+    );
+  }
+
+  /** 就地替换规则中的字段引用（条件源与目标），与布局引用同步维护。 */
+  function replaceFieldShowRuleReferences(previousKey: string, nextKey: string): void {
+    for (const rule of document.value.content.fieldShowRules) {
+      for (const condition of rule.filter.cond) {
+        if (condition.field === previousKey) condition.field = nextKey;
+      }
+      rule.fields = rule.fields.map((field) => (field === previousKey ? nextKey : field));
+    }
+  }
+
   /** 删除标签页只解散容器：其中字段移动到整个标签页组之后，绝不删除字段定义。 */
   function removeTab(layoutName: string, tabName: string): void {
     const layout = layoutByName(layoutName);
     if (!layout) return;
     const tabIndex = layout.container.findIndex((tab) => tab.name === tabName);
     if (tabIndex < 0) return;
-    const [tab] = layout.container.splice(tabIndex, 1);
+    const removed = layout.container.splice(tabIndex, 1);
+    const tab = removed[0];
+    if (!tab) return;
     moveReferencesAfterLayout(layoutName, tab.field_layout);
     if (layout.container.length === 0) removeMultitab(layoutName);
   }
@@ -266,7 +328,9 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
   function removeMultitab(layoutName: string): void {
     const layoutIndex = layouts.value.findIndex((layout) => layout.name === layoutName);
     if (layoutIndex < 0) return;
-    const [layout] = layouts.value.splice(layoutIndex, 1);
+    const removed = layouts.value.splice(layoutIndex, 1);
+    const layout = removed[0];
+    if (!layout) return;
     const flattened = layout.container.flatMap((tab) => tab.field_layout);
     const topIndex = document.value.content.field_layout.indexOf(layoutName);
     if (topIndex >= 0) {
@@ -292,8 +356,9 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     document.value.content.layout = layout;
     const lineWidth = FORM_LAYOUT_LINE_WIDTH[layout];
     for (const item of items.value) {
-      const widget = widgetOf(item);
-      if (widget) item.lineWidth = defaultLineWidth(widget.type, lineWidth);
+      const widgetType = widgetOf(item)?.type;
+      // 瞬时拖拽载荷已被判空过滤；未知类型走 defaultLineWidth 的兜底分支。
+      if (widgetType) item.lineWidth = defaultLineWidth(widgetType as FormWidgetType, lineWidth);
     }
   }
 
@@ -304,6 +369,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     const index = layout.container.findIndex((tab) => tab.name === tabName);
     if (index < 0) return;
     const source = layout.container[index];
+    if (!source) return;
     const fieldLayout = source.field_layout.flatMap((fieldKey) => {
       const item = items.value.find((entry) => widgetOf(entry)?.widgetName === fieldKey);
       if (!item) return [];
@@ -363,8 +429,58 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
 
   /** 整体替换文档（草稿加载/保存回读）。 */
   function replaceDocument(next: FormSchemaDocument): void {
+    if (!Array.isArray(next.content.fieldShowRules)) {
+      next.content.fieldShowRules = [];
+    }
     document.value = next;
     selectedKey.value = '';
+  }
+
+  // ---- v5 字段显隐规则管理（列表顺序仅影响展示，不参与运行结果） ----
+
+  /** 新建空白规则（id 已生成，条件与目标由编辑器补全后落盘）。 */
+  function createFieldShowRuleDraft(): FieldShowRule {
+    return createFieldShowRule();
+  }
+
+  /** 保存（新增或按 id 整体替换）单条规则；深拷贝切断编辑器草稿引用。 */
+  function saveFieldShowRule(rule: FieldShowRule): void {
+    const snapshot = JSON.parse(JSON.stringify(rule)) as FieldShowRule;
+    const rules = document.value.content.fieldShowRules;
+    const index = rules.findIndex((entry) => entry.id === rule.id);
+    if (index >= 0) {
+      rules.splice(index, 1, snapshot);
+    } else {
+      rules.push(snapshot);
+    }
+  }
+
+  /** 复制规则：换新 id，其余内容原样复制并紧随其后插入。 */
+  function duplicateFieldShowRule(ruleId: string): FieldShowRule | null {
+    const rules = document.value.content.fieldShowRules;
+    const index = rules.findIndex((entry) => entry.id === ruleId);
+    if (index < 0) return null;
+    const copied = JSON.parse(JSON.stringify(rules[index])) as FieldShowRule;
+    copied.id = generateFieldShowRuleId();
+    rules.splice(index + 1, 0, copied);
+    return copied;
+  }
+
+  function removeFieldShowRule(ruleId: string): void {
+    const rules = document.value.content.fieldShowRules;
+    const index = rules.findIndex((entry) => entry.id === ruleId);
+    if (index >= 0) rules.splice(index, 1);
+  }
+
+  /** 列表重排：仅改善阅读与审计 diff，拒绝缺失或外部键。 */
+  function reorderFieldShowRules(ruleIds: string[]): void {
+    const rules = document.value.content.fieldShowRules;
+    if (ruleIds.length !== rules.length) return;
+    const ruleMap = new Map(rules.map((rule) => [rule.id, rule]));
+    if (new Set(ruleIds).size !== ruleIds.length || ruleIds.some((id) => !ruleMap.has(id))) {
+      return;
+    }
+    rules.splice(0, rules.length, ...ruleIds.map((id) => ruleMap.get(id)!));
   }
 
   function layoutByName(name: string): FormMultitabLayout | undefined {
@@ -485,6 +601,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     document,
     items,
     layouts,
+    fieldShowRules,
     selectedKey,
     selectedItem,
     selectedLayout,
@@ -500,6 +617,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     selectLayout,
     renameItemKey,
     updateSelectedItem,
+    fieldShowRulesReferencing,
     addMultitab,
     addTab,
     removeTab,
@@ -511,5 +629,10 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     reorderTabs,
     replaceReferences,
     replaceDocument,
+    createFieldShowRuleDraft,
+    saveFieldShowRule,
+    duplicateFieldShowRule,
+    removeFieldShowRule,
+    reorderFieldShowRules,
   };
 }

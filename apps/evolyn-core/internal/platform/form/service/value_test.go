@@ -49,13 +49,24 @@ func wrappedValue(data string, visible bool) model.SubmitFieldValue {
 	return model.SubmitFieldValue{Data: model.JSONContent(data), Visible: &value}
 }
 
+// submitValues 测试便捷封装：默认匿名口径，需要时以第三参注入提交成员。
+func submitValues(
+	content map[string]any, submitted map[string]model.SubmitFieldValue, member ...string,
+) (map[string]any, RecordFieldErrors) {
+	currentMemberID := ""
+	if len(member) > 0 {
+		currentMemberID = member[0]
+	}
+	return ValidateSubmittedRecordValues(content, submitted, currentMemberID)
+}
+
 func TestValidateSubmittedRecordValuesEnvelope(t *testing.T) {
 	content := snapshot(
 		snapItem("text", "_widget_visible", "姓名", map[string]any{"allowBlank": false}),
 		snapItem("text", "_widget_hidden", "内部字段", map[string]any{"visible": false}),
 		snapItem("separator", "_widget_sep", "分割线", nil),
 	)
-	cleaned, errs := ValidateSubmittedRecordValues(content, map[string]model.SubmitFieldValue{
+	cleaned, errs := submitValues(content, map[string]model.SubmitFieldValue{
 		"_widget_visible": wrappedValue(`"张三"`, true),
 		"_widget_hidden":  wrappedValue("", false),
 	})
@@ -63,7 +74,7 @@ func TestValidateSubmittedRecordValuesEnvelope(t *testing.T) {
 	assert.Equal(t, "张三", cleaned["_widget_visible"])
 	assert.NotContains(t, cleaned, "_widget_hidden")
 
-	_, errs = ValidateSubmittedRecordValues(content, map[string]model.SubmitFieldValue{
+	_, errs = submitValues(content, map[string]model.SubmitFieldValue{
 		"_widget_visible": wrappedValue(`"张三"`, false),
 		"_widget_hidden":  wrappedValue(`"越权值"`, false),
 		"_widget_sep":     wrappedValue("", true),
@@ -189,4 +200,172 @@ func TestExtractSnapshotTopFieldKeys(t *testing.T) {
 		snapItem("separator", "_widget_sep", "", nil),
 	)
 	assert.Equal(t, []string{"_widget_t", "_widget_sep"}, ExtractSnapshotTopFieldKeys(content))
+}
+
+// ---- v5 字段显隐规则：提交终审动态可见性 ----
+
+func snapshotWithRules(rules []any, items ...map[string]any) map[string]any {
+	content := snapshot(items...)
+	content["content"].(map[string]any)["fieldShowRules"] = rules
+	return content
+}
+
+func eqTextRule(id, field, target string, expected string) map[string]any {
+	return map[string]any{
+		"id": id,
+		"filter": map[string]any{"rel": "and", "cond": []any{map[string]any{
+			"field": field, "type": "text", "method": "eq", "value": []any{expected},
+		}}},
+		"fields": []any{target},
+	}
+}
+
+func TestValidateSubmittedRecordValuesWithShowRules(t *testing.T) {
+	content := snapshotWithRules(
+		[]any{eqTextRule("r1", "_widget_src", "_widget_target", "是")},
+		snapItem("text", "_widget_src", "是否外出", nil),
+		snapItem("text", "_widget_target", "外出城市", map[string]any{"allowBlank": false}),
+	)
+
+	// 条件成立：目标字段按动态可见性提交，通过并落库。
+	cleaned, errs := submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_src":    wrappedValue(`"是"`, true),
+		"_widget_target": wrappedValue(`"上海"`, true),
+	})
+	assert.Empty(t, errs)
+	assert.Equal(t, "上海", cleaned["_widget_target"])
+
+	// 条件不成立：目标字段必须声明隐藏且不得携带 data。
+	cleaned, errs = submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_src":    wrappedValue(`"否"`, true),
+		"_widget_target": wrappedValue("", false),
+	})
+	assert.Empty(t, errs)
+	assert.Nil(t, cleaned["_widget_target"])
+
+	// 伪造可见性：规则求值结果为隐藏却声明可见 → 信封不一致。
+	_, errs = submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_src":    wrappedValue(`"否"`, true),
+		"_widget_target": wrappedValue("", true),
+	})
+	assert.Equal(t, []string{"字段可见状态与发布快照不一致"}, errs["_widget_target"])
+
+	// 伪造隐藏：规则求值结果为可见却声明隐藏 → 信封不一致。
+	_, errs = submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_src":    wrappedValue(`"是"`, true),
+		"_widget_target": wrappedValue("", false),
+	})
+	assert.Equal(t, []string{"字段可见状态与发布快照不一致"}, errs["_widget_target"])
+
+	// 隐藏字段携带 data → 拒绝。
+	_, errs = submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_src":    wrappedValue(`"否"`, true),
+		"_widget_target": wrappedValue(`"上海"`, false),
+	})
+	assert.Equal(t, []string{"隐藏字段不能提交值"}, errs["_widget_target"])
+}
+
+func TestValidateSubmittedRecordValuesShowRuleCascade(t *testing.T) {
+	// 多级：src eq 是 → mid 显示；mid notEmpty → detail 显示。
+	content := snapshotWithRules([]any{
+		eqTextRule("r1", "_widget_src", "_widget_mid", "是"),
+		map[string]any{
+			"id": "r2",
+			"filter": map[string]any{"rel": "and", "cond": []any{map[string]any{
+				"field": "_widget_mid", "type": "text", "method": "notEmpty",
+			}}},
+			"fields": []any{"_widget_detail"},
+		},
+	},
+		snapItem("text", "_widget_src", "是否外出", nil),
+		snapItem("text", "_widget_mid", "外出城市", nil),
+		snapItem("text", "_widget_detail", "住宿说明", map[string]any{"allowBlank": false}),
+	)
+
+	// 上游条件不成立：mid/detail 均需声明隐藏且不得携带 data（隐藏值不参与求值）。
+	_, errs := submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_src":    wrappedValue(`"否"`, true),
+		"_widget_mid":    wrappedValue("", false),
+		"_widget_detail": wrappedValue("", false),
+	})
+	assert.Empty(t, errs)
+
+	// 隐藏仍携带 data → 拒绝（伪造隐藏值不进入求值也不进入记录）。
+	_, errs = submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_src":    wrappedValue(`"否"`, true),
+		"_widget_mid":    wrappedValue(`"上海"`, false),
+		"_widget_detail": wrappedValue("", false),
+	})
+	assert.Equal(t, []string{"隐藏字段不能提交值"}, errs["_widget_mid"])
+
+	// 上游条件不成立却伪造 mid 可见 → 与求值结果不一致（隐藏值不参与求值）。
+	_, errs = submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_src":    wrappedValue(`"否"`, true),
+		"_widget_mid":    wrappedValue(`"上海"`, true),
+		"_widget_detail": wrappedValue("", false),
+	})
+	assert.Equal(t, []string{"字段可见状态与发布快照不一致"}, errs["_widget_mid"])
+}
+
+func TestValidateRecordValuesDropsRuleHiddenFieldValues(t *testing.T) {
+	// 无信封入口（流程写回路径）：规则隐藏字段的既有值收网为 null，必填跳过。
+	content := snapshotWithRules(
+		[]any{eqTextRule("r1", "_widget_src", "_widget_target", "是")},
+		snapItem("text", "_widget_src", "是否外出", nil),
+		snapItem("text", "_widget_target", "外出城市", map[string]any{"allowBlank": false}),
+	)
+	cleaned, errs := ValidateRecordValues(content, values(
+		"_widget_src", `"否"`,
+		"_widget_target", `"上海"`,
+	))
+	assert.Empty(t, errs)
+	assert.Nil(t, cleaned["_widget_target"])
+
+	// 条件成立时既有值保留并正常校验。
+	cleaned, errs = ValidateRecordValues(content, values(
+		"_widget_src", `"是"`,
+		"_widget_target", `"上海"`,
+	))
+	assert.Empty(t, errs)
+	assert.Equal(t, "上海", cleaned["_widget_target"])
+}
+
+func TestValidateSubmittedRecordValuesIncludeCurrentMember(t *testing.T) {
+	// 负责人 eq member_a（includeCurrentMember）：服务端以提交人身份求值。
+	content := snapshotWithRules(
+		[]any{
+			map[string]any{
+				"id": "r1",
+				"filter": map[string]any{"rel": "and", "cond": []any{map[string]any{
+					"field": "_widget_owner", "type": "user", "method": "eq",
+					"value": []any{"member_a"}, "includeCurrentMember": true,
+				}}},
+				"fields": []any{"_widget_secret"},
+			},
+		},
+		snapItem("user", "_widget_owner", "负责人", nil),
+		snapItem("text", "_widget_secret", "专属项", map[string]any{"allowBlank": false}),
+	)
+
+	// 提交人即当前成员：条件成立，专属项可见可提交。
+	cleaned, errs := submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_owner":  wrappedValue(`"member_current"`, true),
+		"_widget_secret": wrappedValue(`"内容"`, true),
+	}, "member_current")
+	assert.Empty(t, errs)
+	assert.Equal(t, "内容", cleaned["_widget_secret"])
+
+	// 匿名（未注入成员）：includeCurrentMember 不加入任何值，条件不成立。
+	_, errs = submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_owner":  wrappedValue(`"member_current"`, true),
+		"_widget_secret": wrappedValue("", false),
+	})
+	assert.Empty(t, errs)
+
+	// 提交人不同且值不命中：条件不成立，声明可见即与求值不一致。
+	_, errs = submitValues(content, map[string]model.SubmitFieldValue{
+		"_widget_owner":  wrappedValue(`"member_other"`, true),
+		"_widget_secret": wrappedValue("", true),
+	}, "member_current")
+	assert.Equal(t, []string{"字段可见状态与发布快照不一致"}, errs["_widget_secret"])
 }

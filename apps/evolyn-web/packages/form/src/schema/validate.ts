@@ -7,11 +7,16 @@
  */
 
 import {
+  FIELD_SHOW_CONDITION_METHODS,
+  FIELD_SHOW_CURRENT_MEMBER_TYPES,
+  FIELD_SHOW_EMPTY_METHODS,
+  FIELD_SHOW_RULE_LIMITS,
   FORM_PROTOCOL_LIMITS,
   WIDGET_OPTION_LIMITS,
   WIDGET_SPECS,
   type WidgetPropSpec,
 } from './dictionary';
+import { isCanonicalDateTime } from './codec';
 import {
   type FormSchemaDocument,
   type FormItem,
@@ -61,8 +66,33 @@ export function validatePublishableFormSchema(input: unknown): FormSchemaValidat
   if (!base.valid || !base.document) return base;
   const issues: FormSchemaIssue[] = [];
   collectUnsupportedWidgets(base.document.content.items, 'content.items', issues);
+  collectUnsupportedConditionSources(base.document.content, issues);
   if (issues.length > 0) return { valid: false, document: null, issues };
   return base;
+}
+
+/** 发布期条件源白名单：未开放运行能力的字段不能作为条件源（设计方案 §3.3）。 */
+function collectUnsupportedConditionSources(
+  content: FormSchemaDocument['content'],
+  issues: FormSchemaIssue[],
+): void {
+  const typesByName = new Map(
+    content.items.map((item) => [item.widget.widgetName, item.widget.type]),
+  );
+  (Array.isArray(content.fieldShowRules) ? content.fieldShowRules : []).forEach(
+    (rule, ruleIndex) => {
+      const conditions = Array.isArray(rule?.filter?.cond) ? rule.filter.cond : [];
+      conditions.forEach((condition, condIndex) => {
+        const type = typesByName.get(condition?.field);
+        if (type !== undefined && !PUBLISHABLE_WIDGET_TYPES.includes(type)) {
+          issues.push({
+            path: `content.fieldShowRules[${ruleIndex}].filter.cond[${condIndex}].field`,
+            message: `条件字段「${condition.field}」的运行能力尚未开放，暂不能发布`,
+          });
+        }
+      });
+    },
+  );
 }
 
 function collectUnsupportedWidgets(
@@ -101,7 +131,7 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
   }
   rejectUnknownKeys(
     content,
-    ['type', 'layout', 'items', 'layout_fields', 'field_layout'],
+    ['type', 'layout', 'items', 'layout_fields', 'field_layout', 'fieldShowRules'],
     'content',
     issues,
   );
@@ -130,6 +160,7 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
     validateItem(item, `content.items[${index}]`, issues, seenNames);
   });
   validateLayouts(content, seenNames, issues);
+  validateFieldShowRules(content, issues);
 }
 
 /**
@@ -232,6 +263,473 @@ function validateLayouts(
       issues.push({ path: 'content.field_layout', message: `布局「${name}」未加入顶层布局` });
     }
   }
+}
+
+/** 顶层字段索引：widgetName → {widget, label}，供规则引用交叉校验。 */
+type TopLevelIndex = Map<string, { widget: Record<string, unknown>; label: string }>;
+
+/**
+ * 字段显隐规则校验（v5 设计方案 §4.1）：结构、字段引用、类型指纹、方法×值
+ * 形状、目标唯一性、自引用与依赖图成环。与后端 schema.go 逐字镜像。
+ */
+function validateFieldShowRules(content: Record<string, unknown>, issues: FormSchemaIssue[]): void {
+  const rawRules = content.fieldShowRules;
+  if (!Array.isArray(rawRules)) {
+    issues.push({
+      path: 'content.fieldShowRules',
+      message: 'fieldShowRules 必须是数组（v5 起必填）',
+    });
+    return;
+  }
+  if (rawRules.length > FIELD_SHOW_RULE_LIMITS.maxRules) {
+    issues.push({
+      path: 'content.fieldShowRules',
+      message: `显隐规则数量不能超过 ${FIELD_SHOW_RULE_LIMITS.maxRules}`,
+    });
+  }
+  const topItems: TopLevelIndex = new Map();
+  for (const item of content.items as FormItem[]) {
+    if (isPlainObject(item) && isPlainObject(item.widget)) {
+      const name = String(item.widget.widgetName ?? '');
+      if (name) topItems.set(name, { widget: item.widget, label: String(item.label ?? '') });
+    }
+  }
+
+  const seenRuleIds = new Set<string>();
+  const targetOwner = new Map<string, { ruleId: string; ruleIndex: number }>();
+
+  rawRules.forEach((rawRule, ruleIndex) => {
+    const rulePath = `content.fieldShowRules[${ruleIndex}]`;
+    if (!isPlainObject(rawRule)) {
+      issues.push({ path: rulePath, message: '规则必须是 JSON 对象' });
+      return;
+    }
+    rejectUnknownKeys(rawRule, ['id', 'filter', 'fields'], rulePath, issues);
+
+    const ruleId = rawRule.id;
+    if (typeof ruleId !== 'string' || ruleId === '') {
+      issues.push({ path: `${rulePath}.id`, message: 'id 必须是非空字符串' });
+    } else if (ruleId.length > FIELD_SHOW_RULE_LIMITS.idMaxLength) {
+      issues.push({
+        path: `${rulePath}.id`,
+        message: `id 不能超过 ${FIELD_SHOW_RULE_LIMITS.idMaxLength} 个字符`,
+      });
+    } else if (seenRuleIds.has(ruleId)) {
+      issues.push({ path: `${rulePath}.id`, message: `规则 id「${ruleId}」重复` });
+    } else {
+      seenRuleIds.add(ruleId);
+    }
+
+    const filter = rawRule.filter;
+    if (!isPlainObject(filter)) {
+      issues.push({ path: `${rulePath}.filter`, message: 'filter 必须是 {rel, cond} 对象' });
+    } else {
+      rejectUnknownKeys(filter, ['rel', 'cond'], `${rulePath}.filter`, issues);
+      if (filter.rel !== 'and' && filter.rel !== 'or') {
+        issues.push({ path: `${rulePath}.filter.rel`, message: 'rel 必须是 and / or' });
+      }
+      const conditions = filter.cond;
+      if (!Array.isArray(conditions)) {
+        issues.push({ path: `${rulePath}.filter.cond`, message: 'cond 必须是数组' });
+      } else if (
+        conditions.length < 1 ||
+        conditions.length > FIELD_SHOW_RULE_LIMITS.maxConditions
+      ) {
+        issues.push({
+          path: `${rulePath}.filter.cond`,
+          message: `条件数量必须在 1–${FIELD_SHOW_RULE_LIMITS.maxConditions} 之间`,
+        });
+      }
+    }
+
+    const fields = rawRule.fields;
+    if (!Array.isArray(fields)) {
+      issues.push({ path: `${rulePath}.fields`, message: 'fields 必须是数组' });
+      return;
+    }
+    if (fields.length < 1 || fields.length > FIELD_SHOW_RULE_LIMITS.maxTargets) {
+      issues.push({
+        path: `${rulePath}.fields`,
+        message: `目标字段数量必须在 1–${FIELD_SHOW_RULE_LIMITS.maxTargets} 之间`,
+      });
+    }
+    const ownTargets = new Set<string>();
+    fields.forEach((rawTarget, fieldIndex) => {
+      const fieldPath = `${rulePath}.fields[${fieldIndex}]`;
+      if (typeof rawTarget !== 'string' || rawTarget === '') {
+        issues.push({ path: fieldPath, message: '目标字段必须是非空字符串' });
+        return;
+      }
+      const entry = topItems.get(rawTarget);
+      if (!entry) {
+        issues.push({ path: fieldPath, message: `目标字段「${rawTarget}」不存在` });
+        return;
+      }
+      if (entry.widget.type === 'separator' || entry.widget.type === 'button') {
+        issues.push({ path: fieldPath, message: `布局控件「${rawTarget}」不能作为显隐目标` });
+        return;
+      }
+      if (entry.widget.visible === false) {
+        issues.push({
+          path: fieldPath,
+          message: `目标字段「${rawTarget}」是静态隐藏字段，不能作为显隐目标`,
+        });
+        return;
+      }
+      if (ownTargets.has(rawTarget)) {
+        issues.push({ path: fieldPath, message: `目标字段「${rawTarget}」重复` });
+        return;
+      }
+      ownTargets.add(rawTarget);
+      const previous = targetOwner.get(rawTarget);
+      if (previous) {
+        issues.push({
+          path: fieldPath,
+          message: `目标字段「${rawTarget}」已被规则「${previous.ruleId}」使用`,
+        });
+        return;
+      }
+      targetOwner.set(rawTarget, { ruleId: String(ruleId), ruleIndex });
+    });
+
+    // 条件行校验（目标不完整时仍尽力校验，错误定位到具体条件行）。
+    if (!isPlainObject(filter) || !Array.isArray(filter.cond)) return;
+    filter.cond.forEach((rawCondition, condIndex) => {
+      validateFieldShowCondition(
+        rawCondition,
+        `${rulePath}.filter.cond[${condIndex}]`,
+        topItems,
+        issues,
+      );
+    });
+  });
+
+  detectFieldShowRuleCycle(rawRules, targetOwner, issues);
+}
+
+/** 单条件校验：字段存在性/类型指纹/方法×值形状/成员开关。 */
+function validateFieldShowCondition(
+  rawCondition: unknown,
+  condPath: string,
+  topItems: TopLevelIndex,
+  issues: FormSchemaIssue[],
+): void {
+  if (!isPlainObject(rawCondition)) {
+    issues.push({ path: condPath, message: '条件必须是 JSON 对象' });
+    return;
+  }
+  rejectUnknownKeys(
+    rawCondition,
+    ['field', 'type', 'method', 'value', 'includeCurrentMember'],
+    condPath,
+    issues,
+  );
+  const field = rawCondition.field;
+  if (typeof field !== 'string' || field === '') {
+    issues.push({ path: `${condPath}.field`, message: '条件字段必须是非空字符串' });
+    return;
+  }
+  const entry = topItems.get(field);
+  if (!entry) {
+    issues.push({ path: `${condPath}.field`, message: `条件字段「${field}」不存在` });
+    return;
+  }
+  const actualType = String(entry.widget.type ?? '');
+  if (rawCondition.type !== actualType) {
+    issues.push({
+      path: `${condPath}.type`,
+      message: `条件类型指纹与字段「${field}」的实际类型不一致`,
+    });
+  }
+  const methods = FIELD_SHOW_CONDITION_METHODS[actualType];
+  if (!methods) {
+    issues.push({
+      path: `${condPath}.field`,
+      message: `控件「${actualType}」不能作为显隐规则条件字段`,
+    });
+    return;
+  }
+  if (entry.widget.visible === false) {
+    issues.push({
+      path: `${condPath}.field`,
+      message: `条件字段「${field}」是静态隐藏字段，不能作为条件源`,
+    });
+  }
+
+  const method = rawCondition.method;
+  if (typeof method !== 'string' || !(methods as readonly string[]).includes(method)) {
+    issues.push({
+      path: `${condPath}.method`,
+      message: `method 必须是以下枚举值之一：${methods.join(' / ')}`,
+    });
+    return;
+  }
+
+  const includeCurrentMember = rawCondition.includeCurrentMember;
+  if (includeCurrentMember !== undefined) {
+    if (!FIELD_SHOW_CURRENT_MEMBER_TYPES.has(actualType)) {
+      issues.push({
+        path: `${condPath}.includeCurrentMember`,
+        message: 'includeCurrentMember 仅成员字段可用',
+      });
+    } else if (typeof includeCurrentMember !== 'boolean') {
+      issues.push({
+        path: `${condPath}.includeCurrentMember`,
+        message: 'includeCurrentMember 必须是布尔值',
+      });
+    }
+  }
+
+  validateFieldShowConditionValue(rawCondition, method, entry, condPath, issues);
+}
+
+/** 条件值形状校验（设计方案 §3.3 方法×值矩阵）。 */
+function validateFieldShowConditionValue(
+  condition: Record<string, unknown>,
+  method: string,
+  entry: { widget: Record<string, unknown>; label: string },
+  condPath: string,
+  issues: FormSchemaIssue[],
+): void {
+  const widgetType = String(entry.widget.type ?? '');
+  const hasValue = 'value' in condition;
+  if (FIELD_SHOW_EMPTY_METHODS.has(method)) {
+    if (hasValue) {
+      issues.push({ path: `${condPath}.value`, message: '空值方法不允许携带 value' });
+    }
+    return;
+  }
+  if (!hasValue) {
+    issues.push({ path: `${condPath}.value`, message: '缺少比较值 value' });
+    return;
+  }
+  const value = condition.value;
+  if (!Array.isArray(value)) {
+    issues.push({ path: `${condPath}.value`, message: 'value 必须是数组' });
+    return;
+  }
+
+  // 数量约束：单值方法恰 1 项；between 恰 2 项且有序；集合方法 1–200 项。
+  const multiSelect =
+    widgetType === 'checkboxgroup' ||
+    widgetType === 'combocheck' ||
+    widgetType === 'usergroup' ||
+    widgetType === 'deptgroup';
+  if (method === 'between') {
+    if (value.length !== 2 || !orderedPairOk(widgetType, value[0], value[1], entry.widget)) {
+      issues.push({
+        path: `${condPath}.value`,
+        message: 'between 的 value 必须恰好 2 项且下界不大于上界',
+      });
+    }
+  } else if (multiSelect || method === 'in' || method === 'notIn') {
+    if (value.length < 1 || value.length > FIELD_SHOW_RULE_LIMITS.maxValues) {
+      issues.push({
+        path: `${condPath}.value`,
+        message: `该方法的 value 必须是 1–${FIELD_SHOW_RULE_LIMITS.maxValues} 项`,
+      });
+    }
+  } else if (value.length !== 1) {
+    issues.push({ path: `${condPath}.value`, message: '该方法的 value 必须恰好 1 项' });
+  }
+
+  // 逐项形状：文本/数值/日期/选项命中/成员部门标识。
+  const optionValues = collectOptionValueSet(entry.widget);
+  const textCap = widgetType === 'textarea' ? 2000 : widgetType === 'text' ? 1000 : 0;
+  const seen = new Set<string>();
+  value.forEach((rawItem, index) => {
+    const itemPath = `${condPath}.value[${index}]`;
+    if (widgetType === 'number') {
+      if (typeof rawItem !== 'number' || !Number.isFinite(rawItem)) {
+        issues.push({ path: itemPath, message: 'value 条目必须是有限数值' });
+      }
+      return;
+    }
+    if (widgetType === 'datetime') {
+      const format = (entry.widget.format as 'date' | 'datetime' | 'month' | 'time') ?? 'datetime';
+      if (typeof rawItem !== 'string' || !isCanonicalDateTime(rawItem, format)) {
+        issues.push({ path: itemPath, message: 'value 条目的日期格式不正确' });
+      }
+      return;
+    }
+    if (typeof rawItem !== 'string' || rawItem === '') {
+      issues.push({ path: itemPath, message: 'value 条目必须是非空字符串' });
+      return;
+    }
+    if (textCap > 0 && rawItem.length > textCap) {
+      issues.push({ path: itemPath, message: `value 条目不能超过 ${textCap} 个字符` });
+      return;
+    }
+    if (optionValues && !optionValues.has(rawItem)) {
+      issues.push({ path: itemPath, message: 'value 条目不在字段选项范围内' });
+      return;
+    }
+    if (
+      optionValues === null &&
+      !textCap &&
+      rawItem.length > FORM_PROTOCOL_LIMITS.widgetNameMaxLength
+    ) {
+      // 成员/部门标识只校验形状，不查目录（设计方案 §4.1）。
+      issues.push({
+        path: itemPath,
+        message: `value 条目不能超过 ${FORM_PROTOCOL_LIMITS.widgetNameMaxLength} 个字符`,
+      });
+      return;
+    }
+    if (seen.has(rawItem)) {
+      issues.push({ path: itemPath, message: 'value 存在重复项' });
+    }
+    seen.add(rawItem);
+  });
+}
+
+/** between 下界 ≤ 上界（number 数值序、datetime 规范字符串字典序）。 */
+function orderedPairOk(
+  widgetType: string,
+  lower: unknown,
+  upper: unknown,
+  widget: Record<string, unknown>,
+): boolean {
+  if (widgetType === 'number') {
+    return (
+      typeof lower === 'number' &&
+      typeof upper === 'number' &&
+      Number.isFinite(lower) &&
+      Number.isFinite(upper) &&
+      lower <= upper
+    );
+  }
+  if (widgetType === 'datetime') {
+    if (typeof lower !== 'string' || typeof upper !== 'string') return false;
+    const format = (widget.format as 'date' | 'datetime' | 'month' | 'time') ?? 'datetime';
+    return (
+      isCanonicalDateTime(lower, format) && isCanonicalDateTime(upper, format) && lower <= upper
+    );
+  }
+  return false;
+}
+
+/** 选项类控件返回选项 value 集合；其余返回 null（不做选项命中校验）。 */
+function collectOptionValueSet(widget: Record<string, unknown>): Set<string> | null {
+  if (!OPTION_WIDGET_TYPES.has(String(widget.type ?? ''))) return null;
+  const values = new Set<string>();
+  if (Array.isArray(widget.options)) {
+    for (const option of widget.options) {
+      if (isPlainOption(option) && option.value !== '') values.add(option.value);
+    }
+  }
+  return values;
+}
+
+/**
+ * 依赖图环检测（设计方案 §4.1）：规则图边方向为「条件源 → 目标字段」，
+ * 按规则数组序构图（与 Go 侧同构遍历，保证两侧对同一文档产出同一错误）；
+ * 发现环即报错并给出参与环的规则 id 与字段路径。
+ */
+function detectFieldShowRuleCycle(
+  rawRules: unknown[],
+  targetOwner: Map<string, { ruleId: string; ruleIndex: number }>,
+  issues: FormSchemaIssue[],
+): void {
+  // 邻接表与节点序（保持插入序）；anchor 记录边归属用于错误定位。
+  const adjacency = new Map<string, string[]>();
+  const edgeAnchor = new Map<string, { ruleIndex: number; fieldIndex: number }>();
+  const nodes: string[] = [];
+  const nodeSeen = new Set<string>();
+  const addNode = (node: string) => {
+    if (node !== '' && !nodeSeen.has(node)) {
+      nodeSeen.add(node);
+      nodes.push(node);
+    }
+  };
+  const pushEdge = (
+    source: string,
+    target: string,
+    anchor: { ruleIndex: number; fieldIndex: number },
+  ) => {
+    const key = `${source}→${target}`;
+    if (!edgeAnchor.has(key)) edgeAnchor.set(key, anchor);
+    const list = adjacency.get(source) ?? [];
+    if (!list.includes(target)) {
+      list.push(target);
+      adjacency.set(source, list);
+    }
+  };
+  rawRules.forEach((rawRule, ruleIndex) => {
+    if (!isPlainObject(rawRule)) return;
+    const filter = rawRule.filter;
+    const conditions = isPlainObject(filter) && Array.isArray(filter.cond) ? filter.cond : [];
+    const fields = Array.isArray(rawRule.fields) ? rawRule.fields : [];
+    fields.forEach((target, fieldIndex) => {
+      if (typeof target !== 'string') return;
+      for (const rawCondition of conditions) {
+        const source = isPlainObject(rawCondition) ? String(rawCondition.field ?? '') : '';
+        if (!source) continue;
+        pushEdge(source, target, { ruleIndex, fieldIndex });
+        addNode(source);
+        addNode(target);
+      }
+    });
+  });
+  if (nodes.length === 0) return;
+
+  const WHITE = 0;
+  const GRAY = 1;
+  const BLACK = 2;
+  const color = new Map<string, number>(nodes.map((node) => [node, WHITE]));
+
+  /** 迭代 DFS：发现回边时提取环（首个环即返回）。 */
+  const cycle = ((): string[] | null => {
+    for (const start of nodes) {
+      if (color.get(start) !== WHITE) continue;
+      color.set(start, GRAY);
+      const stack: Array<{ node: string; edgeIndex: number }> = [{ node: start, edgeIndex: 0 }];
+      const path: string[] = [start];
+      while (stack.length > 0) {
+        const frame = stack[stack.length - 1]!;
+        const neighbors = adjacency.get(frame.node) ?? [];
+        if (frame.edgeIndex >= neighbors.length) {
+          color.set(frame.node, BLACK);
+          stack.pop();
+          path.pop();
+          continue;
+        }
+        const neighbor = neighbors[frame.edgeIndex]!;
+        frame.edgeIndex += 1;
+        const neighborColor = color.get(neighbor) ?? WHITE;
+        if (neighborColor === GRAY) {
+          // 回边：从 path 中 neighbor 的位置截取环。
+          const startAt = path.lastIndexOf(neighbor);
+          return [...path.slice(startAt), neighbor];
+        }
+        if (neighborColor === WHITE) {
+          color.set(neighbor, GRAY);
+          path.push(neighbor);
+          stack.push({ node: neighbor, edgeIndex: 0 });
+        }
+      }
+    }
+    return null;
+  })();
+
+  if (!cycle) return;
+  // 参与环的规则 id（按环上边归属去重，保持出现顺序）。
+  const ruleIds: string[] = [];
+  for (let i = 0; i + 1 < cycle.length; i += 1) {
+    const source = cycle[i];
+    const target = cycle[i + 1];
+    if (!source || !target) continue;
+    const owner = edgeAnchor.has(`${source}→${target}`) ? targetOwner.get(target) : undefined;
+    const ruleId = owner?.ruleId ?? '';
+    if (ruleId && !ruleIds.includes(ruleId)) ruleIds.push(ruleId);
+  }
+  const closingEdge =
+    edgeAnchor.get(`${cycle[cycle.length - 2]}→${cycle[cycle.length - 1]}`) ??
+    [...edgeAnchor.values()][0]!;
+  issues.push({
+    path: `content.fieldShowRules[${closingEdge.ruleIndex}].fields[${closingEdge.fieldIndex}]`,
+    message: `显隐规则存在循环依赖：${cycle.join(' → ')}（涉及规则 ${ruleIds.join('、') || '未知'}）`,
+  });
 }
 
 function validateTab(
@@ -881,7 +1379,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function isPlainOption(value: unknown): value is { label: unknown; value: unknown } {
+function isPlainOption(value: unknown): value is { label: unknown; value: string } {
   return isPlainObject(value) && typeof value.value === 'string';
 }
 

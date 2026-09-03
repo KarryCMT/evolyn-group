@@ -1,6 +1,7 @@
 import type { ApplicationWorkspaceAsset } from '../../workspace/applicationWorkspace.types';
 import type { FormRuntimeBootstrap } from '~/types';
 import { flushPromises, mount } from '@vue/test-utils';
+import { createPinia } from 'pinia';
 import { describe, expect, it, vi } from 'vitest';
 import { defineComponent, h } from 'vue';
 import ApplicationWorkspaceFormRuntime from '../ApplicationWorkspaceFormRuntime.vue';
@@ -65,7 +66,14 @@ function bootstrap(formCode: string): FormRuntimeBootstrap {
     schemaRevision: '1',
     protocolVersion: 3,
     content: {
-      content: { type: 'form', layout: 'normal', items: [], layout_fields: [], field_layout: [] },
+      content: {
+        type: 'form',
+        layout: 'normal',
+        items: [],
+        layout_fields: [],
+        field_layout: [],
+        fieldShowRules: [],
+      },
     },
   };
 }
@@ -93,6 +101,8 @@ describe('applicationWorkspaceFormRuntime', () => {
     const wrapper = mount(ApplicationWorkspaceFormRuntime, {
       props: { appCode: 'app_a', asset: asset('form_a') },
       global: {
+        // 组件 setup 读取 auth store（当前成员注入），挂载需提供 Pinia。
+        plugins: [createPinia()],
         directives: { loading: () => undefined },
         stubs: {
           ElButton: true,
@@ -121,6 +131,8 @@ describe('applicationWorkspaceFormRuntime', () => {
     const wrapper = mount(ApplicationWorkspaceFormRuntime, {
       props: { appCode: 'app_a', asset: asset('form_a') },
       global: {
+        // 组件 setup 读取 auth store（当前成员注入），挂载需提供 Pinia。
+        plugins: [createPinia()],
         directives: { loading: () => undefined },
         stubs: {
           ElButton: true,
@@ -143,6 +155,8 @@ describe('applicationWorkspaceFormRuntime', () => {
     const wrapper = mount(ApplicationWorkspaceFormRuntime, {
       props: { appCode: 'app_a', asset: asset('form_a') },
       global: {
+        // 组件 setup 读取 auth store（当前成员注入），挂载需提供 Pinia。
+        plugins: [createPinia()],
         directives: { loading: () => undefined },
         stubs: {
           ElButton: true,

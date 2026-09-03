@@ -6,9 +6,10 @@ import { FormWebRuntimeSurface } from '@evolyn.do/form/runtime-web';
 import { migrateFormSchema } from '@evolyn.do/form/schema';
 import { ApiError } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
-import { shallowRef, watch } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
 import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
 import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
+import { useAuth } from '~/composables/auth';
 // 应用工作区按需加载最终运行时关键样式，不引入设计器样式图。
 import '@evolyn.do/form/runtime-web/style.css';
 
@@ -20,6 +21,17 @@ const props = defineProps<{
 }>();
 
 type RuntimeStatus = 'loading' | 'ready' | 'not-published' | 'error';
+
+const { userInfo } = useAuth();
+
+/** 当前登录成员 ID：显隐规则 includeCurrentMember 的前端求值注入源。 */
+const currentMemberId = computed(() => {
+  const id = userInfo.value?.member?.id;
+  return id === undefined || id === null ? undefined : String(id);
+});
+
+/** 填写模式（add）字段权限矩阵：未下发时全量放行。 */
+const fieldPermissions = computed(() => bootstrap.value?.permissions?.addFields);
 
 const status = shallowRef<RuntimeStatus>('loading');
 const bootstrap = shallowRef<FormRuntimeBootstrap | null>(null);
@@ -182,6 +194,8 @@ function isAbortError(error: unknown): boolean {
       :form-id="bootstrap.formCode"
       :published-version="bootstrap.publishedVersion"
       :schema-revision="bootstrap.schemaRevision"
+      :current-member-id="currentMemberId"
+      :field-permissions="fieldPermissions"
       :adapter="runtimeAdapter"
       :registry="getMemberFieldRegistry()"
       :actions="actions"

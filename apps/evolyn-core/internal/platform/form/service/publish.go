@@ -411,6 +411,8 @@ func (s *formService) validateSubmitValues(
 	if err != nil {
 		return nil, err
 	}
+	// 提交人成员 ID：显隐规则 includeCurrentMember 的服务端求值注入源。
+	currentMemberID := strconv.FormatUint(uint64(member.ID), 10)
 	var (
 		cleaned     map[string]any
 		fieldErrors RecordFieldErrors
@@ -421,9 +423,9 @@ func (s *formService) validateSubmitValues(
 				fmt.Errorf("member %d cannot add records of form %s", member.ID, form.Code))
 		}
 		cleaned, fieldErrors = ValidateSubmittedRecordValuesWithPermission(
-			content, submitted, resolved.FieldsForNew(model.PermissionOpAdd), nil)
+			content, submitted, resolved.FieldsForNew(model.PermissionOpAdd), nil, currentMemberID)
 	} else {
-		cleaned, fieldErrors = ValidateSubmittedRecordValues(content, submitted)
+		cleaned, fieldErrors = ValidateSubmittedRecordValues(content, submitted, currentMemberID)
 	}
 	if len(fieldErrors) > 0 {
 		return nil, httpx.Wrap(apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": fieldErrors}),

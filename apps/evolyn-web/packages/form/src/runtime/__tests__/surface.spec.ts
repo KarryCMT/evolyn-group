@@ -26,6 +26,7 @@ function schema(): FormSchemaDocument {
       ],
       layout_fields: [],
       field_layout: ['_widget_name'],
+      fieldShowRules: [],
     },
   };
 }
@@ -74,7 +75,9 @@ describe('FormRuntimeSurface', () => {
   });
 
   it('custom 动作不进入 Store，确认后原样交给宿主', async () => {
-    const confirm = vi.spyOn(ElMessageBox, 'confirm').mockResolvedValue('confirm');
+    const confirm = vi
+      .spyOn(ElMessageBox, 'confirm')
+      .mockResolvedValue({ action: 'confirm' } as never);
     const action = {
       key: 'print',
       label: '打印',

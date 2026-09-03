@@ -56,6 +56,7 @@
     "clean": "rimraf .turbo node_modules dist",
     "publish": "pnpm publish",
     "test": "vitest run",
+    "typecheck": "vue-tsc --noEmit",
     "test:watch": "vitest"
   },
   "peerDependencies": {

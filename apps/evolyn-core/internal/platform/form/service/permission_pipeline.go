@@ -1,15 +1,16 @@
 // 权限感知提交管线（表单权限 P1，设计 §4/S9 定版）：edit 提交不复用
 // ValidateSubmittedRecordValues，而是按三阶段执行：
 //
-//	① 信封解包——与既有规则一致：每个数据字段必须携带 visible 且等于发布
-//	   快照可见性（资产权限隐藏不改变信封 visible，前端对权限隐藏字段照常
-//	   携带快照可见性 + 空 data）；隐藏/布局字段不得携带数据；
+//	① 信封解包——每个数据字段必须携带 visible 且等于「静态可见 ∧ 显隐规则
+//	   求值结果」（资产权限隐藏不改变信封 visible，前端对权限隐藏字段照常
+//	   携带快照可见性 + 空 data；v5 起规则求值的条件源可达性叠加权限矩阵，
+//	   无权限的条件源不得作为旁路泄露信息）；隐藏/布局字段不得携带数据；
 //	② 权限合并——逐字段按 FieldsFor(op, record) 结果判定：editable=false
 //	   且请求携带非空 data → 整体拒绝（越权，按 widgetName 回填错误）；
 //	   editable=false 字段进入 rawValues 前以 previous 旧值回填（edit）或
 //	   置 null（add，配置期规则已保证必填可编辑）；
-//	③ 终审复用——以合并后的 rawValues 调用既有 ValidateRecordValues 完成
-//	   类型/范围/必填终审（必填由旧值自然满足）。
+//	③ 终审复用——以合并后的 rawValues 调用终审核心（同一权限门控基线）
+//	   完成类型/范围/必填终审（必填由旧值自然满足）。
 //
 // 越权拒绝口径对齐流程引擎 UpdateData：整体拒绝，不做静默裁剪。
 package service
@@ -26,19 +27,43 @@ const permissionDeniedFieldMessage = "没有编辑该字段的权限"
 // ValidateSubmittedRecordValuesWithPermission 权限感知提交管线。
 //
 // content 为发布快照文档解码视图；submitted 为字段包装协议提交值；fields 为
-// FieldsFor/FieldsForNew 的判定矩阵（nil 视为全字段不可编辑——deny-by-default
-// 的防御默认，正常调用方必传完整矩阵）；previous 为编辑前的记录旧值
-// （edit 场景；add 场景传 nil，非可编辑字段一律置 null）。
+// FieldsFor/FieldsForNew 的判定矩阵（nil 视为全字段不可见不可编辑——
+// deny-by-default 的防御默认，正常调用方必传完整矩阵）；previous 为编辑前的
+// 记录旧值（edit 场景；add 场景传 nil，非可编辑字段一律置 null）。
 func ValidateSubmittedRecordValuesWithPermission(
 	content map[string]any,
 	submitted map[string]model.SubmitFieldValue,
 	fields map[string]FieldPermission,
 	previous map[string]any,
+	currentMemberID string,
 ) (map[string]any, RecordFieldErrors) {
 	snapshotFields, err := buildSnapshotFields(content)
 	if err != nil {
 		return nil, RecordFieldErrors{"": {"表单快照异常，请刷新后重试"}}
 	}
+	// 规则条件源可达性 = 静态可见 ∧ 权限可见（权限永远高于显隐规则）。
+	baseReadable := func(name string) bool {
+		field, ok := snapshotFields[name]
+		if !ok || !field.visible {
+			return false
+		}
+		if fields == nil {
+			return false
+		}
+		permission, granted := fields[name]
+		return granted && permission.Visible
+	}
+	ruleVisible := compileFieldShowRules(content).ruleFieldVisibility(
+		baseReadable,
+		func(name string) any {
+			wrapped, ok := submitted[name]
+			if !ok || len(wrapped.Data) == 0 {
+				return nil
+			}
+			return decodeShowValue(json.RawMessage(wrapped.Data))
+		},
+		currentMemberID,
+	)
 	rawValues := make(map[string]json.RawMessage, len(snapshotFields))
 	fieldErrors := RecordFieldErrors{}
 
@@ -55,13 +80,17 @@ func ValidateSubmittedRecordValuesWithPermission(
 			fieldErrors[name] = []string{"缺少字段可见状态"}
 			continue
 		}
-		// ① 信封 visible 语义保持「发布快照可见性」，与资产权限隐藏解耦：
-		// 权限隐藏字段照常携带快照可见性 + 空 data
-		if *wrapped.Visible != field.visible {
+		// ① 信封 visible = 静态可见 ∧ 规则求值结果，与资产权限隐藏解耦：
+		// 权限隐藏字段照常携带该口径 + 空 data
+		effective := field.visible
+		if visible, computed := ruleVisible[name]; computed {
+			effective = field.visible && visible
+		}
+		if *wrapped.Visible != effective {
 			fieldErrors[name] = []string{"字段可见状态与发布快照不一致"}
 			continue
 		}
-		if !field.visible {
+		if !effective {
 			if len(wrapped.Data) > 0 && !isNullJSON(json.RawMessage(wrapped.Data)) {
 				fieldErrors[name] = []string{"隐藏字段不能提交值"}
 			}
@@ -110,8 +139,8 @@ func ValidateSubmittedRecordValuesWithPermission(
 		}
 	}
 
-	// ③ 终审复用：合并结果按同一套快照校验完成类型/范围/必填终审
-	cleaned, valueErrors := ValidateRecordValues(content, rawValues)
+	// ③ 终审复用：合并结果按同一套快照校验与同一权限门控基线完成终审
+	cleaned, valueErrors := validateRecordValues(content, rawValues, baseReadable, currentMemberID)
 	for name, messages := range valueErrors {
 		if _, exists := fieldErrors[name]; !exists {
 			fieldErrors[name] = messages

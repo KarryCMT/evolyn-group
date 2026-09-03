@@ -30,6 +30,7 @@ function documentOf(items: FormItem[]): FormSchemaDocument {
       items,
       layout_fields: [],
       field_layout: items.map((item) => item.widget.widgetName),
+      fieldShowRules: [],
     },
   };
 }
@@ -76,8 +77,8 @@ describe('createFormRuntime 初始化', () => {
         item({ type: 'text', widgetName: '_widget_hidden', visible: false }),
       ]),
     });
-    expect(runtime.state.fieldStates._widget_disabled.disabled).toBe(true);
-    expect(runtime.state.fieldStates._widget_hidden.visible).toBe(false);
+    expect(runtime.state.fieldStates._widget_disabled!.disabled).toBe(true);
+    expect(runtime.state.fieldStates._widget_hidden!.visible).toBe(false);
     const payload = runtime.buildSubmitPayload();
     expect(payload.values).toEqual({
       _widget_disabled: { visible: true },
@@ -96,7 +97,7 @@ describe('setValue 与校验', () => {
     runtime.setValue('_widget_t', 'x');
     expect(runtime.state.values._widget_t).toBe('x');
     expect(runtime.isDirty()).toBe(true);
-    expect(runtime.state.fieldStates._widget_t.errors).toEqual([]);
+    expect(runtime.state.fieldStates._widget_t!.errors).toEqual([]);
   });
 
   it('隐藏字段不校验、不产生错误', () => {
@@ -183,7 +184,7 @@ describe('提交', () => {
     expect(outcome.ok).toBe(false);
     if (outcome.ok) return;
     expect(outcome.reason).toBe('server');
-    expect(runtime.state.fieldStates._widget_m.errors).toEqual(['选项已失效']);
+    expect(runtime.state.fieldStates._widget_m!.errors).toEqual(['选项已失效']);
     expect(runtime.state.lifecycle).toBe('ready');
     expect(runtime.state.activeOperation).toBeNull();
   });
@@ -288,5 +289,275 @@ describe('填写草稿', () => {
     release?.();
     await saving;
     expect(runtime.state.activeOperation).toBeNull();
+  });
+});
+
+// ---- v5 字段显隐规则：运行时可见性引擎 ----
+
+function rulesDocumentOf(
+  items: FormItem[],
+  fieldShowRules: FormSchemaDocument['content']['fieldShowRules'],
+): FormSchemaDocument {
+  return {
+    content: {
+      type: 'form',
+      layout: 'normal',
+      items,
+      layout_fields: [],
+      field_layout: items.map((entry) => entry.widget.widgetName),
+      fieldShowRules,
+    },
+  };
+}
+
+describe('createFormRuntime 显隐规则引擎', () => {
+  const outingForm = () =>
+    rulesDocumentOf(
+      [
+        item(
+          {
+            type: 'radiogroup',
+            widgetName: '_widget_out',
+            options: [
+              { label: '是', value: 'yes' },
+              { label: '否', value: 'no' },
+            ],
+          },
+          { label: '是否外出' },
+        ),
+        item({ type: 'text', widgetName: '_widget_city' }, { label: '外出城市' }),
+        item({ type: 'text', widgetName: '_widget_note' }, { label: '住宿说明' }),
+      ],
+      [
+        {
+          id: '_rule_city',
+          filter: {
+            rel: 'and',
+            cond: [{ field: '_widget_out', type: 'radiogroup', method: 'eq', value: ['yes'] }],
+          },
+          fields: ['_widget_city'],
+        },
+        {
+          id: '_rule_note',
+          filter: {
+            rel: 'and',
+            cond: [{ field: '_widget_city', type: 'text', method: 'notEmpty' }],
+          },
+          fields: ['_widget_note'],
+        },
+      ],
+    );
+
+  it('初始化即按规则求值：未满足条件的目标字段隐藏', () => {
+    const runtime = createFormRuntime({ schema: outingForm() });
+    expect(runtime.state.fieldStates['_widget_out']!.visible).toBe(true);
+    expect(runtime.state.fieldStates['_widget_city']!.visible).toBe(false);
+    expect(runtime.state.fieldStates['_widget_note']!.visible).toBe(false);
+  });
+
+  it('值变化仅重算下游闭包并多级传播：外出→城市→说明', () => {
+    const runtime = createFormRuntime({ schema: outingForm() });
+    runtime.setValue('_widget_out', 'yes');
+    expect(runtime.state.fieldStates['_widget_city']!.visible).toBe(true);
+    expect(runtime.state.fieldStates['_widget_note']!.visible).toBe(false);
+
+    runtime.setValue('_widget_city', '上海');
+    expect(runtime.state.fieldStates['_widget_note']!.visible).toBe(true);
+
+    runtime.setValue('_widget_out', 'no');
+    // 上游隐藏时下游自然隐藏，且已填值保留（再次显示恢复）。
+    expect(runtime.state.fieldStates['_widget_city']!.visible).toBe(false);
+    expect(runtime.state.fieldStates['_widget_note']!.visible).toBe(false);
+    expect(runtime.state.values['_widget_city']).toBe('上海');
+
+    runtime.setValue('_widget_out', 'yes');
+    expect(runtime.state.fieldStates['_widget_city']!.visible).toBe(true);
+    expect(runtime.state.values['_widget_city']).toBe('上海');
+    expect(runtime.state.fieldStates['_widget_note']!.visible).toBe(true);
+  });
+
+  it('规则隐藏字段跳过必填校验、不进入提交载荷，草稿保留全部值', async () => {
+    const requiredForm = () =>
+      rulesDocumentOf(
+        [
+          item(
+            {
+              type: 'radiogroup',
+              widgetName: '_widget_out',
+              options: [
+                { label: '是', value: 'yes' },
+                { label: '否', value: 'no' },
+              ],
+            },
+            { label: '是否外出' },
+          ),
+          item(
+            { type: 'text', widgetName: '_widget_city', allowBlank: false },
+            { label: '外出城市' },
+          ),
+        ],
+        [
+          {
+            id: '_rule_city',
+            filter: {
+              rel: 'and',
+              cond: [{ field: '_widget_out', type: 'radiogroup', method: 'eq', value: ['yes'] }],
+            },
+            fields: ['_widget_city'],
+          },
+        ],
+      );
+    const runtime = createFormRuntime({ schema: requiredForm() });
+    runtime.setValue('_widget_out', 'no');
+    runtime.markTouched('_widget_city');
+    // 隐藏的必填字段不阻塞提交。
+    const outcome = await runtime.submit();
+    expect(outcome.ok).toBe(true);
+    if (!outcome.ok) return;
+    expect(outcome.payload.values['_widget_city']).toEqual({ visible: false });
+
+    // 显式填写后进入载荷。
+    runtime.setValue('_widget_out', 'yes');
+    runtime.setValue('_widget_city', '杭州');
+    const second = await runtime.submit();
+    expect(second.ok).toBe(true);
+    if (!second.ok) return;
+    expect(second.payload.values['_widget_city']).toEqual({ visible: true, data: '杭州' });
+
+    // 草稿保留隐藏字段值，恢复填写后可继续使用。
+    const draft = runtime.buildDraftPayload();
+    expect(draft.values['_widget_city']).toBe('杭州');
+  });
+
+  it('includeCurrentMember 经 currentMemberId 注入比较集合', () => {
+    const memberForm = () =>
+      rulesDocumentOf(
+        [
+          item({ type: 'user', widgetName: '_widget_owner' }, { label: '负责人' }),
+          item({ type: 'text', widgetName: '_widget_secret' }, { label: '专属项' }),
+        ],
+        [
+          {
+            id: '_rule_secret',
+            filter: {
+              rel: 'and',
+              cond: [
+                {
+                  field: '_widget_owner',
+                  type: 'user',
+                  method: 'eq',
+                  value: ['member_a'],
+                  includeCurrentMember: true,
+                },
+              ],
+            },
+            fields: ['_widget_secret'],
+          },
+        ],
+      );
+    const anonymous = createFormRuntime({ schema: memberForm() });
+    anonymous.setValue('_widget_owner', 'member_current');
+    expect(anonymous.state.fieldStates['_widget_secret']!.visible).toBe(false);
+
+    const named = createFormRuntime({ schema: memberForm(), currentMemberId: 'member_current' });
+    expect(named.state.fieldStates['_widget_secret']!.visible).toBe(false);
+    named.setValue('_widget_owner', 'member_current');
+    expect(named.state.fieldStates['_widget_secret']!.visible).toBe(true);
+  });
+
+  it('静态隐藏字段与规则合成为交集', () => {
+    const runtime = createFormRuntime({
+      schema: rulesDocumentOf(
+        [
+          item({ type: 'text', widgetName: '_widget_src' }),
+          item({ type: 'text', widgetName: '_widget_target', visible: false }),
+        ],
+        [
+          {
+            id: '_rule_t',
+            filter: {
+              rel: 'and',
+              cond: [{ field: '_widget_src', type: 'text', method: 'eq', value: ['甲'] }],
+            },
+            fields: ['_widget_target'],
+          },
+        ],
+      ),
+    });
+    runtime.setValue('_widget_src', '甲');
+    expect(runtime.state.fieldStates['_widget_target']!.visible).toBe(false);
+  });
+});
+
+describe('createFormRuntime 字段权限合成（v5）', () => {
+  const permissionForm = () =>
+    rulesDocumentOf(
+      [
+        item({ type: 'text', widgetName: '_widget_src' }),
+        item({ type: 'text', widgetName: '_widget_target' }, { label: '目标' }),
+        item({ type: 'text', widgetName: '_widget_limited' }, { label: '受限字段' }),
+      ],
+      [
+        {
+          id: '_rule_target',
+          filter: {
+            rel: 'and',
+            cond: [{ field: '_widget_src', type: 'text', method: 'eq', value: ['甲'] }],
+          },
+          fields: ['_widget_target'],
+        },
+      ],
+    );
+  const matrix = {
+    _widget_src: { visible: false, editable: false },
+    _widget_target: { visible: true, editable: true },
+    _widget_limited: { visible: true, editable: false },
+  };
+
+  it('权限隐藏的条件源条件视为不成立，下游不显示（防推断）', () => {
+    const runtime = createFormRuntime({
+      schema: permissionForm(),
+      fieldPermissions: matrix,
+      initialValues: { _widget_src: '甲' },
+    });
+    // 条件源值存在但权限不可见：不得读取，目标保持隐藏。
+    expect(runtime.state.fieldStates['_widget_target']!.visible).toBe(false);
+  });
+
+  it('权限合成为交集：权限隐藏字段渲染不可见', () => {
+    const runtime = createFormRuntime({
+      schema: permissionForm(),
+      fieldPermissions: matrix,
+    });
+    expect(runtime.state.fieldStates['_widget_src']!.visible).toBe(false);
+  });
+
+  it('权限不可编辑字段禁用且不进入提交 data；信封 visible 与权限解耦', async () => {
+    const runtime = createFormRuntime({
+      schema: permissionForm(),
+      fieldPermissions: { ...matrix, _widget_src: { visible: true, editable: true } },
+      initialValues: { _widget_src: '甲', _widget_limited: '旧值' },
+    });
+    expect(runtime.state.fieldStates['_widget_limited']!.disabled).toBe(true);
+    expect(runtime.state.fieldStates['_widget_target']!.visible).toBe(true);
+
+    const outcome = await runtime.submit();
+    expect(outcome.ok).toBe(true);
+    // 受限字段携带信封口径 visible=true + 无 data（服务端权限管线复核回填）。
+    expect(outcome.ok && outcome.payload.values['_widget_limited']).toEqual({ visible: true });
+    // 正常字段照常携带 data。
+    expect(outcome.ok && outcome.payload.values['_widget_src']).toEqual({
+      visible: true,
+      data: '甲',
+    });
+  });
+
+  it('未提供权限矩阵时全量放行（预览/草稿回放口径）', () => {
+    const runtime = createFormRuntime({
+      schema: permissionForm(),
+      initialValues: { _widget_src: '甲' },
+    });
+    expect(runtime.state.fieldStates['_widget_target']!.visible).toBe(true);
+    expect(runtime.state.fieldStates['_widget_target']!.envelopeVisible).toBe(true);
   });
 });

@@ -3,8 +3,9 @@ import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do
 import type { FormSchemaDocument } from '@evolyn.do/form/schema';
 import { FormWebRuntimeSurface } from '@evolyn.do/form/runtime-web';
 import { RiCloseFill, RiComputerFill, RiSmartphoneFill } from '@remixicon/vue';
-import { ref, shallowRef, watch } from 'vue';
+import { computed, ref, shallowRef, watch } from 'vue';
 import { getMemberFieldRegistry } from './memberFieldRegistry';
+import { useAuth } from '~/composables/auth';
 // 预览组件独立加载运行时样式，避免宿主页面依赖设计器样式副作用。
 import '@evolyn.do/form/runtime-web/style.css';
 
@@ -21,6 +22,14 @@ const emit = defineEmits<{
   submitSuccess: [];
   draftSuccess: [];
 }>();
+
+const { userInfo } = useAuth();
+
+/** 当前登录成员 ID：预览中 includeCurrentMember 规则按设计者身份求值。 */
+const currentMemberId = computed(() => {
+  const id = userInfo.value?.member?.id;
+  return id === undefined || id === null ? undefined : String(id);
+});
 
 /** 抽屉显隐由设计页持有，组件通过标准 v-model 契约回传关闭状态。 */
 const visible = defineModel<boolean>({ default: false });
@@ -121,6 +130,7 @@ function setViewport(value: 'desktop' | 'mobile'): void {
           class="form-design-preview__runtime"
           :schema="schema"
           :form-id="formId"
+          :current-member-id="currentMemberId"
           :adapter="adapter"
           :registry="getMemberFieldRegistry()"
           :actions="previewActions"

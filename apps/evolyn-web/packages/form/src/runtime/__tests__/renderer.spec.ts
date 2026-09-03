@@ -28,6 +28,7 @@ const schema = (items: FormItem[]): FormSchemaDocument => ({
     items,
     layout_fields: [],
     field_layout: items.map((entry) => entry.widget.widgetName),
+    fieldShowRules: [],
   },
 });
 
@@ -42,6 +43,7 @@ describe('FormRenderer 渲染', () => {
             items: [{ nope: true } as never],
             layout_fields: [],
             field_layout: [],
+            fieldShowRules: [],
           },
         },
       },
@@ -130,8 +132,9 @@ describe('FormRenderer 渲染', () => {
     await wrapper.find('input').setValue('ok');
     await wrapper.find('form').trigger('submit');
     expect(submit).toHaveBeenCalledTimes(1);
-    const payload = submit.mock.calls[0][0];
-    expect(payload.values).toEqual({ _widget_t: { data: 'ok', visible: true } });
+    const firstCall = submit.mock.calls[0] as unknown[] | undefined;
+    const payload = firstCall?.[0] as { values: Record<string, unknown> } | undefined;
+    expect(payload?.values).toEqual({ _widget_t: { data: 'ok', visible: true } });
   });
 
   it('服务端字段错误回填到对应字段', async () => {
@@ -247,11 +250,12 @@ describe('FormRenderer 渲染', () => {
           },
         ],
         field_layout: ['_widget_top', '_layout_tabs'],
+        fieldShowRules: [],
       },
     };
     const plan = buildRenderPlan(doc);
-    expect(plan.sections[0].nodes[0]).toMatchObject({ type: 'field', key: '_widget_top' });
-    expect(plan.sections[0].nodes[1]).toMatchObject({
+    expect(plan.sections[0]!.nodes[0]!).toMatchObject({ type: 'field', key: '_widget_top' });
+    expect(plan.sections[0]!.nodes[1]!).toMatchObject({
       type: 'multitab',
       tabs: [{ title: '详情', fields: [{ key: '_widget_detail' }] }],
     });

@@ -6,12 +6,20 @@ import {
   normalizeWidgetValue,
   validateWidgetValue,
 } from '../../schema/codec';
+import {
+  compileFieldShowRules,
+  downstreamTargets,
+  evaluateFieldShowRules,
+  matchFieldShowRule,
+  type CompiledFieldShowRules,
+} from '../../schema/rules';
 import type { FormItem, FormSchemaDocument } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
 import type {
   FieldRuntimeState,
   FormDraftPayload,
   FormIssue,
+  FormRuntimeFieldPermission,
   FormRuntimeState,
   FormSubmittedFieldValue,
   FormSubmitPayload,
@@ -22,9 +30,11 @@ import type {
 /**
  * 运行时会话工厂：每个 FormRenderer 创建独立 session，不使用全局 store 承载填写值。
  * 所有修改经 setValue/markTouched 等 action 进入，组件只消费只读状态；值表与字段状态
- * 按 widgetName 细粒度响应式追踪，输入一个字段仅重渲染该字段（及 R2 起的规则依赖项）。
+ * 按 widgetName 细粒度响应式追踪，输入一个字段仅重渲染该字段及其规则依赖项。
  * 静态属性按保存值执行（方案 §3.5）：visible=false 不校验且只提交可见状态，
  * enable=false 禁用但已有值仍提交。
+ * v5 显隐规则：初始化与值变化时按编译产物计算 effectiveVisible =
+ * 静态 visible ∧ 规则命中；隐藏字段保留会话值、清除错误、不进入提交载荷。
  */
 export interface FormRuntimeOptions {
   /** 已发布 Schema（目标协议文档），为运行时唯一输入；工厂内部深拷贝锁定会话。 */
@@ -36,6 +46,16 @@ export interface FormRuntimeOptions {
   initialValues?: Record<string, FormValue>;
   /** 记录上下文默认值，例如「当前成员作为申请人」（P5 前不执行 Schema 静态 defaultValue）。 */
   contextDefaults?: Record<string, FormValue>;
+  /**
+   * 当前登录成员 ID：显隐规则 includeCurrentMember 的比较集合注入源；
+   * 未提供（匿名填写）时不加入任何值（设计方案 §3.2）。
+   */
+  currentMemberId?: string;
+  /**
+   * 字段权限矩阵（bootstrap permissions 按模式投影）：参与
+   * effectiveVisible = 静态 ∧ 权限 ∧ 规则 的合成；未提供时全量放行。
+   */
+  fieldPermissions?: Record<string, FormRuntimeFieldPermission>;
   /** 业务能力注入边界；缺省时提交仅生成载荷交由页面处理。 */
   adapter?: FormRuntimeAdapter;
 }
@@ -85,6 +105,31 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   const itemMap = new Map(schema.content.items.map((item) => [item.widget.widgetName, item]));
   // 布局项（分割线/按钮）无值无状态，不进入值表与校验序列。
   const dataItems = schema.content.items.filter((item) => !isLayoutWidgetType(item.widget.type));
+  // 显隐规则编译产物：无规则时整体短路，不产生任何求值开销（v5 设计方案 §6.1）。
+  const compiledRules: CompiledFieldShowRules = compileFieldShowRules(schema.content);
+  const ruleById = new Map(compiledRules.rules.map((rule) => [rule.id, rule]));
+  // 字段权限矩阵：未提供（预览/草稿回放）视为全量放行；提供后缺失键
+  // deny-by-default，与后端 FieldsForNew 投影同口径（设计方案 §4.2）。
+  const permissions = options.fieldPermissions;
+  const permissionVisible = (key: string): boolean =>
+    permissions === undefined || (permissions[key]?.visible ?? false);
+  const permissionEditable = (key: string): boolean =>
+    permissions === undefined || (permissions[key]?.editable ?? false);
+
+  /** 字段静态状态按保存值执行：visible 决定收集，enable 取反映射禁用；
+   * 权限矩阵叠加可见/可编辑合成（v5：静态 ∧ 权限 ∧ 规则）。 */
+  function createFieldState(item: FormItem): FieldRuntimeState {
+    const key = item.widget.widgetName;
+    return {
+      visible: item.widget.visible && permissionVisible(key),
+      envelopeVisible: item.widget.visible,
+      disabled: !item.widget.enable || !permissionEditable(key),
+      readonly: false,
+      touched: false,
+      validating: false,
+      errors: [],
+    };
+  }
 
   const state = reactive({
     values: {},
@@ -107,6 +152,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
       state.values[item.widget.widgetName] = pickInitialValue(item);
       state.fieldStates[item.widget.widgetName] = createFieldState(item);
     }
+    applyFieldShowRules();
   }
 
   /** 初始化优先级：已保存值 → 记录上下文默认值 → 类型化空值（Schema 静态 defaultValue 随 P5 规则执行）。 */
@@ -133,7 +179,80 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
       // 已出错的字段在输入时即时重校验，便于立刻清除错误；未触碰字段留待失焦校验。
       if (fieldState.errors.length > 0) validateField(key);
     }
-    // R2 扩展点：规则回写在此沿依赖图触发下游显隐/必填/计算。
+    // 显隐规则：仅重算变更字段的下游闭包（拓扑序），不做全量规则扫描。
+    recomputeDownstreamVisibility(key);
+  }
+
+  // ---- 显隐规则引擎（v5 设计方案 §4.2/§6.1） ----
+
+  /**
+   * 全量应用规则可见性（初始化/重置）。条件源基线 = 静态 ∧ 权限可见：
+   * 权限隐藏的条件源条件视为不成立，下游不得反推其值（设计方案 §4.2）。
+   */
+  function applyFieldShowRules(): void {
+    if (compiledRules.ownerRuleId.size === 0) return;
+    const visibility = evaluateFieldShowRules(compiledRules, {
+      valueOf: (field) => state.values[field],
+      isBaseVisible: baseReadable,
+      currentMemberId: options.currentMemberId,
+    });
+    for (const [target, matched] of visibility) {
+      setFieldVisible(target, matched);
+    }
+  }
+
+  /** 字段基础可达性（不含规则）：静态 visible ∧ 权限可见。 */
+  function baseReadable(field: string): boolean {
+    const widget = itemMap.get(field)?.widget;
+    return Boolean(widget?.visible) && permissionVisible(field);
+  }
+
+  /**
+   * 定向重算：沿依赖图收集变更字段的下游目标闭包并按拓扑序重算。
+   * 上游变化先落地再计算下一级，保证多级 A→B→C 的传播与全量求值一致；
+   * 条件源取当前有效可见性（隐藏源条件不成立，不读其值）。
+   */
+  function recomputeDownstreamVisibility(changedKey: string): void {
+    const affected = downstreamTargets(compiledRules, changedKey);
+    for (const target of affected) {
+      const ruleId = compiledRules.ownerRuleId.get(target);
+      const rule = ruleId ? ruleById.get(ruleId) : undefined;
+      const matched = rule
+        ? matchFieldShowRule(rule, {
+            valueOf: (field) => state.values[field],
+            isFieldVisible: (field) => effectiveVisible(field),
+            currentMemberId: options.currentMemberId,
+          })
+        : true;
+      setFieldVisible(target, matched);
+    }
+  }
+
+  /** 字段当前有效可见性：无状态字段回退静态值（防御）。 */
+  function effectiveVisible(field: string): boolean {
+    return state.fieldStates[field]?.visible ?? itemMap.get(field)?.widget.visible ?? false;
+  }
+
+  /**
+   * 可见性落地（双口径）：渲染可见 = 静态 ∧ 权限 ∧ 规则命中；信封可见 =
+   * 静态 ∧ 规则命中（与权限解耦，权限隐藏字段携带空 data）。隐藏保留
+   * 会话值（再次显示恢复原值）并清除该字段错误；重新显示时对已触碰字段
+   * 立即重校验（设计方案 §4.2 数据保留约定）。
+   */
+  function setFieldVisible(key: string, ruleMatched: boolean): void {
+    const fieldState = state.fieldStates[key];
+    const staticVisible = itemMap.get(key)?.widget.visible ?? false;
+    const nextVisible = staticVisible && permissionVisible(key) && ruleMatched;
+    const nextEnvelope = staticVisible && ruleMatched;
+    if (!fieldState) return;
+    if (fieldState.visible === nextVisible && fieldState.envelopeVisible === nextEnvelope) return;
+    fieldState.visible = nextVisible;
+    fieldState.envelopeVisible = nextEnvelope;
+    if (!nextVisible) {
+      fieldState.errors = [];
+    } else if (fieldState.touched) {
+      validateField(key);
+    }
   }
 
   function markTouched(key: string): void {
@@ -147,7 +266,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     const item = itemMap.get(key);
     const fieldState = state.fieldStates[key];
     if (!item || !fieldState) return [];
-    // 隐藏字段不校验（R2 显隐联动后由规则保证可见性）。
+    // 隐藏字段（静态或规则）不校验：显隐引擎已保证隐藏字段的可见性语义。
     if (!fieldState.visible) {
       fieldState.errors = [];
       return [];
@@ -210,10 +329,14 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     const values: Record<string, FormSubmittedFieldValue> = {};
     for (const item of dataItems) {
       const key = item.widget.widgetName;
-      const visible = state.fieldStates[key]?.visible ?? item.widget.visible;
-      const submitted: FormSubmittedFieldValue = { visible };
+      const fieldState = state.fieldStates[key];
+      // 信封 visible 与渲染 visible 分离：权限隐藏字段携带信封口径 + 空
+      // data，交由服务端权限管线复核回填（越权拒绝不在前端伪造）。
+      const visible = fieldState?.visible ?? item.widget.visible;
+      const envelope = fieldState?.envelopeVisible ?? item.widget.visible;
+      const submitted: FormSubmittedFieldValue = { visible: envelope };
       values[key] = submitted;
-      if (!visible) continue;
+      if (!visible || !permissionEditable(key)) continue;
       const value = state.values[key];
       if (value === undefined || value === null || value === '') continue;
       submitted.data = JSON.parse(JSON.stringify(value)) as FormValue;
@@ -335,18 +458,6 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
 function cloneFormValue(value: FormValue | undefined): FormValue {
   if (value === undefined || value === null) return null;
   return JSON.parse(JSON.stringify(value)) as FormValue;
-}
-
-/** 字段静态状态按保存值执行：visible 决定收集，enable 取反映射禁用。 */
-function createFieldState(item: FormItem): FieldRuntimeState {
-  return {
-    visible: item.widget.visible,
-    disabled: !item.widget.enable,
-    readonly: false,
-    touched: false,
-    validating: false,
-    errors: [],
-  };
 }
 
 /** 值相等判断：标量用同值比较，数组做浅比较；对象仅比较引用，避免热路径深比较。 */

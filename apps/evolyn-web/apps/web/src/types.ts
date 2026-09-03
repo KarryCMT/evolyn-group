@@ -586,6 +586,11 @@ export interface FormPublishResult {
 }
 
 /** GET /applications/code/:appCode/forms/:formCode/runtime 响应（运行时引导） */
+export interface FormRuntimeFieldPermissionInfo {
+  visible: boolean;
+  editable: boolean;
+}
+
 export interface FormRuntimeBootstrap {
   formCode: string;
   name: string;
@@ -593,6 +598,12 @@ export interface FormRuntimeBootstrap {
   schemaRevision: string;
   protocolVersion: number;
   content: FormSchemaDocument;
+  /** 权限组投影（无权限组基线下为全量放行矩阵；判定器未接入时缺省） */
+  permissions?: {
+    operations?: string[];
+    viewFields?: Record<string, FormRuntimeFieldPermissionInfo>;
+    addFields?: Record<string, FormRuntimeFieldPermissionInfo>;
+  };
 }
 
 /** POST /form-records 受理结果 */

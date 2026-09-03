@@ -268,7 +268,14 @@ internal/
                       FormPermissionDirectory + switch-type/发布阻塞；配置面
                       form-permissions 与数据面 form-data 动作资源注册表
                       （iam/authorization/actionresources.go）按管理员规则签
-                      名补授
+                      名补授；字段显隐规则（v5，本目录
+                      字段显隐规则设计方案.md）：content.fieldShowRules 表单级
+                      唯一事实源（条件树×目标字段，12 种值语义控件作条件源，
+                      方法×值形态矩阵封闭），前后端镜像结构校验器+依赖图环检测
+                      （schema.go/validate.ts）、纯求值器（service/rules.go 与
+                      packages/form schema/rules.ts，条件源不可见即条件不成立），
+                      提交终审按动态可见性复核信封 visible（含权限管线合成），
+                      运行时 setValue 沿编译产物定向重算下游可见性
   tenantproduct/    产品中心域（一期，小三层，docs/低代码平台/产品中心/）：
                       平台产品目录/租户产品配置/部门与成员范围关联（迁移
                       000033，四表 + lingyanyun seed + 存量租户回填，目录是

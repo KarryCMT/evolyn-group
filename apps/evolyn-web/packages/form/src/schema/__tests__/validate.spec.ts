@@ -48,7 +48,16 @@ function documentWith(items: unknown[]): unknown {
     const name = (item as { widget?: { widgetName?: unknown } })?.widget?.widgetName;
     return typeof name === 'string' ? [name] : [];
   });
-  return { content: { type: 'form', layout: 'normal', items, layout_fields: [], field_layout } };
+  return {
+    content: {
+      type: 'form',
+      layout: 'normal',
+      items,
+      layout_fields: [],
+      field_layout,
+      fieldShowRules: [],
+    },
+  };
 }
 
 describe('validateFormSchema 结构校验', () => {
@@ -76,8 +85,8 @@ describe('validateFormSchema 结构校验', () => {
     expect(result.issues).toEqual([]);
     expect(result.document).toEqual(input);
     // 深拷贝：修改结果不影响入参。
-    result.document!.content.items[0].label = '改名';
-    expect((input as FormSchemaDocument).content.items[0].label).toBe('单行文本');
+    result.document!.content.items[0]!.label = '改名';
+    expect((input as FormSchemaDocument).content.items[0]!.label).toBe('单行文本');
   });
 
   it('接受空表单', () => {
@@ -93,17 +102,24 @@ describe('validateFormSchema 结构校验', () => {
     }
     const invalid = documentWith([]) as { content: Record<string, unknown> };
     invalid.content.layout = 'grid-5';
-    expect(validateFormSchema(invalid).issues[0]).toMatchObject({ path: 'content.layout' });
+    expect(validateFormSchema(invalid).issues[0]!).toMatchObject({ path: 'content.layout' });
   });
 
   it('拒绝根/content 未知键与非法 type', () => {
     expect(
       validateFormSchema({
-        content: { type: 'form', layout: 'normal', items: [], layout_fields: [], field_layout: [] },
-        extra: 1,
-      }).issues[0].path,
+        content: {
+          type: 'form',
+          layout: 'normal',
+          items: [],
+          layout_fields: [],
+          field_layout: [],
+          fieldShowRules: [],
+          extra: 1,
+        },
+      }).issues[0]!.path,
     ).toBe('content.extra');
-    expect(validateFormSchema({ content: { type: 'page', items: [] } }).issues[0].path).toBe(
+    expect(validateFormSchema({ content: { type: 'page', items: [] } }).issues[0]!.path).toBe(
       'content.type',
     );
   });
@@ -113,7 +129,7 @@ describe('validateFormSchema 结构校验', () => {
     const misplaced = { ...textItem(), placeholder: 'x' };
     const result = validateFormSchema(documentWith([misplaced]));
     expect(result.valid).toBe(false);
-    expect(result.issues[0].path).toBe('content.items[0].placeholder');
+    expect(result.issues[0]!.path).toBe('content.items[0].placeholder');
   });
 
   it('拒绝 widget 层未知键并给出精确路径', () => {
@@ -121,13 +137,13 @@ describe('validateFormSchema 结构校验', () => {
     (item.widget as Record<string, unknown>).unknownProp = 1;
     const result = validateFormSchema(documentWith([item]));
     expect(result.valid).toBe(false);
-    expect(result.issues[0].path).toBe('content.items[0].widget.unknownProp');
+    expect(result.issues[0]!.path).toBe('content.items[0].widget.unknownProp');
   });
 
   it('拒绝未知控件类型', () => {
     const result = validateFormSchema(documentWith([textItem({ type: 'magic' })]));
     expect(result.valid).toBe(false);
-    expect(result.issues[0].path).toBe('content.items[0].widget.type');
+    expect(result.issues[0]!.path).toBe('content.items[0].widget.type');
   });
 
   it('公共布尔属性缺省/null 均拒绝', () => {
@@ -301,7 +317,7 @@ describe('validateFormSchema 结构校验', () => {
     };
     const result = validateFormSchema(documentWith([nestedSubform]));
     expect(result.valid).toBe(false);
-    expect(result.issues[0].message).toContain('子表单内不允许使用控件');
+    expect(result.issues[0]!.message).toContain('子表单内不允许使用控件');
   });
 
   it('27 种控件均可由字典工厂生成并通过校验', () => {
@@ -351,13 +367,14 @@ describe('validateFormSchema 结构校验', () => {
           },
         ],
         field_layout: ['_layout_tabs'],
+        fieldShowRules: [],
       },
     };
     expect(validateFormSchema(document).valid).toBe(true);
-    document.content.layout_fields[0].container[0].field_layout = ['_widget_child'];
+    document.content.layout_fields[0]!.container[0]!.field_layout = ['_widget_child'];
     const result = validateFormSchema(document);
     expect(result.valid).toBe(false);
-    expect(result.issues[0].path).toBe('content.layout_fields[0].container[0].field_layout[0]');
+    expect(result.issues[0]!.path).toBe('content.layout_fields[0].container[0].field_layout[0]');
   });
 
   it('拒绝字段在顶层与标签页重复放置', () => {
@@ -401,7 +418,7 @@ describe('validatePublishableFormSchema 发布白名单', () => {
       documentWith([createWidgetItem('text'), createWidgetItem('dept')]),
     );
     expect(result.valid).toBe(false);
-    expect(result.issues[0].path).toBe('content.items[1].widget.type');
+    expect(result.issues[0]!.path).toBe('content.items[1].widget.type');
   });
 
   it('子表单发布校验返回问题而非读取不存在的 content', () => {
@@ -441,18 +458,19 @@ describe('migrateFormSchema / cloneFormSchema', () => {
     expect(result.issues.length).toBeGreaterThan(0);
   });
 
-  it('v1 平铺文档无损迁移为 v4 引用结构与单列布局', () => {
+  it('v1 平铺文档无损迁移为当前版本引用结构与单列布局', () => {
     const item = textItem();
     const result = migrateFormSchema({ content: { type: 'form', items: [item] } }, 1);
     expect(result.document?.content.layout_fields).toEqual([]);
     expect(result.document?.content.field_layout).toEqual(['_widget_a1']);
     expect(result.document?.content.layout).toBe('normal');
-    expect(result.protocolVersion).toBe(4);
+    expect(result.protocolVersion).toBe(5);
   });
 
-  it('v2 引用文档迁移为 v3 时补单列布局', () => {
+  it('v2 引用文档迁移为当前版本时补单列布局', () => {
     const current = documentWith([textItem()]);
-    const { layout: _layout, ...content } = current.content;
+    const { layout: _layout, ...rest } = (current as { content: Record<string, unknown> }).content;
+    const content: Record<string, unknown> = rest;
     const result = migrateFormSchema({ content }, 2);
     expect(result.document?.content.layout).toBe('normal');
     expect(result.document?.content.field_layout).toEqual(['_widget_a1']);
@@ -472,3 +490,279 @@ describe('migrateFormSchema / cloneFormSchema', () => {
     expect(first).not.toBe(second);
   });
 });
+
+describe('validateFormSchema 字段显隐规则（v5）', () => {
+  it('接受合法规则并深拷贝返回', () => {
+    const result = validateFormSchema(
+      rulesDocument([
+        {
+          id: '_field_show_rule_01',
+          filter: {
+            rel: 'or',
+            cond: [
+              { field: '_widget_src', type: 'text', method: 'contains', value: ['外出'] },
+              { field: '_widget_num', type: 'number', method: 'between', value: [1, 10] },
+            ],
+          },
+          fields: ['_widget_target'],
+        },
+      ]),
+    );
+    expect(result.issues).toEqual([]);
+    expect(result.document?.content.fieldShowRules).toHaveLength(1);
+  });
+
+  it('缺 fieldShowRules 键或非数组拒绝', () => {
+    const missing = documentWith([textItem()]) as { content: Record<string, unknown> };
+    delete missing.content.fieldShowRules;
+    expect(validateFormSchema(missing).issues[0]!).toMatchObject({
+      path: 'content.fieldShowRules',
+    });
+    expect(validateFormSchema(rulesDocument('nope')).issues[0]!.path).toBe(
+      'content.fieldShowRules',
+    );
+  });
+
+  it('未知键 / 未知条件字段 / 类型指纹不一致 / 方法越界拒绝', () => {
+    const bad = [
+      {
+        id: 'r1',
+        filter: { rel: 'and', cond: [conditionOf()] },
+        fields: ['_widget_target'],
+        extra: 1,
+      },
+      {
+        id: 'r2',
+        filter: {
+          rel: 'and',
+          cond: [{ field: '_widget_missing', type: 'text', method: 'eq', value: ['甲'] }],
+        },
+        fields: ['_widget_target'],
+      },
+      {
+        id: 'r3',
+        filter: {
+          rel: 'and',
+          cond: [{ field: '_widget_src', type: 'number', method: 'eq', value: ['甲'] }],
+        },
+        fields: ['_widget_target'],
+      },
+      {
+        id: 'r4',
+        filter: {
+          rel: 'and',
+          cond: [{ field: '_widget_src', type: 'text', method: 'between', value: [1, 2] }],
+        },
+        fields: ['_widget_target'],
+      },
+    ];
+    const result = validateFormSchema(rulesDocument(bad));
+    expect(result.valid).toBe(false);
+    expect(result.issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining([
+        'content.fieldShowRules[0].extra',
+        'content.fieldShowRules[1].filter.cond[0].field',
+        'content.fieldShowRules[2].filter.cond[0].type',
+        'content.fieldShowRules[3].filter.cond[0].method',
+      ]),
+    );
+  });
+
+  it('空值方法不允许携带 value；比较方法缺少 value 拒绝', () => {
+    const result = validateFormSchema(
+      rulesDocument([
+        {
+          id: 'r1',
+          filter: {
+            rel: 'and',
+            cond: [{ field: '_widget_src', type: 'text', method: 'isEmpty', value: [] }],
+          },
+          fields: ['_widget_target'],
+        },
+        {
+          id: 'r2',
+          filter: { rel: 'and', cond: [{ field: '_widget_src', type: 'text', method: 'eq' }] },
+          fields: ['_widget_num'],
+        },
+      ]),
+    );
+    expect(result.issues.map((issue) => issue.path)).toEqual(
+      expect.arrayContaining([
+        'content.fieldShowRules[0].filter.cond[0].value',
+        'content.fieldShowRules[1].filter.cond[0].value',
+      ]),
+    );
+  });
+
+  it('between 上下界倒置拒绝', () => {
+    const result = validateFormSchema(
+      rulesDocument([
+        {
+          id: 'r1',
+          filter: {
+            rel: 'and',
+            cond: [{ field: '_widget_num', type: 'number', method: 'between', value: [10, 1] }],
+          },
+          fields: ['_widget_target'],
+        },
+      ]),
+    );
+    expect(result.issues[0]!.path).toBe('content.fieldShowRules[0].filter.cond[0].value');
+  });
+
+  it('静态隐藏字段不能作为条件源或目标', () => {
+    const hiddenSource = textItem({ widgetName: '_widget_hidden_src', visible: false });
+    const hiddenTarget = textItem({ widgetName: '_widget_hidden_target', visible: false });
+    const result = validateFormSchema(
+      rulesDocument(
+        [
+          {
+            id: 'r1',
+            filter: {
+              rel: 'and',
+              cond: [{ field: '_widget_hidden_src', type: 'text', method: 'eq', value: ['甲'] }],
+            },
+            fields: ['_widget_hidden_target'],
+          },
+        ],
+        [hiddenSource, hiddenTarget],
+      ),
+    );
+    expect(result.issues.map((issue) => issue.message)).toEqual(
+      expect.arrayContaining([
+        '条件字段「_widget_hidden_src」是静态隐藏字段，不能作为条件源',
+        '目标字段「_widget_hidden_target」是静态隐藏字段，不能作为显隐目标',
+      ]),
+    );
+  });
+
+  it('布局控件不能作为目标；同一目标被两条规则使用拒绝', () => {
+    const separator = textItem({ type: 'separator', widgetName: '_widget_sep' });
+    const ruleOf = (id: string, target: string) => ({
+      id,
+      filter: { rel: 'and', cond: [conditionOf()] },
+      fields: [target],
+    });
+    const result = validateFormSchema(
+      rulesDocument(
+        [
+          ruleOf('r1', '_widget_target'),
+          ruleOf('r2', '_widget_target'),
+          ruleOf('r3', '_widget_sep'),
+        ],
+        [separator],
+      ),
+    );
+    expect(result.issues.map((issue) => issue.message)).toEqual(
+      expect.arrayContaining([
+        '布局控件「_widget_sep」不能作为显隐目标',
+        '目标字段「_widget_target」已被规则「r1」使用',
+      ]),
+    );
+  });
+
+  it('自引用与依赖图成环拒绝并定位规则路径', () => {
+    // r1: src → target；r2: target → num；r3: num → src（闭环）。
+    const rules = [
+      {
+        id: 'r1',
+        filter: {
+          rel: 'and',
+          cond: [{ field: '_widget_src', type: 'text', method: 'eq', value: ['甲'] }],
+        },
+        fields: ['_widget_target'],
+      },
+      {
+        id: 'r2',
+        filter: {
+          rel: 'and',
+          cond: [{ field: '_widget_target', type: 'text', method: 'notEmpty' }],
+        },
+        fields: ['_widget_num'],
+      },
+      {
+        id: 'r3',
+        filter: {
+          rel: 'and',
+          cond: [{ field: '_widget_num', type: 'number', method: 'notEmpty' }],
+        },
+        fields: ['_widget_src'],
+      },
+    ];
+    const result = validateFormSchema(rulesDocument(rules));
+    expect(result.valid).toBe(false);
+    expect(result.issues[0]!.message).toContain('循环依赖');
+    expect(result.issues[0]!.message).toContain(
+      '_widget_src → _widget_target → _widget_num → _widget_src',
+    );
+    expect(result.issues[0]!.path).toMatch(/^content\.fieldShowRules\[\d+\]\.fields\[\d+\]$/);
+  });
+
+  it('v4 文档迁移为 v5 时补空规则数组', () => {
+    const v4 = documentWith([textItem()]) as { content: Record<string, unknown> };
+    delete v4.content.fieldShowRules;
+    const migrated = migrateFormSchema(v4, 4);
+    expect(migrated.issues).toEqual([]);
+    expect(migrated.document?.content.fieldShowRules).toEqual([]);
+    expect(migrated.protocolVersion).toBe(5);
+  });
+});
+
+describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
+  it('发布版本未开放运行能力的字段不能作为条件源', () => {
+    const dept = textItem({ type: 'dept', widgetName: '_widget_dept' });
+    const target = textItem({ widgetName: '_widget_target' });
+    const doc = {
+      content: {
+        type: 'form',
+        layout: 'normal',
+        items: [dept, target],
+        layout_fields: [],
+        field_layout: ['_widget_dept', '_widget_target'],
+        fieldShowRules: [
+          {
+            id: 'r1',
+            filter: {
+              rel: 'and',
+              cond: [{ field: '_widget_dept', type: 'dept', method: 'eq', value: ['d1'] }],
+            },
+            fields: ['_widget_target'],
+          },
+        ],
+      },
+    };
+    const result = validatePublishableFormSchema(doc);
+    // 控件白名单与条件源白名单同时产出精确路径错误。
+    expect(result.issues.map((issue) => issue.message)).toEqual(
+      expect.arrayContaining([
+        '控件「dept」的运行能力尚未开放，暂不能发布',
+        '条件字段「_widget_dept」的运行能力尚未开放，暂不能发布',
+      ]),
+    );
+    expect(
+      result.issues.find((issue) => issue.path === 'content.fieldShowRules[0].filter.cond[0].field')
+        ?.message,
+    ).toBe('条件字段「_widget_dept」的运行能力尚未开放，暂不能发布');
+  });
+});
+
+/** 条件构造助手：默认 text 源字段 eq 甲。 */
+function conditionOf() {
+  return { field: '_widget_src', type: 'text', method: 'eq', value: ['甲'] };
+}
+
+/** 构造带显隐规则的完整文档：text 源字段 + text 目标字段 + number 字段。 */
+function rulesDocument(rules: unknown, extraItems: unknown[] = []): unknown {
+  const items = [
+    textItem({ widgetName: '_widget_src' }),
+    textItem({ widgetName: '_widget_target' }),
+    textItem({ type: 'number', widgetName: '_widget_num' }),
+    ...extraItems,
+  ];
+  return {
+    content: {
+      ...(documentWith(items) as { content: Record<string, unknown> }).content,
+      fieldShowRules: rules,
+    },
+  };
+}

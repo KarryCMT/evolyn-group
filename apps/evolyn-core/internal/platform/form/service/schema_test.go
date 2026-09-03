@@ -56,6 +56,7 @@ func doc(items ...any) []byte {
 	}
 	raw, _ := json.Marshal(map[string]any{"content": map[string]any{
 		"type": "form", "layout": "normal", "items": items, "layout_fields": []any{}, "field_layout": fieldLayout,
+		"fieldShowRules": []any{},
 	}})
 	return raw
 }
@@ -76,7 +77,8 @@ func TestValidateFormSchemaMultitabWithSubformReference(t *testing.T) {
 				"field_layout": []any{"_widget_sub"},
 			}},
 		}},
-		"field_layout": []any{"_layout_tabs"},
+		"field_layout":   []any{"_layout_tabs"},
+		"fieldShowRules": []any{},
 	}}
 	raw, _ := json.Marshal(document)
 	assert.Empty(t, ValidateFormSchema(raw))
@@ -327,4 +329,194 @@ func containsPath(issues []SchemaIssue, path string) bool {
 		}
 	}
 	return false
+}
+
+// ---- v5 字段显隐规则结构校验（与 TS validate.spec.ts 对拍） ----
+
+func showRule(id, field, typ, method string, value []any, targets ...string) map[string]any {
+	condition := map[string]any{"field": field, "type": typ, "method": method}
+	if value != nil {
+		condition["value"] = value
+	}
+	return map[string]any{
+		"id":     id,
+		"filter": map[string]any{"rel": "and", "cond": []any{condition}},
+		"fields": toAnySlice(targets),
+	}
+}
+
+func toAnySlice(values []string) []any {
+	out := make([]any, 0, len(values))
+	for _, value := range values {
+		out = append(out, value)
+	}
+	return out
+}
+
+func rulesDoc(rules []any, items ...map[string]any) []byte {
+	anyItems := make([]any, 0, len(items))
+	for _, item := range items {
+		anyItems = append(anyItems, item)
+	}
+	content := stringMapOfDoc(doc(anyItems...))
+	content["fieldShowRules"] = rules
+	raw, _ := json.Marshal(map[string]any{"content": content})
+	return raw
+}
+
+func stringMapOfDoc(raw []byte) map[string]any {
+	var parsed map[string]any
+	_ = json.Unmarshal(raw, &parsed)
+	content, _ := parsed["content"].(map[string]any)
+	return content
+}
+
+func TestValidateFieldShowRulesAcceptsValidRule(t *testing.T) {
+	source := validTextItem()
+	source["widget"].(map[string]any)["widgetName"] = "_widget_src"
+	target := validTextItem()
+	target["widget"].(map[string]any)["widgetName"] = "_widget_target"
+	assert.Empty(t, ValidateFormSchema(rulesDoc([]any{
+		showRule("r1", "_widget_src", "text", "eq", []any{"甲"}, "_widget_target"),
+	}, source, target)))
+}
+
+func TestValidateFieldShowRulesRequiredKey(t *testing.T) {
+	// v5 起必填：缺失或非数组均拒绝。
+	raw := doc(validTextItem())
+	content := stringMapOfDoc(raw)
+	delete(content, "fieldShowRules")
+	rawWithout, _ := json.Marshal(map[string]any{"content": content})
+	issues := ValidateFormSchema(rawWithout)
+	assert.True(t, containsPath(issues, "content.fieldShowRules"))
+}
+
+func TestValidateFieldShowRulesUnknownFieldAndFingerprint(t *testing.T) {
+	source := validTextItem()
+	source["widget"].(map[string]any)["widgetName"] = "_widget_src"
+	target := validTextItem()
+	target["widget"].(map[string]any)["widgetName"] = "_widget_target"
+
+	issues := ValidateFormSchema(rulesDoc([]any{
+		showRule("r1", "_widget_missing", "text", "eq", []any{"甲"}, "_widget_target"),
+	}, source, target))
+	assert.True(t, containsPath(issues, "content.fieldShowRules[0].filter.cond[0].field"))
+
+	issues = ValidateFormSchema(rulesDoc([]any{
+		showRule("r1", "_widget_src", "number", "eq", []any{1.0}, "_widget_target"),
+	}, source, target))
+	assert.True(t, containsPath(issues, "content.fieldShowRules[0].filter.cond[0].type"))
+
+	issues = ValidateFormSchema(rulesDoc([]any{
+		showRule("r1", "_widget_src", "text", "between", []any{1.0, 2.0}, "_widget_target"),
+	}, source, target))
+	assert.True(t, containsPath(issues, "content.fieldShowRules[0].filter.cond[0].method"))
+}
+
+func TestValidateFieldShowRulesEmptyMethodAndValueShape(t *testing.T) {
+	source := validTextItem()
+	source["widget"].(map[string]any)["widgetName"] = "_widget_src"
+	target := validTextItem()
+	target["widget"].(map[string]any)["widgetName"] = "_widget_target"
+
+	rule := showRule("r1", "_widget_src", "text", "isEmpty", []any{}, "_widget_target")
+	issues := ValidateFormSchema(rulesDoc([]any{rule}, source, target))
+	assert.True(t, containsPath(issues, "content.fieldShowRules[0].filter.cond[0].value"))
+
+	rule = showRule("r1", "_widget_src", "text", "eq", nil, "_widget_target")
+	issues = ValidateFormSchema(rulesDoc([]any{rule}, source, target))
+	assert.True(t, containsPath(issues, "content.fieldShowRules[0].filter.cond[0].value"))
+
+	// eq 恰 1 项。
+	rule = showRule("r1", "_widget_src", "text", "eq", []any{"甲", "乙"}, "_widget_target")
+	issues = ValidateFormSchema(rulesDoc([]any{rule}, source, target))
+	assert.True(t, containsPath(issues, "content.fieldShowRules[0].filter.cond[0].value"))
+}
+
+func TestValidateFieldShowRulesStaticHiddenAndLayoutTargets(t *testing.T) {
+	source := validTextItem()
+	source["widget"].(map[string]any)["widgetName"] = "_widget_src"
+	hidden := validTextItem()
+	hidden["widget"].(map[string]any)["widgetName"] = "_widget_hidden"
+	hidden["widget"].(map[string]any)["visible"] = false
+	target := validTextItem()
+	target["widget"].(map[string]any)["widgetName"] = "_widget_target"
+	separator := map[string]any{
+		"widget": map[string]any{
+			"type": "separator", "widgetName": "_widget_sep",
+			"enable": true, "visible": true, "allowBlank": true,
+		},
+		"label": "", "description": "", "labelHidden": false, "lineWidth": 12,
+	}
+
+	// 静态隐藏字段既不能作为条件源也不能作为目标。
+	issues := ValidateFormSchema(rulesDoc([]any{
+		showRule("r1", "_widget_hidden", "text", "eq", []any{"甲"}, "_widget_target"),
+	}, source, hidden, target))
+	assert.True(t, containsPath(issues, "content.fieldShowRules[0].filter.cond[0].field"))
+
+	issues = ValidateFormSchema(rulesDoc([]any{
+		showRule("r1", "_widget_src", "text", "eq", []any{"甲"}, "_widget_hidden"),
+	}, source, hidden, target))
+	assert.True(t, containsPath(issues, "content.fieldShowRules[0].fields[0]"))
+
+	// 布局控件不能作为目标。
+	issues = ValidateFormSchema(rulesDoc([]any{
+		showRule("r1", "_widget_src", "text", "eq", []any{"甲"}, "_widget_sep"),
+	}, source, target, separator))
+	assert.True(t, containsPath(issues, "content.fieldShowRules[0].fields[0]"))
+
+	// 同一目标被两条规则使用拒绝。
+	issues = ValidateFormSchema(rulesDoc([]any{
+		showRule("r1", "_widget_src", "text", "eq", []any{"甲"}, "_widget_target"),
+		showRule("r2", "_widget_src", "text", "ne", []any{"乙"}, "_widget_target"),
+	}, source, target))
+	assert.True(t, containsPath(issues, "content.fieldShowRules[1].fields[0]"))
+}
+
+func TestValidateFieldShowRuleCycle(t *testing.T) {
+	source := validTextItem()
+	source["widget"].(map[string]any)["widgetName"] = "_widget_src"
+	mid := validTextItem()
+	mid["widget"].(map[string]any)["widgetName"] = "_widget_mid"
+	numberField := map[string]any{
+		"widget": map[string]any{
+			"type": "number", "widgetName": "_widget_num",
+			"enable": true, "visible": true, "allowBlank": true,
+		},
+		"label": "数字", "description": "", "labelHidden": false, "lineWidth": 12,
+	}
+	// src → mid → num → src 闭环。
+	issues := ValidateFormSchema(rulesDoc([]any{
+		showRule("r1", "_widget_src", "text", "eq", []any{"甲"}, "_widget_mid"),
+		showRule("r2", "_widget_mid", "text", "notEmpty", nil, "_widget_num"),
+		showRule("r3", "_widget_num", "number", "notEmpty", nil, "_widget_src"),
+	}, source, mid, numberField))
+	assert.True(t, len(issues) > 0)
+	assert.Contains(t, issues[0].Message, "循环依赖")
+	assert.Contains(t, issues[0].Message, "_widget_src → _widget_mid → _widget_num → _widget_src")
+	assert.Regexp(t, `^content\.fieldShowRules\[\d+\]\.fields\[\d+\]$`, issues[0].Path)
+}
+
+func TestValidatePublishableConditionSource(t *testing.T) {
+	dept := map[string]any{
+		"widget": map[string]any{
+			"type": "dept", "widgetName": "_widget_dept",
+			"enable": true, "visible": true, "allowBlank": true,
+		},
+		"label": "部门", "description": "", "labelHidden": false, "lineWidth": 12,
+	}
+	target := validTextItem()
+	target["widget"].(map[string]any)["widgetName"] = "_widget_target"
+	issues := ValidatePublishable(rulesDoc([]any{
+		showRule("r1", "_widget_dept", "dept", "eq", []any{"d1"}, "_widget_target"),
+	}, dept, target))
+	found := false
+	for _, issue := range issues {
+		if issue.Path == "content.fieldShowRules[0].filter.cond[0].field" &&
+			issue.Message == "条件字段「_widget_dept」的运行能力尚未开放，暂不能发布" {
+			found = true
+		}
+	}
+	assert.True(t, found)
 }

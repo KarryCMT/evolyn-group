@@ -69,15 +69,25 @@ const multiChoicesValue = computed<string[]>({
   get: () => (Array.isArray(props.modelValue) ? props.modelValue.filter(isString) : []),
   set: (value) => emit('update:modelValue', value),
 });
-const dateType = computed(() => dateWidget.value.format ?? 'datetime');
+// time 无日期语义，走独立的 el-time-picker；其余格式映射 el-date-picker 类型。
+const isTimeFormat = computed(() => (dateWidget.value.format ?? 'datetime') === 'time');
+const dateType = computed<'date' | 'datetime' | 'month'>(() => {
+  switch (dateWidget.value.format ?? 'datetime') {
+    case 'date':
+      return 'date';
+    case 'month':
+      return 'month';
+    default:
+      return 'datetime';
+  }
+});
 const dateValueFormat = computed(() => {
+  if (isTimeFormat.value) return 'HH:mm';
   switch (dateType.value) {
     case 'date':
       return 'YYYY-MM-DD';
     case 'month':
       return 'YYYY-MM';
-    case 'time':
-      return 'HH:mm';
     default:
       return 'YYYY-MM-DD HH:mm:ss';
   }
@@ -133,6 +143,19 @@ function isString(value: unknown): value is string {
     :max="numberWidget.max ?? undefined"
     :precision="numberWidget.precision ?? undefined"
     :controls="false"
+    :disabled="readOnlyDisabled"
+    :aria-required="!item.widget.allowBlank || undefined"
+    :aria-invalid="errors.length > 0 || undefined"
+    :aria-describedby="describedBy"
+    @blur="emit('blur')"
+  />
+  <el-time-picker
+    v-else-if="type === 'datetime' && isTimeFormat"
+    :id="inputId"
+    v-model="dateValue"
+    class="evf-web-basic-field__date"
+    value-format="HH:mm"
+    :placeholder="dateWidget.placeholder || '请选择时间'"
     :disabled="readOnlyDisabled"
     :aria-required="!item.widget.allowBlank || undefined"
     :aria-invalid="errors.length > 0 || undefined"

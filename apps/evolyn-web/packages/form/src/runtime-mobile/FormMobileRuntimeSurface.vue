@@ -5,7 +5,13 @@ import type { FormRuntimeAdapter } from '../runtime/adapters/types';
 import type { FormRuntimeActionDefinition } from '../runtime/actions/types';
 import type { FormRendererExpose } from '../runtime/renderer/types';
 import type { FormRuntime } from '../runtime/store/createFormRuntime';
-import type { FormDraftPayload, FormIssue, FormSubmitPayload, FormValue } from '../runtime/types';
+import type {
+  FormDraftPayload,
+  FormIssue,
+  FormRuntimeFieldPermission,
+  FormSubmitPayload,
+  FormValue,
+} from '../runtime/types';
 import type { FormFieldRegistry } from '../runtime/widgets/registry';
 import FormRenderer from '../runtime/renderer/FormRenderer.vue';
 import { createMobileFieldRegistry } from '../runtime/widgets/registry';
@@ -22,6 +28,10 @@ const props = withDefaults(
     schemaRevision?: string;
     initialValues?: Record<string, FormValue>;
     contextDefaults?: Record<string, FormValue>;
+    /** 当前登录成员 ID：显隐规则 includeCurrentMember 的注入源。 */
+    currentMemberId?: string;
+    /** 字段权限矩阵（bootstrap permissions 按模式投影）；未提供全量放行。 */
+    fieldPermissions?: Record<string, FormRuntimeFieldPermission>;
     adapter?: FormRuntimeAdapter;
     registry?: FormFieldRegistry;
     actions?: readonly FormRuntimeActionDefinition[];
@@ -33,6 +43,8 @@ const props = withDefaults(
     schemaRevision: '',
     initialValues: undefined,
     contextDefaults: undefined,
+    currentMemberId: undefined,
+    fieldPermissions: undefined,
     adapter: undefined,
     registry: undefined,
     actions: () => [],
@@ -127,6 +139,8 @@ defineExpose({
           :schema-revision="props.schemaRevision"
           :initial-values="props.initialValues"
           :context-defaults="props.contextDefaults"
+          :current-member-id="props.currentMemberId"
+          :field-permissions="props.fieldPermissions"
           :adapter="props.adapter"
           :registry="resolvedRegistry"
           :multitab-renderer="FormMobileMultitabRenderer"

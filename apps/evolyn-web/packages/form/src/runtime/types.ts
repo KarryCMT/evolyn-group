@@ -17,12 +17,30 @@ export type FormRuntimeOperation = 'submit' | 'save-draft';
 
 /** 单字段运行时状态；FieldHost 只按自身 widgetName 订阅，避免整表重渲染。 */
 export interface FieldRuntimeState {
+  /**
+   * 渲染可见性（v5 设计方案 §4.2）：静态 visible ∧ 权限可见 ∧ 显隐规则命中，
+   * 决定字段是否渲染、校验与本地交互。
+   */
   visible: boolean;
+  /**
+   * 信封可见性（提交口径）：静态 visible ∧ 显隐规则命中，与资产权限解耦——
+   * 权限隐藏字段照常携带该口径 + 空 data，由服务端权限管线复核回填。
+   */
+  envelopeVisible: boolean;
   disabled: boolean;
   readonly: boolean;
   touched: boolean;
   validating: boolean;
   errors: readonly string[];
+}
+
+/**
+ * 字段权限矩阵输入（bootstrap permissions 按模式投影的单矩阵）：
+ * 未提供（预览/草稿回放）视为全量放行；提供后缺失键按 deny-by-default。
+ */
+export interface FormRuntimeFieldPermission {
+  visible: boolean;
+  editable: boolean;
 }
 
 /** 表单级问题：字段错误按 widgetName 关联，非字段错误（提交失败等）展示在操作区摘要。 */

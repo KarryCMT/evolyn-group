@@ -5,7 +5,7 @@ import { isLayoutWidgetType } from '../../schema/codec';
 import { sanitizeRichTextDescription } from '../../schema/richTextDescription';
 import { fieldDescriptionId, fieldErrorId, fieldInputId, fieldLabelId } from '../field-dom';
 import { useFormRendererContext } from '../store/injection';
-import type { FormValue } from '../types';
+import type { FieldRuntimeState, FormValue } from '../types';
 import UnsupportedField from '../widgets/base/UnsupportedField.vue';
 import FormFieldError from './FormFieldError.vue';
 
@@ -25,14 +25,25 @@ const rootRef = ref<HTMLElement | null>(null);
 const widgetName = computed(() => props.item.widget.widgetName);
 const isLayout = computed(() => isLayoutWidgetType(props.item.widget.type));
 const widget = computed<Component | null>(() => registry.resolve(props.item.widget.type));
-const state = computed(() => runtime.value?.state.fieldStates[widgetName.value]);
+const state = computed<FieldRuntimeState>(
+  () =>
+    runtime.value?.state.fieldStates[widgetName.value] ?? {
+      visible: false,
+      envelopeVisible: false,
+      disabled: false,
+      readonly: false,
+      touched: false,
+      validating: false,
+      errors: [],
+    },
+);
 const modelValue = computed<FormValue>(() => runtime.value?.state.values[widgetName.value] ?? null);
 /**
  * 分割线等布局项没有填写值，运行时不会为它们建立 fieldState；其显示状态直接
  * 由 Schema 控件配置决定，避免被数据字段的 state?.visible 错误过滤掉。
  */
 const isVisible = computed(() =>
-  isLayout.value ? props.item.widget.visible : (state.value?.visible ?? false),
+  isLayout.value ? props.item.widget.visible : state.value.visible,
 );
 const showDescription = computed(() => props.item.description !== '');
 const descriptionHtml = computed(() => sanitizeRichTextDescription(props.item.description));
@@ -89,10 +100,10 @@ onBeforeUnmount(() => {
     ref="rootRef"
     class="evf-field"
     :class="{
-      'evf-field--error': (state?.errors.length ?? 0) > 0,
+      'evf-field--error': state.errors.length > 0,
       'evf-field--layout': isLayout,
-      'evf-field--disabled': state?.disabled ?? false,
-      'evf-field--readonly': state?.readonly ?? false,
+      'evf-field--disabled': state.disabled,
+      'evf-field--readonly': state.readonly,
       'evf-field--compact-full-row': isCompactFullRow,
     }"
     :style="isLayout ? undefined : { '--evf-field-span': span }"

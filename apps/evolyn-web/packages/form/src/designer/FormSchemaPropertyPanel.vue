@@ -106,7 +106,32 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="字段显隐规则">
+          <div class="form-schema-property__show-rules">
+            <span class="form-schema-property__show-rules-meta">
+              {{
+                fieldShowRules.length > 0
+                  ? `已配置 ${fieldShowRules.length} 条规则`
+                  : '按条件动态显示或隐藏字段'
+              }}
+            </span>
+            <el-button size="small" @click="showRulesDrawer = true">
+              {{ fieldShowRules.length > 0 ? '管理规则' : '添加显隐规则' }}
+            </el-button>
+          </div>
+        </el-form-item>
       </el-form>
+      <FormSchemaFieldShowRulesDrawer
+        v-if="schemaDocument"
+        v-model="showRulesDrawer"
+        :rules="fieldShowRules"
+        :document="schemaDocument"
+        :items="schemaDocument.content.items"
+        @save-rule="$emit('save-field-show-rule', $event)"
+        @remove-rule="$emit('remove-field-show-rule', $event)"
+        @duplicate-rule="$emit('duplicate-field-show-rule', $event)"
+        @reorder-rules="$emit('reorder-field-show-rules', $event)"
+      />
     </EvolynScrollbar>
   </aside>
 </template>
@@ -116,9 +141,11 @@ import { computed, ref, shallowRef, watch } from 'vue';
 import { EvolynScrollbar } from '@evolyn.do/ui';
 import { ElForm, ElFormItem, ElInput, ElOption, ElSegmented, ElSelect } from 'element-plus';
 import type {
+  FieldShowRule,
   FormItem,
   FormLayoutMode,
   FormMultitabLayout,
+  FormSchemaDocument,
   FormTabStyle,
   SubformWidget,
   CheckboxGroupWidget,
@@ -137,6 +164,7 @@ import FormSchemaPropertySection from './properties/FormSchemaPropertySection.vu
 import SubformPropertyPanel from './properties/SubformPropertyPanel.vue';
 import TextareaPropertyPanel from './properties/TextareaPropertyPanel.vue';
 import TextPropertyPanel from './properties/TextPropertyPanel.vue';
+import FormSchemaFieldShowRulesDrawer from './FormSchemaFieldShowRulesDrawer.vue';
 
 /**
  * 字段属性面板：编辑 item 公共属性与按 widget.type 分派的专属配置。
@@ -150,6 +178,9 @@ const props = withDefaults(
     formLayout?: FormLayoutMode;
     formName?: string;
     formNameSaving?: boolean;
+    /** 协议文档：显隐规则抽屉的候选校验与字段清单数据源。 */
+    schemaDocument?: FormSchemaDocument;
+    fieldShowRules?: FieldShowRule[];
   }>(),
   {
     item: undefined,
@@ -157,6 +188,8 @@ const props = withDefaults(
     formLayout: 'normal',
     formName: '',
     formNameSaving: false,
+    schemaDocument: undefined,
+    fieldShowRules: () => [],
   },
 );
 
@@ -171,7 +204,13 @@ const emit = defineEmits<{
   'duplicate-tab': [tabName: string];
   'rename-tab': [tabName: string, title: string];
   'reorder-tabs': [tabNames: string[]];
+  'save-field-show-rule': [rule: FieldShowRule];
+  'remove-field-show-rule': [ruleId: string];
+  'duplicate-field-show-rule': [ruleId: string];
+  'reorder-field-show-rules': [ruleIds: string[]];
 }>();
+
+const showRulesDrawer = shallowRef(false);
 
 const activeTab = shallowRef<'field' | 'form'>('field');
 const propertyTabs: Array<{ label: string; value: 'field' | 'form' }> = [
@@ -388,6 +427,19 @@ function updateFormName(): void {
     line-height: 1.5;
     background: var(--el-fill-color-lighter);
     border-radius: var(--el-border-radius-base);
+  }
+
+  &__show-rules {
+    display: flex;
+    gap: var(--el-space-sm);
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  &__show-rules-meta {
+    font-size: var(--el-font-size-extra-small);
+    color: var(--el-text-color-secondary);
   }
 }
 </style>

@@ -182,7 +182,7 @@ function choosingVerb(type: string): string {
 
 function validateTextValue(
   label: string,
-  widget: Extract<FormItemWidget, { type: 'text' | 'textarea' }>,
+  widget: Extract<FormItemWidget, { type: 'text' }> | Extract<FormItemWidget, { type: 'textarea' }>,
   value: unknown,
 ): string[] {
   if (typeof value !== 'string') return [`${label}的值类型不正确`];
@@ -195,7 +195,12 @@ function validateTextValue(
   if (maxLength !== undefined && maxLength !== null && value.length > maxLength) {
     errors.push(`${label}不能超过 ${maxLength} 个字符`);
   }
-  if (widget.format === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+  // format 仅单行文本支持邮箱校验；多行文本联合类型上不存在该键。
+  if (
+    widget.type === 'text' &&
+    widget.format === 'email' &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)
+  ) {
     errors.push(`${label}格式不正确`);
   }
   return errors;
@@ -316,7 +321,8 @@ function isRealDate(year: number, month: number, day: number): boolean {
   if (month < 1 || month > 12 || day < 1) return false;
   const leap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
   const daysInMonth = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-  return day <= daysInMonth[month - 1];
+  // month 已收窄 1–12；索引访问的 undefined 分支兜底为大月，保持布尔语义。
+  return day <= (daysInMonth[month - 1] ?? 31);
 }
 
 // ---- JSON 安全兜底 ----

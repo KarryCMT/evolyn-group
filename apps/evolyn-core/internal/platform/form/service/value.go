@@ -101,14 +101,42 @@ func ExtractSnapshotTopFieldKeys(root map[string]any) []string {
 
 // ValidateRecordValues 校验并清洗提交值：返回可直接落库的 values 与按 widgetName
 // 回填的错误集合。values 的键为 widgetName、值为 JSON 原文（逐字段原样收网）。
+// v5 起按字段显隐规则动态求值：静态隐藏字段携值拒绝；规则隐藏字段按
+// 「正式记录只保存有效可见字段的值」收网为 null（本入口供流程写回等系统
+// 合并路径复用，客户端伪造隐藏在包装协议入口先行拒绝）。
 func ValidateRecordValues(
 	content map[string]any,
 	rawValues map[string]json.RawMessage,
+) (map[string]any, RecordFieldErrors) {
+	// 写回路径无提交人身份上下文：includeCurrentMember 以匿名口径求值
+	// （不注入任何成员），保证按快照+值的重算确定性。
+	return validateRecordValues(content, rawValues, nil, "")
+}
+
+// validateRecordValues 终审核心；baseReadable 为 nil 时按快照静态 visible
+// 作为规则条件源可达性基线，权限管线可注入「静态 ∧ 权限可见」的合成基线。
+func validateRecordValues(
+	content map[string]any,
+	rawValues map[string]json.RawMessage,
+	baseReadable func(name string) bool,
+	currentMemberID string,
 ) (map[string]any, RecordFieldErrors) {
 	fields, err := buildSnapshotFields(content)
 	if err != nil {
 		return nil, RecordFieldErrors{"": {"表单快照异常，请刷新后重试"}}
 	}
+	if baseReadable == nil {
+		baseReadable = func(name string) bool {
+			field, ok := fields[name]
+			return ok && field.visible
+		}
+	}
+	// 条件值取自合并后的候选值；条件源不可见时不读取其值（条件视为不成立）。
+	ruleVisible := compileFieldShowRules(content).ruleFieldVisibility(
+		baseReadable,
+		func(name string) any { return decodeShowValue(rawValues[name]) },
+		currentMemberID,
+	)
 	fieldErrors := RecordFieldErrors{}
 	cleaned := make(map[string]any, len(fields))
 
@@ -125,6 +153,11 @@ func ValidateRecordValues(
 			if submitted && !isNullJSON(raw) {
 				fieldErrors[name] = []string{"隐藏字段不能提交值"}
 			}
+			continue
+		}
+		if visible, computed := ruleVisible[name]; computed && !visible {
+			// 规则隐藏：跳过必填校验，既有值收网为 null（隐藏字段不落正式值）。
+			cleaned[name] = nil
 			continue
 		}
 		if !submitted || isNullJSON(raw) {
@@ -159,16 +192,34 @@ func ValidateRecordValues(
 }
 
 // ValidateSubmittedRecordValues 校验新版字段包装协议并解包 data，再复用
-// ValidateRecordValues 完成类型、范围与必填终审。所有数据字段必须显式携带
-// visible；布局字段不得进入 values，隐藏字段不得携带 data。
+// 终审完成类型、范围与必填复核。所有数据字段必须显式携带 visible 且与
+// 「静态可见 ∧ 显隐规则求值结果」一致；布局字段不得进入 values，隐藏字段
+// 不得携带 data（v5 起浏览器可见性只是交互，服务端按提交值独立重算终审）。
 func ValidateSubmittedRecordValues(
 	content map[string]any,
 	submitted map[string]model.SubmitFieldValue,
+	currentMemberID string,
 ) (map[string]any, RecordFieldErrors) {
 	fields, err := buildSnapshotFields(content)
 	if err != nil {
 		return nil, RecordFieldErrors{"": {"表单快照异常，请刷新后重试"}}
 	}
+	// 规则求值：条件源可达性 = 静态可见 ∧ 已算上游规则可见性；条件值取提交
+	// data；currentMemberID 为提交人（includeCurrentMember 注入比较集合）。
+	ruleVisible := compileFieldShowRules(content).ruleFieldVisibility(
+		func(name string) bool {
+			field, ok := fields[name]
+			return ok && field.visible
+		},
+		func(name string) any {
+			wrapped, ok := submitted[name]
+			if !ok || len(wrapped.Data) == 0 {
+				return nil
+			}
+			return decodeShowValue(json.RawMessage(wrapped.Data))
+		},
+		currentMemberID,
+	)
 	rawValues := make(map[string]json.RawMessage, len(submitted))
 	fieldErrors := RecordFieldErrors{}
 	for name, field := range fields {
@@ -183,11 +234,15 @@ func ValidateSubmittedRecordValues(
 			fieldErrors[name] = []string{"缺少字段可见状态"}
 			continue
 		}
-		if *wrapped.Visible != field.visible {
+		effective := field.visible
+		if visible, computed := ruleVisible[name]; computed {
+			effective = field.visible && visible
+		}
+		if *wrapped.Visible != effective {
 			fieldErrors[name] = []string{"字段可见状态与发布快照不一致"}
 			continue
 		}
-		if !field.visible {
+		if !effective {
 			if len(wrapped.Data) > 0 && !isNullJSON(json.RawMessage(wrapped.Data)) {
 				fieldErrors[name] = []string{"隐藏字段不能提交值"}
 			}
@@ -205,7 +260,7 @@ func ValidateSubmittedRecordValues(
 		}
 	}
 
-	cleaned, valueErrors := ValidateRecordValues(content, rawValues)
+	cleaned, valueErrors := validateRecordValues(content, rawValues, nil, currentMemberID)
 	for name, messages := range valueErrors {
 		if _, exists := fieldErrors[name]; !exists {
 			fieldErrors[name] = messages
