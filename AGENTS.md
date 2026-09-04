@@ -526,6 +526,23 @@ pnpm -F @evolyn.do/web build        # 生产构建
   引入其他表格库。
 - 组件库改动在 `packages/ui` 内进行并通过 changeset 发版，主应用优先复用
   `@evolyn.do/*` workspace 包，不重复引第三方实现。
+- 前端低代码基础能力的分层、职责与引用以
+  `docs/低代码平台/基础引擎能力/基础引擎能力职责边界与引用规范V1.md` 为准：
+  `packages/engines/*` 是无业务页面、尽量无 UI、可独立测试的基础 Engine Layer；
+  `form`、`dashboard`、`workflow` 是组合 Engine 的领域层，Engine 严禁反向引用领域层。
+- Engine 只能通过包公开入口和稳定的 types/DTO/AST/Context/Result/Diagnostic 协作，
+  禁止跨包深层导入 `src/internal`、`src/private` 等未公开实现；新增或修改跨 Engine
+  协议必须确认唯一权威来源、版本/迁移策略，并同步维护前后端一致性 Fixture。
+- `packages/engines/*` 原则上不得依赖 Vue SFC、Element Plus、Router、页面级 Pinia
+  Store 或 `@evolyn.do/ui`；错误以结构化 Result/Diagnostic 返回，禁止在 Engine 内直接
+  Toast、操作 DOM/组件实例或 monkey patch 内部状态。领域包相互协作默认走 Engine 协议、
+  共享 DTO 或上层 Orchestrator，禁止形成任何直接或间接循环依赖。
+- 浏览器侧的 Permission Engine 仅负责授权结果投影和交互控制，后端仍是数据、字段、
+  记录权限的最终授权边界；Physical Engine 仅描述存储模型和迁移意图，严禁在浏览器生成、
+  连接或执行 DDL；Query Engine 只构造和校验 Query DSL，严禁生成或执行最终 SQL。
+- Rule、Formula、Validator、Query 等核心语义必须保持确定性；涉及规则、公式、校验、
+  权限或查询协议时，应设计为可与 Go 后端镜像校验，不能因前端存在同名 Engine 而转移
+  后端权威职责。
 
 ## 验证建议
 
