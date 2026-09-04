@@ -63,6 +63,7 @@ export default defineConfig([
     ...shared,
     entry: [
       'src/index.ts',
+      'src/formula/index.ts',
       'src/schema/index.ts',
       'src/designer/index.ts',
       'src/runtime/index.ts',

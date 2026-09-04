@@ -106,6 +106,17 @@
             />
           </el-select>
         </el-form-item>
+        <!-- 提交事件属于表单级体验：本期只在前端设计态持有，尚不接入后端草稿协议。 -->
+        <FormSchemaPreSubmitConfirmSettings
+          v-model="preSubmitConfirm"
+          :items="schemaDocument?.content.items ?? []"
+          class="form-schema-property__submit-event"
+        />
+        <FormSchemaSubmitValidationSettings
+          v-model="submitValidators"
+          :items="schemaDocument?.content.items ?? []"
+          class="form-schema-property__submit-event"
+        />
         <el-form-item class="form-schema-property__show-rules-form-item">
           <template #label>
             <span class="form-schema-property__show-rules-label">
@@ -292,6 +303,13 @@ import TextareaPropertyPanel from './properties/TextareaPropertyPanel.vue';
 import TextPropertyPanel from './properties/TextPropertyPanel.vue';
 import FormSchemaFieldShowRulesDrawer from './FormSchemaFieldShowRulesDrawer.vue';
 import FormSchemaSubmitRuleDialog from './FormSchemaSubmitRuleDialog.vue';
+import FormSchemaPreSubmitConfirmSettings from './FormSchemaPreSubmitConfirmSettings.vue';
+import FormSchemaSubmitValidationSettings from './FormSchemaSubmitValidationSettings.vue';
+import {
+  createPreSubmitConfirmDraft,
+  type PreSubmitConfirmDraft,
+  type SubmitValidatorDraft,
+} from './submit-validation-types';
 
 /**
  * 字段属性面板：编辑 item 公共属性与按 widget.type 分派的专属配置。
@@ -347,6 +365,9 @@ const emit = defineEmits<{
 
 const showRulesDrawer = shallowRef(false);
 const submitRuleDialog = shallowRef(false);
+// 提交二次确认/校验数据当前只实施设计器 UI；后端协议尚未开放前不得混入 content。
+const preSubmitConfirm = ref<PreSubmitConfirmDraft>(createPreSubmitConfirmDraft());
+const submitValidators = ref<SubmitValidatorDraft[]>([]);
 // 特殊规则摘要卡初始收起，避免属性面板被长字段列表占满（§5.1）。
 const summaryExpanded = shallowRef(false);
 const expandedSummaryGroups = ref<Set<number>>(new Set());
@@ -663,6 +684,12 @@ function toggleSummaryGroup(value: number): void {
     :deep(.el-form-item__content) {
       line-height: normal;
     }
+  }
+
+  &__submit-event {
+    padding: var(--el-space-md) 0;
+    margin-bottom: var(--el-space-sm);
+    border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
   &__show-rules-label {

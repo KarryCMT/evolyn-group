@@ -39,6 +39,25 @@ export { default as FormSchemaPropertyPanel } from './FormSchemaPropertyPanel.vu
 export { default as FormSchemaFieldShowRulesDrawer } from './FormSchemaFieldShowRulesDrawer.vue';
 export { default as FormSchemaFieldShowRuleDialog } from './FormSchemaFieldShowRuleDialog.vue';
 export { default as FormSchemaSubmitRuleDialog } from './FormSchemaSubmitRuleDialog.vue';
+export { default as FormSchemaSubmitValidationSettings } from './FormSchemaSubmitValidationSettings.vue';
+export { default as FormSchemaSubmitValidatorDialog } from './FormSchemaSubmitValidatorDialog.vue';
+export { default as FormSchemaPreSubmitConfirmSettings } from './FormSchemaPreSubmitConfirmSettings.vue';
+export { default as FormulaEditor } from './FormulaEditor.vue';
+export {
+  FORMULA_CATEGORY_LABELS,
+  FORMULA_COMMON_FUNCTION_NAMES,
+  FORMULA_FUNCTIONS,
+  FormulaFunctionLibrary,
+  collectFormulaDiagnostics,
+  parseFormula,
+} from '../formula';
+export type {
+  FormulaEditorField,
+  FormulaEditorFunction,
+  FormulaEditorInsertion,
+  FormulaFunction,
+  FormulaFunctionCategory,
+} from '../formula';
 export { createEmptyFormSchemaDocument, useFormSchemaEditor } from './useFormSchemaEditor';
 export { FORM_SCHEMA_DRAG_GROUP, FORM_SCHEMA_SUBFORM_DRAG_GROUP } from './palette';
 export type { FormSchemaPaletteEntry, FormSchemaPaletteDrag } from './palette';
