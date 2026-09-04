@@ -1,4 +1,6 @@
 import { reactive } from 'vue';
+import { resolveFieldPermission } from '@evolyn.do/permission';
+import { createRuntimeSessionState } from '@evolyn.do/runtime';
 import { cloneFormSchema } from '../../schema/clone';
 import {
   emptyWidgetValue,
@@ -25,6 +27,8 @@ import type {
   FormDraftPayload,
   FormIssue,
   FormRuntimeFieldPermission,
+  FormRuntimeLifecycle,
+  FormRuntimeOperation,
   FormRuntimeState,
   FormSubmittedFieldValue,
   FormSubmitPayload,
@@ -126,9 +130,9 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   // deny-by-default，与后端 FieldsForNew 投影同口径（设计方案 §4.2）。
   const permissions = options.fieldPermissions;
   const permissionVisible = (key: string): boolean =>
-    permissions === undefined || (permissions[key]?.visible ?? false);
+    resolveFieldPermission(permissions, key, 'allow').visible;
   const permissionEditable = (key: string): boolean =>
-    permissions === undefined || (permissions[key]?.editable ?? false);
+    resolveFieldPermission(permissions, key, 'allow').editable;
 
   /** 字段静态状态按保存值执行：visible 决定收集，enable 取反映射禁用；
    * v6 有效可见性 = 静态 ∧ 权限 ∧ 规则（渲染与信封同口径）。 */
@@ -144,14 +148,16 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     };
   }
 
-  const state = reactive({
-    values: {},
-    fieldStates: {},
-    lifecycle: 'initializing',
-    activeOperation: null,
-    dirtyKeys: new Set<string>(),
-    issues: [],
-  }) as FormRuntimeState;
+  // Engine 仅创建框架无关会话；Form Runtime 作为 Vue 适配层决定响应式实现。
+  const state = reactive(
+    createRuntimeSessionState<
+      FormValue,
+      FieldRuntimeState,
+      FormIssue,
+      FormRuntimeLifecycle,
+      FormRuntimeOperation
+    >('initializing'),
+  ) as FormRuntimeState;
 
   initializeValues();
   state.lifecycle = 'ready';

@@ -5,7 +5,9 @@
  * （FormSchemaDocument 等）不具备索引签名，约束会使克隆结果类型塌缩。
  */
 
+import { cloneJsonValue } from '@evolyn.do/schema';
+
 /** 深拷贝 JSON 安全值；仅允许传入已通过协议校验或天然 JSON 安全的数据。 */
 export function cloneFormSchema<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
+  return cloneJsonValue(value);
 }

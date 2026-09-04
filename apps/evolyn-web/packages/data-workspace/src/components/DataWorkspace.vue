@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { EvolynTable } from '@evolyn.do/ui';
 import { computed } from 'vue';
+import type { DataQuery, DataRecord } from '@evolyn.do/data';
 import DataToolbar from './DataToolbar.vue';
-import type { DataAction, DataColumn, DataPagination, DataQuery, DataRecord } from '../types.js';
+import type { DataAction, DataColumn, DataPagination } from '../types.js';
 
 defineOptions({ name: 'DataWorkspace' });
 

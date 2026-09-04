@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { ElInput } from 'element-plus';
-import type { DataAction } from '../types';
+import type { DataAction } from '../types.js';
 
 defineOptions({ name: 'DataToolbar' });
 
 const search = defineModel<string>('search', { required: true });
 
 defineProps<{
-  actions: DataAction[];
+  actions: readonly DataAction[];
   placeholder?: string;
 }>();
 

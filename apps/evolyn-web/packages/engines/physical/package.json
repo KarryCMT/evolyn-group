@@ -1,6 +1,6 @@
 {
   "name": "@evolyn.do/physical",
-  "description": "表单物理表引擎",
+  "description": "低代码物理存储意图引擎",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/cjs/index.js",
@@ -12,7 +12,6 @@
       "import": "./dist/esm/index.mjs",
       "require": "./dist/cjs/index.js"
     },
-    "./style.css": "./dist/style.css",
     "./*": "./dist/*"
   },
   "files": [
@@ -26,27 +25,16 @@
   "scripts": {
     "build": "rimraf dist && tsdown",
     "clean": "rimraf .turbo node_modules dist",
-    "publish": "pnpm publish"
-  },
-  "dependencies": {
-    "@evolyn.do/ui": "workspace:*"
-  },
-  "peerDependencies": {
-    "element-plus": "catalog:ui",
-    "vue": "catalog:frontend"
+    "publish": "pnpm publish",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
     "@evolyn.do/typescript-config": "workspace:*",
-    "@tsdown/css": "catalog:build",
     "@types/node": "catalog:types",
-    "@vitejs/plugin-vue": "catalog:build",
-    "element-plus": "catalog:ui",
     "rimraf": "catalog:dev",
-    "sass": "catalog:dev",
     "tsdown": "catalog:build",
     "typescript": "catalog:types",
-    "unplugin-vue": "catalog:build",
-    "vue": "catalog:frontend",
-    "vue-tsc": "catalog:build"
+    "vitest": "catalog:test"
   }
 }

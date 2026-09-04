@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { defineConfig } from 'tsdown';
-import Vue from 'unplugin-vue/rolldown';
 
 const srcDir = path.resolve(import.meta.dirname, 'src');
 
@@ -18,16 +17,7 @@ function resolveEntryFileNames({ format }: { format: string }) {
 export default defineConfig({
   entry: ['src/index.ts'],
   clean: true,
-  css: {
-    fileName: 'style.css',
-    minify: false,
-    splitting: false,
-  },
-  deps: {
-    neverBundle: ['element-plus', 'vue'],
-  },
   dts: {
-    vue: true,
     sourcemap: false,
     compilerOptions: {
       declarationMap: false,
@@ -39,7 +29,6 @@ export default defineConfig({
   outDir: 'dist',
   outExtensions: resolveOutExtensions,
   platform: 'browser',
-  plugins: [Vue()],
   root: srcDir,
   target: 'esnext',
   tsconfig: './tsconfig.json',

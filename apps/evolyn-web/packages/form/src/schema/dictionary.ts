@@ -15,6 +15,7 @@ import type {
   FormWidgetOption,
   FormWidgetType,
 } from './types';
+import { createFieldRegistry, type FieldDefinition } from '@evolyn.do/field';
 
 /** 表单布局切换时批量投影到普通字段的 12 栅格宽度。 */
 export const FORM_LAYOUT_LINE_WIDTH: Readonly<Record<FormLayoutMode, number>> = {
@@ -72,17 +73,12 @@ export interface WidgetPropSpec {
   maxItems?: number;
 }
 
-export interface WidgetSpec {
-  /** 控件中文名（素材面板/属性面板展示）。 */
-  label: string;
-  group: FormWidgetGroupKey;
-  /** 值形态（运行时归类与提交校验使用，字段字典 §4）。 */
-  valueKind: 'string' | 'number' | 'stringArray' | 'none' | 'object' | 'rows' | 'fileRefs';
-  /** label 允许为空串（布局类控件）。 */
-  labelOptional?: boolean;
-  /** 专属属性表（不含 type/widgetName/enable/visible/allowBlank 四个公共必填键）。 */
-  props: Readonly<Record<string, WidgetPropSpec>>;
-}
+/** 表单目标协议对 Field Engine 通用字段定义的具体化。 */
+export type WidgetSpec = FieldDefinition<
+  FormWidgetGroupKey,
+  'string' | 'number' | 'stringArray' | 'none' | 'object' | 'rows' | 'fileRefs',
+  WidgetPropSpec
+>;
 
 /** 选项数组公共约束（字段字典 §3 开头约定）。 */
 export const WIDGET_OPTION_LIMITS = {
@@ -500,6 +496,9 @@ export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
   },
 };
 
+/** Form 领域字段字典注册到 Field Engine，供非 UI 层通过稳定查询接口消费。 */
+export const FORM_FIELD_REGISTRY = createFieldRegistry(WIDGET_SPECS);
+
 /** 分组展示序（素材面板分组标题）。 */
 export const WIDGET_GROUP_META: ReadonlyArray<{ key: FormWidgetGroupKey; title: string }> = [
   { key: 'basic', title: '基础字段' },
@@ -510,7 +509,7 @@ export const WIDGET_GROUP_META: ReadonlyArray<{ key: FormWidgetGroupKey; title: 
 
 /** 按类型取控件中文名。 */
 export function widgetTypeLabel(type: string): string {
-  const spec = (WIDGET_SPECS as Record<string, WidgetSpec | undefined>)[type];
+  const spec = FORM_FIELD_REGISTRY.find(type);
   return spec ? spec.label : type;
 }
 

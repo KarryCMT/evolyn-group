@@ -14,8 +14,8 @@ import {
   useDataWorkspace,
   type DataAction,
   type DataColumn,
-  type DataRecord,
-} from '@evolyn.do/data';
+} from '@evolyn.do/data-workspace';
+import type { DataRecord } from '@evolyn.do/data';
 import { ElMessage } from 'element-plus';
 import { computed, markRaw } from 'vue';
 

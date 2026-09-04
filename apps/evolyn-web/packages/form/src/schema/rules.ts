@@ -16,29 +16,18 @@
 import { FIELD_SHOW_EMPTY_METHODS } from './dictionary';
 import { isEmptyWidgetValue } from './codec';
 import type { FieldShowCondition, FieldShowRule, FormContent, FormJsonValue } from './types';
+import {
+  compileRuleGraph,
+  downstreamRuleTargets,
+  evaluateRuleGraph,
+  isEmptyCompiledRuleGraph,
+  type CompiledRuleGraph,
+  type RuleGraphRule,
+} from '@evolyn.do/rule';
 
 /** 编译后的单条规则：协议字段的窄化视图。 */
-export interface CompiledFieldShowRule {
-  id: string;
-  rel: 'and' | 'or';
-  conditions: readonly FieldShowCondition[];
-  /** 规则的全部目标字段（协议 fields）。 */
-  targets: readonly string[];
-}
-
-export interface CompiledFieldShowRules {
-  /** 全部合法规则（非法片段在编译期被跳过；合法性由设计期校验保证）。 */
-  rules: readonly CompiledFieldShowRule[];
-  /** 目标字段 → 所属规则 id（同一目标只会有一条规则，设计期唯一性校验保证）。 */
-  ownerRuleId: ReadonlyMap<string, string>;
-  /** 依赖图出边：条件源字段 → 直接下游目标字段集合。 */
-  dependents: ReadonlyMap<string, ReadonlySet<string>>;
-  /**
-   * 参与规则的字段的拓扑排序（条件源在前、目标在后）。环已被设计期校验拒绝；
-   * 防御性处理下若仍出现环，剩余节点求值收敛为隐藏（fail-closed）。
-   */
-  topologicalOrder: readonly string[];
-}
+export type CompiledFieldShowRule = RuleGraphRule<FieldShowCondition>;
+export type CompiledFieldShowRules = CompiledRuleGraph<FieldShowCondition>;
 
 /** 求值输入：字段值读取与基础可达性（静态 visible ∧ 权限可见）由调用方注入。 */
 export interface FieldShowEvaluationContext {
@@ -52,38 +41,13 @@ export interface FieldShowEvaluationContext {
 
 /** 从表单内容编译显隐规则；空/畸形规则集返回空编译结果（不抛错）。 */
 export function compileFieldShowRules(content: FormContent): CompiledFieldShowRules {
-  const rules: CompiledFieldShowRule[] = [];
-  const ownerRuleId = new Map<string, string>();
-  const dependents = new Map<string, Set<string>>();
   const rawRules = Array.isArray(content.fieldShowRules) ? content.fieldShowRules : [];
-  for (const raw of rawRules) {
-    const compiled = compileRule(raw);
-    if (!compiled) continue;
-    rules.push(compiled);
-    for (const target of compiled.targets) {
-      // 同一目标被多条规则命中时以首条为准（设计期唯一性校验已拒绝该状态）。
-      if (!ownerRuleId.has(target)) ownerRuleId.set(target, compiled.id);
-    }
-    for (const condition of compiled.conditions) {
-      let edges = dependents.get(condition.field);
-      if (!edges) {
-        edges = new Set<string>();
-        dependents.set(condition.field, edges);
-      }
-      for (const target of compiled.targets) edges.add(target);
-    }
-  }
-  return {
-    rules,
-    ownerRuleId,
-    dependents,
-    topologicalOrder: topologicalSort(ownerRuleId.keys(), dependents),
-  };
+  return compileRuleGraph(rawRules.map(toRuleGraphRule).filter(isDefined));
 }
 
 /** 规则是否为空编译（无任何目标字段）：运行时可据此整体跳过求值。 */
 export function isEmptyCompiledRules(compiled: CompiledFieldShowRules): boolean {
-  return compiled.ownerRuleId.size === 0;
+  return isEmptyCompiledRuleGraph(compiled);
 }
 
 /**
@@ -94,28 +58,15 @@ export function evaluateFieldShowRules(
   compiled: CompiledFieldShowRules,
   context: FieldShowEvaluationContext,
 ): Map<string, boolean> {
-  const result = new Map<string, boolean>();
-  if (isEmptyCompiledRules(compiled)) return result;
-  // 工作可达性：基础可达性 ∧ 已求值的规则可见性，条件源判定只读该表。
-  const workingVisible = new Map<string, boolean>();
-  const ruleById = new Map(compiled.rules.map((rule) => [rule.id, rule]));
-  for (const field of compiled.topologicalOrder) {
-    const ruleId = compiled.ownerRuleId.get(field);
-    if (ruleId === undefined) continue;
-    const rule = ruleById.get(ruleId);
-    // 条件源可达性 = 基础可达性（静态 ∧ 权限）∧ 已求值的上游规则可见性。
-    const matched = rule
-      ? matchFieldShowRule(rule, {
-          valueOf: context.valueOf,
-          isFieldVisible: (name) =>
-            context.isBaseVisible(name) && (workingVisible.get(name) ?? true),
-          currentMemberId: context.currentMemberId,
-        })
-      : true;
-    result.set(field, matched);
-    workingVisible.set(field, matched);
-  }
-  return result;
+  return evaluateRuleGraph(compiled, {
+    isBaseVisible: context.isBaseVisible,
+    matchRule: (rule, visibility) =>
+      matchFieldShowRule(rule, {
+        valueOf: context.valueOf,
+        isFieldVisible: visibility.isFieldVisible,
+        currentMemberId: context.currentMemberId,
+      }),
+  });
 }
 
 /**
@@ -127,22 +78,7 @@ export function downstreamTargets(
   compiled: CompiledFieldShowRules,
   changedField: string,
 ): readonly string[] {
-  const firstLevel = compiled.dependents.get(changedField);
-  if (!firstLevel || firstLevel.size === 0) return [];
-  const order = new Map(compiled.topologicalOrder.map((field, index) => [field, index]));
-  const visited = new Set<string>([changedField]);
-  const queue = [...firstLevel];
-  const affected: string[] = [];
-  while (queue.length > 0) {
-    const field = queue.shift()!;
-    if (visited.has(field)) continue;
-    visited.add(field);
-    // 仅规则目标会因上游变化而改变可见性；普通条件源不会。
-    if (compiled.ownerRuleId.has(field)) affected.push(field);
-    const next = compiled.dependents.get(field);
-    if (next) queue.push(...next);
-  }
-  return affected.sort((left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0));
+  return downstreamRuleTargets(compiled, changedField);
 }
 
 /**
@@ -228,8 +164,8 @@ export function matchFieldShowCondition(
 // ---- 编译助手 ----
 
 /** 防御式编译单条规则：结构不完整即跳过（合法性由设计期校验单独保证）。 */
-function compileRule(raw: FieldShowRule): CompiledFieldShowRule | null {
-  if (!raw || typeof raw !== 'object') return null;
+function toRuleGraphRule(raw: FieldShowRule): CompiledFieldShowRule | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
   const rel = raw.filter?.rel === 'or' ? 'or' : 'and';
   const conditions = Array.isArray(raw.filter?.cond)
     ? raw.filter.cond.filter(
@@ -244,40 +180,13 @@ function compileRule(raw: FieldShowRule): CompiledFieldShowRule | null {
   const targets = Array.isArray(raw.fields)
     ? raw.fields.filter((field): field is string => typeof field === 'string' && field !== '')
     : [];
-  if (conditions.length === 0 || targets.length === 0) return null;
-  if (typeof raw.id !== 'string' || raw.id === '') return null;
+  if (conditions.length === 0 || targets.length === 0) return undefined;
+  if (typeof raw.id !== 'string' || raw.id === '') return undefined;
   return { id: raw.id, rel, conditions, targets };
 }
 
-/** Kahn 拓扑排序：节点按首次出现顺序入队，保证结果确定性。 */
-function topologicalSort(
-  nodes: Iterable<string>,
-  dependents: ReadonlyMap<string, ReadonlySet<string>>,
-): string[] {
-  const nodeSet = new Set<string>(nodes);
-  // 节点集必须同时包含条件源（依赖图起点），否则 Kahn 入度永不归零。
-  for (const [source, targets] of dependents) {
-    nodeSet.add(source);
-    for (const target of targets) nodeSet.add(target);
-  }
-  const indegree = new Map<string, number>();
-  for (const node of nodeSet) indegree.set(node, 0);
-  for (const targets of dependents.values()) {
-    for (const target of targets) indegree.set(target, (indegree.get(target) ?? 0) + 1);
-  }
-  const queue = [...indegree.entries()].filter(([, degree]) => degree === 0).map(([node]) => node);
-  const order: string[] = [];
-  while (queue.length > 0) {
-    const node = queue.shift()!;
-    order.push(node);
-    for (const target of dependents.get(node) ?? []) {
-      const next = (indegree.get(target) ?? 0) - 1;
-      indegree.set(target, next);
-      if (next === 0) queue.push(target);
-    }
-  }
-  // 环内节点（设计期已拒绝）不出现在 order 中：求值侧自然 fail-closed。
-  return order;
+function isDefined<T>(value: T | undefined): value is T {
+  return value !== undefined;
 }
 
 // ---- 条件求值助手 ----

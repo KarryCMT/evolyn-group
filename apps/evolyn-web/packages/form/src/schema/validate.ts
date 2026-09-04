@@ -28,12 +28,13 @@ import {
   SUBFORM_ALLOWED_WIDGET_TYPES,
 } from './types';
 import { cloneFormSchema } from './clone';
+import {
+  createValidationResult,
+  type ValidationDiagnostic,
+} from '@evolyn.do/validator';
 
 /** 单条校验问题：path 为 JSON Path（如 content.items[2].widget.options[0].value）。 */
-export interface FormSchemaIssue {
-  path: string;
-  message: string;
-}
+export type FormSchemaIssue = ValidationDiagnostic;
 
 export interface FormSchemaValidationResult {
   valid: boolean;
@@ -55,9 +56,9 @@ const OPTION_WIDGET_TYPES: ReadonlySet<string> = new Set([
 export function validateFormSchema(input: unknown): FormSchemaValidationResult {
   const issues: FormSchemaIssue[] = [];
   validateRoot(input, issues);
-  if (issues.length > 0) return { valid: false, document: null, issues };
+  if (issues.length > 0) return toFormSchemaValidationResult(issues, null);
   // 形状校验通过后再深拷贝：合法文档只含 JSON 安全值，克隆不会抛错。
-  return { valid: true, document: cloneFormSchema(input as FormSchemaDocument), issues: [] };
+  return toFormSchemaValidationResult([], cloneFormSchema(input as FormSchemaDocument));
 }
 
 /**
@@ -70,8 +71,17 @@ export function validatePublishableFormSchema(input: unknown): FormSchemaValidat
   const issues: FormSchemaIssue[] = [];
   collectUnsupportedWidgets(base.document.content.items, 'content.items', issues);
   collectUnsupportedConditionSources(base.document.content, issues);
-  if (issues.length > 0) return { valid: false, document: null, issues };
+  if (issues.length > 0) return toFormSchemaValidationResult(issues, null);
   return base;
+}
+
+/** 将 Validator Engine 的通用结果适配回 Form 的稳定公开返回结构。 */
+function toFormSchemaValidationResult(
+  issues: readonly FormSchemaIssue[],
+  document: FormSchemaDocument | null,
+): FormSchemaValidationResult {
+  const result = createValidationResult(issues, document);
+  return { valid: result.valid, document: result.value, issues: [...result.issues] };
 }
 
 /** 发布期条件源白名单：未开放运行能力的字段不能作为条件源（设计方案 §3.3）。 */

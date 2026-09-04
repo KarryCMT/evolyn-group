@@ -1,4 +1,6 @@
 import type { FormItem, FormJsonValue } from '../schema/types';
+import type { FieldPermission } from '@evolyn.do/permission';
+import type { RuntimeSessionState } from '@evolyn.do/runtime';
 
 /**
  * 运行时值契约（目标保存协议）：桌面、移动与后续原生容器共用同一 JSON 可序列化结构，
@@ -34,10 +36,7 @@ export interface FieldRuntimeState {
  * 字段权限矩阵输入（bootstrap permissions 按模式投影的单矩阵）：
  * 未提供（预览/草稿回放）视为全量放行；提供后缺失键按 deny-by-default。
  */
-export interface FormRuntimeFieldPermission {
-  visible: boolean;
-  editable: boolean;
-}
+export type FormRuntimeFieldPermission = FieldPermission;
 
 /** 表单级问题：字段错误按 widgetName 关联，非字段错误（提交失败等）展示在操作区摘要。 */
 export interface FormIssue {
@@ -47,14 +46,13 @@ export interface FormIssue {
 }
 
 /** 运行时唯一状态源；组件经注入的只读视图消费，写入只能走 Store action。 */
-export interface FormRuntimeState {
-  values: Record<string, FormValue>;
-  fieldStates: Record<string, FieldRuntimeState>;
-  lifecycle: FormRuntimeLifecycle;
-  activeOperation: FormRuntimeOperation | null;
-  dirtyKeys: Set<string>;
-  issues: FormIssue[];
-}
+export type FormRuntimeState = RuntimeSessionState<
+  FormValue,
+  FieldRuntimeState,
+  FormIssue,
+  FormRuntimeLifecycle,
+  FormRuntimeOperation
+>;
 
 /**
  * 提交载荷（后端契约 §2.2）：值按 widgetName 取键，publishedVersion + schemaRevision

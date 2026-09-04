@@ -1,4 +1,4 @@
-export { default as DataToolbar } from './components/DataToolbar.vue';
-export { default as DataWorkspace } from './components/DataWorkspace.vue';
-export * from './composables/useDataWorkspace.js';
+// 引擎只发布数据协议和无副作用工具；Vue 工作台位于 @evolyn.do/data-workspace。
+export * from './context.js';
+export * from './query.js';
 export * from './types.js';

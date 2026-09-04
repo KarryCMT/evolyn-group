@@ -94,6 +94,13 @@
     "@codemirror/state": "^6.7.2",
     "@codemirror/view": "^6.43.11",
     "@evolyn.do/ui": "workspace:*",
+    "@evolyn.do/formula": "workspace:*",
+    "@evolyn.do/rule": "workspace:*",
+    "@evolyn.do/permission": "workspace:*",
+    "@evolyn.do/field": "workspace:*",
+    "@evolyn.do/validator": "workspace:*",
+    "@evolyn.do/schema": "workspace:*",
+    "@evolyn.do/runtime": "workspace:*",
     "vuedraggable": "catalog:frontend"
   }
 }

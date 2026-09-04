@@ -1,6 +1,9 @@
 packages:
   - apps/*
   - packages/*
+  # Engine Layer 位于二级目录；必须显式纳入 workspace，才能让领域包通过
+  # workspace:* 建立可追踪依赖并由 Turbo 按依赖图构建。
+  - packages/engines/*
   - packages/lint-configs/*
   - playground
   - build
