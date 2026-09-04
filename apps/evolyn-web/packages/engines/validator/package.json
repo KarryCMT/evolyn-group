@@ -1,6 +1,6 @@
 {
-  "name": "@evolyn.do/data",
-  "description": "Evolyn data workspace primitives and record-management views",
+  "name": "@evolyn.do/validator",
+  "description": "数据验证引擎",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/cjs/index.js",

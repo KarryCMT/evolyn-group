@@ -1,0 +1,52 @@
+{
+  "name": "@evolyn.do/physical",
+  "description": "表单物理表引擎",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.mjs",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.mjs",
+      "require": "./dist/cjs/index.js"
+    },
+    "./style.css": "./dist/style.css",
+    "./*": "./dist/*"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsdown",
+    "clean": "rimraf .turbo node_modules dist",
+    "publish": "pnpm publish"
+  },
+  "dependencies": {
+    "@evolyn.do/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "element-plus": "catalog:ui",
+    "vue": "catalog:frontend"
+  },
+  "devDependencies": {
+    "@evolyn.do/typescript-config": "workspace:*",
+    "@tsdown/css": "catalog:build",
+    "@types/node": "catalog:types",
+    "@vitejs/plugin-vue": "catalog:build",
+    "element-plus": "catalog:ui",
+    "rimraf": "catalog:dev",
+    "sass": "catalog:dev",
+    "tsdown": "catalog:build",
+    "typescript": "catalog:types",
+    "unplugin-vue": "catalog:build",
+    "vue": "catalog:frontend",
+    "vue-tsc": "catalog:build"
+  }
+}

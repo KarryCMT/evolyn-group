@@ -1,0 +1,55 @@
+{
+  "name": "@evolyn.do/workflow",
+  "description": "流程引擎",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.mjs",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.mjs",
+      "require": "./dist/cjs/index.js"
+    },
+    "./style.css": "./dist/style.css",
+    "./*": "./dist/*"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsdown",
+    "clean": "rimraf .turbo node_modules dist",
+    "publish": "pnpm publish"
+  },
+  "dependencies": {
+    "@logicflow/core": "catalog:frontend",
+    "@logicflow/vue-node-registry": "catalog:frontend",
+    "preact": "catalog:frontend"
+  },
+  "peerDependencies": {
+    "@remixicon/vue": "catalog:ui",
+    "element-plus": "catalog:ui",
+    "vue": "catalog:frontend"
+  },
+  "devDependencies": {
+    "@evolyn.do/typescript-config": "workspace:*",
+    "@tsdown/css": "catalog:build",
+    "@types/node": "catalog:types",
+    "@vitejs/plugin-vue": "catalog:build",
+    "element-plus": "catalog:ui",
+    "rimraf": "catalog:dev",
+    "sass": "catalog:dev",
+    "tsdown": "catalog:build",
+    "typescript": "catalog:types",
+    "unplugin-vue": "catalog:build",
+    "vue": "catalog:frontend",
+    "vue-tsc": "catalog:build"
+  }
+}

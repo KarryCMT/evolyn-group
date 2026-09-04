@@ -1,6 +1,6 @@
 {
   "name": "@evolyn.do/dashboard",
-  "description": "Evolyn dashboard schema, renderer and designer state",
+  "description": "工作台、仪表盘引擎",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/cjs/index.js",

@@ -3,6 +3,6 @@ export { default as DashboardWidgetHost } from './renderer/DashboardWidgetHost.v
 export { default as DashboardDesignCanvas } from './designer/DashboardDesignCanvas.vue';
 export { default as DashboardWidgetPalette } from './designer/DashboardWidgetPalette.vue';
 export { default as DashboardWidgetFrame } from './components/DashboardWidgetFrame.vue';
-export * from './composables/useDashboardEditor';
-export * from './composables/useDashboardPersistence';
-export * from './schema';
+export * from './composables/useDashboardEditor.js';
+export * from './composables/useDashboardPersistence.js';
+export * from './schema/index.js';

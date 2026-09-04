@@ -1,6 +1,6 @@
 {
-  "name": "@evolyn.do/workflow",
-  "description": "Evolyn workflow schema and visual designer foundation",
+  "name": "@evolyn.do/schema",
+  "description": "表单模式引擎",
   "version": "0.1.0",
   "type": "module",
   "main": "dist/cjs/index.js",
@@ -29,12 +29,9 @@
     "publish": "pnpm publish"
   },
   "dependencies": {
-    "@logicflow/core": "catalog:frontend",
-    "@logicflow/vue-node-registry": "catalog:frontend",
-    "preact": "catalog:frontend"
+    "@evolyn.do/ui": "workspace:*"
   },
   "peerDependencies": {
-    "@remixicon/vue": "catalog:ui",
     "element-plus": "catalog:ui",
     "vue": "catalog:frontend"
   },

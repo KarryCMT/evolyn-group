@@ -2,7 +2,7 @@
 import { EvolynTable } from '@evolyn.do/ui';
 import { computed } from 'vue';
 import DataToolbar from './DataToolbar.vue';
-import type { DataAction, DataColumn, DataPagination, DataQuery, DataRecord } from '../types';
+import type { DataAction, DataColumn, DataPagination, DataQuery, DataRecord } from '../types.js';
 
 defineOptions({ name: 'DataWorkspace' });
 
