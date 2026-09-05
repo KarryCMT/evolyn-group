@@ -140,7 +140,7 @@ watch(groupPickerVisible, (visible) => {
         <el-popover
           v-model:visible="filterMenuVisible"
           placement="bottom-start"
-          :width="320"
+          :width="280"
           trigger="click"
           popper-class="administrator-group-list__filter-popper"
         >
@@ -169,7 +169,7 @@ watch(groupPickerVisible, (visible) => {
         <el-popover
           v-model:visible="groupPickerVisible"
           placement="bottom-start"
-          :width="480"
+          :width="280"
           trigger="click"
           popper-class="administrator-group-list__picker-popper"
         >
@@ -227,10 +227,10 @@ watch(groupPickerVisible, (visible) => {
 .administrator-group-list {
   box-sizing: border-box;
   display: flex;
-  min-width: 356px;
+  min-width: 326px;
   height: 100%;
   flex-direction: column;
-  padding: var(--el-space-4xl) var(--el-space-3xl);
+  padding: var(--el-space-xl) var(--el-space-xl);
   border-right: 1px solid var(--el-border-color-light);
   background: var(--el-bg-color);
   color: var(--el-text-color-regular);
@@ -242,20 +242,17 @@ watch(groupPickerVisible, (visible) => {
     gap: var(--el-space-xl);
   }
 
-  &__custom {
-    margin-top: var(--el-space-4xl);
-  }
-
   &__custom-heading {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    margin-top: var(--el-space-md);
   }
 
   &__section-title {
     margin: 0;
     color: var(--el-text-color-secondary);
-    font-size: var(--el-font-size-large);
+    font-size: var(--el-font-size-base);
     line-height: 32px;
   }
 
@@ -298,7 +295,7 @@ watch(groupPickerVisible, (visible) => {
   }
 
   &__filter-trigger {
-    width: 117px;
+    width: 76px;
     gap: var(--el-space-lg);
     padding: 0 var(--el-space-xl);
     border-radius: var(--el-border-radius-medium) 0 0 var(--el-border-radius-medium);
@@ -312,7 +309,7 @@ watch(groupPickerVisible, (visible) => {
     padding: 0 var(--el-space-lg) 0 var(--el-space-xl);
     border-radius: 0 var(--el-border-radius-medium) var(--el-border-radius-medium) 0;
     color: var(--el-text-color-secondary);
-    font-size: var(--el-font-size-medium);
+    font-size: var(--el-font-size-base);
     text-align: left;
   }
 
@@ -335,7 +332,7 @@ watch(groupPickerVisible, (visible) => {
   &__item {
     display: flex;
     width: 100%;
-    height: 56px;
+    height: 42px;
     gap: var(--el-space-md);
     padding: 0 var(--el-space-xl);
     border: 0;
@@ -343,7 +340,7 @@ watch(groupPickerVisible, (visible) => {
     align-items: center;
     color: var(--el-text-color-regular);
     background: transparent;
-    font-size: var(--el-font-size-large);
+    font-size: var(--el-font-size-base);
     text-align: left;
     cursor: pointer;
 
@@ -392,7 +389,7 @@ watch(groupPickerVisible, (visible) => {
 .administrator-group-list__filter-menu button {
   display: flex;
   width: 100%;
-  height: 58px;
+  height: 42px;
   gap: var(--el-space-lg);
   padding: 0 var(--el-space-xl);
   border: 0;
@@ -400,8 +397,7 @@ watch(groupPickerVisible, (visible) => {
   align-items: center;
   color: var(--el-text-color-primary);
   background: transparent;
-  font-size: var(--el-font-size-large);
-  font-weight: 600;
+  font-size: var(--el-font-size-base);
   text-align: left;
   cursor: pointer;
 }
@@ -423,14 +419,14 @@ watch(groupPickerVisible, (visible) => {
 }
 
 .administrator-group-list__picker :deep(.el-input__wrapper) {
-  min-height: 48px;
+  min-height: 42px;
   padding: 0 var(--el-space-lg);
   box-shadow: none;
 }
 
 .administrator-group-list__picker :deep(.el-input__inner) {
   color: var(--el-text-color-primary);
-  font-size: var(--el-font-size-large);
+  font-size: var(--el-font-size-base);
 }
 
 .administrator-group-list__picker :deep(.el-input__prefix-inner) {
@@ -450,7 +446,7 @@ watch(groupPickerVisible, (visible) => {
 .administrator-group-list__picker-results button {
   display: flex;
   width: 100%;
-  min-height: 54px;
+  min-height: 42px;
   padding: 0 var(--el-space-xl);
   border: 0;
   border-radius: var(--el-border-radius-medium);
@@ -458,7 +454,7 @@ watch(groupPickerVisible, (visible) => {
   justify-content: space-between;
   color: var(--el-text-color-primary);
   background: transparent;
-  font-size: var(--el-font-size-large);
+  font-size: var(--el-font-size-base);
   text-align: left;
   cursor: pointer;
 }
@@ -470,7 +466,7 @@ watch(groupPickerVisible, (visible) => {
 
 .administrator-group-list__picker-results small {
   color: var(--el-text-color-secondary);
-  font-size: var(--el-font-size-small);
+  font-size: var(--el-font-size-base);
 }
 
 .administrator-group-list__picker-empty {
