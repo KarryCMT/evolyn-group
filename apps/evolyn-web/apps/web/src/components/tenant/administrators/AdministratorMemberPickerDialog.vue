@@ -106,14 +106,11 @@ watch(visible, (isVisible) => {
   <el-dialog
     v-model="visible"
     class="administrator-member-picker"
-    width="1034px"
-    :show-close="false"
+    width="760px"
+    show-close
     append-to-body
+    title="成员列表"
   >
-    <header class="administrator-member-picker__header">
-      <h2>成员列表</h2>
-      <button type="button" aria-label="关闭" @click="visible = false"><RiCloseFill /></button>
-    </header>
     <section class="administrator-member-picker__selected" aria-label="已选成员">
       <span
         v-for="member in selectedItems"
@@ -189,50 +186,12 @@ watch(visible, (isVisible) => {
 </template>
 
 <style scoped lang="scss">
-:global(.administrator-member-picker) {
-  border-radius: var(--el-border-radius-large);
-}
-:global(.administrator-member-picker .el-dialog__header) {
-  display: none;
-}
-:global(.administrator-member-picker .el-dialog__body) {
-  padding: 0;
-}
 .administrator-member-picker {
-  &__header {
-    display: flex;
-    height: 68px;
-    padding: 0 var(--el-space-3xl);
-    border-bottom: 1px solid var(--el-border-color);
-    align-items: center;
-    justify-content: space-between;
-  }
-  &__header h2 {
-    margin: 0;
-    color: #273142;
-    font-size: var(--el-font-size-medium);
-  }
-  &__header button {
-    display: inline-flex;
-    border: 0;
-    padding: var(--el-space-xs);
-    color: #66707e;
-    background: transparent;
-    cursor: pointer;
-  }
-  &__header button:hover {
-    border-radius: var(--el-border-radius-medium);
-    background: var(--el-fill-color-light);
-  }
-  &__header svg {
-    width: 25px;
-    height: 25px;
-  }
   &__selected {
     display: flex;
-    min-height: 132px;
+    min-height: 110px;
     max-height: 176px;
-    margin: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-xl);
+    margin: var(--el-space-xl) 0;
     padding: var(--el-space-lg);
     border: 1px dashed var(--el-border-color);
     border-radius: var(--el-border-radius-large);
@@ -296,8 +255,9 @@ watch(visible, (isVisible) => {
   }
   &__body {
     display: grid;
-    min-height: 460px;
-    margin: var(--el-space-sm) var(--el-space-3xl) 0;
+    min-height: 220px;
+    max-height: 250px;
+    margin: var(--el-space-sm) 0;
     grid-template-columns: 1fr 1fr;
     border-top: 1px solid var(--el-border-color-lighter);
   }

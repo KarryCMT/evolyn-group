@@ -74,6 +74,7 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
     v-model="visible"
     class="administrator-application-picker"
     width="min(760px, calc(100vw - 32px))"
+    top="4vh"
     show-close
     append-to-body
     title="应用列表"
@@ -122,14 +123,29 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
 </template>
 
 <style scoped lang="scss">
+// 弹窗整体高度硬上限（append-to-body 后 .el-dialog 在 teleport 深层，需 :global）：
+// max-height + 纵向 flex 链让内容区随视口自动收缩，配合 top=4vh 与 margin-bottom:0
+// （覆盖 el-dialog 默认 15vh 上边距 + 50px 下边距），任何视口高度都不会出现
+// .el-overlay 纵向滚动条
+:global(.administrator-application-picker) {
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+  margin-bottom: 0;
+}
+:global(.administrator-application-picker .el-dialog__body) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
 .administrator-application-picker {
   &__body {
     display: grid;
-    // 高度封顶 652px 且随视口收缩：扣除弹窗固定高度（el-dialog 上下内边距 32 +
-    // 头 68 + 头部边框 1 + 内容区上下外边距 40 + 页脚 76 = 217px）与 el-dialog
-    // 默认上下边距（15vh + 50px），另留约 5px 余量吸收取整误差，保证任何视口
-    // 高度下 .el-overlay 都不出现纵向滚动条
-    height: min(652px, calc(85vh - 272px));
+    // 基准高度 652px，只缩不涨：弹窗被 max-height 压缩时沿 flex 链收缩，
+    // 列表区内部滚动；大屏不超过基准值
+    flex: 0 1 652px;
+    min-height: 0;
     grid-template-columns: 1fr 1fr;
     margin: var(--el-space-xl) 0;
     border: 1px solid var(--el-border-color);
