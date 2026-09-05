@@ -37,7 +37,8 @@ const AdminGroupBuiltinName = "系统管理员"
 // AdminGroup 管理组（权限中心-管理员模块）：一组成员 + 对某类管理对象
 // （部门/角色/应用/互联组织）的带范围委托管理权。
 // 内置组（built_in=true，scope=system）具备全量管理权，成员由 tenant-admin
-// 角色绑定实时推导、不落 tn_admin_group_members 表；scope_config 仅自定义组生效
+// 角色绑定实时推导、不落 tn_admin_group_members 表；租户创建人的 tenant-admin
+// 绑定仅用于固定所有者权限，不投影为管理组成员；scope_config 仅自定义组生效
 type AdminGroup struct {
 	ID   uint   `json:"id" gorm:"autoIncrement;primaryKey"`
 	Name string `json:"name" gorm:"size:30;not null"` // 租户内唯一：服务层预检 + 部分唯一索引兜底
@@ -169,7 +170,7 @@ type AdminGroupDetailView struct {
 }
 
 // AdminGroupSummary 管理组列表概要：内置组排最前，MemberCount 内置组为
-// tenant-admin 角色绑定数（实时推导），自定义组为成员表计数
+// tenant-admin 角色绑定中排除租户创建人的数量（实时推导），自定义组为成员表计数
 type AdminGroupSummary struct {
 	ID          uint   `json:"id"`
 	Name        string `json:"name"`

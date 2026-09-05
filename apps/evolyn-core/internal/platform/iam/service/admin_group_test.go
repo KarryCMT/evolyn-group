@@ -345,6 +345,43 @@ func TestAdminGroupBuiltinGuards(t *testing.T) {
 	assert.ErrorIs(t, err, ErrAdminGroupMemberInvalid)
 }
 
+func TestAdminGroupExcludesTenantCreatorFromBuiltinGroup(t *testing.T) {
+	groups := newAdminGroupRepoStub()
+	ownerAccountID := uint(101)
+	users := map[uint]*model.User{
+		1: {ID: 1, AccountId: ownerAccountID, Nickname: "创建者", Status: model.MemberStatusActive},
+		2: {ID: 2, AccountId: 102, Nickname: "管理员", Status: model.MemberStatusActive},
+	}
+	svc := newAdminGroupServiceForTestWithTenant(
+		groups,
+		users,
+		adminGroupTenantReaderStub{ownerAccountID: &ownerAccountID},
+	)
+	ctx := tenantCtx(t, 7)
+	builtinID := seedBuiltinStub(t, groups, 1)
+	groups.memberRoles[2] = []uint{groups.roleID}
+
+	// 创建人保留 tenant-admin 角色以获得固定所有者权限，但不能作为内置
+	// 系统管理员组成员出网或计数。
+	detail, err := svc.Get(ctx, builtinID)
+	assert.NoError(t, err)
+	assert.Equal(t, []model.AdminGroupMemberView{{ID: 2, Name: "管理员"}}, detail.Members)
+
+	summaries, err := svc.List(ctx, model.AdminGroupScopeSystem)
+	assert.NoError(t, err)
+	assert.Len(t, summaries, 1)
+	assert.Equal(t, 1, summaries[0].MemberCount)
+
+	// 任何管理组（含内置系统管理员组）均拒绝把创建人作为成员提交。
+	_, err = svc.Update(ctx, builtinID, &AdminGroupPatchRequest{Members: &[]uint{1, 2}})
+	assert.ErrorIs(t, err, ErrAdminGroupTenantCreatorNotAllowed)
+
+	// 更新非创建人成员时，创建人的 tenant-admin 角色必须保持不变。
+	_, err = svc.Update(ctx, builtinID, &AdminGroupPatchRequest{Members: &[]uint{2}})
+	assert.NoError(t, err)
+	assert.Equal(t, []uint{groups.roleID}, groups.memberRoles[1])
+}
+
 func TestAdminGroupRejectsTenantCreatorInCustomGroup(t *testing.T) {
 	groups := newAdminGroupRepoStub()
 	ownerAccountID := uint(101)

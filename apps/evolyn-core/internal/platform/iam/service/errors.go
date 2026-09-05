@@ -94,6 +94,6 @@ var (
 	ErrAdminGroupConfigInvalid = httpx.NewBiz("ADMIN_GROUP_CONFIG_INVALID", "管理组配置不合法", http.StatusBadRequest)
 	// ErrAdminGroupMemberInvalid 成员不属于本租户、不存在或已离职。
 	ErrAdminGroupMemberInvalid = httpx.NewBiz("ADMIN_GROUP_MEMBER_INVALID", "管理组成员不合法", http.StatusBadRequest)
-	// ErrAdminGroupTenantCreatorNotAllowed 租户创建人具备固定所有者权限，不能加入自定义管理组。
+	// ErrAdminGroupTenantCreatorNotAllowed 租户创建人具备固定所有者权限，不能加入任何管理组。
 	ErrAdminGroupTenantCreatorNotAllowed = httpx.NewBiz("ADMIN_GROUP_TENANT_CREATOR_NOT_ALLOWED", "企业创建者不能加入任何管理组", http.StatusBadRequest)
 )

@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { RiCloseFill, RiSearchFill } from '@remixicon/vue';
-import { ElMessage } from 'element-plus';
-import { computed, shallowRef, watch } from 'vue';
-import type { DepartmentDto } from '~/api/department';
 import type { AdministratorMember, AdministratorPickerMember } from './administrator.types';
+import type { DepartmentDto } from '~/api/department';
+import { RiCloseFill, RiSearchFill } from '@remixicon/vue';
+import { computed, shallowRef, watch } from 'vue';
 
 defineOptions({ name: 'AdministratorMemberPickerDialog' });
 
@@ -15,14 +14,20 @@ const props = defineProps<{
   tenantOwnerAccountId: number | null;
 }>();
 
-const visible = defineModel<boolean>({ default: false });
 const emit = defineEmits<{ confirm: [members: AdministratorMember[]] }>();
+const visible = defineModel<boolean>({ default: false });
 const keyword = shallowRef('');
 const selectedIds = shallowRef<number[]>([]);
 // 部门过滤：null = 全部成员；点击树节点切换，再点「全部成员」或同节点取消
 const departmentFilterId = shallowRef<number | null>(null);
 
+function isTenantCreator(member: AdministratorPickerMember) {
+  return props.tenantOwnerAccountId !== null && member.accountId === props.tenantOwnerAccountId;
+}
+
 const keywords = computed(() => keyword.value.trim().split(/\s+/).filter(Boolean));
+/** 创建人拥有固定所有者权限，不属于任何管理组，也不出现在候选人数中。 */
+const availableMembers = computed(() => props.members.filter((member) => !isTenantCreator(member)));
 
 // 部门 → 整棵子树 ID 集：点父部门命中其下全部成员
 const departmentSubtrees = computed(() => {
@@ -44,7 +49,7 @@ const visibleMembers = computed(() => {
     departmentFilterId.value !== null
       ? departmentSubtrees.value.get(departmentFilterId.value)
       : null;
-  return props.members.filter((member) => {
+  return availableMembers.value.filter((member) => {
     if (subtree && !member.departmentIds?.some((id) => subtree.has(id))) {
       return false;
     }
@@ -55,12 +60,8 @@ const visibleMembers = computed(() => {
   });
 });
 const selectedItems = computed(() =>
-  props.members.filter((member) => selectedIds.value.includes(member.id)),
+  availableMembers.value.filter((member) => selectedIds.value.includes(member.id)),
 );
-
-function isTenantCreator(member: AdministratorPickerMember) {
-  return props.tenantOwnerAccountId !== null && member.accountId === props.tenantOwnerAccountId;
-}
 
 function toggleMember(id: number) {
   selectedIds.value = selectedIds.value.includes(id)
@@ -69,18 +70,10 @@ function toggleMember(id: number) {
 }
 
 function chooseMember(member: AdministratorPickerMember) {
-  if (isTenantCreator(member)) {
-    ElMessage.warning('企业创建者不能加入任何管理组');
-    return;
-  }
   toggleMember(member.id);
 }
 
 function removeMember(member: AdministratorPickerMember) {
-  if (isTenantCreator(member)) {
-    ElMessage.warning('企业创建者不能加入任何管理组');
-    return;
-  }
   selectedIds.value = selectedIds.value.filter((item) => item !== member.id);
 }
 
@@ -117,12 +110,11 @@ watch(visible, (isVisible) => {
         :key="member.id"
         class="administrator-member-picker__tag"
       >
-        <i>{{ member.name.slice(0, 1) }}</i
-        >{{ member.name }}<RiCloseFill @click="removeMember(member)" />
+        <i>{{ member.name.slice(0, 1) }}</i>{{ member.name }}<RiCloseFill @click="removeMember(member)" />
       </span>
     </section>
     <label class="administrator-member-picker__search">
-      <RiSearchFill /><input v-model="keyword" placeholder="搜索（多个关键词用空格隔开）" />
+      <RiSearchFill /><input v-model="keyword" placeholder="搜索（多个关键词用空格隔开）">
     </label>
     <section class="administrator-member-picker__body">
       <div class="administrator-member-picker__tree">
@@ -149,28 +141,20 @@ watch(visible, (isVisible) => {
       <div class="administrator-member-picker__results">
         <el-scrollbar>
           <p class="administrator-member-picker__result-title">
-            已选 {{ selectedItems.length }}/{{ members.length }}
+            已选 {{ selectedItems.length }}/{{ availableMembers.length }}
           </p>
           <label
             v-for="member in visibleMembers"
             :key="member.id"
             class="administrator-member-picker__member"
-            :class="{ 'administrator-member-picker__member--creator': isTenantCreator(member) }"
-            :title="isTenantCreator(member) ? '企业创建者不能加入任何管理组' : undefined"
             @click.prevent="chooseMember(member)"
           >
             <span class="administrator-member-picker__avatar">{{ member.name.slice(0, 1) }}</span>
             <span>{{ member.name }}</span>
-            <span v-if="isTenantCreator(member)" class="administrator-member-picker__creator-tag"
-              >创建者</span
-            >
             <span class="administrator-member-picker__member-department">{{
               member.department
             }}</span>
-            <el-checkbox
-              :model-value="selectedIds.includes(member.id)"
-              :disabled="isTenantCreator(member)"
-            />
+            <el-checkbox :model-value="selectedIds.includes(member.id)" />
           </label>
           <p v-if="visibleMembers.length === 0" class="administrator-member-picker__empty">
             没有符合条件的成员
@@ -179,8 +163,11 @@ watch(visible, (isVisible) => {
       </div>
     </section>
     <footer class="administrator-member-picker__footer">
-      <el-button @click="visible = false">取消</el-button
-      ><el-button type="primary" @click="submit">确定</el-button>
+      <el-button @click="visible = false">
+        取消
+      </el-button><el-button type="primary" @click="submit">
+        确定
+      </el-button>
     </footer>
   </el-dialog>
 </template>
@@ -313,22 +300,8 @@ watch(visible, (isVisible) => {
   &__member:hover {
     background: var(--el-fill-color-light);
   }
-  &__member--creator {
-    color: var(--el-text-color-secondary);
-    cursor: not-allowed;
-  }
-  &__member--creator:hover {
-    background: var(--el-fill-color-light);
-  }
   &__member .el-checkbox {
     margin-left: auto;
-  }
-  &__creator-tag {
-    padding: var(--el-space-xs) var(--el-space-sm);
-    border-radius: var(--el-border-radius-base);
-    color: var(--el-color-warning);
-    background: var(--el-color-warning-light-9);
-    font-size: var(--el-font-size-extra-small);
   }
   &__member-department {
     color: #98a1af;
