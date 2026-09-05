@@ -73,14 +73,11 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
   <el-dialog
     v-model="visible"
     class="administrator-application-picker"
-    width="944px"
-    :show-close="false"
+    width="min(760px, calc(100vw - 32px))"
+    show-close
     append-to-body
+    title="应用列表"
   >
-    <header class="administrator-application-picker__header">
-      <h2>应用列表</h2>
-      <button type="button" aria-label="关闭" @click="visible = false"><RiCloseFill /></button>
-    </header>
     <section class="administrator-application-picker__body">
       <div class="administrator-application-picker__catalog">
         <label class="administrator-application-picker__search"
@@ -125,50 +122,16 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
 </template>
 
 <style scoped lang="scss">
-:global(.administrator-application-picker) {
-  border-radius: var(--el-border-radius-large);
-}
-:global(.administrator-application-picker .el-dialog__header) {
-  display: none;
-}
-:global(.administrator-application-picker .el-dialog__body) {
-  padding: 0;
-}
 .administrator-application-picker {
-  &__header {
-    display: flex;
-    height: 68px;
-    padding: 0 var(--el-space-3xl);
-    border-bottom: 1px solid var(--el-border-color);
-    align-items: center;
-    justify-content: space-between;
-  }
-  &__header h2 {
-    margin: 0;
-    color: #273142;
-    font-size: var(--el-font-size-medium);
-  }
-  &__header button {
-    display: inline-flex;
-    border: 0;
-    padding: var(--el-space-xs);
-    color: #66707e;
-    background: transparent;
-    cursor: pointer;
-  }
-  &__header button:hover {
-    border-radius: var(--el-border-radius-medium);
-    background: var(--el-fill-color-light);
-  }
-  &__header svg {
-    width: 25px;
-    height: 25px;
-  }
   &__body {
     display: grid;
-    height: 652px;
+    // 高度封顶 652px 且随视口收缩：扣除弹窗固定高度（el-dialog 上下内边距 32 +
+    // 头 68 + 头部边框 1 + 内容区上下外边距 40 + 页脚 76 = 217px）与 el-dialog
+    // 默认上下边距（15vh + 50px），另留约 5px 余量吸收取整误差，保证任何视口
+    // 高度下 .el-overlay 都不出现纵向滚动条
+    height: min(652px, calc(85vh - 272px));
     grid-template-columns: 1fr 1fr;
-    margin: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-xl);
+    margin: var(--el-space-xl) 0;
     border: 1px solid var(--el-border-color);
     border-radius: var(--el-border-radius-medium);
     overflow: hidden;
@@ -258,18 +221,19 @@ function allApplicationsIdsOf(selectedIds: number[], applications: Administrator
     background: var(--el-fill-color-light);
     font-size: var(--el-font-size-medium);
   }
-  &__tag svg {
+  // 仅命中关闭按钮（标签直接子级 svg）；若写成后代选择器会连 __app-icon
+  // 内的应用图标 svg 一起命中，currentColor 变灰导致白图案消失
+  &__tag > svg {
     margin-left: var(--el-space-xs);
     color: #6d7785;
     cursor: pointer;
   }
-  &__tag svg:hover {
+  &__tag > svg:hover {
     color: var(--el-color-danger);
   }
   &__footer {
     display: flex;
-    height: 76px;
-    padding: 0 var(--el-space-3xl);
+    padding: 0 0;
     align-items: center;
     justify-content: flex-end;
     gap: var(--el-space-lg);
