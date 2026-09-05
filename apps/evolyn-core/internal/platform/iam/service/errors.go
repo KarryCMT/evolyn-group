@@ -94,6 +94,10 @@ var (
 	ErrAdminGroupConfigInvalid = httpx.NewBiz("ADMIN_GROUP_CONFIG_INVALID", "管理组配置不合法", http.StatusBadRequest)
 	// ErrAdminGroupMemberInvalid 成员不属于本租户、不存在或已离职。
 	ErrAdminGroupMemberInvalid = httpx.NewBiz("ADMIN_GROUP_MEMBER_INVALID", "管理组成员不合法", http.StatusBadRequest)
-	// ErrAdminGroupTenantCreatorNotAllowed 租户创建人具备固定所有者权限，不能加入任何管理组。
-	ErrAdminGroupTenantCreatorNotAllowed = httpx.NewBiz("ADMIN_GROUP_TENANT_CREATOR_NOT_ALLOWED", "企业创建者不能加入任何管理组", http.StatusBadRequest)
+	// ErrAdminGroupTenantCreatorNotAllowed 租户创建人仅属于内置系统管理员组，不能加入自定义管理组。
+	ErrAdminGroupTenantCreatorNotAllowed = httpx.NewBiz("ADMIN_GROUP_TENANT_CREATOR_NOT_ALLOWED", "企业创建者不能加入自定义管理组", http.StatusBadRequest)
+	// ErrAdminGroupTenantCreatorRequired 内置系统管理员组必须始终包含企业创建人。
+	ErrAdminGroupTenantCreatorRequired = httpx.NewBiz("ADMIN_GROUP_TENANT_CREATOR_REQUIRED", "系统管理员必须包含企业创建人", http.StatusBadRequest)
+	// ErrAdminGroupSelfRemovalNotAllowed 管理组成员不能将自己移除，避免误操作失去管理入口。
+	ErrAdminGroupSelfRemovalNotAllowed = httpx.NewBiz("ADMIN_GROUP_SELF_REMOVAL_NOT_ALLOWED", "不能将自己移除管理组", http.StatusForbidden)
 )

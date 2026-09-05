@@ -31,8 +31,8 @@ type AdminGroupTenantReader interface {
 
 // adminGroupService 管理组服务（权限中心-管理员模块）：管理组 CRUD 与分区块
 // 即时更新。内置系统管理员组的成员读写代理到 tenant-admin 角色绑定（单一
-// 事实源，杜绝双写漂移），但租户创建人不投影为管理组成员；管理组自身的资源
-// 权限（admin-groups）只授予租户管理员，通讯录管理组成员无法经本服务自我扩权
+// 事实源，杜绝双写漂移）。租户创建人是内置系统管理员组的固定成员；管理组自身
+// 的资源权限（admin-groups）只授予租户管理员，通讯录管理组成员无法经本服务自我扩权
 type adminGroupService struct {
 	tx           TxManager
 	groups       repository.AdminGroupRepository
@@ -67,7 +67,7 @@ func NewAdminGroupService(
 }
 
 // List 按 scope 列出管理组概要：内置组排最前（读取侧幂等兜底补种），
-// MemberCount 内置组为可展示的 tenant-admin 绑定数（创建人不计入）、
+// MemberCount 内置组为 tenant-admin 绑定数（包含企业创建人）、
 // 自定义组为成员表计数
 func (s *adminGroupService) List(ctx context.Context, scope string) ([]model.AdminGroupSummary, error) {
 	if scope != "" && scope != model.AdminGroupScopeSystem && scope != model.AdminGroupScopeApplication {
@@ -85,22 +85,14 @@ func (s *adminGroupService) List(ctx context.Context, scope string) ([]model.Adm
 	if err != nil {
 		return nil, err
 	}
-	// 内置组成员数走角色绑定推导；租户创建人虽保留 tenant-admin 角色以维持
-	// 固定所有者权限，但不属于任何管理组，不能展示或计入系统管理员组。
+	// 内置组成员数走角色绑定推导，企业创建人在租户开通时已绑定 tenant-admin，
+	// 因而会作为内置系统管理员组的固定成员一并展示和计数。
 	// 解析失败（异常库态）时降级为 0 而非报错，列表是读路径，不应因内置角色
 	// 缺失整体失败。
 	builtinCount := 0
 	if roleID, err := s.groups.ResolveBuiltinRoleID(ctx); err == nil {
-		if members, err := s.groups.ListBuiltinMembers(ctx, roleID); err == nil {
-			ownerAccountID, err := s.ownerAccountID(ctx)
-			if err != nil {
-				return nil, err
-			}
-			for _, member := range members {
-				if member.AccountId != ownerAccountID {
-					builtinCount++
-				}
-			}
+		if count, err := s.groups.CountBuiltinMembers(ctx, roleID); err == nil {
+			builtinCount = int(count)
 		}
 	}
 
@@ -308,9 +300,9 @@ func (s *adminGroupService) ensureBuiltin(ctx context.Context) error {
 	return s.SeedBuiltin(ctx, tenantID)
 }
 
-// loadMembers 组成员展示视图：内置组经角色绑定推导，但创建人是固定所有者，
-// 不属于任何管理组，因此从展示结果中剔除；自定义组按 ID 逐个加载（管理组
-// 成员量为人工配置规模，N+1 可接受；GetMemberDetail 预加载账号与部门）。
+// loadMembers 组成员展示视图：内置组经 tenant-admin 角色绑定推导，包含租户
+// 创建人这一固定成员；自定义组按 ID 逐个加载（管理组成员量为人工配置规模，
+// N+1 可接受；GetMemberDetail 预加载账号与部门）。
 func (s *adminGroupService) loadMembers(ctx context.Context, group *model.AdminGroup) ([]model.AdminGroupMemberView, error) {
 	if group.BuiltIn {
 		roleID, err := s.groups.ResolveBuiltinRoleID(ctx)
@@ -322,11 +314,7 @@ func (s *adminGroupService) loadMembers(ctx context.Context, group *model.AdminG
 		if err != nil {
 			return nil, err
 		}
-		ownerAccountID, err := s.ownerAccountID(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return memberViewsExcludingOwner(users, ownerAccountID), nil
+		return memberViews(users), nil
 	}
 
 	ids, err := s.groups.ListMemberIDs(ctx, group.ID)
@@ -361,6 +349,7 @@ func (s *adminGroupService) updateMembers(ctx context.Context, group *model.Admi
 	// 禁止裸 ID 盲写关系表（FIX-008 口径）；离职成员不允许担任管理员
 	validated := make([]uint, 0, len(memberIDs))
 	seen := make(map[uint]struct{}, len(memberIDs))
+	creatorIncluded := ownerAccountID == 0
 	for _, id := range memberIDs {
 		if id == 0 {
 			return nil, ErrAdminGroupMemberInvalid
@@ -375,17 +364,27 @@ func (s *adminGroupService) updateMembers(ctx context.Context, group *model.Admi
 		if member.Status == model.MemberStatusResigned {
 			return nil, ErrAdminGroupMemberInvalid
 		}
-		// 创建人本身已具备固定所有者权限，禁止加入任一管理组；即使内置
-		// 系统管理员组通过 tenant-admin 角色投影，也只能展示和维护非创建人。
 		if ownerAccountID != 0 && member.AccountId == ownerAccountID {
-			return nil, ErrAdminGroupTenantCreatorNotAllowed
+			creatorIncluded = true
+			// 创建人仅属于内置系统管理员组；自定义管理组不得重复授予其范围权限。
+			if !group.BuiltIn {
+				return nil, ErrAdminGroupTenantCreatorNotAllowed
+			}
 		}
 		seen[id] = struct{}{}
 		validated = append(validated, id)
 	}
+	// 企业创建人由开通流程初始化为 tenant-admin，因此必须始终保留在内置
+	// 系统管理员组中。此处同时阻止其他管理员将创建人移出该组。
+	if group.BuiltIn && !creatorIncluded {
+		return nil, ErrAdminGroupTenantCreatorRequired
+	}
+	if err := s.ensureActorRemainsInGroup(ctx, group, validated); err != nil {
+		return nil, err
+	}
 
 	if group.BuiltIn {
-		return s.updateBuiltinMembers(ctx, tenantID, ownerAccountID, group, validated)
+		return s.updateBuiltinMembers(ctx, tenantID, group, validated)
 	}
 
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
@@ -398,10 +397,41 @@ func (s *adminGroupService) updateMembers(ctx context.Context, group *model.Admi
 	return s.Get(ctx, group.ID)
 }
 
+// ensureActorRemainsInGroup 防止成员在管理组编辑页误把自己移除。仅当操作者
+// 当前已属于该管理组、且目标成员集合不再包含自己时拒绝；未认证的测试、后台
+// 维护等上下文不触发此保护。内置组包含创建人这一固定成员，其移除还会由
+// 创建人保留守卫拒绝。
+func (s *adminGroupService) ensureActorRemainsInGroup(ctx context.Context, group *model.AdminGroup, targetMemberIDs []uint) error {
+	actor, ok := contextx.ActorFromContext(ctx)
+	if !ok || actor.MemberID == 0 || containsAdminGroupMember(targetMemberIDs, actor.MemberID) {
+		return nil
+	}
+
+	currentMembers, err := s.loadMembers(ctx, group)
+	if err != nil {
+		return err
+	}
+	for _, member := range currentMembers {
+		if member.ID == actor.MemberID {
+			return ErrAdminGroupSelfRemovalNotAllowed
+		}
+	}
+	return nil
+}
+
+func containsAdminGroupMember(ids []uint, target uint) bool {
+	for _, id := range ids {
+		if id == target {
+			return true
+		}
+	}
+	return false
+}
+
 // updateBuiltinMembers 内置组成员更新：以 tenant-admin 角色绑定为事实源做
 // 差量增删。守卫：替换后至少保留一名系统管理员（清空即拒绝，含把唯一管理员
 // 换成空列表或全部移除自己的场景）
-func (s *adminGroupService) updateBuiltinMembers(ctx context.Context, tenantID uint, ownerAccountID uint, group *model.AdminGroup, memberIDs []uint) (*model.AdminGroupDetailView, error) {
+func (s *adminGroupService) updateBuiltinMembers(ctx context.Context, tenantID uint, group *model.AdminGroup, memberIDs []uint) (*model.AdminGroupDetailView, error) {
 	if len(memberIDs) == 0 {
 		return nil, ErrAdminGroupLastAdmin
 	}
@@ -413,13 +443,8 @@ func (s *adminGroupService) updateBuiltinMembers(ctx context.Context, tenantID u
 	if err != nil {
 		return nil, err
 	}
-	// 创建人持有 tenant-admin 是其固定所有者权限的实现细节，不是内置
-	// 系统管理员组的成员。因此差量更新时绝不能移除创建人的角色绑定。
 	currentIDs := make(map[uint]struct{}, len(current))
 	for _, member := range current {
-		if ownerAccountID != 0 && member.AccountId == ownerAccountID {
-			continue
-		}
 		currentIDs[member.ID] = struct{}{}
 	}
 	nextIDs := make(map[uint]struct{}, len(memberIDs))
@@ -681,14 +706,10 @@ func defaultScopeConfig(scope string) model.AdminGroupScopeConfig {
 	return config
 }
 
-// memberViewsExcludingOwner 将 tenant-admin 角色绑定投影为内置管理组成员时，
-// 排除租户创建人。创建人的权限来自固定所有者身份，而非管理组成员资格。
-func memberViewsExcludingOwner(users []model.User, ownerAccountID uint) []model.AdminGroupMemberView {
+// memberViews 将 tenant-admin 角色绑定投影为内置管理组成员，包含企业创建人。
+func memberViews(users []model.User) []model.AdminGroupMemberView {
 	views := make([]model.AdminGroupMemberView, 0, len(users))
 	for i := range users {
-		if ownerAccountID != 0 && users[i].AccountId == ownerAccountID {
-			continue
-		}
 		views = append(views, memberView(&users[i]))
 	}
 	return views

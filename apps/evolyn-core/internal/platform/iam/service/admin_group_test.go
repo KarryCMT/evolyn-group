@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"evolyn/internal/contextx"
 	"evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/repository"
 	tenantmodel "evolyn/internal/platform/tenant/model"
@@ -345,7 +346,7 @@ func TestAdminGroupBuiltinGuards(t *testing.T) {
 	assert.ErrorIs(t, err, ErrAdminGroupMemberInvalid)
 }
 
-func TestAdminGroupExcludesTenantCreatorFromBuiltinGroup(t *testing.T) {
+func TestAdminGroupBuiltinIncludesAndRequiresTenantCreator(t *testing.T) {
 	groups := newAdminGroupRepoStub()
 	ownerAccountID := uint(101)
 	users := map[uint]*model.User{
@@ -361,25 +362,67 @@ func TestAdminGroupExcludesTenantCreatorFromBuiltinGroup(t *testing.T) {
 	builtinID := seedBuiltinStub(t, groups, 1)
 	groups.memberRoles[2] = []uint{groups.roleID}
 
-	// 创建人保留 tenant-admin 角色以获得固定所有者权限，但不能作为内置
-	// 系统管理员组成员出网或计数。
+	// 创建人在开通时已绑定 tenant-admin，须作为内置系统管理员组固定成员出网并计数。
 	detail, err := svc.Get(ctx, builtinID)
 	assert.NoError(t, err)
-	assert.Equal(t, []model.AdminGroupMemberView{{ID: 2, Name: "管理员"}}, detail.Members)
+	assert.ElementsMatch(t, []model.AdminGroupMemberView{
+		{ID: 1, Name: "创建者"},
+		{ID: 2, Name: "管理员"},
+	}, detail.Members)
 
 	summaries, err := svc.List(ctx, model.AdminGroupScopeSystem)
 	assert.NoError(t, err)
 	assert.Len(t, summaries, 1)
-	assert.Equal(t, 1, summaries[0].MemberCount)
+	assert.Equal(t, 2, summaries[0].MemberCount)
 
-	// 任何管理组（含内置系统管理员组）均拒绝把创建人作为成员提交。
-	_, err = svc.Update(ctx, builtinID, &AdminGroupPatchRequest{Members: &[]uint{1, 2}})
-	assert.ErrorIs(t, err, ErrAdminGroupTenantCreatorNotAllowed)
-
-	// 更新非创建人成员时，创建人的 tenant-admin 角色必须保持不变。
+	// 其他管理员不能将创建人从系统管理员组移出。
 	_, err = svc.Update(ctx, builtinID, &AdminGroupPatchRequest{Members: &[]uint{2}})
+	assert.ErrorIs(t, err, ErrAdminGroupTenantCreatorRequired)
+
+	// 仍可同时配置其他系统管理员。
+	_, err = svc.Update(ctx, builtinID, &AdminGroupPatchRequest{Members: &[]uint{1, 2}})
 	assert.NoError(t, err)
 	assert.Equal(t, []uint{groups.roleID}, groups.memberRoles[1])
+}
+
+func TestAdminGroupRejectsSelfRemoval(t *testing.T) {
+	for _, testCase := range []struct {
+		name    string
+		builtIn bool
+	}{
+		{name: "custom group"},
+		{name: "builtin group", builtIn: true},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			groups := newAdminGroupRepoStub()
+			users := map[uint]*model.User{
+				1: {ID: 1, Nickname: "其他管理员", Status: model.MemberStatusActive},
+				2: {ID: 2, Nickname: "当前管理员", Status: model.MemberStatusActive},
+			}
+			svc := newAdminGroupServiceForTest(groups, users)
+			ctx := tenantCtx(t, 7)
+
+			var groupID uint
+			if testCase.builtIn {
+				groupID = seedBuiltinStub(t, groups, 1)
+				groups.memberRoles[2] = []uint{groups.roleID}
+			} else {
+				created, err := svc.Create(ctx, &AdminGroupCreateRequest{Scope: model.AdminGroupScopeSystem, Name: "通讯录组"})
+				assert.NoError(t, err)
+				groupID = created.ID
+				_, err = svc.Update(ctx, groupID, &AdminGroupPatchRequest{Members: &[]uint{1, 2}})
+				assert.NoError(t, err)
+			}
+
+			actorCtx := contextx.NewActorContext(ctx, contextx.Actor{MemberID: 2})
+			_, err := svc.Update(actorCtx, groupID, &AdminGroupPatchRequest{Members: &[]uint{1}})
+			assert.ErrorIs(t, err, ErrAdminGroupSelfRemovalNotAllowed)
+
+			// 保留自己时仍可正常调整其他成员，保护规则不会阻塞常规维护。
+			_, err = svc.Update(actorCtx, groupID, &AdminGroupPatchRequest{Members: &[]uint{1, 2}})
+			assert.NoError(t, err)
+		})
+	}
 }
 
 func TestAdminGroupRejectsTenantCreatorInCustomGroup(t *testing.T) {

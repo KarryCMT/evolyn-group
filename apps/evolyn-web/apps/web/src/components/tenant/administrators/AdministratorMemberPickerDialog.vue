@@ -2,6 +2,7 @@
 import type { AdministratorMember, AdministratorPickerMember } from './administrator.types';
 import type { DepartmentDto } from '~/api/department';
 import { RiCloseFill, RiSearchFill } from '@remixicon/vue';
+import { ElMessage } from 'element-plus';
 import { computed, shallowRef, watch } from 'vue';
 
 defineOptions({ name: 'AdministratorMemberPickerDialog' });
@@ -10,8 +11,12 @@ const props = defineProps<{
   members: AdministratorPickerMember[];
   departments: DepartmentDto[];
   selectedMembers: AdministratorMember[];
-  /** 租户创建人是固定所有者，不可通过管理组再次授予管理员身份。 */
+  /** 租户创建人账号，用于区分内置组固定成员和自定义组禁选成员。 */
   tenantOwnerAccountId: number | null;
+  /** 内置系统管理员组必须始终保留企业创建人。 */
+  isBuiltinSystemGroup: boolean;
+  /** 当前操作者不能将自己从已加入的管理组中移除。 */
+  currentMemberId: number | null;
 }>();
 
 const emit = defineEmits<{ confirm: [members: AdministratorMember[]] }>();
@@ -25,9 +30,25 @@ function isTenantCreator(member: AdministratorPickerMember) {
   return props.tenantOwnerAccountId !== null && member.accountId === props.tenantOwnerAccountId;
 }
 
+function isSelfRemovalBlocked(member: AdministratorPickerMember) {
+  return props.currentMemberId === member.id && selectedIds.value.includes(member.id);
+}
+
+function isRequiredTenantCreator(member: AdministratorPickerMember) {
+  return props.isBuiltinSystemGroup && isTenantCreator(member);
+}
+
+function creatorLockMessage(member: AdministratorPickerMember) {
+  return isRequiredTenantCreator(member)
+    ? '系统管理员必须包含企业创建人'
+    : '企业创建者不能加入自定义管理组';
+}
+
 const keywords = computed(() => keyword.value.trim().split(/\s+/).filter(Boolean));
-/** 创建人拥有固定所有者权限，不属于任何管理组，也不出现在候选人数中。 */
-const availableMembers = computed(() => props.members.filter((member) => !isTenantCreator(member)));
+/** 创建人仅可作为内置系统管理员组的固定成员；自定义组候选中不可选择。 */
+const selectableMembers = computed(() =>
+  props.members.filter((member) => props.isBuiltinSystemGroup || !isTenantCreator(member)),
+);
 
 // 部门 → 整棵子树 ID 集：点父部门命中其下全部成员
 const departmentSubtrees = computed(() => {
@@ -49,7 +70,7 @@ const visibleMembers = computed(() => {
     departmentFilterId.value !== null
       ? departmentSubtrees.value.get(departmentFilterId.value)
       : null;
-  return availableMembers.value.filter((member) => {
+  return props.members.filter((member) => {
     if (subtree && !member.departmentIds?.some((id) => subtree.has(id))) {
       return false;
     }
@@ -60,7 +81,7 @@ const visibleMembers = computed(() => {
   });
 });
 const selectedItems = computed(() =>
-  availableMembers.value.filter((member) => selectedIds.value.includes(member.id)),
+  selectableMembers.value.filter((member) => selectedIds.value.includes(member.id)),
 );
 
 function toggleMember(id: number) {
@@ -70,10 +91,26 @@ function toggleMember(id: number) {
 }
 
 function chooseMember(member: AdministratorPickerMember) {
+  if (isTenantCreator(member)) {
+    ElMessage.warning(creatorLockMessage(member));
+    return;
+  }
+  if (isSelfRemovalBlocked(member)) {
+    ElMessage.warning('不能将自己移除管理组');
+    return;
+  }
   toggleMember(member.id);
 }
 
 function removeMember(member: AdministratorPickerMember) {
+  if (isTenantCreator(member)) {
+    ElMessage.warning(creatorLockMessage(member));
+    return;
+  }
+  if (isSelfRemovalBlocked(member)) {
+    ElMessage.warning('不能将自己移除管理组');
+    return;
+  }
   selectedIds.value = selectedIds.value.filter((item) => item !== member.id);
 }
 
@@ -90,7 +127,12 @@ watch(visible, (isVisible) => {
   if (isVisible) {
     keyword.value = '';
     departmentFilterId.value = null;
-    selectedIds.value = props.selectedMembers.map((member) => member.id);
+    const ids = props.selectedMembers.map((member) => member.id);
+    // 历史数据或并发刷新若遗漏创建人，打开内置组选择器时仍将其锁定并随提交保留。
+    const creator = props.isBuiltinSystemGroup
+      ? props.members.find((member) => isTenantCreator(member))
+      : undefined;
+    selectedIds.value = creator && !ids.includes(creator.id) ? [...ids, creator.id] : ids;
   }
 });
 </script>
@@ -110,7 +152,21 @@ watch(visible, (isVisible) => {
         :key="member.id"
         class="administrator-member-picker__tag"
       >
-        <i>{{ member.name.slice(0, 1) }}</i>{{ member.name }}<RiCloseFill @click="removeMember(member)" />
+        <i>{{ member.name.slice(0, 1) }}</i>{{ member.name
+        }}<RiCloseFill
+          :class="{
+            'administrator-member-picker__tag-close--locked':
+              isSelfRemovalBlocked(member) || isRequiredTenantCreator(member),
+          }"
+          :title="
+            isRequiredTenantCreator(member)
+              ? '系统管理员必须包含企业创建人'
+              : isSelfRemovalBlocked(member)
+                ? '不能将自己移除管理组'
+                : '移除成员'
+          "
+          @click="removeMember(member)"
+        />
       </span>
     </section>
     <label class="administrator-member-picker__search">
@@ -141,20 +197,35 @@ watch(visible, (isVisible) => {
       <div class="administrator-member-picker__results">
         <el-scrollbar>
           <p class="administrator-member-picker__result-title">
-            已选 {{ selectedItems.length }}/{{ availableMembers.length }}
+            已选 {{ selectedItems.length }}/{{ selectableMembers.length }}
           </p>
           <label
             v-for="member in visibleMembers"
             :key="member.id"
             class="administrator-member-picker__member"
+            :class="{
+              'administrator-member-picker__member--creator': isTenantCreator(member),
+              'administrator-member-picker__member--self-locked': isSelfRemovalBlocked(member),
+            }"
+            :title="
+              isTenantCreator(member)
+                ? creatorLockMessage(member)
+                : isSelfRemovalBlocked(member)
+                  ? '不能将自己移除管理组'
+                  : undefined
+            "
             @click.prevent="chooseMember(member)"
           >
             <span class="administrator-member-picker__avatar">{{ member.name.slice(0, 1) }}</span>
             <span>{{ member.name }}</span>
+            <span v-if="isTenantCreator(member)" class="administrator-member-picker__creator-tag">企业创建人</span>
             <span class="administrator-member-picker__member-department">{{
               member.department
             }}</span>
-            <el-checkbox :model-value="selectedIds.includes(member.id)" />
+            <el-checkbox
+              :model-value="selectedIds.includes(member.id)"
+              :disabled="isTenantCreator(member) || isSelfRemovalBlocked(member)"
+            />
           </label>
           <p v-if="visibleMembers.length === 0" class="administrator-member-picker__empty">
             没有符合条件的成员
@@ -216,6 +287,11 @@ watch(visible, (isVisible) => {
   }
   &__tag svg:hover {
     color: var(--el-color-danger);
+  }
+  &__tag-close--locked,
+  &__tag-close--locked:hover {
+    color: var(--el-text-color-placeholder);
+    cursor: not-allowed;
   }
   &__search {
     display: flex;
@@ -300,8 +376,22 @@ watch(visible, (isVisible) => {
   &__member:hover {
     background: var(--el-fill-color-light);
   }
+  &__member--self-locked {
+    cursor: not-allowed;
+  }
+  &__member--creator {
+    color: var(--el-text-color-secondary);
+    cursor: not-allowed;
+  }
   &__member .el-checkbox {
     margin-left: auto;
+  }
+  &__creator-tag {
+    padding: var(--el-space-xs) var(--el-space-sm);
+    border-radius: var(--el-border-radius-base);
+    color: var(--el-color-warning);
+    background: var(--el-color-warning-light-9);
+    font-size: var(--el-font-size-extra-small);
   }
   &__member-department {
     color: #98a1af;

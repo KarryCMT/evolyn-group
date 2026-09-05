@@ -74,7 +74,7 @@ function toggleSidebar() {
 
   &__sidebar-shell {
     min-width: 0;
-    flex: 0 0 320px;
+    flex: 0 0 234px;
     overflow: hidden;
     transition: flex-basis 0.2s ease;
   }
@@ -84,7 +84,7 @@ function toggleSidebar() {
     z-index: 1;
     /* 贴近侧栏顶部，避开内容区的页签栏。 */
     top: 12px;
-    left: 276px;
+    left: 190px;
     display: inline-flex;
     width: 28px;
     height: 36px;

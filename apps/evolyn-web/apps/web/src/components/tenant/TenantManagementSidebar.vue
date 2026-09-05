@@ -28,27 +28,30 @@ function isActive(path: string, nestedPath?: string) {
     :class="{ 'tenant-management-sidebar--collapsed': props.collapsed }"
     aria-label="管理后台导航"
   >
-    <nav class="tenant-management-sidebar__nav">
-      <section
-        v-for="group in tenantNavigationGroups"
-        :key="group.label"
-        class="tenant-management-sidebar__group"
-      >
-        <h2 class="tenant-management-sidebar__group-title">{{ group.label }}</h2>
-        <RouterLink
-          v-for="item in group.items"
-          :key="item.key"
-          class="tenant-management-sidebar__item"
-          :class="{
-            'tenant-management-sidebar__item--active': isActive(item.path, item.activePath),
-          }"
-          :to="item.path"
+    <!-- 菜单超出可用高度时，使用 Element Plus 滚动条而不是浏览器原生滚动条。 -->
+    <el-scrollbar class="tenant-management-sidebar__scrollbar">
+      <nav class="tenant-management-sidebar__nav">
+        <section
+          v-for="group in tenantNavigationGroups"
+          :key="group.label"
+          class="tenant-management-sidebar__group"
         >
-          <component :is="item.icon" aria-hidden="true" />
-          <span class="tenant-management-sidebar__item-label">{{ item.label }}</span>
-        </RouterLink>
-      </section>
-    </nav>
+          <h2 class="tenant-management-sidebar__group-title">{{ group.label }}</h2>
+          <RouterLink
+            v-for="item in group.items"
+            :key="item.key"
+            class="tenant-management-sidebar__item"
+            :class="{
+              'tenant-management-sidebar__item--active': isActive(item.path, item.activePath),
+            }"
+            :to="item.path"
+          >
+            <component :is="item.icon" aria-hidden="true" />
+            <span class="tenant-management-sidebar__item-label">{{ item.label }}</span>
+          </RouterLink>
+        </section>
+      </nav>
+    </el-scrollbar>
   </aside>
 </template>
 
@@ -56,10 +59,18 @@ function isActive(path: string, nestedPath?: string) {
 .tenant-management-sidebar {
   /* 固定宽度包含内边距，避免选中卡片被外层容器裁切并贴住内容区。 */
   box-sizing: border-box;
-  width: 320px;
-  flex: 0 0 320px;
+  display: flex;
+  min-height: 0;
+  width: 234px;
+  flex: 0 0 234px;
   padding: var(--el-space-2xl) var(--el-space-xl);
-  overflow-y: auto;
+  overflow: hidden;
+  flex-direction: column;
+
+  &__scrollbar {
+    min-height: 0;
+    flex: 1;
+  }
 
   &__nav,
   &__group {
@@ -159,10 +170,4 @@ function isActive(path: string, nestedPath?: string) {
   }
 }
 
-@media (max-width: 900px) {
-  .tenant-management-sidebar:not(.tenant-management-sidebar--collapsed) {
-    width: 240px;
-    flex-basis: 240px;
-  }
-}
 </style>

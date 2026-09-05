@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RiAddFill, RiQuestionFill, RiTeamFill, RiUserSettingsFill } from '@remixicon/vue';
+import { ElMessage } from 'element-plus';
 import { computed, onMounted, shallowRef } from 'vue';
 import { listApplications } from '~/api/applications';
 import { getDepartmentTree, type DepartmentDto } from '~/api/department';
@@ -35,10 +36,11 @@ const applicationPickerVisible = shallowRef(false);
 const addressBookVisible = shallowRef(false);
 const departmentPickerVisible = shallowRef(false);
 const rolePickerVisible = shallowRef(false);
-const showSaved = shallowRef(false);
 const { userInfo } = useAuth();
-/** 租户创建人由登录聚合信息提供；成员选择器据此禁用其加入管理组。 */
+/** 租户创建人由登录聚合信息提供；内置系统组须固定保留，自定义组不可加入。 */
 const tenantOwnerAccountId = computed(() => userInfo.value?.tenant.ownerAccountId ?? null);
+/** 管理组成员调整中禁止当前操作者移除自己，避免误操作失去管理入口。 */
+const currentMemberId = computed(() => userInfo.value?.member.id ?? null);
 
 // ---- 选择器数据源（挂载后并行加载；失败静默为空，弹窗展示暂无可选项）----
 const members = shallowRef<AdministratorPickerMember[]>([]);
@@ -115,17 +117,16 @@ onMounted(() => {
 
 // ---- 区块保存：每次提交所属区块的全部字段（组合层映射为单区块 PATCH）----
 
-/** 保存成功后短暂展示「修改已保存」。 */
+/** 保存成功后使用全局消息提示，避免在面板内遗留固定位置的状态文案。 */
 async function patch(patchValue: Partial<AdministratorGroup>) {
   if (!(await props.save(patchValue))) return;
-  showSaved.value = true;
-  window.setTimeout(() => {
-    showSaved.value = false;
-  }, 1400);
+  ElMessage.success('修改已保存');
 }
 
 /** 内置组配置固定全量：除成员与名称外不可变更，控件整体禁用。 */
 const configDisabled = computed(() => props.group?.builtIn || props.saving === true);
+/** 所有管理组复用同一成员选择区，确保系统、通讯录与应用管理组的交互一致。 */
+const useMemberSelectionBox = computed(() => Boolean(props.group));
 
 function patchDepartment(enabled?: boolean, mode?: ScopeMode, ids?: number[]) {
   const group = props.group;
@@ -183,26 +184,57 @@ async function saveAddressBook(scope: AddressBookScope) {
       <div v-loading="loading" class="administrator-permission-panel__body">
         <section
           class="administrator-permission-panel__row administrator-permission-panel__row--members"
+          :class="{
+            'administrator-permission-panel__row--member-selection': useMemberSelectionBox,
+          }"
         >
           <h2>管理员</h2>
-          <button
-            class="administrator-permission-panel__text-action"
-            type="button"
-            :disabled="saving"
-            @click="memberPickerVisible = true"
-          >
-            <RiAddFill />选择成员
-          </button>
-          <span
-            v-for="member in group.members"
-            :key="member.id"
-            class="administrator-permission-panel__member"
-            ><i>{{ member.name.slice(0, 1) }}</i
-            >{{ member.name }}</span
-          >
+          <template v-if="useMemberSelectionBox">
+            <!-- 所有管理组复用同一整块成员选择样式，并保留完整点击入口。 -->
+            <button
+              class="administrator-permission-panel__member-selection"
+              type="button"
+              :disabled="saving"
+              aria-label="编辑管理员"
+              @click="memberPickerVisible = true"
+            >
+              <span
+                v-for="member in group.members"
+                :key="member.id"
+                class="administrator-permission-panel__member-selection-chip"
+              >
+                <i>{{ member.name.slice(0, 1) }}</i>{{ member.name }}
+              </span>
+              <span
+                v-if="group.members.length === 0"
+                class="administrator-permission-panel__member-selection-placeholder"
+              >
+                <RiAddFill />选择成员
+              </span>
+            </button>
+          </template>
+          <template v-else>
+            <button
+              class="administrator-permission-panel__text-action"
+              type="button"
+              :disabled="saving"
+              @click="memberPickerVisible = true"
+            >
+              <RiAddFill />选择成员
+            </button>
+            <span
+              v-for="member in group.members"
+              :key="member.id"
+              class="administrator-permission-panel__member"
+              ><i>{{ member.name.slice(0, 1) }}</i
+              >{{ member.name }}</span
+            >
+          </template>
         </section>
 
-        <template v-if="scope === 'system'">
+        <!-- 内置系统管理员的权限恒为全量，因此仅维护管理员成员；通讯录管理组
+             才展示完整的通讯录权限配置。 -->
+        <template v-if="scope === 'system' && !group.builtIn">
           <section class="administrator-permission-panel__row">
             <h2>内部部门</h2>
             <el-checkbox
@@ -301,7 +333,7 @@ async function saveAddressBook(scope: AddressBookScope) {
           </section>
         </template>
 
-        <template v-else>
+        <template v-else-if="scope === 'application'">
           <section class="administrator-permission-panel__row">
             <h2>应用管理</h2>
             <button
@@ -412,11 +444,6 @@ async function saveAddressBook(scope: AddressBookScope) {
             </div>
           </section>
         </template>
-        <transition name="administrator-saved"
-          ><span v-if="showSaved" class="administrator-permission-panel__saved"
-            >✓ 修改已保存</span
-          ></transition
-        >
       </div>
       <AdministratorMemberPickerDialog
         v-model="memberPickerVisible"
@@ -424,6 +451,8 @@ async function saveAddressBook(scope: AddressBookScope) {
         :departments="departments"
         :selected-members="group.members"
         :tenant-owner-account-id="tenantOwnerAccountId"
+        :is-builtin-system-group="scope === 'system' && group.builtIn"
+        :current-member-id="currentMemberId"
         @confirm="patch({ members: $event })"
       />
       <AdministratorApplicationPickerDialog
@@ -547,6 +576,9 @@ async function saveAddressBook(scope: AddressBookScope) {
   &__row--members {
     align-items: center;
   }
+  &__row--member-selection {
+    min-height: 100px;
+  }
   &__text-action {
     display: inline-flex;
     min-height: 32px;
@@ -591,6 +623,61 @@ async function saveAddressBook(scope: AddressBookScope) {
     background: var(--el-color-primary);
     font-size: var(--el-font-size-small);
     font-style: normal;
+  }
+  &__member-selection {
+    display: flex;
+    min-height: 80px;
+    padding: var(--el-space-lg);
+    border: 1px dashed var(--el-border-color-light);
+    border-radius: var(--el-border-radius-medium);
+    align-content: flex-start;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--el-space-md);
+    background: transparent;
+    cursor: pointer;
+  }
+  &__member-selection:hover:not(:disabled) {
+    border-color: var(--el-color-primary-light-5);
+    background: var(--el-color-primary-light-9);
+  }
+  &__member-selection:disabled {
+    cursor: not-allowed;
+  }
+  &__member-selection-chip {
+    display: inline-flex;
+    height: 42px;
+    padding: 0 var(--el-space-lg) 0 var(--el-space-sm);
+    border-radius: var(--el-border-radius-medium);
+    align-items: center;
+    gap: var(--el-space-sm);
+    color: var(--el-text-color-regular);
+    background: var(--el-fill-color-light);
+    font-size: var(--el-font-size-medium);
+  }
+  &__member-selection-chip i {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--el-border-radius-half);
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: var(--el-color-primary);
+    font-size: var(--el-font-size-small);
+    font-style: normal;
+  }
+  &__member-selection-placeholder {
+    display: inline-flex;
+    min-height: 42px;
+    align-items: center;
+    gap: var(--el-space-xs);
+    color: var(--el-color-primary);
+    font-size: var(--el-font-size-medium);
+  }
+  &__member-selection-placeholder svg {
+    width: 22px;
+    height: 22px;
   }
   &__scope-detail {
     margin: -5px 0 var(--el-space-3xl) 246px;
@@ -683,20 +770,5 @@ async function saveAddressBook(scope: AddressBookScope) {
     height: 42px;
     font-size: var(--el-font-size-medium);
   }
-  &__saved {
-    position: absolute;
-    top: 365px;
-    right: 30px;
-    color: var(--el-color-success);
-    font-size: var(--el-font-size-medium);
-  }
-}
-.administrator-saved-enter-active,
-.administrator-saved-leave-active {
-  transition: opacity 0.2s;
-}
-.administrator-saved-enter-from,
-.administrator-saved-leave-to {
-  opacity: 0;
 }
 </style>

@@ -96,7 +96,7 @@ func (a *AdminGroupController) Create(c *gin.Context) {
 }
 
 // @Summary 即时更新管理组的一个配置区块
-// @Description 每次请求至多携带一个区块（name/members/departmentScope/roleScope/externalOrg/applicationScope/addressBook），区块整体替换；内置系统管理员组仅允许 members（代理 tenant-admin 角色绑定），租户创建人不能加入任何管理组，且至少保留一名管理员
+// @Description 每次请求至多携带一个区块（name/members/departmentScope/roleScope/externalOrg/applicationScope/addressBook），区块整体替换；内置系统管理员组仅允许 members（代理 tenant-admin 角色绑定），且必须包含租户创建人；创建人不能加入自定义管理组，且至少保留一名管理员
 // @Accept json
 // @Produce json
 // @Tags 管理组
@@ -104,8 +104,8 @@ func (a *AdminGroupController) Create(c *gin.Context) {
 // @Param id path int true "管理组 ID"
 // @Param body body service.AdminGroupPatchRequest true "本次变更的唯一区块"
 // @Success 200 {object} httpx.Response{data=model.AdminGroupDetailView}
-// @Failure 400 {object} httpx.Response "errCode=ADMIN_GROUP_CONFIG_INVALID|ADMIN_GROUP_SCOPE_MISMATCH|ADMIN_GROUP_MEMBER_INVALID|ADMIN_GROUP_TENANT_CREATOR_NOT_ALLOWED|ADMIN_GROUP_NAME_INVALID"
-// @Failure 403 {object} httpx.Response "errCode=ADMIN_GROUP_BUILTIN_IMMUTABLE"
+// @Failure 400 {object} httpx.Response "errCode=ADMIN_GROUP_CONFIG_INVALID|ADMIN_GROUP_SCOPE_MISMATCH|ADMIN_GROUP_MEMBER_INVALID|ADMIN_GROUP_TENANT_CREATOR_NOT_ALLOWED|ADMIN_GROUP_TENANT_CREATOR_REQUIRED|ADMIN_GROUP_NAME_INVALID"
+// @Failure 403 {object} httpx.Response "errCode=ADMIN_GROUP_BUILTIN_IMMUTABLE|ADMIN_GROUP_SELF_REMOVAL_NOT_ALLOWED"
 // @Failure 404 {object} httpx.Response "errCode=ADMIN_GROUP_NOT_FOUND"
 // @Failure 409 {object} httpx.Response "errCode=ADMIN_GROUP_DUPLICATE_NAME|ADMIN_GROUP_LAST_ADMIN"
 // @Router /api/v1/admin-groups/{id} [patch]
