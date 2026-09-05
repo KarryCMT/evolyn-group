@@ -242,6 +242,20 @@ type TaskPage struct {
 	NextCursor string        `json:"nextCursor"`
 }
 
+// PendingTaskFormCount 是待办按流程表单归属的聚合项。未绑定表单的独立流程
+// 仍计入总数，但不会出现在表单菜单的二级筛选项中。
+type PendingTaskFormCount struct {
+	FormCode string `json:"formCode"`
+	Count    int64  `json:"count"`
+}
+
+// PendingTaskSummary 是流程侧栏的真实待办徽标数据，避免前端以当前分页条数
+// 伪装总量。FormCounts 只包含实际存在待办的已绑定流程型表单。
+type PendingTaskSummary struct {
+	Total      int64                  `json:"total"`
+	FormCounts []PendingTaskFormCount `json:"formCounts"`
+}
+
 // CCRecordView 抄送我的条目。
 type CCRecordView struct {
 	ID          uint            `json:"id"`
@@ -303,6 +317,8 @@ type ListTasksQuery struct {
 	Scope  string
 	Limit  int
 	Cursor string
+	// FormCode 仅允许在 pending 中使用：按绑定流程表单筛选待办。
+	FormCode string
 }
 
 // ListInstancesQuery 实例查询参数（scope=started-by-me 我发起的）。

@@ -109,7 +109,9 @@ func tenantConditionCallback(tx *gorm.DB) {
 	}
 
 	tx.Statement.AddClause(clause.Where{Exprs: []clause.Expression{
-		clause.Eq{Column: clause.Column{Name: "tenant_id"}, Value: tenantID},
+		// 使用当前主表限定列名。带 tenant_id 的关联表（例如审批任务与参与人
+		// 快照）会同时出现在查询中；不限定会导致 PostgreSQL 报列名歧义。
+		clause.Eq{Column: clause.Column{Table: clause.CurrentTable, Name: "tenant_id"}, Value: tenantID},
 	}})
 }
 

@@ -242,6 +242,10 @@ func (s *runtimeService) ListTasks(ctx context.Context, member *iammodel.User, q
 	if err != nil {
 		return nil, err
 	}
+	formCode := strings.TrimSpace(query.FormCode)
+	if formCode != "" && !strings.HasPrefix(formCode, "form_") {
+		return nil, httpx.Wrap(wfapp.ErrWorkflowCodeInvalid, fmt.Errorf("invalid formCode %q", formCode))
+	}
 	_ = tenantID
 	limit, afterID, err := parsePhase4Cursor(query.Limit, query.Cursor)
 	if err != nil {
@@ -250,19 +254,49 @@ func (s *runtimeService) ListTasks(ctx context.Context, member *iammodel.User, q
 
 	switch strings.TrimSpace(query.Scope) {
 	case "cc-to-me":
-		return s.listCCTasks(ctx, memberID, limit, afterID)
+		if formCode != "" {
+			return nil, httpx.Wrap(wfapp.ErrWorkflowCodeInvalid, fmt.Errorf("formCode only supports pending scope"))
+		}
+		return s.listCCTasks(ctx, memberID, "", limit, afterID)
 	case "completed":
-		return s.listMemberTasks(ctx, memberID, completedStatuses, limit, afterID)
+		if formCode != "" {
+			return nil, httpx.Wrap(wfapp.ErrWorkflowCodeInvalid, fmt.Errorf("formCode only supports pending scope"))
+		}
+		return s.listMemberTasks(ctx, memberID, completedStatuses, "", limit, afterID)
 	case "pending", "":
-		return s.listMemberTasks(ctx, memberID, pendingStatuses, limit, afterID)
+		return s.listMemberTasks(ctx, memberID, pendingStatuses, formCode, limit, afterID)
 	default:
 		return nil, httpx.Wrap(wfapp.ErrWorkflowCodeInvalid, fmt.Errorf("unknown scope %q", query.Scope))
 	}
 }
 
+// PendingTaskSummary 为流程侧栏提供准确的未处理总量和按绑定表单的聚合数。
+// 独立流程没有 formCode，仍累加到 Total，但不会虚构一个不可跳转的子菜单项。
+func (s *runtimeService) PendingTaskSummary(ctx context.Context, member *iammodel.User) (*model.PendingTaskSummary, error) {
+	if !s.hasPermission(ctx, member, "workflow-tasks:get") {
+		return nil, httpx.Wrap(wfapp.ErrForbidden, fmt.Errorf("member cannot read workflow task summary"))
+	}
+	_, memberID, err := s.taskActionContext(ctx, member)
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.reader.CountPendingTasksByMember(ctx, memberID, pendingStatuses)
+	if err != nil {
+		return nil, err
+	}
+	summary := &model.PendingTaskSummary{FormCounts: make([]model.PendingTaskFormCount, 0, len(rows))}
+	for _, row := range rows {
+		summary.Total += row.Count
+		if row.FormCode != "" {
+			summary.FormCounts = append(summary.FormCounts, row)
+		}
+	}
+	return summary, nil
+}
+
 // listMemberTasks 我的待办/我的已办组装。
-func (s *runtimeService) listMemberTasks(ctx context.Context, memberID uint, statuses []string, limit int, afterID uint) (*model.TaskPage, error) {
-	rows, hasMore, err := s.reader.ListTaskRowsByMemberAndStatuses(ctx, memberID, statuses, limit, afterID)
+func (s *runtimeService) listMemberTasks(ctx context.Context, memberID uint, statuses []string, formCode string, limit int, afterID uint) (*model.TaskPage, error) {
+	rows, hasMore, err := s.reader.ListTaskRowsByMemberAndStatuses(ctx, memberID, statuses, formCode, limit, afterID)
 	if err != nil {
 		return nil, err
 	}
@@ -281,8 +315,8 @@ func (s *runtimeService) listMemberTasks(ctx context.Context, memberID uint, sta
 }
 
 // listCCTasks 抄送我的组装。
-func (s *runtimeService) listCCTasks(ctx context.Context, memberID uint, limit int, afterID uint) (*model.TaskPage, error) {
-	rows, hasMore, err := s.reader.ListCCRowsByMember(ctx, memberID, limit, afterID)
+func (s *runtimeService) listCCTasks(ctx context.Context, memberID uint, formCode string, limit int, afterID uint) (*model.TaskPage, error) {
+	rows, hasMore, err := s.reader.ListCCRowsByMember(ctx, memberID, formCode, limit, afterID)
 	if err != nil {
 		return nil, err
 	}

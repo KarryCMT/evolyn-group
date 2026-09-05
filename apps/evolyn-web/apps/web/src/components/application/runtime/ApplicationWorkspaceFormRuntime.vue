@@ -6,7 +6,7 @@ import { FormWebRuntimeSurface } from '@evolyn.do/form/runtime-web';
 import { migrateFormSchema } from '@evolyn.do/form/schema';
 import { ApiError } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
-import { computed, shallowRef, watch } from 'vue';
+import { computed, shallowRef, useTemplateRef, watch } from 'vue';
 import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
 import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
 import { useAuth } from '~/composables/auth';
@@ -38,6 +38,7 @@ const bootstrap = shallowRef<FormRuntimeBootstrap | null>(null);
 const errorMessage = shallowRef('表单加载失败，请稍后重试');
 const reloadRevision = shallowRef(0);
 const unsupportedTypes = new Set<string>();
+const runtimeSurfaceRef = useTemplateRef<{ reset(): void }>('runtimeSurface');
 
 const actions: FormRuntimeActionDefinition[] = [
   {
@@ -142,6 +143,8 @@ function onUnsupportedField(info: { fieldKey: string; type: string }): void {
 }
 
 function onSubmitSuccess(): void {
+  // 应用填写页按「一次提交一条记录」处理：成功后立即开启空白会话，允许连续录入。
+  runtimeSurfaceRef.value?.reset();
   ElMessage.success('提交成功');
 }
 
@@ -188,6 +191,7 @@ function isAbortError(error: unknown): boolean {
     </el-result>
 
     <FormWebRuntimeSurface
+      ref="runtimeSurface"
       v-else-if="bootstrap"
       class="application-workspace-form-runtime__surface"
       :schema="bootstrap.content"

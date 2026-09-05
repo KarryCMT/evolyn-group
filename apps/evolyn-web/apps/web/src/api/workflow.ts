@@ -1,15 +1,22 @@
+// 流程定义域接口：与后端 /api/v1/workflows 一一对应
+// （见 evolyn-core internal/platform/workflow/controller/workflow.go）
+import type { WorkflowDocument } from '@evolyn.do/workflow';
 import type {
+  WorkflowApproveTaskResultDto,
   WorkflowDetailDto,
   WorkflowDraftSaveResult,
+  WorkflowInstancePageDto,
   WorkflowPageDto,
+  WorkflowPendingTaskSummaryDto,
   WorkflowPublishResult,
+  WorkflowTaskActionResultDto,
+  WorkflowTaskDetailDto,
+  WorkflowTaskPageDto,
+  WorkflowTaskScope,
   WorkflowVersionDetailDto,
   WorkflowVersionDto,
 } from '~/types';
-// 流程定义域接口：与后端 /api/v1/workflows 一一对应
-// （见 evolyn-core internal/platform/workflow/controller/workflow.go）
 import { http } from '@evolyn.do/utils';
-import type { WorkflowDocument } from '@evolyn.do/workflow';
 
 /**
  * 创建流程定义（POST /workflows）：草稿初始化为最小合法 DSL（start → end）。
@@ -84,4 +91,54 @@ export function getWorkflowVersion(
   versionNo: number,
 ): Promise<WorkflowVersionDetailDto> {
   return http.get(`/workflows/${code}/versions/${versionNo}`);
+}
+
+/** 审批中心任务列表：pending=待办、completed=已办、cc-to-me=抄送。 */
+export function listWorkflowTasks(query: {
+  scope: WorkflowTaskScope;
+  limit?: number;
+  cursor?: string;
+  /** 仅在待办菜单选择某个流程表单时传入，服务端完成精确筛选。 */
+  formCode?: string;
+}): Promise<WorkflowTaskPageDto> {
+  return http.get('/workflow-tasks', query);
+}
+
+/** 当前成员待办的总量与流程表单聚合，用于左侧流程菜单的真实徽标。 */
+export function getWorkflowPendingTaskSummary(): Promise<WorkflowPendingTaskSummaryDto> {
+  return http.get('/workflow-tasks/summary');
+}
+
+/** 审批中心「我发起的」实例列表。 */
+export function listStartedWorkflowInstances(query?: {
+  limit?: number;
+  cursor?: string;
+}): Promise<WorkflowInstancePageDto> {
+  return http.get('/workflow-instances', { scope: 'started-by-me', ...query });
+}
+
+/** 按需读取一条待办的表单快照、字段权限与可执行动作。 */
+export function getWorkflowTask(taskId: number): Promise<WorkflowTaskDetailDto> {
+  return http.get(`/workflow-tasks/${taskId}`);
+}
+
+export function approveWorkflowTask(
+  taskId: number,
+  payload: { comment?: string; values?: Record<string, unknown> },
+): Promise<WorkflowApproveTaskResultDto> {
+  return http.post(`/workflow-tasks/${taskId}/approve`, payload);
+}
+
+export function rejectWorkflowTask(
+  taskId: number,
+  payload: { comment?: string },
+): Promise<WorkflowTaskActionResultDto> {
+  return http.post(`/workflow-tasks/${taskId}/reject`, payload);
+}
+
+export function returnWorkflowTaskToStarter(
+  taskId: number,
+  payload: { comment?: string },
+): Promise<WorkflowTaskActionResultDto> {
+  return http.post(`/workflow-tasks/${taskId}/return-to-starter`, payload);
 }

@@ -7,7 +7,10 @@ import type {
   ApplicationWorkspaceCreateAssetType,
   ApplicationWorkspaceMode,
 } from '~/components/application/workspace/applicationWorkspace.types';
-import type { ApplicationIconKey, FormType } from '~/types';
+import type { ApplicationPersonalNavigationCode } from '~/components/application/workspace/applicationWorkspacePreview';
+import type { WorkflowNavigationForm } from '~/components/workflow-center/WorkflowCenterNavigation.vue';
+import type { WorkflowCenterScope } from '~/composables/useWorkflowCenter';
+import type { ApplicationIconKey, FormType, WorkflowPendingTaskSummaryDto } from '~/types';
 import { ApiError } from '@evolyn.do/utils';
 import {
   RiArrowLeftLine,
@@ -72,6 +75,32 @@ const applicationIcon = computed(
 const requestedFormCode = computed(() => String(route.params.formCode ?? ''));
 const activeAssetCode = shallowRef('');
 const workspaceMode = shallowRef<ApplicationWorkspaceMode>('fill');
+/**
+ * 个人流程入口与当前应用资产互斥：入口激活时保留资产选择，回到资产后可直接恢复。
+ * 顶栏标题和流程数据范围均由该单一状态派生，避免左右区域不同步。
+ */
+const activePersonalCode = shallowRef<ApplicationPersonalNavigationCode | ''>('');
+/** 待办二级菜单的筛选条件；仅 pending 范围读取该值。 */
+const activeWorkflowFormCode = shallowRef('');
+const pendingWorkflowSummary = shallowRef<WorkflowPendingTaskSummaryDto | null>(null);
+const workflowScopeByPersonalCode: Partial<
+  Record<ApplicationPersonalNavigationCode, WorkflowCenterScope>
+> = {
+  todo: 'pending',
+  started: 'started',
+  handled: 'completed',
+  copied: 'cc-to-me',
+};
+const personalCodeByWorkflowScope: Record<WorkflowCenterScope, ApplicationPersonalNavigationCode> = {
+  pending: 'todo',
+  started: 'started',
+  completed: 'handled',
+  'cc-to-me': 'copied',
+};
+const personalScope = computed<WorkflowCenterScope | null>(() => {
+  const code = activePersonalCode.value;
+  return code ? (workflowScopeByPersonalCode[code] ?? null) : null;
+});
 const DEFAULT_FORM_NAME = '未命名表单';
 /** 创建请求期间锁住所有入口，避免网络延迟下重复创建同一资产。 */
 const creatingAssetType = shallowRef<ApplicationAssetType | null>(null);
@@ -143,6 +172,44 @@ function findFormAsset(
   }
   return null;
 }
+
+/** 流程菜单只展示流程型表单；菜单树的分组结构不改变个人待办的聚合视图。 */
+function collectWorkflowForms(
+  assets: ApplicationWorkspaceAsset[],
+): WorkflowNavigationForm[] {
+  return assets.flatMap((asset) => {
+    const children = collectWorkflowForms(asset.children ?? []);
+    if (asset.type !== 'form' || asset.formType !== 'workflow' || !asset.targetCode) {
+      return children;
+    }
+    return [{ code: asset.targetCode, label: asset.label }, ...children];
+  });
+}
+
+const workflowForms = computed(() => collectWorkflowForms(menuAssets.value));
+
+const personalTitle = computed<string | null>(() => {
+  const code = activePersonalCode.value;
+  if (!code) return null;
+  if (code === 'todo') {
+    return (
+      workflowForms.value.find((form) => form.code === activeWorkflowFormCode.value)?.label ??
+      '我的待办（全部）'
+    );
+  }
+  const titles: Partial<Record<ApplicationPersonalNavigationCode, string>> = {
+    started: '我发起的',
+    handled: '我处理的',
+    copied: '抄送我的',
+  };
+  return titles[code] ?? null;
+});
+
+watch(workflowForms, (forms) => {
+  if (!forms.some((form) => form.code === activeWorkflowFormCode.value)) {
+    activeWorkflowFormCode.value = '';
+  }
+});
 
 const activeWorkspaceAsset = computed(() => findAsset(menuAssets.value, activeAssetCode.value));
 
@@ -241,6 +308,9 @@ function openApplicationManagement() {
 }
 
 function selectWorkspaceAsset(asset: ApplicationWorkspaceAsset) {
+  // 选择应用资产即退出个人流程视图，顶部模式操作恢复为该表单可用的模式。
+  activePersonalCode.value = '';
+  activeWorkflowFormCode.value = '';
   activeAssetCode.value = asset.code;
   workspaceMode.value = 'fill';
 
@@ -250,6 +320,34 @@ function selectWorkspaceAsset(asset: ApplicationWorkspaceAsset) {
     name: 'App',
     params: { appCode: appCode.value, formCode: formCode ?? '' },
   });
+}
+
+/**
+ * 个人导航不属于应用资产：审批中心跨应用聚合。当前后端尚未支持 appCode
+ * 条件，不能把来源应用伪装为已经生效的筛选条件。
+ */
+function selectPersonalNavigation(code: string) {
+  if (code in workflowScopeByPersonalCode) {
+    activePersonalCode.value = code as ApplicationPersonalNavigationCode;
+    if (code !== 'todo') activeWorkflowFormCode.value = '';
+    return;
+  }
+  if (code === 'dashboard') void router.push({ name: 'dashboard' });
+}
+
+/** 工作区内的流程范围若由其他入口更新，同步回写左侧高亮项。 */
+function updatePersonalWorkflowScope(scope: WorkflowCenterScope) {
+  activePersonalCode.value = personalCodeByWorkflowScope[scope];
+  if (scope !== 'pending') activeWorkflowFormCode.value = '';
+}
+
+function updatePersonalWorkflowFormCode(formCode: string) {
+  activePersonalCode.value = 'todo';
+  activeWorkflowFormCode.value = formCode;
+}
+
+function updatePendingWorkflowSummary(summary: WorkflowPendingTaskSummaryDto | null) {
+  pendingWorkflowSummary.value = summary;
 }
 
 /**
@@ -571,6 +669,12 @@ function reloadWorkspace() {
         :application-icon="application?.icon ?? DEFAULT_APPLICATION_ICON"
         :assets="menuAssets"
         :active-asset="activeWorkspaceAsset"
+        :active-personal-code="activePersonalCode"
+        :personal-scope="personalScope"
+        :personal-title="personalTitle"
+        :active-workflow-form-code="activeWorkflowFormCode"
+        :workflow-forms="workflowForms"
+        :pending-workflow-summary="pendingWorkflowSummary"
         :mode="workspaceMode"
         :menu-status="menuStatus"
         :creating-asset-type="creatingAssetType"
@@ -579,6 +683,10 @@ function reloadWorkspace() {
         @asset-guide="showAssetGuide"
         @select-asset="selectWorkspaceAsset"
         @asset-action="handleWorkspaceAssetAction"
+        @select-personal-navigation="selectPersonalNavigation"
+        @update-personal-scope="updatePersonalWorkflowScope"
+        @update-personal-workflow-form-code="updatePersonalWorkflowFormCode"
+        @update-pending-workflow-summary="updatePendingWorkflowSummary"
         @open-management="openApplicationManagement"
         @update-mode="updateWorkspaceMode"
       />

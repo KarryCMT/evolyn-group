@@ -135,9 +135,11 @@ type RuntimeReader interface {
 	ListActorRowsByTaskIDs(ctx context.Context, taskIDs []uint) ([]model.WfTaskActor, error)
 	// ListTaskRowsByMemberAndStatuses 我的待办/我的已办（第 20.4/28 章主查询：
 	// 经 wf_task_actor 参与人快照定位本人任务，游标按 task id 倒序）
-	ListTaskRowsByMemberAndStatuses(ctx context.Context, memberID uint, statuses []string, limit int, afterID uint) ([]model.WfTask, bool, error)
+	ListTaskRowsByMemberAndStatuses(ctx context.Context, memberID uint, statuses []string, formCode string, limit int, afterID uint) ([]model.WfTask, bool, error)
 	// ListCCRowsByMember 抄送我的（000051 追加写记录，游标按 id 倒序）
-	ListCCRowsByMember(ctx context.Context, memberID uint, limit int, afterID uint) ([]model.WfCCRecord, bool, error)
+	ListCCRowsByMember(ctx context.Context, memberID uint, formCode string, limit int, afterID uint) ([]model.WfCCRecord, bool, error)
+	// CountPendingTasksByMember 按表单分组计算当前成员待办，供左侧菜单徽标使用。
+	CountPendingTasksByMember(ctx context.Context, memberID uint, statuses []string) ([]model.PendingTaskFormCount, error)
 	// ListInstanceRowsByStarter 我发起的（游标按 id 倒序）
 	ListInstanceRowsByStarter(ctx context.Context, memberID uint, limit int, afterID uint) ([]model.WfInstance, bool, error)
 }
@@ -205,11 +207,16 @@ func (r *runtimeReader) ListActorRowsByTaskIDs(ctx context.Context, taskIDs []ui
 
 // pageTaskRowsByMember 待办/已办共用游标分页：参与人快照定位本人任务
 // （快照在任务创建时一次性写入，运行中不随组织变化重算），limit+1 探测下一页。
-func (r *runtimeReader) pageTaskRowsByMember(ctx context.Context, memberID uint, statuses []string, limit int, afterID uint) ([]model.WfTask, bool, error) {
+func (r *runtimeReader) pageTaskRowsByMember(ctx context.Context, memberID uint, statuses []string, formCode string, limit int, afterID uint) ([]model.WfTask, bool, error) {
 	query := infrastructure.ResolveDB(ctx, r.base).
 		Model(&model.WfTask{}).
 		Joins("JOIN wf_task_actor ON wf_task_actor.task_id = wf_task.id AND wf_task_actor.member_id = ?", memberID).
 		Where("wf_task.status IN ?", statuses)
+	if formCode != "" {
+		query = query.Joins("JOIN wf_instance ON wf_instance.id = wf_task.instance_id").
+			Joins("JOIN wf_definition ON wf_definition.id = wf_instance.definition_id").
+			Where("wf_definition.form_code = ?", formCode)
+	}
 	if afterID > 0 {
 		query = query.Where("wf_task.id < ?", afterID)
 	}
@@ -228,14 +235,19 @@ func (r *runtimeReader) pageTaskRowsByMember(ctx context.Context, memberID uint,
 	return rows, hasMore, nil
 }
 
-func (r *runtimeReader) ListTaskRowsByMemberAndStatuses(ctx context.Context, memberID uint, statuses []string, limit int, afterID uint) ([]model.WfTask, bool, error) {
-	return r.pageTaskRowsByMember(ctx, memberID, statuses, limit, afterID)
+func (r *runtimeReader) ListTaskRowsByMemberAndStatuses(ctx context.Context, memberID uint, statuses []string, formCode string, limit int, afterID uint) ([]model.WfTask, bool, error) {
+	return r.pageTaskRowsByMember(ctx, memberID, statuses, formCode, limit, afterID)
 }
 
-func (r *runtimeReader) ListCCRowsByMember(ctx context.Context, memberID uint, limit int, afterID uint) ([]model.WfCCRecord, bool, error) {
+func (r *runtimeReader) ListCCRowsByMember(ctx context.Context, memberID uint, formCode string, limit int, afterID uint) ([]model.WfCCRecord, bool, error) {
 	query := infrastructure.ResolveDB(ctx, r.base).
 		Model(&model.WfCCRecord{}).
 		Where("member_id = ?", memberID)
+	if formCode != "" {
+		query = query.Joins("JOIN wf_instance ON wf_instance.id = wf_cc_record.instance_id").
+			Joins("JOIN wf_definition ON wf_definition.id = wf_instance.definition_id").
+			Where("wf_definition.form_code = ?", formCode)
+	}
 	if afterID > 0 {
 		query = query.Where("id < ?", afterID)
 	}
@@ -248,6 +260,20 @@ func (r *runtimeReader) ListCCRowsByMember(ctx context.Context, memberID uint, l
 		rows = rows[:limit]
 	}
 	return rows, hasMore, nil
+}
+
+func (r *runtimeReader) CountPendingTasksByMember(ctx context.Context, memberID uint, statuses []string) ([]model.PendingTaskFormCount, error) {
+	rows := make([]model.PendingTaskFormCount, 0)
+	err := infrastructure.ResolveDB(ctx, r.base).
+		Model(&model.WfTask{}).
+		Select("COALESCE(wf_definition.form_code, '') AS form_code, COUNT(DISTINCT wf_task.id) AS count").
+		Joins("JOIN wf_task_actor ON wf_task_actor.task_id = wf_task.id AND wf_task_actor.member_id = ?", memberID).
+		Joins("JOIN wf_instance ON wf_instance.id = wf_task.instance_id").
+		Joins("LEFT JOIN wf_definition ON wf_definition.id = wf_instance.definition_id").
+		Where("wf_task.status IN ?", statuses).
+		Group("wf_definition.form_code").
+		Find(&rows).Error
+	return rows, err
 }
 
 func (r *runtimeReader) ListInstanceRowsByStarter(ctx context.Context, memberID uint, limit int, afterID uint) ([]model.WfInstance, bool, error) {

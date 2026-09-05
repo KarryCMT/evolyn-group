@@ -80,6 +80,8 @@ type RuntimeService interface {
 	ResubmitInstance(ctx context.Context, member *iammodel.User, instanceID uint, req *model.ResubmitInstanceRequest) (*model.ActionTaskResult, error)
 	// ListTasks 审批中心任务查询：我的待办/我的已办/抄送我的
 	ListTasks(ctx context.Context, member *iammodel.User, query model.ListTasksQuery) (*model.TaskPage, error)
+	// PendingTaskSummary 为流程菜单提供准确的待办徽标与按表单分组数量。
+	PendingTaskSummary(ctx context.Context, member *iammodel.User) (*model.PendingTaskSummary, error)
 	// ListInstances 审批中心实例查询：我发起的
 	ListInstances(ctx context.Context, member *iammodel.User, query model.ListInstancesQuery) (*model.InstancePage, error)
 	// GetTask 任务详情上下文（表单快照/数据 + 字段权限 + 允许动作 + 时间线）

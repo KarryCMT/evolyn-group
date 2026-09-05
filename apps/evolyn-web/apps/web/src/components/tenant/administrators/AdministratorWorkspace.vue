@@ -98,7 +98,8 @@ function updateGroup(patch: Partial<AdministratorGroup>): Promise<boolean> {
 <style scoped lang="scss">
 .administrator-workspace {
   display: flex;
-  height: calc(100% - 64px);
+  // 高度由沉浸式父页的 flex 布局分配，避免遗留页签高度造成底部留白。
+  height: 100%;
   min-height: 0;
   overflow: hidden;
 }

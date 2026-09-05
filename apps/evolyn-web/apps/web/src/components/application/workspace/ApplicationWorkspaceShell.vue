@@ -1,15 +1,18 @@
 <script setup lang="ts">
+import type { ApplicationAssetType } from '../runtime/applicationAssetCatalog';
 import type {
   ApplicationWorkspaceAsset,
   ApplicationWorkspaceAssetAction,
   ApplicationWorkspaceCreateAssetType,
   ApplicationWorkspaceMode,
 } from './applicationWorkspace.types';
-import type { ApplicationAssetType } from '../runtime/applicationAssetCatalog';
-import type { ApplicationIcon } from '~/types';
-import { shallowRef } from 'vue';
-import ApplicationWorkspaceFormRuntime from '../runtime/ApplicationWorkspaceFormRuntime.vue';
+import type { WorkflowNavigationForm } from '~/components/workflow-center/WorkflowCenterNavigation.vue';
+import type { WorkflowCenterScope } from '~/composables/useWorkflowCenter';
+import type { ApplicationIcon, WorkflowPendingTaskSummaryDto } from '~/types';
+import { computed, shallowRef } from 'vue';
+import WorkflowCenter from '~/components/workflow-center/WorkflowCenter.vue';
 import ApplicationEmptyState from '../runtime/ApplicationEmptyState.vue';
+import ApplicationWorkspaceFormRuntime from '../runtime/ApplicationWorkspaceFormRuntime.vue';
 import ApplicationContentPlaceholder from './ApplicationContentPlaceholder.vue';
 import ApplicationWorkspaceHeader from './ApplicationWorkspaceHeader.vue';
 import ApplicationWorkspaceSidebar from './ApplicationWorkspaceSidebar.vue';
@@ -23,6 +26,16 @@ const props = defineProps<{
   assets: ApplicationWorkspaceAsset[];
   /** 当前选中资产；菜单为空（M2-菜单-1 常态）时为 null */
   activeAsset: ApplicationWorkspaceAsset | null;
+  /** 当前高亮的个人入口；应用资产页传空字符串。 */
+  activePersonalCode: string;
+  /** 非空时，个人审批视图在应用内容区内渲染，而不是跳出应用壳。 */
+  personalScope: WorkflowCenterScope | null;
+  /** 个人视图显示在顶栏的标题。 */
+  personalTitle: string | null;
+  /** 个人待办菜单当前选中的流程表单；空串代表全部待办。 */
+  activeWorkflowFormCode: string;
+  workflowForms: readonly WorkflowNavigationForm[];
+  pendingWorkflowSummary: WorkflowPendingTaskSummaryDto | null;
   mode: ApplicationWorkspaceMode;
   /** 菜单数据源状态：loading 传递给侧栏渲染加载态 */
   menuStatus: 'loading' | 'ready';
@@ -40,12 +53,21 @@ const emit = defineEmits<{
   assetAction: [
     payload: { asset: ApplicationWorkspaceAsset; action: ApplicationWorkspaceAssetAction },
   ];
+  selectPersonalNavigation: [code: string];
+  updatePersonalScope: [scope: WorkflowCenterScope];
+  updatePersonalWorkflowFormCode: [formCode: string];
+  updatePendingWorkflowSummary: [summary: WorkflowPendingTaskSummaryDto | null];
   openManagement: [];
   updateMode: [mode: ApplicationWorkspaceMode];
 }>();
 
 // 工作区统一持有侧栏展开状态，侧栏与内容头部通过显式 props / emits 保持同步。
 const sidebarCollapsed = shallowRef(false);
+// 个人流程视图与资产树是两套独立导航。保留最近资产用于返回后恢复，但在流程
+// 视图期间不向资产树投影选中态，避免「我处理的」与某个表单同时高亮。
+const visibleActiveAssetCode = computed(() =>
+  props.personalScope ? '' : (props.activeAsset?.code ?? ''),
+);
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value;
@@ -58,14 +80,22 @@ function toggleSidebar() {
       :application-name="props.applicationName"
       :application-icon="props.applicationIcon"
       :assets="props.assets"
-      :active-asset-code="props.activeAsset?.code ?? ''"
+      :active-asset-code="visibleActiveAssetCode"
+      :active-personal-code="props.activePersonalCode"
       :collapsed="sidebarCollapsed"
       :menu-status="props.menuStatus"
+      :workflow-scope="props.personalScope"
+      :active-workflow-form-code="props.activeWorkflowFormCode"
+      :workflow-forms="props.workflowForms"
+      :pending-workflow-summary="props.pendingWorkflowSummary"
       @back="emit('back')"
       @create-asset="emit('createAsset', $event)"
       @asset-guide="emit('assetGuide')"
       @select-asset="emit('selectAsset', $event)"
       @asset-action="emit('assetAction', $event)"
+      @select-personal-navigation="emit('selectPersonalNavigation', $event)"
+      @update-workflow-scope="emit('updatePersonalScope', $event)"
+      @update-workflow-form-code="emit('updatePersonalWorkflowFormCode', $event)"
       @open-management="emit('openManagement')"
       @toggle-sidebar="toggleSidebar"
     />
@@ -73,11 +103,20 @@ function toggleSidebar() {
       <ApplicationWorkspaceHeader
         :mode="props.mode"
         :sidebar-collapsed="sidebarCollapsed"
+        :personal-title="props.personalTitle"
         @toggle-sidebar="toggleSidebar"
         @update-mode="emit('updateMode', $event)"
       />
+      <WorkflowCenter
+        v-if="props.personalScope"
+        embedded
+        :scope="props.personalScope"
+        :form-code="props.activeWorkflowFormCode"
+        @update-scope="emit('updatePersonalScope', $event)"
+        @pending-summary="emit('updatePendingWorkflowSummary', $event)"
+      />
       <ApplicationWorkspaceFormRuntime
-        v-if="props.activeAsset?.type === 'form' && props.mode === 'fill'"
+        v-else-if="props.activeAsset?.type === 'form' && props.mode === 'fill'"
         :app-code="props.appCode"
         :asset="props.activeAsset"
       />

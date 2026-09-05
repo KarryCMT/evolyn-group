@@ -105,6 +105,7 @@ function submit() {
     v-model="visible"
     class="administrator-scope-picker"
     width="604px"
+    top="12vh"
     :show-close="false"
     append-to-body
   >
@@ -116,7 +117,7 @@ function submit() {
       <RiSearch2Line /><input v-model="keyword" placeholder="搜索" />
     </label>
     <div v-loading="loading" class="administrator-scope-picker__body">
-      <el-scrollbar>
+      <el-scrollbar max-height="258px">
         <!-- v-if 随开合重建：default-checked-keys 仅在挂载时生效 -->
         <el-tree
           v-if="visible && !loading"
@@ -143,6 +144,10 @@ function submit() {
 
 <style scoped lang="scss">
 :global(.administrator-scope-picker) {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 48px);
+  margin-bottom: 0;
   border-radius: var(--el-border-radius-large);
 }
 :global(.administrator-scope-picker .el-dialog__header) {
@@ -150,12 +155,17 @@ function submit() {
 }
 :global(.administrator-scope-picker .el-dialog__body) {
   padding: 0;
+  overflow: hidden;
+}
+// 内容已在弹窗内部滚动，避免 overlay 因弹窗尺寸在视口右侧产生滚动条。
+:global(.el-overlay-dialog:has(.administrator-scope-picker)) {
+  overflow: hidden;
 }
 .administrator-scope-picker {
   &__header {
     display: flex;
-    height: 68px;
-    padding: 0 var(--el-space-3xl);
+    height: 60px;
+    padding: 0 var(--el-space-2xl);
     border-bottom: 1px solid var(--el-border-color);
     align-items: center;
     justify-content: space-between;
@@ -183,8 +193,8 @@ function submit() {
   }
   &__search {
     display: flex;
-    height: 44px;
-    margin: var(--el-space-3xl) var(--el-space-3xl) 0;
+    height: 40px;
+    margin: var(--el-space-xl) var(--el-space-2xl) 0;
     padding: 0 var(--el-space-lg);
     border-radius: var(--el-border-radius-medium);
     align-items: center;
@@ -205,13 +215,14 @@ function submit() {
     font: inherit;
   }
   &__body {
-    height: 420px;
-    margin: var(--el-space-xl) var(--el-space-3xl) 0;
+    min-height: 112px;
+    margin: var(--el-space-lg) var(--el-space-2xl) 0;
     border: 1px solid var(--el-border-color-light);
     border-radius: var(--el-border-radius-medium);
+    overflow: hidden;
   }
   &__body :deep(.el-tree) {
-    --el-tree-node-content-height: 40px;
+    --el-tree-node-content-height: 36px;
     padding: var(--el-space-md);
   }
   &__empty {
@@ -223,8 +234,8 @@ function submit() {
   }
   &__footer {
     display: flex;
-    height: 76px;
-    padding: 0 var(--el-space-3xl);
+    height: 64px;
+    padding: 0 var(--el-space-2xl);
     align-items: center;
     justify-content: flex-end;
     gap: var(--el-space-lg);

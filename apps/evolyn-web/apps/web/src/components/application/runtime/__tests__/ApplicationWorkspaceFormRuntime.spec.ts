@@ -12,6 +12,8 @@ const api = vi.hoisted(() => ({
   submitFormRecord: vi.fn(),
 }));
 
+const surface = vi.hoisted(() => ({ reset: vi.fn() }));
+
 vi.mock('~/api/form', () => api);
 
 const SurfaceStub = defineComponent({
@@ -20,6 +22,10 @@ const SurfaceStub = defineComponent({
     formId: String,
     actions: Array,
     adapter: Object,
+  },
+  setup(_, { expose }) {
+    expose({ reset: surface.reset });
+    return {};
   },
   template: '<div class="surface-stub" :data-form-id="formId" />',
 });
@@ -196,5 +202,27 @@ describe('applicationWorkspaceFormRuntime', () => {
       },
       expect.any(AbortSignal),
     );
+  });
+
+  it('记录提交成功后清空填写会话，允许继续录入下一条记录', async () => {
+    api.getFormRuntime.mockResolvedValue(bootstrap('form_a'));
+    const wrapper = mount(ApplicationWorkspaceFormRuntime, {
+      props: { appCode: 'app_a', asset: asset('form_a') },
+      global: {
+        plugins: [createPinia()],
+        directives: { loading: () => undefined },
+        stubs: {
+          ElButton: true,
+          ElResult: StateStub,
+          FormWebRuntimeSurface: SurfaceStub,
+        },
+      },
+    });
+    await flushPromises();
+
+    wrapper.findComponent(SurfaceStub).vm.$emit('submit-success', {});
+    await flushPromises();
+
+    expect(surface.reset).toHaveBeenCalledTimes(1);
   });
 });

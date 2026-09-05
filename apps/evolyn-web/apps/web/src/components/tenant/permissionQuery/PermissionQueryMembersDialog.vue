@@ -51,7 +51,8 @@ watch(visible, (isVisible) => {
   <el-dialog
     v-model="visible"
     class="permission-query-members-dialog"
-    width="1032px"
+    width="760px"
+    top="12vh"
     :show-close="false"
     append-to-body
   >
@@ -104,13 +105,25 @@ watch(visible, (isVisible) => {
 
 <style scoped lang="scss">
 :global(.permission-query-members-dialog) {
+  display: flex;
+  max-height: calc(100vh - 48px);
+  margin-bottom: 0;
+  flex-direction: column;
   border-radius: var(--el-border-radius-large);
 }
 :global(.permission-query-members-dialog .el-dialog__header) {
   display: none;
 }
 :global(.permission-query-members-dialog .el-dialog__body) {
+  display: flex;
+  min-height: 0;
   padding: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+// 内容滚动收敛在弹窗内部，避免遮罩层在视口右侧产生额外滚动条。
+:global(.el-overlay-dialog:has(.permission-query-members-dialog)) {
+  overflow: hidden;
 }
 .permission-query-members-dialog {
   &__header,
@@ -144,13 +157,16 @@ watch(visible, (isVisible) => {
   }
   &__selected {
     display: flex;
-    min-height: 132px;
+    // 与管理组成员选择器对齐，已选区和候选区均在紧凑高度内滚动。
+    min-height: 110px;
+    max-height: 176px;
     margin: var(--el-space-3xl) var(--el-space-3xl) var(--el-space-xl);
     padding: var(--el-space-lg);
     border: 1px dashed var(--el-border-color);
     border-radius: var(--el-border-radius-medium);
     align-items: flex-start;
     gap: var(--el-space-md);
+    overflow-y: auto;
   }
   &__tag {
     display: inline-flex;
@@ -206,14 +222,18 @@ watch(visible, (isVisible) => {
   }
   &__body {
     display: grid;
-    min-height: 460px;
+    min-height: 160px;
+    max-height: 250px;
     margin: var(--el-space-sm) var(--el-space-3xl) 0;
+    flex: 1 1 220px;
     grid-template-columns: 1fr 1fr;
     border-top: 1px solid var(--el-border-color-lighter);
+    overflow: hidden;
   }
   &__tree,
   &__results {
     padding: var(--el-space-lg) var(--el-space-lg);
+    overflow-y: auto;
   }
   &__tree {
     border-right: 1px solid var(--el-border-color-lighter);

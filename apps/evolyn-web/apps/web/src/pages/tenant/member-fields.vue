@@ -26,31 +26,30 @@ const tabs: TenantRouteTab[] = [
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
+  background: var(--el-bg-color);
 
+  // 与管理员页共用沉浸式页签：内容画布连续，状态由文字和底部指示线表达。
   :deep(.tenant-route-tabs) {
-    min-height: 48px;
-    flex: 0 0 48px;
-    padding: 0 0 0 var(--el-space-md);
-    border-bottom: 0;
-    align-items: flex-start;
-    gap: var(--el-space-xs);
-    background: var(--el-fill-color-light);
+    min-height: 72px;
+    flex: 0 0 72px;
+    padding: 0 var(--el-space-4xl);
+    gap: var(--el-space-xl);
+    background: transparent;
   }
 
   :deep(.tenant-route-tabs__item) {
-    min-height: 48px;
-    padding: 0 var(--el-space-3xl);
-    border-bottom: 0;
-    border-radius: var(--el-border-radius-large) var(--el-border-radius-large) 0 0;
+    min-height: 72px;
+    padding: 0 var(--el-space-lg);
+    border-bottom-width: 3px;
     font-size: var(--el-font-size-medium);
   }
 
   :deep(.tenant-route-tabs__item:hover) {
-    background: var(--el-fill-color);
+    background: transparent;
   }
 
   :deep(.tenant-route-tabs__item--active) {
-    background: var(--el-bg-color);
+    background: transparent;
   }
 
   &__content {

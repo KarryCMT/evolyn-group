@@ -150,6 +150,7 @@ func (f *WorkflowTaskController) Transfer(c *gin.Context) {
 // @Tags 流程管理
 // @Security JWT
 // @Param scope query string false "pending/completed/cc-to-me，默认 pending"
+// @Param formCode query string false "流程型表单编码（仅 pending 可用）"
 // @Param limit query int false "分页大小（默认 20，上限 100）"
 // @Param cursor query string false "游标（上一页 nextCursor）"
 // @Success 200 {object} httpx.Response{data=model.TaskPage}
@@ -158,9 +159,10 @@ func (f *WorkflowTaskController) Transfer(c *gin.Context) {
 // @Router /api/v1/workflow-tasks [get]
 func (f *WorkflowTaskController) ListTasks(c *gin.Context) {
 	query := model.ListTasksQuery{
-		Scope:  c.Query("scope"),
-		Limit:  atoiDefault(c.Query("limit")),
-		Cursor: c.Query("cursor"),
+		Scope:    c.Query("scope"),
+		Limit:    atoiDefault(c.Query("limit")),
+		Cursor:   c.Query("cursor"),
+		FormCode: c.Query("formCode"),
 	}
 	page, err := f.runtimeService.ListTasks(c.Request.Context(), ginctx.GetUser(c), query)
 	if err != nil {
@@ -168,6 +170,25 @@ func (f *WorkflowTaskController) ListTasks(c *gin.Context) {
 		return
 	}
 	httpx.ResponseSuccess(c, page)
+}
+
+// PendingSummary 返回我的待办总量及流程表单分组数量，供流程菜单显示真实徽标。
+//
+// @Summary 待办菜单摘要
+// @Description 当前成员待办总数与按流程型表单的聚合数
+// @Produce json
+// @Tags 流程管理
+// @Security JWT
+// @Success 200 {object} httpx.Response{data=model.PendingTaskSummary}
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
+// @Router /api/v1/workflow-tasks/summary [get]
+func (f *WorkflowTaskController) PendingSummary(c *gin.Context) {
+	summary, err := f.runtimeService.PendingTaskSummary(c.Request.Context(), ginctx.GetUser(c))
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, summary)
 }
 
 // GetTask 任务详情上下文。
@@ -340,6 +361,7 @@ func atoiDefault(raw string) int {
 
 func (f *WorkflowTaskController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/workflow-tasks", f.ListTasks)
+	api.GET("/workflow-tasks/summary", f.PendingSummary)
 	api.GET("/workflow-tasks/:taskId", f.GetTask)
 	api.POST("/workflow-tasks/:taskId/reject", f.Reject)
 	api.POST("/workflow-tasks/:taskId/return-to-starter", f.ReturnToStarter)

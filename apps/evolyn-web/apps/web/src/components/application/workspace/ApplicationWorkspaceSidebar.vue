@@ -4,7 +4,9 @@ import type {
   ApplicationWorkspaceAssetAction,
   ApplicationWorkspaceCreateAssetType,
 } from './applicationWorkspace.types';
-import type { ApplicationIcon } from '~/types';
+import type { WorkflowNavigationForm } from '~/components/workflow-center/WorkflowCenterNavigation.vue';
+import type { WorkflowCenterScope } from '~/composables/useWorkflowCenter';
+import type { ApplicationIcon, WorkflowPendingTaskSummaryDto } from '~/types';
 import { EvolynIconPicker } from '@evolyn.do/ui';
 import {
   RiAddFill,
@@ -19,6 +21,7 @@ import {
   RiSettings3Fill,
 } from '@remixicon/vue';
 import { computed } from 'vue';
+import WorkflowCenterNavigation from '~/components/workflow-center/WorkflowCenterNavigation.vue';
 import ApplicationWorkspaceAssetItem from './ApplicationWorkspaceAssetItem.vue';
 import { applicationPersonalNavigation } from './applicationWorkspacePreview';
 
@@ -29,9 +32,16 @@ const props = defineProps<{
   applicationIcon: ApplicationIcon;
   assets: ApplicationWorkspaceAsset[];
   activeAssetCode: string;
+  /** 当前高亮的个人入口；应用资产页传空字符串。 */
+  activePersonalCode: string;
   collapsed: boolean;
   /** 菜单数据源状态：loading/error 由页面层拦截，这里只渲染加载与空态 */
   menuStatus: 'loading' | 'ready';
+  /** 非空时侧栏切换为流程中心菜单，应用资产树保持在原有工作区入口。 */
+  workflowScope: WorkflowCenterScope | null;
+  activeWorkflowFormCode: string;
+  workflowForms: readonly WorkflowNavigationForm[];
+  pendingWorkflowSummary: WorkflowPendingTaskSummaryDto | null;
 }>();
 
 const emit = defineEmits<{
@@ -44,6 +54,9 @@ const emit = defineEmits<{
   assetAction: [
     payload: { asset: ApplicationWorkspaceAsset; action: ApplicationWorkspaceAssetAction },
   ];
+  selectPersonalNavigation: [code: string];
+  updateWorkflowScope: [scope: WorkflowCenterScope];
+  updateWorkflowFormCode: [formCode: string];
   openManagement: [];
   toggleSidebar: [];
 }>();
@@ -66,7 +79,9 @@ function handleCreateAsset(command: string | number | object) {
 <template>
   <aside
     class="application-workspace-sidebar"
-    :class="{ 'application-workspace-sidebar--collapsed': props.collapsed }"
+    :class="{
+      'application-workspace-sidebar--collapsed': props.collapsed,
+    }"
     aria-label="应用导航"
   >
     <div class="application-workspace-sidebar__content" :aria-hidden="props.collapsed">
@@ -97,13 +112,32 @@ function handleCreateAsset(command: string | number | object) {
         </button>
       </header>
 
-      <nav class="application-workspace-sidebar__personal-nav" aria-label="个人应用入口">
+      <WorkflowCenterNavigation
+        v-if="props.workflowScope"
+        class="application-workspace-sidebar__workflow-nav"
+        :scope="props.workflowScope"
+        :active-form-code="props.activeWorkflowFormCode"
+        :forms="props.workflowForms"
+        :pending-summary="props.pendingWorkflowSummary"
+        inverted
+        @update-scope="emit('updateWorkflowScope', $event)"
+        @update-form-code="emit('updateWorkflowFormCode', $event)"
+        @open-dashboard="emit('selectPersonalNavigation', 'dashboard')"
+      />
+
+      <nav v-else class="application-workspace-sidebar__personal-nav" aria-label="个人应用入口">
         <button
           v-for="item in applicationPersonalNavigation"
           :key="item.code"
           class="application-workspace-sidebar__nav-item"
+          :class="{
+            'application-workspace-sidebar__nav-item--active':
+              props.activePersonalCode === item.code,
+          }"
           type="button"
           :aria-label="item.label"
+          :aria-current="props.activePersonalCode === item.code ? 'page' : undefined"
+          @click="emit('selectPersonalNavigation', item.code)"
         >
           <component :is="item.icon" aria-hidden="true" />
           <span>{{ item.label }}</span>
@@ -113,7 +147,7 @@ function handleCreateAsset(command: string | number | object) {
       <div class="application-workspace-sidebar__asset-tools">
         <label class="application-workspace-sidebar__search">
           <RiSearch2Line aria-hidden="true" />
-          <input placeholder="输入名称来搜索" aria-label="搜索应用资产" />
+          <input placeholder="输入名称来搜索" aria-label="搜索应用资产">
         </label>
         <el-dropdown
           placement="right-start"
@@ -200,6 +234,9 @@ function handleCreateAsset(command: string | number | object) {
 
 <style scoped lang="scss">
 .application-workspace-sidebar {
+  /* 个人流程入口与应用资产树共享同一行高，切换视图时导航节奏不发生跳变。 */
+  --application-workspace-menu-item-height: 42px;
+
   box-sizing: border-box;
   display: flex;
   width: 280px;
@@ -319,9 +356,14 @@ function handleCreateAsset(command: string | number | object) {
     gap: var(--el-space-xs);
   }
 
+  &__workflow-nav {
+    /* 与普通个人导航使用同一外边距，资产搜索区的位置不随菜单类型跳动。 */
+    margin: var(--el-space-2xl) 0;
+  }
+
   &__nav-item,
   &__management {
-    min-height: 42px;
+    min-height: var(--application-workspace-menu-item-height);
     padding: 0 var(--el-space-md);
     gap: var(--el-space-md);
     border-radius: var(--el-border-radius-medium);
@@ -342,6 +384,10 @@ function handleCreateAsset(command: string | number | object) {
       outline: 2px solid var(--el-color-white);
       outline-offset: -2px;
     }
+  }
+
+  &__nav-item--active {
+    background: rgb(255 255 255 / 14%);
   }
 
   &__asset-tools {
@@ -421,6 +467,7 @@ function handleCreateAsset(command: string | number | object) {
         transform 0.12s ease;
     }
   }
+
 }
 
 @media (max-width: 900px) {

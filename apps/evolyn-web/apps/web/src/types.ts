@@ -688,3 +688,93 @@ export interface WorkflowValidationIssueDto {
   code: string;
   message: string;
 }
+
+/* ---- 审批中心（/workflow-tasks、/workflow-instances） ---- */
+
+/** 审批中心任务查询范围，与后端 ListTasksQuery 的 scope 一一对应。 */
+export type WorkflowTaskScope = 'pending' | 'completed' | 'cc-to-me';
+
+/** 任务参与人快照：任务创建时冻结，成员改名后历史审批展示仍保持可追溯。 */
+export interface WorkflowTaskActorDto {
+  memberId: number;
+  displayName: string;
+}
+
+/** 审批中心任务列表条目。列表仅提供轻量投影，详情按需加载。 */
+export interface WorkflowTaskSummaryDto {
+  id: number;
+  instanceId: number;
+  nodeKey: string;
+  status: string;
+  actors: WorkflowTaskActorDto[];
+  transferredFrom?: number;
+  createdAt: string;
+}
+
+export interface WorkflowTaskPageDto {
+  items: WorkflowTaskSummaryDto[];
+  nextCursor: string;
+}
+
+/** 待办菜单摘要：总量用于一级提醒，按流程表单聚合的数量用于展开后的筛选项。 */
+export interface WorkflowPendingTaskSummaryDto {
+  total: number;
+  formCounts: ReadonlyArray<{
+    formCode: string;
+    count: number;
+  }>;
+}
+
+/** 我发起的流程实例列表条目。 */
+export interface WorkflowInstanceSummaryDto {
+  id: number;
+  definitionCode: string;
+  definitionVersionNo: number;
+  businessType: string;
+  businessId: string;
+  status: string;
+  starterMemberId: number;
+  createdAt: string;
+}
+
+export interface WorkflowInstancePageDto {
+  items: WorkflowInstanceSummaryDto[];
+  nextCursor: string;
+}
+
+/** 审批操作时间线条目。payload 是服务端冻结的结构化操作上下文。 */
+export interface WorkflowOperationDto {
+  id: number;
+  taskId: number;
+  operatorMemberId: number;
+  type: string;
+  payload: unknown;
+  createdAt: string;
+}
+
+/** 审批详情：表单快照、业务数据和允许动作均由服务端按当前成员裁剪。 */
+export interface WorkflowTaskDetailDto {
+  task: WorkflowTaskSummaryDto;
+  instance: WorkflowInstanceSummaryDto;
+  nodeKey: string;
+  nodeStatus: string;
+  formPermissions: Record<string, string>;
+  allowedActions: string[];
+  formCode?: string;
+  formVersionNo?: number;
+  formContent?: unknown;
+  formValues: Record<string, unknown>;
+  operations: WorkflowOperationDto[];
+}
+
+export interface WorkflowTaskActionResultDto {
+  instanceId: number;
+  instanceStatus: string;
+  newTaskId?: number;
+}
+
+export interface WorkflowApproveTaskResultDto {
+  instanceId: number;
+  instanceStatus: string;
+  nodeCompleted: boolean;
+}

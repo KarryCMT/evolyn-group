@@ -17,6 +17,8 @@ defineOptions({ name: 'ApplicationWorkspaceHeader' });
 const props = defineProps<{
   mode: ApplicationWorkspaceMode;
   sidebarCollapsed: boolean;
+  /** 个人流程入口激活时，替换表单模式操作为当前视图标题。 */
+  personalTitle: string | null;
 }>();
 
 const emit = defineEmits<{
@@ -38,7 +40,11 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
 
 <template>
   <header class="application-workspace-header">
-    <nav class="application-workspace-header__modes" aria-label="当前资产操作模式">
+    <nav
+      v-if="!props.personalTitle"
+      class="application-workspace-header__modes"
+      aria-label="当前资产操作模式"
+    >
       <button
         v-if="props.sidebarCollapsed"
         class="application-workspace-header__sidebar-toggle"
@@ -63,6 +69,25 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
         <span>{{ item.label }}</span>
       </button>
     </nav>
+
+    <!--
+      待办、已发起等属于个人视图，不应继续展示当前表单的“编辑/数据管理”。
+      标题仍沿用应用壳的顶栏，使个人入口和应用资产保持同一视觉层级。
+    -->
+    <div v-else class="application-workspace-header__personal-heading">
+      <button
+        v-if="props.sidebarCollapsed"
+        class="application-workspace-header__sidebar-toggle"
+        type="button"
+        aria-label="展开侧边栏"
+        aria-expanded="false"
+        title="展开侧边栏"
+        @click="emit('toggleSidebar')"
+      >
+        <RiArrowRightDoubleFill aria-hidden="true" />
+      </button>
+      <span>{{ props.personalTitle }}</span>
+    </div>
 
     <div class="application-workspace-header__actions">
       <button
@@ -95,6 +120,7 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
   border-bottom: 1px solid var(--el-border-color-lighter);
 
   &__modes,
+  &__personal-heading,
   &__actions {
     display: flex;
     align-items: center;
@@ -103,6 +129,25 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
   &__modes {
     height: 100%;
     gap: var(--el-space-xs);
+  }
+
+  &__personal-heading {
+    position: relative;
+    height: 100%;
+    gap: var(--el-space-md);
+    color: var(--el-color-primary);
+    font-size: var(--el-font-size-medium);
+    font-weight: 650;
+
+    &::after {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      left: 0;
+      height: 3px;
+      content: '';
+      background: var(--el-color-primary);
+    }
   }
 
   &__mode,

@@ -10,6 +10,18 @@ import (
 // 由仓储适配层做双向转换；引擎内核不感知 GORM（ADR-012）。
 // 运行态历史完整保留：全部无软删（GORM 无 DeletedAt）。
 
+// RuntimeTenantBaseModel 是运行态表与迁移 000049 的公共持久化列。
+//
+// 通用 TenantBaseModel 带有创建人、更新人和 DeletedAt，适用于常规租户资源；
+// 流程运行态则是追加历史事实，迁移刻意没有这些列且禁止软删。若直接嵌入
+// TenantBaseModel，GORM 会在查询中自动追加 deleted_at IS NULL，导致列表接口
+// 访问不存在的列。运行态模型必须使用这一与实际 Schema 严格一致的基类。
+type RuntimeTenantBaseModel struct {
+	TenantID  uint            `json:"tenantId" gorm:"index;not null;default:1"`
+	CreatedAt kernel.JSONTime `json:"createdAt"`
+	UpdatedAt kernel.JSONTime `json:"updatedAt"`
+}
+
 // WfInstance 流程实例。
 type WfInstance struct {
 	ID                  uint    `json:"id" gorm:"autoIncrement;primaryKey"`
@@ -24,7 +36,7 @@ type WfInstance struct {
 	StarterMemberID     uint    `json:"starterMemberId" gorm:"not null"`
 	IdempotencyKey      *string `json:"idempotencyKey" gorm:"size:64"`
 
-	kernel.TenantBaseModel
+	RuntimeTenantBaseModel
 }
 
 func (*WfInstance) TableName() string { return "wf_instance" }
@@ -36,7 +48,7 @@ type WfExecution struct {
 	ParentExecutionID uint   `json:"parentExecutionId" gorm:"not null;default:0"`
 	Status            string `json:"status" gorm:"size:16;not null;default:RUNNING"`
 
-	kernel.TenantBaseModel
+	RuntimeTenantBaseModel
 }
 
 func (*WfExecution) TableName() string { return "wf_execution" }
@@ -49,7 +61,7 @@ type WfNodeInstance struct {
 	NodeKey     string `json:"nodeKey" gorm:"size:64;not null"`
 	Status      string `json:"status" gorm:"size:24;not null;default:PENDING"`
 
-	kernel.TenantBaseModel
+	RuntimeTenantBaseModel
 }
 
 func (*WfNodeInstance) TableName() string { return "wf_node_instance" }
@@ -64,7 +76,7 @@ type WfTask struct {
 	TransferredFromTaskID uint   `json:"transferredFromTaskId" gorm:"not null;default:0"`
 	TransferredToMemberID uint   `json:"transferredToMemberId" gorm:"not null;default:0"`
 
-	kernel.TenantBaseModel
+	RuntimeTenantBaseModel
 }
 
 func (*WfTask) TableName() string { return "wf_task" }
@@ -77,7 +89,10 @@ type WfTaskActor struct {
 	DisplayName string `json:"displayName" gorm:"size:100;not null;default:''"`
 	ActorRole   string `json:"actorRole" gorm:"size:16;not null;default:assignee"`
 
-	kernel.TenantBaseModel
+	// 任务参与人是创建时的快照，000049 没有 updated_at，故不能复用
+	// RuntimeTenantBaseModel。
+	TenantID  uint            `json:"tenantId" gorm:"index;not null;default:1"`
+	CreatedAt kernel.JSONTime `json:"createdAt"`
 }
 
 func (*WfTaskActor) TableName() string { return "wf_task_actor" }

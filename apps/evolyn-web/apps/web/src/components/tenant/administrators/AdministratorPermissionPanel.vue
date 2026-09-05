@@ -72,6 +72,8 @@ const selectedRoleNames = computed(() =>
     .map((id) => roleNameById.value.get(id))
     .filter((name): name is string => Boolean(name)),
 );
+const hasSelectedDepartments = computed(() => selectedDepartmentNames.value.length > 0);
+const hasSelectedRoles = computed(() => selectedRoleNames.value.length > 0);
 
 /** 面板展示的可编辑应用：全量语义展开为全部应用，否则按清单过滤。 */
 const selectedApplications = computed(() => {
@@ -125,8 +127,8 @@ async function patch(patchValue: Partial<AdministratorGroup>) {
 
 /** 内置组配置固定全量：除成员与名称外不可变更，控件整体禁用。 */
 const configDisabled = computed(() => props.group?.builtIn || props.saving === true);
-/** 所有管理组复用同一成员选择区，确保系统、通讯录与应用管理组的交互一致。 */
-const useMemberSelectionBox = computed(() => Boolean(props.group));
+/** 仅在已有成员时展示可点击的标签区；空态保持轻量文字入口。 */
+const useMemberSelectionBox = computed(() => (props.group?.members.length ?? 0) > 0);
 
 function patchDepartment(enabled?: boolean, mode?: ScopeMode, ids?: number[]) {
   const group = props.group;
@@ -190,7 +192,7 @@ async function saveAddressBook(scope: AddressBookScope) {
         >
           <h2>管理员</h2>
           <template v-if="useMemberSelectionBox">
-            <!-- 所有管理组复用同一整块成员选择样式，并保留完整点击入口。 -->
+            <!-- 已选成员时整块标签区可点击编辑，避免另设冗余编辑按钮。 -->
             <button
               class="administrator-permission-panel__member-selection"
               type="button"
@@ -204,12 +206,6 @@ async function saveAddressBook(scope: AddressBookScope) {
                 class="administrator-permission-panel__member-selection-chip"
               >
                 <i>{{ member.name.slice(0, 1) }}</i>{{ member.name }}
-              </span>
-              <span
-                v-if="group.members.length === 0"
-                class="administrator-permission-panel__member-selection-placeholder"
-              >
-                <RiAddFill />选择成员
               </span>
             </button>
           </template>
@@ -255,9 +251,13 @@ async function saveAddressBook(scope: AddressBookScope) {
               ><el-radio value="all">全部部门</el-radio
               ><el-radio value="partial">部分部门</el-radio></el-radio-group
             >
-            <div
-              v-if="group.departmentMode === 'partial'"
+            <button
+              v-if="group.departmentMode === 'partial' && hasSelectedDepartments"
               class="administrator-permission-panel__selection-box"
+              type="button"
+              :disabled="configDisabled"
+              aria-label="编辑部门"
+              @click="departmentPickerVisible = true"
             >
               <span
                 v-for="name in selectedDepartmentNames"
@@ -265,15 +265,16 @@ async function saveAddressBook(scope: AddressBookScope) {
                 class="administrator-permission-panel__selection-item"
                 ><RiTeamFill />{{ name }}</span
               >
-              <button
-                class="administrator-permission-panel__text-action"
-                type="button"
-                :disabled="configDisabled"
-                @click="departmentPickerVisible = true"
-              >
-                <RiAddFill />选择部门
-              </button>
-            </div>
+            </button>
+            <button
+              v-else-if="group.departmentMode === 'partial'"
+              class="administrator-permission-panel__text-action administrator-permission-panel__text-action--scope-selection"
+              type="button"
+              :disabled="configDisabled"
+              @click="departmentPickerVisible = true"
+            >
+              <RiAddFill />选择部门
+            </button>
           </section>
           <section class="administrator-permission-panel__row">
             <h2>内部角色</h2>
@@ -302,9 +303,13 @@ async function saveAddressBook(scope: AddressBookScope) {
               ><el-radio value="all">全部角色</el-radio
               ><el-radio value="partial">部分角色</el-radio></el-radio-group
             >
-            <div
-              v-if="group.roleMode === 'partial'"
+            <button
+              v-if="group.roleMode === 'partial' && hasSelectedRoles"
               class="administrator-permission-panel__selection-box"
+              type="button"
+              :disabled="configDisabled"
+              aria-label="编辑角色"
+              @click="rolePickerVisible = true"
             >
               <span
                 v-for="name in selectedRoleNames"
@@ -312,15 +317,16 @@ async function saveAddressBook(scope: AddressBookScope) {
                 class="administrator-permission-panel__selection-item"
                 ><RiUserSettingsFill />{{ name }}</span
               >
-              <button
-                class="administrator-permission-panel__text-action"
-                type="button"
-                :disabled="configDisabled"
-                @click="rolePickerVisible = true"
-              >
-                <RiAddFill />选择角色
-              </button>
-            </div>
+            </button>
+            <button
+              v-else-if="group.roleMode === 'partial'"
+              class="administrator-permission-panel__text-action administrator-permission-panel__text-action--scope-selection"
+              type="button"
+              :disabled="configDisabled"
+              @click="rolePickerVisible = true"
+            >
+              <RiAddFill />选择角色
+            </button>
           </section>
           <section class="administrator-permission-panel__row">
             <h2>互联组织</h2>
@@ -372,15 +378,23 @@ async function saveAddressBook(scope: AddressBookScope) {
             v-if="group.departmentMode === 'partial'"
             class="administrator-permission-panel__sub-action"
           >
-            <div class="administrator-permission-panel__selection-box">
+            <button
+              v-if="hasSelectedDepartments"
+              class="administrator-permission-panel__selection-box"
+              type="button"
+              :disabled="saving"
+              aria-label="编辑部门"
+              @click="departmentPickerVisible = true"
+            >
               <span
                 v-for="name in selectedDepartmentNames"
                 :key="name"
                 class="administrator-permission-panel__selection-item"
                 ><RiTeamFill />{{ name }}</span
               >
-            </div>
+            </button>
             <button
+              v-else
               class="administrator-permission-panel__text-action"
               type="button"
               :disabled="saving"
@@ -403,15 +417,23 @@ async function saveAddressBook(scope: AddressBookScope) {
             v-if="group.roleMode === 'partial'"
             class="administrator-permission-panel__sub-action"
           >
-            <div class="administrator-permission-panel__selection-box">
+            <button
+              v-if="hasSelectedRoles"
+              class="administrator-permission-panel__selection-box"
+              type="button"
+              :disabled="saving"
+              aria-label="编辑角色"
+              @click="rolePickerVisible = true"
+            >
               <span
                 v-for="name in selectedRoleNames"
                 :key="name"
                 class="administrator-permission-panel__selection-item"
                 ><RiUserSettingsFill />{{ name }}</span
               >
-            </div>
+            </button>
             <button
+              v-else
               class="administrator-permission-panel__text-action"
               type="button"
               :disabled="saving"
@@ -603,6 +625,12 @@ async function saveAddressBook(scope: AddressBookScope) {
     cursor: not-allowed;
     text-decoration: none;
   }
+  // 部分范围的空态入口独占下一行，避免与单选项挤在同一行。
+  &__text-action--scope-selection {
+    display: flex;
+    width: fit-content;
+    margin-top: var(--el-space-xl);
+  }
   &__member {
     display: inline-flex;
     height: 32px;
@@ -667,18 +695,6 @@ async function saveAddressBook(scope: AddressBookScope) {
     font-size: var(--el-font-size-small);
     font-style: normal;
   }
-  &__member-selection-placeholder {
-    display: inline-flex;
-    min-height: 42px;
-    align-items: center;
-    gap: var(--el-space-xs);
-    color: var(--el-color-primary);
-    font-size: var(--el-font-size-medium);
-  }
-  &__member-selection-placeholder svg {
-    width: 22px;
-    height: 22px;
-  }
   &__scope-detail {
     margin: -5px 0 var(--el-space-3xl) 246px;
   }
@@ -688,15 +704,27 @@ async function saveAddressBook(scope: AddressBookScope) {
   }
   &__selection-box {
     display: flex;
+    width: 100%;
     min-height: 92px;
     margin-top: var(--el-space-xl);
-    padding: var(--el-space-lg);
     border: 1px dashed var(--el-border-color-light);
+    padding: var(--el-space-lg);
     border-radius: var(--el-border-radius-medium);
     align-content: flex-start;
     align-items: flex-start;
     flex-wrap: wrap;
     gap: var(--el-space-md);
+    background: transparent;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+  &__selection-box:hover:not(:disabled) {
+    border-color: var(--el-color-primary-light-5);
+    background: var(--el-color-primary-light-9);
+  }
+  &__selection-box:disabled {
+    cursor: not-allowed;
   }
   &__selection-item {
     display: inline-flex;

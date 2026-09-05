@@ -7,6 +7,14 @@ import {
 } from '@remixicon/vue';
 import { markRaw } from 'vue';
 
+/** 应用运行态侧栏固定的个人入口编码；资产编码不应与其混用。 */
+export type ApplicationPersonalNavigationCode =
+  | 'todo'
+  | 'started'
+  | 'handled'
+  | 'copied'
+  | 'dashboard';
+
 /**
  * 应用工作区侧栏的个人导航入口（我的待办/我发起的等）：不属于应用资产
  * 树（应用菜单接口不返回，见应用菜单接口功能设计方案 §2「homeList 不随
@@ -19,4 +27,8 @@ export const applicationPersonalNavigation = [
   { code: 'handled', label: '我处理的', icon: markRaw(RiTaskFill) },
   { code: 'copied', label: '抄送我的', icon: markRaw(RiSendPlaneFill) },
   { code: 'dashboard', label: '我的仪表盘', icon: markRaw(RiLayoutGridFill) },
-];
+] as const satisfies ReadonlyArray<{
+  code: ApplicationPersonalNavigationCode;
+  label: string;
+  icon: ReturnType<typeof markRaw>;
+}>;

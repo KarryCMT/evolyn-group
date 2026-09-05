@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import type {
+  ApplicationWorkspaceAsset,
+  ApplicationWorkspaceAssetAction,
+  ApplicationWorkspaceCreateAssetType,
+} from './applicationWorkspace.types';
 import {
   RiAddFill,
   RiArrowDownSFill,
@@ -7,6 +12,7 @@ import {
   RiDeleteBin6Fill,
   RiDragMove2Fill,
   RiEditFill,
+  RiEyeOffFill,
   RiFileAddFill,
   RiFileCopy2Fill,
   RiFileCopyFill,
@@ -16,15 +22,9 @@ import {
   RiMoreFill,
   RiPencilFill,
   RiRepeatFill,
-  RiEyeOffFill,
   RiStarFill,
 } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
-import type {
-  ApplicationWorkspaceAsset,
-  ApplicationWorkspaceAssetAction,
-  ApplicationWorkspaceCreateAssetType,
-} from './applicationWorkspace.types';
 
 defineOptions({ name: 'ApplicationWorkspaceAssetItem' });
 
@@ -189,7 +189,7 @@ function handleAction(command: string | number | object) {
             class="application-workspace-asset-item__group-toggle"
           />
         </span>
-        <component v-else :is="props.asset.icon" aria-hidden="true" />
+        <component :is="props.asset.icon" v-else aria-hidden="true" />
         <span>{{ props.asset.label }}</span>
       </button>
 
@@ -285,7 +285,7 @@ function handleAction(command: string | number | object) {
   &__row {
     display: flex;
     min-width: 0;
-    min-height: 42px;
+    min-height: var(--application-workspace-menu-item-height, 42px);
     align-items: center;
     border-radius: var(--el-border-radius-medium);
 
@@ -318,7 +318,7 @@ function handleAction(command: string | number | object) {
   &__main {
     display: flex;
     min-width: 0;
-    min-height: 42px;
+    min-height: var(--application-workspace-menu-item-height, 42px);
     padding: 0 var(--el-space-xs) 0 var(--el-space-md);
     flex: 1;
     align-items: center;
