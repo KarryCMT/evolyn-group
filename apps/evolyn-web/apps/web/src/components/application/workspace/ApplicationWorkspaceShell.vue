@@ -5,9 +5,11 @@ import type {
   ApplicationWorkspaceCreateAssetType,
   ApplicationWorkspaceMode,
 } from './applicationWorkspace.types';
+import type { ApplicationAssetType } from '../runtime/applicationAssetCatalog';
 import type { ApplicationIcon } from '~/types';
 import { shallowRef } from 'vue';
 import ApplicationWorkspaceFormRuntime from '../runtime/ApplicationWorkspaceFormRuntime.vue';
+import ApplicationEmptyState from '../runtime/ApplicationEmptyState.vue';
 import ApplicationContentPlaceholder from './ApplicationContentPlaceholder.vue';
 import ApplicationWorkspaceHeader from './ApplicationWorkspaceHeader.vue';
 import ApplicationWorkspaceSidebar from './ApplicationWorkspaceSidebar.vue';
@@ -24,6 +26,8 @@ const props = defineProps<{
   mode: ApplicationWorkspaceMode;
   /** 菜单数据源状态：loading 传递给侧栏渲染加载态 */
   menuStatus: 'loading' | 'ready';
+  /** 创建请求进行中的资产类型：透传给空态引导页锁定卡片，防止重复创建。 */
+  creatingAssetType: ApplicationAssetType | null;
 }>();
 
 const emit = defineEmits<{
@@ -76,6 +80,17 @@ function toggleSidebar() {
         v-if="props.activeAsset?.type === 'form' && props.mode === 'fill'"
         :app-code="props.appCode"
         :asset="props.activeAsset"
+      />
+      <!--
+        菜单加载完成且无任何资产：内容区渲染与应用首页一致的创建引导页，
+        复用 ApplicationEmptyState 单一实现；加载中仍走占位，避免引导页闪现。
+        卡片选择桥接到既有 createAsset 链路（starter.type 是其类型的子集）。
+      -->
+      <ApplicationEmptyState
+        v-else-if="props.menuStatus === 'ready' && props.assets.length === 0"
+        :creating-asset-type="props.creatingAssetType"
+        @select-asset="(starter) => emit('createAsset', { type: starter.type })"
+        @learn-more="emit('assetGuide')"
       />
       <ApplicationContentPlaceholder v-else :asset="props.activeAsset" :mode="props.mode" />
     </section>

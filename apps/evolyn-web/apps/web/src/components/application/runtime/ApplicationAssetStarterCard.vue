@@ -50,10 +50,10 @@ const emit = defineEmits<{
 .application-asset-starter-card {
   display: flex;
   box-sizing: border-box;
-  width: 270px;
-  height: 300px;
+  width: 230px;
+  height: 258px;
   padding: var(--el-space-lg) var(--el-space-lg) var(--el-space-xl);
-  flex: 0 0 270px;
+  flex: 0 0 230px;
   flex-direction: column;
   align-items: center;
   color: var(--el-text-color-primary);
@@ -90,8 +90,8 @@ const emit = defineEmits<{
   &__visual {
     display: flex;
     width: 100%;
-    height: 190px;
-    flex: 0 0 190px;
+    height: 162px;
+    flex: 0 0 162px;
     flex-direction: column;
     align-items: center;
     justify-content: center;
@@ -111,37 +111,39 @@ const emit = defineEmits<{
   }
 
   &__illustration {
+    /* 精灵图按 7/8 等比缩放展示（112×136 → 98×119），
+       background-size 与各帧 background-position 必须同步缩放，否则画面错位。 */
     display: block;
-    width: 112px;
-    height: 136px;
+    width: 98px;
+    height: 119px;
     margin-top: -6px;
     flex: 0 0 auto;
     background-repeat: no-repeat;
-    background-size: 112px 544px;
+    background-size: 98px 476px;
 
     &--form {
       background-position: 0 0;
     }
 
     &--workflow-form {
-      background-position: 0 -136px;
+      background-position: 0 -119px;
     }
 
     &--dashboard {
-      background-position: 0 -408px;
+      background-position: 0 -357px;
     }
   }
 
   &__title {
     margin-top: -7px;
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-large);
     font-weight: 650;
-    line-height: 28px;
+    line-height: 26px;
   }
 
   &__description {
     display: -webkit-box;
-    max-width: 238px;
+    max-width: 198px;
     margin-top: var(--el-space-lg);
     overflow: hidden;
     color: var(--el-text-color-secondary);
@@ -182,7 +184,7 @@ const emit = defineEmits<{
 
 @media (max-width: 820px) {
   .application-asset-starter-card {
-    width: min(270px, 100%);
+    width: min(230px, 100%);
     flex-basis: auto;
   }
 }

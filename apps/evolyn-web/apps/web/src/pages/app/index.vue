@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
-import type {
-  ApplicationAssetStarter,
-  ApplicationAssetType,
-} from '~/components/application/runtime/applicationAssetCatalog';
+import type { ApplicationAssetType } from '~/components/application/runtime/applicationAssetCatalog';
 import type {
   ApplicationWorkspaceAsset,
   ApplicationWorkspaceAssetAction,
@@ -25,7 +22,6 @@ import { computed, markRaw, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { createApplicationMenuGroup, updateApplicationMenuEntry } from '~/api/applications';
 import { createForm, deleteForm, updateForm } from '~/api/form';
-import ApplicationEmptyState from '~/components/application/runtime/ApplicationEmptyState.vue';
 import ApplicationWorkspaceShell from '~/components/application/workspace/ApplicationWorkspaceShell.vue';
 import FormAppearanceDialog from '~/components/application/workspace/FormAppearanceDialog.vue';
 import MoveMenuEntryDialog from '~/components/application/workspace/MoveMenuEntryDialog.vue';
@@ -72,18 +68,8 @@ const applicationIcon = computed(
     iconByKey[getApplicationIconName(application.value?.icon) as ApplicationIconKey] ??
     iconByKey.bookmark,
 );
-const workspacePreviewEnabled = computed(() => route.query.workspace === 'form');
 // 设计器返回时携带表单公开编码，应用菜单加载完成后据此恢复对应节点选中态。
 const requestedFormCode = computed(() => String(route.params.formCode ?? ''));
-const hasMenuAssets = computed(() => menuAssets.value.length > 0);
-// 菜单资产是应用已进入运行态的直接事实：即使历史应用 homeMode 尚未回填，
-// 只要菜单接口返回可见节点也必须展示工作区，不能继续落入默认创建引导。
-const showApplicationWorkspace = computed(
-  () =>
-    application.value?.homeMode === 'application' ||
-    workspacePreviewEnabled.value ||
-    hasMenuAssets.value,
-);
 const activeAssetCode = shallowRef('');
 const workspaceMode = shallowRef<ApplicationWorkspaceMode>('fill');
 const DEFAULT_FORM_NAME = '未命名表单';
@@ -243,25 +229,6 @@ async function startNewForm(
   } finally {
     creatingAssetType.value = null;
   }
-}
-
-function openAssetStarter(starter: ApplicationAssetStarter) {
-  if (starter.type === 'form') {
-    void startNewForm('form');
-    return;
-  }
-
-  if (starter.type === 'workflow-form') {
-    void startNewForm('workflow-form');
-    return;
-  }
-
-  const labels: Record<ApplicationAssetStarter['type'], string> = {
-    'workflow-form': '流程表单',
-    form: '表单',
-    dashboard: '仪表盘',
-  };
-  ElMessage.info(`${labels[starter.type]}能力将在后续版本接入`);
 }
 
 function showAssetGuide() {
@@ -581,8 +548,8 @@ function reloadWorkspace() {
 
 <template>
   <div class="application-home-page">
-    <!-- 菜单型应用直接进入运行时壳；表单设计器的 workspace=form 回跳仍兼容。 -->
-    <template v-if="showApplicationWorkspace && status === 'ready'">
+    <!-- 应用详情就绪即进入运行时壳：空应用的创建引导由工作区内容区承载。 -->
+    <template v-if="status === 'ready'">
       <!-- 应用元信息已就绪但菜单加载失败：错误态统一在页面层拦截并重试，
            侧栏/内容组件不感知后端错误码（应用菜单方案 §11）。 -->
       <el-result
@@ -606,6 +573,7 @@ function reloadWorkspace() {
         :active-asset="activeWorkspaceAsset"
         :mode="workspaceMode"
         :menu-status="menuStatus"
+        :creating-asset-type="creatingAssetType"
         @back="returnToDashboard"
         @create-asset="createWorkspaceAsset"
         @asset-guide="showAssetGuide"
@@ -684,15 +652,6 @@ function reloadWorkspace() {
           <el-button type="primary" @click="reloadWorkspace()"> 重新加载 </el-button>
         </template>
       </el-result>
-
-      <!-- 空应用维持独立引导；表单运行时由后续 @evolyn.do/form 包承接。 -->
-      <ApplicationEmptyState
-        v-else
-        :creating-asset-type="creatingAssetType"
-        @select-asset="openAssetStarter"
-        @learn-more="showAssetGuide"
-        @open-management="openApplicationManagement"
-      />
     </template>
   </div>
 </template>

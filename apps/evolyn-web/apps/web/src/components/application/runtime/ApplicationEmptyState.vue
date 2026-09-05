@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { ApplicationAssetStarter } from './applicationAssetCatalog';
-import { RiSettings3Fill } from '@remixicon/vue';
 import { applicationAssetStarters } from './applicationAssetCatalog';
 import ApplicationAssetStarterCard from './ApplicationAssetStarterCard.vue';
 
@@ -13,7 +12,6 @@ defineProps<{
 const emit = defineEmits<{
   selectAsset: [starter: ApplicationAssetStarter];
   learnMore: [];
-  openManagement: [];
 }>();
 </script>
 
@@ -43,15 +41,6 @@ const emit = defineEmits<{
           @select="emit('selectAsset', $event)"
         />
       </div>
-
-      <button
-        class="application-empty-state__management"
-        type="button"
-        @click="emit('openManagement')"
-      >
-        <RiSettings3Fill aria-hidden="true" />
-        应用后台
-      </button>
     </section>
   </main>
 </template>
@@ -66,7 +55,8 @@ const emit = defineEmits<{
   background: var(--el-bg-color-page);
 
   &__content {
-    width: min(100%, 1140px);
+    /* 宽度贴合三张卡片加两列间距：卡片与标题行共享同一版心，缩放卡片时同步收缩。 */
+    width: min(100%, calc(230px * 3 + var(--el-space-3xl) * 2));
   }
 
   &__heading-row {
@@ -85,8 +75,7 @@ const emit = defineEmits<{
     line-height: 32px;
   }
 
-  &__learn-more,
-  &__management {
+  &__learn-more {
     padding: 0;
     color: var(--el-color-primary);
     cursor: pointer;
@@ -108,28 +97,9 @@ const emit = defineEmits<{
 
   &__starter-grid {
     display: grid;
-    grid-template-columns: repeat(3, 270px);
+    grid-template-columns: repeat(3, 230px);
     justify-content: space-between;
     gap: var(--el-space-3xl);
-  }
-
-  &__management {
-    display: flex;
-    width: fit-content;
-    margin: var(--el-space-5xl) auto 0;
-    align-items: center;
-    gap: var(--el-space-md);
-    color: var(--el-text-color-regular);
-    font-size: var(--el-font-size-medium);
-    font-weight: 600;
-
-    svg {
-      font-size: var(--el-font-size-extra-large);
-    }
-
-    &:hover {
-      color: var(--el-color-primary);
-    }
   }
 }
 
@@ -148,10 +118,6 @@ const emit = defineEmits<{
     &__starter-grid {
       grid-template-columns: 1fr;
       justify-items: center;
-    }
-
-    &__management {
-      margin-top: var(--el-space-3xl);
     }
   }
 }
