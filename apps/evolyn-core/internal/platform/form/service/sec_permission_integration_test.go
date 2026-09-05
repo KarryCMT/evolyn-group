@@ -642,6 +642,61 @@ func TestSECFPERM004SubmitPermissionPipeline(t *testing.T) {
 	assert.Nil(t, stored["secret"], "不可编辑字段以 null 落库")
 }
 
+// SEC-FPERM-REC-001：记录列表必须在数据库分页之前合并 view 数据范围，且
+// 不能借跨租户 formCode 或伪造字段名绕过受控查询编译器。
+func TestSECFPERMRecordListScopeTenantAndUnknownField(t *testing.T) {
+	env := newFpermEnv(t)
+	ctx := fpermCtx(env.alpha.ID)
+	app, form := env.createAppWithForm(t, ctx, env.alphaOwner, "记录查询应用")
+	published := env.saveAndPublish(t, ctx, env.alphaOwner, form, fpermDoc(
+		fpermText("name", "姓名", true), fpermRadio("department", "部门"),
+	))
+	submit := func(operationID, name, department string) {
+		_, err := env.formSvc.SubmitRecord(ctx, env.alphaOwner, &model.SubmitRecordRequest{
+			AppCode: app.Code, FormCode: form.Code, PublishedVersion: published.PublishedVersion,
+			SchemaRevision: published.SchemaRevision, HasResult: submitBool(true), DataOpID: operationID,
+			Values: map[string]model.SubmitFieldValue{
+				"name":       {Data: model.JSONContent(fmt.Sprintf("%q", name)), Visible: submitBool(true)},
+				"department": {Data: model.JSONContent(fmt.Sprintf("%q", department)), Visible: submitBool(true)},
+			},
+		})
+		assert.NoError(t, err)
+	}
+	submit("87d8ce09-1b7d-4fb9-90b9-5326c04670b1", "销售记录", "sales")
+	submit("87d8ce09-1b7d-4fb9-90b9-5326c04670b2", "运营记录", "ops")
+	_, err := env.permSvc.CreateGroup(ctx, env.alphaOwner, form.Code, &model.CreatePermissionGroupRequest{
+		Name: "仅销售数据", Operations: []string{model.PermissionOpView},
+		FieldPermissions: []model.PermissionFieldRule{
+			{Field: "name", Visible: true}, {Field: "department", Visible: true},
+		},
+		DataScope: &model.PermissionDataScopeSpec{Conditions: []model.PermissionDataCondition{{
+			Field: "department", Operator: "eq", Value: []any{"sales"},
+		}}},
+		SubjectIds: []model.PermissionSubjectInput{{Type: model.PermissionSubjectMember, ID: env.plainMember.ID}},
+	})
+	assert.NoError(t, err)
+
+	page, err := env.formSvc.ListRecords(ctx, env.plainMember, form.Code, model.RecordQueryDocument{
+		Version: 1, Paging: model.RecordQueryPaging{Page: 1, PageSize: 1},
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, int64(1), page.Total, "total must use the permission predicate before paging")
+	assert.Len(t, page.Items, 1)
+	assert.Equal(t, "销售记录", page.Items[0].Values["name"])
+	noViewMember := env.createPlainMember(t, env.alpha, "fperm-no-record-view")
+	page, err = env.formSvc.ListRecords(ctx, noViewMember, form.Code, model.RecordQueryDocument{Version: 1})
+	assert.NoError(t, err)
+	assert.Empty(t, page.Items, "unmatched view member must not receive rows")
+	assert.Zero(t, page.Total)
+
+	_, err = env.formSvc.ListRecords(fpermCtx(env.beta.ID), env.betaOwner, form.Code, model.RecordQueryDocument{Version: 1})
+	assert.ErrorIs(t, err, apperrors.ErrFormNotFound, "tenant callback must hide alpha form and records")
+	_, err = env.formSvc.ListRecords(ctx, env.plainMember, form.Code, model.RecordQueryDocument{
+		Version: 1, Filter: &model.RecordQueryExpression{Type: "condition", Field: "values ->> 'secret'", Operator: "eq", Value: "x"},
+	})
+	assert.ErrorIs(t, err, apperrors.ErrRecordQueryInvalid)
+}
+
 // SEC-FPERM-005：仅 add 成员入口与填写模式（S8）：菜单可见、运行时
 // operations=[add,import]、viewFields 全拒绝、addFields 全量放行
 func TestSECFPERM005AddOnlyEntrance(t *testing.T) {

@@ -52,7 +52,7 @@ export type FormWidgetType =
   | 'button';
 
 /**
- * 已开放运行时的发布白名单（字段字典 §6）：基础字段及成员单选/多选。
+ * 已开放运行时的发布白名单（字段字典 §6）：基础字段、成员选择与子表单。
  * 前后端各维护一份并保持一致，新增类型时必须同时补齐运行组件与值校验。
  */
 export const PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
@@ -67,6 +67,22 @@ export const PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'separator',
   'user',
   'usergroup',
+  'subform',
+];
+
+/**
+ * 子表单行编辑器已实现的子项类型。设计期 SUBFORM_ALLOWED_WIDGET_TYPES 的范围更大，
+ * 但其中未实现运行时的控件不能因为能保存 Schema 而被发布。
+ */
+export const SUBFORM_PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
+  'text',
+  'textarea',
+  'number',
+  'datetime',
+  'radiogroup',
+  'checkboxgroup',
+  'combo',
+  'combocheck',
 ];
 
 /** 选项结构：label/value 均为 1–100 字符，组内 value 唯一。 */

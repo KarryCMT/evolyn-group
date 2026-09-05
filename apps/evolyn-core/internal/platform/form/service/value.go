@@ -36,6 +36,15 @@ type snapshotField struct {
 	widget     map[string]any
 }
 
+// SnapshotFieldMapping 是发布版本中冻结的查询字段白名单。widgetName 是已独立
+// 于 label 的稳定记录键；JSONB 与未来物理表模式仅在后端解析器层选择不同目标。
+type SnapshotFieldMapping struct {
+	WidgetName     string `json:"widgetName"`
+	WidgetType     string `json:"widgetType"`
+	JSONBKey       string `json:"jsonbKey"`
+	PhysicalColumn string `json:"physicalColumn"`
+}
+
 // documentItems 从协议根文档中取 content.items（入参为 {content:{type,items}}）。
 func documentItems(root map[string]any) ([]any, bool) {
 	content, ok := root["content"].(map[string]any)
@@ -52,6 +61,12 @@ func buildSnapshotFields(root map[string]any) (map[string]snapshotField, error) 
 	if !ok {
 		return nil, fmt.Errorf("快照缺少 items")
 	}
+	return buildSnapshotFieldsFromItems(itemsAny), nil
+}
+
+// buildSnapshotFieldsFromItems 从同一作用域的字段项构建快照视图。子表单行复用它，
+// 但子项键仅在该子表单作用域内有效，绝不能混入顶层字段映射。
+func buildSnapshotFieldsFromItems(itemsAny []any) map[string]snapshotField {
 	fields := make(map[string]snapshotField, len(itemsAny))
 	for _, rawItem := range itemsAny {
 		item, ok := rawItem.(map[string]any)
@@ -79,7 +94,7 @@ func buildSnapshotFields(root map[string]any) (map[string]snapshotField, error) 
 			widget:     widget,
 		}
 	}
-	return fields, nil
+	return fields
 }
 
 // ExtractSnapshotTopFieldKeys 提取顶层字段键有序数组（发布时写入 field_keys）。
@@ -97,6 +112,32 @@ func ExtractSnapshotTopFieldKeys(root map[string]any) []string {
 		}
 	}
 	return keys
+}
+
+// ExtractSnapshotFieldMappings 冻结顶层值字段的存储映射。布局与按钮没有记录值，
+// 不得进入查询白名单；物理列只描述意图，DDL 仍只能由后端迁移服务执行。
+func ExtractSnapshotFieldMappings(root map[string]any) []SnapshotFieldMapping {
+	itemsAny, _ := documentItems(root)
+	mappings := make([]SnapshotFieldMapping, 0, len(itemsAny))
+	for _, rawItem := range itemsAny {
+		item, ok := rawItem.(map[string]any)
+		if !ok {
+			continue
+		}
+		widget, _ := item["widget"].(map[string]any)
+		name, _ := widget["widgetName"].(string)
+		widgetType, _ := widget["type"].(string)
+		if name == "" || widgetType == "separator" || widgetType == "button" {
+			continue
+		}
+		mappings = append(mappings, SnapshotFieldMapping{
+			WidgetName:     name,
+			WidgetType:     widgetType,
+			JSONBKey:       name,
+			PhysicalColumn: "f_" + strings.ToLower(strings.TrimPrefix(name, "_widget_")),
+		})
+	}
+	return mappings
 }
 
 // ValidateRecordValues 校验并清洗提交值：返回可直接落库的 values 与按 widgetName
@@ -320,10 +361,65 @@ func validateFieldValue(field snapshotField, value any) []string {
 		return validateMemberValue(field, value)
 	case "usergroup":
 		return validateMemberGroupValue(field, value)
+	case "subform":
+		return validateSubformValue(field, value)
 	default:
 		// 白名单外控件不可发布，正常到不了这里；防御性拒绝。
 		return []string{fmt.Sprintf("字段类型「%s」暂不支持提交", field.widgetType)}
 	}
+}
+
+// validateSubformValue 终审子表单二维值：行必须为对象、每行仅可提交冻结子字段，
+// 并复用基础字段校验。错误统一挂在子表单顶层键，便于既有字段错误回填协议消费。
+func validateSubformValue(field snapshotField, value any) []string {
+	rows, ok := value.([]any)
+	if !ok {
+		return []string{fmt.Sprintf("%s的值类型不正确", field.label)}
+	}
+	if len(rows) > 200 {
+		return []string{fmt.Sprintf("%s不能超过 200 行", field.label)}
+	}
+	if min, ok := jsonInt(field.widget["minRowCount"]); ok && len(rows) < min {
+		return []string{fmt.Sprintf("%s至少填写 %d 行", field.label, min)}
+	}
+	if max, ok := jsonInt(field.widget["maxRowCount"]); ok && len(rows) > max {
+		return []string{fmt.Sprintf("%s不能超过 %d 行", field.label, max)}
+	}
+	childrenAny, ok := field.widget["items"].([]any)
+	if !ok {
+		// 发布快照已在发布期校验；写入路径仍防御性拒绝损坏快照。
+		return []string{fmt.Sprintf("%s的字段配置异常", field.label)}
+	}
+	children := buildSnapshotFieldsFromItems(childrenAny)
+	var errs []string
+	for rowIndex, rawRow := range rows {
+		row, ok := rawRow.(map[string]any)
+		if !ok {
+			errs = append(errs, fmt.Sprintf("%s第 %d 行的值类型不正确", field.label, rowIndex+1))
+			continue
+		}
+		for key := range row {
+			if _, known := children[key]; !known {
+				errs = append(errs, fmt.Sprintf("%s第 %d 行提交了不存在的字段「%s」", field.label, rowIndex+1, key))
+			}
+		}
+		for name, child := range children {
+			if child.widgetType == "separator" || child.widgetType == "button" || !child.visible {
+				continue
+			}
+			childValue, submitted := row[name]
+			if !submitted || childValue == nil {
+				if !child.allowBlank {
+					errs = append(errs, fmt.Sprintf("%s第 %d 行：请%s%s", field.label, rowIndex+1, choosingVerb(child.widgetType), child.label))
+				}
+				continue
+			}
+			for _, childErr := range validateFieldValue(child, childValue) {
+				errs = append(errs, fmt.Sprintf("%s第 %d 行：%s", field.label, rowIndex+1, childErr))
+			}
+		}
+	}
+	return errs
 }
 
 // validateMemberValue 只接受成员目录返回的稳定字符串 ID。成员有效性和字段范围由

@@ -14,7 +14,8 @@ describe('Rule Engine dependency graph', () => {
   it('evaluates only rules whose condition sources are visible', () => {
     const visibility = evaluateRuleGraph(graph, {
       isBaseVisible: () => true,
-      matchRule: (rule, context) => rule.conditions.every((condition) => context.isFieldVisible(condition.field)),
+      matchRule: (rule, context) =>
+        rule.conditions.every((condition) => context.isFieldVisible(condition.field)),
     });
 
     expect([...visibility]).toEqual([

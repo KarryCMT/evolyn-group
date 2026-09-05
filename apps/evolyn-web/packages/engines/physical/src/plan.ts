@@ -18,16 +18,20 @@ export function planPhysicalMigration(
   }
 
   const operations: PhysicalMigrationOperation[] = [];
-  const previousColumns = new Map(previous.columns.map((column) => [column.logicalFieldId, column]));
+  const previousColumns = new Map(
+    previous.columns.map((column) => [column.logicalFieldId, column]),
+  );
   const nextColumns = new Map(next.columns.map((column) => [column.logicalFieldId, column]));
 
   next.columns.forEach((column) => {
     const before = previousColumns.get(column.logicalFieldId);
     if (!before) operations.push({ type: 'addColumn', column });
-    else if (!isSameColumn(before, column)) operations.push({ type: 'alterColumn', before, after: column });
+    else if (!isSameColumn(before, column))
+      operations.push({ type: 'alterColumn', before, after: column });
   });
   previous.columns.forEach((column) => {
-    if (!nextColumns.has(column.logicalFieldId)) operations.push({ type: 'deprecateColumn', column });
+    if (!nextColumns.has(column.logicalFieldId))
+      operations.push({ type: 'deprecateColumn', column });
   });
 
   appendIndexOperations(previous.indexes, next.indexes, operations);
@@ -38,7 +42,11 @@ function isSameColumn(
   left: PhysicalModel['columns'][number],
   right: PhysicalModel['columns'][number],
 ): boolean {
-  return left.column === right.column && left.storageType === right.storageType && left.nullable === right.nullable;
+  return (
+    left.column === right.column &&
+    left.storageType === right.storageType &&
+    left.nullable === right.nullable
+  );
 }
 
 function appendIndexOperations(
@@ -59,5 +67,9 @@ function appendIndexOperations(
 }
 
 function isSameIndex(left: PhysicalIndexDefinition, right: PhysicalIndexDefinition): boolean {
-  return left.unique === right.unique && left.method === right.method && left.columns.join('|') === right.columns.join('|');
+  return (
+    left.unique === right.unique &&
+    left.method === right.method &&
+    left.columns.join('|') === right.columns.join('|')
+  );
 }

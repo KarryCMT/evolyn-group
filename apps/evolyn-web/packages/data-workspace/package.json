@@ -31,7 +31,8 @@
   },
   "dependencies": {
     "@evolyn.do/data": "workspace:*",
-    "@evolyn.do/ui": "workspace:*"
+    "@evolyn.do/ui": "workspace:*",
+    "@remixicon/vue": "catalog:ui"
   },
   "peerDependencies": {
     "element-plus": "catalog:ui",

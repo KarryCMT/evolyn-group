@@ -632,7 +632,9 @@ CREATE TABLE IF NOT EXISTS tn_form_records (
     entry_code varchar(64),
     values JSONB NOT NULL,
     submitted_by_member_id BIGINT NOT NULL,
+    submitted_by_name varchar(100),
     submitted_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP,
+    updated_at timestamp with time zone NOT NULL,
     created_at timestamp with time zone
 );
 
@@ -644,6 +646,8 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_form_records_tenant_data_op
 
 COMMENT ON COLUMN tn_form_records.data_op_id IS '客户端生成的单次提交幂等 UUID；同一租户内唯一，历史记录允许为空';
 COMMENT ON COLUMN tn_form_records.entry_code IS '触发提交的应用菜单节点公开编码快照；设计预览直提允许为空';
+COMMENT ON COLUMN tn_form_records.submitted_by_name IS '提交人展示名快照（提交时按租户内昵称固化，昵称空回落账号昵称/登录名；存量与未命中行回填固定文案）';
+COMMENT ON COLUMN tn_form_records.updated_at IS '记录最后更新时间（提交时等于提交时间；审批编辑写回时同事务刷新）';
 
 -- 资产权限组（000058，表单权限 P1）：主体范围×操作集×字段矩阵×数据范围的
 -- 整体授权单元；asset_type 现仅 form（类型白名单在 Service 注册表，预留

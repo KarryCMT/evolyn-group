@@ -9,7 +9,13 @@ function item(type: FormItem['widget']['type'], widgetName: string, label = widg
     description: '',
     labelHidden: false,
     lineWidth: 12,
-    widget: { type, widgetName, enable: true, visible: true, allowBlank: true } as FormItem['widget'],
+    widget: {
+      type,
+      widgetName,
+      enable: true,
+      visible: true,
+      allowBlank: true,
+    } as FormItem['widget'],
   };
 }
 
@@ -26,11 +32,36 @@ describe('projectFormulaContext', () => {
     ]);
 
     expect(fields).toEqual([
-      expect.objectContaining({ widgetName: '_widget_name', valueType: 'text', displayType: '文本', formulaAllowed: true }),
-      expect.objectContaining({ widgetName: '_widget_amount', valueType: 'number', displayType: '数字', formulaAllowed: true }),
-      expect.objectContaining({ widgetName: '_widget_date', valueType: 'date', displayType: '时间戳', formulaAllowed: true }),
-      expect.objectContaining({ widgetName: '_widget_tags', valueType: 'array', displayType: '数组', formulaAllowed: true }),
-      expect.objectContaining({ widgetName: '_widget_owner', valueType: 'member', displayType: '成员', formulaAllowed: false }),
+      expect.objectContaining({
+        widgetName: '_widget_name',
+        valueType: 'text',
+        displayType: '文本',
+        formulaAllowed: true,
+      }),
+      expect.objectContaining({
+        widgetName: '_widget_amount',
+        valueType: 'number',
+        displayType: '数字',
+        formulaAllowed: true,
+      }),
+      expect.objectContaining({
+        widgetName: '_widget_date',
+        valueType: 'date',
+        displayType: '时间戳',
+        formulaAllowed: true,
+      }),
+      expect.objectContaining({
+        widgetName: '_widget_tags',
+        valueType: 'array',
+        displayType: '数组',
+        formulaAllowed: true,
+      }),
+      expect.objectContaining({
+        widgetName: '_widget_owner',
+        valueType: 'member',
+        displayType: '成员',
+        formulaAllowed: false,
+      }),
     ]);
   });
 

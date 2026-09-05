@@ -11,8 +11,17 @@ export interface DataAction {
   tone?: 'default' | 'primary' | 'danger';
 }
 
-/** 复用 UI 表格的列投影，避免数据引擎耦合任一渲染库。 */
-export type DataColumn = EvolynTableColumn;
+/**
+ * 复用 UI 表格的列投影，避免数据引擎耦合任一渲染库。icon 是列设置面板
+ * 行内的字段类型图标（工作台展示元信息），渲染前由 DataWorkspace 剥离，
+ * 不透传 VTable。
+ */
+export interface DataColumn extends EvolynTableColumn {
+  field: string;
+  title: string;
+  /** 列设置面板行内展示的字段类型图标（Vue 组件，建议 markRaw 传入）。 */
+  icon?: Component;
+}
 
 export interface DataPagination {
   total: number;

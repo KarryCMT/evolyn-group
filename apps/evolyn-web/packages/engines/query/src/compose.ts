@@ -7,7 +7,9 @@ export function composeQueryFilters(
   conjunction: QueryConjunction,
   expressions: readonly (QueryExpression | undefined)[],
 ): QueryExpression | undefined {
-  const children = expressions.filter((expression): expression is QueryExpression => Boolean(expression));
+  const children = expressions.filter((expression): expression is QueryExpression =>
+    Boolean(expression),
+  );
   if (!children.length) return undefined;
   if (children.length === 1) return children[0];
 

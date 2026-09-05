@@ -101,6 +101,7 @@
     "@evolyn.do/validator": "workspace:*",
     "@evolyn.do/schema": "workspace:*",
     "@evolyn.do/runtime": "workspace:*",
+    "@evolyn.do/physical": "workspace:*",
     "vuedraggable": "catalog:frontend"
   }
 }

@@ -3,11 +3,13 @@ import type {
   FormDraftSaveResult,
   FormPage,
   FormPublishResult,
+  FormRecordPage,
   FormRecordSubmitResult,
   FormRuntimeBootstrap,
   FormSchemaDocument,
   FormType,
 } from '~/types';
+import type { QueryDocument } from '@evolyn.do/query';
 // 表单资产域接口：与后端 /api/v1/forms*、/form-records 一一对应
 // （见 evolyn-core internal/platform/form/controller/form.go）
 import { http } from '@evolyn.do/utils';
@@ -119,6 +121,19 @@ export function submitFormRecord(
   signal?: AbortSignal,
 ): Promise<FormRecordSubmitResult> {
   return http.post('/form-records', payload, { signal });
+}
+
+/**
+ * 查询表单记录（POST /forms/:code/records）。Query DSL 直接作为 JSON 请求体
+ * 上送，避免复杂筛选条件超出 URL 长度上限；后端仍会按发布快照白名单重新
+ * 校验，客户端不具备 JSONB 路径、物理列名或 SQL 输入能力。
+ */
+export function listFormRecords(
+  code: string,
+  query: QueryDocument & { keyword?: string },
+  signal?: AbortSignal,
+): Promise<FormRecordPage> {
+  return http.post(`/forms/${code}/records`, query, { signal });
 }
 
 /** 每次用户提交生成独立幂等键；同一次 HTTP 调用及其网络重放复用同一载荷。 */

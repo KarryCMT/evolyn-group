@@ -157,3 +157,57 @@ type SubmitRecordRequest struct {
 type SubmitRecordResult struct {
 	RecordID uint `json:"recordId"`
 }
+
+// RecordQueryExpression 是 POST /forms/:code/records 的受控 Query DSL AST。
+// field 只接受发布快照 field_mappings 中的 widgetName；服务端绝不接收 JSONB
+// 路径、数据库列名或 SQL 片段。
+type RecordQueryExpression struct {
+	Type        string                  `json:"type"`
+	Conjunction string                  `json:"conjunction,omitempty"`
+	Children    []RecordQueryExpression `json:"children,omitempty"`
+	Field       string                  `json:"field,omitempty"`
+	Operator    string                  `json:"operator,omitempty"`
+	Value       any                     `json:"value,omitempty"`
+}
+
+type RecordQuerySort struct {
+	Field     string `json:"field"`
+	Direction string `json:"direction"`
+}
+
+// RecordQueryDocument 与 @evolyn.do/query 的可序列化文档同形；列表当前只执行
+// filter 与 paging，其他能力必须在服务端具备明确结果语义后才会开放。
+type RecordQueryDocument struct {
+	Version    int                    `json:"version"`
+	Filter     *RecordQueryExpression `json:"filter,omitempty"`
+	Sorts      []RecordQuerySort      `json:"sorts,omitempty"`
+	Projection []string               `json:"projection,omitempty"`
+	GroupBy    []string               `json:"groupBy,omitempty"`
+	Aggregates []any                  `json:"aggregates,omitempty"`
+	Paging     RecordQueryPaging      `json:"paging"`
+	Keyword    string                 `json:"keyword,omitempty"`
+}
+
+type RecordQueryPaging struct {
+	Page     int `json:"page"`
+	PageSize int `json:"pageSize"`
+}
+
+// FormRecordDTO 是受 record-level view 权限及字段矩阵裁剪后的记录投影。
+// submittedByName/updatedAt 是系统字段数据源（000067：展示名快照 + 最后写回时间），
+// 不属于字段矩阵，凡行可见即出网。
+type FormRecordDTO struct {
+	ID                  uint            `json:"id"`
+	Values              map[string]any  `json:"values"`
+	SubmittedByMemberID uint            `json:"submittedByMemberId"`
+	SubmittedByName     string          `json:"submittedByName"`
+	SubmittedAt         kernel.JSONTime `json:"submittedAt"`
+	UpdatedAt           kernel.JSONTime `json:"updatedAt"`
+}
+
+type FormRecordPage struct {
+	Items    []FormRecordDTO `json:"items"`
+	Total    int64           `json:"total"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"pageSize"`
+}

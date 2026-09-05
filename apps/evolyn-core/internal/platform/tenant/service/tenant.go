@@ -537,10 +537,11 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 成员可创建并读取自己的文件；文件服务还会复核 creator_id，避免
 			// 仅凭通用资源 view 读取同租户其他成员的未绑定文件。
 			{Resource: "files", Operation: iammodel.EditOperation},
-			// 表单记录提交（ADR-010）：全体成员可提交填写（bootstrap 走
-			// applications:get）；表单设计权限在 forms 资源，与本规则分离；
-			// 存量租户由 000038 补授
+			// 表单记录数据面：全体成员可提交，并可进入受 FormPermissionEvaluator
+			// 约束的记录列表。表单设计权限仍在 forms 资源，逐记录/字段范围
+			// 不由这条基线放大；存量租户由 000038/000066 补授。
 			{Resource: iammodel.FormRecordResource, Operation: request.CreateOperation},
+			{Resource: iammodel.FormRecordResource, Operation: iammodel.ViewOperation},
 			// 消息中心（消息中心 P1）：全体成员读写自己的收件箱（view 覆盖
 			// 摘要/列表，update 覆盖已读）；存量租户由 000039 补授
 			{Resource: iammodel.NotificationResource, Operation: iammodel.ViewOperation},

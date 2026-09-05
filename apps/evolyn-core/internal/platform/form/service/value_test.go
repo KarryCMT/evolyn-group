@@ -202,6 +202,20 @@ func TestExtractSnapshotTopFieldKeys(t *testing.T) {
 	assert.Equal(t, []string{"_widget_t", "_widget_sep"}, ExtractSnapshotTopFieldKeys(content))
 }
 
+func TestExtractSnapshotFieldMappings(t *testing.T) {
+	content := snapshot(
+		snapItem("number", "_widget_amount", "合同金额", nil),
+		snapItem("separator", "_widget_sep", "", nil),
+	)
+
+	assert.Equal(t, []SnapshotFieldMapping{{
+		WidgetName:     "_widget_amount",
+		WidgetType:     "number",
+		JSONBKey:       "_widget_amount",
+		PhysicalColumn: "f_amount",
+	}}, ExtractSnapshotFieldMappings(content))
+}
+
 // ---- v5 字段显隐规则：提交终审动态可见性 ----
 
 func snapshotWithRules(rules []any, items ...map[string]any) map[string]any {

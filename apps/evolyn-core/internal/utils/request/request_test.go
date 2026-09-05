@@ -42,6 +42,16 @@ func TestRequestInfo(t *testing.T) {
 			Name:              "1",
 			Parts:             []string{"jobs", "1", "log"},
 		}},
+		{"form record query by POST body still maps to get verb of form-records", "POST", "/api/v1/forms/form_01/records", false, &RequestInfo{
+			IsResourceRequest: true,
+			Verb:              "get",
+			APIPrefix:         "api",
+			APIVersion:        "v1",
+			Namespace:         "root",
+			Resource:          "form-records",
+			Name:              "form_01",
+			Parts:             []string{"forms", "form_01", "records"},
+		}},
 	}
 
 	for _, tc := range testCases {

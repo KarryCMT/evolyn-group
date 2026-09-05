@@ -13,7 +13,19 @@ import { normalizeQuery } from './normalize.js';
 
 const VALUELESS_OPERATORS = new Set<QueryOperator>(['isNull', 'isNotNull']);
 const VALUE_OPERATORS = new Set<QueryOperator>([
-  'eq', 'neq', 'contains', 'notContains', 'startsWith', 'endsWith', 'gt', 'gte', 'lt', 'lte', 'in', 'notIn', 'between',
+  'eq',
+  'neq',
+  'contains',
+  'notContains',
+  'startsWith',
+  'endsWith',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'in',
+  'notIn',
+  'between',
 ]);
 
 /** 校验 Query DSL 形状与可选字段类型约束；不注入权限，也不执行任何查询。 */
@@ -33,17 +45,29 @@ export function validateQuery(
   if (query.filter) validateExpression(query.filter, 'filter', options, diagnostics);
   query.sorts?.forEach((sort, index) => {
     if (!sort.field.trim() || !['asc', 'desc'].includes(sort.direction)) {
-      diagnostics.push({ code: 'QUERY_INVALID_SORT', message: '排序字段或方向无效。', path: `sorts[${index}]` });
+      diagnostics.push({
+        code: 'QUERY_INVALID_SORT',
+        message: '排序字段或方向无效。',
+        path: `sorts[${index}]`,
+      });
     }
   });
   query.projection?.forEach((field, index) => {
     if (!field.trim()) {
-      diagnostics.push({ code: 'QUERY_INVALID_PROJECTION', message: '投影字段不能为空。', path: `projection[${index}]` });
+      diagnostics.push({
+        code: 'QUERY_INVALID_PROJECTION',
+        message: '投影字段不能为空。',
+        path: `projection[${index}]`,
+      });
     }
   });
   query.aggregates?.forEach((aggregate, index) => {
     if (!aggregate.field.trim() || !aggregate.alias.trim()) {
-      diagnostics.push({ code: 'QUERY_INVALID_AGGREGATE', message: '聚合字段和别名不能为空。', path: `aggregates[${index}]` });
+      diagnostics.push({
+        code: 'QUERY_INVALID_AGGREGATE',
+        message: '聚合字段和别名不能为空。',
+        path: `aggregates[${index}]`,
+      });
     }
   });
 
@@ -88,10 +112,18 @@ function validateCondition(
   diagnostics: QueryDiagnostic[],
 ) {
   if (!condition.field.trim()) {
-    diagnostics.push({ code: 'QUERY_EMPTY_FIELD', message: '筛选字段不能为空。', path: `${path}.field` });
+    diagnostics.push({
+      code: 'QUERY_EMPTY_FIELD',
+      message: '筛选字段不能为空。',
+      path: `${path}.field`,
+    });
   }
   if (!VALUE_OPERATORS.has(condition.operator) && !VALUELESS_OPERATORS.has(condition.operator)) {
-    diagnostics.push({ code: 'QUERY_INVALID_OPERATOR', message: '筛选操作符无效。', path: `${path}.operator` });
+    diagnostics.push({
+      code: 'QUERY_INVALID_OPERATOR',
+      message: '筛选操作符无效。',
+      path: `${path}.operator`,
+    });
     return;
   }
   const fieldType = options.fieldTypes?.[condition.field];
@@ -105,13 +137,28 @@ function validateCondition(
   if (VALUELESS_OPERATORS.has(condition.operator)) return;
 
   if (condition.value === undefined || condition.value === null) {
-    diagnostics.push({ code: 'QUERY_INVALID_VALUE', message: '该筛选操作符必须提供值。', path: `${path}.value` });
+    diagnostics.push({
+      code: 'QUERY_INVALID_VALUE',
+      message: '该筛选操作符必须提供值。',
+      path: `${path}.value`,
+    });
   } else if (
     (condition.operator === 'in' || condition.operator === 'notIn') &&
     (!Array.isArray(condition.value) || !condition.value.length)
   ) {
-    diagnostics.push({ code: 'QUERY_INVALID_VALUE', message: '集合筛选至少需要一个值。', path: `${path}.value` });
-  } else if (condition.operator === 'between' && (!Array.isArray(condition.value) || condition.value.length !== 2)) {
-    diagnostics.push({ code: 'QUERY_INVALID_VALUE', message: '区间筛选必须提供两个值。', path: `${path}.value` });
+    diagnostics.push({
+      code: 'QUERY_INVALID_VALUE',
+      message: '集合筛选至少需要一个值。',
+      path: `${path}.value`,
+    });
+  } else if (
+    condition.operator === 'between' &&
+    (!Array.isArray(condition.value) || condition.value.length !== 2)
+  ) {
+    diagnostics.push({
+      code: 'QUERY_INVALID_VALUE',
+      message: '区间筛选必须提供两个值。',
+      path: `${path}.value`,
+    });
   }
 }

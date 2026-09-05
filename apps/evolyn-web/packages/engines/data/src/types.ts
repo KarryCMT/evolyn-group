@@ -1,8 +1,4 @@
-import type {
-  QueryAggregate,
-  QueryExpression,
-  QuerySort,
-} from '@evolyn.do/query';
+import type { QueryAggregate, QueryExpression, QuerySort } from '@evolyn.do/query';
 
 /** 记录仅要求是键值对象；表格、表单或流程可各自投影其展示模型。 */
 export type DataRecord = Record<string, unknown>;
@@ -48,11 +44,7 @@ export interface DataContext {
 export interface DataSource<Row extends DataRecord = DataRecord> {
   load: (context: DataContext, query: DataQuery) => Promise<DataPage<Row>>;
   create?: (context: DataContext, input: Record<string, unknown>) => Promise<Row>;
-  update?: (
-    context: DataContext,
-    id: string,
-    input: Record<string, unknown>,
-  ) => Promise<Row>;
+  update?: (context: DataContext, id: string, input: Record<string, unknown>) => Promise<Row>;
   remove?: (context: DataContext, ids: readonly string[]) => Promise<void>;
   save?: (context: DataContext, record: Row) => Promise<Row>;
   refresh?: (context: DataContext) => Promise<void>;

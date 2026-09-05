@@ -26,7 +26,10 @@ const STORAGE_TYPES: Readonly<Record<LogicalStorageFieldType, PhysicalStorageTyp
  * f_01j82，字段改名不会触发物理列改名。
  */
 export function derivePhysicalColumnName(fieldId: string): string {
-  const normalized = fieldId.trim().toLowerCase().replace(/^field_/, '');
+  const normalized = fieldId
+    .trim()
+    .toLowerCase()
+    .replace(/^field_/, '');
   // 列名前缀始终是 f_，因此 field id 去前缀后的稳定段可合法地以数字开头。
   if (!/^[a-z0-9][a-z0-9_]*$/.test(normalized)) {
     throw new Error(`Invalid logical field id: ${fieldId}`);
@@ -43,7 +46,8 @@ export function createPhysicalModel(
   const columns = fields.map(toPhysicalColumn);
   const indexes = fields.flatMap((field) => toIndexes(normalizedTable, field));
   const diagnostics = validatePhysicalModel({ table: normalizedTable, columns, indexes });
-  if (diagnostics.length) throw new Error(diagnostics.map((diagnostic) => diagnostic.message).join(' '));
+  if (diagnostics.length)
+    throw new Error(diagnostics.map((diagnostic) => diagnostic.message).join(' '));
 
   return Object.freeze({
     table: normalizedTable,
@@ -62,8 +66,18 @@ export function validatePhysicalModel(model: PhysicalModel): readonly PhysicalDi
       path: 'table',
     });
   }
-  collectDuplicates(model.columns.map((column) => column.column), 'columns', 'PHYSICAL_DUPLICATE_COLUMN', diagnostics);
-  collectDuplicates(model.indexes.map((index) => index.name), 'indexes', 'PHYSICAL_DUPLICATE_INDEX', diagnostics);
+  collectDuplicates(
+    model.columns.map((column) => column.column),
+    'columns',
+    'PHYSICAL_DUPLICATE_COLUMN',
+    diagnostics,
+  );
+  collectDuplicates(
+    model.indexes.map((index) => index.name),
+    'indexes',
+    'PHYSICAL_DUPLICATE_INDEX',
+    diagnostics,
+  );
   return Object.freeze(diagnostics);
 }
 
@@ -79,12 +93,14 @@ function toPhysicalColumn(field: LogicalStorageField): PhysicalColumnDefinition 
 function toIndexes(table: string, field: LogicalStorageField): PhysicalIndexDefinition[] {
   if (!field.indexed && !field.unique) return [];
   const column = derivePhysicalColumnName(field.id);
-  return [{
-    name: `idx_${table}_${column}`,
-    columns: [column],
-    unique: Boolean(field.unique),
-    method: 'btree',
-  }];
+  return [
+    {
+      name: `idx_${table}_${column}`,
+      columns: [column],
+      unique: Boolean(field.unique),
+      method: 'btree',
+    },
+  ];
 }
 
 function normalizeIdentifier(value: string, kind: string): string {
@@ -100,7 +116,10 @@ function isIdentifier(value: string): boolean {
 function collectDuplicates(
   values: readonly string[],
   path: string,
-  code: Extract<PhysicalDiagnostic['code'], 'PHYSICAL_DUPLICATE_COLUMN' | 'PHYSICAL_DUPLICATE_INDEX'>,
+  code: Extract<
+    PhysicalDiagnostic['code'],
+    'PHYSICAL_DUPLICATE_COLUMN' | 'PHYSICAL_DUPLICATE_INDEX'
+  >,
   diagnostics: PhysicalDiagnostic[],
 ) {
   const seen = new Set<string>();

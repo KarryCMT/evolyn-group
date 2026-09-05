@@ -10,6 +10,7 @@ import {
   ElRadio,
   ElRadioGroup,
   ElSelect,
+  ElTimePicker,
 } from 'element-plus';
 import { computed } from 'vue';
 import type {

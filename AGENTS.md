@@ -257,7 +257,16 @@ internal/
                       保留）并落菜单按钮动作授权（动作注册表
                       iam/authorization/menuactions.go + form-actions/menu-
                       favorites 资源，菜单读侧投影 actions 按钮图）；迁移
-                      000037/000038/000044/000045/000046/000047；表单权限组
+                      000037/000038/000044/000045/000046/000047；记录列表
+                      （POST /forms/:code/records，Query DSL JSON body）：服务端
+                      编译参数化谓词合并行级 view 范围，字段白名单=发布快照
+                      field_mappings ∪ 系统字段命名空间 sys.submittedBy/
+                      sys.submittedAt/sys.updatedAt（record_system_fields.go，
+                      操作符矩阵与前端 @evolyn.do/query 镜像；排序仅开放系统
+                      字段，仓储恒定追加 id DESC 稳定尾排序）；迁移 000067 为
+                      tn_form_records 落系统字段列（submitted_by_name 提交时
+                      固化展示名快照 + updated_at 最后写回时间，存量回填；
+                      UpdateValues 同语句刷新 updated_at）；表单权限组
                       （P1，docs/低代码平台/表单权限/，迁移 000058）：
                       tn_asset_permission_groups + subjects 两表承载主体×操作集×
                       字段矩阵×数据范围整体授权单元，FormPermissionEvaluator

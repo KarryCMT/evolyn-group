@@ -129,8 +129,9 @@ const (
 	// FormResource 与 /forms 路由保持一致，代表表单资产的设计与管理权限
 	//（创建/列表/详情/改名/草稿/发布/删除，ADR-010）。发布复用 create 动词。
 	FormResource = "forms"
-	// FormRecordResource 与 /form-records 路由保持一致，代表表单记录提交
-	//（create 动词授予全体成员）：填写提交与表单设计权限彻底分离。
+	// FormRecordResource 代表表单记录的数据面（提交与受权限组约束的查看），
+	// 包含 /form-records 和兼容公开路由 /forms/:code/records；authenticated
+	// 基线只授 create/view，逐表单的记录与字段范围仍由 form 域复核。
 	FormRecordResource = "form-records"
 	// NotificationResource 与 /notifications 路由保持一致，代表成员收件箱
 	//（view 覆盖摘要/列表、update 覆盖已读，授予全体成员）；数据范围只能

@@ -26,12 +26,10 @@ import {
   type FormWidgetType,
   PUBLISHABLE_WIDGET_TYPES,
   SUBFORM_ALLOWED_WIDGET_TYPES,
+  SUBFORM_PUBLISHABLE_WIDGET_TYPES,
 } from './types';
 import { cloneFormSchema } from './clone';
-import {
-  createValidationResult,
-  type ValidationDiagnostic,
-} from '@evolyn.do/validator';
+import { createValidationResult, type ValidationDiagnostic } from '@evolyn.do/validator';
 
 /** 单条校验问题：path 为 JSON Path（如 content.items[2].widget.options[0].value）。 */
 export type FormSchemaIssue = ValidationDiagnostic;
@@ -97,7 +95,11 @@ function collectUnsupportedConditionSources(
       const conditions = Array.isArray(rule?.filter?.cond) ? rule.filter.cond : [];
       conditions.forEach((condition, condIndex) => {
         const type = typesByName.get(condition?.field);
-        if (type !== undefined && !PUBLISHABLE_WIDGET_TYPES.includes(type)) {
+        // 子表单的行集合没有字段显隐条件的标量求值语义，不能作为条件源。
+        if (
+          type !== undefined &&
+          (!PUBLISHABLE_WIDGET_TYPES.includes(type) || type === 'subform')
+        ) {
           issues.push({
             path: `content.fieldShowRules[${ruleIndex}].filter.cond[${condIndex}].field`,
             message: `条件字段「${condition.field}」的运行能力尚未开放，暂不能发布`,
@@ -122,10 +124,27 @@ function collectUnsupportedWidgets(
       });
     }
     if (item.widget.type === 'subform') {
-      // 子表单的字段数组位于 widget.items，而不是文档根 content.items。
-      // 递归直接传入该数组，避免发布校验将子表单控件误作完整表单文档读取。
-      collectUnsupportedWidgets(item.widget.items, `${itemsPath}[${index}].widget.items`, issues);
+      // 子表单的字段数组位于 widget.items；其运行时支持范围比顶层字段更窄。
+      collectUnsupportedSubformChildren(
+        item.widget.items,
+        `${itemsPath}[${index}].widget.items`,
+        issues,
+      );
     }
+  });
+}
+
+function collectUnsupportedSubformChildren(
+  items: FormItem[],
+  itemsPath: string,
+  issues: FormSchemaIssue[],
+): void {
+  items.forEach((item, index) => {
+    if (SUBFORM_PUBLISHABLE_WIDGET_TYPES.includes(item.widget.type)) return;
+    issues.push({
+      path: `${itemsPath}[${index}].widget.type`,
+      message: `子表单内控件「${item.widget.type}」的运行能力尚未开放，暂不能发布`,
+    });
   });
 }
 

@@ -152,7 +152,9 @@ function removeFirstValidator(): void {
     background: var(--el-bg-color);
     border: 1px solid var(--el-border-color);
     border-radius: var(--el-border-radius-base);
-    transition: border-color 0.2s, background-color 0.2s;
+    transition:
+      border-color 0.2s,
+      background-color 0.2s;
 
     &:hover,
     &:focus-visible {
@@ -215,8 +217,14 @@ function removeFirstValidator(): void {
       white-space: nowrap;
     }
 
-    strong { font-size: 13px; font-weight: 600; }
-    small { font-size: 12px; color: var(--el-text-color-secondary); }
+    strong {
+      font-size: 13px;
+      font-weight: 600;
+    }
+    small {
+      font-size: 12px;
+      color: var(--el-text-color-secondary);
+    }
   }
 
   &__icon-button {
@@ -225,10 +233,16 @@ function removeFirstValidator(): void {
     cursor: pointer;
 
     &:hover,
-    &:focus-visible { color: var(--el-color-primary); outline: 2px solid var(--el-color-primary-light-7); }
+    &:focus-visible {
+      color: var(--el-color-primary);
+      outline: 2px solid var(--el-color-primary-light-7);
+    }
 
     &--danger:hover,
-    &--danger:focus-visible { color: var(--el-color-danger); outline-color: var(--el-color-danger-light-7); }
+    &--danger:focus-visible {
+      color: var(--el-color-danger);
+      outline-color: var(--el-color-danger-light-7);
+    }
   }
 }
 </style>

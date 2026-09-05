@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { EvolynTable } from '@evolyn.do/ui';
-import { computed } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
 import type { DataQuery, DataRecord } from '@evolyn.do/data';
+import DataColumnSettings from './DataColumnSettings.vue';
 import DataToolbar from './DataToolbar.vue';
 import type { DataAction, DataColumn, DataPagination } from '../types.js';
 
@@ -32,6 +33,54 @@ const pageCount = computed(() =>
 const pageSizes = computed(() => props.pagination.pageSizes ?? [20, 50, 100]);
 const currentPage = computed(() => Math.min(props.query.page, pageCount.value));
 
+// 列显隐是纯展示态：会话内由「列设置」翻转，不进入查询/路由状态。列清单
+// 变化（如切换表单）时同步剔除已不存在的隐藏项，避免残留脏 field。
+const hiddenFields = shallowRef<ReadonlySet<string>>(new Set());
+watch(
+  () => props.columns,
+  (columns) => {
+    const next = new Set<string>();
+    for (const field of hiddenFields.value) {
+      if (columns.some((column) => column.field === field)) next.add(field);
+    }
+    hiddenFields.value = next;
+  },
+);
+
+const visibleColumns = computed(() =>
+  props.columns
+    .filter((column) => !hiddenFields.value.has(column.field))
+    // icon 是列设置面板的展示元信息，剥离后再交给表格，避免透传渲染引擎
+    .map(({ icon: _icon, ...column }) => column),
+);
+
+function toggleColumn(field: string) {
+  const next = new Set(hiddenFields.value);
+  if (next.has(field)) {
+    next.delete(field);
+  } else {
+    // 至少保留一列：全部勾掉会让表格失去取数锚点
+    if (next.size + 1 >= props.columns.length) return;
+    next.add(field);
+  }
+  hiddenFields.value = next;
+}
+
+/** 列设置「全选」行的批量翻转；「至少保留一列」约束在此统一裁决。 */
+function toggleAllColumns(fields: string[], visible: boolean) {
+  const next = new Set(hiddenFields.value);
+  if (visible) {
+    for (const field of fields) next.delete(field);
+  } else {
+    for (const field of fields) {
+      // 隐藏至仅剩一列时停止，其余保持可见
+      if (next.size + 1 >= props.columns.length) break;
+      next.add(field);
+    }
+  }
+  hiddenFields.value = next;
+}
+
 function updateSearch(keyword: string) {
   emit('updateQuery', { ...props.query, keyword, page: 1 });
 }
@@ -56,10 +105,23 @@ function updatePageSize(event: Event) {
       :search="query.keyword"
       @action="emit('action', $event)"
       @update:search="updateSearch"
-    />
+    >
+      <template #suffix>
+        <DataColumnSettings
+          :columns="columns"
+          :hidden="hiddenFields"
+          @toggle="toggleColumn"
+          @toggle-all="toggleAllColumns"
+        />
+      </template>
+      <template #suffix-end>
+        <!-- 页面级工具型入口（如数据筛选）挂载位：位于搜索框之后 -->
+        <slot name="toolbar-suffix-end" />
+      </template>
+    </DataToolbar>
 
     <div class="data-workspace__table">
-      <EvolynTable :columns="columns" :records="records" />
+      <EvolynTable :columns="visibleColumns" :records="records" />
     </div>
 
     <footer class="data-workspace__footer">

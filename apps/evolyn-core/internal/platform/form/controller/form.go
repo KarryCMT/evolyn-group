@@ -6,6 +6,7 @@ package controller
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -294,6 +295,38 @@ func (f *FormController) SubmitRecord(c *gin.Context) {
 	httpx.NewResponse(c, http.StatusCreated, result, "提交成功")
 }
 
+// @Summary 查询表单记录
+// @Description 仅接收受控 Query DSL JSON（请求体承载完整文档，避免复杂筛选条件超出 URL 长度上限）；筛选字段必须来自当前发布快照 fieldMappings，或系统字段命名空间 sys.submittedBy（提交人成员 ID，eq/neq/in/notIn）/sys.submittedAt、sys.updatedAt（秒级时间，比较与 between）；排序仅开放系统字段（sorts 最多 3 个，asc/desc）。行级 view 范围与字段矩阵仍由服务端合并裁决，禁止 JSONB 路径、物理列名或 SQL 输入。出网含系统字段 submittedByName（提交时固化的展示名快照）与 updatedAt。URL 门的鉴权动词经 request.go 特判归一化为 get（form-records:view），不落入 POST→create 的提交门
+// @Accept json
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "表单编码（form_ 前缀）"
+// @Param query body formmodel.RecordQueryDocument false "Query DSL v1 JSON；缺省视为无筛选默认分页查询"
+// @Success 200 {object} httpx.Response{data=formmodel.FormRecordPage}
+// @Failure 400 {object} httpx.Response "errCode=FORM_RECORD_QUERY_INVALID"
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN/FORM_PERMISSION_DENIED"
+// @Router /api/v1/forms/{code}/records [post]
+func (f *FormController) ListRecords(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	// Query DSL 以 JSON 请求体上送；空 body（io.EOF）与原 GET ?query= 缺省
+	// 同语义，视为无筛选的默认分页查询
+	query := formmodel.RecordQueryDocument{}
+	if err := c.BindJSON(&query); err != nil && !errors.Is(err, io.EOF) {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的 Query DSL"))
+		return
+	}
+	page, err := f.formService.ListRecords(c.Request.Context(), ginctx.GetUser(c), code, query)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, page)
+}
+
 // @Summary 切换表单类型
 // @Description standard↔workflow 互转（ADR-011）：流程表单切标准后原流程数据保留，仅不可再发起流程；草稿与发布快照不受影响；目标类型与当前相同返回 FORM_TYPE_UNCHANGED
 // @Accept json
@@ -392,6 +425,9 @@ func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/forms/:code/switch-type", f.SwitchType)
 	api.POST("/forms/:code/copy", f.Copy)
 	api.GET("/forms/:code/references", f.ListReferences)
+	// 记录查询以 POST body 承载完整 Query DSL（复杂筛选会超出 URL 长度
+	// 上限）；URL 门动词由 request.go 特判归一化为 get → form-records:view
+	api.POST("/forms/:code/records", f.ListRecords)
 	api.POST("/form-records", f.SubmitRecord)
 	// 与 /applications/code/:code 系列同前缀且通配符同名（gin radix tree 要求同
 	// 位置同名，静态段 code 优先），鉴权解析为 applications:get，普通成员可读。

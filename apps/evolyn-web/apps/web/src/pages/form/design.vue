@@ -21,22 +21,12 @@ import {
 } from '@evolyn.do/form/designer';
 import { ApiError } from '@evolyn.do/utils';
 import {
-  RiArrowDownBoxFill,
-  RiCalendarScheduleFill,
-  RiCheckboxMultipleFill,
-  RiCheckDoubleFill,
   RiEyeFill,
-  RiFileTextFill,
-  RiGroupFill,
-  RiHashtag,
   RiLightbulbFlashFill,
   RiMenuFill,
-  RiRadioButtonFill,
   RiSave3Fill,
   RiShareForwardFill,
-  RiText,
   RiUploadCloud2Fill,
-  RiUser3Fill,
 } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, ref, shallowRef, watch } from 'vue';
@@ -44,6 +34,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { getApplicationByCode } from '~/api/applications';
 import { createForm, publishForm, saveFormDraft } from '~/api/form';
 import FormDesignPreviewDrawer from '~/components/form/FormDesignPreviewDrawer.vue';
+import { widgetIconOfType } from '~/components/form/widgetIcons';
 import { useFormWorkspaceContext } from './workspace-context';
 
 defineOptions({ name: 'FormDesignPage' });
@@ -160,19 +151,6 @@ function adoptDetail(detail: NonNullable<(typeof workspace.detail)['value']>): v
 
 /** 素材面板分组：基础字段可添加，其余分组置灰展示（后续阶段开放）。 */
 const paletteGroups = computed<FormSchemaPaletteGroup[]>(() => {
-  const iconOfType: Record<string, unknown> = {
-    text: RiText,
-    textarea: RiFileTextFill,
-    number: RiHashtag,
-    datetime: RiCalendarScheduleFill,
-    radiogroup: RiRadioButtonFill,
-    checkboxgroup: RiCheckboxMultipleFill,
-    combo: RiArrowDownBoxFill,
-    combocheck: RiCheckDoubleFill,
-    separator: RiMenuFill,
-    user: RiUser3Fill,
-    usergroup: RiGroupFill,
-  };
   return [
     ...WIDGET_GROUP_META.map((group) => ({
       key: group.key,
@@ -183,7 +161,8 @@ const paletteGroups = computed<FormSchemaPaletteGroup[]>(() => {
         .map(([type, spec]) => ({
           type,
           label: spec.label,
-          icon: iconOfType[type] ?? RiMenuFill,
+          // 控件类型图标统一走共享映射，与数据管理「列设置」保持一致
+          icon: widgetIconOfType(type),
           // P4 首先开放子表单设计能力；同组关联字段仍按原计划保持不可添加。
           enabled:
             group.key === 'basic' || type === 'subform' || type === 'user' || type === 'usergroup',

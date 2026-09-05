@@ -10,7 +10,8 @@ export function createFieldRegistry<FieldType extends string, Definition>(
   const types = Object.freeze(Object.keys(definitions) as FieldType[]);
   return Object.freeze({
     types,
-    has: (type: string): type is FieldType => Object.prototype.hasOwnProperty.call(definitions, type),
+    has: (type: string): type is FieldType =>
+      Object.prototype.hasOwnProperty.call(definitions, type),
     get: (type: FieldType): Definition => definitions[type],
     find: (type: string): Definition | undefined =>
       (definitions as Readonly<Record<string, Definition | undefined>>)[type],

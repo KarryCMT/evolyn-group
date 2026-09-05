@@ -48,6 +48,10 @@ var (
 	// ErrRecordInvalid 提交值校验失败；data 携带 fieldErrors{widgetName:[msg]}
 	ErrRecordInvalid = httpx.NewBiz("FORM_RECORD_INVALID", "提交内容未通过校验，请修正后重试", http.StatusBadRequest)
 
+	// ErrRecordQueryInvalid 记录列表 Query DSL 不符合已发布字段快照或支持的
+	// 查询语义；不回显 SQL/JSONB 路径等内部细节。
+	ErrRecordQueryInvalid = httpx.NewBiz("FORM_RECORD_QUERY_INVALID", "数据筛选条件不符合要求", http.StatusBadRequest)
+
 	// ErrForbidden 表单域操作越权（与鉴权中间件共用 FORBIDDEN 稳定码）
 	ErrForbidden = httpx.NewBiz(httpx.CodeForbidden, "没有执行该操作的权限", http.StatusForbidden)
 

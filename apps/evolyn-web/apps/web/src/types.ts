@@ -611,6 +611,25 @@ export interface FormRecordSubmitResult {
   recordId: number;
 }
 
+/** POST /forms/:code/records 的权限裁剪后分页结果。 */
+export interface FormRecordListItem {
+  id: number;
+  values: Record<string, unknown>;
+  submittedByMemberId: number;
+  /** 提交人展示名快照：提交时固化，成员改名/退出后历史展示不失真。 */
+  submittedByName: string;
+  submittedAt: string;
+  /** 最后更新时间：提交时=提交时间，审批编辑写回时刷新。 */
+  updatedAt: string;
+}
+
+export interface FormRecordPage {
+  items: FormRecordListItem[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 /* ---- 流程引擎（/workflows，Phase 9 流程设计器） ---- */
 
 /** Workflow DSL v1 文档：结构与 @evolyn.do/workflow 协议层同源 */

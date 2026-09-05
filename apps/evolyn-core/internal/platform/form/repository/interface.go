@@ -77,9 +77,27 @@ type FormRecordRepository interface {
 	CreateIdempotent(ctx context.Context, record *model.FormRecord) (createdRecord *model.FormRecord, created bool, err error)
 	// GetByID 按行 ID 加载（ctx 租户过滤兜底：跨租户记录即 NotFound）
 	GetByID(ctx context.Context, id uint) (*model.FormRecord, error)
-	// UpdateValues 整体替换 values JSONB（调用方必须先按发布快照校验合并
-	// 结果；只更新 values 列，不动提交人与提交时间）
+	// UpdateValues 整体替换 values JSONB 并同语句刷新 updated_at（调用方必须
+	// 先按发布快照校验合并结果；不改动提交人与提交时间快照）
 	UpdateValues(ctx context.Context, id uint, values model.JSONContent) error
+	// ListControlled 在固定 form_id 与租户上下文下，将 Service 编译的参数化谓词
+	// 应用于数据库分页之前，并返回相同谓词下的总数。Predicate/OrderBy 不接受
+	// 任何来自 HTTP 的原始 SQL；唯一生产构造者是 form/service 的 Query 与权限编译器。
+	ListControlled(ctx context.Context, params RecordListParams) ([]model.FormRecord, int64, error)
 	// Migrate 开发/测试 AutoMigrate 路径
 	Migrate() error
+}
+
+// RecordListParams 是记录列表仓储的受控输入。FormID、分页、已编译谓词与
+// 系统字段排序片段分别由 Service 层校验/生成，仓储不暴露 JSONB 路径或
+// 物理列名选择能力。
+type RecordListParams struct {
+	FormID   uint
+	Page     int
+	PageSize int
+	Where    string
+	Args     []any
+	// OrderBy 服务端编译的系统字段排序片段（如 "updated_at DESC"）；空表示
+	// 默认 id 倒序。仓储恒定追加 id DESC 稳定尾排序。
+	OrderBy string
 }

@@ -1,7 +1,17 @@
 <script setup lang="ts">
 import { RiAddLine, RiInformationLine, RiSettings3Line } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
-import { ElButton, ElDialog, ElForm, ElFormItem, ElIcon, ElInput, ElPopover, ElSwitch, ElTooltip } from 'element-plus';
+import {
+  ElButton,
+  ElDialog,
+  ElForm,
+  ElFormItem,
+  ElIcon,
+  ElInput,
+  ElPopover,
+  ElSwitch,
+  ElTooltip,
+} from 'element-plus';
 import type { FormItem } from '../schema/types';
 import type { PreSubmitConfirmDraft } from './submit-validation-types';
 
@@ -69,7 +79,9 @@ function insertField(widgetName: string): void {
       class="form-pre-submit-confirm__dialog"
       title="提交二次确认"
     >
-      <p class="form-pre-submit-confirm__intro">填写人确认后才会提交数据，取消时保留当前填写内容。</p>
+      <p class="form-pre-submit-confirm__intro">
+        填写人确认后才会提交数据，取消时保留当前填写内容。
+      </p>
       <el-form label-position="top" @submit.prevent>
         <el-form-item label="提示标题">
           <el-input v-model="title" :maxlength="100" placeholder="确认继续提交吗？" />
@@ -84,7 +96,12 @@ function insertField(widgetName: string): void {
           />
         </el-form-item>
       </el-form>
-      <el-popover v-model:visible="pickerOpen" placement="bottom-start" :width="330" trigger="click">
+      <el-popover
+        v-model:visible="pickerOpen"
+        placement="bottom-start"
+        :width="330"
+        trigger="click"
+      >
         <template #reference>
           <el-button plain type="primary" :icon="RiAddLine">插入字段</el-button>
         </template>
@@ -116,11 +133,29 @@ function insertField(widgetName: string): void {
   width: 100%;
 
   &__heading,
-  &__control { display: flex; align-items: center; justify-content: space-between; }
-  &__heading { justify-content: flex-start; gap: 6px; }
-  &__title { font-size: 15px; font-weight: 600; color: var(--el-text-color-primary); }
-  &__help { font-size: 16px; color: var(--el-text-color-secondary); cursor: help; }
-  &__caption { font-size: 14px; color: var(--el-text-color-regular); }
+  &__control {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  &__heading {
+    justify-content: flex-start;
+    gap: 6px;
+  }
+  &__title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--el-text-color-primary);
+  }
+  &__help {
+    font-size: 16px;
+    color: var(--el-text-color-secondary);
+    cursor: help;
+  }
+  &__caption {
+    font-size: 14px;
+    color: var(--el-text-color-regular);
+  }
 
   &__configure {
     display: inline-flex;
@@ -136,12 +171,23 @@ function insertField(widgetName: string): void {
     border: 0;
 
     &:hover,
-    &:focus-visible { color: var(--el-color-primary-light-3); outline: none; }
+    &:focus-visible {
+      color: var(--el-color-primary-light-3);
+      outline: none;
+    }
   }
 
-  &__intro { margin: 0 0 20px; color: var(--el-text-color-secondary); font-size: 14px; line-height: 1.65; }
+  &__intro {
+    margin: 0 0 20px;
+    color: var(--el-text-color-secondary);
+    font-size: 14px;
+    line-height: 1.65;
+  }
 
-  &__field-picker { max-height: 270px; overflow-y: auto; }
+  &__field-picker {
+    max-height: 270px;
+    overflow-y: auto;
+  }
   &__field-picker button {
     display: flex;
     width: 100%;
@@ -156,8 +202,17 @@ function insertField(widgetName: string): void {
     border: 0;
     border-radius: 6px;
   }
-  &__field-picker button:hover { background: var(--el-fill-color-light); }
-  &__field-picker code { font-size: 11px; color: var(--el-color-primary); }
-  &__field-picker p { margin: 8px; color: var(--el-text-color-secondary); font-size: 13px; }
+  &__field-picker button:hover {
+    background: var(--el-fill-color-light);
+  }
+  &__field-picker code {
+    font-size: 11px;
+    color: var(--el-color-primary);
+  }
+  &__field-picker p {
+    margin: 8px;
+    color: var(--el-text-color-secondary);
+    font-size: 13px;
+  }
 }
 </style>

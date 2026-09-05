@@ -101,7 +101,18 @@ export interface QueryValidationResult {
 export const QUERY_OPERATORS_BY_FIELD_TYPE: Readonly<
   Record<QueryFieldType, readonly QueryOperator[]>
 > = {
-  text: ['eq', 'neq', 'contains', 'notContains', 'startsWith', 'endsWith', 'in', 'notIn', 'isNull', 'isNotNull'],
+  text: [
+    'eq',
+    'neq',
+    'contains',
+    'notContains',
+    'startsWith',
+    'endsWith',
+    'in',
+    'notIn',
+    'isNull',
+    'isNotNull',
+  ],
   number: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'in', 'notIn', 'between', 'isNull', 'isNotNull'],
   boolean: ['eq', 'neq', 'isNull', 'isNotNull'],
   date: ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'between', 'isNull', 'isNotNull'],

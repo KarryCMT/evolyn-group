@@ -1,8 +1,4 @@
-import type {
-  CompiledRuleGraph,
-  RuleGraphEvaluationContext,
-  RuleGraphRule,
-} from './types.js';
+import type { CompiledRuleGraph, RuleGraphEvaluationContext, RuleGraphRule } from './types.js';
 
 /**
  * 将声明式规则编译成稳定的依赖图。引擎不解释 Condition 内容；调用方只需提供
@@ -97,13 +93,17 @@ export function downstreamRuleTargets(
   return affected.sort((left, right) => (order.get(left) ?? 0) - (order.get(right) ?? 0));
 }
 
-function normalizeRule<Condition>(source: RuleGraphRule<Condition>): RuleGraphRule<Condition> | null {
+function normalizeRule<Condition>(
+  source: RuleGraphRule<Condition>,
+): RuleGraphRule<Condition> | null {
   if (!source || typeof source.id !== 'string' || source.id === '') return null;
   const conditions = Array.isArray(source.conditions)
     ? source.conditions.filter((condition) => Boolean(readConditionField(condition)))
     : [];
   const targets = Array.isArray(source.targets)
-    ? source.targets.filter((target): target is string => typeof target === 'string' && target !== '')
+    ? source.targets.filter(
+        (target): target is string => typeof target === 'string' && target !== '',
+      )
     : [];
   if (conditions.length === 0 || targets.length === 0) return null;
   return { id: source.id, rel: source.rel === 'or' ? 'or' : 'and', conditions, targets };

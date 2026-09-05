@@ -109,8 +109,40 @@ func (r *formRecordRepository) GetByID(ctx context.Context, id uint) (*model.For
 }
 
 func (r *formRecordRepository) UpdateValues(ctx context.Context, id uint, values model.JSONContent) error {
+	// 值替换与 updated_at 同语句刷新（000067 系统字段）：DB 时钟保证与
+	// LOCALTIMESTAMP 默认值同源，不依赖应用机器时间。
 	return infrastructure.ResolveDB(ctx, r.db).Model(&model.FormRecord{}).
-		Where("id = ?", id).Update("values", values).Error
+		Where("id = ?", id).Updates(map[string]any{
+		"values":     values,
+		"updated_at": gorm.Expr("LOCALTIMESTAMP"),
+	}).Error
+}
+
+func (r *formRecordRepository) ListControlled(ctx context.Context, params RecordListParams) ([]model.FormRecord, int64, error) {
+	if params.FormID == 0 || params.Page < 1 || params.PageSize < 1 || params.Where == "" {
+		return nil, 0, fmt.Errorf("invalid controlled form record list parameters")
+	}
+	db := infrastructure.ResolveDB(ctx, r.db).Model(&model.FormRecord{}).
+		Where("form_id = ?", params.FormID).
+		Where(params.Where, params.Args...)
+	var total int64
+	if err := db.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	// 排序：OrderBy 只接收服务端编译器产出的系统字段白名单片段（空则默认
+	// id 倒序），并恒定追加 id DESC 稳定尾排序，保证同值分页不抖动。
+	order := params.OrderBy
+	if order == "" {
+		order = "id DESC"
+	} else {
+		order += ", id DESC"
+	}
+	records := make([]model.FormRecord, 0, params.PageSize)
+	if err := db.Order(order).Offset((params.Page - 1) * params.PageSize).
+		Limit(params.PageSize).Find(&records).Error; err != nil {
+		return nil, 0, err
+	}
+	return records, total, nil
 }
 
 func (r *formRecordRepository) Migrate() error {

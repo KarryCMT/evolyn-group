@@ -4,9 +4,7 @@ import { FORMULA_FUNCTIONS } from '../catalog';
 import { parseFormula } from '../parser';
 import type { FormulaEditorField } from '../types';
 
-const fields: FormulaEditorField[] = [
-  { widgetName: 'amount', label: '金额', valueType: 'number' },
-];
+const fields: FormulaEditorField[] = [{ widgetName: 'amount', label: '金额', valueType: 'number' }];
 
 describe('Formula Engine', () => {
   it('解析稳定的字段引用和函数调用 AST', () => {

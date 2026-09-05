@@ -143,6 +143,19 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 		requestInfo.Resource = requestInfo.Parts[0]
 	}
 
+	// 表单数据列表为了保持公开路由的资源上下文，挂在
+	// /forms/{formCode}/records；它并不是表单设计管理面。将这条唯一的
+	// 子资源路由映射到 form-records，才能由记录数据面的 authenticated
+	// 基线和后续 FormPermissionEvaluator 共同裁决，而不会要求 forms:get。
+	// 接口为承载完整 Query DSL 已由 GET 改为 POST，但语义仍是查询：动词
+	// 在此归一化为 get（命中 form-records:view 基线），不落入 POST→create
+	// 的提交门，避免查询权限与提交权限耦合。
+	if requestInfo.Resource == "forms" && requestInfo.Subresource == "records" && requestInfo.Name != "" {
+		requestInfo.Resource = "form-records"
+		requestInfo.Subresource = ""
+		requestInfo.Verb = GetOperation
+	}
+
 	// if there's no name on the request and we thought it was a get before, then the actual verb is a list or a watch
 	if len(requestInfo.Name) == 0 && requestInfo.Verb == GetOperation {
 		requestInfo.Verb = ListOperation

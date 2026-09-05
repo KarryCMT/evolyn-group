@@ -83,12 +83,20 @@ var (
 )
 
 // publishableWidgetTypes 已开放运行时的发布白名单（字段字典 §6；与 TS
-// PUBLISHABLE_WIDGET_TYPES 一致）。成员选择字段的实际目录交互由 Web 宿主适配，
-// 此处只负责协议与提交值的服务端终审。
+// PUBLISHABLE_WIDGET_TYPES 一致）。子表单已提供基础行编辑器和递归值终审；其
+// 子项仍须受 subformPublishableWidgetTypes 收口，不能因为结构上允许就提前发布。
 var publishableWidgetTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
-	"separator": true, "user": true, "usergroup": true,
+	"separator": true, "user": true, "usergroup": true, "subform": true,
+}
+
+// subformPublishableWidgetTypes 是已经在子表单行编辑器中实现输入、归一化和服务端
+// 终审的子项集合。subformAllowedTypes 是设计期结构白名单，范围刻意更大，二者不能
+// 混用，否则发布后会出现可提交但无法运行的字段。
+var subformPublishableWidgetTypes = map[string]bool{
+	"text": true, "textarea": true, "number": true, "datetime": true,
+	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
 }
 
 // subformAllowedTypes 子表单子项白名单：禁止无行值语义的 separator/richtext/subform。
@@ -339,7 +347,7 @@ func collectUnsupportedConditionSources(content map[string]any, issues *[]Schema
 			}
 			field, _ := condition["field"].(string)
 			widgetType, known := typesByName[field]
-			if known && !publishableWidgetTypes[widgetType] {
+			if known && (!publishableWidgetTypes[widgetType] || widgetType == "subform") {
 				*issues = append(*issues, SchemaIssue{
 					Path:    fmt.Sprintf("content.fieldShowRules[%d].filter.cond[%d].field", ruleIndex, condIndex),
 					Message: fmt.Sprintf("条件字段「%s」的运行能力尚未开放，暂不能发布", field),
@@ -362,9 +370,26 @@ func collectUnsupported(items []any, itemsPath string, issues *[]SchemaIssue) {
 		}
 		if widgetType == "subform" {
 			if children, ok := widget["items"].([]any); ok {
-				collectUnsupported(children, fmt.Sprintf("%s[%d].widget.items", itemsPath, i), issues)
+				collectUnsupportedSubformChildren(children, fmt.Sprintf("%s[%d].widget.items", itemsPath, i), issues)
 			}
 		}
+	}
+}
+
+// collectUnsupportedSubformChildren 不递归调用顶层发布白名单：子表单内部的可运行
+// 类型比顶层更窄，且嵌套子表单在结构校验阶段已被禁止。
+func collectUnsupportedSubformChildren(items []any, itemsPath string, issues *[]SchemaIssue) {
+	for i, rawItem := range items {
+		item, _ := rawItem.(map[string]any)
+		widget, _ := item["widget"].(map[string]any)
+		widgetType, _ := widget["type"].(string)
+		if subformPublishableWidgetTypes[widgetType] {
+			continue
+		}
+		*issues = append(*issues, SchemaIssue{
+			Path:    fmt.Sprintf("%s[%d].widget.type", itemsPath, i),
+			Message: fmt.Sprintf("子表单内控件「%s」的运行能力尚未开放，暂不能发布", widgetType),
+		})
 	}
 }
 

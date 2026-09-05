@@ -34,7 +34,10 @@ describe('Query Engine', () => {
       { fieldTypes: { amount: 'number' } },
     );
 
-    expect(filter).toMatchObject({ type: 'group', children: [{ operator: 'gt' }, { operator: 'lt' }] });
+    expect(filter).toMatchObject({
+      type: 'group',
+      children: [{ operator: 'gt' }, { operator: 'lt' }],
+    });
     expect(result.diagnostics).toEqual([]);
     expect(result.document).not.toBeNull();
   });

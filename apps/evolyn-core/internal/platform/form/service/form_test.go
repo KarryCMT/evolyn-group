@@ -330,6 +330,24 @@ func (f *fakeRecordRepo) UpdateValues(ctx context.Context, id uint, values model
 	return gorm.ErrRecordNotFound
 }
 
+func (f *fakeRecordRepo) ListControlled(ctx context.Context, params repository.RecordListParams) ([]model.FormRecord, int64, error) {
+	rows := make([]model.FormRecord, 0)
+	for _, record := range f.records {
+		if record.FormID == params.FormID {
+			rows = append(rows, *record)
+		}
+	}
+	start := (params.Page - 1) * params.PageSize
+	if start >= len(rows) {
+		return []model.FormRecord{}, int64(len(rows)), nil
+	}
+	end := start + params.PageSize
+	if end > len(rows) {
+		end = len(rows)
+	}
+	return rows[start:end], int64(len(rows)), nil
+}
+
 func (f *fakeRecordRepo) Migrate() error { return nil }
 
 // ---- 服务工厂 ----

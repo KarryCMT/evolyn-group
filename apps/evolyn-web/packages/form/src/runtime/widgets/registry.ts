@@ -6,6 +6,7 @@ import MultiSelectField from './base/MultiSelectField.vue';
 import NumberField from './base/NumberField.vue';
 import RadioGroupField from './base/RadioGroupField.vue';
 import SelectField from './base/SelectField.vue';
+import SubformField from './base/SubformField.vue';
 import TextAreaField from './base/TextAreaField.vue';
 import TextField from './base/TextField.vue';
 
@@ -76,5 +77,6 @@ export function createMobileFieldRegistry(): FormFieldRegistry {
   registry.register('combo', { component: SelectField });
   registry.register('combocheck', { component: MultiSelectField });
   registry.register('separator', { component: DividerWidget });
+  registry.register('subform', { component: SubformField });
   return registry;
 }

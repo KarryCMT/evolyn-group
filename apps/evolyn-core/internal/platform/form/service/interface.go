@@ -97,6 +97,9 @@ type FormService interface {
 	GetRuntime(ctx context.Context, member *iammodel.User, appCode, formCode string) (*model.FormRuntime, error)
 	// SubmitRecord 提交记录：按 (publishedVersion, schemaRevision) 定位快照并按其终审
 	SubmitRecord(ctx context.Context, member *iammodel.User, req *model.SubmitRecordRequest) (*model.SubmitRecordResult, error)
+	// ListRecords 按最新发布快照的字段映射校验 Query DSL，并在数据库分页前合并
+	// 用户筛选与 record-level view 数据范围；出网记录逐行执行字段可见性裁剪。
+	ListRecords(ctx context.Context, member *iammodel.User, code string, query model.RecordQueryDocument) (*model.FormRecordPage, error)
 }
 
 // PermissionEvaluatorInjector 装配期注入能力（可选）：权限组判定器（表单权限

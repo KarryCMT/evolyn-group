@@ -24,6 +24,7 @@ const MULTI_VALUE_WIDGET_TYPES: ReadonlySet<string> = new Set([
   'usergroup',
   'deptgroup',
   'linkquery',
+  'subform',
 ]);
 
 /** 选择语义控件（空值提示用「请选择」，其余用「请输入」；与后端文案一致）。 */
@@ -115,6 +116,8 @@ export function normalizeWidgetValue(widget: FormItemWidget, value: unknown): Fo
     case 'usergroup':
       if (!Array.isArray(value)) return [];
       return value.filter((entry): entry is string => typeof entry === 'string');
+    case 'subform':
+      return normalizeSubformRows(value);
     default:
       return isLooseJsonValue(value) ? value : null;
   }
@@ -151,10 +154,76 @@ export function validateWidgetValue(item: FormItem, value: unknown): string[] {
       return validateMemberValue(item.label, value);
     case 'usergroup':
       return validateMemberGroupValue(item.label, value);
+    case 'subform':
+      return validateSubformValue(item, value);
     default:
       // 未开放运行能力的控件：结构校验在保存/发布侧执行，值校验随各阶段落地。
       return [];
   }
+}
+
+/** 子表单只保留 JSON 安全的对象行，字段级约束由递归校验负责。 */
+function normalizeSubformRows(value: unknown): FormJsonValue {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
+    (row): row is Record<string, FormJsonValue> =>
+      isPlainRecord(row) && Object.values(row).every(isLooseJsonValue),
+  );
+}
+
+/** 与 Go validateSubformValue 逐字对齐的行数、键与子字段终审前置校验。 */
+function validateSubformValue(item: FormItem, value: unknown): string[] {
+  if (item.widget.type !== 'subform') return [];
+  if (!Array.isArray(value)) return [`${item.label}的值类型不正确`];
+  if (value.length > 200) return [`${item.label}不能超过 200 行`];
+  if (
+    item.widget.minRowCount !== null &&
+    item.widget.minRowCount !== undefined &&
+    value.length < item.widget.minRowCount
+  ) {
+    return [`${item.label}至少填写 ${item.widget.minRowCount} 行`];
+  }
+  if (
+    item.widget.maxRowCount !== null &&
+    item.widget.maxRowCount !== undefined &&
+    value.length > item.widget.maxRowCount
+  ) {
+    return [`${item.label}不能超过 ${item.widget.maxRowCount} 行`];
+  }
+  const fields = new Map(item.widget.items.map((child) => [child.widget.widgetName, child]));
+  const errors: string[] = [];
+  value.forEach((rawRow, rowIndex) => {
+    if (!isPlainRecord(rawRow)) {
+      errors.push(`${item.label}第 ${rowIndex + 1} 行的值类型不正确`);
+      return;
+    }
+    Object.keys(rawRow).forEach((key) => {
+      if (!fields.has(key)) {
+        errors.push(`${item.label}第 ${rowIndex + 1} 行提交了不存在的字段「${key}」`);
+      }
+    });
+    fields.forEach((child, name) => {
+      if (
+        !child.widget.visible ||
+        child.widget.type === 'separator' ||
+        child.widget.type === 'button'
+      )
+        return;
+      const childValue = rawRow[name];
+      if (childValue === undefined || childValue === null) {
+        if (!child.widget.allowBlank) {
+          errors.push(
+            `${item.label}第 ${rowIndex + 1} 行：请${choosingVerb(child.widget.type)}${child.label}`,
+          );
+        }
+        return;
+      }
+      validateWidgetValue(child, childValue).forEach((error) => {
+        errors.push(`${item.label}第 ${rowIndex + 1} 行：${error}`);
+      });
+    });
+  });
+  return errors;
 }
 
 /** 成员 ID 由运行时选择器产出；值层只约束稳定的字符串标识形状。 */
@@ -335,4 +404,8 @@ function isLooseJsonValue(value: unknown): value is FormJsonValue {
   if (Array.isArray(value)) return value.every(isLooseJsonValue);
   if (typeof value !== 'object') return false;
   return Object.values(value).every(isLooseJsonValue);
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

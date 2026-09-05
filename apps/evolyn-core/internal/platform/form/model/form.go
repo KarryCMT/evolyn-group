@@ -57,12 +57,14 @@ func (*Form) TableName() string { return "tn_forms" }
 // FormVersion 不可变发布快照：发布事务内一次写入，之后不存在更新路径；
 // schema_revision 即行 id（出网字符串），提交校验与记录归属的双口令之一。
 type FormVersion struct {
-	ID                  uint            `json:"id" gorm:"autoIncrement;primaryKey"`
-	FormID              uint            `json:"formId" gorm:"not null"`
-	VersionNo           int             `json:"versionNo" gorm:"not null"` // 表单内递增发布号 1,2,3…
-	SchemaRevision      int64           `json:"schemaRevision" gorm:"not null;default:0"`
-	Content             JSONContent     `json:"content" gorm:"type:jsonb;not null"`
-	FieldKeys           JSONContent     `json:"fieldKeys" gorm:"type:jsonb;not null"` // 顶层字段键有序数组（提交未知键快速拒绝）
+	ID             uint        `json:"id" gorm:"autoIncrement;primaryKey"`
+	FormID         uint        `json:"formId" gorm:"not null"`
+	VersionNo      int         `json:"versionNo" gorm:"not null"` // 表单内递增发布号 1,2,3…
+	SchemaRevision int64       `json:"schemaRevision" gorm:"not null;default:0"`
+	Content        JSONContent `json:"content" gorm:"type:jsonb;not null"`
+	FieldKeys      JSONContent `json:"fieldKeys" gorm:"type:jsonb;not null"` // 顶层字段键有序数组（提交未知键快速拒绝）
+	// FieldMappings 为发布时冻结的逻辑字段→JSONB/物理列映射；查询编译器只能消费此快照。
+	FieldMappings       JSONContent     `json:"fieldMappings" gorm:"type:jsonb;not null"`
 	ProtocolVersion     int             `json:"protocolVersion" gorm:"not null;default:6"`
 	PublishedByMemberID uint            `json:"publishedByMemberId" gorm:"not null"`
 	PublishedAt         kernel.JSONTime `json:"publishedAt"`
@@ -76,14 +78,19 @@ func (*FormVersion) TableName() string { return "tn_form_versions" }
 // FormRecord 记录提交：追加写，values 为服务端按发布快照校验通过后的值
 // （键=widgetName）；form_version_id 固定受理时所依据的版本（历史版本合法）。
 type FormRecord struct {
-	ID                  uint            `json:"id" gorm:"autoIncrement;primaryKey"`
-	FormID              uint            `json:"formId" gorm:"not null"`
-	FormVersionID       uint            `json:"formVersionId" gorm:"not null"`
-	DataOpID            *string         `json:"dataOpId" gorm:"size:36"`  // 客户端提交幂等键；历史记录允许 NULL
-	EntryCode           *string         `json:"entryCode" gorm:"size:64"` // 提交入口菜单编码快照；预览直提允许 NULL
-	Values              JSONContent     `json:"values" gorm:"type:jsonb;not null"`
-	SubmittedByMemberID uint            `json:"submittedByMemberId" gorm:"not null"`
-	SubmittedAt         kernel.JSONTime `json:"submittedAt"`
+	ID                  uint        `json:"id" gorm:"autoIncrement;primaryKey"`
+	FormID              uint        `json:"formId" gorm:"not null"`
+	FormVersionID       uint        `json:"formVersionId" gorm:"not null"`
+	DataOpID            *string     `json:"dataOpId" gorm:"size:36"`  // 客户端提交幂等键；历史记录允许 NULL
+	EntryCode           *string     `json:"entryCode" gorm:"size:64"` // 提交入口菜单编码快照；预览直提允许 NULL
+	Values              JSONContent `json:"values" gorm:"type:jsonb;not null"`
+	SubmittedByMemberID uint        `json:"submittedByMemberId" gorm:"not null"`
+	// SubmittedByName 提交人展示名快照：提交时按租户内昵称固化，成员改名/
+	// 退出后历史展示不失真（与企业日志 actor_name_snapshot 口径一致）。
+	SubmittedByName string          `json:"submittedByName" gorm:"size:100"`
+	SubmittedAt     kernel.JSONTime `json:"submittedAt"`
+	// UpdatedAt 最后写回时间：提交时=提交时间，审批编辑写回 values 时刷新。
+	UpdatedAt kernel.JSONTime `json:"updatedAt"`
 
 	TenantID  uint            `json:"tenantId" gorm:"index;not null;default:1"`
 	CreatedAt kernel.JSONTime `json:"createdAt"`

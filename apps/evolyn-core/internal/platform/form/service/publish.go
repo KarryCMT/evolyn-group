@@ -86,12 +86,17 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 		if err != nil {
 			return err
 		}
+		fieldMappings, err := json.Marshal(ExtractSnapshotFieldMappings(content))
+		if err != nil {
+			return err
+		}
 
 		version := &model.FormVersion{
 			FormID:              form.ID,
 			VersionNo:           nextNo,
 			Content:             form.DraftContent,
 			FieldKeys:           model.JSONContent(fieldKeys),
+			FieldMappings:       model.JSONContent(fieldMappings),
 			ProtocolVersion:     form.ProtocolVersion,
 			PublishedByMemberID: member.ID,
 			PublishedAt:         kernel.JSONTime(time.Now()),
@@ -333,6 +338,7 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		if entryCode != "" {
 			entryCodeSnapshot = &entryCode
 		}
+		now := time.Now()
 		draft := &model.FormRecord{
 			FormID:              form.ID,
 			FormVersionID:       version.ID,
@@ -340,7 +346,11 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 			EntryCode:           entryCodeSnapshot,
 			Values:              model.JSONContent(valuesJSON),
 			SubmittedByMemberID: member.ID,
-			SubmittedAt:         kernel.JSONTime(time.Now()),
+			// 提交人展示名快照（000067）：租户内昵称即展示口径；昵称为空的
+			// 边缘态快照空串，由列表侧兜底展示。
+			SubmittedByName: strings.TrimSpace(member.Nickname),
+			SubmittedAt:     kernel.JSONTime(now),
+			UpdatedAt:       kernel.JSONTime(now),
 		}
 		draft.TenantID = tenantID
 		stored, wasCreated, cerr := s.records.CreateIdempotent(tctx, draft)

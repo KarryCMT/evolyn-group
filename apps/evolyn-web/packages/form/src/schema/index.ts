@@ -12,3 +12,4 @@ export * from './migrate';
 export * from './codec';
 export * from './rules';
 export * from './invisible-value-policy';
+export * from './physical';
