@@ -138,7 +138,7 @@ func (s *formService) ListRecords(ctx context.Context, member *iammodel.User, co
 		if strings.TrimSpace(submittedByName) == "" {
 			submittedByName = "成员"
 		}
-		items = append(items, model.FormRecordDTO{ID: record.ID, Values: values, SubmittedByMemberID: record.SubmittedByMemberID, SubmittedByName: submittedByName, SubmittedAt: record.SubmittedAt, UpdatedAt: record.UpdatedAt})
+		items = append(items, model.FormRecordDTO{WorkflowInstanceNo: record.WorkflowInstanceNo, ID: record.ID, Values: values, SubmittedByMemberID: record.SubmittedByMemberID, SubmittedByName: submittedByName, SubmittedAt: record.SubmittedAt, UpdatedAt: record.UpdatedAt})
 	}
 	return &model.FormRecordPage{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
 }

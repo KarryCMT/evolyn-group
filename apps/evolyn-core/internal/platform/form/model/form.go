@@ -78,6 +78,9 @@ func (*FormVersion) TableName() string { return "tn_form_versions" }
 // FormRecord 记录提交：追加写，values 为服务端按发布快照校验通过后的值
 // （键=widgetName）；form_version_id 固定受理时所依据的版本（历史版本合法）。
 type FormRecord struct {
+	// WorkflowInstanceNo 独立只读系统字段，普通表单为空；不混入用户 values。
+	WorkflowInstanceNo string `json:"workflowInstanceNo" gorm:"size:40;not null;default:''"`
+
 	ID                  uint        `json:"id" gorm:"autoIncrement;primaryKey"`
 	FormID              uint        `json:"formId" gorm:"not null"`
 	FormVersionID       uint        `json:"formVersionId" gorm:"not null"`

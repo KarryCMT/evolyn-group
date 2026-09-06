@@ -15,6 +15,7 @@ import (
 	"evolyn/internal/platform/workflow/model"
 	"evolyn/internal/platform/workflow/repository"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -47,8 +48,9 @@ func (f *fakeRecorder) Record(ctx context.Context, entry auditservice.Entry) {
 
 // fakeDefinitionRepo 内存桩：覆盖乐观锁与软删语义
 type fakeDefinitionRepo struct {
-	defs map[uint]*model.WfDefinition
-	next uint
+	defs      map[uint]*model.WfDefinition
+	next      uint
+	createErr error
 }
 
 func newFakeDefinitionRepo() *fakeDefinitionRepo {
@@ -56,6 +58,9 @@ func newFakeDefinitionRepo() *fakeDefinitionRepo {
 }
 
 func (f *fakeDefinitionRepo) Create(ctx context.Context, def *model.WfDefinition) (*model.WfDefinition, error) {
+	if f.createErr != nil {
+		return nil, f.createErr
+	}
 	def.ID = f.next
 	f.next++
 	f.defs[def.ID] = def
@@ -226,6 +231,18 @@ func TestCreateWorkflowValidation(t *testing.T) {
 	// 无权限（空权限集）
 	_, err = newTestService(repo, versions, map[string]bool{}).Create(ctx, adminMember(), &model.CreateWorkflowRequest{Name: "报销"})
 	assert.Equal(t, "FORBIDDEN", errCode(t, err))
+}
+
+func TestCreateWorkflowMapsFormBindingUniqueViolation(t *testing.T) {
+	repo, versions := newFakeDefinitionRepo(), newFakeVersionRepo()
+	repo.createErr = &pgconn.PgError{Code: "23505", ConstraintName: "uk_wf_definition_form_code"}
+	svc := newTestService(repo, versions, adminPerms)
+	ctx := contextx.NewTenantContext(context.Background(), 1)
+
+	_, err := svc.Create(ctx, adminMember(), &model.CreateWorkflowRequest{
+		Name: "报销审批", FormCode: "form_1234567890abcdef",
+	})
+	assert.Equal(t, "WORKFLOW_FORM_ALREADY_BOUND", errCode(t, err))
 }
 
 func TestSaveDraftAndPublish(t *testing.T) {

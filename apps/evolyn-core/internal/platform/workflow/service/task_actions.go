@@ -305,8 +305,16 @@ func (s *runtimeService) listMemberTasks(ctx context.Context, memberID uint, sta
 		return nil, err
 	}
 	page := &model.TaskPage{Items: make([]model.TaskSummary, 0, len(rows))}
+	cards, err := s.loadTaskCardContext(ctx, rows)
+	if err != nil {
+		return nil, err
+	}
 	for i := range rows {
-		page.Items = append(page.Items, taskSummaryFromRow(rows[i], actorsByTask))
+		item := taskSummaryFromRow(rows[i], actorsByTask)
+		if err := s.populateTaskCard(ctx, &item, cards); err != nil {
+			return nil, err
+		}
+		page.Items = append(page.Items, item)
 	}
 	if hasMore && len(rows) > 0 {
 		page.NextCursor = strconv.FormatUint(uint64(rows[len(rows)-1].ID), 10)
@@ -320,9 +328,23 @@ func (s *runtimeService) listCCTasks(ctx context.Context, memberID uint, formCod
 	if err != nil {
 		return nil, err
 	}
+	// 抄送行的主键不是任务 ID；业务单号仍来自它绑定的实例。
+	ids := make([]uint, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.InstanceID)
+	}
+	instances, err := s.reader.ListInstanceRowsByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	numbers := map[uint]string{}
+	for _, instance := range instances {
+		numbers[instance.ID] = instance.InstanceNo
+	}
 	page := &model.TaskPage{Items: make([]model.TaskSummary, 0, len(rows))}
 	for i := range rows {
 		page.Items = append(page.Items, model.TaskSummary{
+			InstanceNo: numbers[rows[i].InstanceID],
 			ID:         rows[i].ID,
 			InstanceID: rows[i].InstanceID,
 			NodeKey:    rows[i].NodeKey,
@@ -367,6 +389,7 @@ func (s *runtimeService) ListInstances(ctx context.Context, member *iammodel.Use
 			return nil, err
 		}
 		page.Items = append(page.Items, model.InstanceSummary{
+			InstanceNo:          rows[i].InstanceNo,
 			ID:                  rows[i].ID,
 			DefinitionCode:      definitionCode,
 			DefinitionVersionNo: versionNo,
@@ -460,7 +483,9 @@ func (s *runtimeService) GetTask(ctx context.Context, member *iammodel.User, tas
 		AllowedActions:  []string{},
 		Operations:      []model.InstanceOperationView{},
 	}
+	detail.Task.InstanceNo = instance.InstanceNo
 	detail.Instance = model.InstanceSummary{
+		InstanceNo:          instance.InstanceNo,
 		ID:                  instance.ID,
 		DefinitionCode:      definitionCode,
 		DefinitionVersionNo: versionNo,

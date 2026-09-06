@@ -152,3 +152,15 @@ func (r *formRecordRepository) Migrate() error {
 	return r.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_form_records_tenant_data_op
 		ON tn_form_records (tenant_id, data_op_id)`).Error
 }
+
+// SetWorkflowInstanceNo 不修改业务值和更新时间；首次提交事务内绑定一次。
+func (r *formRecordRepository) SetWorkflowInstanceNo(ctx context.Context, id uint, number string) error {
+	result := infrastructure.ResolveDB(ctx, r.db).Model(&model.FormRecord{}).Where("id = ? AND workflow_instance_no = ''", id).UpdateColumn("workflow_instance_no", number)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}

@@ -24,6 +24,9 @@ type RuntimeTenantBaseModel struct {
 
 // WfInstance 流程实例。
 type WfInstance struct {
+	// InstanceNo 是不可变业务单号，与数据库主键分离。
+	InstanceNo string `json:"instanceNo" gorm:"size:40;not null"`
+
 	ID                  uint    `json:"id" gorm:"autoIncrement;primaryKey"`
 	DefinitionID        uint    `json:"definitionId" gorm:"not null"`
 	DefinitionVersionID uint    `json:"definitionVersionId" gorm:"not null"`

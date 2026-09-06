@@ -158,6 +158,8 @@ type InstanceOperationView struct {
 
 // InstanceDetail 实例详情：绑定关系 + 节点/任务/操作时间线。
 type InstanceDetail struct {
+	InstanceNo string `json:"instanceNo"`
+
 	ID                  uint                    `json:"id"`
 	DefinitionCode      string                  `json:"definitionCode"`
 	DefinitionVersionNo int                     `json:"definitionVersionNo"`
@@ -226,7 +228,20 @@ type ActionTaskResult struct {
 // TaskActorView 任务参与人（快照）—— 位置见上，Phase 2 已定义。
 
 // TaskSummary 审批中心任务条目。
+// TaskSummaryField 仅包含节点可见的标量摘要，最多展示三个字段。
+type TaskSummaryField struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
 type TaskSummary struct {
+	InstanceNo string `json:"instanceNo"`
+
+	Title         string             `json:"title"`
+	NodeName      string             `json:"nodeName"`
+	StarterName   string             `json:"starterName"`
+	SummaryFields []TaskSummaryField `json:"summaryFields"`
+
 	ID              uint            `json:"id"`
 	InstanceID      uint            `json:"instanceId"`
 	NodeKey         string          `json:"nodeKey"`
@@ -274,6 +289,8 @@ type CCPage struct {
 
 // InstanceSummary 审批中心实例条目（我发起的）。
 type InstanceSummary struct {
+	InstanceNo string `json:"instanceNo"`
+
 	ID                  uint            `json:"id"`
 	DefinitionCode      string          `json:"definitionCode"`
 	DefinitionVersionNo int             `json:"definitionVersionNo"`

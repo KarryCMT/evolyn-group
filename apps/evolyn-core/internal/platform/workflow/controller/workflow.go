@@ -163,7 +163,7 @@ func (f *WorkflowController) Update(c *gin.Context) {
 // @Success 200 {object} httpx.Response{data=model.SaveDraftResult}
 // @Failure 400 {object} httpx.Response "errCode=WORKFLOW_DEFINITION_INVALID（data.issues 为 {path,code,message} 清单）"
 // @Failure 409 {object} httpx.Response "errCode=WORKFLOW_REVISION_CONFLICT"
-// @Router /api/v1/workflows/{code} [put]
+// @Router /api/v1/workflows/{code}/draft [put]
 func (f *WorkflowController) SaveDraft(c *gin.Context) {
 	code, ok := workflowCodeFromParam(c)
 	if !ok {
@@ -289,7 +289,7 @@ func (f *WorkflowController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/workflows", f.List)
 	api.GET("/workflows/:code", f.Get)
 	api.PATCH("/workflows/:code", f.Update)
-	api.PUT("/workflows/:code", f.SaveDraft)
+	api.PUT("/workflows/:code/draft", f.SaveDraft)
 	api.DELETE("/workflows/:code", f.Delete)
 	api.POST("/workflows/:code/publish", f.Publish)
 	api.GET("/workflows/:code/versions", f.ListVersions)

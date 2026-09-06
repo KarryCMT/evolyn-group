@@ -156,6 +156,12 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 		requestInfo.Verb = GetOperation
 	}
 
+	// 待办摘要采用独立 URL 避开 taskId 动态路由，但仍属于待办读取权限。
+	// 仅映射已注册的 GET current，不能为未来写接口或其他路径扩大权限。
+	if req.Method == http.MethodGet && requestInfo.Resource == "workflow-task-summaries" && requestInfo.Name == "current" && len(requestInfo.Parts) == 2 {
+		requestInfo.Resource = "workflow-tasks"
+	}
+
 	// if there's no name on the request and we thought it was a get before, then the actual verb is a list or a watch
 	if len(requestInfo.Name) == 0 && requestInfo.Verb == GetOperation {
 		requestInfo.Verb = ListOperation

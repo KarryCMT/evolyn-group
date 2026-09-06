@@ -271,6 +271,7 @@ func (s *runtimeService) buildDetail(ctx context.Context, instanceID uint) (*mod
 	}
 
 	detail := &model.InstanceDetail{
+		InstanceNo:          instance.InstanceNo,
 		ID:                  instance.ID,
 		DefinitionCode:      definitionCode,
 		DefinitionVersionNo: versionNo,

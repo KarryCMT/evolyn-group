@@ -51,6 +51,7 @@ func (p *IdentityProvider) ValidateMembers(ctx context.Context, tenantID uint, m
 }
 
 // MemberDisplayName 成员显示名快照：成员昵称为空回落账号昵称/登录名。
+// 聚合查询使用 IAM 模型的真实表名；Table 不会自动把旧 users 名称转换为 tn_users。
 func (p *IdentityProvider) MemberDisplayName(ctx context.Context, tenantID, memberID uint) string {
 	var row struct {
 		MemberNickname  string
@@ -58,7 +59,7 @@ func (p *IdentityProvider) MemberDisplayName(ctx context.Context, tenantID, memb
 		AccountName     string
 	}
 	if err := infrastructure.ResolveDB(ctx, p.db).
-		Table("users").
+		Table((&iammodel.User{}).TableName()).
 		Select("tn_users.nickname AS member_nickname, COALESCE(pf_accounts.nickname, '') AS account_nickname, COALESCE(pf_accounts.name, '') AS account_name").
 		Joins("LEFT JOIN pf_accounts ON pf_accounts.id = tn_users.account_id").
 		Where("tn_users.id = ? AND tn_users.tenant_id = ?", memberID, tenantID).
@@ -110,7 +111,7 @@ func (p *IdentityProvider) MemberContext(ctx context.Context, tenantID, memberID
 		AccountName string
 	}
 	if err := infrastructure.ResolveDB(ctx, p.db).
-		Table("users").
+		Table((&iammodel.User{}).TableName()).
 		Select("COALESCE(pf_accounts.name, '') AS account_name").
 		Joins("LEFT JOIN pf_accounts ON pf_accounts.id = tn_users.account_id").
 		Where("tn_users.id = ? AND tn_users.tenant_id = ?", memberID, tenantID).

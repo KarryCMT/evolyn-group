@@ -45,6 +45,8 @@ var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"n
 
 // formService 表单资产服务实现。
 type formService struct {
+	workflowStarter WorkflowStarter // 流程型表单提交的事务内发起端口
+
 	tx          TxManager
 	repo        repository.FormRepository
 	versions    repository.FormVersionRepository

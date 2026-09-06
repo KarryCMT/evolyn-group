@@ -581,6 +581,10 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 		appAccess, auditSvc,
 		workflowIdentityProvider, workflowFormProvider,
 	)
+	// 记录提交与流程发起共用 txManager，避免提交成功但审批中心没有实例。
+	if injector, ok := formService.(formservice.WorkflowStarterInjector); ok {
+		injector.UseWorkflowStarter(workflowRuntimeService.(formservice.WorkflowStarter))
+	}
 	workflowInstanceController := workflowcontroller.NewWorkflowInstanceController(workflowRuntimeService)
 	// Phase 4 完整人工任务与审批中心：驳回/退回/转办/撤回/终止/重提交 + 查询
 	workflowTaskController := workflowcontroller.NewWorkflowTaskController(workflowRuntimeService)

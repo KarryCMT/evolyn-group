@@ -72,3 +72,20 @@ func TestRequestInfo(t *testing.T) {
 		})
 	}
 }
+
+// 待办摘要复用读取权限，不将其他路径或写方法误映射到任务资源。
+func TestWorkflowSummaryResourceMapping(t *testing.T) {
+	resolver := RequestInfoFactory{set.NewString("api")}
+	for _, tc := range []struct{ method, path, resource string }{
+		{"GET", "/api/v1/workflow-task-summaries/current", "workflow-tasks"},
+		{"POST", "/api/v1/workflow-task-summaries/current", "workflow-task-summaries"},
+		{"GET", "/api/v1/workflow-task-summaries/other", "workflow-task-summaries"},
+		{"GET", "/api/v1/workflow-task-summaries/current/extra", "workflow-task-summaries"},
+	} {
+		req, err := http.NewRequest(tc.method, tc.path, nil)
+		assert.NoError(t, err)
+		info, err := resolver.NewRequestInfo(req)
+		assert.NoError(t, err)
+		assert.Equal(t, tc.resource, info.Resource)
+	}
+}

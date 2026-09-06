@@ -39,6 +39,10 @@ var (
 	// ErrWorkflowFormCodeInvalid 绑定表单编码不符合 form_ 前缀约定（000060 表单绑定）
 	ErrWorkflowFormCodeInvalid = httpx.NewBiz("WORKFLOW_FORM_CODE_INVALID", "无效的绑定表单编码", http.StatusBadRequest)
 
+	// ErrWorkflowFormAlreadyBound 同一表单已经绑定了有效流程定义。流程设计器
+	// 可据此重新读取绑定定义，避免数据库唯一索引错误被脱敏为内部错误。
+	ErrWorkflowFormAlreadyBound = httpx.NewBiz("WORKFLOW_FORM_ALREADY_BOUND", "该表单已绑定流程定义，请刷新后重试", http.StatusConflict)
+
 	// ErrVersionNotFound 指定发布版本不存在（版本以 version_no 标识，历史版本均可读）
 	ErrVersionNotFound = httpx.NewBiz("WORKFLOW_VERSION_NOT_FOUND", "流程版本不存在", http.StatusNotFound)
 

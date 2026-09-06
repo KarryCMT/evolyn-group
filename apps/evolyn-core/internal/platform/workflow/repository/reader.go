@@ -124,6 +124,9 @@ func decodeDocument(raw []byte) (*enginemodel.Document, error) {
 // RuntimeReader 运行态详情查询（实例/节点/任务/参与人/操作流水行读取，
 // 供服务层组装出网 DTO；行锁路径走引擎 SPI，不在此处）。
 type RuntimeReader interface {
+	// ListInstanceRowsByIDs 批量读取已授权任务绑定实例，仍受租户隔离约束。
+	ListInstanceRowsByIDs(ctx context.Context, ids []uint) ([]model.WfInstance, error)
+
 	FindInstanceRow(ctx context.Context, instanceID uint) (*model.WfInstance, error)
 	ListNodeRowsByInstance(ctx context.Context, instanceID uint) ([]model.WfNodeInstance, error)
 	ListTaskRowsByInstance(ctx context.Context, instanceID uint) ([]model.WfTask, error)
@@ -292,4 +295,45 @@ func (r *runtimeReader) ListInstanceRowsByStarter(ctx context.Context, memberID 
 		rows = rows[:limit]
 	}
 	return rows, hasMore, nil
+}
+
+func (r *runtimeReader) ListInstanceRowsByIDs(ctx context.Context, ids []uint) ([]model.WfInstance, error) {
+	rows := []model.WfInstance{}
+	if len(ids) == 0 {
+		return rows, nil
+	}
+	err := infrastructure.ResolveDB(ctx, r.base).Where("id IN ?", ids).Find(&rows).Error
+	return rows, err
+}
+
+// LoadCardDefinitions 一页只读两次定义表；保留租户模型过滤。
+func (r *EngineDefinitionReader) LoadCardDefinitions(ctx context.Context, definitionIDs, versionIDs []uint) (map[uint]string, map[uint]model.WfDefinitionVersion, error) {
+	names := map[uint]string{}
+	versions := map[uint]model.WfDefinitionVersion{}
+	if len(definitionIDs) == 0 {
+		return names, versions, nil
+	}
+	var definitions []model.WfDefinition
+	db := infrastructure.ResolveDB(ctx, r.base)
+	if err := db.Select("id", "name").Where("id IN ?", definitionIDs).Find(&definitions).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, definition := range definitions {
+		names[definition.ID] = definition.Name
+	}
+	var rows []model.WfDefinitionVersion
+	if err := db.Where("id IN ?", versionIDs).Find(&rows).Error; err != nil {
+		return nil, nil, err
+	}
+	for _, row := range rows {
+		versions[row.ID] = row
+	}
+	return names, versions, nil
+}
+
+// FindCodeByFormCode 只解析当前租户绑定定义；发布状态由引擎统一校验。
+func (r *EngineDefinitionReader) FindCodeByFormCode(ctx context.Context, formCode string) (string, error) {
+	var row model.WfDefinition
+	err := infrastructure.ResolveDB(ctx, r.base).Select("code").Where("form_code = ?", formCode).First(&row).Error
+	return row.Code, err
 }

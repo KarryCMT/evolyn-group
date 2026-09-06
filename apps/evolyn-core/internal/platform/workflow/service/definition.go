@@ -24,6 +24,7 @@ import (
 	enginedefinition "evolyn/internal/engine/workflow/definition"
 	enginemodel "evolyn/internal/engine/workflow/model"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 )
 
@@ -225,6 +226,12 @@ func (s *definitionService) Create(ctx context.Context, member *iammodel.User, r
 	def.TenantID = tenantID
 	created, err := s.repo.Create(ctx, def)
 	if err != nil {
+		// 表单绑定是跨请求的唯一资源；先查后建无法消除并发窗口，因此仅将
+		// 对应部分唯一索引的冲突翻译成稳定业务码，其余持久化错误仍按内部错误处理。
+		var pgErr *pgconn.PgError
+		if formCode != "" && errors.As(err, &pgErr) && pgErr.Code == "23505" && pgErr.ConstraintName == "uk_wf_definition_form_code" {
+			return nil, httpx.Wrap(wfapp.ErrWorkflowFormAlreadyBound, err)
+		}
 		return nil, err
 	}
 	if s.audit != nil {

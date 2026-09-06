@@ -72,6 +72,9 @@ type FormVersionRepository interface {
 // FormRecordRepository 记录仓储（P2：追加写；流程引擎 Phase 3 增补审批
 // 编辑窄口：按 ID 读值与白名单字段合并更新，均经 Service 层快照校验）。
 type FormRecordRepository interface {
+	// SetWorkflowInstanceNo 仅允许对空单号写入一次，加入提交事务。
+	SetWorkflowInstanceNo(ctx context.Context, id uint, number string) error
+
 	// CreateIdempotent 按 (tenant_id,data_op_id) 追加记录；幂等键已存在时返回
 	// 原记录且 created=false，调用方继续复核表单/版本/提交人是否为同一次操作。
 	CreateIdempotent(ctx context.Context, record *model.FormRecord) (createdRecord *model.FormRecord, created bool, err error)

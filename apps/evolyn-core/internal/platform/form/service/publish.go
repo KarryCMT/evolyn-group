@@ -364,6 +364,26 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 			return httpx.Wrap(apperrors.ErrRecordInvalid,
 				fmt.Errorf("dataOpId %s reused by a different submission", canonicalOperationID))
 		}
+		// 普通表单只存记录；流程型表单必须原子创建流程。网络重放不得再次发起。
+		if form.FormType == model.FormTypeWorkflow && wasCreated {
+			if s.workflowStarter == nil {
+				return fmt.Errorf("workflow starter is not configured")
+			}
+			number, err := s.workflowStarter.StartSubmittedRecord(tctx, member, SubmittedWorkflowRecord{
+				FormCode: form.Code, AppID: app.ID, FormID: form.ID,
+				FormVersionID: version.ID, RecordID: stored.ID,
+			})
+			if err != nil {
+				return err
+			}
+			if number == "" {
+				return fmt.Errorf("workflow instance number missing")
+			}
+			if err := s.records.SetWorkflowInstanceNo(tctx, stored.ID, number); err != nil {
+				return err
+			}
+			stored.WorkflowInstanceNo = number
+		}
 		record = stored
 		created = wasCreated
 		return nil
@@ -385,7 +405,7 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 			ApplicationName: app.Name,
 		})
 	}
-	return &model.SubmitRecordResult{RecordID: record.ID}, nil
+	return &model.SubmitRecordResult{RecordID: record.ID, WorkflowInstanceNo: record.WorkflowInstanceNo}, nil
 }
 
 // validateSubmitEntry 提交入口校验：携带 entryCode 时复核该菜单节点确实

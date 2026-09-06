@@ -37,6 +37,11 @@ type runtimeInstances struct{ *runtimeRepository }
 
 func (r *runtimeInstances) CreateInstance(ctx context.Context, instance *enginemodel.Instance) error {
 	row := instanceToRow(instance)
+	number, err := r.allocateInstanceNumber(ctx, instance.TenantID)
+	if err != nil {
+		return err
+	}
+	row.InstanceNo = number
 	if err := infrastructure.ResolveDB(ctx, r.base).Create(row).Error; err != nil {
 		return err
 	}

@@ -644,3 +644,13 @@ func TestFormLifecycleMaintainsMenuEntries(t *testing.T) {
 }
 
 func strPtr(value string) *string { return &value }
+
+func (f *fakeRecordRepo) SetWorkflowInstanceNo(ctx context.Context, id uint, number string) error {
+	for _, record := range f.records {
+		if record.ID == id {
+			record.WorkflowInstanceNo = number
+			return nil
+		}
+	}
+	return gorm.ErrRecordNotFound
+}

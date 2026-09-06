@@ -145,6 +145,7 @@ func (f *WorkflowTaskController) Transfer(c *gin.Context) {
 // ListTasks 审批中心任务查询。
 //
 // @Summary 审批中心任务查询
+// @Description 任务条目包含流程名称、节点名称、发起人和最多三个节点明确授权的标量业务摘要字段。
 // @Description 按 scope 查询任务：pending=我的待办（默认）/ completed=我的已办 / cc-to-me=抄送我的（第 20.4 章）；游标分页（id 倒序，limit 默认 20、上限 100）
 // @Produce json
 // @Tags 流程管理
@@ -181,7 +182,7 @@ func (f *WorkflowTaskController) ListTasks(c *gin.Context) {
 // @Security JWT
 // @Success 200 {object} httpx.Response{data=model.PendingTaskSummary}
 // @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
-// @Router /api/v1/workflow-tasks/summary [get]
+// @Router /api/v1/workflow-task-summaries/current [get]
 func (f *WorkflowTaskController) PendingSummary(c *gin.Context) {
 	summary, err := f.runtimeService.PendingTaskSummary(c.Request.Context(), ginctx.GetUser(c))
 	if err != nil {
@@ -361,7 +362,9 @@ func atoiDefault(raw string) int {
 
 func (f *WorkflowTaskController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/workflow-tasks", f.ListTasks)
-	api.GET("/workflow-tasks/summary", f.PendingSummary)
+	// 摘要使用独立资源前缀，避免与 /workflow-tasks/:taskId 的单段动态路由
+	// 竞争，确保 "current" 不会被当作任务 ID 解析。
+	api.GET("/workflow-task-summaries/current", f.PendingSummary)
 	api.GET("/workflow-tasks/:taskId", f.GetTask)
 	api.POST("/workflow-tasks/:taskId/reject", f.Reject)
 	api.POST("/workflow-tasks/:taskId/return-to-starter", f.ReturnToStarter)

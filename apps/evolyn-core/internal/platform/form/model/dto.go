@@ -155,6 +155,8 @@ type SubmitRecordRequest struct {
 
 // SubmitRecordResult 提交受理结果。
 type SubmitRecordResult struct {
+	WorkflowInstanceNo string `json:"workflowInstanceNo"`
+
 	RecordID uint `json:"recordId"`
 }
 
@@ -197,6 +199,8 @@ type RecordQueryPaging struct {
 // submittedByName/updatedAt 是系统字段数据源（000067：展示名快照 + 最后写回时间），
 // 不属于字段矩阵，凡行可见即出网。
 type FormRecordDTO struct {
+	WorkflowInstanceNo string `json:"workflowInstanceNo"`
+
 	ID                  uint            `json:"id"`
 	Values              map[string]any  `json:"values"`
 	SubmittedByMemberID uint            `json:"submittedByMemberId"`
