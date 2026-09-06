@@ -6,10 +6,12 @@
  * v1 会补齐平铺引用，v1/v2 再补默认单列；v1–v3 为子表单补齐 v4 展示与权限配置，
  * 所有受支持版本都会把子表单归一化为整行宽度；v4 及更早版本补齐 v5 的
  * fieldShowRules 空数组；v5 及更早版本补齐 v6 的 submitRule 默认空值策略与
- * widget_submit_rules 空对象。禁止在旧版本校验器内隐式兼容新结构。
+ * widget_submit_rules 空对象；v6 及更早版本补齐 v7 的 validators 与
+ * preSubmitConfirm。禁止在旧版本校验器内隐式兼容新结构。
  */
 
 import { cloneFormSchema } from './clone';
+import { DEFAULT_PRE_SUBMIT_CONFIRM } from './dictionary';
 import { FORM_PROTOCOL_VERSION, type FormSchemaDocument } from './types';
 import { type FormSchemaIssue, validateFormSchema } from './validate';
 
@@ -67,6 +69,9 @@ export function migrateFormSchema(
   if (sourceVersion <= 5 && isV1Document(candidate)) {
     candidate = normalizeSubmitRulesV6(candidate);
   }
+  if (sourceVersion <= 6 && isV1Document(candidate)) {
+    candidate = normalizeSubmitValidationV7(candidate);
+  }
   const result = validateFormSchema(candidate);
   if (!result.valid || !result.document) {
     return { document: null, issues: result.issues, protocolVersion: FORM_PROTOCOL_VERSION };
@@ -122,6 +127,17 @@ function normalizeSubmitRulesV6(input: unknown): unknown {
   }
   if (!isPlainRecord(content.widget_submit_rules)) {
     content.widget_submit_rules = {};
+  }
+  return document;
+}
+
+/** v6 → v7：补齐表单级校验空数组和关闭的二次确认配置。 */
+function normalizeSubmitValidationV7(input: unknown): unknown {
+  const document = cloneFormSchema(input as FormSchemaDocument);
+  const content = document.content as unknown as Record<string, unknown>;
+  if (!Array.isArray(content.validators)) content.validators = [];
+  if (!isPlainRecord(content.preSubmitConfirm)) {
+    content.preSubmitConfirm = cloneFormSchema(DEFAULT_PRE_SUBMIT_CONFIRM);
   }
   return document;
 }

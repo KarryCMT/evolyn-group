@@ -6,6 +6,7 @@ import type { FormRuntimeAdapter } from '../adapters/types';
 import type { FormRuntimeActionDefinition, FormRuntimeLayout } from '../actions/types';
 import type { FormRendererExpose } from '../renderer/types';
 import type { FormRuntime } from '../store/createFormRuntime';
+import type { FormSubmitConfirmationContext } from '../store/createFormRuntime';
 import type {
   FormDraftPayload,
   FormIssue,
@@ -135,6 +136,33 @@ async function confirmAction(action: FormRuntimeActionDefinition): Promise<boole
   }
 }
 
+/** 软告警与二次确认严格分两步，避免把“知晓风险”和“确认提交”混成一次点击。 */
+async function confirmSubmit(context: FormSubmitConfirmationContext): Promise<boolean> {
+  try {
+    if (context.warnings.length > 0) {
+      await ElMessageBox.confirm(
+        context.warnings.map((warning) => `• ${warning.remind}`).join('\n'),
+        '部分校验未通过',
+        {
+          confirmButtonText: '忽略并继续',
+          cancelButtonText: '返回修改',
+          type: 'warning',
+        },
+      );
+    }
+    if (context.confirmation) {
+      await ElMessageBox.confirm(context.confirmation.content, context.confirmation.title, {
+        confirmButtonText: '确认提交',
+        cancelButtonText: '取消',
+        type: 'info',
+      });
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function handleAction(action: FormRuntimeActionDefinition): Promise<void> {
   if (!(await confirmAction(action))) return;
   if (action.behavior === 'submit') {
@@ -179,6 +207,7 @@ defineExpose({
           :current-member-id="props.currentMemberId"
           :field-permissions="props.fieldPermissions"
           :adapter="props.adapter"
+          :submit-confirmation="confirmSubmit"
           :registry="resolvedRegistry"
           :multitab-renderer="FormMultitabRenderer"
           :form-dom-id="resolvedFormDomId"

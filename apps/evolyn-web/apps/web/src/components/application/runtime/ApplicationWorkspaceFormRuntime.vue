@@ -70,11 +70,20 @@ const runtimeAdapter: FormRuntimeAdapter = {
       return { accepted: true };
     } catch (error) {
       if (isAbortError(error)) throw error;
-      if (error instanceof ApiError && error.errCode === 'FORM_RECORD_INVALID') {
+      if (
+        error instanceof ApiError &&
+        (error.errCode === 'FORM_RECORD_INVALID' ||
+          error.errCode === 'FORM_RECORD_VALIDATION_FAILED')
+      ) {
+        const data = error.data as
+          | {
+              fieldErrors?: Record<string, string[]>;
+              validatorErrors?: Array<{ remind?: string; fields?: string[] }>;
+            }
+          | undefined;
         return {
           accepted: false,
-          fieldErrors: (error.data as { fieldErrors?: Record<string, string[]> } | undefined)
-            ?.fieldErrors,
+          fieldErrors: mergeSubmitFieldErrors(data?.fieldErrors, data?.validatorErrors),
           message: error.message,
         };
       }
@@ -88,6 +97,23 @@ const runtimeAdapter: FormRuntimeAdapter = {
     }
   },
 };
+
+/** 新版表单级校验错误按规则返回；运行时仍以 widgetName 字段错误统一定位展示。 */
+function mergeSubmitFieldErrors(
+  fieldErrors: Record<string, string[]> | undefined,
+  validatorErrors: Array<{ remind?: string; fields?: string[] }> | undefined,
+): Record<string, string[]> | undefined {
+  const merged = Object.fromEntries(
+    Object.entries(fieldErrors ?? {}).map(([field, messages]) => [field, [...messages]]),
+  ) as Record<string, string[]>;
+  for (const validator of validatorErrors ?? []) {
+    if (!validator.remind) continue;
+    for (const field of validator.fields ?? []) {
+      (merged[field] ??= []).push(validator.remind);
+    }
+  }
+  return Object.keys(merged).length > 0 ? merged : undefined;
+}
 
 watch(
   [() => props.appCode, () => props.asset.targetCode, reloadRevision],

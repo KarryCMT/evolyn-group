@@ -31,6 +31,12 @@ const schema = (items: FormItem[]): FormSchemaDocument => ({
     fieldShowRules: [],
     submitRule: 2,
     widget_submit_rules: {},
+    validators: [],
+    preSubmitConfirm: {
+      enable: false,
+      title: '确认继续提交吗？',
+      content: '请确认填写内容无误后继续提交。',
+    },
   },
 });
 
@@ -48,6 +54,12 @@ describe('FormRenderer 渲染', () => {
             fieldShowRules: [],
             submitRule: 2,
             widget_submit_rules: {},
+            validators: [],
+            preSubmitConfirm: {
+              enable: false,
+              title: '确认继续提交吗？',
+              content: '请确认填写内容无误后继续提交。',
+            },
           },
         },
       },
@@ -257,6 +269,12 @@ describe('FormRenderer 渲染', () => {
         fieldShowRules: [],
         submitRule: 2,
         widget_submit_rules: {},
+        validators: [],
+        preSubmitConfirm: {
+          enable: false,
+          title: '确认继续提交吗？',
+          content: '请确认填写内容无误后继续提交。',
+        },
       },
     };
     const plan = buildRenderPlan(doc);

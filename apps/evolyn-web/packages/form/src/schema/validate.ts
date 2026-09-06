@@ -12,6 +12,9 @@ import {
   FIELD_SHOW_EMPTY_METHODS,
   FIELD_SHOW_RULE_LIMITS,
   FORM_PROTOCOL_LIMITS,
+  SUBMIT_VALIDATION_LIMITS,
+  SUBMIT_VALIDATOR_FUNCTIONS,
+  SUBMIT_VALIDATOR_SOURCE_TYPES,
   SUBMIT_RULE_ELIGIBLE_WIDGET_TYPES,
   SUBMIT_RULE_LIMITS,
   SUBMIT_RULE_RECOMPUTE_SUPPORTED,
@@ -30,6 +33,7 @@ import {
 } from './types';
 import { cloneFormSchema } from './clone';
 import { createValidationResult, type ValidationDiagnostic } from '@evolyn.do/validator';
+import { FORMULA_FUNCTION_BY_NAME, parseFormula, type FormulaNode } from '@evolyn.do/formula';
 
 /** 单条校验问题：path 为 JSON Path（如 content.items[2].widget.options[0].value）。 */
 export type FormSchemaIssue = ValidationDiagnostic;
@@ -172,6 +176,8 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
       'fieldShowRules',
       'submitRule',
       'widget_submit_rules',
+      'validators',
+      'preSubmitConfirm',
     ],
     'content',
     issues,
@@ -203,6 +209,361 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
   validateLayouts(content, seenNames, issues);
   validateFieldShowRules(content, issues);
   validateSubmitRules(content, issues);
+  validateSubmitValidation(content, issues);
+}
+
+/**
+ * v7 提交校验与二次确认的保存期校验。这里仅做静态结构、字段引用、函数目录与
+ * 根结果类型检查；提交时的权威求值由后端编译产物完成，浏览器不会执行源码。
+ */
+function validateSubmitValidation(
+  content: Record<string, unknown>,
+  issues: FormSchemaIssue[],
+): void {
+  const topItems = new Map<string, FormWidgetType>();
+  for (const item of content.items as FormItem[]) {
+    if (isPlainObject(item) && isPlainObject(item.widget)) {
+      const name = item.widget.widgetName;
+      const type = item.widget.type;
+      if (typeof name === 'string' && typeof type === 'string') {
+        topItems.set(name, type as FormWidgetType);
+      }
+    }
+  }
+
+  const rawValidators = content.validators;
+  if (!Array.isArray(rawValidators)) {
+    issues.push({ path: 'content.validators', message: 'validators 必须是数组（v7 起必填）' });
+  } else {
+    if (rawValidators.length > SUBMIT_VALIDATION_LIMITS.maxValidators) {
+      issues.push({
+        path: 'content.validators',
+        message: `提交校验规则数量不能超过 ${SUBMIT_VALIDATION_LIMITS.maxValidators}`,
+      });
+    }
+    rawValidators.forEach((rawValidator, index) => {
+      validateSubmitValidator(rawValidator, `content.validators[${index}]`, topItems, issues);
+    });
+  }
+
+  validatePreSubmitConfirm(content.preSubmitConfirm, topItems, issues);
+}
+
+function validateSubmitValidator(
+  rawValidator: unknown,
+  path: string,
+  topItems: ReadonlyMap<string, FormWidgetType>,
+  issues: FormSchemaIssue[],
+): void {
+  if (!isPlainObject(rawValidator)) {
+    issues.push({ path, message: '提交校验规则必须是 JSON 对象' });
+    return;
+  }
+  rejectUnknownKeys(
+    rawValidator,
+    ['formula', 'remind', 'remark', 'realtime', 'failAction'],
+    path,
+    issues,
+  );
+  const formula = rawValidator.formula;
+  if (typeof formula !== 'string' || formula.trim() === '') {
+    issues.push({ path: `${path}.formula`, message: 'formula 必须是非空字符串' });
+  } else if (formula.length > SUBMIT_VALIDATION_LIMITS.formulaMaxLength) {
+    issues.push({
+      path: `${path}.formula`,
+      message: `formula 不能超过 ${SUBMIT_VALIDATION_LIMITS.formulaMaxLength} 个字符`,
+    });
+  } else {
+    validateValidatorFormula(formula, `${path}.formula`, topItems, issues);
+  }
+
+  validateTemplate(
+    rawValidator.remind,
+    `${path}.remind`,
+    'remind',
+    SUBMIT_VALIDATION_LIMITS.remindMaxLength,
+    topItems,
+    true,
+    issues,
+  );
+  if (
+    typeof rawValidator.remark !== 'string' ||
+    rawValidator.remark.length > SUBMIT_VALIDATION_LIMITS.remarkMaxLength
+  ) {
+    issues.push({
+      path: `${path}.remark`,
+      message: `remark 必须是不超过 ${SUBMIT_VALIDATION_LIMITS.remarkMaxLength} 个字符的字符串`,
+    });
+  }
+  if (typeof rawValidator.realtime !== 'boolean') {
+    issues.push({ path: `${path}.realtime`, message: 'realtime 必须是布尔值' });
+  }
+  if (rawValidator.failAction !== 0 && rawValidator.failAction !== 1) {
+    issues.push({ path: `${path}.failAction`, message: 'failAction 必须是整数 0 / 1' });
+  }
+}
+
+function validatePreSubmitConfirm(
+  rawConfirm: unknown,
+  topItems: ReadonlyMap<string, FormWidgetType>,
+  issues: FormSchemaIssue[],
+): void {
+  const path = 'content.preSubmitConfirm';
+  if (!isPlainObject(rawConfirm)) {
+    issues.push({ path, message: 'preSubmitConfirm 必须是对象（v7 起必填）' });
+    return;
+  }
+  rejectUnknownKeys(rawConfirm, ['enable', 'title', 'content'], path, issues);
+  if (typeof rawConfirm.enable !== 'boolean') {
+    issues.push({ path: `${path}.enable`, message: 'enable 必须是布尔值' });
+  }
+  validateTemplate(
+    rawConfirm.title,
+    `${path}.title`,
+    'title',
+    SUBMIT_VALIDATION_LIMITS.confirmTitleMaxLength,
+    topItems,
+    true,
+    issues,
+  );
+  validateTemplate(
+    rawConfirm.content,
+    `${path}.content`,
+    'content',
+    SUBMIT_VALIDATION_LIMITS.confirmContentMaxLength,
+    topItems,
+    true,
+    issues,
+  );
+}
+
+function validateTemplate(
+  rawTemplate: unknown,
+  path: string,
+  label: string,
+  maxLength: number,
+  topItems: ReadonlyMap<string, FormWidgetType>,
+  required: boolean,
+  issues: FormSchemaIssue[],
+): void {
+  if (typeof rawTemplate !== 'string' || (required && rawTemplate.trim() === '')) {
+    issues.push({ path, message: `${label} 必须是非空字符串` });
+    return;
+  }
+  if (rawTemplate.length > maxLength) {
+    issues.push({ path, message: `${label} 不能超过 ${maxLength} 个字符` });
+    return;
+  }
+  const tokenPattern = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+  const consumed = rawTemplate.replace(tokenPattern, '');
+  if (consumed.includes('${')) {
+    issues.push({ path, message: `${label} 包含非法字段变量` });
+  }
+  for (const match of rawTemplate.matchAll(tokenPattern)) {
+    const name = match[1]!;
+    const type = topItems.get(name);
+    if (!type) {
+      issues.push({ path, message: `${label} 引用了不存在的字段「${name}」` });
+    } else if (!SUBMIT_VALIDATOR_SOURCE_TYPES.includes(type)) {
+      issues.push({ path, message: `${label} 字段「${name}」的类型暂不支持插值` });
+    }
+  }
+}
+
+function validateValidatorFormula(
+  formula: string,
+  path: string,
+  topItems: ReadonlyMap<string, FormWidgetType>,
+  issues: FormSchemaIssue[],
+): void {
+  const parsed = parseFormula(formula);
+  for (const diagnostic of parsed.diagnostics) {
+    if (diagnostic.severity === 'error') issues.push({ path, message: diagnostic.message });
+  }
+  if (!parsed.ast || parsed.diagnostics.some((diagnostic) => diagnostic.severity === 'error'))
+    return;
+
+  const fields = collectFormulaFieldNames(parsed.ast);
+  for (const name of fields) {
+    const type = topItems.get(name);
+    if (!type) {
+      issues.push({ path, message: `formula 引用了不存在的字段「${name}」` });
+    } else if (!SUBMIT_VALIDATOR_SOURCE_TYPES.includes(type)) {
+      issues.push({ path, message: `formula 字段「${name}」的类型暂不支持参与提交校验` });
+    }
+  }
+  const calls = collectFormulaCalls(parsed.ast);
+  for (const call of calls) {
+    if (!SUBMIT_VALIDATOR_FUNCTIONS.has(call) || !FORMULA_FUNCTION_BY_NAME.has(call)) {
+      issues.push({ path, message: `formula 使用了未开放函数「${call}」` });
+    }
+  }
+  visitFormulaNode(parsed.ast, (node) => {
+    if (node.kind !== 'call') return;
+    const definition = FORMULA_FUNCTION_BY_NAME.get(node.name);
+    if (!definition || !SUBMIT_VALIDATOR_FUNCTIONS.has(node.name)) return;
+    if (!isFormulaArityValid(definition, node.args.length)) {
+      issues.push({ path, message: `函数「${node.name}」的参数数量不正确` });
+    }
+  });
+  validateFormulaNodeTypes(parsed.ast, topItems, path, issues);
+  if (inferFormulaNodeType(parsed.ast, topItems) !== 'boolean') {
+    issues.push({ path, message: 'formula 的根结果必须是 boolean' });
+  }
+}
+
+/** v7 白名单函数的输入类型矩阵；unknown 仅用于已由字段/函数校验覆盖的过渡分支。 */
+function validateFormulaNodeTypes(
+  node: FormulaNode,
+  topItems: ReadonlyMap<string, FormWidgetType>,
+  path: string,
+  issues: FormSchemaIssue[],
+): void {
+  const typeOf = (entry: FormulaNode): string => inferFormulaNodeType(entry, topItems);
+  const expectType = (entry: FormulaNode | undefined, expected: string, label: string): void => {
+    if (!entry) return;
+    const actual = typeOf(entry);
+    if (actual !== 'unknown' && actual !== expected) {
+      issues.push({ path, message: `${label} 必须是 ${expected} 类型` });
+    }
+  };
+  const expectAll = (entries: readonly FormulaNode[], expected: string, label: string): void => {
+    entries.forEach((entry) => expectType(entry, expected, label));
+  };
+  visitFormulaNode(node, (entry) => {
+    if (entry.kind === 'unary') {
+      expectType(entry.argument, 'number', '一元运算参数');
+      return;
+    }
+    if (entry.kind === 'binary') {
+      const left = typeOf(entry.left);
+      const right = typeOf(entry.right);
+      if (['+', '-', '*', '/', '%', '^'].includes(entry.operator)) {
+        expectType(entry.left, 'number', '算术运算左参数');
+        expectType(entry.right, 'number', '算术运算右参数');
+      } else if (
+        left !== 'unknown' &&
+        right !== 'unknown' &&
+        (left !== right || left === 'array')
+      ) {
+        issues.push({ path, message: '比较运算两侧必须是相同的标量类型' });
+      }
+      return;
+    }
+    if (entry.kind !== 'call') return;
+    switch (entry.name) {
+      case 'AND':
+      case 'OR':
+        expectAll(entry.args, 'boolean', `${entry.name} 参数`);
+        break;
+      case 'NOT':
+        expectType(entry.args[0], 'boolean', 'NOT 参数');
+        break;
+      case 'IF': {
+        expectType(entry.args[0], 'boolean', 'IF 条件参数');
+        const trueType = entry.args[1] ? typeOf(entry.args[1]) : 'unknown';
+        const falseType = entry.args[2] ? typeOf(entry.args[2]) : 'unknown';
+        if (trueType !== 'unknown' && falseType !== 'unknown' && trueType !== falseType) {
+          issues.push({ path, message: 'IF 的两个结果参数必须类型一致' });
+        }
+        break;
+      }
+      case 'LEN':
+      case 'LOWER':
+      case 'UPPER':
+      case 'TRIM':
+        expectType(entry.args[0], 'text', `${entry.name} 参数`);
+        break;
+      case 'CONCATENATE':
+        expectAll(entry.args, 'text', 'CONCATENATE 参数');
+        break;
+      case 'ABS':
+      case 'ROUND':
+        expectAll(entry.args, 'number', `${entry.name} 参数`);
+        break;
+      case 'DATE':
+        expectAll(entry.args, 'number', 'DATE 参数');
+        break;
+      case 'DATEDIF':
+        expectType(entry.args[0], 'date', 'DATEDIF 开始日期');
+        expectType(entry.args[1], 'date', 'DATEDIF 结束日期');
+        expectType(entry.args[2], 'text', 'DATEDIF 单位');
+        break;
+      default:
+        break;
+    }
+  });
+}
+
+function isFormulaArityValid(
+  definition: { minArgs?: number; maxArgs?: number; arity?: readonly number[] },
+  count: number,
+): boolean {
+  if (definition.arity) return definition.arity.includes(count);
+  return (
+    (definition.minArgs === undefined || count >= definition.minArgs) &&
+    (definition.maxArgs === undefined || count <= definition.maxArgs)
+  );
+}
+
+function collectFormulaFieldNames(node: FormulaNode): Set<string> {
+  const names = new Set<string>();
+  visitFormulaNode(node, (current) => {
+    if (current.kind === 'field') names.add(current.widgetName);
+  });
+  return names;
+}
+
+function collectFormulaCalls(node: FormulaNode): Set<string> {
+  const names = new Set<string>();
+  visitFormulaNode(node, (current) => {
+    if (current.kind === 'call') names.add(current.name);
+  });
+  return names;
+}
+
+function visitFormulaNode(node: FormulaNode, visit: (node: FormulaNode) => void): void {
+  visit(node);
+  if (node.kind === 'array') node.elements.forEach((entry) => visitFormulaNode(entry, visit));
+  if (node.kind === 'unary') visitFormulaNode(node.argument, visit);
+  if (node.kind === 'binary') {
+    visitFormulaNode(node.left, visit);
+    visitFormulaNode(node.right, visit);
+  }
+  if (node.kind === 'call') node.args.forEach((entry) => visitFormulaNode(entry, visit));
+}
+
+function inferFormulaNodeType(
+  node: FormulaNode,
+  topItems: ReadonlyMap<string, FormWidgetType>,
+): string {
+  if (node.kind === 'literal') return node.valueType;
+  if (node.kind === 'field') return formulaValueTypeOf(topItems.get(node.widgetName));
+  if (node.kind === 'array') return 'array';
+  if (node.kind === 'unary') return 'number';
+  if (node.kind === 'binary') {
+    return ['==', '!=', '>', '>=', '<', '<='].includes(node.operator) ? 'boolean' : 'number';
+  }
+  if (node.name === 'IF' && node.args.length === 3) {
+    const whenTrue = inferFormulaNodeType(node.args[1]!, topItems);
+    const whenFalse = inferFormulaNodeType(node.args[2]!, topItems);
+    return whenTrue === whenFalse ? whenTrue : 'unknown';
+  }
+  return FORMULA_FUNCTION_BY_NAME.get(node.name)?.returnType ?? 'unknown';
+}
+
+function formulaValueTypeOf(type: FormWidgetType | undefined): string {
+  switch (type) {
+    case 'number':
+      return 'number';
+    case 'datetime':
+      return 'date';
+    case 'checkboxgroup':
+    case 'combocheck':
+      return 'array';
+    default:
+      return type ? 'text' : 'unknown';
+  }
 }
 
 /**

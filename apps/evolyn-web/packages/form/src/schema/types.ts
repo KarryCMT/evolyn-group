@@ -9,7 +9,7 @@
  */
 
 /** 协议版本常量；递增时必须同步版本迁移器（migrate.ts）与字段字典。 */
-export const FORM_PROTOCOL_VERSION = 6 as const;
+export const FORM_PROTOCOL_VERSION = 7 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -449,6 +449,28 @@ export interface FormItem<W extends FormItemWidget = FormItemWidget> {
   lineWidth: number;
 }
 
+/** 表单级提交校验失败动作：0=阻断，1=填写人确认后可继续。 */
+export type SubmitValidatorFailAction = 0 | 1;
+
+/**
+ * 提交校验规则（v7）：formula 是受控公式源码，remind 是仅展示用模板；二者都
+ * 不能由运行时以 eval 或字符串替换的方式执行。
+ */
+export interface SubmitValidator {
+  formula: string;
+  remind: string;
+  remark: string;
+  realtime: boolean;
+  failAction: SubmitValidatorFailAction;
+}
+
+/** 提交前二次确认配置（v7）；关闭时标题和正文仍必须保留合法模板。 */
+export interface PreSubmitConfirm {
+  enable: boolean;
+  title: string;
+  content: string;
+}
+
 export interface FormContent {
   type: 'form';
   /** 表单默认列布局；切换时同步重置所有普通字段的 lineWidth。 */
@@ -477,6 +499,10 @@ export interface FormContent {
    * 自动移除。空对象必须原样保留。
    */
   widget_submit_rules: Record<string, SubmitRule>;
+  /** 表单级提交校验规则（v7）；空数组是关闭的唯一表示。 */
+  validators: SubmitValidator[];
+  /** 表单提交前的纯客户端二次确认配置（v7）。 */
+  preSubmitConfirm: PreSubmitConfirm;
 }
 
 /** 表单级默认列布局；字段仍可通过 lineWidth 单独覆盖实际宽度。 */

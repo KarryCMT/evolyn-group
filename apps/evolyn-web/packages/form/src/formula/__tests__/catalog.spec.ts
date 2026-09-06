@@ -14,7 +14,7 @@ const fields: FormulaEditorField[] = [
 describe('formula catalog', () => {
   it('覆盖规范中的五类函数及全部已登记函数名', () => {
     const names = new Set(FORMULA_FUNCTIONS.map((item) => item.name));
-    expect(FORMULA_FUNCTIONS).toHaveLength(87);
+    expect(FORMULA_FUNCTIONS).toHaveLength(88);
     [
       'AND',
       'FALSE',
@@ -28,6 +28,7 @@ describe('formula catalog', () => {
       'CHAR',
       'EXACT',
       'IP',
+      'ISBLANK',
       'ISEMPTY',
       'JOIN',
       'LEFT',

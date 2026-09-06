@@ -287,7 +287,9 @@ import type {
   ComboCheckWidget,
   ComboWidget,
   RadioGroupWidget,
+  PreSubmitConfirm,
   SubmitRule,
+  SubmitValidator,
 } from '../schema/types';
 import { widgetTypeLabel } from '../schema/dictionary';
 import { submitRuleLabel } from '../schema/invisible-value-policy';
@@ -305,11 +307,6 @@ import FormSchemaFieldShowRulesDrawer from './FormSchemaFieldShowRulesDrawer.vue
 import FormSchemaSubmitRuleDialog from './FormSchemaSubmitRuleDialog.vue';
 import FormSchemaPreSubmitConfirmSettings from './FormSchemaPreSubmitConfirmSettings.vue';
 import FormSchemaSubmitValidationSettings from './FormSchemaSubmitValidationSettings.vue';
-import {
-  createPreSubmitConfirmDraft,
-  type PreSubmitConfirmDraft,
-  type SubmitValidatorDraft,
-} from './submit-validation-types';
 
 /**
  * 字段属性面板：编辑 item 公共属性与按 widget.type 分派的专属配置。
@@ -330,6 +327,10 @@ const props = withDefaults(
     submitRule?: SubmitRule;
     /** 特殊字段赋值规则映射（v6 content.widget_submit_rules）。 */
     widgetSubmitRules?: Record<string, SubmitRule>;
+    /** v7 表单级提交校验规则（协议文档为唯一事实源）。 */
+    validators?: SubmitValidator[];
+    /** v7 二次确认配置；关闭时标题和正文仍保留。 */
+    preSubmitConfirm?: PreSubmitConfirm;
   }>(),
   {
     item: undefined,
@@ -341,6 +342,12 @@ const props = withDefaults(
     fieldShowRules: () => [],
     submitRule: 2,
     widgetSubmitRules: () => ({}),
+    validators: () => [],
+    preSubmitConfirm: () => ({
+      enable: false,
+      title: '确认继续提交吗？',
+      content: '请确认填写内容无误后继续提交。',
+    }),
   },
 );
 
@@ -361,13 +368,21 @@ const emit = defineEmits<{
   'reorder-field-show-rules': [ruleIds: string[]];
   'update-submit-rule': [rule: SubmitRule];
   'update-widget-submit-rules': [rules: Record<string, SubmitRule>];
+  'update-validators': [validators: SubmitValidator[]];
+  'update-pre-submit-confirm': [confirm: PreSubmitConfirm];
 }>();
 
 const showRulesDrawer = shallowRef(false);
 const submitRuleDialog = shallowRef(false);
-// 提交二次确认/校验数据当前只实施设计器 UI；后端协议尚未开放前不得混入 content。
-const preSubmitConfirm = ref<PreSubmitConfirmDraft>(createPreSubmitConfirmDraft());
-const submitValidators = ref<SubmitValidatorDraft[]>([]);
+/** v7 配置经显式事件回流到 useFormSchemaEditor，属性面板不保留第二份草稿事实。 */
+const preSubmitConfirm = computed<PreSubmitConfirm>({
+  get: () => props.preSubmitConfirm,
+  set: (confirm) => emit('update-pre-submit-confirm', structuredClone(confirm)),
+});
+const submitValidators = computed<SubmitValidator[]>({
+  get: () => props.validators,
+  set: (validators) => emit('update-validators', structuredClone(validators)),
+});
 // 特殊规则摘要卡初始收起，避免属性面板被长字段列表占满（§5.1）。
 const summaryExpanded = shallowRef(false);
 const expandedSummaryGroups = ref<Set<number>>(new Set());

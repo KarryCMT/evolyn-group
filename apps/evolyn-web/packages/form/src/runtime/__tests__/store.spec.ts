@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { FormItem, FormSchemaDocument } from '../../schema/types';
 import { createFormRuntime } from '../store/createFormRuntime';
 import type { FormSubmitResult } from '../types';
@@ -33,6 +33,12 @@ function documentOf(items: FormItem[]): FormSchemaDocument {
       fieldShowRules: [],
       submitRule: 2,
       widget_submit_rules: {},
+      validators: [],
+      preSubmitConfirm: {
+        enable: false,
+        title: '确认继续提交吗？',
+        content: '请确认填写内容无误后继续提交。',
+      },
     },
   };
 }
@@ -310,6 +316,12 @@ function rulesDocumentOf(
       fieldShowRules,
       submitRule: 2,
       widget_submit_rules: {},
+      validators: [],
+      preSubmitConfirm: {
+        enable: false,
+        title: '确认继续提交吗？',
+        content: '请确认填写内容无误后继续提交。',
+      },
     },
   };
 }
@@ -622,5 +634,81 @@ describe('createFormRuntime 字段权限合成（v5）', () => {
       initialValues: { _widget_src: '甲' },
     });
     expect(runtime.state.fieldStates['_widget_target']!.visible).toBe(true);
+  });
+});
+
+describe('createFormRuntime 提交时校验（v7）', () => {
+  function validatorForm(failAction: 0 | 1): FormSchemaDocument {
+    const schema = documentOf([item({ type: 'text', widgetName: '_widget_phone' })]);
+    schema.content.validators = [
+      {
+        formula: 'LEN($_widget_phone#) == 11',
+        remind: '联系电话 ${_widget_phone} 必须为 11 位数字',
+        remark: '',
+        realtime: true,
+        failAction,
+      },
+    ];
+    schema.content.preSubmitConfirm = {
+      enable: true,
+      title: '确认提交？',
+      content: '联系电话：${_widget_phone}',
+    };
+    return schema;
+  }
+
+  it('阻断规则在请求前附着字段错误并停止提交', async () => {
+    const submit = vi.fn(async (): Promise<FormSubmitResult> => ({ accepted: true }));
+    const runtime = createFormRuntime({ schema: validatorForm(0), adapter: { submit } });
+    runtime.setValue('_widget_phone', '123');
+
+    const outcome = await runtime.submit();
+    expect(outcome).toMatchObject({ ok: false, reason: 'invalid' });
+    expect(runtime.state.fieldStates['_widget_phone']!.errors).toContain(
+      '联系电话 123 必须为 11 位数字',
+    );
+    expect(submit).not.toHaveBeenCalled();
+  });
+
+  it('软告警经确认后继续，并把动态二次确认文案交给 Surface', async () => {
+    const submit = vi.fn(async (): Promise<FormSubmitResult> => ({ accepted: true }));
+    const submitConfirmation = vi.fn(async () => true);
+    const runtime = createFormRuntime({
+      schema: validatorForm(1),
+      adapter: { submit },
+      submitConfirmation,
+    });
+    runtime.setValue('_widget_phone', '123');
+
+    const outcome = await runtime.submit();
+    expect(outcome.ok).toBe(true);
+    expect(submit).toHaveBeenCalledOnce();
+    expect(submitConfirmation).toHaveBeenCalledWith({
+      warnings: [
+        expect.objectContaining({
+          remind: '联系电话 123 必须为 11 位数字',
+          failAction: 1,
+        }),
+      ],
+      confirmation: { title: '确认提交？', content: '联系电话：123' },
+    });
+  });
+
+  it('实时校验按 250ms 合并输入变化，并在规则重新通过后清理提示', () => {
+    vi.useFakeTimers();
+    try {
+      const runtime = createFormRuntime({ schema: validatorForm(0) });
+      runtime.setValue('_widget_phone', '123');
+      runtime.setValue('_widget_phone', '456');
+      vi.advanceTimersByTime(249);
+      expect(runtime.state.issues).toHaveLength(0);
+      vi.advanceTimersByTime(1);
+      expect(runtime.state.issues).toHaveLength(1);
+      runtime.setValue('_widget_phone', '13800138000');
+      vi.advanceTimersByTime(250);
+      expect(runtime.state.issues).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

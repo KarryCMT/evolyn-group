@@ -3,6 +3,7 @@ import {
   copyWidgetItem,
   createFieldShowRule,
   createWidgetItem,
+  DEFAULT_PRE_SUBMIT_CONFIRM,
   FORM_LAYOUT_LINE_WIDTH,
   generateFieldShowRuleId,
   generateLayoutName,
@@ -18,9 +19,11 @@ import type {
   FormItem,
   FormLayoutMode,
   FormMultitabLayout,
+  PreSubmitConfirm,
   FormSchemaDocument,
   FormWidgetType,
   SubmitRule,
+  SubmitValidator,
   SubformWidget,
 } from '../schema/types';
 import { SUBFORM_ALLOWED_WIDGET_TYPES } from '../schema/types';
@@ -57,6 +60,8 @@ export function createEmptyFormSchemaDocument(): FormSchemaDocument {
       fieldShowRules: [],
       submitRule: 2,
       widget_submit_rules: {},
+      validators: [],
+      preSubmitConfirm: structuredClone(DEFAULT_PRE_SUBMIT_CONFIRM),
     },
   };
 }
@@ -79,6 +84,8 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
   const fieldShowRules = computed(() => document.value.content.fieldShowRules);
   const submitRule = computed(() => document.value.content.submitRule);
   const widgetSubmitRules = computed(() => document.value.content.widget_submit_rules);
+  const submitValidators = computed(() => document.value.content.validators);
+  const preSubmitConfirm = computed(() => document.value.content.preSubmitConfirm);
   // items 可能瞬时混有素材面板拖入的临时对象（仅 paletteType 标记、无 widget，
   // 会在 add 事件内被真实字段项替换）；所有遍历必须经 widgetOf 收窄，避免
   // undefined.widgetName 在响应式重算路径上抛错。
@@ -197,10 +204,12 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     subform.items.splice(0, subform.items.length, ...next.slice(0, 200));
   }
 
-  /** 删除顶层字段：被显隐规则或特殊赋值规则引用时阻断，直至规则被处理（§5.2/v6 §3.2）。 */
+  /** 删除顶层字段：任何协议规则引用都必须先由设计者处理，避免产生坏草稿。 */
   function removeItem(key: string): boolean {
     if (fieldShowRulesReferencing(key).length > 0) return false;
     if (widgetSubmitRulesOf(key) !== undefined) return false;
+    if (submitValidatorsReferencing(key).length > 0 || preSubmitConfirmReferences(key))
+      return false;
     const index = items.value.findIndex((item) => widgetOf(item)?.widgetName === key);
     if (index === -1) return false;
     items.value.splice(index, 1);
@@ -242,6 +251,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     replaceFieldShowRuleReferences(previousKey, nextKey);
     // 特殊字段赋值规则同样以 widgetName 为键：改名原子同步（v6 §3.2）。
     replaceWidgetSubmitRuleReferences(previousKey, nextKey);
+    replaceSubmitValidationReferences(previousKey, nextKey);
     selectedKey.value = nextKey;
   }
 
@@ -272,6 +282,13 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     if ((typeChanged || hiddenTurn) && fieldShowRulesReferencing(previousKey).length > 0) {
       return false;
     }
+    if (
+      (typeChanged || hiddenTurn) &&
+      (submitValidatorsReferencing(previousKey).length > 0 ||
+        preSubmitConfirmReferences(previousKey))
+    ) {
+      return false;
+    }
     // 特殊赋值规则依赖字段的值语义：类型变更为不可处理控件时阻断（v6 §3.2）。
     if (
       typeChanged &&
@@ -287,6 +304,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
       replaceReferenceEverywhere(previousKey, next.widget.widgetName);
       replaceFieldShowRuleReferences(previousKey, next.widget.widgetName);
       replaceWidgetSubmitRuleReferences(previousKey, next.widget.widgetName);
+      replaceSubmitValidationReferences(previousKey, next.widget.widgetName);
       selectedKey.value = next.widget.widgetName;
     }
     return true;
@@ -328,6 +346,38 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
       }
       rule.fields = rule.fields.map((field) => (field === previousKey ? nextKey : field));
     }
+  }
+
+  /** 返回引用字段的 v7 校验规则；公式和三个展示模板均需纳入生命周期保护。 */
+  function submitValidatorsReferencing(key: string): SubmitValidator[] {
+    const formulaToken = `$${key}#`;
+    const templateToken = `\${${key}}`;
+    return document.value.content.validators.filter(
+      (validator) =>
+        validator.formula.includes(formulaToken) || validator.remind.includes(templateToken),
+    );
+  }
+
+  /** 二次确认文案也受字段生命周期保护，但不伪装成校验规则条目。 */
+  function preSubmitConfirmReferences(key: string): boolean {
+    const templateToken = `\${${key}}`;
+    const confirm = document.value.content.preSubmitConfirm;
+    return confirm.title.includes(templateToken) || confirm.content.includes(templateToken);
+  }
+
+  /** 字段改名时原子重写受控变量 token，绝不做显示名或模糊文本替换。 */
+  function replaceSubmitValidationReferences(previousKey: string, nextKey: string): void {
+    const formulaToken = `$${previousKey}#`;
+    const nextFormulaToken = `$${nextKey}#`;
+    const templateToken = `\${${previousKey}}`;
+    const nextTemplateToken = `\${${nextKey}}`;
+    for (const validator of document.value.content.validators) {
+      validator.formula = validator.formula.split(formulaToken).join(nextFormulaToken);
+      validator.remind = validator.remind.split(templateToken).join(nextTemplateToken);
+    }
+    const confirm = document.value.content.preSubmitConfirm;
+    confirm.title = confirm.title.split(templateToken).join(nextTemplateToken);
+    confirm.content = confirm.content.split(templateToken).join(nextTemplateToken);
   }
 
   /** 删除标签页只解散容器：其中字段移动到整个标签页组之后，绝不删除字段定义。 */
@@ -525,6 +575,16 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     );
   }
 
+  /** v7 提交规则整体替换：组件只上抛 JSON 安全副本，文档保持唯一事实源。 */
+  function setSubmitValidators(validators: SubmitValidator[]): void {
+    document.value.content.validators = structuredClone(validators);
+  }
+
+  /** v7 二次确认整体替换；关闭配置也原样持久化 title/content。 */
+  function setPreSubmitConfirm(confirm: PreSubmitConfirm): void {
+    document.value.content.preSubmitConfirm = structuredClone(confirm);
+  }
+
   /** 就地替换特殊规则键（字段改名时原子同步）。 */
   function replaceWidgetSubmitRuleReferences(previousKey: string, nextKey: string): void {
     const rules = document.value.content.widget_submit_rules;
@@ -655,6 +715,8 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     fieldShowRules,
     submitRule,
     widgetSubmitRules,
+    submitValidators,
+    preSubmitConfirm,
     selectedKey,
     selectedItem,
     selectedLayout,
@@ -671,9 +733,13 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     renameItemKey,
     updateSelectedItem,
     fieldShowRulesReferencing,
+    submitValidatorsReferencing,
+    preSubmitConfirmReferences,
     widgetSubmitRulesOf,
     setSubmitRule,
     applyWidgetSubmitRules,
+    setSubmitValidators,
+    setPreSubmitConfirm,
     addMultitab,
     addTab,
     removeTab,
@@ -693,11 +759,25 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
   };
 }
 
-/** 防御性补齐 v5/v6 表单级键（正规读取路径经迁移器补齐，这里兜底直载旧文档）。 */
+/** 防御性补齐 v5–v7 表单级键（正规读取路径经迁移器补齐，这里兜底直载旧文档）。 */
 function normalizeContentKeys(content: FormSchemaDocument['content']): void {
   if (!Array.isArray(content.fieldShowRules)) content.fieldShowRules = [];
   if (!isSubmitRuleValue(content.submitRule)) content.submitRule = 2;
   if (!isPlainRecord(content.widget_submit_rules)) content.widget_submit_rules = {};
+  if (!Array.isArray(content.validators)) content.validators = [];
+  if (!isPreSubmitConfirm(content.preSubmitConfirm)) {
+    content.preSubmitConfirm = structuredClone(DEFAULT_PRE_SUBMIT_CONFIRM);
+  }
+}
+
+function isPreSubmitConfirm(value: unknown): value is PreSubmitConfirm {
+  return Boolean(
+    value &&
+    typeof value === 'object' &&
+    typeof (value as PreSubmitConfirm).enable === 'boolean' &&
+    typeof (value as PreSubmitConfirm).title === 'string' &&
+    typeof (value as PreSubmitConfirm).content === 'string',
+  );
 }
 
 function isSubmitRuleValue(value: unknown): value is SubmitRule {

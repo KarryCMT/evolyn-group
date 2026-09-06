@@ -20,6 +20,11 @@ import {
   resolveSubmitStrategy,
   type InvisibleValuePolicyView,
 } from '../../schema/invisible-value-policy';
+import {
+  evaluateSubmitValidators,
+  renderSubmitTemplate,
+  type SubmitValidatorFailure,
+} from '../../schema/submit-validation';
 import type { FormItem, FormSchemaDocument, SubmitRule } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
 import type {
@@ -69,7 +74,18 @@ export interface FormRuntimeOptions {
   fieldPermissions?: Record<string, FormRuntimeFieldPermission>;
   /** 业务能力注入边界；缺省时提交仅生成载荷交由页面处理。 */
   adapter?: FormRuntimeAdapter;
+  /** 由 Web/移动 Surface 注入的交互边界；Store 只产出警告和确认文案，不依赖 UI 框架。 */
+  submitConfirmation?: FormSubmitConfirmationHandler;
 }
+
+export interface FormSubmitConfirmationContext {
+  warnings: readonly SubmitValidatorFailure[];
+  confirmation?: { title: string; content: string };
+}
+
+export type FormSubmitConfirmationHandler = (
+  context: FormSubmitConfirmationContext,
+) => boolean | Promise<boolean>;
 
 export type FormSubmitOutcome =
   | { ok: true; payload: FormSubmitPayload; submitted: boolean }
@@ -126,6 +142,9 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   const ruleById = new Map(compiledRules.rules.map((rule) => [rule.id, rule]));
   // v6 不可见字段赋值策略解析（防御式：旧快照缺键回退默认「空值」）。
   const submitPolicy: InvisibleValuePolicyView = readInvisibleValuePolicy(schema.content);
+  let realtimeValidationTimer: ReturnType<typeof setTimeout> | undefined;
+  let realtimeValidationPending = false;
+  const validatorMessagesByField = new Map<string, string[]>();
   // 字段权限矩阵：未提供（预览/草稿回放）视为全量放行；提供后缺失键
   // deny-by-default，与后端 FieldsForNew 投影同口径（设计方案 §4.2）。
   const permissions = options.fieldPermissions;
@@ -200,6 +219,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     }
     // 显隐规则：仅重算变更字段的下游闭包（拓扑序），不做全量规则扫描。
     recomputeDownstreamVisibility(key);
+    if (source === 'user') scheduleRealtimeValidation();
   }
 
   // ---- 显隐规则引擎（v5 设计方案 §4.2/§6.1） ----
@@ -317,6 +337,61 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     return valid;
   }
 
+  /** 250ms 合并输入变更；规则数上限仅 50，整批求值可保证显隐变化后旧提示及时失效。 */
+  function scheduleRealtimeValidation(): void {
+    realtimeValidationPending = true;
+    if (realtimeValidationTimer) clearTimeout(realtimeValidationTimer);
+    realtimeValidationTimer = setTimeout(() => {
+      realtimeValidationTimer = undefined;
+      if (!realtimeValidationPending) return;
+      realtimeValidationPending = false;
+      const failures = evaluateSubmitValidators(schema.content, validatorContext()).filter(
+        (failure) => schema.content.validators[failure.index]?.realtime,
+      );
+      applyValidatorFailures(failures);
+    }, 250);
+  }
+
+  function validatorContext() {
+    return {
+      values: state.values,
+      isVisible: (field: string) => effectiveVisible(field),
+    };
+  }
+
+  /** 将规则失败附着到第一个可见、可编辑的依赖字段；无法定位时进入表单摘要。 */
+  function applyValidatorFailures(failures: readonly SubmitValidatorFailure[]): void {
+    clearValidatorFailures();
+    const issues: FormIssue[] = [];
+    for (const failure of failures) {
+      const fieldKey = failure.fields.find(
+        (field) => effectiveVisible(field) && !state.fieldStates[field]?.disabled,
+      );
+      if (fieldKey) {
+        const messages = validatorMessagesByField.get(fieldKey) ?? [];
+        messages.push(failure.remind);
+        validatorMessagesByField.set(fieldKey, messages);
+        state.fieldStates[fieldKey]!.errors = [
+          ...state.fieldStates[fieldKey]!.errors,
+          failure.remind,
+        ];
+      }
+      issues.push({ fieldKey, message: failure.remind, source: 'validator' });
+    }
+    state.issues = [...state.issues.filter((issue) => issue.source !== 'validator'), ...issues];
+  }
+
+  function clearValidatorFailures(): void {
+    for (const [fieldKey, messages] of validatorMessagesByField) {
+      const fieldState = state.fieldStates[fieldKey];
+      if (fieldState) {
+        fieldState.errors = fieldState.errors.filter((message) => !messages.includes(message));
+      }
+    }
+    validatorMessagesByField.clear();
+    state.issues = state.issues.filter((issue) => issue.source !== 'validator');
+  }
+
   function applyServerFieldErrors(fieldErrors: Record<string, string[]>): void {
     const serverIssues: FormIssue[] = [];
     for (const [key, messages] of Object.entries(fieldErrors)) {
@@ -385,6 +460,26 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     }
     if (!validateVisibleFields()) return { ok: false, reason: 'invalid' };
 
+    clearValidatorFailures();
+    const failures = evaluateSubmitValidators(schema.content, validatorContext());
+    const blockers = failures.filter((failure) => failure.failAction === 0);
+    if (blockers.length > 0) {
+      applyValidatorFailures(blockers);
+      return { ok: false, reason: 'invalid' };
+    }
+    const warnings = failures.filter((failure) => failure.failAction === 1);
+    const confirm = schema.content.preSubmitConfirm;
+    const confirmation = confirm.enable
+      ? {
+          title: renderSubmitTemplate(confirm.title, schema.content.items, validatorContext()),
+          content: renderSubmitTemplate(confirm.content, schema.content.items, validatorContext()),
+        }
+      : undefined;
+    if (warnings.length > 0 || confirmation) {
+      const accepted = await options.submitConfirmation?.({ warnings, confirmation });
+      if (accepted === false) return { ok: false, reason: 'cancelled' };
+    }
+
     const payload = buildSubmitPayload();
     const submitter = options.adapter?.submit;
     if (!submitter) return { ok: true, payload, submitted: false };
@@ -440,6 +535,10 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   }
 
   function reset(): void {
+    if (realtimeValidationTimer) clearTimeout(realtimeValidationTimer);
+    realtimeValidationTimer = undefined;
+    realtimeValidationPending = false;
+    validatorMessagesByField.clear();
     initializeValues();
     state.lifecycle = 'ready';
     state.activeOperation = null;

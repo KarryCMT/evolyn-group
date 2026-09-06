@@ -9,19 +9,23 @@ import {
   ElIcon,
   ElInput,
   ElPopover,
+  ElRadio,
+  ElRadioGroup,
   ElSwitch,
   ElTooltip,
 } from 'element-plus';
 import type { FormItem } from '../schema/types';
+import { SUBMIT_VALIDATOR_SOURCE_TYPES } from '../schema/dictionary';
 import type { PreSubmitConfirmDraft } from './submit-validation-types';
 
 const confirm = defineModel<PreSubmitConfirmDraft>({ required: true });
 const props = defineProps<{ items: FormItem[] }>();
 const dialogOpen = shallowRef(false);
 const pickerOpen = shallowRef(false);
+const insertionTarget = shallowRef<'title' | 'content'>('content');
 
 const variableItems = computed(() =>
-  props.items.filter((item) => item.widget.type !== 'separator' && item.widget.type !== 'button'),
+  props.items.filter((item) => SUBMIT_VALIDATOR_SOURCE_TYPES.includes(item.widget.type)),
 );
 const enabled = computed({
   get: () => confirm.value.enable,
@@ -43,7 +47,12 @@ const content = computed({
 });
 
 function insertField(widgetName: string): void {
-  content.value += `${content.value ? ' ' : ''}\${${widgetName}}`;
+  const token = `\${${widgetName}}`;
+  if (insertionTarget.value === 'title') {
+    title.value += `${title.value ? ' ' : ''}${token}`;
+  } else {
+    content.value += `${content.value ? ' ' : ''}${token}`;
+  }
   pickerOpen.value = false;
 }
 </script>
@@ -103,8 +112,12 @@ function insertField(widgetName: string): void {
         trigger="click"
       >
         <template #reference>
-          <el-button plain type="primary" :icon="RiAddLine">插入字段</el-button>
+          <el-button plain type="primary" :icon="RiAddLine">插入字段变量</el-button>
         </template>
+        <el-radio-group v-model="insertionTarget" class="form-pre-submit-confirm__insert-target">
+          <el-radio value="title">标题</el-radio>
+          <el-radio value="content">正文</el-radio>
+        </el-radio-group>
         <div class="form-pre-submit-confirm__field-picker" role="listbox" aria-label="可插入字段">
           <button
             v-for="item in variableItems"
@@ -187,6 +200,10 @@ function insertField(widgetName: string): void {
   &__field-picker {
     max-height: 270px;
     overflow-y: auto;
+  }
+  &__insert-target {
+    display: flex;
+    margin: 4px 8px 8px;
   }
   &__field-picker button {
     display: flex;

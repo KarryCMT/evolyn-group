@@ -6,6 +6,7 @@ import type { FormRuntimeAdapter } from '../adapters/types';
 import {
   type FormDraftOutcome,
   type FormRuntime,
+  type FormSubmitConfirmationHandler,
   type FormSubmitOutcome,
   createFormRuntime,
 } from '../store/createFormRuntime';
@@ -41,6 +42,8 @@ const props = withDefaults(
     /** 字段权限矩阵（bootstrap permissions 按模式投影）；未提供全量放行。 */
     fieldPermissions?: Record<string, FormRuntimeFieldPermission>;
     adapter?: FormRuntimeAdapter;
+    /** 软告警与二次确认由 Surface 实现，渲染器和 Store 不绑定具体弹窗库。 */
+    submitConfirmation?: FormSubmitConfirmationHandler;
     /** 自定义字段注册表；缺省使用基础字段默认注册表。 */
     registry?: FormFieldRegistry;
     /** 终端专属布局呈现器；Web 和移动端分别注入自己的标签页实现。 */
@@ -57,6 +60,7 @@ const props = withDefaults(
     currentMemberId: undefined,
     fieldPermissions: undefined,
     adapter: undefined,
+    submitConfirmation: undefined,
     registry: undefined,
     multitabRenderer: FormPlainMultitabRenderer,
     formDomId: undefined,
@@ -122,6 +126,7 @@ watch(
         currentMemberId: props.currentMemberId,
         fieldPermissions: props.fieldPermissions,
         adapter: props.adapter,
+        submitConfirmation: props.submitConfirmation,
       });
     } else {
       schemaIssues.value = result.issues;

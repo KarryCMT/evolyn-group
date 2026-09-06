@@ -103,7 +103,8 @@ export function getFormRuntime(
 
 /**
  * 提交记录（POST /form-records）：服务端按发布快照终审。
- * 校验失败抛 errCode=FORM_RECORD_INVALID（ApiError.data.fieldErrors 按字段键回填），
+ * 字段校验失败抛 errCode=FORM_RECORD_INVALID；表单级提交校验失败抛
+ * FORM_RECORD_VALIDATION_FAILED（data.validatorErrors 按规则下标返回），
  * 版本口令不符抛 FORM_VERSION_CONFLICT。
  */
 export function submitFormRecord(

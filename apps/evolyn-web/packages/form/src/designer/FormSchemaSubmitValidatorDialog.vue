@@ -24,6 +24,7 @@ import {
   ElTooltip,
 } from 'element-plus';
 import type { FormItem } from '../schema/types';
+import { SUBMIT_VALIDATOR_FUNCTIONS, SUBMIT_VALIDATOR_SOURCE_TYPES } from '../schema/dictionary';
 import {
   FORMULA_FUNCTIONS,
   collectFormulaDiagnostics,
@@ -61,17 +62,28 @@ const formulaIssue = shallowRef('');
 
 /** 提示文案插值可引用所有有业务值的顶层字段。 */
 const fieldItems = computed(() =>
-  props.items.filter((item) => item.widget.type !== 'separator' && item.widget.type !== 'button'),
+  props.items.filter((item) => SUBMIT_VALIDATOR_SOURCE_TYPES.includes(item.widget.type)),
 );
 /** 变量面板始终基于当前草稿投影，避免未保存字段被服务端旧版本覆盖。 */
-const formulaFields = computed<FormulaEditorField[]>(() => projectFormulaContext(props.items));
+const formulaFields = computed<FormulaEditorField[]>(() =>
+  projectFormulaContext(props.items).filter(
+    (field) =>
+      field.formulaAllowed &&
+      SUBMIT_VALIDATOR_SOURCE_TYPES.includes(
+        props.items.find((item) => item.widget.widgetName === field.widgetName)?.widget.type ??
+          'text',
+      ),
+  ),
+);
 const formulaFieldTypeByName = computed(
   () => new Map(formulaFields.value.map((field) => [field.widgetName, field.displayType])),
 );
 const formulaFieldLabelByName = computed(
   () => new Map(formulaFields.value.map((field) => [field.widgetName, field.label])),
 );
-const formulaFunctions = FORMULA_FUNCTIONS;
+const formulaFunctions = FORMULA_FUNCTIONS.filter((item) =>
+  SUBMIT_VALIDATOR_FUNCTIONS.has(item.name),
+);
 // 与编辑器内联标记共用同一分析器，让横幅提示、确认按钮和保存校验保持一致。
 const formulaDiagnostics = computed(() =>
   draft.formula.trim()
@@ -273,6 +285,10 @@ function formulaSegments(
             <el-icon aria-label="实时校验说明"><RiInformationLine /></el-icon>
           </el-tooltip>
         </el-checkbox>
+
+        <el-form-item label="备注（仅设计器可见）">
+          <el-input v-model="draft.remark" :maxlength="200" placeholder="例如：联系电话长度校验" />
+        </el-form-item>
 
         <section class="form-submit-validator-dialog__failure">
           <h3>不满足校验条件后</h3>

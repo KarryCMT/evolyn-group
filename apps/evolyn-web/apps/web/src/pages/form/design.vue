@@ -215,6 +215,14 @@ function onRemoveItem(key: string): void {
     );
     return;
   }
+  if (editor.submitValidatorsReferencing(key).length > 0) {
+    ElMessage.warning('该字段被提交时校验引用，请先在「表单属性 → 提交时校验」中处理相关规则');
+    return;
+  }
+  if (editor.preSubmitConfirmReferences(key)) {
+    ElMessage.warning('该字段被提交二次确认文案引用，请先在「表单属性 → 提交二次确认」中移除变量');
+    return;
+  }
   ElMessage.warning(
     '该字段被特殊字段赋值规则引用，请先在「表单属性 → 不可见字段赋值」中移除相关配置',
   );
@@ -223,7 +231,9 @@ function onRemoveItem(key: string): void {
 /** 类型变更或转为静态隐藏同样受规则依赖保护；改名等其余更新照常通过。 */
 function onUpdateSelectedItem(next: FormItem): void {
   if (editor.updateSelectedItem(next)) return;
-  ElMessage.warning('该字段被字段显隐或赋值规则引用，不能变更类型或设为静态隐藏，请先处理相关规则');
+  ElMessage.warning(
+    '该字段被显隐、不可见赋值、提交校验或二次确认规则引用，不能变更类型或设为静态隐藏，请先处理相关规则',
+  );
 }
 
 function reorderSelectedTabs(tabNames: string[]): void {
@@ -466,6 +476,8 @@ function notifyUnavailable(action: string) {
         :field-show-rules="document.content.fieldShowRules"
         :submit-rule="document.content.submitRule"
         :widget-submit-rules="document.content.widget_submit_rules"
+        :validators="document.content.validators"
+        :pre-submit-confirm="document.content.preSubmitConfirm"
         @rename-key="editor.renameItemKey"
         @update-item="onUpdateSelectedItem"
         @update-form-name="onUpdateFormName"
@@ -482,6 +494,8 @@ function notifyUnavailable(action: string) {
         @reorder-field-show-rules="editor.reorderFieldShowRules"
         @update-submit-rule="editor.setSubmitRule"
         @update-widget-submit-rules="editor.applyWidgetSubmitRules"
+        @update-validators="editor.setSubmitValidators"
+        @update-pre-submit-confirm="editor.setPreSubmitConfirm"
       />
     </div>
 

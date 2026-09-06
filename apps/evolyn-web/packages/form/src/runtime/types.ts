@@ -42,7 +42,7 @@ export type FormRuntimeFieldPermission = FieldPermission;
 export interface FormIssue {
   fieldKey?: string;
   message: string;
-  source: 'local' | 'server';
+  source: 'local' | 'server' | 'validator';
 }
 
 /** 运行时唯一状态源；组件经注入的只读视图消费，写入只能走 Store action。 */

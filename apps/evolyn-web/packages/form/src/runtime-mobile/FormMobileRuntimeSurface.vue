@@ -5,6 +5,7 @@ import type { FormRuntimeAdapter } from '../runtime/adapters/types';
 import type { FormRuntimeActionDefinition } from '../runtime/actions/types';
 import type { FormRendererExpose } from '../runtime/renderer/types';
 import type { FormRuntime } from '../runtime/store/createFormRuntime';
+import type { FormSubmitConfirmationContext } from '../runtime/store/createFormRuntime';
 import type {
   FormDraftPayload,
   FormIssue,
@@ -103,6 +104,22 @@ function confirmAction(action: FormRuntimeActionDefinition): boolean {
   return window.confirm(action.confirmText);
 }
 
+function confirmSubmit(context: FormSubmitConfirmationContext): boolean {
+  if (typeof window === 'undefined') return true;
+  if (context.warnings.length > 0) {
+    const accepted = window.confirm(
+      `以下校验未通过，是否忽略并继续？\n${context.warnings
+        .map((warning) => `• ${warning.remind}`)
+        .join('\n')}`,
+    );
+    if (!accepted) return false;
+  }
+  return (
+    !context.confirmation ||
+    window.confirm(`${context.confirmation.title}\n\n${context.confirmation.content}`)
+  );
+}
+
 async function handleAction(action: FormRuntimeActionDefinition): Promise<void> {
   if (!confirmAction(action)) return;
   if (action.behavior === 'submit') {
@@ -142,6 +159,7 @@ defineExpose({
           :current-member-id="props.currentMemberId"
           :field-permissions="props.fieldPermissions"
           :adapter="props.adapter"
+          :submit-confirmation="confirmSubmit"
           :registry="resolvedRegistry"
           :multitab-renderer="FormMobileMultitabRenderer"
           :form-dom-id="resolvedFormDomId"

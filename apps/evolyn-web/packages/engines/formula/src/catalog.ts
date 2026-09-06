@@ -100,8 +100,15 @@ export const FORMULA_FUNCTIONS: readonly FormulaFunction[] = [
       arity: [0],
     },
     {
-      name: 'ISEMPTY',
+      name: 'ISBLANK',
       description: '判断值是否为空',
+      syntax: 'ISBLANK(value)',
+      returnType: 'boolean',
+      arity: [1],
+    },
+    {
+      name: 'ISEMPTY',
+      description: '判断值是否为空（兼容既有公式）',
       syntax: 'ISEMPTY(value)',
       returnType: 'boolean',
       arity: [1],

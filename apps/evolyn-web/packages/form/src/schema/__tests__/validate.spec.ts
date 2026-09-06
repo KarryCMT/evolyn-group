@@ -58,6 +58,12 @@ function documentWith(items: unknown[]): unknown {
       fieldShowRules: [],
       submitRule: 2,
       widget_submit_rules: {},
+      validators: [],
+      preSubmitConfirm: {
+        enable: false,
+        title: '确认继续提交吗？',
+        content: '请确认填写内容无误后继续提交。',
+      },
     },
   };
 }
@@ -119,6 +125,12 @@ describe('validateFormSchema 结构校验', () => {
           fieldShowRules: [],
           submitRule: 2,
           widget_submit_rules: {},
+          validators: [],
+          preSubmitConfirm: {
+            enable: false,
+            title: '确认继续提交吗？',
+            content: '请确认填写内容无误后继续提交。',
+          },
           extra: 1,
         },
       }).issues[0]!.path,
@@ -374,6 +386,12 @@ describe('validateFormSchema 结构校验', () => {
         fieldShowRules: [],
         submitRule: 2,
         widget_submit_rules: {},
+        validators: [],
+        preSubmitConfirm: {
+          enable: false,
+          title: '确认继续提交吗？',
+          content: '请确认填写内容无误后继续提交。',
+        },
       },
     };
     expect(validateFormSchema(document).valid).toBe(true);
@@ -728,6 +746,12 @@ describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
         field_layout: ['_widget_dept', '_widget_target'],
         submitRule: 2,
         widget_submit_rules: {},
+        validators: [],
+        preSubmitConfirm: {
+          enable: false,
+          title: '确认继续提交吗？',
+          content: '请确认填写内容无误后继续提交。',
+        },
         fieldShowRules: [
           {
             id: 'r1',

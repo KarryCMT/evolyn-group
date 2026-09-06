@@ -255,6 +255,12 @@ describe('FormSchemaPropertyPanel 不可见字段赋值（v6）', () => {
       fieldShowRules: [],
       submitRule: 2 as SubmitRule,
       widget_submit_rules: { _widget_name: 1 } as Record<string, SubmitRule>,
+      validators: [],
+      preSubmitConfirm: {
+        enable: false,
+        title: '确认继续提交吗？',
+        content: '请确认填写内容无误后继续提交。',
+      },
     },
   };
 

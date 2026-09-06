@@ -12,8 +12,10 @@ import type {
   FieldShowRule,
   FormItem,
   FormLayoutMode,
+  PreSubmitConfirm,
   FormWidgetOption,
   FormWidgetType,
+  SubmitValidator,
 } from './types';
 import { createFieldRegistry, type FieldDefinition } from '@evolyn.do/field';
 
@@ -184,6 +186,57 @@ export const SUBMIT_RULE_ELIGIBLE_WIDGET_TYPES: readonly FormWidgetType[] = [
  * recompute 置为不可选，校验器对任何生效的 3 直接拒绝。
  */
 export const SUBMIT_RULE_RECOMPUTE_SUPPORTED = false; /** 方法展示名（设计器条件行与自然语言摘要共用）。 */
+
+// ---- 提交校验与二次确认（v7） ----
+
+/** v7 提交校验规则及展示模板的上限。 */
+export const SUBMIT_VALIDATION_LIMITS = {
+  maxValidators: 50,
+  formulaMaxLength: 4000,
+  remindMaxLength: 500,
+  remarkMaxLength: 200,
+  confirmTitleMaxLength: 100,
+  confirmContentMaxLength: 1000,
+} as const;
+
+/** 首期允许作为提交公式依赖源的已发布顶层控件。 */
+export const SUBMIT_VALIDATOR_SOURCE_TYPES: readonly FormWidgetType[] = [
+  'text',
+  'textarea',
+  'number',
+  'datetime',
+  'radiogroup',
+  'checkboxgroup',
+  'combo',
+  'combocheck',
+];
+
+/** v7 提交校验唯一函数白名单；禁止引入时间、随机数、客户端 IP 等非确定性上下文。 */
+export const SUBMIT_VALIDATOR_FUNCTIONS: ReadonlySet<string> = new Set([
+  'AND',
+  'OR',
+  'NOT',
+  'IF',
+  'ISBLANK',
+  'LEN',
+  'CONCATENATE',
+  'LOWER',
+  'UPPER',
+  'TRIM',
+  'ABS',
+  'ROUND',
+  'DATE',
+  'DATEDIF',
+]);
+
+/** v7 新表单默认值；空数组与关闭对象均须持久化，不能省略键。 */
+export const DEFAULT_SUBMIT_VALIDATORS: SubmitValidator[] = [];
+export const DEFAULT_PRE_SUBMIT_CONFIRM: PreSubmitConfirm = {
+  enable: false,
+  title: '确认继续提交吗？',
+  content: '请确认填写内容无误后继续提交。',
+};
+
 export const FIELD_SHOW_METHOD_LABELS: Readonly<Record<FieldShowMethod, string>> = {
   eq: '等于',
   ne: '不等于',
