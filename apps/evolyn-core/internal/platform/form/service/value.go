@@ -331,7 +331,7 @@ func isEmptyValue(value any) bool {
 
 func choosingVerb(widgetType string) string {
 	switch widgetType {
-	case "datetime", "radiogroup", "checkboxgroup", "combo", "combocheck", "user", "usergroup":
+	case "datetime", "radiogroup", "checkboxgroup", "combo", "combocheck", "user", "usergroup", "dept", "deptgroup":
 		return "选择"
 	default:
 		return "输入"
@@ -361,6 +361,10 @@ func validateFieldValue(field snapshotField, value any) []string {
 		return validateMemberValue(field, value)
 	case "usergroup":
 		return validateMemberGroupValue(field, value)
+	case "dept":
+		return validateDepartmentValue(field, value)
+	case "deptgroup":
+		return validateDepartmentGroupValue(field, value)
 	case "subform":
 		return validateSubformValue(field, value)
 	default:
@@ -452,6 +456,40 @@ func validateMemberGroupValue(field snapshotField, value any) []string {
 			return []string{fmt.Sprintf("%s的值存在重复成员", field.label)}
 		}
 		seen[memberID] = struct{}{}
+	}
+	return nil
+}
+
+// validateDepartmentValue 只接受部门目录返回的稳定字符串 ID。与成员字段一致，目录
+// 有效性由选择器与租户权限保证，提交侧仍须拒绝对象、数字等绕过 UI 的值。
+func validateDepartmentValue(field snapshotField, value any) []string {
+	departmentID, ok := value.(string)
+	if !ok || strings.TrimSpace(departmentID) == "" {
+		return []string{fmt.Sprintf("%s的值类型不正确", field.label)}
+	}
+	return nil
+}
+
+// validateDepartmentGroupValue 保留部门选择顺序，同时拒绝非字符串、重复部门以及
+// 超出 Schema 多选配置上限的异常数组；错误文案与前端 schema/codec.ts 一致。
+func validateDepartmentGroupValue(field snapshotField, value any) []string {
+	departments, ok := value.([]any)
+	if !ok {
+		return []string{fmt.Sprintf("%s的值类型不正确", field.label)}
+	}
+	if len(departments) > 200 {
+		return []string{fmt.Sprintf("%s最多选择 200 个部门", field.label)}
+	}
+	seen := make(map[string]struct{}, len(departments))
+	for _, rawDepartmentID := range departments {
+		departmentID, ok := rawDepartmentID.(string)
+		if !ok || strings.TrimSpace(departmentID) == "" {
+			return []string{fmt.Sprintf("%s的值类型不正确", field.label)}
+		}
+		if _, duplicated := seen[departmentID]; duplicated {
+			return []string{fmt.Sprintf("%s的值存在重复部门", field.label)}
+		}
+		seen[departmentID] = struct{}{}
 	}
 	return nil
 }

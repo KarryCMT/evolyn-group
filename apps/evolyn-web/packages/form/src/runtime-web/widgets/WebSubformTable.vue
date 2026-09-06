@@ -36,7 +36,6 @@ const props = withDefaults(
     canEdit: boolean;
     canInsert: boolean;
     canDelete: boolean;
-    stickyFieldCount: number;
     batchMode?: boolean;
     selectedRowIndexes?: readonly number[];
     validationErrors?: Readonly<Record<number, Readonly<Record<string, readonly string[]>>>>;
@@ -81,10 +80,6 @@ const fieldValidationMessages = computed(() => {
 
 function cellValue(row: SubformRow, field: FormItem): FormJsonValue {
   return row[field.widget.widgetName] ?? null;
-}
-
-function isPcStickyColumn(index: number): boolean {
-  return index < props.stickyFieldCount;
 }
 
 /** 日期时间和可多选控件有更高的内在宽度；给列留出下限，让表格横向滚动而不是控件越界。 */
@@ -135,28 +130,11 @@ function onRowCommand(command: SubformRowCommand, rowIndex: number): void {
 
 <template>
   <ElTable :data="tableRows" border class="evf-web-subform-table" empty-text="暂无明细行">
-    <ElTableColumn v-if="batchMode" :width="56" fixed="left" align="center">
-      <template #header>
-        <ElCheckbox
-          :model-value="allRowsSelected"
-          :indeterminate="selectionIndeterminate"
-          aria-label="选择全部明细"
-          @update:model-value="setAllRowsSelected(Boolean($event))"
-        />
-      </template>
-      <template #default="{ $index }">
-        <ElCheckbox
-          :model-value="selectedRowIndexSet.has($index)"
-          :aria-label="`选择第 ${$index + 1} 行`"
-          @update:model-value="setRowSelected($index, Boolean($event))"
-        />
-      </template>
-    </ElTableColumn>
-    <!-- 操作列固定在最左侧，明细横向滚动时始终保持可达。批量选择仅在该模式下临时前置。 -->
-    <ElTableColumn label="操作" :width="140" fixed="left" align="center">
+    <!-- 仅操作列固定在最左侧，所有业务字段始终随表格横向滚动。 -->
+    <!-- 三个小型图标按钮的紧凑宽度，避免空白操作列挤占字段展示空间。 -->
+    <ElTableColumn label="操作" :width="78" fixed="left" align="center">
       <template #header>
         <div class="evf-web-subform-table__operation-head">
-          <span>操作</span>
           <div class="evf-web-subform-table__header-actions">
             <ElTooltip content="全屏编辑" placement="top">
               <ElButton
@@ -234,11 +212,27 @@ function onRowCommand(command: SubformRowCommand, rowIndex: number): void {
         </div>
       </template>
     </ElTableColumn>
+    <ElTableColumn v-if="batchMode" :width="56" align="center">
+      <template #header>
+        <ElCheckbox
+          :model-value="allRowsSelected"
+          :indeterminate="selectionIndeterminate"
+          aria-label="选择全部明细"
+          @update:model-value="setAllRowsSelected(Boolean($event))"
+        />
+      </template>
+      <template #default="{ $index }">
+        <ElCheckbox
+          :model-value="selectedRowIndexSet.has($index)"
+          :aria-label="`选择第 ${$index + 1} 行`"
+          @update:model-value="setRowSelected($index, Boolean($event))"
+        />
+      </template>
+    </ElTableColumn>
     <ElTableColumn
-      v-for="(field, fieldIndex) in fields"
+      v-for="field in fields"
       :key="field.widget.widgetName"
       :min-width="fieldMinWidth(field)"
-      :fixed="isPcStickyColumn(fieldIndex) ? 'left' : undefined"
     >
       <template #header>
         <div class="evf-web-subform-table__column-header">
@@ -279,6 +273,13 @@ function onRowCommand(command: SubformRowCommand, rowIndex: number): void {
 .evf-web-subform-table {
   width: 100%;
 
+  // Element Plus 在横向滚动时会移除最后一个左固定单元格的右边框，改用阴影提示。
+  // 子表单的操作列只有 78px，阴影在深色主题中不够清晰，因此始终保留主题边框。
+  :deep(.el-table__cell.el-table-fixed-column--left.is-last-column) {
+    border-right: var(--el-table-border) !important;
+    box-shadow: 1px 0 0 var(--el-table-border-color);
+  }
+
   &__operation-head,
   &__header-actions,
   &__row-actions,
@@ -301,6 +302,7 @@ function onRowCommand(command: SubformRowCommand, rowIndex: number): void {
   }
 
   &__row-actions {
+    gap: 0;
     justify-content: center;
   }
 
@@ -365,6 +367,10 @@ function onRowCommand(command: SubformRowCommand, rowIndex: number): void {
   :deep(.el-select.is-error .el-select__wrapper),
   :deep(.el-input-number.is-error .el-input__wrapper),
   :deep(.el-date-editor.is-error .el-input__wrapper) {
+    box-shadow: 0 0 0 1px var(--el-color-danger) inset;
+  }
+
+  :deep(.form-department-selection.is-error .el-select__wrapper) {
     box-shadow: 0 0 0 1px var(--el-color-danger) inset;
   }
 }

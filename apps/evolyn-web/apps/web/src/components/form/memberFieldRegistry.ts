@@ -1,4 +1,5 @@
 import { createWebFieldRegistry } from '@evolyn.do/form/runtime-web';
+import DepartmentSelectionField from './DepartmentSelectionField.vue';
 import MemberSelectionField from './MemberSelectionField.vue';
 
 /**
@@ -7,7 +8,9 @@ import MemberSelectionField from './MemberSelectionField.vue';
  */
 const memberFieldRegistry = createWebFieldRegistry()
   .register('user', { component: MemberSelectionField })
-  .register('usergroup', { component: MemberSelectionField });
+  .register('usergroup', { component: MemberSelectionField })
+  .register('dept', { component: DepartmentSelectionField })
+  .register('deptgroup', { component: DepartmentSelectionField });
 
 export function getMemberFieldRegistry() {
   return memberFieldRegistry;

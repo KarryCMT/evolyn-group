@@ -3,7 +3,7 @@
  *
  * 浏览器与后端（internal/platform/form 的 Go 值校验器）共享同一套语义与错误文案，
  * 浏览器校验只改善交互，服务端复核才是最终裁决（方案 §3.7）。
- * 当前已实现基础字段与成员单选/多选；其余控件在发布白名单开放前不参与值校验。
+ * 当前已实现基础字段及成员、部门单选/多选；其余控件在发布白名单开放前不参与值校验。
  */
 
 import type {
@@ -36,6 +36,8 @@ const CHOOSING_WIDGET_TYPES: ReadonlySet<string> = new Set([
   'combocheck',
   'user',
   'usergroup',
+  'dept',
+  'deptgroup',
 ]);
 
 const MAX_MEMBER_SELECTION_COUNT = 200;
@@ -104,6 +106,7 @@ export function normalizeWidgetValue(widget: FormItemWidget, value: unknown): Fo
     case 'radiogroup':
     case 'combo':
     case 'user':
+    case 'dept':
       return typeof value === 'string' ? value : null;
     case 'number':
       if (typeof value === 'number' && Number.isFinite(value)) return value;
@@ -114,6 +117,7 @@ export function normalizeWidgetValue(widget: FormItemWidget, value: unknown): Fo
     case 'checkboxgroup':
     case 'combocheck':
     case 'usergroup':
+    case 'deptgroup':
       if (!Array.isArray(value)) return [];
       return value.filter((entry): entry is string => typeof entry === 'string');
     case 'subform':
@@ -154,6 +158,10 @@ export function validateWidgetValue(item: FormItem, value: unknown): string[] {
       return validateMemberValue(item.label, value);
     case 'usergroup':
       return validateMemberGroupValue(item.label, value);
+    case 'dept':
+      return validateDepartmentValue(item.label, value);
+    case 'deptgroup':
+      return validateDepartmentGroupValue(item.label, value);
     case 'subform':
       return validateSubformValue(item, value);
     default:
@@ -241,6 +249,26 @@ function validateMemberGroupValue(label: string, value: unknown): string[] {
     if (typeof memberID !== 'string' || memberID.trim() === '') return [`${label}的值类型不正确`];
     if (selected.has(memberID)) return [`${label}的值存在重复成员`];
     selected.add(memberID);
+  }
+  return [];
+}
+
+/** 部门字段与成员字段都只提交稳定 ID；上限与部门多选配置保持同一 200 项约束。 */
+function validateDepartmentValue(label: string, value: unknown): string[] {
+  return typeof value === 'string' && value.trim() !== '' ? [] : [`${label}的值类型不正确`];
+}
+
+function validateDepartmentGroupValue(label: string, value: unknown): string[] {
+  if (!Array.isArray(value)) return [`${label}的值类型不正确`];
+  if (value.length > MAX_MEMBER_SELECTION_COUNT)
+    return [`${label}最多选择 ${MAX_MEMBER_SELECTION_COUNT} 个部门`];
+  const selected = new Set<string>();
+  for (const departmentID of value) {
+    if (typeof departmentID !== 'string' || departmentID.trim() === '') {
+      return [`${label}的值类型不正确`];
+    }
+    if (selected.has(departmentID)) return [`${label}的值存在重复部门`];
+    selected.add(departmentID);
   }
   return [];
 }

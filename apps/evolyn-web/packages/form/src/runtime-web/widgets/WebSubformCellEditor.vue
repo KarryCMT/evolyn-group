@@ -11,9 +11,10 @@ import {
   ElSelect,
   ElTimePicker,
 } from 'element-plus';
-import { computed } from 'vue';
+import { computed, inject, type Component } from 'vue';
 import { readWidgetOptions } from '../../schema/codec';
 import type { DateTimeWidget, FormItem, FormJsonValue, NumberWidget } from '../../schema/types';
+import { FormRendererContextKey } from '../../runtime/store/injection';
 
 /**
  * 子表单单元格编辑器：表格与行编辑弹窗共用同一套值映射，新增可发布子字段时只需
@@ -33,9 +34,17 @@ const emit = defineEmits<{
   blur: [];
 }>();
 
+// 子表单与顶层字段共享宿主注册表。通用 form 包不依赖租户目录实现，宿主可为人员、
+// 部门等重型字段按需注册组件；独立挂载该编辑器时允许没有渲染器上下文。
+const rendererContext = inject(FormRendererContextKey, null);
 const isInteractiveDisabled = computed(
   () => props.disabled || props.readonly || !props.field.widget.enable,
 );
+const organizationFieldComponent = computed<Component | null>(() => {
+  const type = props.field.widget.type;
+  if (!['user', 'usergroup', 'dept', 'deptgroup'].includes(type)) return null;
+  return rendererContext?.registry.resolve(type) ?? null;
+});
 
 const stringValue = computed(() => (typeof props.modelValue === 'string' ? props.modelValue : ''));
 const numberValue = computed(() =>
@@ -239,6 +248,18 @@ function blur(): void {
       :value="option.value"
     />
   </ElSelect>
+  <component
+    v-else-if="organizationFieldComponent"
+    :is="organizationFieldComponent"
+    :item="field"
+    :model-value="modelValue"
+    :disabled="isInteractiveDisabled"
+    :readonly="readonly"
+    :errors="invalid ? ['字段校验失败'] : []"
+    :class="{ 'is-error': invalid }"
+    @update:model-value="update"
+    @blur="blur"
+  />
   <span v-else class="evf-web-subform-cell__unsupported">不支持的子字段</span>
 </template>
 

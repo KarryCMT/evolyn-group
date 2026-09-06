@@ -141,7 +141,7 @@ describe('validateWidgetValue 值校验（与后端文案一致）', () => {
     expect(validateWidgetValue(multi, ['a', 'b'])).toEqual([]);
   });
 
-  it('布局项不做值校验；成员字段校验选择值形状', () => {
+  it('布局项不做值校验；成员和部门字段校验选择值形状', () => {
     const separator = item({ type: 'separator', widgetName: '_widget_s', allowBlank: true });
     expect(validateWidgetValue(separator, 'anything')).toEqual([]);
     const user = item({ type: 'user', widgetName: '_widget_u', allowBlank: false });
@@ -153,5 +153,14 @@ describe('validateWidgetValue 值校验（与后端文案一致）', () => {
     expect(validateWidgetValue(usergroup, [])).toEqual(['请选择字段']);
     expect(validateWidgetValue(usergroup, ['m1', 'm1'])).toEqual(['字段的值存在重复成员']);
     expect(validateWidgetValue(usergroup, ['m1', 'm2'])).toEqual([]);
+
+    const dept = item({ type: 'dept', widgetName: '_widget_d', allowBlank: false });
+    expect(validateWidgetValue(dept, { id: 'd1' })).toEqual(['字段的值类型不正确']);
+    expect(validateWidgetValue(dept, 'd1')).toEqual([]);
+
+    const deptgroup = item({ type: 'deptgroup', widgetName: '_widget_dg', allowBlank: false });
+    expect(validateWidgetValue(deptgroup, [])).toEqual(['请选择字段']);
+    expect(validateWidgetValue(deptgroup, ['d1', 'd1'])).toEqual(['字段的值存在重复部门']);
+    expect(validateWidgetValue(deptgroup, ['d1', 'd2'])).toEqual([]);
   });
 });

@@ -173,6 +173,22 @@ func TestValidateRecordValuesMembers(t *testing.T) {
 	assert.Equal(t, []any{"m1", "m2"}, cleaned["_widget_ug"])
 }
 
+func TestValidateRecordValuesDepartments(t *testing.T) {
+	content := snapshot(
+		snapItem("dept", "_widget_d", "所属部门", map[string]any{"allowBlank": false}),
+		snapItem("deptgroup", "_widget_dg", "协作部门", map[string]any{"allowBlank": false}),
+	)
+
+	_, errs := ValidateRecordValues(content, values("_widget_d", `{"id":"d1"}`, "_widget_dg", `["d1","d1"]`))
+	assert.Equal(t, []string{"所属部门的值类型不正确"}, errs["_widget_d"])
+	assert.Equal(t, []string{"协作部门的值存在重复部门"}, errs["_widget_dg"])
+
+	cleaned, errs := ValidateRecordValues(content, values("_widget_d", `"d1"`, "_widget_dg", `["d1","d2"]`))
+	assert.Empty(t, errs)
+	assert.Equal(t, "d1", cleaned["_widget_d"])
+	assert.Equal(t, []any{"d1", "d2"}, cleaned["_widget_dg"])
+}
+
 func TestValidateRecordValuesLayoutAndHiddenAndUnknown(t *testing.T) {
 	content := snapshot(
 		snapItem("separator", "_widget_sep", "分割线", nil),

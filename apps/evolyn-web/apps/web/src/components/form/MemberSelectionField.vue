@@ -54,6 +54,7 @@ function remove(id: string, event: MouseEvent): void {
       'form-member-selection--multiple': multiple,
       'form-member-selection--disabled': disabled,
       'form-member-selection--has-value': selectedIds.length > 0,
+      'form-member-selection--error': errors.length > 0,
     }"
   >
     <button
@@ -163,6 +164,9 @@ function remove(id: string, event: MouseEvent): void {
     color: var(--evf-color-text-disabled, var(--el-text-color-disabled));
     cursor: not-allowed;
     background: var(--evf-color-fill-light, var(--el-fill-color-light));
+  }
+  &--error .form-member-selection__control {
+    border-color: var(--el-color-danger);
   }
 }
 </style>

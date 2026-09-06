@@ -41,11 +41,6 @@ const canDelete = computed(
 const canQuickFill = computed(
   () => canCreate.value && canEdit.value && widget.value.quickFill && rows.value.length > 0,
 );
-const pcStickyColumnLimit = computed(() => {
-  const config = widget.value.pcStickyColumn;
-  if (!config?.enable) return 0;
-  return Math.min(fields.value.length, Math.max(0, config.limit));
-});
 
 const batchMode = shallowRef(false);
 const selectedRowIndexes = shallowRef<number[]>([]);
@@ -182,6 +177,8 @@ function normalizeCellValue(field: FormItem, value: unknown): FormJsonValue {
         : null;
     case 'checkboxgroup':
     case 'combocheck':
+    case 'usergroup':
+    case 'deptgroup':
       return Array.isArray(value)
         ? value.filter((entry): entry is string => typeof entry === 'string')
         : [];
@@ -241,7 +238,6 @@ function toggleBatchMode(): void {
         :can-edit="canEdit"
         :can-insert="canInsert"
         :can-delete="canDelete"
-        :sticky-field-count="pcStickyColumnLimit"
         :batch-mode="batchMode"
         :selected-row-indexes="selectedRowIndexes"
         :validation-errors="rowValidationErrors"
@@ -336,7 +332,6 @@ function toggleBatchMode(): void {
         :can-edit="canEdit"
         :can-insert="canInsert"
         :can-delete="canDelete"
-        :sticky-field-count="pcStickyColumnLimit"
         :batch-mode="batchMode"
         :selected-row-indexes="selectedRowIndexes"
         :validation-errors="rowValidationErrors"
