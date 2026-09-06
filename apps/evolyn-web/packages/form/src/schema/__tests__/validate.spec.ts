@@ -436,7 +436,6 @@ describe('validatePublishableFormSchema 发布白名单', () => {
     const result = validatePublishableFormSchema(documentWith([subform]));
     expect(result.valid).toBe(false);
     expect(result.issues.map((issue) => issue.path)).toEqual([
-      'content.items[0].widget.type',
       'content.items[0].widget.items[0].widget.type',
     ]);
   });

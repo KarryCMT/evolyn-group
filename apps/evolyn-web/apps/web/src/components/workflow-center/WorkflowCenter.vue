@@ -29,6 +29,7 @@ const selectedTaskId = shallowRef<number | null>(null);
 const {
   visibleItems,
   keyword,
+  sortOrder,
   nextCursor,
   status,
   errorMessage,
@@ -53,10 +54,13 @@ function closeTask(): void {
     <WorkflowCenterToolbar
       :scope="props.scope"
       :keyword="keyword"
+      :sort-order="sortOrder"
+      :pending-count="formCode ? pendingSummary?.formCounts.find((item) => item.formCode === formCode)?.count : pendingSummary?.total"
       :loading="status === 'loading'"
       :show-scope-navigation="!props.embedded"
       @update-scope="emit('updateScope', $event)"
       @update-keyword="keyword = $event"
+      @update-sort-order="sortOrder = $event"
       @refresh="refreshAll"
     />
 

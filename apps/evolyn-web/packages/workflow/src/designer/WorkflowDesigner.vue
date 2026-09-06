@@ -5,6 +5,7 @@ import {
   addEdge,
   addNode,
   collectWorkflowIssues,
+  insertNodeOnEdge,
   removeEdge,
   removeNode,
   resolveIssueTargets,
@@ -106,7 +107,18 @@ function positionForNewNode(): WorkflowPosition {
 
 function handleAddNode(type: WorkflowNodeType) {
   if (props.readonly) return;
-  const { document, node } = addNode(props.document, type, positionForNewNode());
+  const selectedKey = selectedNodeKey.value;
+  const outgoing = selectedKey
+    ? props.document.edges.filter((edge) => edge.source === selectedKey)
+    : [];
+  const selectedNode = props.document.nodes.find((node) => node.key === selectedKey);
+  // 一条后继边代表线性路径，新业务节点直接插入该边，避免出现「发起 →
+  // 结束」与新节点彼此断开的默认画布。多分支/结束节点保持手工连线，避免猜测语义。
+  const result =
+    type !== 'end' && selectedNode?.type !== 'end' && outgoing.length === 1
+      ? insertNodeOnEdge(props.document, type, positionForNewNode(), outgoing[0].key)
+      : addNode(props.document, type, positionForNewNode());
+  const { document, node } = result;
   emit('updateDocument', document);
   selectNode(node.key);
 }

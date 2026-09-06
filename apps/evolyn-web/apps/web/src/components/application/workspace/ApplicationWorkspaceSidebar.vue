@@ -40,7 +40,8 @@ const props = defineProps<{
   /** 非空时侧栏切换为流程中心菜单，应用资产树保持在原有工作区入口。 */
   workflowScope: WorkflowCenterScope | null;
   activeWorkflowFormCode: string;
-  workflowForms: readonly WorkflowNavigationForm[];
+  /** 当前成员有真实待办的流程表单；不包含仅存在于应用资产树中的表单。 */
+  pendingWorkflowForms: readonly WorkflowNavigationForm[];
   pendingWorkflowSummary: WorkflowPendingTaskSummaryDto | null;
 }>();
 
@@ -117,7 +118,7 @@ function handleCreateAsset(command: string | number | object) {
         class="application-workspace-sidebar__workflow-nav"
         :scope="props.workflowScope"
         :active-form-code="props.activeWorkflowFormCode"
-        :forms="props.workflowForms"
+        :pending-forms="props.pendingWorkflowForms"
         :pending-summary="props.pendingWorkflowSummary"
         inverted
         @update-scope="emit('updateWorkflowScope', $event)"

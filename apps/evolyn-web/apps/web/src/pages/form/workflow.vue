@@ -12,7 +12,7 @@ import {
 } from '@evolyn.do/workflow';
 import { RiFullscreenFill, RiHistoryFill, RiSave3Fill, RiUpload2Fill } from '@remixicon/vue';
 import { ElAlert, ElButton, ElDrawer, ElMessage, ElTable, ElTableColumn } from 'element-plus';
-import { computed, onMounted, shallowRef, useTemplateRef } from 'vue';
+import { computed, onMounted, shallowRef, useTemplateRef, watch } from 'vue';
 import {
   createWorkflow,
   getWorkflow,
@@ -50,6 +50,8 @@ const actorOptions = shallowRef<WorkflowActorOptions>({ members: [], roles: [], 
 
 const isWorkflowForm = computed(() => detail.value?.formType === 'workflow');
 const publishedVersion = computed(() => definition.value?.publishedVersion ?? 0);
+// immediate watcher 会在 setup 内同步执行，递增令牌必须先完成初始化。
+let definitionLoadVersion = 0;
 
 /** 从当前表单草稿投影流程字段契约：可发布控件、成员类字段打 userField 标 */
 const workflowFields = computed<WorkflowField[]>(() => {
@@ -64,22 +66,40 @@ const workflowFields = computed<WorkflowField[]>(() => {
     }));
 });
 
-onMounted(async () => {
-  await Promise.all([loadDefinition(), loadActorOptions()]);
-  loading.value = false;
+// 外壳异步加载表单详情，子路由可能先挂载。监听绑定编码而不是只在 mounted
+// 时读取，确保详情抵达后能够加载已存在的流程定义，避免误发重复创建请求。
+watch(
+  () => detail.value?.code,
+  (formCode) => {
+    if (!formCode) return;
+    void loadDefinition(formCode);
+  },
+  { immediate: true },
+);
+
+onMounted(() => {
+  void loadActorOptions();
 });
 
 /** 按绑定表单定位定义（一条表单至多一条）；未绑定时保持空文档，首次保存懒建 */
-async function loadDefinition() {
-  const formCode = detail.value?.code;
-  if (!formCode) return;
+async function loadDefinition(formCode = detail.value?.code): Promise<WorkflowDetailDto | null> {
+  if (!formCode) return null;
+  const requestVersion = ++definitionLoadVersion;
+  loading.value = true;
+  loadFailed.value = false;
   try {
     const page = await listWorkflows({ formCode, limit: 1 });
-    if (page.items.length === 0) return;
+    if (requestVersion !== definitionLoadVersion) return null;
+    if (page.items.length === 0) return null;
     const loaded = await getWorkflow(page.items[0].code);
+    if (requestVersion !== definitionLoadVersion) return null;
     applyDefinition(loaded);
+    return loaded;
   } catch {
-    loadFailed.value = true;
+    if (requestVersion === definitionLoadVersion) loadFailed.value = true;
+    return null;
+  } finally {
+    if (requestVersion === definitionLoadVersion) loading.value = false;
   }
 }
 
@@ -135,12 +155,22 @@ async function saveDraft(): Promise<boolean> {
   try {
     let target = definition.value;
     if (!target) {
-      const created = await createWorkflow({
-        name: `${detail.value?.name ?? '未命名'}审批流程`,
-        formCode: detail.value?.code,
-      });
-      applyDefinition(created);
-      target = created;
+      try {
+        const created = await createWorkflow({
+          name: `${detail.value?.name ?? '未命名'}审批流程`,
+          formCode: detail.value?.code,
+        });
+        applyDefinition(created);
+        target = created;
+      } catch (error) {
+        // 多窗口首次保存可能并发创建同一表单的绑定定义；读取胜出的定义后
+        // 继续当前保存，用户无需手动刷新或再次点击。
+        if (!(error instanceof ApiError) || error.errCode !== 'WORKFLOW_FORM_ALREADY_BOUND') {
+          throw error;
+        }
+        target = await loadDefinition();
+        if (!target) throw error;
+      }
     }
     const result = await saveWorkflowDraft(target.code, {
       draftRevision: target.draftRevision,

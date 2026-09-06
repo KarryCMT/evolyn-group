@@ -34,7 +34,8 @@ const props = defineProps<{
   personalTitle: string | null;
   /** 个人待办菜单当前选中的流程表单；空串代表全部待办。 */
   activeWorkflowFormCode: string;
-  workflowForms: readonly WorkflowNavigationForm[];
+  /** 当前成员有真实待办的流程表单；不能传入完整应用表单目录。 */
+  pendingWorkflowForms: readonly WorkflowNavigationForm[];
   pendingWorkflowSummary: WorkflowPendingTaskSummaryDto | null;
   mode: ApplicationWorkspaceMode;
   /** 菜单数据源状态：loading 传递给侧栏渲染加载态 */
@@ -86,7 +87,7 @@ function toggleSidebar() {
       :menu-status="props.menuStatus"
       :workflow-scope="props.personalScope"
       :active-workflow-form-code="props.activeWorkflowFormCode"
-      :workflow-forms="props.workflowForms"
+      :pending-workflow-forms="props.pendingWorkflowForms"
       :pending-workflow-summary="props.pendingWorkflowSummary"
       @back="emit('back')"
       @create-asset="emit('createAsset', $event)"

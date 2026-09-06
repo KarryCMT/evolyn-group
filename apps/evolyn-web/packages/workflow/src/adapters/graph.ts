@@ -121,6 +121,9 @@ export function toGraphData(
       x: positions[node.key]?.x ?? 0,
       y: positions[node.key]?.y ?? 0,
       text: '',
+      // Vue 节点注册器使用 HtmlNodeModel；显式标记可拖拽，避免其在重渲染时
+      // 因配置缺省回落为不可拖动。只读状态仍由画布的 adjustNodePosition 统一收口。
+      draggable: true,
       properties: {
         width: size.width,
         height: size.height,

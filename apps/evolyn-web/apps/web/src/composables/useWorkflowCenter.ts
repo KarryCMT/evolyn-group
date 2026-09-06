@@ -20,30 +20,32 @@ export interface WorkflowCenterListItem {
   id: number;
   title: string;
   subtitle: string;
+  starterName?: string;
+  summaryFields?: ReadonlyArray<{ label: string; value: string }>;
   status: string;
   createdAt: string;
   /** task 才能进入审批详情；instance 在首版仅展示进度摘要。 */
   source: 'task' | 'instance';
   taskId?: number;
   instanceId: number;
+  instanceNo: string;
 }
 
 export type WorkflowCenterStatus = 'loading' | 'ready' | 'error';
 
 function taskItem(task: WorkflowTaskSummaryDto): WorkflowCenterListItem {
-  const actorNames = task.actors
-    .map((actor) => actor.displayName)
-    .filter(Boolean)
-    .join('、');
   return {
     id: task.id,
-    title: `待办 #${task.id}`,
-    subtitle: `当前节点：${task.nodeKey}${actorNames ? ` · 审批人：${actorNames}` : ''}`,
+    title: task.title || `待办 #${task.id}`,
+    starterName: task.starterName,
+    summaryFields: task.summaryFields,
+    subtitle: task.nodeName || task.nodeKey,
     status: task.status,
     createdAt: task.createdAt,
     source: 'task',
     taskId: task.id,
     instanceId: task.instanceId,
+    instanceNo: task.instanceNo,
   };
 }
 
@@ -56,6 +58,7 @@ function instanceItem(instance: WorkflowInstanceSummaryDto): WorkflowCenterListI
     createdAt: instance.createdAt,
     source: 'instance',
     instanceId: instance.id,
+    instanceNo: instance.instanceNo,
   };
 }
 
@@ -70,21 +73,26 @@ export function useWorkflowCenter(
 ) {
   const items = shallowRef<WorkflowCenterListItem[]>([]);
   const keyword = shallowRef('');
+  const sortOrder = shallowRef<'newest' | 'oldest'>('newest');
   const nextCursor = shallowRef('');
   const status = shallowRef<WorkflowCenterStatus>('loading');
   const errorMessage = shallowRef('审批任务加载失败，请稍后重试');
   const pendingSummary = shallowRef<WorkflowPendingTaskSummaryDto | null>(null);
   let requestVersion = 0;
+  let loadingMore = false;
 
   const visibleItems: ComputedRef<WorkflowCenterListItem[]> = computed(() => {
     const normalized = keyword.value.trim().toLocaleLowerCase();
-    if (!normalized) return items.value;
-    return items.value.filter((item) =>
-      `${item.title} ${item.subtitle} ${item.status}`.toLocaleLowerCase().includes(normalized),
+    const filtered = items.value.filter((item) =>
+      `${item.instanceNo} ${item.title} ${item.subtitle} ${item.starterName ?? ''} ${(item.summaryFields ?? []).map((field) => `${field.label} ${field.value}`).join(' ')}`.toLocaleLowerCase().includes(normalized),
     );
+    // 排序作用于已加载的任务，不改变服务端游标顺序。
+    return filtered.sort((a, b) => sortOrder.value === 'newest' ? b.id - a.id : a.id - b.id);
   });
 
   async function load(append = false): Promise<void> {
+    if (append && loadingMore) return;
+    loadingMore = append;
     const version = ++requestVersion;
     const cursor = append ? nextCursor.value : '';
     if (!append) {
@@ -118,6 +126,8 @@ export function useWorkflowCenter(
       if (version !== requestVersion) return;
       status.value = 'error';
       errorMessage.value = '审批任务加载失败，请稍后重试';
+    } finally {
+      if (version === requestVersion) loadingMore = false;
     }
   }
 
@@ -150,6 +160,7 @@ export function useWorkflowCenter(
     items: readonly(items),
     visibleItems,
     keyword,
+    sortOrder,
     nextCursor: readonly(nextCursor),
     status: readonly(status),
     errorMessage: readonly(errorMessage),

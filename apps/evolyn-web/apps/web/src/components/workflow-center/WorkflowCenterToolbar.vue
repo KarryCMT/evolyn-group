@@ -8,6 +8,8 @@ const props = defineProps<{
   scope: WorkflowCenterScope;
   keyword: string;
   loading: boolean;
+  pendingCount?: number;
+  sortOrder: 'newest' | 'oldest';
   /** 嵌入应用壳时，范围由左侧个人导航切换，避免重复入口。 */
   showScopeNavigation?: boolean;
 }>();
@@ -16,6 +18,7 @@ const emit = defineEmits<{
   updateScope: [scope: WorkflowCenterScope];
   updateKeyword: [keyword: string];
   refresh: [];
+  updateSortOrder: [value: 'newest' | 'oldest'];
 }>();
 
 const scopes: ReadonlyArray<{ value: WorkflowCenterScope; label: string }> = [
@@ -46,16 +49,25 @@ const scopes: ReadonlyArray<{ value: WorkflowCenterScope; label: string }> = [
       </button>
     </nav>
 
+    <div v-if="props.scope === 'pending'" class="workflow-center-toolbar__filters" aria-label="待办分类">
+      <button type="button" class="workflow-center-toolbar__pill workflow-center-toolbar__pill--active" aria-current="true" @click="emit('updateKeyword', '')">
+        全部<span v-if="props.pendingCount !== undefined">（{{ props.pendingCount }}）</span>
+      </button>
+    </div>
     <div class="workflow-center-toolbar__tools">
       <label class="workflow-center-toolbar__search">
         <RiSearch2Line aria-hidden="true" />
         <input
           :value="props.keyword"
-          placeholder="搜索当前页流程信息"
-          aria-label="搜索当前页流程信息"
+          placeholder="搜索已加载流程信息"
+          aria-label="搜索已加载流程信息"
           @input="emit('updateKeyword', ($event.target as HTMLInputElement).value)"
         >
       </label>
+      <el-select :model-value="props.sortOrder" class="workflow-center-toolbar__sort" aria-label="已加载任务排序" @update:model-value="emit('updateSortOrder', $event)">
+        <el-option label="最新优先" value="newest" />
+        <el-option label="最早优先" value="oldest" />
+      </el-select>
       <el-button circle :loading="props.loading" aria-label="刷新待办" @click="emit('refresh')">
         <RiRefreshLine aria-hidden="true" />
       </el-button>
@@ -67,11 +79,12 @@ const scopes: ReadonlyArray<{ value: WorkflowCenterScope; label: string }> = [
 .workflow-center-toolbar {
   display: flex;
   min-height: 68px;
-  padding: 0 var(--el-space-xl);
+  padding: 16px 20px;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--el-space-xl);
-  border-bottom: 1px solid var(--el-border-color-lighter);
+
 
   &__scopes,
   &__tools,
@@ -81,6 +94,10 @@ const scopes: ReadonlyArray<{ value: WorkflowCenterScope; label: string }> = [
     align-items: center;
   }
 
+  &__filters { display: flex; align-items: center; gap: 12px; }
+  &__pill { padding: 8px 20px; border: 1px solid var(--el-border-color); border-radius: 24px; font: inherit; cursor: pointer; }
+  &__pill--active { color: var(--el-color-white); background: var(--el-color-primary); border-color: var(--el-color-primary); font-weight: 600; }
+  &__sort { width: 112px; flex-shrink: 0; }
   &__scopes {
     height: 100%;
     gap: var(--el-space-xl);
@@ -110,7 +127,7 @@ const scopes: ReadonlyArray<{ value: WorkflowCenterScope; label: string }> = [
 
   &__tools {
     margin-left: auto;
-    flex: 0 1 360px;
+    flex: 0 1 460px;
     gap: var(--el-space-sm);
   }
 

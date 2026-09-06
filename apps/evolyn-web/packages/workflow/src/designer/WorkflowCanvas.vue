@@ -38,6 +38,9 @@ const canvasRef = useTemplateRef<HTMLElement>('canvasRef');
 const logicFlow: ShallowRef<LogicFlow | null> = shallowRef(null);
 const zoomPercent = shallowRef(100);
 let resizeObserver: ResizeObserver | null = null;
+// 节点拖拽后 LogicFlow 已持有最新坐标。等待父级把该坐标写回 DSL 的期间，
+// 不可用旧 props 全量 render，否则会把节点拉回拖拽前的位置。
+let pendingNodePosition: { nodeKey: string; position: WorkflowPosition } | null = null;
 
 /** 全部协议节点类型注册为 Vue 卡片节点（parallel 协议层支持，一并注册） */
 const NODE_TYPES: WorkflowNodeType[] = [
@@ -76,6 +79,21 @@ function renderGraph() {
       errorEdgeKeys: props.errorEdgeKeys,
     }),
   );
+}
+
+/** 消费当前拖拽写回：坐标抵达 DSL 后无需再次 render，LogicFlow 当前图即正确状态。 */
+function consumePendingNodePosition(): boolean {
+  const pending = pendingNodePosition;
+  if (!pending) return false;
+  const applied = props.document.settings.designer?.layout?.[pending.nodeKey];
+  if (
+    applied?.x === pending.position.x &&
+    applied.y === pending.position.y
+  ) {
+    pendingNodePosition = null;
+  }
+  // 只要仍处于拖拽写回链路，都避免以旧文档覆写画布的即时位置。
+  return true;
 }
 
 function resizeCanvas() {
@@ -160,9 +178,14 @@ onMounted(() => {
 
   instance.on('node:click', ({ data }) => emit('selectNode', String(data.id)));
   instance.on('edge:click', ({ data }) => emit('selectEdge', String(data.id)));
-  instance.on('blank:click', () => renderGraph());
+  instance.on('blank:click', () => {
+    if (!pendingNodePosition) renderGraph();
+  });
   instance.on('node:drop', ({ data }) => {
-    emit('updateNodePosition', String(data.id), { x: data.x, y: data.y });
+    const nodeKey = String(data.id);
+    const position = { x: data.x, y: data.y };
+    pendingNodePosition = { nodeKey, position };
+    emit('updateNodePosition', nodeKey, position);
   });
   // 锚点连线完成：以 DSL 结构层接管（生成协议边 key），临时边由重渲染替换
   instance.on('edge:connect', ({ data }) => {
@@ -186,7 +209,10 @@ watch(
     props.errorNodeKeys,
     props.errorEdgeKeys,
   ],
-  () => renderGraph(),
+  () => {
+    if (consumePendingNodePosition()) return;
+    renderGraph();
+  },
   { deep: false },
 );
 

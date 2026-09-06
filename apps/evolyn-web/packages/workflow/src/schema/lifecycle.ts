@@ -174,6 +174,27 @@ export function addNode(
   return { document: next, node };
 }
 
+/**
+ * 在线性分支的既有边中插入节点：保留原边 key 与条件配置，新增节点到原目标的
+ * 后继边。新流程的 start → end 默认边因此可直接演进为 start → 审批 → end。
+ */
+export function insertNodeOnEdge(
+  document: WorkflowDocument,
+  type: WorkflowNodeType,
+  position: WorkflowPosition,
+  edgeKey: string,
+): { document: WorkflowDocument; node: WorkflowNode } {
+  const originalEdge = document.edges.find((edge) => edge.key === edgeKey);
+  const added = addNode(document, type, position);
+  if (!originalEdge) return added;
+
+  const before = updateEdge(added.document, edgeKey, { target: added.node.key });
+  return {
+    document: addEdge(before, added.node.key, originalEdge.target),
+    node: added.node,
+  };
+}
+
 /** 删除节点并级联清理关联边与画布坐标 */
 export function removeNode(document: WorkflowDocument, nodeKey: string): WorkflowDocument {
   const next = cloneWorkflowDocument(document);

@@ -126,8 +126,8 @@ async function runAction(action: TaskAction): Promise<void> {
 
     <section v-else-if="detail" class="workflow-task-detail">
       <el-descriptions :column="1" border>
-        <el-descriptions-item label="任务编号">
-          #{{ detail.task.id }}
+        <el-descriptions-item label="流程单号">
+          {{ detail.instance.instanceNo || '—' }}
         </el-descriptions-item>
         <el-descriptions-item label="当前节点">
           {{ detail.nodeKey }}

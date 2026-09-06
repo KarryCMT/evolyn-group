@@ -6,11 +6,13 @@
 @use '../../runtime/styles/index.scss';
 
 @use 'element-plus/theme-chalk/src/button.scss';
+@use 'element-plus/theme-chalk/src/alert.scss';
 @use 'element-plus/theme-chalk/src/checkbox.scss';
 // Element Plus 2.11 的 date-picker.scss 为空占位入口；真正的日历与时间面板
 // 规则由 date-picker-panel / time-picker 承载，不能只引入前者。
 @use 'element-plus/theme-chalk/src/date-picker-panel.scss';
 @use 'element-plus/theme-chalk/src/divider.scss';
+@use 'element-plus/theme-chalk/src/dialog.scss';
 @use 'element-plus/theme-chalk/src/dropdown.scss';
 @use 'element-plus/theme-chalk/src/input-number.scss';
 @use 'element-plus/theme-chalk/src/input.scss';
@@ -21,4 +23,6 @@
 @use 'element-plus/theme-chalk/src/select.scss';
 @use 'element-plus/theme-chalk/src/tag.scss';
 @use 'element-plus/theme-chalk/src/tabs.scss';
+@use 'element-plus/theme-chalk/src/table.scss';
 @use 'element-plus/theme-chalk/src/time-picker.scss';
+@use 'element-plus/theme-chalk/src/tooltip.scss';

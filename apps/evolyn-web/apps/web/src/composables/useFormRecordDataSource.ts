@@ -1,13 +1,13 @@
-import type { Component, ComputedRef, ShallowRef } from 'vue';
 import type { DataContext, DataQuery, DataRecord, DataSource } from '@evolyn.do/data';
-import type { QueryDocument, QueryFieldType } from '@evolyn.do/query';
 import type { DataColumn } from '@evolyn.do/data-workspace';
-import { RiTimeFill, RiUser3Fill } from '@remixicon/vue';
+import type { QueryDocument, QueryFieldType } from '@evolyn.do/query';
+import type { Component, ComputedRef, ShallowRef } from 'vue';
 import type { FormRuntimeBootstrap } from '~/types';
 import { normalizeQuery, validateQuery } from '@evolyn.do/query';
-import { listFormRecords, getFormRuntime } from '~/api/form';
-import { widgetIconOfType } from '~/components/form/widgetIcons';
+import { RiTimeFill, RiUser3Fill } from '@remixicon/vue';
 import { computed, markRaw, readonly, shallowRef, watch } from 'vue';
+import { getFormRuntime, listFormRecords } from '~/api/form';
+import { widgetIconOfType } from '~/components/form/widgetIcons';
 
 export type FormRecordDataStatus = 'loading' | 'ready' | 'error';
 
@@ -18,6 +18,7 @@ export type FormRecordDataStatus = 'loading' | 'ready' | 'error';
  * （提交人为展示名快照）与 Query DSL 筛选（提交人为成员 ID）。
  */
 export const SYSTEM_RECORD_FIELDS = {
+  workflowInstanceNo: 'sys.workflowInstanceNo',
   submittedBy: 'sys.submittedBy',
   submittedAt: 'sys.submittedAt',
   updatedAt: 'sys.updatedAt',
@@ -75,7 +76,14 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
   const runtime = shallowRef<FormRuntimeBootstrap | null>(null);
   let requestVersion = 0;
 
-  const columns = computed<DataColumn[]>(() => columnsFromRuntime(runtime.value));
+  // 单号是只读系统列；记录含流程绑定时展示，不作为用户表单控件保存。
+  const columns = computed<DataColumn[]>(() => {
+    const base = columnsFromRuntime(runtime.value);
+    if (records.value.some((record) => record[SYSTEM_RECORD_FIELDS.workflowInstanceNo])) {
+      base.unshift({ field: SYSTEM_RECORD_FIELDS.workflowInstanceNo, title: '流程单号', minWidth: 210 });
+    }
+    return base;
+  });
   const filterFields = computed<FormRecordFilterField[]>(() =>
     filterFieldsFromRuntime(runtime.value),
   );
@@ -93,6 +101,7 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
         // 值同层供列取数；筛选语义里的提交人值（成员 ID）仅在 Query DSL 中出现。
         records: response.items.map((item) => ({
           id: item.id,
+          ...(item.workflowInstanceNo ? { [SYSTEM_RECORD_FIELDS.workflowInstanceNo]: item.workflowInstanceNo } : {}),
           [SYSTEM_RECORD_FIELDS.submittedBy]: item.submittedByName,
           [SYSTEM_RECORD_FIELDS.submittedAt]: item.submittedAt,
           [SYSTEM_RECORD_FIELDS.updatedAt]: item.updatedAt,

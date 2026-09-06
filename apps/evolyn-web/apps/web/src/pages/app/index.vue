@@ -173,7 +173,7 @@ function findFormAsset(
   return null;
 }
 
-/** 流程菜单只展示流程型表单；菜单树的分组结构不改变个人待办的聚合视图。 */
+/** 应用资产树只提供流程表单的展示信息，不能作为「我的待办」的筛选事实源。 */
 function collectWorkflowForms(
   assets: ApplicationWorkspaceAsset[],
 ): WorkflowNavigationForm[] {
@@ -186,14 +186,26 @@ function collectWorkflowForms(
   });
 }
 
-const workflowForms = computed(() => collectWorkflowForms(menuAssets.value));
+const workflowFormCatalog = computed(() => collectWorkflowForms(menuAssets.value));
+/**
+ * 「我的待办」的二级菜单只由当前成员真实待办聚合决定。应用菜单仅补充名称；
+ * 因此创建流程表单本身不会出现二级项，只有当前成员实际拥有待办时才会出现。
+ */
+const pendingWorkflowForms = computed(() => {
+  const pendingFormCodes = new Set(
+    (pendingWorkflowSummary.value?.formCounts ?? [])
+      .filter(({ formCode, count }) => Boolean(formCode) && count > 0)
+      .map(({ formCode }) => formCode),
+  );
+  return workflowFormCatalog.value.filter((form) => pendingFormCodes.has(form.code));
+});
 
 const personalTitle = computed<string | null>(() => {
   const code = activePersonalCode.value;
   if (!code) return null;
   if (code === 'todo') {
     return (
-      workflowForms.value.find((form) => form.code === activeWorkflowFormCode.value)?.label ??
+      pendingWorkflowForms.value.find((form) => form.code === activeWorkflowFormCode.value)?.label ??
       '我的待办（全部）'
     );
   }
@@ -205,7 +217,7 @@ const personalTitle = computed<string | null>(() => {
   return titles[code] ?? null;
 });
 
-watch(workflowForms, (forms) => {
+watch(pendingWorkflowForms, (forms) => {
   if (!forms.some((form) => form.code === activeWorkflowFormCode.value)) {
     activeWorkflowFormCode.value = '';
   }
@@ -673,7 +685,7 @@ function reloadWorkspace() {
         :personal-scope="personalScope"
         :personal-title="personalTitle"
         :active-workflow-form-code="activeWorkflowFormCode"
-        :workflow-forms="workflowForms"
+        :pending-workflow-forms="pendingWorkflowForms"
         :pending-workflow-summary="pendingWorkflowSummary"
         :mode="workspaceMode"
         :menu-status="menuStatus"

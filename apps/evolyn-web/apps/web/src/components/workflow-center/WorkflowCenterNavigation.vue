@@ -23,7 +23,8 @@ defineOptions({ name: 'WorkflowCenterNavigation' });
 const props = defineProps<{
   scope: WorkflowCenterScope;
   activeFormCode: string;
-  forms: readonly WorkflowNavigationForm[];
+  /** 由待办摘要筛选后的流程表单，空数组表示当前成员没有可按表单筛选的待办。 */
+  pendingForms: readonly WorkflowNavigationForm[];
   pendingSummary: WorkflowPendingTaskSummaryDto | null;
   /** 应用工作区沿用蓝色侧栏时使用浅色前景。 */
   inverted?: boolean;
@@ -44,7 +45,7 @@ const formCountByCode = computed(
 );
 const orderedForms = computed(() => {
   const pinnedCodes = new Set(pinnedFormCodes.value);
-  return [...props.forms].sort((left, right) => {
+  return [...props.pendingForms].sort((left, right) => {
     const leftPinned = pinnedCodes.has(left.code);
     const rightPinned = pinnedCodes.has(right.code);
     if (leftPinned !== rightPinned) return leftPinned ? -1 : 1;
@@ -109,7 +110,7 @@ watch(
           </span>
         </button>
         <button
-          v-if="props.forms.length"
+          v-if="props.pendingForms.length"
           class="workflow-center-navigation__expand"
           type="button"
           :aria-label="pendingExpanded ? '收起待办流程' : '展开待办流程'"
@@ -121,7 +122,7 @@ watch(
         </button>
       </div>
 
-      <div v-show="pendingExpanded && props.forms.length" class="workflow-center-navigation__forms">
+      <div v-show="pendingExpanded && props.pendingForms.length" class="workflow-center-navigation__forms">
         <div
           v-for="form in orderedForms"
           :key="form.code"

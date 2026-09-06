@@ -1,8 +1,8 @@
 import type { DataQuery } from '@evolyn.do/data';
 import type { FormRuntimeBootstrap } from '~/types';
 import { flushPromises, mount } from '@vue/test-utils';
-import { computed, defineComponent, shallowRef } from 'vue';
 import { describe, expect, it, vi } from 'vitest';
+import { computed, defineComponent, shallowRef } from 'vue';
 import { SYSTEM_RECORD_FIELDS, useFormRecordDataSource } from '../useFormRecordDataSource';
 
 const api = vi.hoisted(() => ({
@@ -61,6 +61,15 @@ function mountSource(query = shallowRef<DataQuery>({ keyword: '', page: 1, pageS
 }
 
 describe('useFormRecordDataSource', () => {
+  it('projects the returned workflow number as a separate read-only system column', async () => {
+    api.getFormRuntime.mockResolvedValue(bootstrap());
+    api.listFormRecords.mockResolvedValue({items: [{id: 7, values: {name: '申请'}, workflowInstanceNo: 'WF-20260905-000001'}], total: 1, page: 1, pageSize: 20});
+    const {wrapper} = mountSource();
+    await flushPromises();
+    expect(wrapper.vm.records[0][SYSTEM_RECORD_FIELDS.workflowInstanceNo]).toBe('WF-20260905-000001');
+    expect(wrapper.vm.columns[0]).toMatchObject({field: SYSTEM_RECORD_FIELDS.workflowInstanceNo, title: '流程单号'});
+    wrapper.unmount();
+  });
   it('uses DataSource to send server-side paging and keyword search', async () => {
     api.getFormRuntime.mockResolvedValue(bootstrap());
     api.listFormRecords.mockResolvedValue({

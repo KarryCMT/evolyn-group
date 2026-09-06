@@ -608,11 +608,15 @@ export interface FormRuntimeBootstrap {
 
 /** POST /form-records 受理结果 */
 export interface FormRecordSubmitResult {
+  /** 服务端生成的只读流程单号；普通表单为空。 */
+  workflowInstanceNo: string;
   recordId: number;
 }
 
 /** POST /forms/:code/records 的权限裁剪后分页结果。 */
 export interface FormRecordListItem {
+  /** 服务端生成的只读流程单号；普通表单为空。 */
+  workflowInstanceNo: string;
   id: number;
   values: Record<string, unknown>;
   submittedByMemberId: number;
@@ -702,6 +706,12 @@ export interface WorkflowTaskActorDto {
 
 /** 审批中心任务列表条目。列表仅提供轻量投影，详情按需加载。 */
 export interface WorkflowTaskSummaryDto {
+  instanceNo: string;
+  title: string;
+  nodeName: string;
+  starterName: string;
+  summaryFields: Array<{ label: string; value: string }>;
+
   id: number;
   instanceId: number;
   nodeKey: string;
@@ -727,6 +737,7 @@ export interface WorkflowPendingTaskSummaryDto {
 
 /** 我发起的流程实例列表条目。 */
 export interface WorkflowInstanceSummaryDto {
+  instanceNo: string;
   id: number;
   definitionCode: string;
   definitionVersionNo: number;

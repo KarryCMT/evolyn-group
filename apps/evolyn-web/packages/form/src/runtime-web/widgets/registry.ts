@@ -1,6 +1,6 @@
 import { FormFieldRegistry } from '../../runtime/widgets/registry';
-import SubformField from '../../runtime/widgets/base/SubformField.vue';
 import WebBasicField from './WebBasicField.vue';
+import WebSubformField from './WebSubformField.vue';
 
 /** Web 端字段注册表：所有基础字段由 Element Plus 控件承担交互和视觉呈现。 */
 export function createWebFieldRegistry(): FormFieldRegistry {
@@ -18,6 +18,6 @@ export function createWebFieldRegistry(): FormFieldRegistry {
   ]) {
     registry.register(type, { component: WebBasicField });
   }
-  registry.register('subform', { component: SubformField });
+  registry.register('subform', { component: WebSubformField });
   return registry;
 }

@@ -167,14 +167,20 @@ function toggleReminder(enabled: string | number | boolean) {
 .workflow-approval-panel {
   display: flex;
   min-height: 0;
+  padding: 0 var(--el-space-md) var(--el-space-md);
   flex-direction: column;
 
   &__collapse {
+    margin-top: var(--el-space-xs);
     border-top: 1px solid var(--el-border-color-lighter);
     border-bottom: 0;
 
+    :deep(.el-collapse-item__header) {
+      padding: 0 var(--el-space-xs);
+    }
+
     :deep(.el-collapse-item__content) {
-      padding-bottom: var(--el-space-sm);
+      padding: 0 var(--el-space-xs) var(--el-space-sm);
     }
   }
 

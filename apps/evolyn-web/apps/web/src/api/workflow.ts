@@ -106,7 +106,7 @@ export function listWorkflowTasks(query: {
 
 /** 当前成员待办的总量与流程表单聚合，用于左侧流程菜单的真实徽标。 */
 export function getWorkflowPendingTaskSummary(): Promise<WorkflowPendingTaskSummaryDto> {
-  return http.get('/workflow-tasks/summary');
+  return http.get('/workflow-task-summaries/current');
 }
 
 /** 审批中心「我发起的」实例列表。 */

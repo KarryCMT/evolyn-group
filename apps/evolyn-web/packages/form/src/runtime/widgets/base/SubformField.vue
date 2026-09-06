@@ -15,11 +15,16 @@ const emit = defineEmits<RuntimeFieldEmits>();
 const widget = computed(() => props.item.widget as SubformWidget);
 const fields = computed(() => widget.value.items.filter((item) => item.widget.visible));
 const rows = computed(() => normalizeRows(props.modelValue));
+const hasFields = computed(() => fields.value.length > 0);
 const maxRows = computed(() => widget.value.maxRowCount ?? 200);
 const minRows = computed(() => widget.value.minRowCount ?? 0);
 const readOnly = computed(() => props.disabled || props.readonly);
 const canCreate = computed(
-  () => !readOnly.value && widget.value.subformCreate && rows.value.length < maxRows.value,
+  () =>
+    hasFields.value &&
+    !readOnly.value &&
+    widget.value.subformCreate &&
+    rows.value.length < maxRows.value,
 );
 const canInsert = computed(
   () => !readOnly.value && widget.value.subformInsert && rows.value.length < maxRows.value,
@@ -52,7 +57,12 @@ function emitRows(next: Record<string, FormJsonValue>[]): void {
 
 function addRow(): void {
   if (!canCreate.value) return;
-  emitRows([...rows.value, emptyRow()]);
+  // 快速填报的语义是复用上一行的填写结果；复制对象而不是复用引用，保证后续编辑
+  // 新行时不会回写到上一行。
+  const previousRow = rows.value[rows.value.length - 1];
+  const nextRow =
+    widget.value.quickFill && canEdit.value && previousRow ? { ...previousRow } : emptyRow();
+  emitRows([...rows.value, nextRow]);
 }
 
 function insertRow(afterIndex: number): void {
@@ -166,7 +176,7 @@ function placeholder(field: FormItem): string {
 
 <template>
   <section class="evf-subform" :aria-invalid="errors.length > 0 || undefined">
-    <div v-if="rows.length === 0" class="evf-subform__empty">暂无明细行</div>
+    <div v-if="!hasFields" class="evf-subform__empty">暂未配置子字段</div>
     <div v-else class="evf-subform__scroll">
       <table class="evf-subform__table">
         <thead class="evf-subform__head">
@@ -188,84 +198,99 @@ function placeholder(field: FormItem): string {
           </tr>
         </thead>
         <tbody class="evf-subform__body">
-          <tr v-for="(row, rowIndex) in rows" :key="rowIndex" class="evf-subform__row">
-            <td v-for="field in fields" :key="field.widget.widgetName" class="evf-subform__cell">
-              <textarea
-                v-if="field.widget.type === 'textarea'"
-                class="evf-subform__input evf-subform__textarea"
-                :value="inputDisplayValue(row, field)"
-                :placeholder="placeholder(field)"
-                :disabled="!canEdit || !field.widget.enable"
-                @input="onInput(rowIndex, field, $event)"
-              />
-              <select
-                v-else-if="field.widget.type === 'radiogroup' || field.widget.type === 'combo'"
-                class="evf-subform__input"
-                :value="inputDisplayValue(row, field)"
-                :disabled="!canEdit || !field.widget.enable"
-                @change="updateCell(rowIndex, field, ($event.target as HTMLSelectElement).value)"
-              >
-                <option value="">请选择</option>
-                <option v-for="option in options(field)" :key="option.value" :value="option.value">
-                  {{ option.label }}
-                </option>
-              </select>
-              <div
-                v-else-if="
-                  field.widget.type === 'checkboxgroup' || field.widget.type === 'combocheck'
-                "
-                class="evf-subform__choices"
-              >
-                <label
-                  v-for="option in options(field)"
-                  :key="option.value"
-                  class="evf-subform__choice"
-                >
-                  <input
-                    type="checkbox"
-                    :checked="isSelected(row, field, option.value)"
-                    :disabled="!canEdit || !field.widget.enable"
-                    @change="
-                      onMultiChoice(
-                        rowIndex,
-                        field,
-                        option.value,
-                        ($event.target as HTMLInputElement).checked,
-                      )
-                    "
-                  />
-                  <span>{{ option.label }}</span>
-                </label>
-              </div>
-              <input
-                v-else
-                class="evf-subform__input"
-                :type="inputType(field)"
-                :value="inputDisplayValue(row, field)"
-                :placeholder="placeholder(field)"
-                :disabled="!canEdit || !field.widget.enable"
-                @input="onInput(rowIndex, field, $event)"
-              />
-            </td>
-            <td v-if="canInsert || canDelete" class="evf-subform__actions">
-              <button
-                v-if="canInsert"
-                class="evf-subform__action"
-                type="button"
-                @click="insertRow(rowIndex)"
-              >
-                插入
-              </button>
-              <button
-                v-if="canDelete"
-                class="evf-subform__action evf-subform__action--danger"
-                type="button"
-                @click="removeRow(rowIndex)"
-              >
-                删除
-              </button>
+          <!-- 即使尚未新增明细，也保留列头，令预览与正式填写页明确呈现子字段结构。 -->
+          <tr v-if="rows.length === 0" class="evf-subform__empty-row">
+            <td
+              class="evf-subform__empty-cell"
+              :colspan="fields.length + (canInsert || canDelete ? 1 : 0)"
+            >
+              暂无明细行
             </td>
           </tr>
+          <template v-else>
+            <tr v-for="(row, rowIndex) in rows" :key="rowIndex" class="evf-subform__row">
+              <td v-for="field in fields" :key="field.widget.widgetName" class="evf-subform__cell">
+                <textarea
+                  v-if="field.widget.type === 'textarea'"
+                  class="evf-subform__input evf-subform__textarea"
+                  :value="inputDisplayValue(row, field)"
+                  :placeholder="placeholder(field)"
+                  :disabled="!canEdit || !field.widget.enable"
+                  @input="onInput(rowIndex, field, $event)"
+                />
+                <select
+                  v-else-if="field.widget.type === 'radiogroup' || field.widget.type === 'combo'"
+                  class="evf-subform__input"
+                  :value="inputDisplayValue(row, field)"
+                  :disabled="!canEdit || !field.widget.enable"
+                  @change="updateCell(rowIndex, field, ($event.target as HTMLSelectElement).value)"
+                >
+                  <option value="">请选择</option>
+                  <option
+                    v-for="option in options(field)"
+                    :key="option.value"
+                    :value="option.value"
+                  >
+                    {{ option.label }}
+                  </option>
+                </select>
+                <div
+                  v-else-if="
+                    field.widget.type === 'checkboxgroup' || field.widget.type === 'combocheck'
+                  "
+                  class="evf-subform__choices"
+                >
+                  <label
+                    v-for="option in options(field)"
+                    :key="option.value"
+                    class="evf-subform__choice"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="isSelected(row, field, option.value)"
+                      :disabled="!canEdit || !field.widget.enable"
+                      @change="
+                        onMultiChoice(
+                          rowIndex,
+                          field,
+                          option.value,
+                          ($event.target as HTMLInputElement).checked,
+                        )
+                      "
+                    />
+                    <span>{{ option.label }}</span>
+                  </label>
+                </div>
+                <input
+                  v-else
+                  class="evf-subform__input"
+                  :type="inputType(field)"
+                  :value="inputDisplayValue(row, field)"
+                  :placeholder="placeholder(field)"
+                  :disabled="!canEdit || !field.widget.enable"
+                  @input="onInput(rowIndex, field, $event)"
+                />
+              </td>
+              <td v-if="canInsert || canDelete" class="evf-subform__actions">
+                <button
+                  v-if="canInsert"
+                  class="evf-subform__action"
+                  type="button"
+                  @click="insertRow(rowIndex)"
+                >
+                  插入
+                </button>
+                <button
+                  v-if="canDelete"
+                  class="evf-subform__action evf-subform__action--danger"
+                  type="button"
+                  @click="removeRow(rowIndex)"
+                >
+                  删除
+                </button>
+              </td>
+            </tr>
+          </template>
         </tbody>
       </table>
     </div>
@@ -287,6 +312,12 @@ function placeholder(field: FormItem): string {
 
 .evf-subform__empty {
   padding: 12px;
+  color: var(--evf-muted-color, #909399);
+  text-align: center;
+}
+.evf-subform__empty-cell {
+  min-height: 72px;
+  padding: 24px 12px;
   color: var(--evf-muted-color, #909399);
   text-align: center;
 }
