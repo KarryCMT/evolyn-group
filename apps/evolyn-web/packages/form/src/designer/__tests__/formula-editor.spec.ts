@@ -7,6 +7,7 @@ import {
   type FormulaEditorField,
 } from '../formula-editor';
 import FormulaEditor from '../FormulaEditor.vue';
+import SubmitTemplateEditor from '../SubmitTemplateEditor.vue';
 
 const fields: FormulaEditorField[] = [
   { widgetName: '_widget_name', label: '姓名', valueType: 'text', displayType: '文本' },
@@ -66,6 +67,23 @@ describe('FormulaEditor', () => {
     await nextTick();
 
     const fieldChip = wrapper.find('.cm-formula-field-chip');
+    expect(fieldChip.exists()).toBe(true);
+    expect(fieldChip.text()).toBe('姓名');
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+  });
+});
+
+describe('SubmitTemplateEditor', () => {
+  it('提示文案保留稳定变量键，并通过 CodeMirror 显示字段标签', async () => {
+    const wrapper = mount(SubmitTemplateEditor, {
+      props: {
+        modelValue: '请核对 ${_widget_name}',
+        fields: [{ widgetName: '_widget_name', label: '姓名' }],
+      },
+    });
+    await nextTick();
+
+    const fieldChip = wrapper.find('.cm-submit-template-field');
     expect(fieldChip.exists()).toBe(true);
     expect(fieldChip.text()).toBe('姓名');
     expect(wrapper.emitted('update:modelValue')).toBeUndefined();

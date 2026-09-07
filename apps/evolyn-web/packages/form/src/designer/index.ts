@@ -43,6 +43,7 @@ export { default as FormSchemaSubmitValidationSettings } from './FormSchemaSubmi
 export { default as FormSchemaSubmitValidatorDialog } from './FormSchemaSubmitValidatorDialog.vue';
 export { default as FormSchemaPreSubmitConfirmSettings } from './FormSchemaPreSubmitConfirmSettings.vue';
 export { default as FormulaEditor } from './FormulaEditor.vue';
+export { default as SubmitTemplateEditor } from './SubmitTemplateEditor.vue';
 export {
   FORMULA_CATEGORY_LABELS,
   FORMULA_COMMON_FUNCTION_NAMES,

@@ -11,7 +11,10 @@ import { computed, ref, shallowRef, watch } from 'vue';
 import Draggable from 'vuedraggable';
 import { ElIcon, ElMessageBox, ElTooltip } from 'element-plus';
 import type { FormItem } from '../schema/types';
-import type { SubmitValidatorDraft } from './submit-validation-types';
+import {
+  cloneSubmitValidatorDraft,
+  type SubmitValidatorDraft,
+} from './submit-validation-types';
 import FormSchemaSubmitValidatorDialog from './FormSchemaSubmitValidatorDialog.vue';
 
 const validators = defineModel<SubmitValidatorDraft[]>({ required: true });
@@ -31,7 +34,7 @@ const canCreate = computed(() => validators.value.length < 50);
 watch(
   validators,
   (next) => {
-    localValidators.value = structuredClone(next);
+    localValidators.value = next.map(cloneSubmitValidatorDraft);
   },
   { immediate: true, deep: true },
 );
@@ -47,7 +50,7 @@ function openEdit(index: number): void {
 }
 
 function saveValidator(next: SubmitValidatorDraft): void {
-  const snapshot = structuredClone(next);
+  const snapshot = cloneSubmitValidatorDraft(next);
   if (editingIndex.value === null) {
     validators.value = [...validators.value, snapshot];
     return;
@@ -62,7 +65,7 @@ function duplicateValidator(index: number): void {
   if (!source || !canCreate.value) return;
   validators.value = [
     ...validators.value.slice(0, index + 1),
-    structuredClone(source),
+    cloneSubmitValidatorDraft(source),
     ...validators.value.slice(index + 1),
   ];
 }
@@ -83,7 +86,7 @@ async function removeValidator(index: number): Promise<void> {
 }
 
 function emitReorder(): void {
-  validators.value = structuredClone(localValidators.value);
+  validators.value = localValidators.value.map(cloneSubmitValidatorDraft);
 }
 
 function summary(validator: SubmitValidatorDraft): string {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { collectFormulaDiagnostics } from '../analyzer';
-import { projectFormulaContext } from '../context';
+import { projectFormulaContext, projectSubformFormulaContext } from '../context';
 import type { FormItem } from '../../schema/types';
 
 function item(type: FormItem['widget']['type'], widgetName: string, label = widgetName): FormItem {
@@ -72,5 +72,37 @@ describe('projectFormulaContext', () => {
         expect.objectContaining({ message: '字段“负责人”的类型暂不支持参与公式计算' }),
       ]),
     );
+  });
+
+  it('将子表单子项投影为不可插入的数组变量', () => {
+    const child = item('text', '_widget_product', '商品名称');
+    const subform = {
+      ...item('subform', '_widget_order_lines', '订单明细'),
+      widget: {
+        ...item('subform', '_widget_order_lines', '订单明细').widget,
+        type: 'subform' as const,
+        items: [child, item('separator', '_separator')],
+        subformCreate: true,
+        subformInsert: true,
+        subformEdit: true,
+        subformDelete: true,
+        quickFill: false,
+        pcStickyColumn: { enable: false, limit: 1 },
+        mobileStickyColumn: { enable: false, limit: 1 },
+        mobileViewStyle: 'vertical' as const,
+        mobileSummaryFieldCount: 1,
+      },
+    } satisfies FormItem;
+
+    expect(projectSubformFormulaContext([subform])).toEqual([
+      {
+        parentWidgetName: '_widget_order_lines',
+        widgetName: '_widget_product',
+        label: '订单明细.商品名称',
+        valueType: 'array',
+        displayType: '数组',
+        formulaAllowed: false,
+      },
+    ]);
   });
 });

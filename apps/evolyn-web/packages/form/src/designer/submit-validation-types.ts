@@ -25,6 +25,26 @@ export function createSubmitValidatorDraft(): SubmitValidatorDraft {
   };
 }
 
+/**
+ * 协议对象可能来自 Vue 的响应式 props，不能直接交给 structuredClone。
+ * 明确投影持久化字段既隔离编辑草稿，也避免把 Proxy 带入浏览器克隆算法。
+ */
+export function cloneSubmitValidatorDraft(
+  source: Readonly<SubmitValidator>,
+): SubmitValidatorDraft {
+  return {
+    formula: source.formula,
+    remind: source.remind,
+    remark: source.remark,
+    realtime: source.realtime,
+    failAction: source.failAction,
+  };
+}
+
 export function createPreSubmitConfirmDraft(): PreSubmitConfirmDraft {
-  return structuredClone(DEFAULT_PRE_SUBMIT_CONFIRM);
+  return {
+    enable: DEFAULT_PRE_SUBMIT_CONFIRM.enable,
+    title: DEFAULT_PRE_SUBMIT_CONFIRM.title,
+    content: DEFAULT_PRE_SUBMIT_CONFIRM.content,
+  };
 }

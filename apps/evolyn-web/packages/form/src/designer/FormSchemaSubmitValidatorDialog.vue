@@ -24,18 +24,28 @@ import {
   ElTooltip,
 } from 'element-plus';
 import type { FormItem } from '../schema/types';
-import { SUBMIT_VALIDATOR_FUNCTIONS, SUBMIT_VALIDATOR_SOURCE_TYPES } from '../schema/dictionary';
+import {
+  SUBMIT_VALIDATOR_FUNCTIONS,
+  SUBMIT_VALIDATOR_SOURCE_TYPES,
+  widgetTypeLabel,
+} from '../schema/dictionary';
 import {
   FORMULA_FUNCTIONS,
   collectFormulaDiagnostics,
   FormulaFunctionLibrary,
   projectFormulaContext,
+  projectSubformFormulaContext,
   type FormulaEditorField,
   type FormulaEditorFunction,
   type FormulaEditorInsertion,
 } from '../formula';
 import FormulaEditor from './FormulaEditor.vue';
-import { createSubmitValidatorDraft, type SubmitValidatorDraft } from './submit-validation-types';
+import SubmitTemplateEditor from './SubmitTemplateEditor.vue';
+import {
+  cloneSubmitValidatorDraft,
+  createSubmitValidatorDraft,
+  type SubmitValidatorDraft,
+} from './submit-validation-types';
 
 const props = withDefaults(
   defineProps<{
@@ -56,6 +66,8 @@ const formulaDialogOpen = shallowRef(false);
 const formulaDialogExpanded = shallowRef(false);
 const formulaInsertion = shallowRef<FormulaEditorInsertion>();
 const formulaInsertionSequence = shallowRef(0);
+const templateInsertion = shallowRef<FormulaEditorInsertion>();
+const templateInsertionSequence = shallowRef(0);
 const fieldPickerOpen = shallowRef(false);
 const reminderIssue = shallowRef('');
 const formulaIssue = shallowRef('');
@@ -75,11 +87,25 @@ const formulaFields = computed<FormulaEditorField[]>(() =>
       ),
   ),
 );
-const formulaFieldTypeByName = computed(
-  () => new Map(formulaFields.value.map((field) => [field.widgetName, field.displayType])),
-);
+/**
+ * 子表单字段按“子表单.字段”列出，值形态统一为数组。它们尚无聚合 DSL 支持，
+ * 因而只作为可见、不可插入的候选项，而真正传给编辑器的仍是可执行的顶层字段。
+ */
+const formulaVariableFields = computed(() => [
+  ...formulaFields.value.map((field) => ({
+    ...field,
+    listKey: `top-level:${field.widgetName}`,
+  })),
+  ...projectSubformFormulaContext(props.items).map((field) => ({
+    ...field,
+    listKey: `subform:${field.parentWidgetName}:${field.widgetName}`,
+  })),
+]);
 const formulaFieldLabelByName = computed(
   () => new Map(formulaFields.value.map((field) => [field.widgetName, field.label])),
+);
+const templateFields = computed(() =>
+  fieldItems.value.map((item) => ({ widgetName: item.widget.widgetName, label: item.label })),
 );
 const formulaFunctions = FORMULA_FUNCTIONS.filter((item) =>
   SUBMIT_VALIDATOR_FUNCTIONS.has(item.name),
@@ -108,7 +134,7 @@ watch(
   (open) => {
     if (!open) return;
     const source = props.validator ?? createSubmitValidatorDraft();
-    Object.assign(draft, structuredClone(source));
+    Object.assign(draft, cloneSubmitValidatorDraft(source));
     formulaIssue.value = '';
     reminderIssue.value = '';
   },
@@ -126,12 +152,16 @@ function save(): void {
       : '';
   reminderIssue.value = draft.remind.trim() ? '' : '请填写不满足条件时的提示文字';
   if (formulaIssue.value || reminderIssue.value) return;
-  emit('save', structuredClone(draft));
+  emit('save', cloneSubmitValidatorDraft(draft));
   close();
 }
 
 function appendTemplateField(widgetName: string): void {
-  draft.remind += `${draft.remind ? ' ' : ''}\${${widgetName}}`;
+  templateInsertionSequence.value += 1;
+  templateInsertion.value = {
+    id: templateInsertionSequence.value,
+    text: `\${${widgetName}}`,
+  };
   fieldPickerOpen.value = false;
 }
 
@@ -246,34 +276,35 @@ function formulaSegments(
       <el-form class="form-submit-validator-dialog__form" label-position="top" @submit.prevent>
         <el-form-item required>
           <template #label>不满足校验条件时的提示文字</template>
-          <el-input
-            v-model="draft.remind"
-            :maxlength="500"
-            placeholder="请输入提示文字"
-            @input="reminderIssue = ''"
-          >
-            <template #append>
-              <el-popover v-model:visible="fieldPickerOpen" :width="360" placement="bottom-end">
-                <template #reference>
-                  <el-button class="form-submit-validator-dialog__field-add" aria-label="插入字段">
-                    <el-icon><RiAddLine /></el-icon>
-                  </el-button>
-                </template>
-                <div class="form-submit-validator-dialog__field-picker" role="listbox">
-                  <button
-                    v-for="item in fieldItems"
-                    :key="item.widget.widgetName"
-                    type="button"
-                    @click="appendTemplateField(item.widget.widgetName)"
-                  >
-                    <span>{{ item.label }}</span>
-                    <small>{{ item.widget.type }}</small>
-                  </button>
-                  <p v-if="fieldItems.length === 0">请先在画布中添加字段</p>
-                </div>
-              </el-popover>
-            </template>
-          </el-input>
+          <div class="form-submit-validator-dialog__template-input">
+            <SubmitTemplateEditor
+              v-model="draft.remind"
+              :fields="templateFields"
+              :insertion="templateInsertion"
+              :max-length="500"
+              @update:model-value="reminderIssue = ''"
+            />
+            <el-popover v-model:visible="fieldPickerOpen" :width="360" placement="bottom-end">
+              <template #reference>
+                <el-button class="form-submit-validator-dialog__field-add" aria-label="插入字段">
+                  <el-icon><RiAddLine /></el-icon>
+                </el-button>
+              </template>
+              <div class="form-submit-validator-dialog__field-picker" role="listbox">
+                <button
+                  v-for="item in fieldItems"
+                  :key="item.widget.widgetName"
+                  type="button"
+                  @click="appendTemplateField(item.widget.widgetName)"
+                >
+                  <span>{{ item.label }}</span>
+                  <!-- 控件稳定标识映射为中文名称，避免向设计者暴露 text 等内部值。 -->
+                  <small>{{ widgetTypeLabel(item.widget.type) }}</small>
+                </button>
+                <p v-if="fieldItems.length === 0">请先在画布中添加字段</p>
+              </div>
+            </el-popover>
+          </div>
           <p v-if="reminderIssue" class="form-submit-validator-dialog__error">
             {{ reminderIssue }}
           </p>
@@ -379,15 +410,19 @@ function formulaSegments(
             <el-icon><RiSearchLine /></el-icon>搜索变量
           </div>
           <button
-            v-for="field in formulaFields"
-            :key="field.widgetName"
+            v-for="field in formulaVariableFields"
+            :key="field.listKey"
             type="button"
             :disabled="!field.formulaAllowed"
-            :title="field.formulaAllowed ? undefined : '该字段类型暂不支持参与公式计算'"
+            :title="
+              field.formulaAllowed
+                ? undefined
+                : '子表单字段当前仅支持查看，暂不支持参与公式计算'
+            "
             @click="appendFormulaField(field.widgetName)"
           >
             <span>{{ field.label }}</span>
-            <small>{{ formulaFieldTypeByName.get(field.widgetName) }}</small>
+            <small>{{ field.displayType }}</small>
           </button>
         </div>
         <FormulaFunctionLibrary
@@ -470,10 +505,14 @@ function formulaSegments(
     background: var(--el-fill-color-light);
   }
   &__body {
-    height: 100%;
+    // 不能使用 height: 100%，否则会把 header/footer 的高度再次计入内容区，
+    // 导致页脚挤出视口。由弹性布局分配剩余空间并只滚动内容区。
+    flex: 1 1 auto;
+    min-height: 0;
     padding: 20px 26px;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   &__formula-section h3,
   &__failure h3 {
@@ -543,11 +582,32 @@ function formulaSegments(
     color: var(--el-text-color-primary);
   }
   &__field-add.el-button {
-    height: 30px;
+    width: 42px;
+    height: 38px;
     padding: 0 8px;
-    margin: 0 -9px 0 0;
+    margin: 0;
     color: var(--el-color-primary);
-    border: 0;
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-left-color: var(--el-border-color);
+    border-radius: 0 var(--el-border-radius-base) var(--el-border-radius-base) 0;
+  }
+  &__template-input {
+    display: flex;
+    width: 100%;
+    min-height: 38px;
+    overflow: hidden;
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color);
+    border-radius: var(--el-border-radius-base);
+    transition: border-color var(--el-transition-duration);
+  }
+  &__template-input:focus-within {
+    border-color: var(--el-color-primary);
+  }
+  &__template-input .submit-template-editor {
+    flex: 1 1 auto;
   }
   &__field-picker {
     max-height: 300px;
@@ -697,10 +757,12 @@ function formulaSegments(
     outline: none;
   }
   &__body {
-    height: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
     padding: 16px 20px;
     box-sizing: border-box;
-    overflow: hidden;
+    overflow-x: hidden;
+    overflow-y: auto;
   }
   &__editor {
     overflow: hidden;

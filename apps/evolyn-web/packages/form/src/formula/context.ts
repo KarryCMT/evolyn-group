@@ -59,3 +59,41 @@ export function projectFormulaContext(items: readonly FormItem[]): FormulaEditor
       };
     });
 }
+
+/**
+ * 子表单子项在提交校验变量面板中的展示投影。
+ *
+ * 子表单字段在运行时对应每一行的一组值，而非单个标量。当前提交校验 DSL 尚未
+ * 支持行集合的聚合/遍历运算，因此仅将它们暴露为不可插入的“数组”候选项；这样
+ * 设计者可以发现字段，也不会保存无法由前后端执行的公式。
+ */
+export interface SubformFormulaEditorField extends FormulaEditorField {
+  parentWidgetName: string;
+}
+
+export function projectSubformFormulaContext(
+  items: readonly FormItem[],
+): SubformFormulaEditorField[] {
+  const fields: SubformFormulaEditorField[] = [];
+
+  for (const parent of items) {
+    if (parent.widget.type !== 'subform') continue;
+
+    const parentLabel = parent.label || parent.widget.widgetName;
+    for (const child of parent.widget.items) {
+      // 分隔符和按钮没有实际业务值，不能作为子表单变量展示。
+      if (child.widget.type === 'separator' || child.widget.type === 'button') continue;
+
+      fields.push({
+        parentWidgetName: parent.widget.widgetName,
+        widgetName: child.widget.widgetName,
+        label: `${parentLabel}.${child.label || child.widget.widgetName}`,
+        valueType: 'array',
+        displayType: '数组',
+        formulaAllowed: false,
+      });
+    }
+  }
+
+  return fields;
+}
