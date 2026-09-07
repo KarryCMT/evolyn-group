@@ -13,6 +13,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"unicode/utf8"
@@ -430,6 +431,11 @@ func (s *permissionGroupService) normalizeRequest(
 	if err := ValidatePermissionFieldRules(fieldList, fieldRules, operations); err != nil {
 		return nil, err
 	}
+	// v7 的提交规则会在服务端终审。拥有 add 的组必须能看见并修改所有
+	// 公式依赖字段；确认模板变量至少可见，避免配置出无法修正的阻断规则。
+	if err := s.validateSubmitRulePermissions(ctx, form, operations, fieldRules); err != nil {
+		return nil, err
+	}
 
 	dataScope := model.PermissionDataScopeSpec{}
 	if req.DataScope != nil {
@@ -454,6 +460,78 @@ func (s *permissionGroupService) normalizeRequest(
 		dataScope:   dataScope,
 		subjects:    subjects,
 	}, nil
+}
+
+func (s *permissionGroupService) validateSubmitRulePermissions(
+	ctx context.Context, form *model.Form, operations []string, rules []model.PermissionFieldRule,
+) error {
+	if form.ProtocolVersion < 7 {
+		return nil
+	}
+	content := map[string]any{}
+	if err := json.Unmarshal(form.DraftContent, &content); err != nil {
+		return err
+	}
+	// 权限配置以最新发布字段为事实源；相应规则也必须以该不可变版本解释。
+	protocol := form.ProtocolVersion
+	if form.LatestVersionID != nil {
+		version, err := s.versions.GetByID(ctx, *form.LatestVersionID)
+		if err != nil {
+			return err
+		}
+		if err := json.Unmarshal(version.Content, &content); err != nil {
+			return err
+		}
+		protocol = version.ProtocolVersion
+	}
+	if protocol < 7 {
+		return nil
+	}
+	raw, err := CompileSubmitRules(content, protocol)
+	if err != nil {
+		return httpx.Wrap(apperrors.ErrPermissionFieldInvalid, err)
+	}
+	var compiled compiledSubmitRules
+	if err := json.Unmarshal(raw, &compiled); err != nil {
+		return err
+	}
+	inner, _ := content["content"].(map[string]any)
+	viewRequired := map[string]bool{}
+	for _, rule := range compiled.Validators {
+		for _, field := range rule.Fields {
+			viewRequired[field] = true
+		}
+	}
+	if confirm, ok := inner["preSubmitConfirm"].(map[string]any); ok {
+		for _, key := range []string{"title", "content"} {
+			value, _ := confirm[key].(string)
+			for _, field := range orderedRefs(value, submitTokenRef) {
+				viewRequired[field] = true
+			}
+		}
+	}
+	if len(viewRequired) == 0 {
+		return nil
+	}
+	grant := map[string]model.PermissionFieldRule{}
+	for _, rule := range rules {
+		grant[rule.Field] = rule
+	}
+	hasAdd := false
+	for _, operation := range operations {
+		if operation == model.PermissionOpAdd {
+			hasAdd = true
+			break
+		}
+	}
+	for field := range viewRequired {
+		rule, ok := grant[field]
+		if !ok || !rule.Visible || (hasAdd && !rule.Editable) {
+			return httpx.Wrap(apperrors.ErrPermissionFieldInvalid,
+				fmt.Errorf("submit validation field %s must be visible%s", field, map[bool]string{true: " and editable", false: ""}[hasAdd]))
+		}
+	}
+	return nil
 }
 
 // normalizeSubjects 主体清单校验：类型枚举、去重、上限 200、同租户存在性

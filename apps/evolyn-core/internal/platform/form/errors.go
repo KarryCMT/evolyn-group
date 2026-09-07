@@ -48,6 +48,10 @@ var (
 	// ErrRecordInvalid 提交值校验失败；data 携带 fieldErrors{widgetName:[msg]}
 	ErrRecordInvalid = httpx.NewBiz("FORM_RECORD_INVALID", "提交内容未通过校验，请修正后重试", http.StatusBadRequest)
 
+	// ErrRecordValidationFailed 为阻断型提交规则终审失败；data 仅携带安全的
+	// validatorErrors:[{index,remind,fields}]，绝不回显公式原始输入值。
+	ErrRecordValidationFailed = httpx.NewBiz("FORM_RECORD_VALIDATION_FAILED", "提交内容未通过业务校验，请修正后重试", http.StatusBadRequest)
+
 	// ErrRecordQueryInvalid 记录列表 Query DSL 不符合已发布字段快照或支持的
 	// 查询语义；不回显 SQL/JSONB 路径等内部细节。
 	ErrRecordQueryInvalid = httpx.NewBiz("FORM_RECORD_QUERY_INVALID", "数据筛选条件不符合要求", http.StatusBadRequest)

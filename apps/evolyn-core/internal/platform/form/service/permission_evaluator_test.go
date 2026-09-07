@@ -201,7 +201,7 @@ const permTestDoc = `{"content":{"type":"form","layout":"grid-2","items":[
   {"widget":{"type":"text","widgetName":"secret","visible":true,"allowBlank":true},"label":"密级"},
   {"widget":{"type":"datetime","widgetName":"created_day","visible":true,"allowBlank":true,"format":"date"},"label":"日期"},
   {"widget":{"type":"checkboxgroup","widgetName":"tags","visible":true,"allowBlank":true,"options":[{"value":"a","label":"A"},{"value":"b","label":"B"}]},"label":"标签"}
-],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{}}}`
+],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`
 
 func permTestDocMap(t *testing.T) map[string]any {
 	t.Helper()
@@ -746,7 +746,15 @@ func TestSubmitRecordPermissionExecution(t *testing.T) {
 // publishForTest 测试助手：直接走版本仓储发布（绕过 Service 权限复核）
 func publishForTest(ctx context.Context, formRepo *fakeFormRepo, versionRepo *fakeVersionRepo, form *model.Form, doc string) (*model.PublishResult, error) {
 	nextNo := 1
-	version := &model.FormVersion{FormID: form.ID, VersionNo: nextNo, Content: model.JSONContent(doc), ProtocolVersion: model.CurrentProtocolVersion}
+	root := map[string]any{}
+	if err := json.Unmarshal([]byte(doc), &root); err != nil {
+		return nil, err
+	}
+	compiled, err := CompileSubmitRules(root, model.CurrentProtocolVersion)
+	if err != nil {
+		return nil, err
+	}
+	version := &model.FormVersion{FormID: form.ID, VersionNo: nextNo, Content: model.JSONContent(doc), CompiledSubmitRules: compiled, ProtocolVersion: model.CurrentProtocolVersion}
 	version.TenantID = form.TenantID
 	created, err := versionRepo.Create(ctx, version)
 	if err != nil {

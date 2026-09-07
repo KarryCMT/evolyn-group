@@ -378,7 +378,7 @@ func tenantCtx(tenantID uint) context.Context {
 }
 
 func validDraft() model.JSONContent {
-	return model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":false},"label":"姓名","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{}}}`)
+	return model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":false},"label":"姓名","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`)
 }
 
 func submitBool(value bool) *bool { return &value }
@@ -468,7 +468,7 @@ func TestSaveDraft(t *testing.T) {
 	_, err = svc.SaveDraft(tenantCtx(1), memberOfTenant(1), created.Code, &model.SaveDraftRequest{
 		DraftRevision:   created.DraftRevision,
 		ProtocolVersion: model.CurrentProtocolVersion,
-		Content:         model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":true},"label":"","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{}}}`),
+		Content:         model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":true},"label":"","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`),
 	})
 	assert.ErrorIs(t, err, apperrors.ErrSchemaInvalid)
 	var biz *httpx.BizError
@@ -508,7 +508,7 @@ func TestPublishAndRuntimeAndSubmit(t *testing.T) {
 	_, err := svc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{
 		DraftRevision:   1,
 		ProtocolVersion: model.CurrentProtocolVersion,
-		Content:         model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"dept","widgetName":"_widget_d","enable":true,"visible":true,"allowBlank":true},"label":"所属部门","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_d"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{}}}`),
+		Content:         model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"dept","widgetName":"_widget_d","enable":true,"visible":true,"allowBlank":true},"label":"所属部门","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_d"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`),
 	})
 	assert.NoError(t, err)
 	_, err = svc.Publish(ctx, member, created.Code, &model.PublishRequest{DraftRevision: 2})
@@ -525,7 +525,7 @@ func TestPublishAndRuntimeAndSubmit(t *testing.T) {
 	_, _ = svc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{
 		DraftRevision:   3,
 		ProtocolVersion: model.CurrentProtocolVersion,
-		Content:         model.JSONContent(`{"content":{"type":"form","layout":"grid-2","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":true},"label":"姓名2","description":"","labelHidden":false,"lineWidth":6}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{}}}`),
+		Content:         model.JSONContent(`{"content":{"type":"form","layout":"grid-2","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":true},"label":"姓名2","description":"","labelHidden":false,"lineWidth":6}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`),
 	})
 	published2, err := svc.Publish(ctx, member, created.Code, &model.PublishRequest{DraftRevision: 4})
 	assert.NoError(t, err)

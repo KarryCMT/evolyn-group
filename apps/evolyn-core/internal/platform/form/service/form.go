@@ -39,9 +39,9 @@ type TxManager interface {
 	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }
 
-// emptyFormDocument 空协议文档（新表单草稿初值）：v6 起携带 fieldShowRules /
-// submitRule / widget_submit_rules 三个必填键，默认策略为空值（2）。
-var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[],"layout_fields":[],"field_layout":[],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{}}}`)
+// emptyFormDocument 空协议文档（新表单草稿初值）：v7 显式保存空校验与关闭的
+// 二次确认，禁止以缺键表示关闭。
+var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[],"layout_fields":[],"field_layout":[],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`)
 
 // formService 表单资产服务实现。
 type formService struct {
@@ -621,6 +621,19 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 	if len(issues) > 0 {
 		return nil, httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": issues}),
 			fmt.Errorf("form %s draft invalid: %s", code, issues[0].Path))
+	}
+	// 草稿阶段即编译受控公式与模板引用；发布会再次独立编译并冻结产物，避免
+	// “能保存、填写时才发现公式不可执行”的漂移。
+	if req.ProtocolVersion >= 7 {
+		var root map[string]any
+		if err := json.Unmarshal(req.Content, &root); err != nil {
+			return nil, httpx.Wrap(apperrors.ErrSchemaInvalid, err)
+		}
+		content, _ := root["content"].(map[string]any)
+		if _, err := CompileSubmitRules(content, req.ProtocolVersion); err != nil {
+			issue := SchemaIssue{Path: "content.validators", Message: err.Error()}
+			return nil, httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": []SchemaIssue{issue}}), err)
+		}
 	}
 	if req.DraftRevision != form.DraftRevision {
 		return nil, httpx.Wrap(apperrors.ErrRevisionConflict,

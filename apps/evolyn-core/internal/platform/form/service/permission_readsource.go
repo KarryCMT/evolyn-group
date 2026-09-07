@@ -25,6 +25,16 @@ type permissionGroupReadSource struct {
 	groups repository.PermissionGroupRepository
 }
 
+// submitValidationGroupSource 是发布门禁的可选窄端口。保留在独立接口中，避免
+// 既有测试桩和旧装配在升级时被强制扩展；生产适配器始终实现它。
+type submitValidationGroupSource interface {
+	ListSubmitValidationGroups(ctx context.Context, formID uint) ([]model.AssetPermissionGroup, error)
+}
+
+func (s *permissionGroupReadSource) ListSubmitValidationGroups(ctx context.Context, formID uint) ([]model.AssetPermissionGroup, error) {
+	return s.groups.ListByAsset(ctx, model.PermissionAssetTypeForm, formID)
+}
+
 // NewPermissionGroupReadSource 构造只读查询端口（server 装配注入）。
 func NewPermissionGroupReadSource(groups repository.PermissionGroupRepository) PermissionGroupReadSource {
 	return &permissionGroupReadSource{groups: groups}

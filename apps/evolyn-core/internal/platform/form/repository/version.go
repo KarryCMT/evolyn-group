@@ -100,6 +100,18 @@ func (r *formRecordRepository) CreateIdempotent(ctx context.Context, record *mod
 	return existing, false, nil
 }
 
+func (r *formRecordRepository) FindByDataOpID(ctx context.Context, tenantID uint, dataOpID string) (*model.FormRecord, bool, error) {
+	record := new(model.FormRecord)
+	err := infrastructure.ResolveDB(ctx, r.db).Where("tenant_id = ? AND data_op_id = ?", tenantID, dataOpID).First(record).Error
+	if err == nil {
+		return record, true, nil
+	}
+	if err == gorm.ErrRecordNotFound {
+		return nil, false, nil
+	}
+	return nil, false, err
+}
+
 func (r *formRecordRepository) GetByID(ctx context.Context, id uint) (*model.FormRecord, error) {
 	record := &model.FormRecord{}
 	if err := infrastructure.ResolveDB(ctx, r.db).Where("id = ?", id).First(record).Error; err != nil {

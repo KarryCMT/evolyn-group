@@ -3,8 +3,9 @@ import type { RuntimeFieldEmits, RuntimeFieldProps } from '@evolyn.do/form/runti
 import type { UserGroupWidget, UserWidget } from '@evolyn.do/form/schema';
 import type { MemberListItemDto } from '~/api/member';
 import { RiAddLine, RiCloseFill, RiUserFill } from '@remixicon/vue';
-import { computed, shallowRef } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
 import { useFormRendererContext } from '@evolyn.do/form/runtime-web';
+import { listMembers } from '~/api/member';
 import MemberPickerDialog from './MemberPickerDialog.vue';
 
 defineOptions({ name: 'MemberSelectionField' });
@@ -39,6 +40,38 @@ function onConfirm(members: MemberListItemDto[]): void {
   emit('update:modelValue', multiple.value ? ids : (ids[0] ?? null));
   emit('blur');
 }
+
+// 编辑既有记录时 values 只有稳定成员 ID。首次渲染主动补齐当前租户目录中的
+// 展示名，避免在未重新打开选择器前退化为“成员 123”；接口未返回（离职/已删）
+// 的历史 ID 仍保留可辨识的安全回退文案。
+async function hydrateMemberNames(ids: readonly string[]): Promise<void> {
+  const missing = ids.filter((id) => !memberNames.value[id]);
+  if (missing.length === 0) return;
+  try {
+    // 成员记录只保存稳定 ID；同时查在职和离职目录，保证编辑历史记录时仍能
+    // 显示离职成员的冻结昵称，而不是退化为裸 ID。
+    const pages = await Promise.all([
+      listMembers({ status: 'active', page: 1, pageSize: 500 }),
+      listMembers({ status: 'resigned', page: 1, pageSize: 500 }),
+    ]);
+    const resolved = Object.fromEntries(
+      pages.flatMap((page) => page.items)
+        .filter((member) => missing.includes(String(member.id)))
+        .map((member) => [String(member.id), member.name]),
+    );
+    if (Object.keys(resolved).length === 0) return;
+    memberNames.value = { ...memberNames.value, ...resolved };
+    runtime.value?.setTemplateValueLabels(props.item.widget.widgetName, memberNames.value);
+  } catch {
+    // 文案补齐不能影响填写或已保存记录的正常渲染。
+  }
+}
+
+watch(
+  () => selectedIds.value,
+  (ids) => void hydrateMemberNames(ids),
+  { immediate: true },
+);
 function memberName(id: string): string {
   return memberNames.value[id] ?? `成员 ${id}`;
 }

@@ -426,6 +426,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	if protocolVersion >= model.InvisibleValuePolicyVersion {
 		contentKeys = append(contentKeys, "submitRule", "widget_submit_rules")
 	}
+	if protocolVersion >= 7 {
+		contentKeys = append(contentKeys, "validators", "preSubmitConfirm")
+	}
 	rejectUnknownKeys(content, contentKeys, "content", issues)
 	if content["type"] != "form" {
 		*issues = append(*issues, SchemaIssue{Path: "content.type", Message: `content.type 必须固定为 "form"`})
@@ -462,6 +465,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	}
 	if protocolVersion >= model.InvisibleValuePolicyVersion {
 		validateSubmitRules(content, issues)
+	}
+	if protocolVersion >= 7 {
+		validateSubmitValidationProtocol(content, issues)
 	}
 }
 

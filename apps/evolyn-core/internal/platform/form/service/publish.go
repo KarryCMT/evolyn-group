@@ -16,6 +16,7 @@ import (
 	auditservice "evolyn/internal/platform/audit/service"
 	apperrors "evolyn/internal/platform/form"
 	"evolyn/internal/platform/form/model"
+	"evolyn/internal/platform/form/repository"
 	"evolyn/internal/platform/httpx"
 	iammodel "evolyn/internal/platform/iam/model"
 
@@ -90,6 +91,19 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 		if err != nil {
 			return err
 		}
+		compiledSubmitRules, err := CompileSubmitRules(content, form.ProtocolVersion)
+		if err != nil {
+			return httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": []SchemaIssue{{Path: "content.validators", Message: err.Error()}}}), err)
+		}
+		if source, ok := s.groups.(submitValidationGroupSource); ok {
+			groups, err := source.ListSubmitValidationGroups(tctx, form.ID)
+			if err != nil {
+				return err
+			}
+			if err := ValidateSubmitRulePermissionGroups(content, form.ProtocolVersion, groups); err != nil {
+				return httpx.Wrap(apperrors.ErrPermissionFieldInvalid, err)
+			}
+		}
 
 		version := &model.FormVersion{
 			FormID:              form.ID,
@@ -97,6 +111,7 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 			Content:             form.DraftContent,
 			FieldKeys:           model.JSONContent(fieldKeys),
 			FieldMappings:       model.JSONContent(fieldMappings),
+			CompiledSubmitRules: compiledSubmitRules,
 			ProtocolVersion:     form.ProtocolVersion,
 			PublishedByMemberID: member.ID,
 			PublishedAt:         kernel.JSONTime(time.Now()),
@@ -334,6 +349,21 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 	)
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
 		canonicalOperationID := operationID.String()
+		// 成功重放必须优先于终审：同一个 dataOpId 不再执行规则、审计或流程创建。
+		if existing, found, ierr := findRecordReplay(tctx, s.records, tenantID, canonicalOperationID); ierr != nil {
+			return ierr
+		} else if found {
+			if existing.FormID != form.ID || existing.FormVersionID != version.ID || existing.SubmittedByMemberID != member.ID || !sameJSON(existing.Values, model.JSONContent(valuesJSON)) {
+				return httpx.Wrap(apperrors.ErrRecordInvalid, fmt.Errorf("dataOpId %s reused by a different submission", canonicalOperationID))
+			}
+			record, created = existing, false
+			return nil
+		}
+		if failures, verr := ValidateCompiledSubmitRules(version.CompiledSubmitRules, content, version.ProtocolVersion, cleaned); verr != nil {
+			return verr
+		} else if len(failures) > 0 {
+			return httpx.Wrap(apperrors.ErrRecordValidationFailed.WithData(map[string]any{"validatorErrors": failures}), fmt.Errorf("form %s has %d blocking validator failures", form.Code, len(failures)))
+		}
 		var entryCodeSnapshot *string
 		if entryCode != "" {
 			entryCodeSnapshot = &entryCode
@@ -406,6 +436,18 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		})
 	}
 	return &model.SubmitRecordResult{RecordID: record.ID, WorkflowInstanceNo: record.WorkflowInstanceNo}, nil
+}
+
+// findRecordReplay is an optional repository capability while legacy in-memory test
+// repositories retain the original interface. Production repository always provides it.
+func findRecordReplay(ctx context.Context, records repository.FormRecordRepository, tenantID uint, dataOpID string) (*model.FormRecord, bool, error) {
+	type replayFinder interface {
+		FindByDataOpID(context.Context, uint, string) (*model.FormRecord, bool, error)
+	}
+	if finder, ok := records.(replayFinder); ok {
+		return finder.FindByDataOpID(ctx, tenantID, dataOpID)
+	}
+	return nil, false, nil
 }
 
 // validateSubmitEntry 提交入口校验：携带 entryCode 时复核该菜单节点确实

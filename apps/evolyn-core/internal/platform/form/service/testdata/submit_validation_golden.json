@@ -1,0 +1,5 @@
+[
+  {"name":"text-length","formula":"LEN($_widget_phone#) == 11","value":"123","passed":false,"remind":"联系电话 123 不是 11 位"},
+  {"name":"empty-value","formula":"ISBLANK($_widget_phone#)","value":null,"passed":true,"remind":"联系电话 不能为空"},
+  {"name":"option-value","formula":"$_widget_option# == 'a'","value":"b","passed":false,"remind":"选项 b 不符合要求"}
+]

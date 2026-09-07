@@ -57,6 +57,7 @@ func doc(items ...any) []byte {
 	raw, _ := json.Marshal(map[string]any{"content": map[string]any{
 		"type": "form", "layout": "normal", "items": items, "layout_fields": []any{}, "field_layout": fieldLayout,
 		"fieldShowRules": []any{}, "submitRule": 2, "widget_submit_rules": map[string]any{},
+		"validators": []any{}, "preSubmitConfirm": map[string]any{"enable": false, "title": "请确认提交", "content": "确认提交当前内容？"},
 	}})
 	return raw
 }
@@ -81,6 +82,8 @@ func TestValidateFormSchemaMultitabWithSubformReference(t *testing.T) {
 		"fieldShowRules":      []any{},
 		"submitRule":          2,
 		"widget_submit_rules": map[string]any{},
+		"validators":          []any{},
+		"preSubmitConfirm":    map[string]any{"enable": false, "title": "请确认提交", "content": "确认提交当前内容？"},
 	}}
 	raw, _ := json.Marshal(document)
 	assert.Empty(t, ValidateFormSchema(raw))
