@@ -62,6 +62,8 @@ export interface FormSubmitPayload {
   formId: string;
   publishedVersion: number;
   schemaRevision: string;
+  /** 真实提交时由运行时生成；网络失败重试会复用同一幂等键。 */
+  dataOpId?: string;
   /**
    * 字段提交快照：每个字段同时携带运行时最终可见状态；空值省略 data，
    * 避免 null、缺省和空字符串混用。布局控件不进入该映射。

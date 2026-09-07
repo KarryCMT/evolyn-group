@@ -63,7 +63,7 @@ const runtimeAdapter: FormRuntimeAdapter = {
           schemaRevision: payload.schemaRevision,
           values: payload.values,
           hasResult: true,
-          dataOpId: createFormDataOperationId(),
+          dataOpId: payload.dataOpId ?? createFormDataOperationId(),
         },
         signal,
       );

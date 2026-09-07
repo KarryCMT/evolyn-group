@@ -18,13 +18,25 @@ export interface SubmitValidationContext {
   isVisible: (field: string) => boolean;
 }
 
+/** 每条规则的字段依赖，供运行时构建反向索引；顺序严格对应 validators 数组。 */
+export function collectSubmitValidatorDependencies(
+  validators: readonly FormContent['validators'][number][],
+): readonly (readonly string[])[] {
+  return validators.map((validator) => {
+    const parsed = parseFormula(validator.formula);
+    return parsed.ast ? [...collectFormulaFields(parsed.ast)] : [];
+  });
+}
+
 /** 执行全部规则并保持协议数组顺序。公式异常按不通过处理，避免运行时崩溃放行提交。 */
 export function evaluateSubmitValidators(
   content: Pick<FormContent, 'validators' | 'items'>,
   context: SubmitValidationContext,
+  indexes?: ReadonlySet<number>,
 ): SubmitValidatorFailure[] {
   const failures: SubmitValidatorFailure[] = [];
   content.validators.forEach((validator, index) => {
+    if (indexes && !indexes.has(index)) return;
     const parsed = parseFormula(validator.formula);
     if (!parsed.ast || parsed.diagnostics.some((entry) => entry.severity === 'error')) {
       failures.push({

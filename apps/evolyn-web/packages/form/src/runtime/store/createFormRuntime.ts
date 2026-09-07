@@ -21,6 +21,7 @@ import {
   type InvisibleValuePolicyView,
 } from '../../schema/invisible-value-policy';
 import {
+  collectSubmitValidatorDependencies,
   evaluateSubmitValidators,
   renderSubmitTemplate,
   type SubmitValidatorFailure,
@@ -142,9 +143,14 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   const ruleById = new Map(compiledRules.rules.map((rule) => [rule.id, rule]));
   // v6 不可见字段赋值策略解析（防御式：旧快照缺键回退默认「空值」）。
   const submitPolicy: InvisibleValuePolicyView = readInvisibleValuePolicy(schema.content);
+  const validatorDependencies = collectSubmitValidatorDependencies(schema.content.validators);
   let realtimeValidationTimer: ReturnType<typeof setTimeout> | undefined;
   let realtimeValidationPending = false;
+  const changedRealtimeFields = new Set<string>();
+  const realtimeFailuresByIndex = new Map<number, SubmitValidatorFailure>();
   const validatorMessagesByField = new Map<string, string[]>();
+  /** 用户修改前后的同一份提交数据共用幂等键；任一真实输入变更才开始新一次提交。 */
+  let submitOperationID: string | undefined;
   // 字段权限矩阵：未提供（预览/草稿回放）视为全量放行；提供后缺失键
   // deny-by-default，与后端 FieldsForNew 投影同口径（设计方案 §4.2）。
   const permissions = options.fieldPermissions;
@@ -213,13 +219,14 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     state.values[key] = next;
 
     if (source === 'user') {
+      submitOperationID = undefined;
       state.dirtyKeys.add(key);
       // 已出错的字段在输入时即时重校验，便于立刻清除错误；未触碰字段留待失焦校验。
       if (fieldState.errors.length > 0) validateField(key);
     }
     // 显隐规则：仅重算变更字段的下游闭包（拓扑序），不做全量规则扫描。
-    recomputeDownstreamVisibility(key);
-    if (source === 'user') scheduleRealtimeValidation();
+    const visibilityAffected = recomputeDownstreamVisibility(key);
+    if (source === 'user') scheduleRealtimeValidation([key, ...visibilityAffected]);
   }
 
   // ---- 显隐规则引擎（v5 设计方案 §4.2/§6.1） ----
@@ -251,7 +258,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
    * 上游变化先落地再计算下一级，保证多级 A→B→C 的传播与全量求值一致；
    * 条件源取当前有效可见性（隐藏源条件不成立，不读其值）。
    */
-  function recomputeDownstreamVisibility(changedKey: string): void {
+  function recomputeDownstreamVisibility(changedKey: string): readonly string[] {
     const affected = downstreamTargets(compiledRules, changedKey);
     for (const target of affected) {
       const ruleId = compiledRules.ownerRuleId.get(target);
@@ -265,6 +272,8 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
         : true;
       setFieldVisible(target, matched);
     }
+    // 目标字段的可见性可能刚刚发生变化；它们同样是实时校验的输入依赖。
+    return affected;
   }
 
   /** 字段当前有效可见性：无状态字段回退静态值（防御）。 */
@@ -337,18 +346,29 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     return valid;
   }
 
-  /** 250ms 合并输入变更；规则数上限仅 50，整批求值可保证显隐变化后旧提示及时失效。 */
-  function scheduleRealtimeValidation(): void {
+  /** 250ms 合并输入变更，只求值反向依赖命中的 realtime 规则。 */
+  function scheduleRealtimeValidation(changedFields: Iterable<string>): void {
     realtimeValidationPending = true;
+    for (const field of changedFields) changedRealtimeFields.add(field);
     if (realtimeValidationTimer) clearTimeout(realtimeValidationTimer);
     realtimeValidationTimer = setTimeout(() => {
       realtimeValidationTimer = undefined;
       if (!realtimeValidationPending) return;
       realtimeValidationPending = false;
-      const failures = evaluateSubmitValidators(schema.content, validatorContext()).filter(
-        (failure) => schema.content.validators[failure.index]?.realtime,
+      const affected = new Set<number>();
+      validatorDependencies.forEach((dependencies, index) => {
+        if (!schema.content.validators[index]?.realtime) return;
+        if (dependencies.some((field) => changedRealtimeFields.has(field))) affected.add(index);
+      });
+      changedRealtimeFields.clear();
+      if (affected.size === 0) return;
+      for (const index of affected) realtimeFailuresByIndex.delete(index);
+      for (const failure of evaluateSubmitValidators(schema.content, validatorContext(), affected)) {
+        realtimeFailuresByIndex.set(failure.index, failure);
+      }
+      applyValidatorFailures(
+        [...realtimeFailuresByIndex.values()].sort((left, right) => left.index - right.index),
       );
-      applyValidatorFailures(failures);
     }, 250);
   }
 
@@ -480,7 +500,10 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
       if (accepted === false) return { ok: false, reason: 'cancelled' };
     }
 
-    const payload = buildSubmitPayload();
+    const payload: FormSubmitPayload = {
+      ...buildSubmitPayload(),
+      dataOpId: (submitOperationID ??= createSubmitOperationID()),
+    };
     const submitter = options.adapter?.submit;
     if (!submitter) return { ok: true, payload, submitted: false };
 
@@ -538,7 +561,10 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     if (realtimeValidationTimer) clearTimeout(realtimeValidationTimer);
     realtimeValidationTimer = undefined;
     realtimeValidationPending = false;
+    changedRealtimeFields.clear();
+    realtimeFailuresByIndex.clear();
     validatorMessagesByField.clear();
+    submitOperationID = undefined;
     initializeValues();
     state.lifecycle = 'ready';
     state.activeOperation = null;
@@ -546,6 +572,12 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
 
   function isDirty(): boolean {
     return state.dirtyKeys.size > 0;
+  }
+
+  function createSubmitOperationID(): string {
+    // 现代浏览器均支持 randomUUID；降级分支仅服务于受限 WebView，仍保证一次会话内稳定。
+    if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
+    return `form_${Date.now()}_${Math.random().toString(36).slice(2)}`;
   }
 
   /** 字段的不可见赋值策略（v6 客户端预演入口，§5.2）。 */

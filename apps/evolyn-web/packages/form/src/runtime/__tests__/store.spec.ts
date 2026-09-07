@@ -156,7 +156,7 @@ describe('提交', () => {
     expect(outcome.ok).toBe(true);
     if (!outcome.ok) return;
     expect(outcome.submitted).toBe(false);
-    expect(outcome.payload).toEqual({
+    expect(outcome.payload).toMatchObject({
       formId: '9',
       publishedVersion: 3,
       schemaRevision: '77',
@@ -165,6 +165,7 @@ describe('提交', () => {
         _widget_m: { data: [], visible: true },
       },
     });
+    expect(outcome.payload.dataOpId).toEqual(expect.any(String));
   });
 
   it('本地校验失败拒绝提交（invalid）', async () => {
@@ -692,6 +693,21 @@ describe('createFormRuntime 提交时校验（v7）', () => {
       ],
       confirmation: { title: '确认提交？', content: '联系电话：123' },
     });
+  });
+
+  it('网络或服务端失败后，未修改填写值的重试复用同一 dataOpId', async () => {
+    const submit = vi
+      .fn<
+        (payload: { dataOpId?: string }) => Promise<FormSubmitResult>
+      >()
+      .mockResolvedValueOnce({ accepted: false, message: '网络暂不可用' })
+      .mockResolvedValueOnce({ accepted: true });
+    const runtime = createFormRuntime({ schema: validatorForm(1), adapter: { submit } });
+    runtime.setValue('_widget_phone', '13800138000');
+
+    expect((await runtime.submit()).ok).toBe(false);
+    expect((await runtime.submit()).ok).toBe(true);
+    expect(submit.mock.calls[0]?.[0].dataOpId).toBe(submit.mock.calls[1]?.[0].dataOpId);
   });
 
   it('实时校验按 250ms 合并输入变化，并在规则重新通过后清理提示', () => {
