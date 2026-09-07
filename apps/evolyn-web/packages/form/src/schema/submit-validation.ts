@@ -16,16 +16,62 @@ export interface SubmitValidationContext {
   values: Readonly<Record<string, FormJsonValue>>;
   /** 有效不可见字段在公式和模板中一律视为空，不能泄露保留的会话旧值。 */
   isVisible: (field: string) => boolean;
+  /**
+   * 宿主可为成员等 ID 型字段注入当前会话已知的展示名；未解析的值返回 undefined，
+   * 仍由纯协议层使用默认格式化，避免把应用数据源耦合进 Schema 包。
+   */
+  formatTemplateValue?: (
+    field: string,
+    value: FormJsonValue | undefined,
+    item: FormItem | undefined,
+  ) => string | undefined;
+}
+
+/** 发布快照/运行时会话持有的只读编译结果，避免每次输入重新解析公式源码。 */
+export interface CompiledSubmitValidation {
+  readonly items: readonly FormItem[];
+  readonly validators: readonly CompiledSubmitValidator[];
+}
+
+interface CompiledSubmitValidator {
+  readonly index: number;
+  readonly formula: string;
+  readonly remind: string;
+  readonly failAction: SubmitValidatorFailAction;
+  readonly fields: readonly string[];
+  readonly ast?: FormulaNode;
+  readonly valid: boolean;
+}
+
+export function compileSubmitValidators(
+  content: {
+    validators: readonly FormContent['validators'][number][];
+    items: readonly FormItem[];
+  },
+): CompiledSubmitValidation {
+  return {
+    items: content.items,
+    validators: content.validators.map((validator, index) => {
+      const parsed = parseFormula(validator.formula);
+      const valid = Boolean(parsed.ast) && !parsed.diagnostics.some((entry) => entry.severity === 'error');
+      return {
+        index,
+        formula: validator.formula,
+        remind: validator.remind,
+        failAction: validator.failAction,
+        fields: parsed.ast ? [...collectFormulaFields(parsed.ast)] : [],
+        ast: parsed.ast,
+        valid,
+      };
+    }),
+  };
 }
 
 /** 每条规则的字段依赖，供运行时构建反向索引；顺序严格对应 validators 数组。 */
 export function collectSubmitValidatorDependencies(
   validators: readonly FormContent['validators'][number][],
 ): readonly (readonly string[])[] {
-  return validators.map((validator) => {
-    const parsed = parseFormula(validator.formula);
-    return parsed.ast ? [...collectFormulaFields(parsed.ast)] : [];
-  });
+  return compileSubmitValidators({ validators, items: [] }).validators.map((validator) => validator.fields);
 }
 
 /** 执行全部规则并保持协议数组顺序。公式异常按不通过处理，避免运行时崩溃放行提交。 */
@@ -34,29 +80,37 @@ export function evaluateSubmitValidators(
   context: SubmitValidationContext,
   indexes?: ReadonlySet<number>,
 ): SubmitValidatorFailure[] {
+  return evaluateCompiledSubmitValidators(compileSubmitValidators(content), context, indexes);
+}
+
+/** 执行会话缓存的 AST；调用方可按反向依赖索引传入局部规则集合。 */
+export function evaluateCompiledSubmitValidators(
+  compiled: CompiledSubmitValidation,
+  context: SubmitValidationContext,
+  indexes?: ReadonlySet<number>,
+): SubmitValidatorFailure[] {
   const failures: SubmitValidatorFailure[] = [];
-  content.validators.forEach((validator, index) => {
-    if (indexes && !indexes.has(index)) return;
-    const parsed = parseFormula(validator.formula);
-    if (!parsed.ast || parsed.diagnostics.some((entry) => entry.severity === 'error')) {
+  compiled.validators.forEach((validator) => {
+    if (indexes && !indexes.has(validator.index)) return;
+    if (!validator.ast || !validator.valid) {
       failures.push({
-        index,
-        remind: renderSubmitTemplate(validator.remind, content.items, context),
+        index: validator.index,
+        remind: renderSubmitTemplate(validator.remind, compiled.items, context),
         fields: [],
         failAction: validator.failAction,
       });
       return;
     }
     try {
-      const value = evaluateFormulaNode(parsed.ast, validator.formula, context);
+      const value = evaluateFormulaNode(validator.ast, validator.formula, context);
       if (value === true) return;
     } catch {
       // 受控公式即使遇到用户输入造成的类型不匹配，也必须以可预期的失败收口。
     }
     failures.push({
-      index,
-      remind: renderSubmitTemplate(validator.remind, content.items, context),
-      fields: [...collectFormulaFields(parsed.ast)],
+      index: validator.index,
+      remind: renderSubmitTemplate(validator.remind, compiled.items, context),
+      fields: validator.fields,
       failAction: validator.failAction,
     });
   });
@@ -72,7 +126,11 @@ export function renderSubmitTemplate(
   const itemMap = new Map(items.map((item) => [item.widget.widgetName, item]));
   return template.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, field: string) => {
     if (!context.isVisible(field)) return '';
-    return formatTemplateValue(context.values[field], itemMap.get(field));
+    const item = itemMap.get(field);
+    return (
+      context.formatTemplateValue?.(field, context.values[field], item) ??
+      formatTemplateValue(context.values[field], item)
+    );
   });
 }
 

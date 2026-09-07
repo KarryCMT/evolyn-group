@@ -198,6 +198,35 @@ describe('提交', () => {
     expect(runtime.state.activeOperation).toBeNull();
   });
 
+  it('服务端表单级规则错误完整展示，并尽量定位到关联字段', async () => {
+    const runtime = createFormRuntime({
+      schema,
+      adapter: {
+        submit: async () => ({
+          accepted: false,
+          validatorErrors: [
+            { index: 3, remind: '联系电话不符合业务规则', fields: ['_widget_t'] },
+            { index: 4, remind: '存在无法定位的跨字段规则错误', fields: ['_widget_unknown'] },
+          ],
+        }),
+      },
+    });
+    runtime.setValue('_widget_t', 'ok');
+
+    const outcome = await runtime.submit();
+
+    expect(outcome.ok).toBe(false);
+    if (outcome.ok) return;
+    expect(outcome.reason).toBe('server');
+    expect(runtime.state.fieldStates._widget_t!.errors).toContain('联系电话不符合业务规则');
+    expect(runtime.state.issues).toEqual(
+      expect.arrayContaining([
+        { message: '联系电话不符合业务规则', source: 'server' },
+        { message: '存在无法定位的跨字段规则错误', source: 'server' },
+      ]),
+    );
+  });
+
   it('adapter 抛 AbortError 恢复 ready 态（取消不是业务错误）', async () => {
     const runtime = createFormRuntime({
       schema,

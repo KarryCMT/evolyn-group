@@ -128,7 +128,8 @@ const runtimeAdapter: FormRuntimeAdapter = {
           | undefined;
         return {
           accepted: false,
-          fieldErrors: mergeSubmitFieldErrors(data?.fieldErrors, data?.validatorErrors),
+          fieldErrors: data?.fieldErrors,
+          validatorErrors: normalizeValidatorErrors(data?.validatorErrors),
           message: error.message,
         };
       }
@@ -154,20 +155,22 @@ function onUnsupportedField(info: { fieldKey: string; type: string }): void {
   ElMessage.info(`字段类型「${info.type}」的填写能力尚未上线，预览中暂不可交互`);
 }
 
-function mergeSubmitFieldErrors(
-  fieldErrors: Record<string, string[]> | undefined,
-  validatorErrors: Array<{ remind?: string; fields?: string[] }> | undefined,
-): Record<string, string[]> | undefined {
-  const merged = Object.fromEntries(
-    Object.entries(fieldErrors ?? {}).map(([field, messages]) => [field, [...messages]]),
-  ) as Record<string, string[]>;
-  for (const validator of validatorErrors ?? []) {
-    if (!validator.remind) continue;
-    for (const field of validator.fields ?? []) {
-      (merged[field] ??= []).push(validator.remind);
-    }
-  }
-  return Object.keys(merged).length > 0 ? merged : undefined;
+function normalizeValidatorErrors(
+  errors: Array<{ index?: number; remind?: string; fields?: string[] }> | undefined,
+): Array<{ index: number; remind: string; fields: string[] }> {
+  return (errors ?? [])
+    .flatMap((error, index) =>
+      typeof error.remind === 'string'
+        ? [
+            {
+              index: typeof error.index === 'number' ? error.index : index,
+              remind: error.remind,
+              fields: error.fields ?? [],
+            },
+          ]
+        : [],
+    )
+    .sort((left, right) => left.index - right.index);
 }
 
 function onSubmitSuccess(): void {

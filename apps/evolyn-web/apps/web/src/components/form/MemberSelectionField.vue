@@ -4,12 +4,14 @@ import type { UserGroupWidget, UserWidget } from '@evolyn.do/form/schema';
 import type { MemberListItemDto } from '~/api/member';
 import { RiAddLine, RiCloseFill, RiUserFill } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
+import { useFormRendererContext } from '@evolyn.do/form/runtime-web';
 import MemberPickerDialog from './MemberPickerDialog.vue';
 
 defineOptions({ name: 'MemberSelectionField' });
 
 const props = defineProps<RuntimeFieldProps>();
 const emit = defineEmits<RuntimeFieldEmits>();
+const { runtime } = useFormRendererContext();
 const pickerVisible = shallowRef(false);
 const memberNames = shallowRef<Record<string, string>>({});
 const widget = computed(() => props.item.widget as UserWidget | UserGroupWidget);
@@ -32,6 +34,7 @@ function onConfirm(members: MemberListItemDto[]): void {
     ...memberNames.value,
     ...Object.fromEntries(members.map((member) => [String(member.id), member.name])),
   };
+  runtime.value?.setTemplateValueLabels(props.item.widget.widgetName, memberNames.value);
   const ids = members.map((member) => String(member.id));
   emit('update:modelValue', multiple.value ? ids : (ids[0] ?? null));
   emit('blur');

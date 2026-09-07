@@ -21,8 +21,8 @@ import {
   type InvisibleValuePolicyView,
 } from '../../schema/invisible-value-policy';
 import {
-  collectSubmitValidatorDependencies,
-  evaluateSubmitValidators,
+  compileSubmitValidators,
+  evaluateCompiledSubmitValidators,
   renderSubmitTemplate,
   type SubmitValidatorFailure,
 } from '../../schema/submit-validation';
@@ -36,6 +36,7 @@ import type {
   FormRuntimeLifecycle,
   FormRuntimeOperation,
   FormRuntimeState,
+  FormServerValidatorError,
   FormSubmittedFieldValue,
   FormSubmitPayload,
   FormValue,
@@ -122,6 +123,8 @@ export interface FormRuntime {
   submitStrategyOf(key: string): SubmitRule;
   /** 服务端字段错误按 widgetName 回填（提交失败处理）。 */
   applyServerFieldErrors(fieldErrors: Record<string, string[]>): void;
+  /** 为成员等 ID 型字段登记当前会话已知展示名，供提交提示和二次确认安全渲染。 */
+  setTemplateValueLabels(key: string, labels: Readonly<Record<string, string>>): void;
   addServerIssue(message: string): void;
   clearServerIssues(): void;
   buildSubmitPayload(): FormSubmitPayload;
@@ -143,12 +146,15 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   const ruleById = new Map(compiledRules.rules.map((rule) => [rule.id, rule]));
   // v6 不可见字段赋值策略解析（防御式：旧快照缺键回退默认「空值」）。
   const submitPolicy: InvisibleValuePolicyView = readInvisibleValuePolicy(schema.content);
-  const validatorDependencies = collectSubmitValidatorDependencies(schema.content.validators);
+  const compiledSubmitValidators = compileSubmitValidators(schema.content);
+  const validatorDependencies = compiledSubmitValidators.validators.map((validator) => validator.fields);
   let realtimeValidationTimer: ReturnType<typeof setTimeout> | undefined;
   let realtimeValidationPending = false;
   const changedRealtimeFields = new Set<string>();
   const realtimeFailuresByIndex = new Map<number, SubmitValidatorFailure>();
   const validatorMessagesByField = new Map<string, string[]>();
+  // 仅缓存当前会话中控件已展示的 ID→名称映射，不写入提交值，也不替代服务端权限裁剪。
+  const templateValueLabels = new Map<string, Map<string, string>>();
   /** 用户修改前后的同一份提交数据共用幂等键；任一真实输入变更才开始新一次提交。 */
   let submitOperationID: string | undefined;
   // 字段权限矩阵：未提供（预览/草稿回放）视为全量放行；提供后缺失键
@@ -363,7 +369,11 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
       changedRealtimeFields.clear();
       if (affected.size === 0) return;
       for (const index of affected) realtimeFailuresByIndex.delete(index);
-      for (const failure of evaluateSubmitValidators(schema.content, validatorContext(), affected)) {
+      for (const failure of evaluateCompiledSubmitValidators(
+        compiledSubmitValidators,
+        validatorContext(),
+        affected,
+      )) {
         realtimeFailuresByIndex.set(failure.index, failure);
       }
       applyValidatorFailures(
@@ -376,7 +386,26 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     return {
       values: state.values,
       isVisible: (field: string) => effectiveVisible(field),
+      formatTemplateValue: formatRuntimeTemplateValue,
     };
+  }
+
+  /** 成员选择器只提交稳定 ID，但确认文案应优先复用填写人已看到的显示名。 */
+  function formatRuntimeTemplateValue(
+    field: string,
+    value: FormValue | undefined,
+  ): string | undefined {
+    const labels = templateValueLabels.get(field);
+    if (!labels) return undefined;
+    const labelFor = (entry: FormValue): string | undefined =>
+      typeof entry === 'string' ? labels.get(entry) ?? entry : undefined;
+    if (Array.isArray(value)) {
+      const entries = value.map(labelFor);
+      return entries.every((entry): entry is string => entry !== undefined)
+        ? entries.join('、')
+        : undefined;
+    }
+    return value === undefined ? undefined : labelFor(value);
   }
 
   /** 将规则失败附着到第一个可见、可编辑的依赖字段；无法定位时进入表单摘要。 */
@@ -423,6 +452,41 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     }
     const kept = state.issues.filter((issue) => issue.source === 'server' && !issue.fieldKey);
     state.issues = [...serverIssues, ...kept];
+  }
+
+  function setTemplateValueLabels(key: string, labels: Readonly<Record<string, string>>): void {
+    if (!state.fieldStates[key]) return;
+    const entries = Object.entries(labels).filter(
+      ([id, label]) => id !== '' && typeof label === 'string' && label !== '',
+    );
+    if (entries.length === 0) {
+      templateValueLabels.delete(key);
+      return;
+    }
+    templateValueLabels.set(key, new Map(entries));
+  }
+
+  /**
+   * FORM_RECORD_VALIDATION_FAILED 不丢失规则维度：每条错误均进入操作区摘要，
+   * 同时尽量附着到第一个可编辑依赖字段，便于键盘焦点和屏幕阅读器定位。
+   */
+  function applyServerValidatorErrors(errors: readonly FormServerValidatorError[]): void {
+    const summaryIssues: FormIssue[] = [];
+    for (const error of errors) {
+      if (typeof error.remind !== 'string' || error.remind === '') continue;
+      const fieldKey = error.fields.find(
+        (field) => effectiveVisible(field) && !state.fieldStates[field]?.disabled,
+      );
+      if (fieldKey) {
+        const fieldState = state.fieldStates[fieldKey]!;
+        if (!fieldState.errors.includes(error.remind)) {
+          fieldState.errors = [...fieldState.errors, error.remind];
+        }
+      }
+      // 摘要不带 fieldKey，确保不可定位错误和多条规则都对填写人完整可见。
+      summaryIssues.push({ message: error.remind, source: 'server' });
+    }
+    state.issues.push(...summaryIssues);
   }
 
   function addServerIssue(message: string): void {
@@ -481,7 +545,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     if (!validateVisibleFields()) return { ok: false, reason: 'invalid' };
 
     clearValidatorFailures();
-    const failures = evaluateSubmitValidators(schema.content, validatorContext());
+    const failures = evaluateCompiledSubmitValidators(compiledSubmitValidators, validatorContext());
     const blockers = failures.filter((failure) => failure.failAction === 0);
     if (blockers.length > 0) {
       applyValidatorFailures(blockers);
@@ -512,6 +576,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
       const result = await submitter(payload, signal ?? new AbortController().signal);
       if (!result.accepted) {
         applyServerFieldErrors(result.fieldErrors ?? {});
+        applyServerValidatorErrors(result.validatorErrors ?? []);
         if (result.message) addServerIssue(result.message);
         state.lifecycle = 'ready';
         return { ok: false, reason: 'server', payload };
@@ -564,6 +629,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     changedRealtimeFields.clear();
     realtimeFailuresByIndex.clear();
     validatorMessagesByField.clear();
+    templateValueLabels.clear();
     submitOperationID = undefined;
     initializeValues();
     state.lifecycle = 'ready';
@@ -595,6 +661,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     validateVisibleFields,
     submitStrategyOf,
     applyServerFieldErrors,
+    setTemplateValueLabels,
     addServerIssue,
     clearServerIssues,
     buildSubmitPayload,

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  compileSubmitValidators,
+  evaluateCompiledSubmitValidators,
   evaluateSubmitValidators,
   migrateFormSchema,
   renderSubmitTemplate,
@@ -99,6 +101,31 @@ describe('v7 提交校验纯逻辑', () => {
     ).toBe('确认 灵衍云 的提交？');
   });
 
+  it('复用发布快照的编译 AST，并支持按依赖规则定向求值', () => {
+    const schema = document();
+    schema.content.validators.push({
+      formula: 'LEN($_widget_name#) > 0',
+      remind: '姓名不能为空',
+      remark: '姓名长度',
+      realtime: true,
+      failAction: 1,
+    });
+    const compiled = compileSubmitValidators(schema.content);
+    const context = {
+      values: { _widget_phone: '123', _widget_name: '' },
+      isVisible: () => true,
+    };
+
+    expect(evaluateCompiledSubmitValidators(compiled, context, new Set([1]))).toEqual([
+      {
+        index: 1,
+        remind: '姓名不能为空',
+        fields: ['_widget_name'],
+        failAction: 1,
+      },
+    ]);
+  });
+
   it('有效不可见字段在公式和模板中均按空值处理', () => {
     const schema = document();
     const context = {
@@ -110,6 +137,20 @@ describe('v7 提交校验纯逻辑', () => {
     expect(
       renderSubmitTemplate(schema.content.preSubmitConfirm.content, schema.content.items, context),
     ).toBe('联系电话：');
+  });
+
+  it('允许宿主以当前会话已知展示名格式化成员等 ID 型字段', () => {
+    const schema = document();
+    const context = {
+      values: { _widget_phone: 'member_1', _widget_name: '灵衍云' },
+      isVisible: () => true,
+      formatTemplateValue: (field: string, value: unknown) =>
+        field === '_widget_phone' && value === 'member_1' ? '张三' : undefined,
+    };
+
+    expect(renderSubmitTemplate('提交人：${_widget_phone}', schema.content.items, context)).toBe(
+      '提交人：张三',
+    );
   });
 
   it('严格拒绝未开放函数与错误参数数量', () => {

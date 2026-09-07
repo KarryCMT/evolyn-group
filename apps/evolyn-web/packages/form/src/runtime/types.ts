@@ -81,7 +81,15 @@ export interface FormSubmittedFieldValue {
 export interface FormSubmitResult {
   accepted: boolean;
   fieldErrors?: Record<string, string[]>;
+  /** 服务端表单级校验失败，按规则数组顺序返回；运行时负责字段定位与摘要呈现。 */
+  validatorErrors?: FormServerValidatorError[];
   message?: string;
+}
+
+export interface FormServerValidatorError {
+  index: number;
+  remind: string;
+  fields: string[];
 }
 
 /** 草稿载荷；本地草稿的隔离与过期策略由宿主 adapter 负责。 */
