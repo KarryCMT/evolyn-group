@@ -415,9 +415,7 @@ function formulaSegments(
             type="button"
             :disabled="!field.formulaAllowed"
             :title="
-              field.formulaAllowed
-                ? undefined
-                : '子表单字段当前仅支持查看，暂不支持参与公式计算'
+              field.formulaAllowed ? undefined : '子表单字段当前仅支持查看，暂不支持参与公式计算'
             "
             @click="appendFormulaField(field.widgetName)"
           >
@@ -448,8 +446,10 @@ function formulaSegments(
 
 <style lang="scss">
 .form-submit-validator-dialog {
-  width: min(840px, calc(100vw - 40px)) !important;
-  height: min(520px, calc(100dvh - 24px));
+  // 与设计器内其他设置弹窗保持 640 × 540 的紧凑尺寸。高度受视口限制，
+  // 内容只在 body 内部滚动，避免撑开遮罩层而出现页面级滚动条或遮挡页脚。
+  width: min(640px, calc(100vw - 40px)) !important;
+  height: min(540px, calc(100dvh - 24px));
   max-height: calc(100dvh - 24px);
   margin: 12px auto !important;
   display: flex;
@@ -460,6 +460,7 @@ function formulaSegments(
   .el-dialog__header {
     padding: 0;
     margin: 0;
+    padding-bottom: 10px;
     border-bottom: 1px solid var(--el-border-color);
   }
   .el-dialog__body {
@@ -475,15 +476,14 @@ function formulaSegments(
 
   &__header {
     display: flex;
-    height: 56px;
-    padding: 0 26px;
+    height: 20px;
+    padding: 0 0px;
     align-items: center;
     justify-content: space-between;
   }
   &__header h2 {
     margin: 0;
-    font-size: 19px;
-    font-weight: 700;
+    font-size: 16px;
     letter-spacing: -0.3px;
   }
   &__header button,
@@ -509,7 +509,7 @@ function formulaSegments(
     // 导致页脚挤出视口。由弹性布局分配剩余空间并只滚动内容区。
     flex: 1 1 auto;
     min-height: 0;
-    padding: 20px 26px;
+    padding: 20px 0px;
     box-sizing: border-box;
     overflow-x: hidden;
     overflow-y: auto;
@@ -912,20 +912,10 @@ function formulaSegments(
 }
 
 @media (width <= 760px) {
-  .form-submit-validator-dialog {
-    width: calc(100vw - 24px) !important;
-    height: calc(100dvh - 16px);
-    margin: 8px auto !important;
-  }
   .form-submit-validator-dialog__header,
   .form-submit-validator-dialog__body {
     padding-right: 20px;
     padding-left: 20px;
-  }
-  .form-submit-formula-dialog {
-    width: calc(100vw - 16px) !important;
-    height: calc(100dvh - 16px);
-    margin: 8px auto !important;
   }
   .form-submit-formula-dialog__header {
     height: auto;
