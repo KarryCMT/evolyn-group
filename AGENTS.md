@@ -296,7 +296,42 @@ internal/
                       有效不可见字段禁携 data、按 clear 类型化空值/preserve 锁定
                       基线/recompute 执行器决议，新建与流程写回（记录基线+受信
                       patch）共用 ResolveSubmittedValues/ResolveMergedRecordValues，
-                      v6 前快照保持旧静态可见语义
+                      v6 前快照保持旧静态可见语义；物理表存储
+                      （docs/低代码平台/表单设计器/物理表存储后端实施
+                      方案.md，000070）：新创建表单固定 physical 存储绑定
+                      （tn_form_storages，表名 tn_fd_<app4>_<rand6> 服务端
+                      分配且永久不变，唯一约束防重）；协议 v8 引入字段不
+                      可变 fieldId（发布后 fieldId/widgetName 冻结，只允许
+                      改 label；物理列名 f_<fieldId>）与物理类型映射字典
+                      （internal/engine/data/storage 纯模型：StorageModel/
+                      Diff/Plan/标识符白名单/DML 值编解码，禁依赖 gin/gorm）；
+                      发布经模型 Diff——涉及结构变更返回 202 + DDL Job
+                      （tn_form_storage_schema_versions + tn_form_ddl_jobs，
+                      FORM_STORAGE_BUSY 并发收口，类型变更拒绝
+                      FORM_STORAGE_TYPE_CHANGE_UNSUPPORTED，多选/附件等无
+                      物理模型控件发布拒绝 FORM_STORAGE_UNSUPPORTED_FIELD），
+                      DDL Worker（form/worker）FOR UPDATE SKIP LOCKED 领取、
+                      advisory lock 串行、checksum 复核、claim+执行+回写
+                      同事务并在成功后推进 tn_forms 发布指针，动态 DDL 执行
+                      器在 internal/infrastructure/dynamicddl（标识符白名单
+                      引用、RLS 安装 FORCE+app.current_tenant fail-closed、
+                      预置流程投影复合索引）；记录信封 values 收窄为仅存量
+                      JSONB（新记录 NULL，不双写），业务值经
+                      PhysicalRecordValueStore 动态 DML（repository/
+                      physical_values.go，TxManager 同事务）进出物理父表与
+                      子表单明细表（集合替换语义）；查询编译器按存储模式
+                      分派值表达式（legacy=JSONB 防御性取值 / physical=d.f_*
+                      列引用，系统字段挂 r. 前缀，操作符矩阵共用），列表以
+                      信封表 r JOIN 物理表 d 且在只读事务内执行（SET LOCAL
+                      app.current_tenant）；流程状态投影（信封 workflow_
+                      status/updated_at + 物理表同名列，事实源恒为 wf_
+                      instance.status）：发起/同意/驳回/撤回/终止/重提/超时
+                      自动/服务节点续跑全部经 UpdateWorkflowProjection 窄
+                      端口同事务刷新（workflow/service/projection.go 的
+                      FormProjector，装配层签名适配），管理员校准端点
+                      POST /forms/:code/workflow-projection/recalibrate
+                      以实例为源回填；sys.workflowInstanceNo/Status/
+                      UpdatedAt 纳入系统字段筛选白名单与前端数据源
   tenantproduct/    产品中心域（一期，小三层，docs/低代码平台/产品中心/）：
                       平台产品目录/租户产品配置/部门与成员范围关联（迁移
                       000033，四表 + lingyanyun seed + 存量租户回填，目录是
