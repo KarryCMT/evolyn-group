@@ -2,6 +2,9 @@ package infrastructure
 
 import (
 	"context"
+	"strconv"
+
+	"evolyn/internal/contextx"
 
 	"gorm.io/gorm"
 )
@@ -24,7 +27,10 @@ func NewTxManager(db *gorm.DB) *TxManager {
 
 // WithinTransaction 在单个数据库事务内执行 fn：fn 返回 nil 提交，返回
 // error 整体回滚。ctx 已携带事务 session 时直接复用外层事务（嵌套不新开），
-// 保证「Service → Service」跨层调用共享同一原子边界
+// 保证「Service → Service」跨层调用共享同一原子边界。
+// 事务开启后立即 SET LOCAL app.current_tenant（ctx 携带租户时）：动态物理
+// 表的 RLS 策略消费该会话变量（方案 §12），SET LOCAL 随事务结束自动还原，
+// 不会经连接池泄漏到其他租户的语句。
 func (m *TxManager) WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
 	if InTransaction(ctx) {
 		return fn(ctx)
@@ -32,6 +38,16 @@ func (m *TxManager) WithinTransaction(ctx context.Context, fn func(ctx context.C
 	// WithContext 先行：tx 内语句的 Statement.Context 继承调用方 ctx，
 	// GORM 租户 Callback（从 Statement.Context 读租户）在事务内照常生效
 	return m.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if tenantID, ok := contextx.TenantIDFromContext(ctx); ok {
+			// RLS 纵深防御：未携带租户的事务（如平台域操作）不设置变量，
+			// 动态表策略按 fail-closed 全行不可见。SET/SET LOCAL 是实用程序
+			// 命令、不支持绑定参数，经 set_config 等价注入（is_local=true
+			// 随事务结束自动还原，不经连接池泄漏到其他租户的语句）。
+			if err := tx.Exec("SELECT set_config('app.current_tenant', ?, true)",
+				strconv.FormatUint(uint64(tenantID), 10)).Error; err != nil {
+				return err
+			}
+		}
 		return fn(context.WithValue(ctx, txSessionKey{}, tx))
 	})
 }

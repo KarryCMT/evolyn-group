@@ -59,7 +59,8 @@ func (s *runtimeService) RejectTask(ctx context.Context, member *iammodel.User, 
 			return mapEngineError(err)
 		}
 		result = &model.ActionTaskResult{InstanceID: out.InstanceID, InstanceStatus: string(out.InstanceStatus)}
-		return nil
+		// 驳回使实例转 REJECTED：投影同事务刷新（方案 §10.2）
+		return s.formProjector.Project(tctx, out.InstanceID)
 	}); err != nil {
 		return nil, err
 	}
@@ -180,7 +181,8 @@ func (s *runtimeService) instanceCancelAction(ctx context.Context, member *iammo
 			return mapEngineError(err)
 		}
 		result = &model.ActionTaskResult{InstanceID: out.InstanceID, InstanceStatus: string(out.InstanceStatus)}
-		return nil
+		// 驳回使实例转 REJECTED：投影同事务刷新（方案 §10.2）
+		return s.formProjector.Project(tctx, out.InstanceID)
 	}); err != nil {
 		return nil, err
 	}
@@ -225,7 +227,8 @@ func (s *runtimeService) ResubmitInstance(ctx context.Context, member *iammodel.
 			return mapEngineError(err)
 		}
 		result = &model.ActionTaskResult{InstanceID: out.InstanceID, InstanceStatus: string(out.InstanceStatus)}
-		return nil
+		// 驳回使实例转 REJECTED：投影同事务刷新（方案 §10.2）
+		return s.formProjector.Project(tctx, out.InstanceID)
 	}); err != nil {
 		return nil, err
 	}

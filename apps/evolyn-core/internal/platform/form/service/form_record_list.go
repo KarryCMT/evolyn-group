@@ -67,11 +67,18 @@ func (s *formService) ListRecords(ctx context.Context, member *iammodel.User, co
 	}
 
 	page, pageSize := normalizeRecordListPaging(query.Paging)
-	userFilter, err := CompileRecordListQuery(query, mappings, fieldList)
+	// 物理存储分派（方案 §11）：physical 表单的用户字段谓词解析为物理列
+	// 表达式（JOIN tn_fd_* d），系统字段挂信封别名 r；列名唯一事实源是
+	// 已应用存储模型。存量 JSONB 表单保持 values JSONB 编译路径。
+	opts, listBinding, err := s.physicalListBinding(ctx, form)
+	if err != nil {
+		return nil, err
+	}
+	userFilter, err := CompileRecordListQuery(query, mappings, fieldList, opts)
 	if err != nil {
 		return nil, httpx.Wrap(apperrors.ErrRecordQueryInvalid, err)
 	}
-	keywordFilter, err := CompileRecordKeyword(query.Keyword, mappings, fieldList)
+	keywordFilter, err := CompileRecordKeyword(query.Keyword, mappings, fieldList, opts)
 	if err != nil {
 		return nil, httpx.Wrap(apperrors.ErrRecordQueryInvalid, err)
 	}
@@ -86,7 +93,7 @@ func (s *formService) ListRecords(ctx context.Context, member *iammodel.User, co
 			if !group.Operations[model.PermissionOpView] {
 				continue
 			}
-			scope, cerr := CompilePermissionScopeSQL(group.DataScope, mappings, fieldList)
+			scope, cerr := CompilePermissionScopeSQL(group.DataScope, mappings, fieldList, opts)
 			if cerr != nil {
 				return nil, fmt.Errorf("compile view scope for group %s: %w", group.Code, cerr)
 			}
@@ -100,24 +107,119 @@ func (s *formService) ListRecords(ctx context.Context, member *iammodel.User, co
 	predicate := joinCompiled(predicates, " AND ")
 	// 排序先行编译：仅系统字段可排序（CompileRecordListSorts 白名单），非法
 	// 排序与非法筛选同样以 FORM_RECORD_QUERY_INVALID 拒绝。
-	orderBy, err := CompileRecordListSorts(query.Sorts)
+	orderBy, err := CompileRecordListSorts(query.Sorts, opts)
 	if err != nil {
 		return nil, httpx.Wrap(apperrors.ErrRecordQueryInvalid, err)
 	}
-	records, total, err := s.records.ListControlled(ctx, repository.RecordListParams{FormID: form.ID, Page: page, PageSize: pageSize, Where: predicate.Where, Args: predicate.Args, OrderBy: orderBy})
-	if err != nil {
-		return nil, err
+	params := repository.RecordListParams{
+		FormID: form.ID, Page: page, PageSize: pageSize,
+		Where: predicate.Where, Args: predicate.Args, OrderBy: orderBy,
 	}
-	items := make([]model.FormRecordDTO, 0, len(records))
+
+	// physical 查询在只读事务内执行：动态表 RLS 消费事务级 SET LOCAL
+	// app.current_tenant（方案 §12），非事务会话将按 fail-closed 不可见。
+	var (
+		items []model.FormRecordDTO
+		total int64
+	)
+	if listBinding != nil {
+		params.TenantID = tenantID
+		err = s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+			rows, t, lerr := s.physical.ListJoinControlled(tctx, params, *listBinding)
+			if lerr != nil {
+				return lerr
+			}
+			total = t
+			items = assembleRecordItems(rowsOfPhysical(rows), mappings, resolved)
+			return nil
+		})
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		records, t, err := s.records.ListControlled(ctx, params)
+		if err != nil {
+			return nil, err
+		}
+		total = t
+		items = assembleRecordItems(rowsOfLegacy(records), mappings, resolved)
+	}
+	return &model.FormRecordPage{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+}
+
+// physicalListBinding 解析物理模式编译选项与 JOIN 绑定（列名唯一事实源是
+// 已应用存储模型）；legacy 表单返回零值选项与 nil 绑定。
+func (s *formService) physicalListBinding(ctx context.Context, form *model.Form) (RecordQueryCompileOptions, *repository.PhysicalListBinding, error) {
+	binding, err := s.loadStorageByForm(ctx, form.ID)
+	if err != nil {
+		return RecordQueryCompileOptions{}, nil, err
+	}
+	if binding == nil {
+		return RecordQueryCompileOptions{}, nil, nil
+	}
+	if s.physical == nil || s.schemaVersions == nil {
+		return RecordQueryCompileOptions{}, nil, fmt.Errorf("physical storage pipeline is not configured")
+	}
+	if binding.State != model.StorageStateReady {
+		return RecordQueryCompileOptions{}, nil, httpx.Wrap(apperrors.ErrStorageNotReady,
+			fmt.Errorf("form %s storage state %s", form.Code, binding.State))
+	}
+	applied, err := s.loadAppliedModel(ctx, binding)
+	if err != nil {
+		return RecordQueryCompileOptions{}, nil, err
+	}
+	if applied == nil {
+		return RecordQueryCompileOptions{}, nil, httpx.Wrap(apperrors.ErrStorageNotReady,
+			fmt.Errorf("form %s has no applied storage model", form.Code))
+	}
+	physicalColumns := make(map[string]string, len(applied.Columns))
+	columns := make([]repository.PhysicalColumn, 0, len(applied.Columns))
+	for _, column := range activeColumns(applied.Columns) {
+		physicalColumns[column.WidgetName] = column.ColumnName()
+		columns = append(columns, repository.PhysicalColumn{WidgetName: column.WidgetName, Column: column})
+	}
+	return RecordQueryCompileOptions{Physical: true, PhysicalColumns: physicalColumns},
+		&repository.PhysicalListBinding{TableName: binding.PhysicalTable, Columns: columns}, nil
+}
+
+// envelopeRow 列表行的统一读取视图（legacy/physical 两路同构组装）。
+type envelopeRow struct {
+	record model.FormRecord
+	values map[string]any
+}
+
+func rowsOfPhysical(rows []repository.PhysicalRecordRow) []envelopeRow {
+	out := make([]envelopeRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, envelopeRow{record: row.Record, values: row.Values})
+	}
+	return out
+}
+
+func rowsOfLegacy(records []model.FormRecord) []envelopeRow {
+	out := make([]envelopeRow, 0, len(records))
+	for _, record := range records {
+		values := make(map[string]any)
+		if len(record.Values) > 0 && string(record.Values) != "null" {
+			if err := json.Unmarshal(record.Values, &values); err != nil {
+				values = map[string]any{}
+			}
+		}
+		out = append(out, envelopeRow{record: record, values: values})
+	}
+	return out
+}
+
+// assembleRecordRows 出网逐行二段裁决（两路共用）：行级 view 命中后，
+// 字段矩阵裁剪 + 快照映射白名单 + 系统字段直出。
+func assembleRecordItems(rows []envelopeRow, mappings []SnapshotFieldMapping, resolved *ResolvedFormPermission) []model.FormRecordDTO {
+	items := make([]model.FormRecordDTO, 0, len(rows))
 	allowed := make(map[string]bool, len(mappings))
 	for _, mapping := range mappings {
 		allowed[mapping.WidgetName] = true
 	}
-	for _, record := range records {
-		values := make(map[string]any)
-		if err := json.Unmarshal(record.Values, &values); err != nil {
-			return nil, fmt.Errorf("record %d values decode: %w", record.ID, err)
-		}
+	for _, row := range rows {
+		values := row.values
 		if resolved != nil {
 			fields := resolved.FieldsFor(model.PermissionOpView, values)
 			for key := range allowed {
@@ -134,13 +236,23 @@ func (s *formService) ListRecords(ctx context.Context, member *iammodel.User, co
 		}
 		// 系统字段不参与字段矩阵裁剪：行级可见即可见；提交人快照为空（昵称
 		// 未设置的边缘态或 000067 前未回填命中）回落固定文案保证可读。
-		submittedByName := record.SubmittedByName
+		submittedByName := row.record.SubmittedByName
 		if strings.TrimSpace(submittedByName) == "" {
 			submittedByName = "成员"
 		}
-		items = append(items, model.FormRecordDTO{WorkflowInstanceNo: record.WorkflowInstanceNo, ID: record.ID, Values: values, SubmittedByMemberID: record.SubmittedByMemberID, SubmittedByName: submittedByName, SubmittedAt: record.SubmittedAt, UpdatedAt: record.UpdatedAt})
+		items = append(items, model.FormRecordDTO{
+			WorkflowInstanceNo:  row.record.WorkflowInstanceNo,
+			WorkflowStatus:      row.record.WorkflowStatus,
+			WorkflowUpdatedAt:   row.record.WorkflowUpdatedAt,
+			ID:                  row.record.ID,
+			Values:              values,
+			SubmittedByMemberID: row.record.SubmittedByMemberID,
+			SubmittedByName:     submittedByName,
+			SubmittedAt:         row.record.SubmittedAt,
+			UpdatedAt:           row.record.UpdatedAt,
+		})
 	}
-	return &model.FormRecordPage{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
+	return items
 }
 
 func snapshotFieldMappings(version *model.FormVersion) ([]SnapshotFieldMapping, error) {

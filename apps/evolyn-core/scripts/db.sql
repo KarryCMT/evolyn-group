@@ -1,5 +1,5 @@
 -- evolyn-core 冷启动初始化（终态快照）
--- 本文件 = migrations/ 000001..000063 全链执行后的等价状态，仅作
+-- 本文件 = migrations/ 000001..000071 全链执行后的等价状态，仅作
 -- make postgres 快速起库用；Schema 唯一事实来源是 migrations/（FIX-009），
 -- 结构变更必须同时提交 Migration，并同步维护本快照。
 -- 快照库上重放迁移链应当零副作用：表/索引/约束使用与迁移一致的名字，
@@ -609,6 +609,8 @@ CREATE TABLE IF NOT EXISTS tn_form_versions (
     schema_revision BIGINT NOT NULL DEFAULT 0,
     content JSONB NOT NULL,
     field_keys JSONB NOT NULL DEFAULT '[]',
+    field_mappings JSONB NOT NULL DEFAULT '[]',
+    compiled_submit_rules JSONB NOT NULL DEFAULT '{}'::jsonb,
     protocol_version INTEGER NOT NULL DEFAULT 4,
     published_by_member_id BIGINT NOT NULL,
     published_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP,
@@ -630,13 +632,25 @@ CREATE TABLE IF NOT EXISTS tn_form_records (
     form_version_id BIGINT NOT NULL REFERENCES tn_form_versions(id),
     data_op_id varchar(36),
     entry_code varchar(64),
-    values JSONB NOT NULL,
+    values JSONB,
     submitted_by_member_id BIGINT NOT NULL,
     submitted_by_name varchar(100),
     submitted_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP,
     updated_at timestamp with time zone NOT NULL,
+    workflow_instance_no varchar(40) NOT NULL DEFAULT '',
+    workflow_status varchar(16) NOT NULL DEFAULT 'NONE',
+    workflow_updated_at timestamp with time zone,
     created_at timestamp with time zone
 );
+
+-- 物理表复合外键锚点（000070）：tn_fd_* 以 (tenant_id, id) 复合外键防跨租户绑定
+CREATE UNIQUE INDEX IF NOT EXISTS ux_tn_form_records_tenant_id
+    ON tn_form_records (tenant_id, id);
+
+-- 流程单号租户内唯一（000068）：部分索引只覆盖已绑定实例的记录
+CREATE UNIQUE INDEX IF NOT EXISTS ux_form_record_workflow_number
+    ON tn_form_records (tenant_id, workflow_instance_no)
+    WHERE workflow_instance_no <> '';
 
 CREATE INDEX IF NOT EXISTS idx_tn_form_records_tenant_form
     ON tn_form_records (tenant_id, form_id, id DESC);
@@ -648,6 +662,10 @@ COMMENT ON COLUMN tn_form_records.data_op_id IS '客户端生成的单次提交�
 COMMENT ON COLUMN tn_form_records.entry_code IS '触发提交的应用菜单节点公开编码快照；设计预览直提允许为空';
 COMMENT ON COLUMN tn_form_records.submitted_by_name IS '提交人展示名快照（提交时按租户内昵称固化，昵称空回落账号昵称/登录名；存量与未命中行回填固定文案）';
 COMMENT ON COLUMN tn_form_records.updated_at IS '记录最后更新时间（提交时等于提交时间；审批编辑写回时同事务刷新）';
+COMMENT ON COLUMN tn_form_records.values IS '业务值 JSONB：仅存量历史记录；新记录（physical 存储）恒为 NULL，业务值在 tn_fd_* 物理表';
+COMMENT ON COLUMN tn_form_records.workflow_instance_no IS '只读流程单号系统字段，与首次提交创建的实例单号一致';
+COMMENT ON COLUMN tn_form_records.workflow_status IS '流程实例状态投影：DRAFT/RUNNING/COMPLETED/REJECTED/CANCELLED；普通表单恒 NONE（事实源 wf_instance.status）';
+COMMENT ON COLUMN tn_form_records.workflow_updated_at IS '流程投影最后更新时间：随实例状态变更同事务刷新';
 
 -- 资产权限组（000058，表单权限 P1）：主体范围×操作集×字段矩阵×数据范围的
 -- 整体授权单元；asset_type 现仅 form（类型白名单在 Service 注册表，预留
@@ -2211,12 +2229,26 @@ CREATE TABLE IF NOT EXISTS wf_instance (
     status varchar(16) NOT NULL DEFAULT 'RUNNING',
     starter_member_id BIGINT NOT NULL,
     idempotency_key varchar(64),
+    instance_no varchar(40) NOT NULL,
     creator_id BIGINT,
     updater_id BIGINT,
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     CONSTRAINT chk_wf_instance_status CHECK (status IN ('DRAFT', 'RUNNING', 'COMPLETED', 'REJECTED', 'CANCELLED'))
 );
+
+COMMENT ON COLUMN wf_instance.instance_no IS '不可变流程单号：WF-东八区日期-至少六位租户日流水';
+
+-- 独立流程单号计数（000068）：租户内按东八区日期递增
+CREATE TABLE IF NOT EXISTS wf_instance_number_counters (
+    tenant_id bigint NOT NULL,
+    number_date varchar(8) NOT NULL,
+    last_value bigint NOT NULL CHECK (last_value > 0),
+    PRIMARY KEY (tenant_id, number_date)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_wf_instance_tenant_number
+    ON wf_instance (tenant_id, instance_no);
 
 -- 业务幂等：同一 tenant+type+id 同一时间至多一个 RUNNING 实例
 CREATE UNIQUE INDEX IF NOT EXISTS uk_wf_instance_running_business
@@ -2621,3 +2653,96 @@ END $$;
 
 COMMENT ON COLUMN tn_files.creator_member_id IS '文件归属成员 ID（tn_users.id），用于上传者访问边界';
 COMMENT ON COLUMN tn_role_groups.creator_member_id IS '创建角色组的成员 ID（tn_users.id）';
+
+-- ---- 物理表存储元数据（000070，docs/低代码平台/表单设计器/物理表存储后端实施方案.md） ----
+
+-- 表单存储绑定：新表单固定 PHYSICAL；表名服务端分配且永久不变
+CREATE TABLE IF NOT EXISTS tn_form_storages (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    form_id BIGINT NOT NULL,
+    backend VARCHAR(16) NOT NULL,
+    table_name VARCHAR(63) NOT NULL,
+    state VARCHAR(16) NOT NULL,
+    applied_schema_version_id BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT LOCALTIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT LOCALTIMESTAMP,
+    CONSTRAINT uq_tn_form_storages_form UNIQUE (tenant_id, form_id),
+    CONSTRAINT uq_tn_form_storages_table UNIQUE (table_name),
+    CONSTRAINT chk_tn_form_storages_backend CHECK (backend IN ('PHYSICAL', 'LEGACY_JSONB')),
+    CONSTRAINT chk_tn_form_storages_state CHECK (state IN ('READY', 'PUBLISHING', 'FAILED'))
+);
+COMMENT ON TABLE tn_form_storages IS '表单存储绑定：新表单固定 PHYSICAL；表名服务端分配且永久不变';
+COMMENT ON COLUMN tn_form_storages.backend IS '存储后端：PHYSICAL=物理值表；LEGACY_JSONB 仅存量兼容';
+COMMENT ON COLUMN tn_form_storages.table_name IS '物理父表名（tn_fd_ 前缀，服务端分配，防重由唯一约束兜底）';
+COMMENT ON COLUMN tn_form_storages.state IS '存储状态：READY=可用；PUBLISHING=有未完成 DDL；FAILED=最近发布失败';
+COMMENT ON COLUMN tn_form_storages.applied_schema_version_id IS '当前已应用的物理模型版本（tn_form_storage_schema_versions.id）';
+
+-- 物理模型版本：发布快照的完整物理结构与 DDL 计划（不可变，仅状态推进）
+CREATE TABLE IF NOT EXISTS tn_form_storage_schema_versions (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    storage_id BIGINT NOT NULL REFERENCES tn_form_storages(id),
+    form_version_id BIGINT NOT NULL REFERENCES tn_form_versions(id),
+    model JSONB NOT NULL,
+    plan JSONB NOT NULL,
+    checksum VARCHAR(64) NOT NULL,
+    state VARCHAR(16) NOT NULL,
+    applied_at TIMESTAMPTZ,
+    error_code VARCHAR(64),
+    error_detail TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT LOCALTIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT LOCALTIMESTAMP,
+    CONSTRAINT uq_tn_form_storage_schema_version UNIQUE (storage_id, form_version_id),
+    CONSTRAINT chk_tn_form_storage_schema_state CHECK (state IN ('PENDING', 'APPLIED', 'FAILED'))
+);
+COMMENT ON TABLE tn_form_storage_schema_versions IS '物理模型版本：发布快照的完整物理结构与 DDL 计划（不可变，仅状态推进）';
+COMMENT ON COLUMN tn_form_storage_schema_versions.model IS '合并弃用列后的完整物理模型（engine/data/storage.StorageModel）';
+COMMENT ON COLUMN tn_form_storage_schema_versions.plan IS '结构计划动作序列（engine/data/storage.Plan）';
+COMMENT ON COLUMN tn_form_storage_schema_versions.checksum IS '模型规范化序列化 sha256（领取执行前复核防篡改）';
+COMMENT ON COLUMN tn_form_storage_schema_versions.state IS '版本状态：PENDING 待执行；APPLIED 已应用；FAILED 终态失败';
+COMMENT ON COLUMN tn_form_storage_schema_versions.error_code IS '失败稳定错误码（仅 FAILED 时非空）';
+COMMENT ON COLUMN tn_form_storage_schema_versions.error_detail IS '失败内部详情（只入运维排查，不出网）';
+CREATE INDEX IF NOT EXISTS ix_tn_form_storage_versions_storage
+    ON tn_form_storage_schema_versions (storage_id, state);
+
+-- DDL Job：异步结构变更执行单元
+CREATE TABLE IF NOT EXISTS tn_form_ddl_jobs (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    storage_schema_version_id BIGINT NOT NULL REFERENCES tn_form_storage_schema_versions(id),
+    status VARCHAR(16) NOT NULL,
+    retry_count INTEGER NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT LOCALTIMESTAMP,
+    last_error_code VARCHAR(64),
+    last_error_detail TEXT,
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT LOCALTIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT LOCALTIMESTAMP,
+    CONSTRAINT uq_tn_form_ddl_jobs_schema UNIQUE (storage_schema_version_id),
+    CONSTRAINT chk_tn_form_ddl_jobs_status CHECK (status IN ('PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED'))
+);
+COMMENT ON TABLE tn_form_ddl_jobs IS '物理表 DDL 异步执行 Job：FOR UPDATE SKIP LOCKED 领取，claim+执行+回写同事务';
+COMMENT ON COLUMN tn_form_ddl_jobs.status IS '执行状态：PENDING/PROCESSING/SUCCEEDED/FAILED';
+COMMENT ON COLUMN tn_form_ddl_jobs.retry_count IS '重试次数（退避后回队，超限转 FAILED）';
+COMMENT ON COLUMN tn_form_ddl_jobs.next_attempt_at IS '下次可执行时间（退避调度）';
+CREATE INDEX IF NOT EXISTS ix_tn_form_ddl_jobs_claim
+    ON tn_form_ddl_jobs (status, next_attempt_at) WHERE status = 'PENDING';
+
+-- 子表单物理子表永久映射（000071，方案 §5.4）：fieldId→表名一次性分配后
+-- 永不变更；表名唯一约束是子表名防重边界
+CREATE TABLE IF NOT EXISTS tn_form_storage_children (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    storage_id BIGINT NOT NULL REFERENCES tn_form_storages(id),
+    parent_field_id VARCHAR(16) NOT NULL,
+    table_name VARCHAR(63) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT LOCALTIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT LOCALTIMESTAMP,
+    CONSTRAINT uq_tn_form_storage_children_field UNIQUE (storage_id, parent_field_id),
+    CONSTRAINT uq_tn_form_storage_children_table UNIQUE (table_name)
+);
+COMMENT ON TABLE tn_form_storage_children IS '子表单物理子表永久映射：fieldId→表名一次性分配后永不变更';
+COMMENT ON COLUMN tn_form_storage_children.parent_field_id IS '子表单字段的不可变 fieldId';
+COMMENT ON COLUMN tn_form_storage_children.table_name IS '子表名（tn_fc_ 前缀，服务端分配，全局唯一约束防重）';

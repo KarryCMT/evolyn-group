@@ -145,12 +145,34 @@ type RuntimeReader interface {
 	CountPendingTasksByMember(ctx context.Context, memberID uint, statuses []string) ([]model.PendingTaskFormCount, error)
 	// ListInstanceRowsByStarter 我发起的（游标按 id 倒序）
 	ListInstanceRowsByStarter(ctx context.Context, memberID uint, limit int, afterID uint) ([]model.WfInstance, bool, error)
+	// ListInstanceRowsByForm 按表单列实例（投影校准用，物理表存储 §10.2；
+	// 只读扫描，不锁行）
+	ListInstanceRowsByForm(ctx context.Context, formID uint, limit int, afterID uint) ([]model.WfInstance, bool, error)
 }
 
 type runtimeReader struct{ base *gorm.DB }
 
 // NewRuntimeReader 构造运行态详情查询。
 func NewRuntimeReader(base *gorm.DB) RuntimeReader { return &runtimeReader{base: base} }
+
+func (r *runtimeReader) ListInstanceRowsByForm(ctx context.Context, formID uint, limit int, afterID uint) ([]model.WfInstance, bool, error) {
+	query := r.base.WithContext(ctx).
+		Where("form_id = ? AND business_type = ?", formID, "form_record").
+		Order("id DESC").
+		Limit(limit + 1)
+	if afterID > 0 {
+		query = query.Where("id < ?", afterID)
+	}
+	rows := make([]model.WfInstance, 0, limit+1)
+	if err := query.Find(&rows).Error; err != nil {
+		return nil, false, err
+	}
+	hasMore := len(rows) > limit
+	if hasMore {
+		rows = rows[:limit]
+	}
+	return rows, hasMore, nil
+}
 
 func (r *runtimeReader) FindInstanceRow(ctx context.Context, instanceID uint) (*model.WfInstance, error) {
 	var row model.WfInstance

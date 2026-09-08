@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"evolyn/internal/platform/form/model"
 )
@@ -75,6 +76,14 @@ type FormRecordRepository interface {
 	// SetWorkflowInstanceNo 仅允许对空单号写入一次，加入提交事务。
 	SetWorkflowInstanceNo(ctx context.Context, id uint, number string) error
 
+	// SetWorkflowProjection 同事务刷新流程状态投影（status+workflow_updated_at；
+	// 事实源 wf_instance.status，本列仅投影——物理表存储方案 §10）。
+	SetWorkflowProjection(ctx context.Context, id uint, status string, updatedAt time.Time) error
+
+	// TouchUpdatedAt 刷新信封 updated_at（physical 记录写回值时不触碰
+	// values 列，最后写回时间仍需同事务推进）。
+	TouchUpdatedAt(ctx context.Context, id uint) error
+
 	// CreateIdempotent 按 (tenant_id,data_op_id) 追加记录；幂等键已存在时返回
 	// 原记录且 created=false，调用方继续复核表单/版本/提交人是否为同一次操作。
 	CreateIdempotent(ctx context.Context, record *model.FormRecord) (createdRecord *model.FormRecord, created bool, err error)
@@ -95,7 +104,10 @@ type FormRecordRepository interface {
 // 系统字段排序片段分别由 Service 层校验/生成，仓储不暴露 JSONB 路径或
 // 物理列名选择能力。
 type RecordListParams struct {
-	FormID   uint
+	FormID uint
+	// TenantID 显式租户条件（物理 JOIN 路径的原生 SQL 不经 GORM 租户
+	// Callback，必须显式携带；legacy 路径仍由 Callback 兜底，忽略本字段）
+	TenantID uint
 	Page     int
 	PageSize int
 	Where    string

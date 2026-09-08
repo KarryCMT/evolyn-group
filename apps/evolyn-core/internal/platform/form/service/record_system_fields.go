@@ -16,15 +16,28 @@ const (
 	SysFieldSubmittedBy = "sys.submittedBy"
 	SysFieldSubmittedAt = "sys.submittedAt"
 	SysFieldUpdatedAt   = "sys.updatedAt"
+	// 流程查询投影系统字段（物理表存储方案 §10.1）：三者同存于记录信封
+	//（tn_form_records）；physical 表额外预置同名列作不依赖 JSONB 解包的
+	// 高频筛选/导出投影。状态直接复制流程实例状态枚举，普通表单为 NONE。
+	SysFieldWorkflowInstanceNo = "sys.workflowInstanceNo"
+	SysFieldWorkflowStatus     = "sys.workflowStatus"
+	SysFieldWorkflowUpdatedAt  = "sys.workflowUpdatedAt"
 )
 
 // systemFieldColumns 系统字段 → 物理列映射。列名是服务端固定枚举，不是
 // 用户输入；与 record_system_fields_test.go 的白名单用例共同冻结。
 var systemFieldColumns = map[string]string{
-	SysFieldSubmittedBy: "submitted_by_member_id",
-	SysFieldSubmittedAt: "submitted_at",
-	SysFieldUpdatedAt:   "updated_at",
+	SysFieldSubmittedBy:        "submitted_by_member_id",
+	SysFieldSubmittedAt:        "submitted_at",
+	SysFieldUpdatedAt:          "updated_at",
+	SysFieldWorkflowInstanceNo: "workflow_instance_no",
+	SysFieldWorkflowStatus:     "workflow_status",
+	SysFieldWorkflowUpdatedAt:  "workflow_updated_at",
 }
+
+// workflowStatusValuePattern 流程状态值白名单：与引擎实例状态枚举
+// （DRAFT/RUNNING/COMPLETED/REJECTED/CANCELLED）及普通表单 NONE 冻结一致。
+var workflowStatusValuePattern = regexp.MustCompile(`^(NONE|DRAFT|RUNNING|COMPLETED|REJECTED|CANCELLED)$`)
 
 // systemFieldOperators 系统字段允许的操作符，与前端 @evolyn.do/query 的
 // 字段类型操作符字典镜像：提交人=enum、时间=datetime。
@@ -32,6 +45,11 @@ var systemFieldOperators = map[string]map[string]bool{
 	SysFieldSubmittedBy: {"eq": true, "neq": true, "in": true, "notIn": true, "isNull": true, "isNotNull": true},
 	SysFieldSubmittedAt: {"eq": true, "neq": true, "gt": true, "gte": true, "lt": true, "lte": true, "between": true, "isNull": true, "isNotNull": true},
 	SysFieldUpdatedAt:   {"eq": true, "neq": true, "gt": true, "gte": true, "lt": true, "lte": true, "between": true, "isNull": true, "isNotNull": true},
+	// 单号=enum 文本；状态=enum（低基数，索引挂复合 (tenant,status,updated)，
+	// 单列不建索引）；更新时间=datetime。
+	SysFieldWorkflowInstanceNo: {"eq": true, "neq": true, "in": true, "notIn": true, "isNull": true, "isNotNull": true, "contains": true, "notContains": true, "startsWith": true},
+	SysFieldWorkflowStatus:     {"eq": true, "neq": true, "in": true, "notIn": true},
+	SysFieldWorkflowUpdatedAt:  {"eq": true, "neq": true, "gt": true, "gte": true, "lt": true, "lte": true, "between": true, "isNull": true, "isNotNull": true},
 }
 
 // systemTimestampPattern 系统时间字段的值格式：秒级 datetime（与 JSONTime
@@ -48,9 +66,10 @@ func IsRecordSystemField(field string) bool {
 // compileSystemRecordCondition 将系统字段条件编译为参数化谓词。operator
 // 与值形态严格按 systemFieldOperators 校验；与 widget 条件一样，用户输入
 // 只能进入 Args 绑定参数。value 已由控制器 BindJSON 解码为 any。
-func compileSystemRecordCondition(field, operator string, value any) (CompiledRecordQuery, error) {
-	column := systemFieldColumns[strings.TrimSpace(field)]
-	allowed := systemFieldOperators[strings.TrimSpace(field)]
+func compileSystemRecordCondition(field, operator string, value any, prefix string) (CompiledRecordQuery, error) {
+	trimmedField := strings.TrimSpace(field)
+	column := systemFieldColumns[trimmedField]
+	allowed := systemFieldOperators[trimmedField]
 	if column == "" || allowed == nil {
 		return CompiledRecordQuery{}, fmt.Errorf("query field %q is not a known system field", field)
 	}
@@ -58,10 +77,137 @@ func compileSystemRecordCondition(field, operator string, value any) (CompiledRe
 	if !allowed[operator] {
 		return CompiledRecordQuery{}, fmt.Errorf("query operator %q is not applicable to system field %q", operator, field)
 	}
-	if strings.TrimSpace(field) == SysFieldSubmittedBy {
-		return compileSystemMemberCondition(column, operator, value)
+	// prefix 为 physical 模式的信封表别名（r.），列名仍是服务端固定枚举。
+	switch trimmedField {
+	case SysFieldSubmittedBy:
+		return compileSystemMemberCondition(prefix+column, operator, value)
+	case SysFieldWorkflowInstanceNo:
+		return compileSystemInstanceNoCondition(prefix+column, operator, value)
+	case SysFieldWorkflowStatus:
+		return compileSystemEnumCondition(prefix+column, operator, value)
+	case SysFieldWorkflowUpdatedAt:
+		return compileSystemTimeCondition(prefix+column, operator, value)
+	default:
+		return compileSystemTimeCondition(prefix+column, operator, value)
 	}
-	return compileSystemTimeCondition(column, operator, value)
+}
+
+// compileSystemInstanceNoCondition 流程单号条件：文本等值/集合/前缀匹配
+// （isNull 语义=普通表单无流程，与空串同义）。
+func compileSystemInstanceNoCondition(column, operator string, value any) (CompiledRecordQuery, error) {
+	text := func(raw any) (string, error) {
+		text, ok := raw.(string)
+		if !ok || strings.TrimSpace(text) == "" {
+			return "", fmt.Errorf("query value for %q must be a non-empty string", SysFieldWorkflowInstanceNo)
+		}
+		return text, nil
+	}
+	switch operator {
+	case "isNull":
+		return CompiledRecordQuery{Where: column + " = ''"}, nil
+	case "isNotNull":
+		return CompiledRecordQuery{Where: column + " <> ''"}, nil
+	case "eq", "neq":
+		v, err := text(value)
+		if err != nil {
+			return CompiledRecordQuery{}, err
+		}
+		comparison := "="
+		if operator == "neq" {
+			comparison = "<>"
+		}
+		return CompiledRecordQuery{Where: column + " " + comparison + " ?", Args: []any{v}}, nil
+	case "in", "notIn":
+		values, ok := value.([]any)
+		if !ok {
+			return CompiledRecordQuery{}, fmt.Errorf("query value for %q must be an array", SysFieldWorkflowInstanceNo)
+		}
+		items := make([]any, 0, len(values))
+		for _, raw := range values {
+			v, err := text(raw)
+			if err != nil {
+				return CompiledRecordQuery{}, err
+			}
+			items = append(items, v)
+		}
+		if len(items) == 0 {
+			if operator == "notIn" {
+				return CompiledRecordQuery{Where: "TRUE"}, nil
+			}
+			return CompiledRecordQuery{Where: "FALSE"}, nil
+		}
+		placeholders := strings.TrimSuffix(strings.Repeat("?, ", len(items)), ", ")
+		if operator == "notIn" {
+			return CompiledRecordQuery{Where: column + " NOT IN (" + placeholders + ")", Args: items}, nil
+		}
+		return CompiledRecordQuery{Where: column + " IN (" + placeholders + ")", Args: items}, nil
+	case "contains", "notContains", "startsWith":
+		v, err := text(value)
+		if err != nil {
+			return CompiledRecordQuery{}, err
+		}
+		pattern := "%" + escapeLike(v) + "%"
+		if operator == "startsWith" {
+			pattern = escapeLike(v) + "%"
+		}
+		predicate := column + " LIKE ? ESCAPE '\\'"
+		if operator == "notContains" {
+			predicate = "(" + column + " = '' OR " + column + " NOT LIKE ? ESCAPE '\\')"
+		}
+		return CompiledRecordQuery{Where: predicate, Args: []any{pattern}}, nil
+	default:
+		return CompiledRecordQuery{}, fmt.Errorf("query operator %q is not applicable to system field %q", operator, SysFieldWorkflowInstanceNo)
+	}
+}
+
+// compileSystemEnumCondition 流程状态条件：值白名单冻结为实例状态枚举+NONE，
+// 仅 eq/neq/in/notIn（isNull/isNotNull 无意义——列 NOT NULL DEFAULT NONE）。
+func compileSystemEnumCondition(column, operator string, value any) (CompiledRecordQuery, error) {
+	status := func(raw any) (string, error) {
+		text, ok := raw.(string)
+		if !ok || !workflowStatusValuePattern.MatchString(text) {
+			return "", fmt.Errorf("query value for %q must be one of NONE/DRAFT/RUNNING/COMPLETED/REJECTED/CANCELLED", SysFieldWorkflowStatus)
+		}
+		return text, nil
+	}
+	switch operator {
+	case "eq", "neq":
+		v, err := status(value)
+		if err != nil {
+			return CompiledRecordQuery{}, err
+		}
+		comparison := "="
+		if operator == "neq" {
+			comparison = "<>"
+		}
+		return CompiledRecordQuery{Where: column + " " + comparison + " ?", Args: []any{v}}, nil
+	case "in", "notIn":
+		values, ok := value.([]any)
+		if !ok {
+			return CompiledRecordQuery{}, fmt.Errorf("query value for %q must be an array", SysFieldWorkflowStatus)
+		}
+		items := make([]any, 0, len(values))
+		for _, raw := range values {
+			v, err := status(raw)
+			if err != nil {
+				return CompiledRecordQuery{}, err
+			}
+			items = append(items, v)
+		}
+		if len(items) == 0 {
+			if operator == "notIn" {
+				return CompiledRecordQuery{Where: "TRUE"}, nil
+			}
+			return CompiledRecordQuery{Where: "FALSE"}, nil
+		}
+		placeholders := strings.TrimSuffix(strings.Repeat("?, ", len(items)), ", ")
+		if operator == "notIn" {
+			return CompiledRecordQuery{Where: column + " NOT IN (" + placeholders + ")", Args: items}, nil
+		}
+		return CompiledRecordQuery{Where: column + " IN (" + placeholders + ")", Args: items}, nil
+	default:
+		return CompiledRecordQuery{}, fmt.Errorf("query operator %q is not applicable to system field %q", operator, SysFieldWorkflowStatus)
+	}
 }
 
 // compileSystemMemberCondition 提交人（成员 ID）条件：eq/neq/in/notIn 绑定
@@ -164,13 +310,15 @@ func compileSystemTimeCondition(column, operator string, value any) (CompiledRec
 // 排序（物理列直映射、成本与语义都确定）；表单字段排序依赖 JSONB 路径
 // 定序，待列存/表达式索引方案定板后另行开放。方向白名单 asc/desc，
 // id DESC 稳定尾排序由仓储层恒定追加。
-func CompileRecordListSorts(sorts []model.RecordQuerySort) (string, error) {
+func CompileRecordListSorts(sorts []model.RecordQuerySort, opts ...RecordQueryCompileOptions) (string, error) {
+	options := compileOptionsOf(opts...)
 	if len(sorts) == 0 {
 		return "", nil
 	}
 	if len(sorts) > 3 {
 		return "", fmt.Errorf("record list supports at most 3 sort fields")
 	}
+	prefix := options.systemPrefix()
 	parts := make([]string, 0, len(sorts))
 	for _, sort := range sorts {
 		column, ok := systemFieldColumns[strings.TrimSpace(sort.Field)]
@@ -179,9 +327,9 @@ func CompileRecordListSorts(sorts []model.RecordQuerySort) (string, error) {
 		}
 		switch strings.ToLower(strings.TrimSpace(sort.Direction)) {
 		case "asc":
-			parts = append(parts, column+" ASC")
+			parts = append(parts, prefix+column+" ASC")
 		case "desc":
-			parts = append(parts, column+" DESC")
+			parts = append(parts, prefix+column+" DESC")
 		default:
 			return "", fmt.Errorf("sort direction %q is invalid", sort.Direction)
 		}

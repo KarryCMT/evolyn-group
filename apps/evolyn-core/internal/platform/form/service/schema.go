@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strings"
 
+	"evolyn/internal/engine/data/storage"
 	"evolyn/internal/platform/form/model"
 )
 
@@ -454,8 +455,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 		return
 	}
 	scopeNames := map[string]bool{}
+	fieldIDScope := map[string]string{}
 	for i, rawItem := range items {
-		validateItem(rawItem, fmt.Sprintf("content.items[%d]", i), scopeNames, issues)
+		validateItem(rawItem, fmt.Sprintf("content.items[%d]", i), scopeNames, protocolVersion, fieldIDScope, issues)
 	}
 	if protocolVersion >= 2 {
 		validateLayouts(content, scopeNames, issues)
@@ -644,7 +646,7 @@ func sortedBoolKeys(values map[string]bool) []string {
 	return keys
 }
 
-func validateItem(raw any, path string, scopeNames map[string]bool, issues *[]SchemaIssue) {
+func validateItem(raw any, path string, scopeNames map[string]bool, protocolVersion int, fieldIDScope map[string]string, issues *[]SchemaIssue) {
 	item, ok := raw.(map[string]any)
 	if !ok {
 		*issues = append(*issues, SchemaIssue{Path: path, Message: "字段项必须是 JSON 对象"})
@@ -686,9 +688,9 @@ func validateItem(raw any, path string, scopeNames map[string]bool, issues *[]Sc
 		*issues = append(*issues, SchemaIssue{Path: path + ".lineWidth", Message: "lineWidth 必须是整数"})
 	}
 	if specOK {
-		validateWidget(item["widget"], path+".widget", spec, scopeNames, issues)
+		validateWidget(item["widget"], path+".widget", spec, scopeNames, protocolVersion, fieldIDScope, issues)
 	} else {
-		validateWidget(item["widget"], path+".widget", widgetSpec{}, scopeNames, issues)
+		validateWidget(item["widget"], path+".widget", widgetSpec{}, scopeNames, protocolVersion, fieldIDScope, issues)
 	}
 }
 
@@ -710,7 +712,7 @@ func validateLabel(label any, widgetType, path string, issues *[]SchemaIssue) {
 	}
 }
 
-func validateWidget(raw any, path string, spec widgetSpec, scopeNames map[string]bool, issues *[]SchemaIssue) {
+func validateWidget(raw any, path string, spec widgetSpec, scopeNames map[string]bool, protocolVersion int, fieldIDScope map[string]string, issues *[]SchemaIssue) {
 	widget, ok := raw.(map[string]any)
 	if !ok {
 		*issues = append(*issues, SchemaIssue{Path: path, Message: "widget 必须是 JSON 对象"})
@@ -730,6 +732,10 @@ func validateWidget(raw any, path string, spec widgetSpec, scopeNames map[string
 	}
 
 	allowed := []string{"type", "widgetName", "enable", "visible", "allowBlank"}
+	if protocolVersion >= model.FieldIdentityProtocolVersion {
+		// v8 起值字段携带内部不可变 fieldId（物理列名推导的唯一来源）
+		allowed = append(allowed, "fieldId")
+	}
 	for key := range spec.props {
 		allowed = append(allowed, key)
 	}
@@ -750,6 +756,25 @@ func validateWidget(raw any, path string, spec widgetSpec, scopeNames map[string
 		})
 	} else {
 		scopeNames[name] = true
+	}
+
+	// v8 契约冻结（物理表存储方案 §4.1）：值字段必须携带 fieldId；布局/按钮
+	// 无记录值不参与物理模型，不分配。fieldId 在整个表单内（含全部子表单）
+	// 全局唯一，防止跨作用域复用造成物理列/子表归属歧义。
+	if protocolVersion >= model.FieldIdentityProtocolVersion && !storage.NoColumnWidgetType(widgetType) {
+		fieldID, _ := widget["fieldId"].(string)
+		if fieldID == "" {
+			*issues = append(*issues, SchemaIssue{Path: path + ".widget.fieldId", Message: "字段缺少不可变标识 fieldId"})
+		} else if err := storage.ValidateFieldID(fieldID); err != nil {
+			*issues = append(*issues, SchemaIssue{Path: path + ".widget.fieldId", Message: "fieldId 必须是 10 位小写字母/数字"})
+		} else if previous, exists := fieldIDScope[fieldID]; exists {
+			*issues = append(*issues, SchemaIssue{
+				Path:    path + ".widget.fieldId",
+				Message: fmt.Sprintf("fieldId「%s」重复，已在 %s 使用", fieldID, previous),
+			})
+		} else {
+			fieldIDScope[fieldID] = path
+		}
 	}
 
 	for _, key := range []string{"enable", "visible", "allowBlank"} {
@@ -773,13 +798,13 @@ func validateWidget(raw any, path string, spec widgetSpec, scopeNames map[string
 			}
 			continue
 		}
-		validateWidgetProp(value, propSpec, path+"."+key, key, issues)
+		validateWidgetProp(value, propSpec, path+"."+key, key, protocolVersion, fieldIDScope, issues)
 	}
 
 	validateWidgetCrossRules(widget, widgetType, path, issues)
 }
 
-func validateWidgetProp(value any, spec propSpec, path, key string, issues *[]SchemaIssue) { //nolint:gocyclo // 27 种 widget 协议属性逐 kind 分派，镜像 TS 字典结构
+func validateWidgetProp(value any, spec propSpec, path, key string, protocolVersion int, fieldIDScope map[string]string, issues *[]SchemaIssue) { //nolint:gocyclo // 27 种 widget 协议属性逐 kind 分派，镜像 TS 字典结构
 	switch spec.kind {
 	case kindBoolean:
 		if _, ok := value.(bool); !ok {
@@ -854,7 +879,7 @@ func validateWidgetProp(value any, spec propSpec, path, key string, issues *[]Sc
 	case kindOptions:
 		validateOptions(value, path, issues)
 	case kindWidgetItems:
-		validateSubformItems(value, path, issues)
+		validateSubformItems(value, path, protocolVersion, fieldIDScope, issues)
 	case kindStickyColumn:
 		validateStickyColumn(value, path, issues)
 	case kindLinkFilters:
@@ -936,7 +961,7 @@ func validateOptions(value any, path string, issues *[]SchemaIssue) {
 	}
 }
 
-func validateSubformItems(value any, path string, issues *[]SchemaIssue) {
+func validateSubformItems(value any, path string, protocolVersion int, fieldIDScope map[string]string, issues *[]SchemaIssue) {
 	arr, ok := value.([]any)
 	if !ok {
 		*issues = append(*issues, SchemaIssue{Path: path, Message: "子表单 items 必须是数组"})
@@ -948,6 +973,7 @@ func validateSubformItems(value any, path string, issues *[]SchemaIssue) {
 			Message: fmt.Sprintf("子表单字段数不能超过 %d", protoSubformMaxItems),
 		})
 	}
+	// widgetName 作用域限于子表单内部；fieldId 沿用表单级共享作用域（全局唯一）
 	scopeNames := map[string]bool{}
 	for i, child := range arr {
 		childPath := fmt.Sprintf("%s[%d]", path, i)
@@ -960,7 +986,7 @@ func validateSubformItems(value any, path string, issues *[]SchemaIssue) {
 			})
 			continue
 		}
-		validateItem(child, childPath, scopeNames, issues)
+		validateItem(child, childPath, scopeNames, protocolVersion, fieldIDScope, issues)
 	}
 }
 

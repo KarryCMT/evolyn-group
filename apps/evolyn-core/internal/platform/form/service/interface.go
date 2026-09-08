@@ -100,6 +100,12 @@ type FormService interface {
 	// ListRecords 按最新发布快照的字段映射校验 Query DSL，并在数据库分页前合并
 	// 用户筛选与 record-level view 数据范围；出网记录逐行执行字段可见性裁剪。
 	ListRecords(ctx context.Context, member *iammodel.User, code string, query model.RecordQueryDocument) (*model.FormRecordPage, error)
+	// GetStorageJob 查询物理存储 DDL 发布 Job 状态（方案 §14；沿用 forms:get）
+	GetStorageJob(ctx context.Context, member *iammodel.User, code string, jobID uint) (*model.StorageJobDetail, error)
+	// RetryStorageJob 管理员重试终态失败的 DDL Job（forms:update）
+	RetryStorageJob(ctx context.Context, member *iammodel.User, code string, jobID uint) (*model.StorageJobDetail, error)
+	// RecalibrateWorkflowProjection 管理员校准流程状态投影（forms:update）
+	RecalibrateWorkflowProjection(ctx context.Context, member *iammodel.User, code string) (*model.WorkflowProjectionRecalibrateResult, error)
 }
 
 // PermissionEvaluatorInjector 装配期注入能力（可选）：权限组判定器（表单权限

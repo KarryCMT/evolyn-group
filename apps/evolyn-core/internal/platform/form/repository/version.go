@@ -9,6 +9,7 @@ import (
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"time"
 )
 
 type formVersionRepository struct {
@@ -163,6 +164,23 @@ func (r *formRecordRepository) Migrate() error {
 	}
 	return r.db.Exec(`CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_form_records_tenant_data_op
 		ON tn_form_records (tenant_id, data_op_id)`).Error
+}
+
+// SetWorkflowProjection 同事务刷新流程状态投影列（物理表存储方案 §10）。
+func (r *formRecordRepository) SetWorkflowProjection(ctx context.Context, id uint, status string, updatedAt time.Time) error {
+	return infrastructure.ResolveDB(ctx, r.db).Model(&model.FormRecord{}).
+		Where("id = ?", id).
+		Updates(map[string]any{
+			"workflow_status":     status,
+			"workflow_updated_at": updatedAt,
+		}).Error
+}
+
+// TouchUpdatedAt 刷新信封最后写回时间（physical 写回路径复用 000067 语义）。
+func (r *formRecordRepository) TouchUpdatedAt(ctx context.Context, id uint) error {
+	return infrastructure.ResolveDB(ctx, r.db).Model(&model.FormRecord{}).
+		Where("id = ?", id).
+		Update("updated_at", gorm.Expr("LOCALTIMESTAMP")).Error
 }
 
 // SetWorkflowInstanceNo 不修改业务值和更新时间；首次提交事务内绑定一次。

@@ -233,8 +233,9 @@ func fpermDoc(items ...fpermField) string {
 			body += ","
 			layout += ","
 		}
-		widget := fmt.Sprintf(`{"type":"%s","widgetName":"%s","enable":true,"visible":true,"allowBlank":%t`,
-			item.widgetType, item.name, item.allowBlank)
+		// v8 契约冻结：值字段携带不可变 fieldId（按序号派生的稳定测试标识）
+		widget := fmt.Sprintf(`{"type":"%s","widgetName":"%s","fieldId":"%s","enable":true,"visible":true,"allowBlank":%t`,
+			item.widgetType, item.name, fmt.Sprintf("%010d", i+1), item.allowBlank)
 		if item.widgetType == "radiogroup" {
 			widget += `,"options":[{"value":"sales","label":"销售"},{"value":"ops","label":"运营"},{"value":"finance","label":"财务"}]`
 		}

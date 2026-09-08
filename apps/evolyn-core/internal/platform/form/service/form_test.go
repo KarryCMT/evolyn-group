@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"evolyn/internal/contextx"
+	kernel "evolyn/internal/model"
 	auditservice "evolyn/internal/platform/audit/service"
 	apperrors "evolyn/internal/platform/form"
 	"evolyn/internal/platform/form/model"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
+	"time"
 )
 
 // ---- 测试桩 ----
@@ -37,7 +39,7 @@ func (f fakeAccess) Permissions(ctx context.Context, member *iammodel.User) map[
 var adminPerms = map[string]bool{
 	"forms:create": true, "forms:get": true, "forms:list": true,
 	"forms:patch": true, "forms:update": true, "forms:delete": true,
-	"form-records:create": true,
+	"form-records:create": true, "form-records:get": true,
 }
 
 type fakeQuota struct {
@@ -378,7 +380,7 @@ func tenantCtx(tenantID uint) context.Context {
 }
 
 func validDraft() model.JSONContent {
-	return model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":false},"label":"姓名","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`)
+	return model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","fieldId":"aaaaaaaa01","enable":true,"visible":true,"allowBlank":false},"label":"姓名","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`)
 }
 
 func submitBool(value bool) *bool { return &value }
@@ -468,7 +470,7 @@ func TestSaveDraft(t *testing.T) {
 	_, err = svc.SaveDraft(tenantCtx(1), memberOfTenant(1), created.Code, &model.SaveDraftRequest{
 		DraftRevision:   created.DraftRevision,
 		ProtocolVersion: model.CurrentProtocolVersion,
-		Content:         model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":true},"label":"","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`),
+		Content:         model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"text","widgetName":"_widget_a","fieldId":"aaaaaaaa01","enable":true,"visible":true,"allowBlank":true},"label":"","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`),
 	})
 	assert.ErrorIs(t, err, apperrors.ErrSchemaInvalid)
 	var biz *httpx.BizError
@@ -508,7 +510,7 @@ func TestPublishAndRuntimeAndSubmit(t *testing.T) {
 	_, err := svc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{
 		DraftRevision:   1,
 		ProtocolVersion: model.CurrentProtocolVersion,
-		Content:         model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"dept","widgetName":"_widget_d","enable":true,"visible":true,"allowBlank":true},"label":"所属部门","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_d"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`),
+		Content:         model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[{"widget":{"type":"dept","widgetName":"_widget_d","fieldId":"aaaaaaaa02","enable":true,"visible":true,"allowBlank":true},"label":"所属部门","description":"","labelHidden":false,"lineWidth":12}],"layout_fields":[],"field_layout":["_widget_d"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`),
 	})
 	assert.NoError(t, err)
 	_, err = svc.Publish(ctx, member, created.Code, &model.PublishRequest{DraftRevision: 2})
@@ -525,7 +527,7 @@ func TestPublishAndRuntimeAndSubmit(t *testing.T) {
 	_, _ = svc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{
 		DraftRevision:   3,
 		ProtocolVersion: model.CurrentProtocolVersion,
-		Content:         model.JSONContent(`{"content":{"type":"form","layout":"grid-2","items":[{"widget":{"type":"text","widgetName":"_widget_a","enable":true,"visible":true,"allowBlank":true},"label":"姓名2","description":"","labelHidden":false,"lineWidth":6}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`),
+		Content:         model.JSONContent(`{"content":{"type":"form","layout":"grid-2","items":[{"widget":{"type":"text","widgetName":"_widget_a","fieldId":"aaaaaaaa01","enable":true,"visible":true,"allowBlank":true},"label":"姓名2","description":"","labelHidden":false,"lineWidth":6}],"layout_fields":[],"field_layout":["_widget_a"],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`),
 	})
 	published2, err := svc.Publish(ctx, member, created.Code, &model.PublishRequest{DraftRevision: 4})
 	assert.NoError(t, err)
@@ -653,4 +655,21 @@ func (f *fakeRecordRepo) SetWorkflowInstanceNo(ctx context.Context, id uint, num
 		}
 	}
 	return gorm.ErrRecordNotFound
+}
+
+// SetWorkflowProjection/TouchUpdatedAt 补齐 fake 的接口实现（000070 流程
+// 状态投影与 physical 写回路径，桩内存态直接记录）。
+func (f *fakeRecordRepo) SetWorkflowProjection(ctx context.Context, id uint, status string, updatedAt time.Time) error {
+	for _, record := range f.records {
+		if record.ID == id {
+			record.WorkflowStatus = status
+			stored := kernel.JSONTime(updatedAt)
+			record.WorkflowUpdatedAt = &stored
+		}
+	}
+	return nil
+}
+
+func (f *fakeRecordRepo) TouchUpdatedAt(ctx context.Context, id uint) error {
+	return nil
 }

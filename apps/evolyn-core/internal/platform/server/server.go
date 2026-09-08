@@ -14,6 +14,7 @@ import (
 	"evolyn/internal/config"
 	"evolyn/internal/contextx"
 	"evolyn/internal/infrastructure"
+	"evolyn/internal/infrastructure/dynamicddl"
 	"evolyn/internal/infrastructure/ipregion"
 	"evolyn/internal/infrastructure/objectstore"
 	apperrors "evolyn/internal/platform/enterpriselog"
@@ -59,6 +60,7 @@ import (
 	formmodel "evolyn/internal/platform/form/model"
 	formrepository "evolyn/internal/platform/form/repository"
 	formservice "evolyn/internal/platform/form/service"
+	formworker "evolyn/internal/platform/form/worker"
 	"evolyn/internal/platform/httpx"
 	"evolyn/internal/platform/iam/authorization"
 	iamcontroller "evolyn/internal/platform/iam/controller"
@@ -171,6 +173,13 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	formRecordRepo := formrepository.NewRecordRepository(db)
 	// 资产权限组仓储（000058，表单权限 P1）：组行 + 主体行
 	formPermRepo := formrepository.NewPermissionGroupRepository(db)
+	// 物理表存储仓储（000070，物理表存储方案）：存储绑定、物理模型版本、
+	// DDL Job 与动态物理表 DML（受控原生 SQL）
+	formStorageRepo := formrepository.NewStorageRepository(db)
+	formSchemaVersionRepo := formrepository.NewStorageSchemaVersionRepository(db)
+	formDDLJobRepo := formrepository.NewDDLJobRepository(db)
+	formPhysicalValueRepo := formrepository.NewPhysicalValueRepository(db)
+	formStorageChildRepo := formrepository.NewStorageChildRepository(db)
 	// 流程引擎仓储（000048/000049，ADR-012）：定义+草稿、不可变发布快照、
 	// 运行态六表（实例/执行路径/节点实例/任务/参与人/操作流水）
 	workflowDefinitionRepo := workflowrepository.NewDefinitionRepository(db)
@@ -229,6 +238,20 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 			return nil, err
 		}
 		if err := formPermRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		// 物理表存储元数据（000070）：动态表本体只由 DDL Worker 创建，
+		// AutoMigrate 仅覆盖元数据三表
+		if err := formStorageRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := formSchemaVersionRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := formDDLJobRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := formStorageChildRepo.Migrate(); err != nil {
 			return nil, err
 		}
 		if err := workflowDefinitionRepo.Migrate(); err != nil {
@@ -525,6 +548,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	if injector, ok := formService.(formservice.PermissionGroupSourceInjector); ok {
 		injector.UsePermissionGroupSource(formservice.NewPermissionGroupReadSource(formPermRepo))
 	}
+	// 物理表存储链路注入（000070）：装配后新建表单固定 physical 存储绑定，
+	// 发布/提交/列表按存储模式分派；动态 DDL 由 Worker 独立执行
+	if injector, ok := formService.(formservice.PhysicalStorageInjector); ok {
+		injector.UsePhysicalStorage(formStorageRepo, formSchemaVersionRepo, formDDLJobRepo, formPhysicalValueRepo)
+	}
+	if injector, ok := formService.(formservice.StorageChildInjector); ok {
+		injector.UseStorageChildren(formStorageChildRepo)
+	}
 	// 菜单读侧权限裁剪端口（S5/S8）：成员侧表单节点按入口判定（view ∨ add）
 	// 二次裁剪，装配模式同 FormDirectory
 	if injector, ok := menuService.(applicationservice.FormPermissionDirectoryInjector); ok {
@@ -585,6 +616,17 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	if injector, ok := formService.(formservice.WorkflowStarterInjector); ok {
 		injector.UseWorkflowStarter(workflowRuntimeService.(formservice.WorkflowStarter))
 	}
+	// 流程状态投影（000070 物理表存储方案 §10.2）：workflow 平台层经窄端口
+	// 在实例状态变更的同一事务刷新表单记录投影；form 域实现端口，装配层签名适配
+	formProjectionPort := formProjectionPort{inner: formService.(formservice.WorkflowProjectionUpdater)}
+	workflowFormProjector := workflowservice.NewFormProjector(formProjectionPort, workflowRuntimeReader)
+	if injector, ok := workflowRuntimeService.(workflowservice.FormProjectorInjector); ok {
+		injector.UseFormProjector(workflowFormProjector)
+	}
+	// 投影校准端口（§10.2）：form 域管理端点 → workflow 侧按实例源回填
+	if injector, ok := formService.(formservice.ProjectionRecalibratorInjector); ok {
+		injector.UseProjectionRecalibrator(formProjectionRecalibrator{projector: workflowFormProjector, tx: txManager})
+	}
 	workflowInstanceController := workflowcontroller.NewWorkflowInstanceController(workflowRuntimeService)
 	// Phase 4 完整人工任务与审批中心：驳回/退回/转办/撤回/终止/重提交 + 查询
 	workflowTaskController := workflowcontroller.NewWorkflowTaskController(workflowRuntimeService)
@@ -601,7 +643,16 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// 自动动作经 Task Engine 正常执行路径（第 19.4 章自动动作边界）
 	workflowJobWorker := workflowworker.NewJobWorker(
 		txManager, workflowJobRepo, workflowTaskRepo, workflowOperationRepo,
-		workflowEngineRuntime, workflowEventPublisher, 0, logger,
+		workflowEngineRuntime, workflowEventPublisher, workflowFormProjector, 0, logger,
+	)
+
+	// 表单物理 DDL Worker（000070）：FOR UPDATE SKIP LOCKED 领取，claim+
+	// 执行+回写同事务（crash 自动回滚为 PENDING），advisory lock 串行化
+	// 同表单 DDL，成功后同事务推进发布指针；随服务生命周期启停
+	formDDLExecutor := dynamicddl.NewExecutor(db)
+	formDDLWorker := formworker.NewDDLJobWorker(
+		txManager, formDDLJobRepo, formSchemaVersionRepo, formStorageRepo,
+		formVersionRepo, formRepo, formDDLExecutor, logger,
 	)
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
@@ -660,6 +711,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 		notificationOutboxWorker: notificationOutboxWorker,
 		notificationRetWorker:    notificationRetentionWorker,
 		workflowJobWorker:        workflowJobWorker,
+		formDDLWorker:            formDDLWorker,
 		authorizer:               authorizer,
 		tenantRepo:               tenantRepo,
 		pkiKeypair:               keypair,
@@ -687,8 +739,10 @@ type Server struct {
 	notificationRetWorker    *notificationservice.RetentionWorker
 	// 流程延时任务（Phase 5）：超时自动动作/待办提醒
 	workflowJobWorker *workflowworker.JobWorker
-	authorizer        *authorization.Authorizer
-	tenantRepo        tenantrepository.TenantRepository
+	// formDDLWorker 表单物理 DDL Job Worker（000070）
+	formDDLWorker *formworker.DDLJobWorker
+	authorizer    *authorization.Authorizer
+	tenantRepo    tenantrepository.TenantRepository
 	// 登录口令加密密钥对：登录/改密解密与 /app/conf 公钥下发共用
 	pkiKeypair *pki.Keypair
 }
@@ -709,6 +763,7 @@ func (s *Server) Run() error {
 	go s.notificationOutboxWorker.Run(workerCtx)
 	go s.notificationRetWorker.Run(workerCtx)
 	go s.workflowJobWorker.Run(workerCtx)
+	go s.formDDLWorker.Run(workerCtx)
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Address, s.config.Server.Port)
 	s.logger.Infof("Start server on: %s", addr)
@@ -1379,4 +1434,29 @@ func (s *Server) Ping() *ServerStatus {
 	}
 
 	return status
+}
+
+// formProjectionRecalibrator 投影校准端口适配（000070）：form 域管理端点
+// 到 workflow 侧 FormProjector 的桥接（校准以 wf_instance 为源）。
+type formProjectionRecalibrator struct {
+	projector *workflowservice.FormProjector
+	tx        *infrastructure.TxManager
+}
+
+func (a formProjectionRecalibrator) RecalibrateByForm(ctx context.Context, formID uint) (int, error) {
+	return a.projector.RecalibrateByForm(ctx, a.tx, formID, 100)
+}
+
+// formProjectionPort 流程状态投影窄端口适配（000070）：把 workflow service
+// 的 FormProjectionPort 签名适配到 form 域 WorkflowProjectionUpdater 实现。
+type formProjectionPort struct {
+	inner formservice.WorkflowProjectionUpdater
+}
+
+func (a formProjectionPort) UpdateWorkflowProjection(ctx context.Context, recordID uint, instanceNo, status string, updatedAt time.Time) error {
+	return a.inner.UpdateWorkflowProjection(ctx, recordID, formservice.WorkflowProjection{
+		InstanceNo: instanceNo,
+		Status:     status,
+		UpdatedAt:  updatedAt,
+	})
 }

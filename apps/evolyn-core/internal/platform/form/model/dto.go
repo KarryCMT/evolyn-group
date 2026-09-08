@@ -57,10 +57,14 @@ type PublishRequest struct {
 	DraftRevision int64 `json:"draftRevision" binding:"required"`
 }
 
-// PublishResult 发布结果：双口令（publishedVersion + schemaRevision）。
+// PublishResult 发布结果：双口令（publishedVersion + schemaRevision）。涉及
+// 物理结构变更时返回 202 Accepted 且 Async=true、JobID 非空——双口令为预
+// 分配值，运行时仍以旧快照受理，Job 成功后才推进 tn_forms 发布指针。
 type PublishResult struct {
 	PublishedVersion int    `json:"publishedVersion"`
 	SchemaRevision   string `json:"schemaRevision"`
+	Async            bool   `json:"async"`
+	JobID            *uint  `json:"jobId,omitempty"`
 }
 
 // FormDetail 表单详情出网（含草稿全文与修订口令）。
@@ -196,10 +200,13 @@ type RecordQueryPaging struct {
 }
 
 // FormRecordDTO 是受 record-level view 权限及字段矩阵裁剪后的记录投影。
-// submittedByName/updatedAt 是系统字段数据源（000067：展示名快照 + 最后写回时间），
-// 不属于字段矩阵，凡行可见即出网。
+// submittedByName/updatedAt/workflowStatus/workflowUpdatedAt 是系统字段数据源
+// （000067 展示名快照；物理表存储方案 §10 流程状态投影），不属于字段矩阵，
+// 凡行可见即出网。
 type FormRecordDTO struct {
-	WorkflowInstanceNo string `json:"workflowInstanceNo"`
+	WorkflowInstanceNo string           `json:"workflowInstanceNo"`
+	WorkflowStatus     string           `json:"workflowStatus"`
+	WorkflowUpdatedAt  *kernel.JSONTime `json:"workflowUpdatedAt"`
 
 	ID                  uint            `json:"id"`
 	Values              map[string]any  `json:"values"`
@@ -207,6 +214,26 @@ type FormRecordDTO struct {
 	SubmittedByName     string          `json:"submittedByName"`
 	SubmittedAt         kernel.JSONTime `json:"submittedAt"`
 	UpdatedAt           kernel.JSONTime `json:"updatedAt"`
+}
+
+// StorageJobDetail DDL 发布 Job 状态出网：受控失败信息（jobId/错误码/时间），
+// 不回显内部 SQL 或模型细节。
+type StorageJobDetail struct {
+	JobID            uint             `json:"jobId"`
+	Status           string           `json:"status"`
+	RetryCount       int              `json:"retryCount"`
+	NextAttemptAt    kernel.JSONTime  `json:"nextAttemptAt"`
+	StartedAt        *kernel.JSONTime `json:"startedAt"`
+	FinishedAt       *kernel.JSONTime `json:"finishedAt"`
+	LastErrorCode    string           `json:"lastErrorCode"`
+	PublishedVersion int              `json:"publishedVersion"`
+	SchemaRevision   string           `json:"schemaRevision"`
+}
+
+// WorkflowProjectionRecalibrateResult 投影校准结果（实例数即校准覆盖的
+// 记录投影写回次数）。
+type WorkflowProjectionRecalibrateResult struct {
+	Instances int `json:"instances"`
 }
 
 type FormRecordPage struct {

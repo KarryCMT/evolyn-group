@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	storagepkg "evolyn/internal/engine/data/storage"
 	"evolyn/internal/platform/form/model"
 )
 
@@ -23,6 +24,71 @@ type CompiledRecordQuery struct {
 	Args  []any
 }
 
+// RecordQueryCompileOptions 查询编译模式（方案 §11）：legacy（JSONB 记录）
+// 与 physical（物理值表 JOIN）共用同一份操作符矩阵与模板，仅值表达式解析
+// 不同——physical 列名来自已应用存储模型（服务端唯一事实源），绝不经
+// field_mappings 的意图字段直达 SQL。
+type RecordQueryCompileOptions struct {
+	// Physical 为 true 时用户字段编译为物理列引用（d.<column>）。
+	Physical bool
+	// PhysicalColumns widgetName → 物理列名（来自已应用 StorageModel.Columns）。
+	PhysicalColumns map[string]string
+}
+
+// compileOptionsOf 归一可选编译参数（缺省 = legacy JSONB 模式）。
+func compileOptionsOf(opts ...RecordQueryCompileOptions) RecordQueryCompileOptions {
+	if len(opts) == 0 {
+		return RecordQueryCompileOptions{}
+	}
+	return opts[0]
+}
+
+// physicalAlias 物理值表 JOIN 别名。
+const physicalAlias = "d."
+
+// recordEnvelopeAlias 物理模式下记录信封表别名。
+const recordEnvelopeAlias = "r."
+
+// valueCompiler 用户字段值表达式工厂（物理表存储方案 §11：逻辑字段 →
+// 物理表达式由存储解析器决定）。
+type valueCompiler func(field recordQueryField) (string, []any)
+
+// compiler 按模式返回值表达式工厂。
+func (o RecordQueryCompileOptions) compiler() valueCompiler {
+	if !o.Physical {
+		return normalizedValueSQL
+	}
+	return func(field recordQueryField) (string, []any) {
+		return physicalAlias + o.PhysicalColumns[field.mapping.WidgetName], nil
+	}
+}
+
+// validatePhysicalColumns 编译入口预检：所有可过滤字段的物理列必须存在且
+// 过白名单（模型与冻结映射不一致时以查询非法拒绝，绝不带病生成 SQL）。
+func (o RecordQueryCompileOptions) validatePhysicalColumns(fields map[string]recordQueryField) error {
+	if !o.Physical {
+		return nil
+	}
+	for name := range fields {
+		column := o.PhysicalColumns[name]
+		if column == "" {
+			return fmt.Errorf("physical column for %q is not present in applied storage model", name)
+		}
+		if err := storagepkg.ValidateColumnName(column); err != nil {
+			return fmt.Errorf("physical column for %q: %w", name, err)
+		}
+	}
+	return nil
+}
+
+// systemPrefix 系统字段物理列前缀（legacy 单表无前缀；physical 信封表 r.）。
+func (o RecordQueryCompileOptions) systemPrefix() string {
+	if o.Physical {
+		return recordEnvelopeAlias
+	}
+	return ""
+}
+
 func CompileRecordQueryCondition(mappings []SnapshotFieldMapping, condition RecordQueryCondition) (CompiledRecordQuery, error) {
 	field, ok := fieldFromMappings(mappings, strings.TrimSpace(condition.Field))
 	if !ok {
@@ -32,13 +98,14 @@ func CompileRecordQueryCondition(mappings []SnapshotFieldMapping, condition Reco
 	if err := json.Unmarshal(condition.Value, &value); err != nil {
 		return CompiledRecordQuery{}, fmt.Errorf("query value for %q: %w", condition.Field, err)
 	}
-	return compileUserCondition(field, condition.Operator, value)
+	return compileUserCondition(field, condition.Operator, value, normalizedValueSQL)
 }
 
 // CompilePermissionScopeSQL 将已通过配置期校验的数据范围编译为与
 // permissionScopeMatches 等价的 PostgreSQL JSONB 谓词。fieldList 保留 datetime
 // format 等快照信息，但字段白名单的唯一事实源仍是 mappings。
-func CompilePermissionScopeSQL(scope model.PermissionDataScopeSpec, mappings []SnapshotFieldMapping, fieldList []permissionFieldMeta) (CompiledRecordQuery, error) {
+func CompilePermissionScopeSQL(scope model.PermissionDataScopeSpec, mappings []SnapshotFieldMapping, fieldList []permissionFieldMeta, opts ...RecordQueryCompileOptions) (CompiledRecordQuery, error) {
+	options := compileOptionsOf(opts...)
 	scope.Normalize()
 	if len(scope.Conditions) == 0 {
 		return CompiledRecordQuery{Where: "TRUE"}, nil
@@ -47,13 +114,16 @@ func CompilePermissionScopeSQL(scope model.PermissionDataScopeSpec, mappings []S
 	if err != nil {
 		return CompiledRecordQuery{}, err
 	}
+	if err := options.validatePhysicalColumns(fields); err != nil {
+		return CompiledRecordQuery{}, err
+	}
 	parts := make([]CompiledRecordQuery, 0, len(scope.Conditions))
 	for _, condition := range scope.Conditions {
 		field, ok := fields[condition.Field]
 		if !ok {
 			return CompiledRecordQuery{}, fmt.Errorf("permission scope field %q is not present in published field mappings", condition.Field)
 		}
-		part, err := compileScopeCondition(field, condition)
+		part, err := compileScopeCondition(field, condition, options.compiler())
 		if err != nil {
 			return CompiledRecordQuery{}, err
 		}
@@ -110,7 +180,7 @@ func fieldFromMappings(mappings []SnapshotFieldMapping, name string) (recordQuer
 	return recordQueryField{}, false
 }
 
-func compileScopeCondition(field recordQueryField, condition model.PermissionDataCondition) (CompiledRecordQuery, error) {
+func compileScopeCondition(field recordQueryField, condition model.PermissionDataCondition, vc valueCompiler) (CompiledRecordQuery, error) {
 	if !permissionClassOperators[field.class][condition.Operator] {
 		return CompiledRecordQuery{}, fmt.Errorf("permission scope operator %q is not applicable to %q", condition.Operator, field.mapping.WidgetName)
 	}
@@ -125,20 +195,20 @@ func compileScopeCondition(field recordQueryField, condition model.PermissionDat
 		}
 		value = condition.Value[0]
 	}
-	return compileCondition(field, condition.Operator, value)
+	return compileCondition(field, condition.Operator, value, vc)
 }
 
-func compileUserCondition(field recordQueryField, operator string, value any) (CompiledRecordQuery, error) {
+func compileUserCondition(field recordQueryField, operator string, value any, vc valueCompiler) (CompiledRecordQuery, error) {
 	if field.class == "" {
 		return CompiledRecordQuery{}, fmt.Errorf("query field %q does not support filtering", field.mapping.WidgetName)
 	}
-	return compileCondition(field, operator, value)
+	return compileCondition(field, operator, value, vc)
 }
 
 // compileCondition is the sole SQL-template factory. No user-controlled string can
 // reach Where: field keys and values are always bound through Args.
-func compileCondition(field recordQueryField, operator string, value any) (CompiledRecordQuery, error) {
-	vSQL, vArgs := normalizedValueSQL(field)
+func compileCondition(field recordQueryField, operator string, value any, vc valueCompiler) (CompiledRecordQuery, error) {
+	vSQL, vArgs := vc(field)
 	copyArgs := func(times int) []any {
 		args := make([]any, 0, len(vArgs)*times)
 		for range times {

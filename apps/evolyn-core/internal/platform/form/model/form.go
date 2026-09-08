@@ -14,8 +14,15 @@ import (
 // （standard↔workflow），切换后原类型流程数据保留；切换裁决在 Service 层。
 type FormType string
 
-// CurrentProtocolVersion 当前表单保存协议版本；v7 增加提交校验与二次确认。
-const CurrentProtocolVersion = 7
+// CurrentProtocolVersion 当前表单保存协议版本；v8 增加字段不可变标识
+// fieldId（物理表存储方案 §4.1 契约冻结：fieldId→物理列名永不变更）。
+const CurrentProtocolVersion = 8
+
+// FieldIdentityProtocolVersion 字段身份协议（v8）的最低协议版本：该版本起
+// 值字段必须携带内部不可变 fieldId（10 位小写 base32），发布后 fieldId 与
+// widgetName 均冻结（只允许改 label）。更早协议的存量表单保持 JSONB 兼容，
+// 不做批量迁移；新建表单固定以当前协议创建（物理存储绑定的前置条件）。
+const FieldIdentityProtocolVersion = 8
 
 // InvisibleValuePolicyVersion 不可见字段赋值管线（v6）的最低协议版本：该版本
 // 起提交终审按「有效可见性 → 策略决议 → 值终审」执行；更早的发布快照保持
@@ -75,18 +82,25 @@ type FormVersion struct {
 
 func (*FormVersion) TableName() string { return "tn_form_versions" }
 
-// FormRecord 记录提交：追加写，values 为服务端按发布快照校验通过后的值
-// （键=widgetName）；form_version_id 固定受理时所依据的版本（历史版本合法）。
+// FormRecord 记录提交：追加写；form_version_id 固定受理时所依据的版本
+// （历史版本合法）。存量记录的业务值在 values JSONB（键=widgetName）；新
+// 记录（physical 存储）values 恒为 NULL，业务值只存在于对应 tn_fd_* 物理
+// 表行——一份业务事实源，禁止双写（物理表存储方案 §5.1）。
 type FormRecord struct {
 	// WorkflowInstanceNo 独立只读系统字段，普通表单为空；不混入用户 values。
 	WorkflowInstanceNo string `json:"workflowInstanceNo" gorm:"size:40;not null;default:''"`
+	// WorkflowStatus/WorkflowUpdatedAt 流程实例状态投影（事实源 wf_instance.status）：
+	// 随实例状态变更同事务刷新；普通表单恒 NONE/NULL。physical 表另预置同名列
+	// 作高频筛选投影。
+	WorkflowStatus    string           `json:"workflowStatus" gorm:"size:16;not null;default:'NONE'"`
+	WorkflowUpdatedAt *kernel.JSONTime `json:"workflowUpdatedAt"`
 
 	ID                  uint        `json:"id" gorm:"autoIncrement;primaryKey"`
 	FormID              uint        `json:"formId" gorm:"not null"`
 	FormVersionID       uint        `json:"formVersionId" gorm:"not null"`
 	DataOpID            *string     `json:"dataOpId" gorm:"size:36"`  // 客户端提交幂等键；历史记录允许 NULL
 	EntryCode           *string     `json:"entryCode" gorm:"size:64"` // 提交入口菜单编码快照；预览直提允许 NULL
-	Values              JSONContent `json:"values" gorm:"type:jsonb;not null"`
+	Values              JSONContent `json:"values" gorm:"type:jsonb"` // 仅存量历史记录；新记录恒 NULL
 	SubmittedByMemberID uint        `json:"submittedByMemberId" gorm:"not null"`
 	// SubmittedByName 提交人展示名快照：提交时按租户内昵称固化，成员改名/
 	// 退出后历史展示不失真（与企业日志 actor_name_snapshot 口径一致）。
@@ -105,8 +119,12 @@ func (*FormRecord) TableName() string { return "tn_form_records" }
 // 一律原样字节存取（校验在 Service 层完成），不经 map 往返避免键序与空值失真。
 type JSONContent json.RawMessage
 
-// Value 实现 driver.Valuer：空值落 '{}'，其余以字符串形态交给 pgx 写入 jsonb 列
+// Value 实现 driver.Valuer：nil（未设置=physical 记录不写 JSONB 值）落 NULL，
+// 空切片落 '{}'（存量空对象语义），其余以字符串形态交给 pgx 写入 jsonb 列
 func (j JSONContent) Value() (driver.Value, error) {
+	if j == nil {
+		return nil, nil
+	}
 	if len(j) == 0 {
 		return "{}", nil
 	}

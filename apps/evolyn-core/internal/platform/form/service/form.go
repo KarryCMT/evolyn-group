@@ -59,6 +59,17 @@ type formService struct {
 	references  ReferenceSource
 	permissions FormPermissionEvaluator   // 权限组判定器（装配期注入；nil=按 S4 基线放行）
 	groups      PermissionGroupReadSource // 权限组只读查询（switch-type/发布阻塞判定）
+
+	// 物理表存储（方案 §13）。装配期经 UsePhysicalStorage 注入；nil =
+	// 未装配物理链路（单测桩/存量形态），一切行为与 JSONB 时代一致。
+	storages       repository.FormStorageRepository
+	schemaVersions repository.StorageSchemaVersionRepository
+	jobs           repository.FormDDLJobRepository
+	physical       repository.PhysicalValueRepository
+	// projectionRecalibrator 流程投影校准端口（物理表存储方案 §10.2）
+	projectionRecalibrator WorkflowProjectionRecalibrator
+	// storageChildren 子表单物理子表映射仓储（Phase 3，000071）
+	storageChildren repository.StorageChildRepository
 }
 
 // NewFormService 构造表单域服务（records 可为 nil：P1 未启记录提交路径；
@@ -103,6 +114,35 @@ type FormReferenceSourceInjector interface {
 // 未注入时各执行点按 S4 基线放行（存量行为零变更）。
 func (s *formService) UsePermissionEvaluator(evaluator FormPermissionEvaluator) {
 	s.permissions = evaluator
+}
+
+// UsePhysicalStorage 注入物理表存储链路（装配期一次性调用）：nil 依赖集
+// 视为未装配（存量 JSONB 形态，单测桩零改动）；装配后新建表单固定 physical。
+func (s *formService) UsePhysicalStorage(
+	storages repository.FormStorageRepository,
+	schemaVersions repository.StorageSchemaVersionRepository,
+	jobs repository.FormDDLJobRepository,
+	physical repository.PhysicalValueRepository,
+) {
+	s.storages = storages
+	s.schemaVersions = schemaVersions
+	s.jobs = jobs
+	s.physical = physical
+}
+
+// UseStorageChildren 注入子表单映射仓储（装配期一次性调用）。
+func (s *formService) UseStorageChildren(children repository.StorageChildRepository) {
+	s.storageChildren = children
+}
+
+// PhysicalStorageInjector 装配期注入能力。
+type PhysicalStorageInjector interface {
+	UsePhysicalStorage(storages repository.FormStorageRepository, schemaVersions repository.StorageSchemaVersionRepository, jobs repository.FormDDLJobRepository, physical repository.PhysicalValueRepository)
+}
+
+// StorageChildInjector 装配期注入能力（可选）。
+type StorageChildInjector interface {
+	UseStorageChildren(children repository.StorageChildRepository)
 }
 
 // UsePermissionGroupSource 注入权限组只读查询端口（switch-type 阻塞与发布
@@ -242,6 +282,14 @@ func (s *formService) provision(
 			return cerr
 		}
 		created = form
+		// 物理表存储（方案 §4.2）：新建表单（含复制目标）事务内固定创建
+		// physical 存储绑定，不接收任何存储模式入参；物理表本体在首次发布
+		// 时由 DDL Job 创建。存储链路未装配（单测桩）时跳过，保持存量行为。
+		if s.storages != nil {
+			if aerr := s.attachPhysicalStorage(tctx, tenantID, form, applicationID); aerr != nil {
+				return aerr
+			}
+		}
 		// M2-资产-1：同事务挂菜单节点（form 类型、target 指向本表单，
 		// menu_revision 随之递增）；端口未注入（单测）时跳过。
 		if s.menu != nil {
@@ -633,6 +681,14 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 		if _, err := CompileSubmitRules(content, req.ProtocolVersion); err != nil {
 			issue := SchemaIssue{Path: "content.validators", Message: err.Error()}
 			return nil, httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": []SchemaIssue{issue}}), err)
+		}
+	}
+	// 字段身份冻结（物理表存储方案 §4.1，v8 契约）：快照协议 ≥ v8 的已发布
+	// 表单，已发布字段的 fieldId→widgetName 绑定不可变——字段「改名」只允许
+	// 改 label，删除字段合法（弃用），新字段必须携带新 fieldId。
+	if req.ProtocolVersion >= model.FieldIdentityProtocolVersion && form.LatestVersionID != nil {
+		if err := s.validateFieldIdentityFrozen(ctx, form, req.Content); err != nil {
+			return nil, err
 		}
 	}
 	if req.DraftRevision != form.DraftRevision {

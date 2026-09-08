@@ -13,7 +13,9 @@ const recordQueryDSLVersion = 1
 // field mappings and returns one parameterized predicate. Sorting is compiled
 // separately by CompileRecordListSorts (system fields only); projection,
 // grouping and aggregates stay rejected until those result shapes have an API.
-func CompileRecordListQuery(document model.RecordQueryDocument, mappings []SnapshotFieldMapping, fieldList []permissionFieldMeta) (CompiledRecordQuery, error) {
+// opts 选择值表达式解析模式（legacy JSONB / physical 物理列）。
+func CompileRecordListQuery(document model.RecordQueryDocument, mappings []SnapshotFieldMapping, fieldList []permissionFieldMeta, opts ...RecordQueryCompileOptions) (CompiledRecordQuery, error) {
+	options := compileOptionsOf(opts...)
 	if document.Version != 0 && document.Version != recordQueryDSLVersion {
 		return CompiledRecordQuery{}, fmt.Errorf("unsupported query DSL version %d", document.Version)
 	}
@@ -24,28 +26,32 @@ func CompileRecordListQuery(document model.RecordQueryDocument, mappings []Snaps
 	if err != nil {
 		return CompiledRecordQuery{}, err
 	}
+	if err := options.validatePhysicalColumns(fields); err != nil {
+		return CompiledRecordQuery{}, err
+	}
 	if document.Filter == nil {
 		return CompiledRecordQuery{Where: "TRUE"}, nil
 	}
-	return compileRecordExpression(*document.Filter, fields, 0)
+	return compileRecordExpression(*document.Filter, fields, 0, options)
 }
 
-func compileRecordExpression(expression model.RecordQueryExpression, fields map[string]recordQueryField, depth int) (CompiledRecordQuery, error) {
+func compileRecordExpression(expression model.RecordQueryExpression, fields map[string]recordQueryField, depth int, options RecordQueryCompileOptions) (CompiledRecordQuery, error) {
 	if depth > 12 {
 		return CompiledRecordQuery{}, fmt.Errorf("query filter nesting exceeds 12 levels")
 	}
 	switch expression.Type {
 	case "condition":
 		trimmed := strings.TrimSpace(expression.Field)
-		// 系统字段（sys.*）走物理列编译，与 widgetName 白名单互斥
+		// 系统字段（sys.*）走物理列编译，与 widgetName 白名单互斥；physical
+		// 模式下列挂信封表 r 前缀（JOIN 后消除歧义）
 		if IsRecordSystemField(trimmed) {
-			return compileSystemRecordCondition(trimmed, expression.Operator, expression.Value)
+			return compileSystemRecordCondition(trimmed, expression.Operator, expression.Value, options.systemPrefix())
 		}
 		field, ok := fields[trimmed]
 		if !ok {
 			return CompiledRecordQuery{}, fmt.Errorf("query field %q is not present in published field mappings", expression.Field)
 		}
-		return compileUserCondition(field, expression.Operator, expression.Value)
+		return compileUserCondition(field, expression.Operator, expression.Value, options.compiler())
 	case "group":
 		if len(expression.Children) == 0 || len(expression.Children) > 50 {
 			return CompiledRecordQuery{}, fmt.Errorf("query group must contain 1 to 50 children")
@@ -58,7 +64,7 @@ func compileRecordExpression(expression model.RecordQueryExpression, fields map[
 		}
 		parts := make([]CompiledRecordQuery, 0, len(expression.Children))
 		for _, child := range expression.Children {
-			part, err := compileRecordExpression(child, fields, depth+1)
+			part, err := compileRecordExpression(child, fields, depth+1, options)
 			if err != nil {
 				return CompiledRecordQuery{}, err
 			}
@@ -71,8 +77,10 @@ func compileRecordExpression(expression model.RecordQueryExpression, fields map[
 }
 
 // CompileRecordKeyword builds a controlled OR predicate across frozen searchable
-// fields. The user can provide only the bound keyword, never a JSONB key/path.
-func CompileRecordKeyword(keyword string, mappings []SnapshotFieldMapping, fieldList []permissionFieldMeta) (CompiledRecordQuery, error) {
+// fields. The user can provide only the bound keyword, never a JSONB key/path
+// or physical column name.
+func CompileRecordKeyword(keyword string, mappings []SnapshotFieldMapping, fieldList []permissionFieldMeta, opts ...RecordQueryCompileOptions) (CompiledRecordQuery, error) {
+	options := compileOptionsOf(opts...)
 	keyword = strings.TrimSpace(keyword)
 	if keyword == "" {
 		return CompiledRecordQuery{Where: "TRUE"}, nil
@@ -81,12 +89,16 @@ func CompileRecordKeyword(keyword string, mappings []SnapshotFieldMapping, field
 	if err != nil {
 		return CompiledRecordQuery{}, err
 	}
+	if err := options.validatePhysicalColumns(fields); err != nil {
+		return CompiledRecordQuery{}, err
+	}
+	vc := options.compiler()
 	parts := make([]CompiledRecordQuery, 0, len(fields))
 	for _, field := range fields {
 		if field.class == permFieldClassMultiOption {
 			continue
 		}
-		valueSQL, valueArgs := normalizedValueSQL(field)
+		valueSQL, valueArgs := vc(field)
 		parts = append(parts, CompiledRecordQuery{Where: "(" + valueSQL + ") IS NOT NULL AND (" + valueSQL + ") ILIKE ? ESCAPE '\\\\'", Args: append(append([]any{}, valueArgs...), append(valueArgs, "%"+escapeLike(keyword)+"%")...)})
 	}
 	if len(parts) == 0 {

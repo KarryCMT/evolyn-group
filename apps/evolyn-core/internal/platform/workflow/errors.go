@@ -52,6 +52,10 @@ var (
 	// ErrForbidden 流程域操作越权（与鉴权中间件共用 FORBIDDEN 稳定码）
 	ErrForbidden = httpx.NewBiz(httpx.CodeForbidden, "没有执行该操作的权限", http.StatusForbidden)
 
+	// ErrProjectionFailed 流程状态投影刷新失败（表单域窄端口返回错误，
+	// 随审批事务整体回滚——方案 §10.2 同事务一致性）
+	ErrProjectionFailed = httpx.NewBiz("WORKFLOW_PROJECTION_FAILED", "流程状态同步失败，请重试", http.StatusInternalServerError)
+
 	// ---- 运行态（Phase 2，第 20.5 章冻结码段） ----
 
 	// ErrNotPublished 流程尚未发布可执行版本（发起校验）
@@ -87,3 +91,8 @@ var (
 	// 实例已存在完成的人工审批任务、非退回状态下重提交，第 10.4 章冻结规则）
 	ErrActionNotAllowed = httpx.NewBiz("WORKFLOW_ACTION_NOT_ALLOWED", "当前状态不允许执行该操作", http.StatusConflict)
 )
+
+// WrapProjectionFailed 包装投影刷新失败（原始错误只入日志）。
+func WrapProjectionFailed(err error) error {
+	return httpx.Wrap(ErrProjectionFailed, err)
+}

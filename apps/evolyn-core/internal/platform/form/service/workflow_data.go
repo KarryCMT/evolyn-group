@@ -4,15 +4,19 @@
 // 表达式取数一律经本端口由表单域完成——合并结果按记录绑定的发布快照
 // 整体终审（ValidateRecordValues），校验失败整体报错（同事务回滚），
 // 与提交记录共用同一套校验与错误协议（FORM_RECORD_INVALID + fieldErrors）。
+// 物理表存储方案 §9.2 起，physical 记录的读写经 PhysicalRecordValueStore
+// 分派：values 只从物理父/子表进出，信封 values 保持 NULL。
 package service
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	apperrors "evolyn/internal/platform/form"
 	"evolyn/internal/platform/form/model"
+	"evolyn/internal/platform/httpx"
 )
 
 // WorkflowRecordStore 表单记录数据窄端口：由 platform/workflow 适配器
@@ -29,15 +33,45 @@ type WorkflowRecordStore interface {
 	UpdateRecordValues(ctx context.Context, recordID uint, patch map[string]any) error
 }
 
-// RecordData 实现 WorkflowRecordStore。
+// WorkflowProjection 更新载荷（物理表存储方案 §10.2）：状态直接复制流程
+// 实例状态枚举，不自行重定义业务状态；普通表单不使用本端口。
+type WorkflowProjection struct {
+	InstanceNo string
+	Status     string
+	UpdatedAt  time.Time
+}
+
+// WorkflowProjectionUpdater 流程投影窄端口：流程平台适配层在实例状态变更
+// 的同一事务内调用；流程内核不得直接更新 tn_form_records 或任何 tn_fd_* 表。
+type WorkflowProjectionUpdater interface {
+	UpdateWorkflowProjection(ctx context.Context, recordID uint, projection WorkflowProjection) error
+}
+
+// RecordData 实现 WorkflowRecordStore：physical 记录读物理行（信封 values
+// 恒 NULL），legacy 记录读 values JSONB。
 func (s *formService) RecordData(ctx context.Context, recordID uint) (uint, uint, map[string]any, error) {
 	record, err := s.records.GetByID(ctx, recordID)
 	if err != nil {
 		return 0, 0, nil, err
 	}
 	values := make(map[string]any)
-	if err := json.Unmarshal([]byte(record.Values), &values); err != nil {
-		return 0, 0, nil, fmt.Errorf("record %d values decode: %w", recordID, err)
+	if len(record.Values) > 0 && string(record.Values) != "null" {
+		if err := json.Unmarshal([]byte(record.Values), &values); err != nil {
+			return 0, 0, nil, fmt.Errorf("record %d values decode: %w", recordID, err)
+		}
+		return record.FormID, record.FormVersionID, values, nil
+	}
+	// values 为空 = physical 记录（新记录不写 JSONB）：经物理行读取
+	pc, err := s.resolvePhysicalContext(ctx, &model.Form{ID: record.FormID})
+	if err != nil {
+		return 0, 0, nil, err
+	}
+	if pc != nil {
+		physicalValues, err := s.readPhysicalValues(ctx, pc, recordID)
+		if err != nil {
+			return 0, 0, nil, err
+		}
+		return record.FormID, record.FormVersionID, physicalValues, nil
 	}
 	return record.FormID, record.FormVersionID, values, nil
 }
@@ -57,11 +91,30 @@ func (s *formService) UpdateRecordValues(ctx context.Context, recordID uint, pat
 		return fmt.Errorf("record %d snapshot decode: %w", recordID, err)
 	}
 
-	// 合并：以既有值为底，patch 覆盖（显式 null 即清空语义，与字典 1.2 一致）
-	baseline := make(map[string]any)
-	if err := json.Unmarshal([]byte(record.Values), &baseline); err != nil {
-		return fmt.Errorf("record %d values decode: %w", recordID, err)
+	// 基线分派：physical 记录以物理行为底，legacy 以 values JSONB 为底。
+	var baseline map[string]any
+	var physical *physicalWriteContext
+	if len(record.Values) > 0 && string(record.Values) != "null" {
+		baseline = make(map[string]any)
+		if err := json.Unmarshal([]byte(record.Values), &baseline); err != nil {
+			return fmt.Errorf("record %d values decode: %w", recordID, err)
+		}
+	} else {
+		physical, err = s.resolvePhysicalContext(ctx, &model.Form{ID: record.FormID})
+		if err != nil {
+			return err
+		}
+		if physical != nil {
+			baseline, err = s.readPhysicalValues(ctx, physical, recordID)
+			if err != nil {
+				return err
+			}
+		} else {
+			baseline = map[string]any{}
+		}
 	}
+
+	// 合并：以既有值为底，patch 覆盖（显式 null 即清空语义，与字典 1.2 一致）
 	merged := make(map[string]any, len(baseline)+len(patch))
 	for key, value := range baseline {
 		merged[key] = value
@@ -80,7 +133,7 @@ func (s *formService) UpdateRecordValues(ctx context.Context, recordID uint, pat
 			return fmt.Errorf("record %d merge: %w", recordID,
 				apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": fieldErrors}))
 		}
-		return s.persistResolvedValues(ctx, recordID, cleaned)
+		return s.persistResolvedValues(ctx, physical, recordID, cleaned)
 	}
 	rawValues := make(map[string]json.RawMessage, len(merged))
 	for key, value := range merged {
@@ -96,14 +149,55 @@ func (s *formService) UpdateRecordValues(ctx context.Context, recordID uint, pat
 		return fmt.Errorf("record %d merge: %w", recordID,
 			apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": fieldErrors}))
 	}
-	return s.persistResolvedValues(ctx, recordID, cleaned)
+	return s.persistResolvedValues(ctx, physical, recordID, cleaned)
 }
 
-// persistResolvedValues 落库决议后的记录值。
-func (s *formService) persistResolvedValues(ctx context.Context, recordID uint, cleaned map[string]any) error {
+// persistResolvedValues 落库决议后的记录值：physical 记录整体替换物理父行
+// 值列与子行并刷新信封 updated_at（000067 语义不变）；legacy 记录替换
+// values JSONB（同语句刷 updated_at）。
+func (s *formService) persistResolvedValues(ctx context.Context, physical *physicalWriteContext, recordID uint, cleaned map[string]any) error {
+	if physical != nil {
+		if err := s.replacePhysicalValues(ctx, physical, recordID, cleaned); err != nil {
+			return err
+		}
+		return s.records.TouchUpdatedAt(ctx, recordID)
+	}
 	valuesJSON, err := json.Marshal(cleaned)
 	if err != nil {
 		return err
 	}
 	return s.records.UpdateValues(ctx, recordID, model.JSONContent(valuesJSON))
+}
+
+// UpdateWorkflowProjection 实现 WorkflowProjectionUpdater（物理表存储方案
+// §10.2）：同事务更新信封投影列（单号/状态/时间）与物理表投影列。状态为
+// 冻结枚举，非法值以 FORM_WORKFLOW_PROJECTION_INVALID 拒绝。
+func (s *formService) UpdateWorkflowProjection(ctx context.Context, recordID uint, projection WorkflowProjection) error {
+	if !workflowStatusValuePattern.MatchString(projection.Status) {
+		return httpx.Wrap(apperrors.ErrWorkflowProjectionInvalid,
+			fmt.Errorf("invalid projection status %q for record %d", projection.Status, recordID))
+	}
+	record, err := s.records.GetByID(ctx, recordID)
+	if err != nil {
+		return err
+	}
+	pc, err := s.resolvePhysicalContext(ctx, &model.Form{ID: record.FormID})
+	if err != nil {
+		return err
+	}
+	if err := s.records.SetWorkflowProjection(ctx, recordID, projection.Status, projection.UpdatedAt); err != nil {
+		return err
+	}
+	if projection.InstanceNo != "" && record.WorkflowInstanceNo == "" {
+		if err := s.records.SetWorkflowInstanceNo(ctx, recordID, projection.InstanceNo); err != nil {
+			return err
+		}
+	}
+	// 物理表三列齐写：单号跟随信封（record 已复核为空才由上方写入，此处
+	// 传最终单号——重复投影同值幂等）
+	instanceNo := record.WorkflowInstanceNo
+	if projection.InstanceNo != "" {
+		instanceNo = projection.InstanceNo
+	}
+	return s.setWorkflowProjection(ctx, pc, recordID, instanceNo, projection.Status, projection.UpdatedAt)
 }

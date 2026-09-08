@@ -210,7 +210,7 @@ func (f *FormController) Delete(c *gin.Context) {
 }
 
 // @Summary 发布表单
-// @Description 按草稿当前口令发布：先执行能力白名单校验（白名单外控件返回 FORM_PUBLISH_UNSUPPORTED_FIELD + issues），再按字段字典严格校验；成功生成不可覆盖的发布快照并返回 publishedVersion/schemaRevision 双口令
+// @Description 按草稿当前口令发布：先执行能力白名单校验（白名单外控件返回 FORM_PUBLISH_UNSUPPORTED_FIELD + issues），再按字段字典严格校验；成功生成不可覆盖的发布快照并返回 publishedVersion/schemaRevision 双口令。涉及物理存储结构变更时返回 202 Accepted（data.async=true 且携带 jobId）：双口令为预分配值，DDL Job 成功后运行时才切换到新快照
 // @Accept json
 // @Produce json
 // @Tags 表单管理
@@ -218,8 +218,9 @@ func (f *FormController) Delete(c *gin.Context) {
 // @Param code path string true "表单编码（form_ 前缀）"
 // @Param publish body formmodel.PublishRequest true "发布所依据的草稿口令"
 // @Success 200 {object} httpx.Response{data=formmodel.PublishResult}
-// @Failure 400 {object} httpx.Response "errCode=FORM_PUBLISH_UNSUPPORTED_FIELD/FORM_SCHEMA_INVALID"
-// @Failure 409 {object} httpx.Response "errCode=FORM_REVISION_CONFLICT"
+// @Success 202 {object} httpx.Response{data=formmodel.PublishResult} "物理结构变更已受理（异步 DDL）"
+// @Failure 400 {object} httpx.Response "errCode=FORM_PUBLISH_UNSUPPORTED_FIELD/FORM_SCHEMA_INVALID/FORM_STORAGE_UNSUPPORTED_FIELD/FORM_STORAGE_TYPE_CHANGE_UNSUPPORTED"
+// @Failure 409 {object} httpx.Response "errCode=FORM_REVISION_CONFLICT/FORM_STORAGE_BUSY/FORM_PERMISSION_BLOCKED_PUBLISH"
 // @Router /api/v1/forms/{code}/publish [post]
 func (f *FormController) Publish(c *gin.Context) {
 	code, ok := formCodeFromParam(c, "code")
@@ -236,7 +237,91 @@ func (f *FormController) Publish(c *gin.Context) {
 		responseError(c, err)
 		return
 	}
+	if result.Async {
+		httpx.NewResponse(c, http.StatusAccepted, result, "表单结构变更已受理，请稍后查询任务状态")
+		return
+	}
 	httpx.ResponseSuccess(c, result)
+}
+
+// @Summary 查询表单结构变更任务
+// @Description 查询物理存储 DDL 发布 Job 的执行状态（PENDING/PROCESSING/SUCCEEDED/FAILED）与受控失败信息；沿用表单管理权限（forms:get）
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "表单编码（form_ 前缀）"
+// @Param jobId path int true "DDL Job ID（发布 202 响应返回）"
+// @Success 200 {object} httpx.Response{data=formmodel.StorageJobDetail}
+// @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND/FORM_STORAGE_JOB_NOT_FOUND"
+// @Router /api/v1/forms/{code}/storage-jobs/{jobId} [get]
+func (f *FormController) GetStorageJob(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	jobID, err := strconv.ParseUint(c.Param("jobId"), 10, 64)
+	if err != nil || jobID == 0 {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的任务 ID"))
+		return
+	}
+	detail, err := f.formService.GetStorageJob(c.Request.Context(), ginctx.GetUser(c), code, uint(jobID))
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, detail)
+}
+
+// @Summary 校准表单流程状态投影
+// @Description 管理员以流程实例为源回填表单记录的单号/状态/更新时间投影（只修复投影，不修改流程实例）；用于上线回填、故障修复与一致性巡检；权限沿用 forms:update
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "表单编码（form_ 前缀）"
+// @Success 200 {object} httpx.Response{data=formmodel.WorkflowProjectionRecalibrateResult}
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
+// @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND"
+// @Router /api/v1/forms/{code}/workflow-projection/recalibrate [post]
+func (f *FormController) RecalibrateWorkflowProjection(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	result, err := f.formService.RecalibrateWorkflowProjection(c.Request.Context(), ginctx.GetUser(c), code)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
+// @Summary 重试表单结构变更任务
+// @Description 管理员重试终态失败的 DDL Job（仅 FAILED 可重试，不接受新模型）：复位回 PENDING 由 Worker 重新执行；沿用表单管理权限（forms:update）
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "表单编码（form_ 前缀）"
+// @Param jobId path int true "DDL Job ID"
+// @Success 200 {object} httpx.Response{data=formmodel.StorageJobDetail}
+// @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND/FORM_STORAGE_JOB_NOT_FOUND"
+// @Failure 500 {object} httpx.Response "errCode=FORM_STORAGE_DDL_FAILED"
+// @Router /api/v1/forms/{code}/storage-jobs/{jobId}/retry [post]
+func (f *FormController) RetryStorageJob(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	jobID, err := strconv.ParseUint(c.Param("jobId"), 10, 64)
+	if err != nil || jobID == 0 {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的任务 ID"))
+		return
+	}
+	detail, err := f.formService.RetryStorageJob(c.Request.Context(), ginctx.GetUser(c), code, uint(jobID))
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, detail)
 }
 
 // @Summary 表单运行时引导
@@ -421,6 +506,9 @@ func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.PUT("/forms/:code/draft", f.SaveDraft)
 	api.DELETE("/forms/:code", f.Delete)
 	api.POST("/forms/:code/publish", f.Publish)
+	api.GET("/forms/:code/storage-jobs/:jobId", f.GetStorageJob)
+	api.POST("/forms/:code/storage-jobs/:jobId/retry", f.RetryStorageJob)
+	api.POST("/forms/:code/workflow-projection/recalibrate", f.RecalibrateWorkflowProjection)
 	// ADR-011：切换类型/复制（URL 门 POST→forms:create，动作键由 Service
 	// 按 form-actions:* 复核）与引用视图（GET→forms:get）
 	api.POST("/forms/:code/switch-type", f.SwitchType)

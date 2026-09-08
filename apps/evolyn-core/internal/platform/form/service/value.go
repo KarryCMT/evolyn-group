@@ -38,10 +38,13 @@ type snapshotField struct {
 
 // SnapshotFieldMapping 是发布版本中冻结的查询字段白名单。widgetName 是已独立
 // 于 label 的稳定记录键；JSONB 与未来物理表模式仅在后端解析器层选择不同目标。
+// v8 起 fieldId 是字段不可变身份（物理列名 f_<fieldId> 的唯一推导来源）；
+// v7 及以前快照无 fieldId，physicalColumn 保持历史意图值（不参与物理执行）。
 type SnapshotFieldMapping struct {
 	WidgetName     string `json:"widgetName"`
 	WidgetType     string `json:"widgetType"`
 	JSONBKey       string `json:"jsonbKey"`
+	FieldID        string `json:"fieldId,omitempty"`
 	PhysicalColumn string `json:"physicalColumn"`
 }
 
@@ -115,7 +118,8 @@ func ExtractSnapshotTopFieldKeys(root map[string]any) []string {
 }
 
 // ExtractSnapshotFieldMappings 冻结顶层值字段的存储映射。布局与按钮没有记录值，
-// 不得进入查询白名单；物理列只描述意图，DDL 仍只能由后端迁移服务执行。
+// 不得进入查询白名单；物理列只描述意图（v8 前为 widgetName 推导的兼容投影，
+// v8 起为 f_<fieldId>），DDL 只能由后端迁移服务按存储模型执行。
 func ExtractSnapshotFieldMappings(root map[string]any) []SnapshotFieldMapping {
 	itemsAny, _ := documentItems(root)
 	mappings := make([]SnapshotFieldMapping, 0, len(itemsAny))
@@ -130,11 +134,17 @@ func ExtractSnapshotFieldMappings(root map[string]any) []SnapshotFieldMapping {
 		if name == "" || widgetType == "separator" || widgetType == "button" {
 			continue
 		}
+		fieldID, _ := widget["fieldId"].(string)
+		physicalColumn := "f_" + strings.ToLower(strings.TrimPrefix(name, "_widget_"))
+		if fieldID != "" {
+			physicalColumn = "f_" + fieldID
+		}
 		mappings = append(mappings, SnapshotFieldMapping{
 			WidgetName:     name,
 			WidgetType:     widgetType,
 			JSONBKey:       name,
-			PhysicalColumn: "f_" + strings.ToLower(strings.TrimPrefix(name, "_widget_")),
+			FieldID:        fieldID,
+			PhysicalColumn: physicalColumn,
 		})
 	}
 	return mappings

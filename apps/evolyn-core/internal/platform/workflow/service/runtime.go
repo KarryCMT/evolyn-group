@@ -39,6 +39,9 @@ type runtimeService struct {
 	identity provider.IdentityProvider
 	// formData 业务数据窄端口（任务详情表单数据投影，Phase 4）
 	formData provider.BusinessDataProvider
+	// formProjector 流程状态投影执行器（物理表存储方案 §10.2）：实例状态
+	// 变更的同一事务内刷新表单记录投影；nil=未装配（存量行为零变更）
+	formProjector *FormProjector
 }
 
 // NewRuntimeService 构造最小 Runtime 服务（identity/formData 可为 nil：
@@ -59,6 +62,16 @@ func NewRuntimeService(
 		definitions: definitions, formDir: formDir, access: access, audit: audit,
 		identity: identity, formData: formData,
 	}
+}
+
+// UseFormProjector 注入流程状态投影执行器（装配期一次性调用）。
+func (s *runtimeService) UseFormProjector(projector *FormProjector) {
+	s.formProjector = projector
+}
+
+// FormProjectorInjector 装配期注入能力（可选）。
+type FormProjectorInjector interface {
+	UseFormProjector(projector *FormProjector)
 }
 
 // permissions 取当前成员权限集（nil 成员视为空集）。
@@ -220,7 +233,9 @@ func (s *runtimeService) Approve(ctx context.Context, member *iammodel.User, req
 			InstanceStatus: string(outcome.InstanceStatus),
 			NodeCompleted:  outcome.NodeCompleted,
 		}
-		return nil
+		// 实例状态投影同事务刷新（方案 §10.2；最后一个审批完成时实例转
+		// COMPLETED，投影随审批事务原子落库）
+		return s.formProjector.Project(tctx, outcome.InstanceID)
 	}); err != nil {
 		return nil, err
 	}

@@ -125,13 +125,33 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 		if err := s.versions.SetSchemaRevision(tctx, created.ID, int64(created.ID)); err != nil {
 			return err
 		}
-		// 回写资产行的最新发布指针（草稿不被覆盖）。
-		if err := s.repo.MarkPublished(tctx, form.ID, created.ID, nextNo); err != nil {
-			return err
+		// 存储分派（物理表存储方案 §4.2）：有 physical 存储绑定的表单先经
+		// 模型 Diff——涉及结构变更时写 SchemaVersion + DDL Job 并返回 202，
+		// 发布指针待 Job 成功后由 Worker 推进；无物理变更或存量 JSONB 表单
+		// 保持同步发布。存储行在事务内锁定，防同表单并发发布。
+		var asyncJobID *uint
+		binding, serr := s.lockStorageByForm(tctx, form)
+		if serr != nil {
+			return serr
+		}
+		if binding != nil {
+			jobID, perr := s.publishStorageModel(tctx, form, binding, content, created)
+			if perr != nil {
+				return perr
+			}
+			asyncJobID = jobID
+		}
+		if asyncJobID == nil {
+			// 回写资产行的最新发布指针（草稿不被覆盖）。
+			if err := s.repo.MarkPublished(tctx, form.ID, created.ID, nextNo); err != nil {
+				return err
+			}
 		}
 		result = &model.PublishResult{
 			PublishedVersion: nextNo,
 			SchemaRevision:   strconv.FormatInt(int64(created.ID), 10),
+			Async:            asyncJobID != nil,
+			JobID:            asyncJobID,
 		}
 		return nil
 	}); err != nil {
@@ -339,6 +359,12 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		return nil, err
 	}
 
+	// 物理存储分派（方案 §9.2）：physical 表单的业务值只落 tn_fd_* 物理行，
+	// 信封 values 恒 NULL（不双写）；存储未就绪（DDL 在途/失败）时提交拒绝。
+	physical, err := s.resolvePhysicalContext(ctx, form)
+	if err != nil {
+		return nil, err
+	}
 	valuesJSON, err := json.Marshal(cleaned)
 	if err != nil {
 		return nil, err
@@ -353,7 +379,18 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		if existing, found, ierr := findRecordReplay(tctx, s.records, tenantID, canonicalOperationID); ierr != nil {
 			return ierr
 		} else if found {
-			if existing.FormID != form.ID || existing.FormVersionID != version.ID || existing.SubmittedByMemberID != member.ID || !sameJSON(existing.Values, model.JSONContent(valuesJSON)) {
+			replaySame := existing.FormID == form.ID && existing.FormVersionID == version.ID && existing.SubmittedByMemberID == member.ID
+			if physical != nil {
+				// physical 记录信封 values 为 NULL，重放比较改读物理行
+				existingValues, rerr := s.readPhysicalValues(tctx, physical, existing.ID)
+				if rerr != nil {
+					return rerr
+				}
+				replaySame = replaySame && samePhysicalValues(existingValues, cleaned)
+			} else {
+				replaySame = replaySame && sameJSON(existing.Values, model.JSONContent(valuesJSON))
+			}
+			if !replaySame {
 				return httpx.Wrap(apperrors.ErrRecordInvalid, fmt.Errorf("dataOpId %s reused by a different submission", canonicalOperationID))
 			}
 			record, created = existing, false
@@ -374,13 +411,16 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 			FormVersionID:       version.ID,
 			DataOpID:            &canonicalOperationID,
 			EntryCode:           entryCodeSnapshot,
-			Values:              model.JSONContent(valuesJSON),
 			SubmittedByMemberID: member.ID,
 			// 提交人展示名快照（000067）：租户内昵称即展示口径；昵称为空的
 			// 边缘态快照空串，由列表侧兜底展示。
 			SubmittedByName: strings.TrimSpace(member.Nickname),
 			SubmittedAt:     kernel.JSONTime(now),
 			UpdatedAt:       kernel.JSONTime(now),
+		}
+		if physical == nil {
+			// 存量 JSONB 路径：业务值以 widgetName 键落 values 列
+			draft.Values = model.JSONContent(valuesJSON)
 		}
 		draft.TenantID = tenantID
 		stored, wasCreated, cerr := s.records.CreateIdempotent(tctx, draft)
@@ -389,10 +429,16 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		}
 		if !wasCreated && (stored.FormID != draft.FormID ||
 			stored.FormVersionID != draft.FormVersionID ||
-			stored.SubmittedByMemberID != draft.SubmittedByMemberID ||
-			!sameJSON(stored.Values, draft.Values)) {
+			stored.SubmittedByMemberID != draft.SubmittedByMemberID) {
 			return httpx.Wrap(apperrors.ErrRecordInvalid,
 				fmt.Errorf("dataOpId %s reused by a different submission", canonicalOperationID))
+		}
+		// physical 行紧随信封行同事务写入（子表单行一并集合替换）；
+		// 任一步失败整体回滚（方案 §9.2 原子边界）。
+		if physical != nil && wasCreated {
+			if werr := s.createPhysicalValues(tctx, physical, stored.ID, cleaned); werr != nil {
+				return werr
+			}
 		}
 		// 普通表单只存记录；流程型表单必须原子创建流程。网络重放不得再次发起。
 		if form.FormType == model.FormTypeWorkflow && wasCreated {
@@ -412,7 +458,17 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 			if err := s.records.SetWorkflowInstanceNo(tctx, stored.ID, number); err != nil {
 				return err
 			}
+			// 发起即 RUNNING：同一事务内刷新信封与物理表的流程状态投影
+			//（方案 §10.2：实例状态变化必须同事务更新投影）。
+			startedAt := time.Now()
+			if err := s.records.SetWorkflowProjection(tctx, stored.ID, "RUNNING", startedAt); err != nil {
+				return err
+			}
+			if perr := s.setWorkflowProjection(tctx, physical, stored.ID, number, "RUNNING", startedAt); perr != nil {
+				return perr
+			}
 			stored.WorkflowInstanceNo = number
+			stored.WorkflowStatus = "RUNNING"
 		}
 		record = stored
 		created = wasCreated

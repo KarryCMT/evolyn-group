@@ -52,9 +52,18 @@ type JobWorker struct {
 	// publisher 领域事件发布窄端口（Phase 6）：催办到点经适配器桥接
 	// notification 域事务 Outbox，与 REMINDER 流水同事务落库
 	publisher provider.EventPublisher
-	interval  time.Duration
-	batchSize int
-	logger    *logrus.Logger
+	// formProjector 流程状态投影（物理表存储方案 §10.2）：超时自动处理与
+	// 服务节点续跑可能推进实例终态，投影随本事务刷新；nil=未装配
+	formProjector WorkflowProjector
+	interval      time.Duration
+	batchSize     int
+	logger        *logrus.Logger
+}
+
+// WorkflowProjector 投影窄端口（由 workflow service 的 FormProjector 适配，
+// worker 不直接依赖 service 包实现类型）。
+type WorkflowProjector interface {
+	Project(ctx context.Context, instanceID uint) error
 }
 
 // TxManager 事务窄端口（装配层由 infrastructure.TxManager 适配）。
@@ -77,6 +86,7 @@ func NewJobWorker(
 	operations repository.OperationRepository,
 	runtime *engineruntime.Runtime,
 	publisher provider.EventPublisher,
+	formProjector WorkflowProjector,
 	interval time.Duration,
 	logger *logrus.Logger,
 ) *JobWorker {
@@ -87,15 +97,16 @@ func NewJobWorker(
 		logger = logrus.StandardLogger()
 	}
 	return &JobWorker{
-		tx:         txManager{inner: inner},
-		jobs:       jobs,
-		tasks:      tasks,
-		operations: operations,
-		runtime:    runtime,
-		publisher:  publisher,
-		interval:   interval,
-		batchSize:  defaultBatchSize,
-		logger:     logger,
+		tx:            txManager{inner: inner},
+		jobs:          jobs,
+		tasks:         tasks,
+		operations:    operations,
+		runtime:       runtime,
+		publisher:     publisher,
+		formProjector: formProjector,
+		interval:      interval,
+		batchSize:     defaultBatchSize,
+		logger:        logger,
 	}
 }
 
@@ -192,16 +203,23 @@ func (w *JobWorker) handle(ctx context.Context, job *model.Job) error {
 		//（行锁校验/变量写入/续跑推进/操作流水与人工动作同口径），
 		// Worker 不得直改流程状态；失败由重试记账退避回队。实例已终态
 		//（终止与领取竞态）幂等空跑，与超时动作「终态空跑」同口径
-		if _, err := w.runtime.InvokeServiceNode(ctx, engineruntime.ServiceInvokeInput{
+		result, err := w.runtime.InvokeServiceNode(ctx, engineruntime.ServiceInvokeInput{
 			TenantID:       job.TenantID,
 			InstanceID:     job.InstanceID,
 			NodeInstanceID: job.NodeInstanceID,
-		}); err != nil {
+		})
+		if err != nil {
 			if errors.Is(err, task.ErrInstanceNotRunning) {
 				w.logger.Infof("service invoke job %d: instance %d not running, skip", job.ID, job.InstanceID)
 				return nil
 			}
 			return err
+		}
+		// 服务节点续跑可能使实例推进至 COMPLETED：投影随本事务刷新
+		if result != nil && result.Completed {
+			if perr := w.formProjector.Project(ctx, result.InstanceID); perr != nil {
+				return perr
+			}
 		}
 	default:
 		// 未知类型直接失败终态（校验器/版本演进防御）
@@ -231,17 +249,24 @@ func (w *JobWorker) handleTimeout(ctx context.Context, job *model.Job) error {
 	action, _ := job.Payload["action"].(string)
 	switch model.TimeoutAction(action) {
 	case model.TimeoutActionApprove:
-		_, err = w.runtime.Approve(ctx, engineruntime.ApproveInput{
+		outcome, err := w.runtime.Approve(ctx, engineruntime.ApproveInput{
 			TenantID: job.TenantID, TaskID: job.TaskID,
 			OperatorMemberID: 0, Comment: timeoutAutoComment, AutoTimeout: true,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		// 超时自动处理使实例可能转终态：投影随本事务刷新（方案 §10.2）
+		return w.formProjector.Project(ctx, outcome.InstanceID)
 	case model.TimeoutActionReject:
-		_, err = w.runtime.Reject(ctx, engineruntime.RejectInput{
+		outcome, err := w.runtime.Reject(ctx, engineruntime.RejectInput{
 			TenantID: job.TenantID, TaskID: job.TaskID,
 			OperatorMemberID: 0, Comment: timeoutAutoComment, AutoTimeout: true,
 		})
-		return err
+		if err != nil {
+			return err
+		}
+		return w.formProjector.Project(ctx, outcome.InstanceID)
 	default:
 		return &unknownTimeoutActionError{Action: action}
 	}

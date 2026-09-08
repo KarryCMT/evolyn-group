@@ -99,4 +99,38 @@ var (
 	//（§5.2 字段生命周期）：新版本删除或变更（类型/形状）的字段被引用，发布
 	// 拒绝并列出冲突字段，由管理员先调整权限组再发布
 	ErrPermissionBlockedPublish = httpx.NewBiz("FORM_PERMISSION_BLOCKED_PUBLISH", "发布被权限组的数据条件阻塞，请先调整引用变更字段的权限组", http.StatusConflict)
+
+	// ---- 物理表存储（docs/低代码平台/表单设计器/物理表存储后端实施方案.md §14） ----
+
+	// ErrFieldIdentityFrozen v8 契约冻结：已发布字段的 fieldId/widgetName 不可
+	// 修改（字段「改名」只允许改 label）；data 携带 fields:[widgetName]
+	ErrFieldIdentityFrozen = httpx.NewBiz("FORM_FIELD_IDENTITY_FROZEN", "已发布字段的标识不可修改，请仅调整字段名称（label）或新建字段", http.StatusConflict)
+
+	// ErrStorageBusy 同一表单存在待执行/执行中的物理模型 Job，新发布请求被拒
+	ErrStorageBusy = httpx.NewBiz("FORM_STORAGE_BUSY", "表单结构变更正在执行，请稍后重试", http.StatusConflict)
+
+	// ErrStorageUnsupportedField 发布快照命中尚不具备物理模型的控件（多选/
+	// 附件等）；data 携带 issues:[{path,message}]
+	ErrStorageUnsupportedField = httpx.NewBiz("FORM_STORAGE_UNSUPPORTED_FIELD", "存在暂不支持物理存储的字段，请先移除或等待能力开放", http.StatusBadRequest)
+
+	// ErrStorageModelInvalid 物理模型构建/校验失败（快照与冻结映射不一致等
+	// 服务端内部一致性问题的安全出网口径）
+	ErrStorageModelInvalid = httpx.NewBiz("FORM_STORAGE_MODEL_INVALID", "表单物理存储模型无效，请重新发布", http.StatusBadRequest)
+
+	// ErrStorageDDLFailed DDL Job 终态失败；data 携带受控失败信息（jobId/
+	// errorCode），内部细节只入日志
+	ErrStorageDDLFailed = httpx.NewBiz("FORM_STORAGE_DDL_FAILED", "表单结构变更执行失败，请重试或联系管理员", http.StatusInternalServerError)
+
+	// ErrStorageNotReady 存储未就绪（DDL 未完成/终态失败），运行时提交被拒
+	ErrStorageNotReady = httpx.NewBiz("FORM_STORAGE_NOT_READY", "表单存储尚未就绪，请稍后重试", http.StatusConflict)
+
+	// ErrStorageTypeChangeUnsupported 字段类型变更默认拒绝：新建字段并弃用
+	// 旧字段；data 携带 fields:[widgetName]
+	ErrStorageTypeChangeUnsupported = httpx.NewBiz("FORM_STORAGE_TYPE_CHANGE_UNSUPPORTED", "已发布字段的类型不可修改，请新建字段并弃用原字段", http.StatusConflict)
+
+	// ErrWorkflowProjectionInvalid 流程投影更新入参非法（状态枚举外值等）
+	ErrWorkflowProjectionInvalid = httpx.NewBiz("FORM_WORKFLOW_PROJECTION_INVALID", "流程状态投影无效", http.StatusInternalServerError)
+
+	// ErrStorageJobNotFound DDL 发布 Job 不存在
+	ErrStorageJobNotFound = httpx.NewBiz("FORM_STORAGE_JOB_NOT_FOUND", "结构变更任务不存在", http.StatusNotFound)
 )

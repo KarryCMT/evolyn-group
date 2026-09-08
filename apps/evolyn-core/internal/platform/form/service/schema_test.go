@@ -42,10 +42,43 @@ func validSubformWidget(items []any) map[string]any {
 	}
 }
 
+// ensureTestFieldIDs 递归为缺失 fieldId 的值字段注入唯一测试标识（模拟
+// 设计器在创建字段时生成随机 fieldId 的行为；按全局计数派生保证跨作用域
+// 同名字段也各自唯一——设计器真实产物从不按名字派生）。
+func ensureTestFieldIDs(items []any) {
+	seq := 0
+	next := func() string {
+		id := fmt.Sprintf("%010d", seq)
+		seq++
+		return id
+	}
+	var walk func(items []any)
+	walk = func(items []any) {
+		for _, rawItem := range items {
+			item, _ := rawItem.(map[string]any)
+			widget, _ := item["widget"].(map[string]any)
+			if widget == nil {
+				continue
+			}
+			widgetType, _ := widget["type"].(string)
+			if widget["fieldId"] == nil && widgetType != "separator" && widgetType != "button" {
+				widget["fieldId"] = next()
+			}
+			if widgetType == "subform" {
+				if children, ok := widget["items"].([]any); ok {
+					walk(children)
+				}
+			}
+		}
+	}
+	walk(items)
+}
+
 func doc(items ...any) []byte {
 	if items == nil {
 		items = []any{}
 	}
+	ensureTestFieldIDs(items)
 	fieldLayout := make([]string, 0, len(items))
 	for _, rawItem := range items {
 		item, _ := rawItem.(map[string]any)
@@ -69,6 +102,7 @@ func TestValidateFormSchemaMultitabWithSubformReference(t *testing.T) {
 		"widget": validSubformWidget([]any{child}),
 		"label":  "子表单", "description": "", "labelHidden": false, "lineWidth": 12,
 	}
+	ensureTestFieldIDs([]any{subform})
 	document := map[string]any{"content": map[string]any{
 		"type": "form", "layout": "normal", "items": []any{subform},
 		"layout_fields": []any{map[string]any{
