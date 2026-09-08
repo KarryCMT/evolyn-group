@@ -47,6 +47,8 @@ export interface FormSchemaValidationResult {
 
 /** widgetName 形状约束（字典 1.4）：标识符形，1–64 字符。 */
 const WIDGET_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+/** 字段不可变标识（v8 契约冻结，与后端 storage.ValidateFieldID 镜像）。 */
+const FIELD_ID_PATTERN = /^[0-9a-z]{10}$/;
 
 const OPTION_WIDGET_TYPES: ReadonlySet<string> = new Set([
   'radiogroup',
@@ -203,8 +205,10 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
     return;
   }
   const seenNames = new Set<string>();
+  // fieldId 表单内全局唯一（跨子表单作用域共享，与 widgetName 作用域规则不同）
+  const fieldIDScope = new Map<string, string>();
   content.items.forEach((item, index) => {
-    validateItem(item, `content.items[${index}]`, issues, seenNames);
+    validateItem(item, `content.items[${index}]`, issues, seenNames, fieldIDScope);
   });
   validateLayouts(content, seenNames, issues);
   validateFieldShowRules(content, issues);
@@ -1315,6 +1319,7 @@ function validateItem(
   path: string,
   issues: FormSchemaIssue[],
   seenNames: Set<string>,
+  fieldIDScope: Map<string, string>,
 ): void {
   if (!isPlainObject(input)) {
     issues.push({ path, message: '字段项必须是 JSON 对象' });
@@ -1357,7 +1362,7 @@ function validateItem(
   } else if (type === 'subform' && input.lineWidth !== 12) {
     issues.push({ path: `${path}.lineWidth`, message: '子表单必须固定占整行（lineWidth=12）' });
   }
-  validateWidget(input.widget, `${path}.widget`, issues, seenNames);
+  validateWidget(input.widget, `${path}.widget`, issues, seenNames, fieldIDScope);
 }
 
 function validateLabel(
@@ -1388,6 +1393,7 @@ function validateWidget(
   path: string,
   issues: FormSchemaIssue[],
   seenNames: Set<string>,
+  fieldIDScope: Map<string, string>,
 ): void {
   if (!isPlainObject(input)) {
     issues.push({ path, message: 'widget 必须是 JSON 对象' });
@@ -1406,6 +1412,7 @@ function validateWidget(
   const allowedKeys = [
     'type',
     'widgetName',
+    'fieldId',
     'enable',
     'visible',
     'allowBlank',
@@ -1432,6 +1439,24 @@ function validateWidget(
     seenNames.add(input.widgetName);
   }
 
+  // v8 契约冻结（物理表存储 §4.1）：值字段必须携带不可变 fieldId，表单内
+  //（含全部子表单）全局唯一；布局/按钮无记录值不参与物理模型，不分配。
+  const widgetType = type;
+  if (widgetType !== 'separator' && widgetType !== 'button') {
+    if (typeof input.fieldId !== 'string' || input.fieldId === '') {
+      issues.push({ path: `${path}.fieldId`, message: '字段缺少不可变标识 fieldId' });
+    } else if (!FIELD_ID_PATTERN.test(input.fieldId)) {
+      issues.push({ path: `${path}.fieldId`, message: 'fieldId 必须是 10 位小写字母/数字' });
+    } else if (fieldIDScope.has(input.fieldId)) {
+      issues.push({
+        path: `${path}.fieldId`,
+        message: `fieldId「${input.fieldId}」重复，已在 ${fieldIDScope.get(input.fieldId)} 使用`,
+      });
+    } else {
+      fieldIDScope.set(input.fieldId, path);
+    }
+  }
+
   for (const key of ['enable', 'visible', 'allowBlank'] as const) {
     if (typeof input[key] !== 'boolean') {
       issues.push({ path: `${path}.${key}`, message: `${key} 必须是布尔值（不允许 null/缺省）` });
@@ -1445,7 +1470,7 @@ function validateWidget(
       }
       continue;
     }
-    validateWidgetProp(input[key], propSpec, `${path}.${key}`, issues);
+    validateWidgetProp(input[key], propSpec, `${path}.${key}`, issues, fieldIDScope);
   }
 
   // 类型间交叉约束（字典逐条对应的 min≤max 系列）。
@@ -1457,6 +1482,7 @@ function validateWidgetProp(
   spec: WidgetPropSpec,
   path: string,
   issues: FormSchemaIssue[],
+  fieldIDScope: Map<string, string>,
 ): void {
   switch (spec.kind) {
     case 'boolean':
@@ -1522,7 +1548,7 @@ function validateWidgetProp(
       validateOptions(value, path, issues);
       return;
     case 'widgetItems':
-      validateSubformItems(value, path, issues);
+      validateSubformItems(value, path, issues, fieldIDScope);
       return;
     case 'stickyColumn':
       validateStickyColumn(value, path, issues);
@@ -1603,7 +1629,12 @@ function validateOptions(value: unknown, path: string, issues: FormSchemaIssue[]
   });
 }
 
-function validateSubformItems(value: unknown, path: string, issues: FormSchemaIssue[]): void {
+function validateSubformItems(
+  value: unknown,
+  path: string,
+  issues: FormSchemaIssue[],
+  fieldIDScope: Map<string, string>,
+): void {
   if (!Array.isArray(value)) {
     issues.push({ path, message: '子表单 items 必须是数组' });
     return;
@@ -1630,7 +1661,7 @@ function validateSubformItems(value: unknown, path: string, issues: FormSchemaIs
       });
       return;
     }
-    validateItem(child, childPath, issues, scopeNames);
+    validateItem(child, childPath, issues, scopeNames, fieldIDScope);
   });
 }
 

@@ -14,6 +14,8 @@ function schema(): FormSchemaDocument {
           widget: {
             type: 'text',
             widgetName: '_widget_name',
+
+            fieldId: '0widget0na',
             enable: true,
             visible: true,
             allowBlank: false,
@@ -49,6 +51,8 @@ function subformSchema(): FormSchemaDocument {
           widget: {
             type: 'subform',
             widgetName: '_widget_lines',
+
+            fieldId: '0widget0li',
             enable: true,
             visible: true,
             allowBlank: true,
@@ -57,6 +61,8 @@ function subformSchema(): FormSchemaDocument {
                 widget: {
                   type: 'text',
                   widgetName: '_widget_item_name',
+
+                  fieldId: '0widget0it',
                   enable: true,
                   visible: true,
                   allowBlank: false,
@@ -70,6 +76,8 @@ function subformSchema(): FormSchemaDocument {
                 widget: {
                   type: 'datetime',
                   widgetName: '_widget_delivery_at',
+
+                  fieldId: '0widget0de',
                   enable: true,
                   visible: true,
                   allowBlank: true,

@@ -28,11 +28,17 @@ import {
   RiShareForwardFill,
   RiUploadCloud2Fill,
 } from '@remixicon/vue';
-import { ElMessage } from 'element-plus';
+import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, ref, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getApplicationByCode } from '~/api/applications';
-import { createForm, publishForm, saveFormDraft } from '~/api/form';
+import {
+  createForm,
+  getFormStorageJob,
+  publishForm,
+  retryFormStorageJob,
+  saveFormDraft,
+} from '~/api/form';
 import FormDesignPreviewDrawer from '~/components/form/FormDesignPreviewDrawer.vue';
 import { widgetIconOfType } from '~/components/form/widgetIcons';
 import { useFormWorkspaceContext } from './workspace-context';
@@ -60,6 +66,8 @@ const loadFailed = ref(false);
 const loading = ref(true);
 const saving = ref(false);
 const publishing = ref(false);
+/** 发布进行中的状态文案（结构变更轮询阶段展示）。 */
+const publishStatusText = ref('');
 const renaming = computed(() => workspace.renaming.value);
 const previewVisible = shallowRef(false);
 const unsupportedPreviewTypes = new Set<string>();
@@ -307,7 +315,11 @@ async function saveDraft(): Promise<void> {
   }
 }
 
-/** 发布：白名单 + 协议校验先行，成功提示版本号。 */
+/** 结构变更轮询参数：间隔与上限（DDL 为秒级低频任务，超限转手动重试引导）。 */
+const STORAGE_JOB_POLL_INTERVAL = 2000;
+const STORAGE_JOB_POLL_TIMEOUT = 60_000;
+
+/** 发布：白名单 + 协议校验先行；命中结构变更（202）时轮询 Job 至生效。 */
 async function publish(): Promise<void> {
   const publishable = validatePublishableFormSchema(document.value);
   if (!publishable.valid) {
@@ -315,6 +327,7 @@ async function publish(): Promise<void> {
     return;
   }
   publishing.value = true;
+  publishStatusText.value = '';
   try {
     // 发布前先落草稿，保证发布的就是当前画布内容（口令以保存结果为准）。
     const saved = await saveFormDraft(
@@ -325,6 +338,12 @@ async function publish(): Promise<void> {
     );
     const result = await publishForm(formCode.value, saved.draftRevision);
     draftRevision.value = saved.draftRevision;
+    if (result.async && result.jobId) {
+      // 物理结构变更已受理：publishedVersion 是预分配口令，运行时仍用旧快照，
+      // 轮询 Job 至 SUCCEEDED 后新版本才真正生效（失败提供重试入口）。
+      await pollStorageJob(result.jobId, result.publishedVersion);
+      return;
+    }
     publishedVersion.value = result.publishedVersion;
     workspace.patchDetail({
       draftRevision: saved.draftRevision,
@@ -337,6 +356,54 @@ async function publish(): Promise<void> {
     handleSaveError(error);
   } finally {
     publishing.value = false;
+    publishStatusText.value = '';
+  }
+}
+
+/** 轮询结构变更 Job：SUCCEEDED 完成发布；FAILED 弹重试确认；超时提示稍后重查。 */
+async function pollStorageJob(jobId: number, targetVersion: number): Promise<void> {
+  const deadline = Date.now() + STORAGE_JOB_POLL_TIMEOUT;
+  for (;;) {
+    publishStatusText.value = '表单结构变更执行中，请稍候…';
+    const job = await getFormStorageJob(formCode.value, jobId);
+    if (job.status === 'SUCCEEDED') {
+      publishedVersion.value = targetVersion;
+      workspace.patchDetail({
+        draftRevision: draftRevision.value,
+        protocolVersion: FORM_PROTOCOL_VERSION,
+        draft: document.value,
+        publishedVersion: targetVersion,
+      });
+      ElMessage.success(`发布成功（版本 ${targetVersion}）`);
+      return;
+    }
+    if (job.status === 'FAILED') {
+      // 终态失败：管理员确认后重试（复位回队，继续轮询同一 jobId）
+      ElMessageBox.confirm('表单结构变更执行失败，是否重试？', '发布未完成', {
+        confirmButtonText: '重试',
+        cancelButtonText: '稍后处理',
+        type: 'warning',
+      })
+        .then(async () => {
+          publishing.value = true;
+          try {
+            await retryFormStorageJob(formCode.value, jobId);
+            await pollStorageJob(jobId, publishedVersion.value);
+          } catch (error) {
+            handleSaveError(error);
+          } finally {
+            publishing.value = false;
+          }
+        })
+        .catch(() => undefined);
+      return;
+    }
+    if (Date.now() > deadline) {
+      // 超时不算失败：Job 仍在服务端排队执行，版本生效以任务状态为准
+      ElMessage.warning('结构变更仍在执行中，可稍后重新进入页面确认发布状态');
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, STORAGE_JOB_POLL_INTERVAL));
   }
 }
 
@@ -428,7 +495,9 @@ function notifyUnavailable(action: string) {
           @click="publish"
         >
           <RiUploadCloud2Fill />
-          <span class="form-design-page__action-label">发布</span>
+          <span class="form-design-page__action-label">{{
+            publishStatusText ? '执行中' : '发布'
+          }}</span>
         </button>
         <button
           class="form-design-page__icon-button form-design-page__share-button"

@@ -72,6 +72,9 @@ export function migrateFormSchema(
   if (sourceVersion <= 6 && isV1Document(candidate)) {
     candidate = normalizeSubmitValidationV7(candidate);
   }
+  if (sourceVersion <= 7 && isV1Document(candidate)) {
+    candidate = normalizeFieldIdentityV8(candidate);
+  }
   const result = validateFormSchema(candidate);
   if (!result.valid || !result.document) {
     return { document: null, issues: result.issues, protocolVersion: FORM_PROTOCOL_VERSION };
@@ -130,6 +133,48 @@ function normalizeSubmitRulesV6(input: unknown): unknown {
   }
   return document;
 }
+
+/** v7 → v8：为缺失 fieldId 的值字段生成不可变标识（物理表存储 §4.1 契约
+ * 冻结）。fieldId 由设计器侧一次性生成：10 位小写 base36 随机串，表单内
+ * （含全部子表单）全局唯一；生成后随草稿持久化，此后永不改变。 */
+function normalizeFieldIdentityV8(input: unknown): unknown {
+  const document = cloneFormSchema(input as FormSchemaDocument);
+  const content = document.content as unknown as { items: unknown[] };
+  const used = new Set<string>();
+  const nextFieldId = (): string => {
+    for (;;) {
+      let id = '';
+      const bytes = new Uint32Array(FIELD_ID_LENGTH);
+      crypto.getRandomValues(bytes);
+      for (const byte of bytes) id += FIELD_ID_ALPHABET[byte % FIELD_ID_ALPHABET.length];
+      if (!used.has(id)) {
+        used.add(id);
+        return id;
+      }
+    }
+  };
+  const walk = (items: unknown[]): void => {
+    for (const raw of items) {
+      const item = raw as { widget?: Record<string, unknown> };
+      const widget = item?.widget;
+      if (!widget || typeof widget !== 'object') continue;
+      const type = widget.type;
+      if (type === 'separator' || type === 'button') continue;
+      if (typeof widget.fieldId !== 'string' || widget.fieldId === '') {
+        widget.fieldId = nextFieldId();
+      } else {
+        used.add(widget.fieldId);
+      }
+      if (type === 'subform' && Array.isArray(widget.items)) walk(widget.items);
+    }
+  };
+  walk(content.items);
+  return document;
+}
+
+/** fieldId 生成字母表与长度（小写 base36 × 10 位，与后端 storage 包口径一致）。 */
+const FIELD_ID_ALPHABET = '0123456789abcdefghijklmnopqrstuvwxyz';
+const FIELD_ID_LENGTH = 10;
 
 /** v6 → v7：补齐表单级校验空数组和关闭的二次确认配置。 */
 function normalizeSubmitValidationV7(input: unknown): unknown {

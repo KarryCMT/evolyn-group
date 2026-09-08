@@ -574,6 +574,20 @@ export function generateWidgetName(): string {
   return `_widget_${Date.now()}${String(widgetNameSeed).padStart(4, '0')}`;
 }
 
+/**
+ * 生成字段不可变标识（v8 契约冻结，物理表存储 §4.1）：10 位小写 base36
+ * 密码学随机串，表单内全局唯一；fieldId→物理列名 f_<fieldId> 永不变更，
+ * 生成后随草稿持久化。与后端 storage 包字段规则镜像。
+ */
+export function generateFieldId(): string {
+  const bytes = new Uint32Array(10);
+  crypto.getRandomValues(bytes);
+  let id = '';
+  const alphabet = '0123456789abcdefghijklmnopqrstuvwxyz';
+  for (const byte of bytes) id += alphabet[byte % alphabet.length];
+  return id;
+}
+
 /** 生成表单级布局与标签页稳定键；二者与 widgetName 共享顶层引用命名空间。 */
 export function generateLayoutName(): string {
   widgetNameSeed = (widgetNameSeed + 1) % 10000;
@@ -611,6 +625,7 @@ export function createWidgetItem(type: FormWidgetType): FormItem {
   const widget: Record<string, unknown> = {
     type,
     widgetName: generateWidgetName(),
+    fieldId: generateFieldId(),
     enable: true,
     visible: true,
     allowBlank: true,
@@ -641,10 +656,16 @@ export function createWidgetItem(type: FormWidgetType): FormItem {
   };
 }
 
-/** 深拷贝字段项并换新 widgetName（设计器「复制字段」动作）。 */
+/** 深拷贝字段项并换新 widgetName 与 fieldId（设计器「复制字段」动作：复制品
+ * 是新字段身份，绝不能继承源字段的不可变标识——物理列语义会互相覆盖）。 */
 export function copyWidgetItem(item: FormItem): FormItem {
   const clone = JSON.parse(JSON.stringify(item)) as FormItem;
   clone.widget.widgetName = generateWidgetName();
+  if (clone.widget.type !== 'separator' && clone.widget.type !== 'button') {
+    clone.widget.fieldId = generateFieldId();
+  } else {
+    delete clone.widget.fieldId;
+  }
   clone.label = `${item.label} copy`;
   return clone;
 }

@@ -8,8 +8,10 @@
  * 类型只表达「合法文档」的形状；JSON 的未知键/非法值由 validate.ts 按 JSON Path 拒绝。
  */
 
-/** 协议版本常量；递增时必须同步版本迁移器（migrate.ts）与字段字典。 */
-export const FORM_PROTOCOL_VERSION = 7 as const;
+/** 协议版本常量；递增时必须同步版本迁移器（migrate.ts）与字段字典。
+ * v8 起值字段必须携带内部不可变 fieldId（物理表存储 §4.1 契约冻结：
+ * fieldId→物理列名 f_<fieldId> 永不变更；widgetName 同步冻结，只允许改 label）。 */
+export const FORM_PROTOCOL_VERSION = 8 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -106,6 +108,12 @@ export interface FormWidgetCommon {
   type: FormWidgetType;
   /** 稳定字段键：记录值、规则与错误回填的取值键，全表单唯一（子表单按作用域）。 */
   widgetName: string;
+  /**
+   * 字段不可变标识（v8 契约冻结）：10 位小写字母/数字，设计器创建字段时生成，
+   * 表单内（含全部子表单）全局唯一；物理列名 f_<fieldId> 的唯一推导来源。
+   * 类型上可选仅为兼容 v7 及以前的已发布快照读取；保存/发布按当前协议必填。
+   */
+  fieldId?: string;
   /** false 时禁用输入，值仍参与提交。 */
   enable: boolean;
   /** false 时不渲染、不校验、不收集值。 */

@@ -4,6 +4,7 @@ import type {
   FormPage,
   FormPublishResult,
   FormRecordPage,
+  FormStorageJobDetail,
   FormRecordSubmitResult,
   FormRuntimeBootstrap,
   FormSchemaDocument,
@@ -87,6 +88,22 @@ export function saveFormDraft(
  */
 export function publishForm(code: string, draftRevision: number): Promise<FormPublishResult> {
   return http.post(`/forms/${code}/publish`, { draftRevision });
+}
+
+/**
+ * 查询表单结构变更任务（GET /forms/:code/storage-jobs/:jobId）：发布返回
+ * async=true 后轮询执行状态；SUCCEEDED 后发布版本才真正生效。
+ */
+export function getFormStorageJob(code: string, jobId: number): Promise<FormStorageJobDetail> {
+  return http.get(`/forms/${code}/storage-jobs/${jobId}`);
+}
+
+/**
+ * 重试终态失败的结构变更任务（POST .../retry）：仅 FAILED 可重试，复位后
+ * 由服务端 Worker 重新执行，调用方继续轮询同 jobId。
+ */
+export function retryFormStorageJob(code: string, jobId: number): Promise<FormStorageJobDetail> {
+  return http.post(`/forms/${code}/storage-jobs/${jobId}/retry`);
 }
 
 /**

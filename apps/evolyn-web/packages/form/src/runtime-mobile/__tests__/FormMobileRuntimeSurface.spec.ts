@@ -12,6 +12,8 @@ const schema = (): FormSchemaDocument => ({
         widget: {
           type: 'text',
           widgetName: '_widget_name',
+
+          fieldId: '0widget0na',
           enable: true,
           visible: true,
           allowBlank: false,

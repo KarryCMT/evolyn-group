@@ -5,13 +5,25 @@ import FormRenderer from '../renderer/FormRenderer.vue';
 import { buildRenderPlan } from '../renderer/plan';
 import type { FormSubmitResult } from '../types';
 
+/** 运行时校验按当前协议（v8）执行：夹具字段自动携带不可变 fieldId。 */
+let rendererFieldIdSeed = 0;
+function nextRendererFieldId(): string {
+  rendererFieldIdSeed += 1;
+  return String(rendererFieldIdSeed).padStart(10, '0');
+}
+
 function item(widget: Record<string, unknown>, extras: Partial<FormItem> = {}): FormItem {
+  const type = typeof widget.type === 'string' ? widget.type : '';
+  const withIdentity =
+    type === 'separator' || type === 'button'
+      ? widget
+      : { fieldId: nextRendererFieldId(), ...widget };
   return {
     widget: {
       enable: true,
       visible: true,
       allowBlank: true,
-      ...widget,
+      ...withIdentity,
     } as FormItem['widget'],
     label: '字段',
     description: '',

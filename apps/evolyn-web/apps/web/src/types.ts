@@ -583,6 +583,9 @@ export interface FormDraftSaveResult {
 export interface FormPublishResult {
   publishedVersion: number;
   schemaRevision: string;
+  /** 物理结构变更已受理（202）：双口令为预分配值，Job 成功后运行时才切换新快照 */
+  async?: boolean;
+  jobId?: number;
 }
 
 /** GET /applications/code/:appCode/forms/:formCode/runtime 响应（运行时引导） */
@@ -613,10 +616,27 @@ export interface FormRecordSubmitResult {
   recordId: number;
 }
 
-/** POST /forms/:code/records 的权限裁剪后分页结果。 */
+/** GET /forms/:code/storage-jobs/:jobId 的 DDL 发布任务状态（物理表存储）。 */
+export interface FormStorageJobDetail {
+  jobId: number;
+  status: 'PENDING' | 'PROCESSING' | 'SUCCEEDED' | 'FAILED';
+  retryCount: number;
+  nextAttemptAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+  lastErrorCode: string;
+  publishedVersion: number;
+  schemaRevision: string;
+}
+
+/** POST /forms/:code/publish 受理结果。 */
 export interface FormRecordListItem {
   /** 服务端生成的只读流程单号；普通表单为空。 */
   workflowInstanceNo: string;
+  /** 流程实例状态投影（物理表存储 §10）：事实源 wf_instance.status，普通表单恒 NONE。 */
+  workflowStatus: string;
+  /** 流程投影最后更新时间：随实例状态变更同事务刷新；普通表单为 null。 */
+  workflowUpdatedAt: string | null;
   id: number;
   values: Record<string, unknown>;
   submittedByMemberId: number;

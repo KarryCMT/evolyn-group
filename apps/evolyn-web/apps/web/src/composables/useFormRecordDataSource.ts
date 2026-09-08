@@ -4,7 +4,7 @@ import type { QueryDocument, QueryFieldType } from '@evolyn.do/query';
 import type { Component, ComputedRef, ShallowRef } from 'vue';
 import type { FormRuntimeBootstrap } from '~/types';
 import { normalizeQuery, validateQuery } from '@evolyn.do/query';
-import { RiTimeFill, RiUser3Fill } from '@remixicon/vue';
+import { RiFileList2Fill, RiFileChartFill, RiTimeFill, RiUser3Fill } from '@remixicon/vue';
 import { computed, markRaw, readonly, shallowRef, watch } from 'vue';
 import { getFormRuntime, listFormRecords } from '~/api/form';
 import { widgetIconOfType } from '~/components/form/widgetIcons';
@@ -19,6 +19,8 @@ export type FormRecordDataStatus = 'loading' | 'ready' | 'error';
  */
 export const SYSTEM_RECORD_FIELDS = {
   workflowInstanceNo: 'sys.workflowInstanceNo',
+  workflowStatus: 'sys.workflowStatus',
+  workflowUpdatedAt: 'sys.workflowUpdatedAt',
   submittedBy: 'sys.submittedBy',
   submittedAt: 'sys.submittedAt',
   updatedAt: 'sys.updatedAt',
@@ -29,6 +31,17 @@ export interface FormRecordFilterOption {
   label: string;
   value: string;
 }
+
+/**
+ * 流程状态选项（与后端 wf_instance 状态枚举 + NONE 冻结一致；投影字段，
+ * 事实源在流程实例）。用于筛选面板 enum 候选与列展示翻译。
+ */
+export const WORKFLOW_STATUS_OPTIONS = [
+  { label: '进行中', value: 'RUNNING' },
+  { label: '已完成', value: 'COMPLETED' },
+  { label: '已驳回', value: 'REJECTED' },
+  { label: '已撤回/终止', value: 'CANCELLED' },
+] as const;
 
 /**
  * datetime 字段的存储格式（与后端 normalizedValueSQL 的格式正则一一对应）：
@@ -80,7 +93,11 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
   const columns = computed<DataColumn[]>(() => {
     const base = columnsFromRuntime(runtime.value);
     if (records.value.some((record) => record[SYSTEM_RECORD_FIELDS.workflowInstanceNo])) {
-      base.unshift({ field: SYSTEM_RECORD_FIELDS.workflowInstanceNo, title: '流程单号', minWidth: 210 });
+      base.unshift({
+        field: SYSTEM_RECORD_FIELDS.workflowInstanceNo,
+        title: '流程单号',
+        minWidth: 210,
+      });
     }
     return base;
   });
@@ -101,7 +118,17 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
         // 值同层供列取数；筛选语义里的提交人值（成员 ID）仅在 Query DSL 中出现。
         records: response.items.map((item) => ({
           id: item.id,
-          ...(item.workflowInstanceNo ? { [SYSTEM_RECORD_FIELDS.workflowInstanceNo]: item.workflowInstanceNo } : {}),
+          ...(item.workflowInstanceNo
+            ? { [SYSTEM_RECORD_FIELDS.workflowInstanceNo]: item.workflowInstanceNo }
+            : {}),
+          ...(item.workflowStatus && item.workflowStatus !== 'NONE'
+            ? {
+                [SYSTEM_RECORD_FIELDS.workflowStatus]: item.workflowStatus,
+                ...(item.workflowUpdatedAt
+                  ? { [SYSTEM_RECORD_FIELDS.workflowUpdatedAt]: item.workflowUpdatedAt }
+                  : {}),
+              }
+            : {}),
           [SYSTEM_RECORD_FIELDS.submittedBy]: item.submittedByName,
           [SYSTEM_RECORD_FIELDS.submittedAt]: item.submittedAt,
           [SYSTEM_RECORD_FIELDS.updatedAt]: item.updatedAt,
@@ -253,6 +280,28 @@ function filterFieldsFromRuntime(runtime: FormRuntimeBootstrap | null): FormReco
   //（提交人=enum，值=成员 ID；时间=datetime，秒级或日期值）。
   return [
     ...formFields,
+    {
+      field: SYSTEM_RECORD_FIELDS.workflowInstanceNo,
+      label: '流程单号',
+      type: 'text',
+      group: 'system',
+      icon: markRaw(RiFileList2Fill),
+    },
+    {
+      field: SYSTEM_RECORD_FIELDS.workflowStatus,
+      label: '流程状态',
+      type: 'enum',
+      group: 'system',
+      options: WORKFLOW_STATUS_OPTIONS,
+      icon: markRaw(RiFileChartFill),
+    },
+    {
+      field: SYSTEM_RECORD_FIELDS.workflowUpdatedAt,
+      label: '流程更新时间',
+      type: 'datetime',
+      group: 'system',
+      icon: markRaw(RiTimeFill),
+    },
     {
       field: SYSTEM_RECORD_FIELDS.submittedBy,
       label: '提交人',

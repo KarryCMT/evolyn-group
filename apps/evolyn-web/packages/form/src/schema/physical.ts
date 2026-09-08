@@ -2,8 +2,9 @@ import type { LogicalStorageField, LogicalStorageFieldType } from '@evolyn.do/ph
 import type { FormItem, FormWidgetType } from './types';
 
 /**
- * widgetName 已是表单协议中独立于 label 的稳定记录键；物理表阶段直接将其投影
- * 为 LogicalStorageField.id，禁止再创建第二份会随草稿漂移的字段标识。
+ * 字段身份投影（物理表存储 §4.1 契约冻结后口径）：v8 起以不可变 fieldId 为
+ * LogicalStorageField.id（物理列名 f_<fieldId> 的推导来源）；v7 及更早的草稿
+ * 读取时回落 widgetName 仅为展示，不参与物理列推导。
  */
 const STORAGE_TYPE_BY_WIDGET: Readonly<Partial<Record<FormWidgetType, LogicalStorageFieldType>>> = {
   text: 'shortText',
@@ -43,7 +44,7 @@ export function projectPhysicalStorageFields(items: readonly FormItem[]): Logica
     if (!type) return [];
     return [
       {
-        id: item.widget.widgetName,
+        id: item.widget.fieldId ?? item.widget.widgetName,
         type,
         required: !item.widget.allowBlank,
       },

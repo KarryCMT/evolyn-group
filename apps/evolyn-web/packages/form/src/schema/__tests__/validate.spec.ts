@@ -43,7 +43,26 @@ function textItem(overrides: Record<string, unknown> = {}): Record<string, unkno
   };
 }
 
+let fieldIdSeed = 0;
+
+/** 为缺失 fieldId 的值字段注入唯一测试标识（模拟设计器生成行为，v8 契约）。 */
+function ensureFieldIds(items: unknown[]): void {
+  for (const raw of items) {
+    const item = raw as { widget?: Record<string, unknown> };
+    const widget = item?.widget;
+    if (!widget || typeof widget !== 'object') continue;
+    const type = widget.type;
+    if (type === 'separator' || type === 'button') continue;
+    if (typeof widget.fieldId !== 'string' || widget.fieldId === '') {
+      fieldIdSeed += 1;
+      widget.fieldId = String(fieldIdSeed).padStart(10, '0');
+    }
+    if (type === 'subform' && Array.isArray(widget.items)) ensureFieldIds(widget.items);
+  }
+}
+
 function documentWith(items: unknown[]): unknown {
+  ensureFieldIds(items);
   const field_layout = items.flatMap((item) => {
     const name = (item as { widget?: { widgetName?: unknown } })?.widget?.widgetName;
     return typeof name === 'string' ? [name] : [];
@@ -394,6 +413,7 @@ describe('validateFormSchema 结构校验', () => {
         },
       },
     };
+    ensureFieldIds(document.content.items);
     expect(validateFormSchema(document).valid).toBe(true);
     document.content.layout_fields[0]!.container[0]!.field_layout = ['_widget_child'];
     const result = validateFormSchema(document);
@@ -764,6 +784,7 @@ describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
         ],
       },
     };
+    ensureFieldIds(doc.content.items);
     const result = validatePublishableFormSchema(doc);
     // 控件白名单与条件源白名单同时产出精确路径错误。
     expect(result.issues.map((issue) => issue.message)).toEqual(
