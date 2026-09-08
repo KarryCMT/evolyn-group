@@ -11,10 +11,7 @@ import { computed, ref, shallowRef, watch } from 'vue';
 import Draggable from 'vuedraggable';
 import { ElIcon, ElMessageBox, ElTooltip } from 'element-plus';
 import type { FormItem } from '../schema/types';
-import {
-  cloneSubmitValidatorDraft,
-  type SubmitValidatorDraft,
-} from './submit-validation-types';
+import { cloneSubmitValidatorDraft, type SubmitValidatorDraft } from './submit-validation-types';
 import FormSchemaSubmitValidatorDialog from './FormSchemaSubmitValidatorDialog.vue';
 
 const validators = defineModel<SubmitValidatorDraft[]>({ required: true });

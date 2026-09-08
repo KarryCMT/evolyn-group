@@ -726,9 +726,7 @@ describe('createFormRuntime 提交时校验（v7）', () => {
 
   it('网络或服务端失败后，未修改填写值的重试复用同一 dataOpId', async () => {
     const submit = vi
-      .fn<
-        (payload: { dataOpId?: string }) => Promise<FormSubmitResult>
-      >()
+      .fn<(payload: { dataOpId?: string }) => Promise<FormSubmitResult>>()
       .mockResolvedValueOnce({ accepted: false, message: '网络暂不可用' })
       .mockResolvedValueOnce({ accepted: true });
     const runtime = createFormRuntime({ schema: validatorForm(1), adapter: { submit } });

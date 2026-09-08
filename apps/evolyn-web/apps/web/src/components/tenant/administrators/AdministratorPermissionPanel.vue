@@ -205,7 +205,8 @@ async function saveAddressBook(scope: AddressBookScope) {
                 :key="member.id"
                 class="administrator-permission-panel__member-selection-chip"
               >
-                <i>{{ member.name.slice(0, 1) }}</i>{{ member.name }}
+                <i>{{ member.name.slice(0, 1) }}</i
+                >{{ member.name }}
               </span>
             </button>
           </template>

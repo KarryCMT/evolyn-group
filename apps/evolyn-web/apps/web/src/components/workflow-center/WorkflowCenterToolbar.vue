@@ -49,8 +49,17 @@ const scopes: ReadonlyArray<{ value: WorkflowCenterScope; label: string }> = [
       </button>
     </nav>
 
-    <div v-if="props.scope === 'pending'" class="workflow-center-toolbar__filters" aria-label="待办分类">
-      <button type="button" class="workflow-center-toolbar__pill workflow-center-toolbar__pill--active" aria-current="true" @click="emit('updateKeyword', '')">
+    <div
+      v-if="props.scope === 'pending'"
+      class="workflow-center-toolbar__filters"
+      aria-label="待办分类"
+    >
+      <button
+        type="button"
+        class="workflow-center-toolbar__pill workflow-center-toolbar__pill--active"
+        aria-current="true"
+        @click="emit('updateKeyword', '')"
+      >
         全部<span v-if="props.pendingCount !== undefined">（{{ props.pendingCount }}）</span>
       </button>
     </div>
@@ -62,9 +71,14 @@ const scopes: ReadonlyArray<{ value: WorkflowCenterScope; label: string }> = [
           placeholder="搜索已加载流程信息"
           aria-label="搜索已加载流程信息"
           @input="emit('updateKeyword', ($event.target as HTMLInputElement).value)"
-        >
+        />
       </label>
-      <el-select :model-value="props.sortOrder" class="workflow-center-toolbar__sort" aria-label="已加载任务排序" @update:model-value="emit('updateSortOrder', $event)">
+      <el-select
+        :model-value="props.sortOrder"
+        class="workflow-center-toolbar__sort"
+        aria-label="已加载任务排序"
+        @update:model-value="emit('updateSortOrder', $event)"
+      >
         <el-option label="最新优先" value="newest" />
         <el-option label="最早优先" value="oldest" />
       </el-select>
@@ -85,7 +99,6 @@ const scopes: ReadonlyArray<{ value: WorkflowCenterScope; label: string }> = [
   justify-content: space-between;
   gap: var(--el-space-xl);
 
-
   &__scopes,
   &__tools,
   &__search {
@@ -94,10 +107,28 @@ const scopes: ReadonlyArray<{ value: WorkflowCenterScope; label: string }> = [
     align-items: center;
   }
 
-  &__filters { display: flex; align-items: center; gap: 12px; }
-  &__pill { padding: 8px 20px; border: 1px solid var(--el-border-color); border-radius: 24px; font: inherit; cursor: pointer; }
-  &__pill--active { color: var(--el-color-white); background: var(--el-color-primary); border-color: var(--el-color-primary); font-weight: 600; }
-  &__sort { width: 112px; flex-shrink: 0; }
+  &__filters {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  &__pill {
+    padding: 8px 20px;
+    border: 1px solid var(--el-border-color);
+    border-radius: 24px;
+    font: inherit;
+    cursor: pointer;
+  }
+  &__pill--active {
+    color: var(--el-color-white);
+    background: var(--el-color-primary);
+    border-color: var(--el-color-primary);
+    font-weight: 600;
+  }
+  &__sort {
+    width: 112px;
+    flex-shrink: 0;
+  }
   &__scopes {
     height: 100%;
     gap: var(--el-space-xl);

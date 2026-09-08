@@ -41,8 +41,12 @@ function formatDate(value: string): string {
       >
         <span class="workflow-center-list__header">
           <strong class="workflow-center-list__title">{{ item.title }}</strong>
-          <span class="workflow-center-list__subtitle"><RiNodeTree aria-hidden="true" />{{ item.subtitle }}</span>
-          <el-tag v-if="item.status !== 'PENDING'" size="small" effect="plain">{{ item.status }}</el-tag>
+          <span class="workflow-center-list__subtitle"
+            ><RiNodeTree aria-hidden="true" />{{ item.subtitle }}</span
+          >
+          <el-tag v-if="item.status !== 'PENDING'" size="small" effect="plain">{{
+            item.status
+          }}</el-tag>
           <time>{{ formatDate(item.createdAt).slice(0, 16) }}</time>
         </span>
         <span class="workflow-center-list__body">
@@ -51,12 +55,17 @@ function formatDate(value: string): string {
             {{ item.starterName || '发起人信息未提供' }}
           </span>
           <span class="workflow-center-list__fields">
-            <span v-for="(field, index) in item.summaryFields" :key="index" class="workflow-center-list__field">
+            <span
+              v-for="(field, index) in item.summaryFields"
+              :key="index"
+              class="workflow-center-list__field"
+            >
               <span class="workflow-center-list__label">{{ field.label }}：</span>
               <span class="workflow-center-list__value">{{ field.value }}</span>
             </span>
             <span class="workflow-center-list__field">
-              <span class="workflow-center-list__label">流程单号：</span>{{ item.instanceNo || '—' }}
+              <span class="workflow-center-list__label">流程单号：</span
+              >{{ item.instanceNo || '—' }}
             </span>
           </span>
         </span>
@@ -64,9 +73,7 @@ function formatDate(value: string): string {
     </template>
 
     <div v-if="props.hasMore" class="workflow-center-list__more">
-      <el-button text type="primary" @click="emit('loadMore')">
-        加载更多
-      </el-button>
+      <el-button text type="primary" @click="emit('loadMore')"> 加载更多 </el-button>
     </div>
   </section>
 </template>
@@ -78,7 +85,10 @@ function formatDate(value: string): string {
   overflow: auto;
   padding: 0 20px 24px;
 
-  &__loading, &__empty { min-height: 320px; }
+  &__loading,
+  &__empty {
+    min-height: 320px;
+  }
   &__item {
     display: flex;
     flex-direction: column;
@@ -94,9 +104,16 @@ function formatDate(value: string): string {
     text-align: left;
     cursor: pointer;
     overflow: hidden;
-    &:hover:not(:disabled) { border-color: var(--el-color-primary-light-5); }
-    &:disabled { cursor: default; }
-    &:focus-visible { outline: 2px solid var(--el-color-primary); outline-offset: 2px; }
+    &:hover:not(:disabled) {
+      border-color: var(--el-color-primary-light-5);
+    }
+    &:disabled {
+      cursor: default;
+    }
+    &:focus-visible {
+      outline: 2px solid var(--el-color-primary);
+      outline-offset: 2px;
+    }
   }
   &__header {
     display: flex;
@@ -107,25 +124,102 @@ function formatDate(value: string): string {
     padding: 12px 20px;
     box-sizing: border-box;
     border-bottom: 1px solid var(--el-border-color-lighter);
-    time { margin-left: auto; flex-shrink: 0; color: var(--el-text-color-secondary); font-size: 13px; }
+    time {
+      margin-left: auto;
+      flex-shrink: 0;
+      color: var(--el-text-color-secondary);
+      font-size: 13px;
+    }
   }
-  &__title { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  &__subtitle { display: flex; align-items: center; gap: 6px; color: var(--el-text-color-secondary); }
-  &__subtitle svg { width: 16px; height: 16px; flex-shrink: 0; }
-  &__body { display: flex; align-items: center; width: 100%; min-height: 114px; padding: 16px 36px; box-sizing: border-box; gap: 28px; }
-  &__starter { display: flex; align-items: center; gap: 14px; width: 190px; flex-shrink: 0; }
-  &__avatar { display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 50%; background: var(--el-color-primary-light-8); color: var(--el-color-primary); }
-  &__avatar svg { width: 20px; height: 20px; }
-  &__fields { display: flex; min-width: 0; flex-direction: column; gap: 8px; }
-  &__field { display: flex; min-width: 0; line-height: 22px; }
-  &__label { flex-shrink: 0; color: var(--el-text-color-secondary); }
-  &__value { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  &__more { display: flex; padding: 16px; justify-content: center; }
+  &__title {
+    font-size: 16px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &__subtitle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--el-text-color-secondary);
+  }
+  &__subtitle svg {
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+  }
+  &__body {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    min-height: 114px;
+    padding: 16px 36px;
+    box-sizing: border-box;
+    gap: 28px;
+  }
+  &__starter {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 190px;
+    flex-shrink: 0;
+  }
+  &__avatar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: var(--el-color-primary-light-8);
+    color: var(--el-color-primary);
+  }
+  &__avatar svg {
+    width: 20px;
+    height: 20px;
+  }
+  &__fields {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 8px;
+  }
+  &__field {
+    display: flex;
+    min-width: 0;
+    line-height: 22px;
+  }
+  &__label {
+    flex-shrink: 0;
+    color: var(--el-text-color-secondary);
+  }
+  &__value {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &__more {
+    display: flex;
+    padding: 16px;
+    justify-content: center;
+  }
   @media (max-width: 760px) {
     padding: 0 12px 16px;
-    &__header { flex-wrap: wrap; gap: 8px 14px; padding: 12px; }
-    &__body { padding: 16px; flex-direction: column; align-items: flex-start; gap: 16px; }
-    &__fields { width: 100%; }
+    &__header {
+      flex-wrap: wrap;
+      gap: 8px 14px;
+      padding: 12px;
+    }
+    &__body {
+      padding: 16px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 16px;
+    }
+    &__fields {
+      width: 100%;
+    }
   }
 }
 </style>

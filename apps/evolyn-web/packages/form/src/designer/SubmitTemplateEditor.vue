@@ -9,10 +9,7 @@ import {
   type ViewUpdate,
 } from '@codemirror/view';
 import { onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue';
-import {
-  createFormulaEditorBaseExtensions,
-  type FormulaEditorInsertion,
-} from './formula-editor';
+import { createFormulaEditorBaseExtensions, type FormulaEditorInsertion } from './formula-editor';
 
 export interface SubmitTemplateEditorField {
   widgetName: string;
@@ -52,7 +49,10 @@ function applyInsertion(insertion: FormulaEditorInsertion | undefined): void {
   const view = editorView.value;
   if (!view || !insertion) return;
   const selection = view.state.selection.main;
-  const cursor = Math.max(0, selection.from + insertion.text.length + (insertion.cursorOffset ?? 0));
+  const cursor = Math.max(
+    0,
+    selection.from + insertion.text.length + (insertion.cursorOffset ?? 0),
+  );
   view.dispatch({
     changes: { from: selection.from, to: selection.to, insert: insertion.text },
     selection: EditorSelection.cursor(cursor),
@@ -84,7 +84,8 @@ onBeforeUnmount(() => editorView.value?.destroy());
 watch(template, syncExternalTemplate);
 watch(
   () => props.fields,
-  () => editorView.value?.dispatch({ effects: tokenCompartment.reconfigure(createTokenExtensions()) }),
+  () =>
+    editorView.value?.dispatch({ effects: tokenCompartment.reconfigure(createTokenExtensions()) }),
 );
 watch(
   () => props.insertion?.id,
@@ -120,7 +121,10 @@ function createTemplateDecorations(view: EditorView, labels: ReadonlyMap<string,
     const label = field ? labels.get(field) : undefined;
     const from = match.index ?? 0;
     return label
-      ? Decoration.replace({ widget: new TemplateFieldWidget(label) }).range(from, from + match[0].length)
+      ? Decoration.replace({ widget: new TemplateFieldWidget(label) }).range(
+          from,
+          from + match[0].length,
+        )
       : Decoration.mark({ class: 'cm-submit-template-unknown' }).range(
           from,
           from + match[0].length,

@@ -152,7 +152,8 @@ watch(visible, (isVisible) => {
         :key="member.id"
         class="administrator-member-picker__tag"
       >
-        <i>{{ member.name.slice(0, 1) }}</i>{{ member.name
+        <i>{{ member.name.slice(0, 1) }}</i
+        >{{ member.name
         }}<RiCloseFill
           :class="{
             'administrator-member-picker__tag-close--locked':
@@ -170,7 +171,7 @@ watch(visible, (isVisible) => {
       </span>
     </section>
     <label class="administrator-member-picker__search">
-      <RiSearchFill /><input v-model="keyword" placeholder="搜索（多个关键词用空格隔开）">
+      <RiSearchFill /><input v-model="keyword" placeholder="搜索（多个关键词用空格隔开）" />
     </label>
     <section class="administrator-member-picker__body">
       <div class="administrator-member-picker__tree">
@@ -218,7 +219,9 @@ watch(visible, (isVisible) => {
           >
             <span class="administrator-member-picker__avatar">{{ member.name.slice(0, 1) }}</span>
             <span>{{ member.name }}</span>
-            <span v-if="isTenantCreator(member)" class="administrator-member-picker__creator-tag">企业创建人</span>
+            <span v-if="isTenantCreator(member)" class="administrator-member-picker__creator-tag"
+              >企业创建人</span
+            >
             <span class="administrator-member-picker__member-department">{{
               member.department
             }}</span>
@@ -234,11 +237,8 @@ watch(visible, (isVisible) => {
       </div>
     </section>
     <footer class="administrator-member-picker__footer">
-      <el-button @click="visible = false">
-        取消
-      </el-button><el-button type="primary" @click="submit">
-        确定
-      </el-button>
+      <el-button @click="visible = false"> 取消 </el-button
+      ><el-button type="primary" @click="submit"> 确定 </el-button>
     </footer>
   </el-dialog>
 </template>

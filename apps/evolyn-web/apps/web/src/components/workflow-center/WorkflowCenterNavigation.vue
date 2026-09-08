@@ -122,12 +122,17 @@ watch(
         </button>
       </div>
 
-      <div v-show="pendingExpanded && props.pendingForms.length" class="workflow-center-navigation__forms">
+      <div
+        v-show="pendingExpanded && props.pendingForms.length"
+        class="workflow-center-navigation__forms"
+      >
         <div
           v-for="form in orderedForms"
           :key="form.code"
           class="workflow-center-navigation__form"
-          :class="{ 'workflow-center-navigation__form--active': props.activeFormCode === form.code }"
+          :class="{
+            'workflow-center-navigation__form--active': props.activeFormCode === form.code,
+          }"
         >
           <button
             class="workflow-center-navigation__form-action"
@@ -143,12 +148,21 @@ watch(
               {{ formCountByCode.get(form.code) }}
             </span>
           </button>
-          <el-tooltip :content="pinnedFormCodes.includes(form.code) ? '取消置顶' : '置顶'" placement="right">
+          <el-tooltip
+            :content="pinnedFormCodes.includes(form.code) ? '取消置顶' : '置顶'"
+            placement="right"
+          >
             <button
               class="workflow-center-navigation__pin"
-              :class="{ 'workflow-center-navigation__pin--active': pinnedFormCodes.includes(form.code) }"
+              :class="{
+                'workflow-center-navigation__pin--active': pinnedFormCodes.includes(form.code),
+              }"
               type="button"
-              :aria-label="pinnedFormCodes.includes(form.code) ? `取消置顶 ${form.label}` : `置顶 ${form.label}`"
+              :aria-label="
+                pinnedFormCodes.includes(form.code)
+                  ? `取消置顶 ${form.label}`
+                  : `置顶 ${form.label}`
+              "
               @click="togglePinned(form.code)"
             >
               <RiPushpin2Fill aria-hidden="true" />

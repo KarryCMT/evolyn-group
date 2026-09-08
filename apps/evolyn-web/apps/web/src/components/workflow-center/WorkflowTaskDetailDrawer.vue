@@ -136,24 +136,18 @@ async function runAction(action: TaskAction): Promise<void> {
           {{ detail.instance.status }}
         </el-descriptions-item>
         <el-descriptions-item label="发起时间">
-          {{
-            detail.instance.createdAt
-          }}
+          {{ detail.instance.createdAt }}
         </el-descriptions-item>
       </el-descriptions>
 
       <section class="workflow-task-detail__section">
-        <h3 class="workflow-task-detail__section-title">
-          表单数据
-        </h3>
+        <h3 class="workflow-task-detail__section-title">表单数据</h3>
         <!-- 结构化数据以文本节点输出，绝不通过 v-html 渲染业务字段。 -->
         <pre class="workflow-task-detail__values">{{ formValueText }}</pre>
       </section>
 
       <section class="workflow-task-detail__section">
-        <h3 class="workflow-task-detail__section-title">
-          流转记录
-        </h3>
+        <h3 class="workflow-task-detail__section-title">流转记录</h3>
         <el-timeline v-if="detail.operations.length">
           <el-timeline-item
             v-for="operation in detail.operations"
@@ -169,9 +163,7 @@ async function runAction(action: TaskAction): Promise<void> {
 
     <template #footer>
       <div class="workflow-task-detail__actions">
-        <el-button @click="emit('close')">
-          关闭
-        </el-button>
+        <el-button @click="emit('close')"> 关闭 </el-button>
         <el-button
           v-if="canReturn"
           :loading="actionLoading === 'return-to-starter'"

@@ -55,7 +55,8 @@ async function hydrateMemberNames(ids: readonly string[]): Promise<void> {
       listMembers({ status: 'resigned', page: 1, pageSize: 500 }),
     ]);
     const resolved = Object.fromEntries(
-      pages.flatMap((page) => page.items)
+      pages
+        .flatMap((page) => page.items)
         .filter((member) => missing.includes(String(member.id)))
         .map((member) => [String(member.id), member.name]),
     );

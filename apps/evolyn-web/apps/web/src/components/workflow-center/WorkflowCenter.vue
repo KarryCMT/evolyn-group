@@ -55,7 +55,11 @@ function closeTask(): void {
       :scope="props.scope"
       :keyword="keyword"
       :sort-order="sortOrder"
-      :pending-count="formCode ? pendingSummary?.formCounts.find((item) => item.formCode === formCode)?.count : pendingSummary?.total"
+      :pending-count="
+        formCode
+          ? pendingSummary?.formCounts.find((item) => item.formCode === formCode)?.count
+          : pendingSummary?.total
+      "
       :loading="status === 'loading'"
       :show-scope-navigation="!props.embedded"
       @update-scope="emit('updateScope', $event)"
@@ -72,9 +76,7 @@ function closeTask(): void {
       :sub-title="errorMessage"
     >
       <template #extra>
-        <el-button type="primary" @click="refreshAll">
-          重新加载
-        </el-button>
+        <el-button type="primary" @click="refreshAll"> 重新加载 </el-button>
       </template>
     </el-result>
 
@@ -87,11 +89,7 @@ function closeTask(): void {
       @load-more="loadMore"
     />
 
-    <WorkflowTaskDetailDrawer
-      :task-id="selectedTaskId"
-      @close="closeTask"
-      @changed="refreshAll"
-    />
+    <WorkflowTaskDetailDrawer :task-id="selectedTaskId" @close="closeTask" @changed="refreshAll" />
   </main>
 </template>
 

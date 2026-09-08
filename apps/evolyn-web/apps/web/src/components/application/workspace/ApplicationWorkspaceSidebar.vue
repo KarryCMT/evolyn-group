@@ -148,7 +148,7 @@ function handleCreateAsset(command: string | number | object) {
       <div class="application-workspace-sidebar__asset-tools">
         <label class="application-workspace-sidebar__search">
           <RiSearch2Line aria-hidden="true" />
-          <input placeholder="输入名称来搜索" aria-label="搜索应用资产">
+          <input placeholder="输入名称来搜索" aria-label="搜索应用资产" />
         </label>
         <el-dropdown
           placement="right-start"
@@ -468,7 +468,6 @@ function handleCreateAsset(command: string | number | object) {
         transform 0.12s ease;
     }
   }
-
 }
 
 @media (max-width: 900px) {

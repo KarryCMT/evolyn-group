@@ -86,10 +86,7 @@ function consumePendingNodePosition(): boolean {
   const pending = pendingNodePosition;
   if (!pending) return false;
   const applied = props.document.settings.designer?.layout?.[pending.nodeKey];
-  if (
-    applied?.x === pending.position.x &&
-    applied.y === pending.position.y
-  ) {
+  if (applied?.x === pending.position.x && applied.y === pending.position.y) {
     pendingNodePosition = null;
   }
   // 只要仍处于拖拽写回链路，都避免以旧文档覆写画布的即时位置。

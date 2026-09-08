@@ -91,12 +91,13 @@ const workflowScopeByPersonalCode: Partial<
   handled: 'completed',
   copied: 'cc-to-me',
 };
-const personalCodeByWorkflowScope: Record<WorkflowCenterScope, ApplicationPersonalNavigationCode> = {
-  pending: 'todo',
-  started: 'started',
-  completed: 'handled',
-  'cc-to-me': 'copied',
-};
+const personalCodeByWorkflowScope: Record<WorkflowCenterScope, ApplicationPersonalNavigationCode> =
+  {
+    pending: 'todo',
+    started: 'started',
+    completed: 'handled',
+    'cc-to-me': 'copied',
+  };
 const personalScope = computed<WorkflowCenterScope | null>(() => {
   const code = activePersonalCode.value;
   return code ? (workflowScopeByPersonalCode[code] ?? null) : null;
@@ -174,9 +175,7 @@ function findFormAsset(
 }
 
 /** 应用资产树只提供流程表单的展示信息，不能作为「我的待办」的筛选事实源。 */
-function collectWorkflowForms(
-  assets: ApplicationWorkspaceAsset[],
-): WorkflowNavigationForm[] {
+function collectWorkflowForms(assets: ApplicationWorkspaceAsset[]): WorkflowNavigationForm[] {
   return assets.flatMap((asset) => {
     const children = collectWorkflowForms(asset.children ?? []);
     if (asset.type !== 'form' || asset.formType !== 'workflow' || !asset.targetCode) {
@@ -205,8 +204,8 @@ const personalTitle = computed<string | null>(() => {
   if (!code) return null;
   if (code === 'todo') {
     return (
-      pendingWorkflowForms.value.find((form) => form.code === activeWorkflowFormCode.value)?.label ??
-      '我的待办（全部）'
+      pendingWorkflowForms.value.find((form) => form.code === activeWorkflowFormCode.value)
+        ?.label ?? '我的待办（全部）'
     );
   }
   const titles: Partial<Record<ApplicationPersonalNavigationCode, string>> = {

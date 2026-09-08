@@ -147,7 +147,9 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
   // v6 不可见字段赋值策略解析（防御式：旧快照缺键回退默认「空值」）。
   const submitPolicy: InvisibleValuePolicyView = readInvisibleValuePolicy(schema.content);
   const compiledSubmitValidators = compileSubmitValidators(schema.content);
-  const validatorDependencies = compiledSubmitValidators.validators.map((validator) => validator.fields);
+  const validatorDependencies = compiledSubmitValidators.validators.map(
+    (validator) => validator.fields,
+  );
   let realtimeValidationTimer: ReturnType<typeof setTimeout> | undefined;
   let realtimeValidationPending = false;
   const changedRealtimeFields = new Set<string>();
@@ -398,7 +400,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     const labels = templateValueLabels.get(field);
     if (!labels) return undefined;
     const labelFor = (entry: FormValue): string | undefined =>
-      typeof entry === 'string' ? labels.get(entry) ?? entry : undefined;
+      typeof entry === 'string' ? (labels.get(entry) ?? entry) : undefined;
     if (Array.isArray(value)) {
       const entries = value.map(labelFor);
       return entries.every((entry): entry is string => entry !== undefined)

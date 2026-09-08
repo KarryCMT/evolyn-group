@@ -43,17 +43,16 @@ interface CompiledSubmitValidator {
   readonly valid: boolean;
 }
 
-export function compileSubmitValidators(
-  content: {
-    validators: readonly FormContent['validators'][number][];
-    items: readonly FormItem[];
-  },
-): CompiledSubmitValidation {
+export function compileSubmitValidators(content: {
+  validators: readonly FormContent['validators'][number][];
+  items: readonly FormItem[];
+}): CompiledSubmitValidation {
   return {
     items: content.items,
     validators: content.validators.map((validator, index) => {
       const parsed = parseFormula(validator.formula);
-      const valid = Boolean(parsed.ast) && !parsed.diagnostics.some((entry) => entry.severity === 'error');
+      const valid =
+        Boolean(parsed.ast) && !parsed.diagnostics.some((entry) => entry.severity === 'error');
       return {
         index,
         formula: validator.formula,
@@ -71,7 +70,9 @@ export function compileSubmitValidators(
 export function collectSubmitValidatorDependencies(
   validators: readonly FormContent['validators'][number][],
 ): readonly (readonly string[])[] {
-  return compileSubmitValidators({ validators, items: [] }).validators.map((validator) => validator.fields);
+  return compileSubmitValidators({ validators, items: [] }).validators.map(
+    (validator) => validator.fields,
+  );
 }
 
 /** 执行全部规则并保持协议数组顺序。公式异常按不通过处理，避免运行时崩溃放行提交。 */

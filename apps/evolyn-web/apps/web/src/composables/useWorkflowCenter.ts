@@ -84,10 +84,12 @@ export function useWorkflowCenter(
   const visibleItems: ComputedRef<WorkflowCenterListItem[]> = computed(() => {
     const normalized = keyword.value.trim().toLocaleLowerCase();
     const filtered = items.value.filter((item) =>
-      `${item.instanceNo} ${item.title} ${item.subtitle} ${item.starterName ?? ''} ${(item.summaryFields ?? []).map((field) => `${field.label} ${field.value}`).join(' ')}`.toLocaleLowerCase().includes(normalized),
+      `${item.instanceNo} ${item.title} ${item.subtitle} ${item.starterName ?? ''} ${(item.summaryFields ?? []).map((field) => `${field.label} ${field.value}`).join(' ')}`
+        .toLocaleLowerCase()
+        .includes(normalized),
     );
     // 排序作用于已加载的任务，不改变服务端游标顺序。
-    return filtered.sort((a, b) => sortOrder.value === 'newest' ? b.id - a.id : a.id - b.id);
+    return filtered.sort((a, b) => (sortOrder.value === 'newest' ? b.id - a.id : a.id - b.id));
   });
 
   async function load(append = false): Promise<void> {
