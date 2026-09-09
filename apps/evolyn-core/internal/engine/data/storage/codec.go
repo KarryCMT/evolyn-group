@@ -3,7 +3,8 @@
 // 值形态契约（与 JSONB 记录出网完全一致，保证出网/权限判定/流程表达式在
 // 两种存储模式下同构）：文本/单选=string、数字=float64、date="YYYY-MM-DD"、
 // datetime="YYYY-MM-DD HH:MM:SS"（本地形状直存，与 JSONTime 口径一致）、
-// 单成员/单部门引用=string(十进制 ID)。
+// month="YYYY-MM"、time="HH:MM"（两者原形 TEXT 直存）、单成员/单部门引用
+// =string(十进制 ID)。
 package storage
 
 import (
@@ -46,6 +47,17 @@ func EncodeSQLValue(kind FieldKind, value any) (any, error) {
 		// 拒绝任何绕过校验器进入动态 DML 的值。
 		if !canonicalDateOrDateTime(kind, text) {
 			return nil, fmt.Errorf("日期字段值 %q 不符合规范形状", text)
+		}
+		return text, nil
+	case KindMonth, KindTime:
+		text, ok := value.(string)
+		if !ok || text == "" {
+			return nil, fmt.Errorf("时间字段值必须是规范形状字符串，得到 %T", value)
+		}
+		// 同上：终审已校验（含 month 的真实日历月），此处防御复核形状，
+		// 保证 TEXT 列内容恒为等宽零填充定长形状（字典序==时间序的前提）。
+		if !canonicalMonthOrTime(kind, text) {
+			return nil, fmt.Errorf("时间字段值 %q 不符合规范形状", text)
 		}
 		return text, nil
 	case KindRef:
@@ -116,6 +128,25 @@ func DecodeSQLValue(kind FieldKind, value any) (any, error) {
 		return decodeTimeText(kind, value, "2006-01-02")
 	case KindDateTime:
 		return decodeTimeText(kind, value, "2006-01-02 15:04:05")
+	case KindMonth, KindTime:
+		// 原形 TEXT 直存：扫描值还原为字符串（空串视同未填写），形状
+		// 防御复核防脏数据污染字典序前提。
+		var text string
+		switch v := value.(type) {
+		case string:
+			text = v
+		case []byte:
+			text = string(v)
+		default:
+			return nil, fmt.Errorf("%s 列扫描到未知类型 %T", kind, value)
+		}
+		if text == "" {
+			return nil, nil
+		}
+		if !canonicalMonthOrTime(kind, text) {
+			return nil, fmt.Errorf("%s 列扫描值 %q 不符合规范形状", kind, text)
+		}
+		return text, nil
 	case KindRef:
 		switch v := value.(type) {
 		case int64:
@@ -185,4 +216,30 @@ func canonicalDateOrDateTime(kind FieldKind, text string) bool {
 		}
 	}
 	return true
+}
+
+// canonicalMonthOrTime month（YYYY-MM，7 位）/time（HH:MM，5 位）规范形状
+// 防御：等宽零填充是「字典序==时间序」的前提，任何变长或非数字形状都会
+// 破坏比较语义，进入物理列前必须拒绝。
+func canonicalMonthOrTime(kind FieldKind, text string) bool {
+	if kind == KindMonth {
+		if len(text) != 7 || text[4] != '-' {
+			return false
+		}
+	} else if len(text) != 5 || text[2] != ':' {
+		return false
+	}
+	for _, r := range text {
+		if (r < '0' || r > '9') && r != '-' && r != ':' {
+			return false
+		}
+	}
+	// 分量范围复核：月 01-12、时 00-23、分 00-59（终审已保证，此处兜底）
+	if kind == KindMonth {
+		month := int(text[5]-'0')*10 + int(text[6]-'0')
+		return month >= 1 && month <= 12
+	}
+	hour := int(text[0]-'0')*10 + int(text[1]-'0')
+	minute := int(text[3]-'0')*10 + int(text[4]-'0')
+	return hour <= 23 && minute <= 59
 }

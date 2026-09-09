@@ -8,7 +8,7 @@
 - [目标协议字段字典.md](./目标协议字段字典.md)：P0 冻结交付物。27 种 `widget.type` 的完整属性/类型/默认值/`null` 语义/值协议/执行阶段登记、公共属性表、发布白名单与字段级测试要求；前后端校验器与运行时的唯一依据（ADR-010）。
 - [表单资产域后端契约.md](./表单资产域后端契约.md)：P0 冻结交付物。表单资产/草稿/不可变发布版本/记录提交的数据模型、API 契约、稳定错误码、权限、配额、事务与并发口径。
 - [物理表存储后端实施方案.md](./物理表存储后端实施方案.md)：表单数据从 JSONB 扩展到 PostgreSQL 物理表的后端实施基线，覆盖存储模式、短表名与防重、异步 DDL、流程单号/状态投影、事务、RLS、查询导出与分期验收。
-  - 已落地（000070）：Phase 0 契约冻结（协议 v8 fieldId、物理类型映射、widgetName 发布后冻结）；Phase 1 元数据三表 + 记录信封流程投影列 + sys.workflow\* 筛选字段；Phase 2 物理建表与标量 DML 全链路（Diff/Plan 纯模型、dynamicddl 执行器、202 异步 DDL Job + Worker、PhysicalRecordValueStore、新建表单固定 physical、RLS + SET LOCAL app.current_tenant）；Phase 3 物理子表单（独立子表 + 集合替换写入）；Phase 4 流程投影（状态变更同事务刷新 + 管理员校准端点）。Phase 5（并发索引/历史迁移/物理清理）按方案后续单独立项。
+  - 已落地（000070）：Phase 0 契约冻结（协议 v8 fieldId、物理类型映射、widgetName 发布后冻结；datetime 四格式全量开放——date/datetime 落原生 DATE/TIMESTAMP，month/time 以原形 TEXT 直存 + 字典序比较）；Phase 1 元数据三表 + 记录信封流程投影列 + sys.workflow\* 筛选字段；Phase 2 物理建表与标量 DML 全链路（Diff/Plan 纯模型、dynamicddl 执行器、202 异步 DDL Job + Worker、PhysicalRecordValueStore、新建表单固定 physical、RLS + SET LOCAL app.current_tenant）；Phase 3 物理子表单（独立子表 + 集合替换写入）；Phase 4 流程投影（状态变更同事务刷新 + 管理员校准端点）。Phase 5（并发索引/历史迁移/物理清理）按方案后续单独立项。
 - [字段显隐规则设计方案.md](./字段显隐规则设计方案.md)：表单级条件显隐的 v5 协议、设计器交互、依赖图、运行时/服务端终审、权限组合与实施验收口径。
 - [不可见字段赋值前后端设计方案.md](./不可见字段赋值前后端设计方案.md)：v6 不可见字段赋值策略（submitRule/widget_submit_rules）的协议、三种值决议语义、设计器配置、服务端终审与分期验收口径。
 - 表单类型可切换与菜单按钮动作（切换类型/复制/引用视图）契约见契约文档 §2.3/§4（ADR-011，整体设计见 [../应用管理/菜单按钮权限与节点状态设计方案.md](../应用管理/菜单按钮权限与节点状态设计方案.md)）。

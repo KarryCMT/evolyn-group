@@ -23,6 +23,9 @@ func TestEncodeSQLValue(t *testing.T) {
 		{KindNumber, float64(88.5), float64(88.5)},
 		{KindDate, "2026-09-04", "2026-09-04"},
 		{KindDateTime, "2026-09-04 12:30:00", "2026-09-04 12:30:00"},
+		{KindMonth, "2026-09", "2026-09"},
+		{KindTime, "09:30", "09:30"},
+		{KindTime, nil, nil},
 		{KindRef, "42", int64(42)},
 		{KindRef, "", nil},
 	}
@@ -51,6 +54,16 @@ func TestEncodeSQLValueRejectsMalformed(t *testing.T) {
 		{KindDate, "2026-9-4"},
 		{KindDateTime, "2026-09-04T12:30:00"},
 		{KindDateTime, "2026-09-04 12:30"},
+		{KindMonth, "2026-9"},
+		{KindMonth, "2026-13"},
+		{KindMonth, "2026-00"},
+		{KindMonth, ""},
+		{KindTime, "9:30"},
+		{KindTime, "24:00"},
+		{KindTime, "09:60"},
+		{KindTime, ""},
+		{KindMonth, 2026},
+		{KindTime, true},
 		{KindRef, "not-a-number"},
 		{KindRef, 42},
 	}
@@ -83,6 +96,26 @@ func TestDecodeSQLValue(t *testing.T) {
 	if got, err := DecodeSQLValue(KindRef, int64(42)); err != nil || got != "42" {
 		t.Fatalf("ref decode: %v, %v", got, err)
 	}
+	// month/time 原形 TEXT 直存：字符串/字节回传原样出网，空串=未填写，
+	// 非法形状（脏数据破坏字典序前提）拒绝。
+	if got, err := DecodeSQLValue(KindMonth, "2026-09"); err != nil || got != "2026-09" {
+		t.Fatalf("month decode: %v, %v", got, err)
+	}
+	if got, err := DecodeSQLValue(KindMonth, []byte("2026-09")); err != nil || got != "2026-09" {
+		t.Fatalf("month bytes decode: %v, %v", got, err)
+	}
+	if got, err := DecodeSQLValue(KindTime, "09:30"); err != nil || got != "09:30" {
+		t.Fatalf("time decode: %v, %v", got, err)
+	}
+	if got, err := DecodeSQLValue(KindTime, ""); err != nil || got != nil {
+		t.Fatalf("empty time decodes to nil, got %v, %v", got, err)
+	}
+	if _, err := DecodeSQLValue(KindMonth, "2026-13"); err == nil {
+		t.Fatal("malformed month must reject on decode")
+	}
+	if _, err := DecodeSQLValue(KindTime, "9:30"); err == nil {
+		t.Fatal("malformed time must reject on decode")
+	}
 }
 
 // Decode 日期/时间：东八区规范形状输出（date=10 位，datetime=19 位），
@@ -104,11 +137,13 @@ func TestDecodeSQLValueDateTime(t *testing.T) {
 	}
 }
 
-// KindOf 支持矩阵：首期白名单内放行、数组类与 month/time 拒绝（方案 §4.3）。
+// KindOf 支持矩阵：白名单内放行（datetime 四格式全量开放，month/time 以
+// 原形 TEXT 直存）、数组类与未建模控件拒绝（方案 §4.3）。
 func TestKindOfSupportMatrix(t *testing.T) {
 	supported := []struct{ widgetType, format string }{
 		{"text", ""}, {"textarea", ""}, {"radiogroup", ""}, {"combo", ""},
 		{"number", ""}, {"datetime", "date"}, {"datetime", "datetime"},
+		{"datetime", "month"}, {"datetime", "time"},
 		{"user", ""}, {"dept", ""},
 	}
 	for _, testCase := range supported {
@@ -118,7 +153,7 @@ func TestKindOfSupportMatrix(t *testing.T) {
 	}
 	rejected := []struct{ widgetType, format string }{
 		{"checkboxgroup", ""}, {"combocheck", ""}, {"usergroup", ""}, {"deptgroup", ""},
-		{"datetime", "month"}, {"datetime", "time"}, {"datetime", ""},
+		{"datetime", ""},
 		{"image", ""}, {"upload", ""}, {"address", ""}, {"location", ""},
 		{"signature", ""}, {"sn", ""}, {"richtext", ""},
 	}
@@ -132,5 +167,11 @@ func TestKindOfSupportMatrix(t *testing.T) {
 	}
 	if kind, _ := KindOf("datetime", "date"); kind != KindDate {
 		t.Fatal("datetime/date maps to date")
+	}
+	if kind, _ := KindOf("datetime", "month"); kind != KindMonth || ColumnTypeOf(kind) != ColumnTypeText {
+		t.Fatal("datetime/month maps to month (TEXT)")
+	}
+	if kind, _ := KindOf("datetime", "time"); kind != KindTime || ColumnTypeOf(kind) != ColumnTypeText {
+		t.Fatal("datetime/time maps to time (TEXT)")
 	}
 }

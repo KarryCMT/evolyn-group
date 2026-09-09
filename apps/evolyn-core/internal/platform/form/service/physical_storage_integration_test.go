@@ -689,6 +689,59 @@ func TestPhysINTDeprecatedColumnBaseline(t *testing.T) {
 	}
 }
 
+// SEC-PHYS-011 month/time 原形 TEXT 直存（支持矩阵扩展）：年月/时间字段
+// 发布建 TEXT 列 → 提交原形入库 → 出网无损往返 → 字典序==时间序（between
+// 范围筛选正确命中）。
+func TestPhysINTMonthTimeFields(t *testing.T) {
+	env := newPhysEnv(t)
+	member := memberOfTenant(1)
+	items := `[
+		{"widget":{"type":"text","widgetName":"_widget_a","fieldId":"aaaaaaaa01","enable":true,"visible":true,"allowBlank":true},"label":"姓名","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"datetime","widgetName":"_widget_m","fieldId":"aaaaaaaa06","enable":true,"visible":true,"allowBlank":true,"format":"month"},"label":"月份","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"datetime","widgetName":"_widget_t","fieldId":"aaaaaaaa07","enable":true,"visible":true,"allowBlank":true,"format":"time"},"label":"时间","description":"","labelHidden":false,"lineWidth":6}]`
+	code, tableName := env.publishPhysical(t, items, `"_widget_a","_widget_m","_widget_t"`, member)
+	ctx := tenantCtx(1)
+
+	result, err := env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_phys", FormCode: code, PublishedVersion: 1, SchemaRevision: env.firstSchemaRevision(t, ctx, code),
+		HasResult: submitBool(true), DataOpID: "eeeeeee1-5555-4555-8555-555555555555",
+		Values: map[string]model.SubmitFieldValue{
+			"_widget_a": {Data: model.JSONContent(`"甲"`), Visible: submitBool(true)},
+			"_widget_m": {Data: model.JSONContent(`"2026-09"`), Visible: submitBool(true)},
+			"_widget_t": {Data: model.JSONContent(`"09:30"`), Visible: submitBool(true)},
+		},
+	})
+	require.NoError(t, err, "month/time fields must publish and submit through physical storage")
+
+	// 物理行原形 TEXT 直存
+	assert.Equal(t, 1, env.countInt(t, fmt.Sprintf(
+		`SELECT count(*) FROM %q WHERE record_id = %d AND "f_aaaaaaaa06" = '2026-09' AND "f_aaaaaaaa07" = '09:30'`,
+		tableName, result.RecordID)))
+
+	// 出网无损往返（列表 + 记录读取两路）
+	page, err := env.formSvc.ListRecords(ctx, member, code, model.RecordQueryDocument{Version: 1})
+	require.NoError(t, err)
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, "2026-09", page.Items[0].Values["_widget_m"])
+	assert.Equal(t, "09:30", page.Items[0].Values["_widget_t"])
+
+	store := env.formSvc.(WorkflowRecordStore)
+	_, _, values, err := store.RecordData(ctx, result.RecordID)
+	require.NoError(t, err)
+	assert.Equal(t, "2026-09", values["_widget_m"])
+	assert.Equal(t, "09:30", values["_widget_t"])
+
+	// 字典序==时间序：between 命中当年区间、跨年区间外不命中
+	inRange := model.RecordQueryExpression{Type: "condition", Field: "_widget_m", Operator: "between", Value: []any{"2026-01", "2026-12"}}
+	page, err = env.formSvc.ListRecords(ctx, member, code, model.RecordQueryDocument{Version: 1, Filter: &inRange})
+	require.NoError(t, err)
+	assert.Len(t, page.Items, 1, "lexicographic between must hit for same-year range")
+	outRange := model.RecordQueryExpression{Type: "condition", Field: "_widget_m", Operator: "between", Value: []any{"2027-01", "2027-12"}}
+	page, err = env.formSvc.ListRecords(ctx, member, code, model.RecordQueryDocument{Version: 1, Filter: &outRange})
+	require.NoError(t, err)
+	assert.Empty(t, page.Items, "out-of-range between must not hit")
+}
+
 // physSubformItems 子表单发布草稿（children 为子字段 JSON；空串=零子字段）。
 func physSubformItems(children string) string {
 	return fmt.Sprintf(`[
