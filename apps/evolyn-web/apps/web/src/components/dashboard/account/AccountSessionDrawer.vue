@@ -150,7 +150,7 @@ watch(
   &__device {
     flex: none;
     color: var(--el-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
 
   &__details {

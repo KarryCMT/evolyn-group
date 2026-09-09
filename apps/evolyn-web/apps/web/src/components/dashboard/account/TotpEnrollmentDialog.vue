@@ -271,7 +271,7 @@ watch(
     background: transparent;
     color: var(--el-text-color-regular);
     cursor: pointer;
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
 
   &__header > button:hover {

@@ -76,7 +76,7 @@ const modeLabels: Record<ApplicationWorkspaceMode, string> = {
   &__title {
     margin: 0 0 var(--el-space-md);
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     font-weight: 650;
     line-height: 28px;
   }

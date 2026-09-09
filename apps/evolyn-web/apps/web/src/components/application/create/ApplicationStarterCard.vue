@@ -116,7 +116,7 @@ const emit = defineEmits<{
     z-index: 1;
     margin: var(--el-space-xl) var(--el-space-lg) 0 auto;
     color: var(--el-text-color-regular);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
 }
 

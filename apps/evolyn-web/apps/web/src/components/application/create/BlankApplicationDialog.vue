@@ -171,7 +171,7 @@ async function submit() {
 .blank-application-dialog__heading {
   margin: 0;
   color: var(--el-text-color-primary);
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   font-weight: 650;
   line-height: 26px;
 }
@@ -188,7 +188,7 @@ async function submit() {
   background: transparent;
   border: 0;
   border-radius: var(--el-border-radius-base);
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
 
   &:hover:not(:disabled) {
     color: var(--el-color-primary);

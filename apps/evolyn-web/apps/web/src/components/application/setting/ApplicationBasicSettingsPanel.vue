@@ -268,7 +268,7 @@ function selectIcon(icon: ApplicationIconKey) {
   &__title {
     margin: 0;
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     line-height: 28px;
   }

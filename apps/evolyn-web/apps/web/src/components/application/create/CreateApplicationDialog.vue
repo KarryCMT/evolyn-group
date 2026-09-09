@@ -221,7 +221,7 @@ function showNextTemplates() {
 .create-application-dialog__heading {
   margin: 0;
   color: var(--el-text-color-primary);
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
@@ -243,7 +243,7 @@ function showNextTemplates() {
   height: 32px;
   color: var(--el-text-color-regular);
   border-radius: var(--el-border-radius-base);
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   transition:
     color 0.2s ease,
     background-color 0.2s ease;
@@ -284,7 +284,7 @@ function showNextTemplates() {
 
   > svg {
     color: var(--el-text-color-regular);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
 
   h3 {
@@ -310,7 +310,7 @@ function showNextTemplates() {
   transition: background-color 0.2s ease;
 
   svg {
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
 
   &:hover {
@@ -440,7 +440,7 @@ function showNextTemplates() {
     gap: var(--el-space-md);
 
     > svg {
-      font-size: var(--el-font-size-extra-large);
+      font-size: var(--el-font-size-medium);
     }
 
     h3 {
@@ -461,7 +461,7 @@ function showNextTemplates() {
 
   .create-application-dialog__promotion-content {
     strong {
-      font-size: var(--el-font-size-extra-large);
+      font-size: var(--el-font-size-medium);
     }
 
     span {

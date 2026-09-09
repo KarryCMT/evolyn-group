@@ -107,7 +107,7 @@ defineProps<{
 }
 
 .auth-layout__logo-name {
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   font-weight: var(--el-font-weight-bold);
   color: var(--el-text-color-primary);
 }
@@ -125,7 +125,7 @@ defineProps<{
 }
 
 .auth-layout__login-brand-name {
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   font-weight: 600;
   color: var(--el-text-color-primary);
   white-space: nowrap;
@@ -174,7 +174,7 @@ defineProps<{
 
 .auth-layout__title {
   margin: 0 0 var(--el-space-sm);
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
   font-weight: var(--el-font-weight-bold);
   color: var(--el-text-color-primary);
 }

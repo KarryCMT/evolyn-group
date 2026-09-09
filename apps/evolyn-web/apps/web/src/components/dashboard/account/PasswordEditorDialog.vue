@@ -256,7 +256,7 @@ onBeforeUnmount(clearResendTimer);
     padding: 0 var(--el-space-3xl);
     border-bottom: 1px solid var(--el-border-color-lighter);
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     font-weight: 600;
     line-height: 28px;
   }
@@ -273,7 +273,7 @@ onBeforeUnmount(clearResendTimer);
     background: transparent;
     color: var(--el-text-color-secondary);
     cursor: pointer;
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
 
   &__header button:hover {

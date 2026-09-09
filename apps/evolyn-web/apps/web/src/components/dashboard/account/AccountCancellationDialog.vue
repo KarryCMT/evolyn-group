@@ -80,7 +80,7 @@ function close() {
   &__content h2 {
     margin: 0 0 var(--el-space-lg);
     color: var(--el-text-color-primary);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
     line-height: 28px;
   }
 

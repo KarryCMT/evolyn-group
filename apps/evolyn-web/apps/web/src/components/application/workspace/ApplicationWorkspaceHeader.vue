@@ -194,7 +194,7 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
     width: 36px;
     height: 36px;
     padding: 0;
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
 
     &:hover {
       color: var(--el-color-primary);
@@ -216,7 +216,7 @@ const modeItems: { mode: ApplicationWorkspaceMode; label: string; icon: typeof R
     width: 32px;
     height: 32px;
     padding: 0;
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
 
     &:hover {
       color: var(--el-color-primary);

@@ -300,6 +300,6 @@ const tableOptions = { defaultRowHeight: ROW_HEIGHT };
 }
 
 .login-log-drawer-panel .el-drawer__close-btn .el-icon {
-  font-size: var(--el-font-size-extra-large);
+  font-size: var(--el-font-size-medium);
 }
 </style>

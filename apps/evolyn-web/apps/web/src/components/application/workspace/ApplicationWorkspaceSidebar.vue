@@ -304,7 +304,7 @@ function handleCreateAsset(command: string | number | object) {
     align-items: center;
     justify-content: center;
     border-radius: var(--el-border-radius-medium);
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
 
     &:hover {
       background: rgb(255 255 255 / 14%);
@@ -343,7 +343,7 @@ function handleCreateAsset(command: string | number | object) {
 
   &__collapse {
     margin-left: auto;
-    font-size: var(--el-font-size-extra-large);
+    font-size: var(--el-font-size-medium);
   }
 
   &__personal-nav,
