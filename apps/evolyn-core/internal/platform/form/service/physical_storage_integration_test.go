@@ -691,15 +691,17 @@ func TestPhysINTDeprecatedColumnBaseline(t *testing.T) {
 
 // SEC-PHYS-011 month/time 原形 TEXT 直存（支持矩阵扩展）：年月/时间字段
 // 发布建 TEXT 列 → 提交原形入库 → 出网无损往返 → 字典序==时间序（between
-// 范围筛选正确命中）。
+// 范围筛选正确命中）；format 缺省的 datetime 兜底 TIMESTAMP（与提交校验
+// value.go 的缺省口径一致）。
 func TestPhysINTMonthTimeFields(t *testing.T) {
 	env := newPhysEnv(t)
 	member := memberOfTenant(1)
 	items := `[
 		{"widget":{"type":"text","widgetName":"_widget_a","fieldId":"aaaaaaaa01","enable":true,"visible":true,"allowBlank":true},"label":"姓名","description":"","labelHidden":false,"lineWidth":6},
 		{"widget":{"type":"datetime","widgetName":"_widget_m","fieldId":"aaaaaaaa06","enable":true,"visible":true,"allowBlank":true,"format":"month"},"label":"月份","description":"","labelHidden":false,"lineWidth":6},
-		{"widget":{"type":"datetime","widgetName":"_widget_t","fieldId":"aaaaaaaa07","enable":true,"visible":true,"allowBlank":true,"format":"time"},"label":"时间","description":"","labelHidden":false,"lineWidth":6}]`
-	code, tableName := env.publishPhysical(t, items, `"_widget_a","_widget_m","_widget_t"`, member)
+		{"widget":{"type":"datetime","widgetName":"_widget_t","fieldId":"aaaaaaaa07","enable":true,"visible":true,"allowBlank":true,"format":"time"},"label":"时间","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"datetime","widgetName":"_widget_x","fieldId":"aaaaaaaa08","enable":true,"visible":true,"allowBlank":true},"label":"裸日期","description":"","labelHidden":false,"lineWidth":6}]`
+	code, tableName := env.publishPhysical(t, items, `"_widget_a","_widget_m","_widget_t","_widget_x"`, member)
 	ctx := tenantCtx(1)
 
 	result, err := env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
@@ -709,13 +711,14 @@ func TestPhysINTMonthTimeFields(t *testing.T) {
 			"_widget_a": {Data: model.JSONContent(`"甲"`), Visible: submitBool(true)},
 			"_widget_m": {Data: model.JSONContent(`"2026-09"`), Visible: submitBool(true)},
 			"_widget_t": {Data: model.JSONContent(`"09:30"`), Visible: submitBool(true)},
+			"_widget_x": {Data: model.JSONContent(`"2026-09-04 12:30:00"`), Visible: submitBool(true)},
 		},
 	})
-	require.NoError(t, err, "month/time fields must publish and submit through physical storage")
+	require.NoError(t, err, "month/time and format-less datetime must publish and submit through physical storage")
 
-	// 物理行原形 TEXT 直存
+	// 物理行原形 TEXT 直存；裸 datetime 兜底 TIMESTAMP 列
 	assert.Equal(t, 1, env.countInt(t, fmt.Sprintf(
-		`SELECT count(*) FROM %q WHERE record_id = %d AND "f_aaaaaaaa06" = '2026-09' AND "f_aaaaaaaa07" = '09:30'`,
+		`SELECT count(*) FROM %q WHERE record_id = %d AND "f_aaaaaaaa06" = '2026-09' AND "f_aaaaaaaa07" = '09:30' AND "f_aaaaaaaa08" = '2026-09-04 12:30:00'::timestamp`,
 		tableName, result.RecordID)))
 
 	// 出网无损往返（列表 + 记录读取两路）
@@ -724,6 +727,7 @@ func TestPhysINTMonthTimeFields(t *testing.T) {
 	require.Len(t, page.Items, 1)
 	assert.Equal(t, "2026-09", page.Items[0].Values["_widget_m"])
 	assert.Equal(t, "09:30", page.Items[0].Values["_widget_t"])
+	assert.Equal(t, "2026-09-04 12:30:00", page.Items[0].Values["_widget_x"])
 
 	store := env.formSvc.(WorkflowRecordStore)
 	_, _, values, err := store.RecordData(ctx, result.RecordID)

@@ -632,6 +632,10 @@ export function createWidgetItem(type: FormWidgetType): FormItem {
   };
   // 仅选项类控件带必填 options；数值上限类属性缺省即「未启用」，不预写。
   if (spec.props.options?.required) widget.options = defaultOptions();
+  // datetime 的 format 非必填但语义分叉（date/datetime/month/time 对应四种
+  // 物理列形态），新建时显式预写 datetime——与服务端缺省兜底口径一致，
+  // 避免草稿出现裸 datetime 触发物理发布矩阵的兜底路径。
+  if (type === 'datetime') widget.format = 'datetime';
   if (type === 'subform') {
     Object.assign(widget, {
       items: [],

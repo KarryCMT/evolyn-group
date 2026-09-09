@@ -143,6 +143,7 @@ func TestKindOfSupportMatrix(t *testing.T) {
 	supported := []struct{ widgetType, format string }{
 		{"text", ""}, {"textarea", ""}, {"radiogroup", ""}, {"combo", ""},
 		{"number", ""}, {"datetime", "date"}, {"datetime", "datetime"},
+		{"datetime", ""}, // format 非必填：缺省兜底 datetime（与 value.go 口径一致）
 		{"datetime", "month"}, {"datetime", "time"},
 		{"user", ""}, {"dept", ""},
 	}
@@ -153,7 +154,7 @@ func TestKindOfSupportMatrix(t *testing.T) {
 	}
 	rejected := []struct{ widgetType, format string }{
 		{"checkboxgroup", ""}, {"combocheck", ""}, {"usergroup", ""}, {"deptgroup", ""},
-		{"datetime", ""},
+		{"datetime", "week"},
 		{"image", ""}, {"upload", ""}, {"address", ""}, {"location", ""},
 		{"signature", ""}, {"sn", ""}, {"richtext", ""},
 	}
@@ -167,6 +168,9 @@ func TestKindOfSupportMatrix(t *testing.T) {
 	}
 	if kind, _ := KindOf("datetime", "date"); kind != KindDate {
 		t.Fatal("datetime/date maps to date")
+	}
+	if kind, _ := KindOf("datetime", ""); kind != KindDateTime {
+		t.Fatal("datetime without format defaults to datetime kind")
 	}
 	if kind, _ := KindOf("datetime", "month"); kind != KindMonth || ColumnTypeOf(kind) != ColumnTypeText {
 		t.Fatal("datetime/month maps to month (TEXT)")

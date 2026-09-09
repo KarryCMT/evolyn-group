@@ -54,6 +54,12 @@ func KindOf(widgetType, format string) (FieldKind, bool) {
 	case "number":
 		return KindNumber, true
 	case "datetime":
+		// format 非必填（字典 enum 无 required），设计器新建字段可能未显式
+		// 设置——缺省兜底为 datetime，与提交校验（value.go）和查询层
+		// （record_query.go normalizedValueSQL）三处口径一致。
+		if format == "" {
+			format = "datetime"
+		}
 		// 四种 format 全量开放：date/datetime 落原生 DATE/TIMESTAMP；
 		// month/time 无原生标量类型（month 缺日、time 无日期），转
 		// DATE/TIMESTAMP 会捏造分量，改以原形 TEXT 直存（等宽零填充形状
