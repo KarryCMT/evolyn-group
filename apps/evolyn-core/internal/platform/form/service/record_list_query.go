@@ -43,9 +43,10 @@ func compileRecordExpression(expression model.RecordQueryExpression, fields map[
 	case "condition":
 		trimmed := strings.TrimSpace(expression.Field)
 		// 系统字段（sys.*）走物理列编译，与 widgetName 白名单互斥；physical
-		// 模式下列挂信封表 r 前缀（JOIN 后消除歧义）
+		// 模式下前缀按字段分派（流程三字段挂物理表 d，其余挂信封表 r，
+		// JOIN 后消除歧义并命中物理侧预置索引）
 		if IsRecordSystemField(trimmed) {
-			return compileSystemRecordCondition(trimmed, expression.Operator, expression.Value, options.systemPrefix())
+			return compileSystemRecordCondition(trimmed, expression.Operator, expression.Value, options.systemFieldPrefix(trimmed))
 		}
 		field, ok := fields[trimmed]
 		if !ok {

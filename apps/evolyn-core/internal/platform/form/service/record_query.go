@@ -81,12 +81,21 @@ func (o RecordQueryCompileOptions) validatePhysicalColumns(fields map[string]rec
 	return nil
 }
 
-// systemPrefix 系统字段物理列前缀（legacy 单表无前缀；physical 信封表 r.）。
-func (o RecordQueryCompileOptions) systemPrefix() string {
-	if o.Physical {
+// systemFieldPrefix 系统字段表前缀（按字段分派，物理表存储方案 §5.3/§11）：
+// legacy 单表无前缀；physical 模式下流程三字段（单号/状态/更新时间）在物理
+// 表预置同名列与复合索引（高频筛选由物理侧承载），编译为 d. 前缀以命中
+// 索引，其余系统字段（提交人/提交时间/更新时间为信封物理属性，物理表无
+// 同名列）恒挂信封表 r.。
+func (o RecordQueryCompileOptions) systemFieldPrefix(field string) string {
+	if !o.Physical {
+		return ""
+	}
+	switch field {
+	case SysFieldWorkflowInstanceNo, SysFieldWorkflowStatus, SysFieldWorkflowUpdatedAt:
+		return physicalAlias
+	default:
 		return recordEnvelopeAlias
 	}
-	return ""
 }
 
 func CompileRecordQueryCondition(mappings []SnapshotFieldMapping, condition RecordQueryCondition) (CompiledRecordQuery, error) {

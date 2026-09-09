@@ -70,3 +70,43 @@ func TestCompileRecordListSortsOnlyAllowsSystemFields(t *testing.T) {
 	_, err = CompileRecordListSorts([]model.RecordQuerySort{{Field: SysFieldUpdatedAt, Direction: "random"}})
 	assert.Error(t, err)
 }
+
+// 物理模式系统字段前缀按字段分派：流程三字段（单号/状态/更新时间）挂物理
+// 表 d 前缀以命中预置复合索引（方案 §5.3/§11），其余（信封物理属性）恒挂
+// 信封表 r；排序与筛选共用同一分派。
+func TestCompileSystemFieldPhysicalPrefixDispatch(t *testing.T) {
+	opts := RecordQueryCompileOptions{Physical: true, PhysicalColumns: map[string]string{}}
+
+	document := model.RecordQueryDocument{Version: 1}
+
+	document.Filter = &model.RecordQueryExpression{Type: "condition", Field: SysFieldWorkflowStatus, Operator: "eq", Value: "RUNNING"}
+	compiled, err := CompileRecordListQuery(document, nil, nil, opts)
+	require.NoError(t, err)
+	assert.Equal(t, "d.workflow_status = ?", compiled.Where)
+	assert.Equal(t, []any{"RUNNING"}, compiled.Args)
+
+	document.Filter = &model.RecordQueryExpression{Type: "condition", Field: SysFieldWorkflowInstanceNo, Operator: "startsWith", Value: "WF-2026"}
+	compiled, err = CompileRecordListQuery(document, nil, nil, opts)
+	require.NoError(t, err)
+	assert.Equal(t, "d.workflow_instance_no LIKE ? ESCAPE '\\'", compiled.Where)
+
+	document.Filter = &model.RecordQueryExpression{Type: "condition", Field: SysFieldSubmittedAt, Operator: "gte", Value: "2026-09-01"}
+	compiled, err = CompileRecordListQuery(document, nil, nil, opts)
+	require.NoError(t, err)
+	assert.Equal(t, "r.submitted_at >= ?", compiled.Where)
+
+	order, err := CompileRecordListSorts([]model.RecordQuerySort{
+		{Field: SysFieldWorkflowUpdatedAt, Direction: "desc"},
+		{Field: SysFieldUpdatedAt, Direction: "desc"},
+	}, opts)
+	require.NoError(t, err)
+	assert.Equal(t, "d.workflow_updated_at DESC, r.updated_at DESC", order)
+
+	// legacy 单表模式恒无前缀（既有断言口径不变）
+	compiled, err = CompileRecordListQuery(model.RecordQueryDocument{
+		Version: 1,
+		Filter:  &model.RecordQueryExpression{Type: "condition", Field: SysFieldWorkflowStatus, Operator: "eq", Value: "NONE"},
+	}, nil, nil)
+	require.NoError(t, err)
+	assert.Equal(t, "workflow_status = ?", compiled.Where)
+}

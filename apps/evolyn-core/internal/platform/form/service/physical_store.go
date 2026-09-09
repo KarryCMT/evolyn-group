@@ -40,7 +40,8 @@ type physicalWriteContext struct {
 }
 
 // resolvePhysicalContext 加载表单的物理存储绑定与已应用模型；无绑定返回
-// nil（存量 JSONB 表单）。storage 未就绪（PUBLISHING/FAILED）时提交侧以
+// nil（存量 JSONB 表单）。结构变更在途（PUBLISHING）/最近失败（FAILED）时
+// 按已应用模型继续服务；仅从未应用过模型（首次发布 DDL 在途）才以
 // FORM_STORAGE_NOT_READY 拒绝。
 func (s *formService) resolvePhysicalContext(ctx context.Context, form *model.Form) (*physicalWriteContext, error) {
 	binding, err := s.loadStorageByForm(ctx, form.ID)
@@ -53,31 +54,28 @@ func (s *formService) resolvePhysicalContext(ctx context.Context, form *model.Fo
 	if s.physical == nil || s.schemaVersions == nil {
 		return nil, fmt.Errorf("physical storage pipeline is not configured")
 	}
-	if binding.State != model.StorageStateReady {
-		return nil, httpx.Wrap(apperrors.ErrStorageNotReady,
-			fmt.Errorf("form %s storage state %s", form.Code, binding.State))
-	}
+	// 结构变更在途（PUBLISHING）或最近发布失败（FAILED）时按已应用模型继续
+	// 服务：物理表结构是历次已应用字段的并集，发布指针仍指向的旧快照字段
+	// 集 ⊆ 已应用模型，读写以已应用模型为列映射即可安全放行——与 202 发布
+	// 语义一致（DDL 完成前旧快照继续可运行）。仅从未应用过模型（首次发布
+	// DDL 在途）才真正不可用，此时也不存在任何已发布运行时。
 	applied, err := s.loadAppliedModel(ctx, binding)
 	if err != nil {
 		return nil, err
 	}
 	if applied == nil {
-		// 绑定存在但从未应用任何模型：仅当从未发布时可能出现（首次发布
-		// 前），提交侧等同未就绪。
 		return nil, httpx.Wrap(apperrors.ErrStorageNotReady,
 			fmt.Errorf("form %s has no applied storage model", form.Code))
 	}
 	return &physicalWriteContext{binding: binding, model: applied}, nil
 }
 
-// writeColumns 返回值中出现的字段对应的物理列（旧版本提交时只写其快照
-// 字段，未携带的新列保持 NULL——物理结构是历次已应用字段的并集）。
+// writeColumns 返回值中出现的字段对应的物理列（含弃用列：旧版本快照仍
+// 含已删字段，其提交与审批写回必须继续落列；新快照提交不含弃用字段，
+// 未携带的新列/弃用列保持 NULL）。物理结构是历次已应用字段的并集。
 func (pc *physicalWriteContext) writeColumns(values map[string]any) []storagepkg.ColumnSpec {
 	columns := make([]storagepkg.ColumnSpec, 0, len(pc.model.Columns))
 	for _, column := range pc.model.Columns {
-		if column.Deprecated {
-			continue
-		}
 		if _, present := values[column.WidgetName]; present {
 			columns = append(columns, column)
 		}
@@ -116,14 +114,7 @@ func (s *formService) replacePhysicalChildren(ctx context.Context, pc *physicalW
 		if err != nil {
 			return err
 		}
-		columns := make([]storagepkg.ColumnSpec, 0, len(child.Columns))
-		for _, column := range child.Columns {
-			if column.Deprecated {
-				continue
-			}
-			columns = append(columns, column)
-		}
-		if err := s.physical.ReplaceChildRows(ctx, child.TableName, tenantID, recordID, columns, rows); err != nil {
+		if err := s.physical.ReplaceChildRows(ctx, child.TableName, tenantID, recordID, child.Columns, rows); err != nil {
 			return err
 		}
 	}
@@ -157,8 +148,9 @@ func (s *formService) readPhysicalValues(ctx context.Context, pc *physicalWriteC
 	if !ok {
 		return nil, fmt.Errorf("tenant context required")
 	}
-	parentColumns := activeColumns(pc.model.Columns)
-	values, err := s.physical.ReadParentRow(ctx, pc.binding.PhysicalTable, tenantID, recordID, parentColumns)
+	// 全列读取（含弃用列）：记录绑定历史快照时，已删字段仍参与表达式取数
+	// 与审批写回的合并基线（方案 §6「旧版本仍可解释和提交」）。
+	values, err := s.physical.ReadParentRow(ctx, pc.binding.PhysicalTable, tenantID, recordID, pc.model.Columns)
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil
@@ -172,7 +164,7 @@ func (s *formService) readPhysicalValues(ctx context.Context, pc *physicalWriteC
 		if child.Deprecated {
 			continue
 		}
-		rows, err := s.physical.ReadChildRows(ctx, child.TableName, tenantID, recordID, activeColumns(child.Columns))
+		rows, err := s.physical.ReadChildRows(ctx, child.TableName, tenantID, recordID, child.Columns)
 		if err != nil {
 			return nil, err
 		}
@@ -185,7 +177,8 @@ func (s *formService) readPhysicalValues(ctx context.Context, pc *physicalWriteC
 	return values, nil
 }
 
-// activeColumns 非弃用列全集（读取/投影用）。
+// activeColumns 非弃用列全集（仅列表投影使用：最新快照不含弃用字段，
+// 出网值域按其白名单过滤）。
 func activeColumns(columns []storagepkg.ColumnSpec) []storagepkg.ColumnSpec {
 	active := make([]storagepkg.ColumnSpec, 0, len(columns))
 	for _, column := range columns {

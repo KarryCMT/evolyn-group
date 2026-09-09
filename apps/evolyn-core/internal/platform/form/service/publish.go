@@ -360,7 +360,8 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 	}
 
 	// 物理存储分派（方案 §9.2）：physical 表单的业务值只落 tn_fd_* 物理行，
-	// 信封 values 恒 NULL（不双写）；存储未就绪（DDL 在途/失败）时提交拒绝。
+	// 信封 values 恒 NULL（不双写）；结构变更在途（PUBLISHING）按已应用模型
+	// 继续服务，仅从未应用过模型（首次发布 DDL 在途）才拒绝提交。
 	physical, err := s.resolvePhysicalContext(ctx, form)
 	if err != nil {
 		return nil, err

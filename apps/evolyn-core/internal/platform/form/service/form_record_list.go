@@ -160,10 +160,10 @@ func (s *formService) physicalListBinding(ctx context.Context, form *model.Form)
 	if s.physical == nil || s.schemaVersions == nil {
 		return RecordQueryCompileOptions{}, nil, fmt.Errorf("physical storage pipeline is not configured")
 	}
-	if binding.State != model.StorageStateReady {
-		return RecordQueryCompileOptions{}, nil, httpx.Wrap(apperrors.ErrStorageNotReady,
-			fmt.Errorf("form %s storage state %s", form.Code, binding.State))
-	}
+	// 与 resolvePhysicalContext 同口径：结构变更在途（PUBLISHING/FAILED）按
+	// 已应用模型继续服务（物理结构是历次已应用字段的并集，列表投影/谓词
+	// 使用的列集合 ⊆ 已应用模型列）；仅从未应用过模型（首次发布 DDL 在
+	// 途，物理表尚不存在）才拒绝列表。
 	applied, err := s.loadAppliedModel(ctx, binding)
 	if err != nil {
 		return RecordQueryCompileOptions{}, nil, err

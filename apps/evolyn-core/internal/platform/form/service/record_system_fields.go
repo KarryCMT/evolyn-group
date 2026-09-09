@@ -77,7 +77,8 @@ func compileSystemRecordCondition(field, operator string, value any, prefix stri
 	if !allowed[operator] {
 		return CompiledRecordQuery{}, fmt.Errorf("query operator %q is not applicable to system field %q", operator, field)
 	}
-	// prefix 为 physical 模式的信封表别名（r.），列名仍是服务端固定枚举。
+	// prefix 为 physical 模式的表别名（按字段分派：流程三字段挂物理表 d，
+	// 其余挂信封表 r；legacy 为空串），列名仍是服务端固定枚举。
 	switch trimmedField {
 	case SysFieldSubmittedBy:
 		return compileSystemMemberCondition(prefix+column, operator, value)
@@ -318,13 +319,16 @@ func CompileRecordListSorts(sorts []model.RecordQuerySort, opts ...RecordQueryCo
 	if len(sorts) > 3 {
 		return "", fmt.Errorf("record list supports at most 3 sort fields")
 	}
-	prefix := options.systemPrefix()
 	parts := make([]string, 0, len(sorts))
 	for _, sort := range sorts {
-		column, ok := systemFieldColumns[strings.TrimSpace(sort.Field)]
+		trimmed := strings.TrimSpace(sort.Field)
+		column, ok := systemFieldColumns[trimmed]
 		if !ok {
 			return "", fmt.Errorf("sorting is only supported for system fields (sys.*), not %q", sort.Field)
 		}
+		// 前缀按字段分派（physical 流程三字段挂物理表 d 命中预置索引，
+		// 其余挂信封表 r；legacy 恒为空串）
+		prefix := options.systemFieldPrefix(trimmed)
 		switch strings.ToLower(strings.TrimSpace(sort.Direction)) {
 		case "asc":
 			parts = append(parts, prefix+column+" ASC")

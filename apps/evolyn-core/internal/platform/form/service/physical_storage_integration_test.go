@@ -336,10 +336,16 @@ func (env *physEnv) formIDOf(t *testing.T, code string) uint {
 
 func (env *physEnv) firstSchemaRevision(t *testing.T, ctx context.Context, code string) string {
 	t.Helper()
+	return env.schemaRevisionOf(t, ctx, code, 1)
+}
+
+// schemaRevisionOf 指定版本号的修订口令（发布期间旧/新版本按各自口令提交）。
+func (env *physEnv) schemaRevisionOf(t *testing.T, ctx context.Context, code string, versionNo int) string {
+	t.Helper()
 	formSvc := env.formSvc.(*formService)
 	form, err := formSvc.loadByCode(ctx, code)
 	require.NoError(t, err)
-	version, err := formSvc.versions.GetByFormAndVersionNo(ctx, form.ID, 1)
+	version, err := formSvc.versions.GetByFormAndVersionNo(ctx, form.ID, versionNo)
 	require.NoError(t, err)
 	return fmt.Sprintf("%d", version.SchemaRevision)
 }
@@ -525,7 +531,7 @@ func TestPhysINTStorageJobLifecycle(t *testing.T) {
 
 	// 非 FAILED 重试拒绝
 	_, err = env.formSvc.RetryStorageJob(ctx, member, created.Code, *published.JobID)
-	require.ErrorIs(t, err, apperrors.ErrStorageDDLFailed)
+	assert.ErrorIs(t, err, apperrors.ErrStorageDDLFailed)
 
 	// 归属复核：另一表单编码查询同 Job → NOT_FOUND
 	other, err := env.formSvc.Create(ctx, member, &model.CreateFormRequest{
@@ -533,5 +539,236 @@ func TestPhysINTStorageJobLifecycle(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = env.formSvc.GetStorageJob(ctx, member, other.Code, *published.JobID)
-	require.ErrorIs(t, err, apperrors.ErrStorageJobNotFound)
+	assert.ErrorIs(t, err, apperrors.ErrStorageJobNotFound)
+}
+
+// SEC-PHYS-008 PUBLISHING 窗口放行（202 发布语义）：结构变更 DDL 在途时，
+// 发布指针仍指向旧版本——旧版本提交/列表按已应用模型继续服务（物理结构是
+// 历次已应用字段的并集，旧快照字段集 ⊆ 已应用模型）；DDL 完成后新版本可
+// 提交。流程状态筛选在物理模式走物理表同名列（d. 前缀命中预置索引）。
+func TestPhysINTPublishingWindowServesOldSnapshot(t *testing.T) {
+	env := newPhysEnv(t)
+	member := memberOfTenant(1)
+	code, _ := env.publishPhysical(t, physScalarItems, `"_widget_a","_widget_n","_widget_d"`, member)
+	ctx := tenantCtx(1)
+
+	// v2：新增字段 _widget_e（fieldId aaaaaaaa05）→ 结构变更 → 202 + PUBLISHING
+	v2Items := `[
+		{"widget":{"type":"text","widgetName":"_widget_a","fieldId":"aaaaaaaa01","enable":true,"visible":true,"allowBlank":true},"label":"姓名","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"number","widgetName":"_widget_n","fieldId":"aaaaaaaa02","enable":true,"visible":true,"allowBlank":true},"label":"数量","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"datetime","widgetName":"_widget_d","fieldId":"aaaaaaaa03","enable":true,"visible":true,"allowBlank":true,"format":"date"},"label":"日期","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"text","widgetName":"_widget_e","fieldId":"aaaaaaaa05","enable":true,"visible":true,"allowBlank":true},"label":"备注","description":"","labelHidden":false,"lineWidth":6}]`
+	saved, err := env.formSvc.SaveDraft(ctx, member, code, &model.SaveDraftRequest{
+		DraftRevision: 2, ProtocolVersion: model.CurrentProtocolVersion,
+		Content: physDoc(v2Items, `"_widget_a","_widget_n","_widget_d","_widget_e"`),
+	})
+	require.NoError(t, err)
+	published, err := env.formSvc.Publish(ctx, member, code, &model.PublishRequest{DraftRevision: saved.DraftRevision})
+	require.NoError(t, err)
+	require.True(t, published.Async, "add-column change must publish async")
+
+	// 存储态=PUBLISHING（DDL Job 未执行）
+	binding, err := env.storageRepo.GetByFormID(ctx, env.formIDOf(t, code))
+	require.NoError(t, err)
+	require.Equal(t, model.StorageStatePublishing, binding.State)
+
+	// PUBLISHING 窗口内：按旧版本（v1）提交成功（P1-1 放行语义）
+	_, err = env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_phys", FormCode: code, PublishedVersion: 1, SchemaRevision: env.firstSchemaRevision(t, ctx, code),
+		HasResult: submitBool(true), DataOpID: "77777777-7777-4777-8777-777777777777",
+		Values: map[string]model.SubmitFieldValue{
+			"_widget_a": {Data: model.JSONContent(`"窗口期"`), Visible: submitBool(true)},
+			"_widget_n": {Data: model.JSONContent(`7`), Visible: submitBool(true)},
+			"_widget_d": {Visible: submitBool(true)},
+		},
+	})
+	require.NoError(t, err, "old-snapshot submission must be served during PUBLISHING window")
+
+	// 列表同口径放行：旧版本映射 + 已应用模型列投影；流程状态筛选走物理表
+	// 同名列（sys.workflowStatus → d.workflow_status，P1-4）
+	statusFilter := model.RecordQueryExpression{Type: "condition", Field: "sys.workflowStatus", Operator: "eq", Value: "NONE"}
+	page, err := env.formSvc.ListRecords(ctx, member, code, model.RecordQueryDocument{Version: 1, Filter: &statusFilter})
+	require.NoError(t, err, "list must be served during PUBLISHING window")
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, "窗口期", page.Items[0].Values["_widget_a"])
+
+	// 执行 DDL → READY；新版本（v2，含新字段）可提交
+	processed, err := env.ddlWorker.ProcessOnce(ctx)
+	require.NoError(t, err)
+	require.True(t, processed)
+	_, err = env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_phys", FormCode: code, PublishedVersion: 2, SchemaRevision: env.schemaRevisionOf(t, ctx, code, 2),
+		HasResult: submitBool(true), DataOpID: "88888888-8888-4888-8888-888888888888",
+		Values: map[string]model.SubmitFieldValue{
+			"_widget_a": {Data: model.JSONContent(`"新版本"`), Visible: submitBool(true)},
+			"_widget_n": {Visible: submitBool(true)},
+			"_widget_d": {Visible: submitBool(true)},
+			"_widget_e": {Data: model.JSONContent(`"新列"`), Visible: submitBool(true)},
+		},
+	})
+	require.NoError(t, err)
+
+	// 列表出网两张记录（发布指针已推进 v2）
+	page, err = env.formSvc.ListRecords(ctx, member, code, model.RecordQueryDocument{Version: 1})
+	require.NoError(t, err)
+	assert.Len(t, page.Items, 2)
+}
+
+// SEC-PHYS-009 弃用列基线（P1-2）：字段删除后物理列保留（仅元数据弃用），
+// 旧版本快照的提交继续落列、记录读取/审批写回保留弃用字段基线、最新版本
+// 列表出网不暴露弃用字段（最新快照白名单）。
+func TestPhysINTDeprecatedColumnBaseline(t *testing.T) {
+	env := newPhysEnv(t)
+	member := memberOfTenant(1)
+	twoFieldItems := `[
+		{"widget":{"type":"text","widgetName":"_widget_a","fieldId":"aaaaaaaa01","enable":true,"visible":true,"allowBlank":true},"label":"姓名","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"number","widgetName":"_widget_n","fieldId":"aaaaaaaa02","enable":true,"visible":true,"allowBlank":true},"label":"数量","description":"","labelHidden":false,"lineWidth":6}]`
+	code, tableName := env.publishPhysical(t, twoFieldItems, `"_widget_a","_widget_n"`, member)
+	ctx := tenantCtx(1)
+
+	// v1 记录：a + n 均有值
+	first, err := env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_phys", FormCode: code, PublishedVersion: 1, SchemaRevision: env.firstSchemaRevision(t, ctx, code),
+		HasResult: submitBool(true), DataOpID: "99999999-9999-4999-8999-999999999999",
+		Values: map[string]model.SubmitFieldValue{
+			"_widget_a": {Data: model.JSONContent(`"甲"`), Visible: submitBool(true)},
+			"_widget_n": {Data: model.JSONContent(`3`), Visible: submitBool(true)},
+		},
+	})
+	require.NoError(t, err)
+
+	// v2：删除 _widget_n（纯弃用，无物理变更 → 同步发布，存储保持 READY）
+	oneFieldItems := `[
+		{"widget":{"type":"text","widgetName":"_widget_a","fieldId":"aaaaaaaa01","enable":true,"visible":true,"allowBlank":true},"label":"姓名","description":"","labelHidden":false,"lineWidth":6}]`
+	saved, err := env.formSvc.SaveDraft(ctx, member, code, &model.SaveDraftRequest{
+		DraftRevision: 2, ProtocolVersion: model.CurrentProtocolVersion,
+		Content: physDoc(oneFieldItems, `"_widget_a"`),
+	})
+	require.NoError(t, err)
+	published, err := env.formSvc.Publish(ctx, member, code, &model.PublishRequest{DraftRevision: saved.DraftRevision})
+	require.NoError(t, err)
+	assert.False(t, published.Async, "pure deprecation has no physical change")
+	binding, err := env.storageRepo.GetByFormID(ctx, env.formIDOf(t, code))
+	require.NoError(t, err)
+	assert.Equal(t, model.StorageStateReady, binding.State)
+
+	// 记录读取（表达式取数/审批合并基线）：弃用字段值仍完整返回
+	store := env.formSvc.(WorkflowRecordStore)
+	_, _, values, err := store.RecordData(ctx, first.RecordID)
+	require.NoError(t, err)
+	assert.Equal(t, "甲", values["_widget_a"])
+	assert.Equal(t, float64(3), values["_widget_n"])
+
+	// 旧版本（v1）快照新提交：仍含已删字段，物理列继续写入（弃用列含写入）
+	oldSnap, err := env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_phys", FormCode: code, PublishedVersion: 1, SchemaRevision: env.firstSchemaRevision(t, ctx, code),
+		HasResult: submitBool(true), DataOpID: "aaaaaaa1-1111-4111-8111-111111111111",
+		Values: map[string]model.SubmitFieldValue{
+			"_widget_a": {Data: model.JSONContent(`"乙"`), Visible: submitBool(true)},
+			"_widget_n": {Data: model.JSONContent(`5`), Visible: submitBool(true)},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, env.countInt(t, fmt.Sprintf(
+		`SELECT count(*) FROM %q WHERE record_id = %d AND "f_aaaaaaaa02" = 5`, tableName, oldSnap.RecordID)),
+		"deprecated column must keep accepting old-snapshot submissions")
+
+	// 审批写回（受信 patch）：未触及的弃用字段基线保留
+	require.NoError(t, store.UpdateRecordValues(ctx, first.RecordID, map[string]any{"_widget_a": "丙"}))
+	assert.Equal(t, 1, env.countInt(t, fmt.Sprintf(
+		`SELECT count(*) FROM %q WHERE record_id = %d AND "f_aaaaaaaa01" = '丙' AND "f_aaaaaaaa02" = 3`,
+		tableName, first.RecordID)), "untouched deprecated column must be preserved on write-back")
+
+	// 最新版本（v2）列表：弃用字段不出网（最新快照白名单）
+	page, err := env.formSvc.ListRecords(ctx, member, code, model.RecordQueryDocument{Version: 1})
+	require.NoError(t, err)
+	require.Len(t, page.Items, 2)
+	for _, item := range page.Items {
+		assert.NotContains(t, item.Values, "_widget_n", "deprecated field must not leak to latest-snapshot list")
+		assert.Contains(t, item.Values, "_widget_a")
+	}
+}
+
+// physSubformItems 子表单发布草稿（children 为子字段 JSON；空串=零子字段）。
+func physSubformItems(children string) string {
+	return fmt.Sprintf(`[
+		{"widget":{"type":"subform","widgetName":"_widget_s","fieldId":"aaaaaaaa04","enable":true,"visible":true,"allowBlank":true,"items":[%s],
+			"subformCreate":true,"subformInsert":true,"subformEdit":true,"subformDelete":true,"quickFill":true,
+			"pcStickyColumn":{"enable":true,"limit":1},"mobileStickyColumn":{"enable":false,"limit":1},
+			"mobileViewStyle":"vertical","mobileSummaryFieldCount":3},"label":"明细表","description":"","labelHidden":false,"lineWidth":12}]`, children)
+}
+
+var physSubformChildText = `{"widget":{"type":"text","widgetName":"_widget_r1","fieldId":"bbbbbbbb01","enable":true,"visible":true,"allowBlank":true},"label":"明细","description":"","labelHidden":false,"lineWidth":6}`
+
+// SEC-PHYS-010 零列物理表全链路（P1-3）：无字段表单（父表零用户列）、纯
+// 子表单表单（父表零用户列 + 子表有列）、子表单暂无子字段（子表零用户列
+// 但有行）三种合法形态的提交/读取/列表/写回均不产生非法 SQL。
+func TestPhysINTZeroColumnForms(t *testing.T) {
+	env := newPhysEnv(t)
+	member := memberOfTenant(1)
+	ctx := tenantCtx(1)
+
+	// 形态一：无字段表单——发布（建零用户列父表）→ 空值提交 → 读取/列表/空写回
+	zeroCode, zeroTable := env.publishPhysical(t, "[]", "", member)
+	assert.True(t, env.tableExists(t, zeroTable))
+	assert.True(t, env.columnExists(t, zeroTable, "record_id"), "preset columns must exist on zero-column parent")
+	zero, err := env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_phys", FormCode: zeroCode, PublishedVersion: 1, SchemaRevision: env.firstSchemaRevision(t, ctx, zeroCode),
+		HasResult: submitBool(true), DataOpID: "bbbbbbb1-2222-4222-8222-222222222222",
+		Values: map[string]model.SubmitFieldValue{},
+	})
+	require.NoError(t, err, "zero-column form submission must not produce invalid SQL")
+	assert.Equal(t, 1, env.countInt(t, fmt.Sprintf(
+		"SELECT count(*) FROM %q WHERE record_id = %d AND workflow_status = 'NONE'", zeroTable, zero.RecordID)))
+
+	store := env.formSvc.(WorkflowRecordStore)
+	_, _, zeroValues, err := store.RecordData(ctx, zero.RecordID)
+	require.NoError(t, err)
+	assert.Empty(t, zeroValues)
+
+	zeroPage, err := env.formSvc.ListRecords(ctx, member, zeroCode, model.RecordQueryDocument{Version: 1})
+	require.NoError(t, err, "zero-column form list must not produce invalid SQL")
+	require.Len(t, zeroPage.Items, 1)
+	assert.Empty(t, zeroPage.Items[0].Values)
+
+	require.NoError(t, store.UpdateRecordValues(ctx, zero.RecordID, map[string]any{}),
+		"empty patch on zero-column form must skip UPDATE instead of invalid SQL")
+
+	// 形态二：纯子表单表单——父表零用户列，子表携带明细行
+	subCode, subTable := env.publishPhysical(t, physSubformItems(physSubformChildText), `"_widget_s"`, member)
+	subChild := env.childTableOf(t, ctx, subTable)
+	subResult, err := env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_phys", FormCode: subCode, PublishedVersion: 1, SchemaRevision: env.firstSchemaRevision(t, ctx, subCode),
+		HasResult: submitBool(true), DataOpID: "ccccccc1-3333-4333-8333-333333333333",
+		Values: map[string]model.SubmitFieldValue{
+			"_widget_s": {Data: model.JSONContent(`[{"_widget_r1":"行一"}]`), Visible: submitBool(true)},
+		},
+	})
+	require.NoError(t, err, "subform-only form submission must not produce invalid SQL")
+	assert.Equal(t, 1, env.countInt(t, fmt.Sprintf(
+		`SELECT count(*) FROM %q WHERE parent_record_id = %d AND "f_bbbbbbbb01" = '行一'`, subChild, subResult.RecordID)))
+	_, _, subValues, err := store.RecordData(ctx, subResult.RecordID)
+	require.NoError(t, err)
+	require.Len(t, subValues["_widget_s"].([]any), 1)
+	assert.Equal(t, "行一", subValues["_widget_s"].([]any)[0].(map[string]any)["_widget_r1"])
+	_, err = env.formSvc.ListRecords(ctx, member, subCode, model.RecordQueryDocument{Version: 1})
+	require.NoError(t, err, "subform-only form list must not produce invalid SQL")
+
+	// 形态三：子表单暂无子字段——零列子表按行数保留空对象行序
+	emptyChildCode, emptyChildTable := env.publishPhysical(t, physSubformItems(""), `"_widget_s"`, member)
+	emptyChild := env.childTableOf(t, ctx, emptyChildTable)
+	emptyResult, err := env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_phys", FormCode: emptyChildCode, PublishedVersion: 1, SchemaRevision: env.firstSchemaRevision(t, ctx, emptyChildCode),
+		HasResult: submitBool(true), DataOpID: "ddddddd1-4444-4444-8444-444444444444",
+		Values: map[string]model.SubmitFieldValue{
+			"_widget_s": {Data: model.JSONContent(`[{},{}]`), Visible: submitBool(true)},
+		},
+	})
+	require.NoError(t, err, "zero-column child submission must not produce invalid SQL")
+	assert.Equal(t, 2, env.countInt(t, fmt.Sprintf(
+		"SELECT count(*) FROM %q WHERE parent_record_id = %d", emptyChild, emptyResult.RecordID)),
+		"row count must survive without value columns")
+	_, _, emptyValues, err := store.RecordData(ctx, emptyResult.RecordID)
+	require.NoError(t, err)
+	assert.Len(t, emptyValues["_widget_s"].([]any), 2, "zero-column child rows must read back by count")
 }

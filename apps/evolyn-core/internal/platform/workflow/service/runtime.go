@@ -170,7 +170,10 @@ func (s *runtimeService) Start(ctx context.Context, member *iammodel.User, req *
 			return mapEngineError(err)
 		}
 		instanceID = result.InstanceID
-		return nil
+		// 发起即投影（方案 §10.2）：与审批动作同模式，在创建事务内刷新记录
+		// 信封/物理表的流程投影（单号/状态/时间）；formProjector 未注入或非
+		// 表单业务时 Project 自身幂等空跑。
+		return s.formProjector.Project(tctx, instanceID)
 	}); err != nil {
 		return nil, err
 	}

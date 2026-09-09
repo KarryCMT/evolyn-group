@@ -116,6 +116,11 @@ func (r *physicalValueRepository) ReadParentRow(ctx context.Context, tableName s
 	if err := storage.ValidateDynamicTableName(tableName); err != nil {
 		return nil, err
 	}
+	// 零列父表（纯子表单表单/无字段表单）：空 SELECT 列表是非法 SQL，
+	// 行存在性由记录信封与复合外键保证，直接返回空值集。
+	if len(columns) == 0 {
+		return map[string]any{}, nil
+	}
 	selects := make([]string, 0, len(columns))
 	scanTargets := make([]any, 0, len(columns))
 	rawValues := make([]any, len(columns))
@@ -157,6 +162,11 @@ func (r *physicalValueRepository) UpdateParentRowValues(ctx context.Context, tab
 	names, args, err := encodeValues(columns, values)
 	if err != nil {
 		return err
+	}
+	// 零值列（零列表单提交/不含业务字段的写回）：空 SET 子句是非法 SQL，
+	// 信封 updated_at 由调用方（persistResolvedValues 的 TouchUpdatedAt）单独刷新。
+	if len(names) == 0 {
+		return nil
 	}
 	sets := make([]string, 0, len(names))
 	allArgs := make([]any, 0, len(args)+3)
@@ -219,6 +229,22 @@ func (r *physicalValueRepository) ReplaceChildRows(ctx context.Context, tableNam
 func (r *physicalValueRepository) ReadChildRows(ctx context.Context, tableName string, tenantID, parentRecordID uint, columns []storage.ColumnSpec) ([]map[string]any, error) {
 	if err := storage.ValidateDynamicTableName(tableName); err != nil {
 		return nil, err
+	}
+	// 零列子表（子表单暂无子字段但存在行）：以行数查询替代空 SELECT 列表，
+	// 按行数返回空 map，保留「每子行一个空对象」的行序语义（集合替换/回显
+	// 依赖行数一致）。
+	if len(columns) == 0 {
+		var count int
+		if err := r.withContext(ctx).Raw(
+			fmt.Sprintf("SELECT count(*) FROM %q WHERE tenant_id = ? AND parent_record_id = ?", tableName),
+			tenantID, parentRecordID).Scan(&count).Error; err != nil {
+			return nil, err
+		}
+		rows := make([]map[string]any, count)
+		for i := range rows {
+			rows[i] = map[string]any{}
+		}
+		return rows, nil
 	}
 	selects := make([]string, 0, len(columns))
 	for _, column := range columns {
@@ -285,7 +311,8 @@ func (r *physicalValueRepository) ListJoinControlled(ctx context.Context, params
 	if orderBy == "" {
 		orderBy = "r.id DESC"
 	} else {
-		// 物理模式排序片段均带 r. 前缀（系统字段编译），稳定尾排序恒追加
+		// 物理模式排序片段带 r./d. 前缀（系统字段按字段分派编译），稳定尾
+		// 排序恒追加
 		orderBy += ", r.id DESC"
 	}
 
