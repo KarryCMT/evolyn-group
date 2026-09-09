@@ -606,6 +606,13 @@ func normalizeConditionValue(field *permissionFieldMeta, known bool, raw any) (n
 		switch v := raw.(type) {
 		case float64:
 			return normalizedFieldValue{text: jsNumber(v)}, false
+		// int/int64 与 jsonFloat 同口径容忍：真实路径记录值经 json.Unmarshal
+		// 恒为 float64，此分支服务内存构造快照（测试桩/内存合并）的形态，
+		// 保证内存判定与 SQL 侧（经 JSON 序列化无类型边界）结论一致。
+		case int:
+			return normalizedFieldValue{text: jsNumber(float64(v))}, false
+		case int64:
+			return normalizedFieldValue{text: jsNumber(float64(v))}, false
 		case string:
 			if numericGuardPattern.MatchString(v) {
 				return normalizedFieldValue{text: v}, false

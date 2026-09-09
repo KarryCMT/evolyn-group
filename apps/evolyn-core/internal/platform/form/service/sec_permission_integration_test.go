@@ -584,10 +584,16 @@ func TestSECFPERM004SubmitPermissionPipeline(t *testing.T) {
 		fpermText("secret", "密级", true),
 	))
 
-	envelope := func(entries map[string]string) map[string]model.SubmitFieldValue {
+	// 信封 visible 按 v6 口径构造（静态 ∧ 权限 ∧ 规则）：secret 仅对授予
+	// 字段权限的成员可见；下面前两次提交发生在「录入组」建立之前/之外，
+	// 传 true 由各自的拒绝断言兜底，成功提交（第三次）走 secretVisible=false。
+	envelope := func(entries map[string]string, secretVisible bool) map[string]model.SubmitFieldValue {
 		values := map[string]model.SubmitFieldValue{}
 		for _, field := range []string{"name", "amount", "secret"} {
 			values[field] = model.SubmitFieldValue{Visible: submitBool(true)}
+		}
+		if !secretVisible {
+			values["secret"] = model.SubmitFieldValue{Visible: submitBool(false)}
 		}
 		for name, data := range entries {
 			values[name] = model.SubmitFieldValue{Data: model.JSONContent(data), Visible: submitBool(true)}
@@ -598,7 +604,7 @@ func TestSECFPERM004SubmitPermissionPipeline(t *testing.T) {
 		_, err := env.formSvc.SubmitRecord(fpermCtx(env.alpha.ID), member, &model.SubmitRecordRequest{
 			AppCode: app.Code, FormCode: form.Code, PublishedVersion: published.PublishedVersion,
 			SchemaRevision: published.SchemaRevision, HasResult: submitBool(true),
-			DataOpID: dataOp, Values: envelope(entries),
+			DataOpID: dataOp, Values: envelope(entries, false),
 		})
 		return err
 	}
@@ -632,7 +638,7 @@ func TestSECFPERM004SubmitPermissionPipeline(t *testing.T) {
 		AppCode: app.Code, FormCode: form.Code, PublishedVersion: published.PublishedVersion,
 		SchemaRevision: published.SchemaRevision, HasResult: submitBool(true),
 		DataOpID: "6e243bbb-7d57-4e59-952b-d530c53c6563",
-		Values:   envelope(map[string]string{"name": `"李四"`, "amount": "88"}),
+		Values:   envelope(map[string]string{"name": `"李四"`, "amount": "88"}, false),
 	})
 	assert.NoError(t, err)
 	assert.NotZero(t, result.RecordID)

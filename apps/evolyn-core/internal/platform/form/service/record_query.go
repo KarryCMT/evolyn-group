@@ -267,7 +267,8 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 			if err != nil {
 				return CompiledRecordQuery{}, err
 			}
-			return where2("(%s) IS NOT NULL AND (%s) ? ?", append(copyArgs(2), text)), nil
+			// jsonb `?` 操作符与驱动占位符冲突，经 jsonb_exists 函数形式表达
+			return where2("(%s) IS NOT NULL AND jsonb_exists(%s, ?)", append(copyArgs(2), text)), nil
 		}
 		if field.class == permFieldClassNumber {
 			n, err := numberValue()
@@ -287,7 +288,7 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 			if err != nil {
 				return CompiledRecordQuery{}, err
 			}
-			return where2("(%s) IS NOT NULL AND NOT ((%s) ? ?)", append(copyArgs(2), text)), nil
+			return where2("(%s) IS NOT NULL AND NOT jsonb_exists(%s, ?)", append(copyArgs(2), text)), nil
 		}
 		if field.class == permFieldClassNumber {
 			n, err := numberValue()
@@ -326,7 +327,7 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 			return CompiledRecordQuery{}, err
 		}
 		if isArray {
-			return where2("(%s) IS NOT NULL AND (%s) ? ?", append(copyArgs(2), text)), nil
+			return where2("(%s) IS NOT NULL AND jsonb_exists(%s, ?)", append(copyArgs(2), text)), nil
 		}
 		return where2("(%s) IS NOT NULL AND position(? in (%s)) > 0", append(copyArgs(2), text)), nil
 	case "notContains":
@@ -335,7 +336,7 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 			return CompiledRecordQuery{}, err
 		}
 		if isArray {
-			return where2("(%s) IS NULL OR NOT ((%s) ? ?)", append(copyArgs(2), text)), nil
+			return where2("(%s) IS NULL OR NOT jsonb_exists(%s, ?)", append(copyArgs(2), text)), nil
 		}
 		return where2("(%s) IS NULL OR position(? in (%s)) = 0", append(copyArgs(2), text)), nil
 	case "startsWith", "endsWith":
@@ -368,7 +369,7 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		args := append([]any{}, vArgs...)
 		for _, candidate := range values {
 			if isArray {
-				atoms = append(atoms, "("+vSQL+") ? ?")
+				atoms = append(atoms, "jsonb_exists("+vSQL+", ?)")
 			} else if field.class == permFieldClassNumber {
 				atoms = append(atoms, "("+vSQL+")::numeric = ?")
 			} else {

@@ -59,11 +59,10 @@ func yamlStructure(value any) any {
 		}
 		return result
 	case []interface{}:
-		if len(typed) == 0 {
-			return []any{}
-		}
-		// 列表条目数量可因环境不同而变化（如测试限流规则），只校验条目字段。
-		return []any{yamlStructure(typed[0])}
+		// 列表整体是「值」而非「结构」：条目数量可因环境不同而变化（如
+		// allowedOrigins 示例项、测试限流规则），空列表与非空列表不得判为
+		// 结构差异——统一归一为「键存在」标记，条目内容不做结构校验。
+		return []any{}
 	default:
 		return nil
 	}
