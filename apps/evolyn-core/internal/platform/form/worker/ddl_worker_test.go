@@ -291,6 +291,7 @@ func newWorkerEnv() *workerEnv {
 		&formRepoStub{store: store},
 		executor,
 		nil,
+		nil,
 	)
 	return &workerEnv{worker: w, store: store, executor: executor}
 }

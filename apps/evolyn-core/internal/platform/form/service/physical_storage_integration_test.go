@@ -69,7 +69,7 @@ func newPhysEnv(t *testing.T) *physEnv {
 	}
 	ddlWorker := worker.NewDDLJobWorker(
 		txManager, jobRepo, schemaRepo, storageRepo, versionRepo, formRepo,
-		dynamicddl.NewExecutor(db), nil,
+		dynamicddl.NewExecutor(db), nil, stubAppNameDir{},
 	)
 	return &physEnv{
 		db: db, tx: txManager, formSvc: svc, recordRepo: recordRepo,
@@ -689,6 +689,13 @@ func TestPhysINTDeprecatedColumnBaseline(t *testing.T) {
 	}
 }
 
+// stubAppNameDir 应用名称窄端口桩（表注释快照断言用）。
+type stubAppNameDir struct{}
+
+func (stubAppNameDir) ApplicationNameByID(ctx context.Context, appID uint) string {
+	return "测试应用"
+}
+
 // SEC-PHYS-011 month/time 原形 TEXT 直存（支持矩阵扩展）：年月/时间字段
 // 发布建 TEXT 列 → 提交原形入库 → 出网无损往返 → 字典序==时间序（between
 // 范围筛选正确命中）；format 缺省的 datetime 兜底 TIMESTAMP（与提交校验
@@ -744,6 +751,21 @@ func TestPhysINTMonthTimeFields(t *testing.T) {
 	page, err = env.formSvc.ListRecords(ctx, member, code, model.RecordQueryDocument{Version: 1, Filter: &outRange})
 	require.NoError(t, err)
 	assert.Empty(t, page.Items, "out-of-range between must not hit")
+
+	// DDL 注释（首次建表路径全量补齐）：表注释=应用名+表单名+稳定编码；
+	// 用户列注释含 label 快照，预置列（record_id/流程投影列）注释齐备。
+	tableComment := env.textOf(t, fmt.Sprintf("SELECT obj_description('%s'::regclass)", tableName))
+	assert.Contains(t, tableComment, "应用「测试应用」表单「物理链路」")
+	assert.Contains(t, tableComment, "storage_id=")
+	monthColumnComment := env.textOf(t, fmt.Sprintf(
+		"SELECT col_description('%s'::regclass, (SELECT attnum FROM pg_attribute WHERE attrelid = '%s'::regclass AND attname = 'f_aaaaaaaa06'))",
+		tableName, tableName))
+	assert.Contains(t, monthColumnComment, "「月份」", "user column comment must carry label snapshot")
+	assert.Contains(t, monthColumnComment, "fieldId=aaaaaaaa06")
+	recordColumnComment := env.textOf(t, fmt.Sprintf(
+		"SELECT col_description('%s'::regclass, (SELECT attnum FROM pg_attribute WHERE attrelid = '%s'::regclass AND attname = 'record_id'))",
+		tableName, tableName))
+	assert.Contains(t, recordColumnComment, "tn_form_records", "preset column comment must exist")
 }
 
 // physSubformItems 子表单发布草稿（children 为子字段 JSON；空串=零子字段）。

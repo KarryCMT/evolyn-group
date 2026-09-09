@@ -648,11 +648,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 
 	// 表单物理 DDL Worker（000070）：FOR UPDATE SKIP LOCKED 领取，claim+
 	// 执行+回写同事务（crash 自动回滚为 PENDING），advisory lock 串行化
-	// 同表单 DDL，成功后同事务推进发布指针；随服务生命周期启停
+	// 同表单 DDL，成功后同事务推进发布指针；随服务生命周期启停。
+	// 应用名窄端口供表注释快照（best-effort，查不到回落表单维度）
 	formDDLExecutor := dynamicddl.NewExecutor(db)
 	formDDLWorker := formworker.NewDDLJobWorker(
 		txManager, formDDLJobRepo, formSchemaVersionRepo, formStorageRepo,
-		formVersionRepo, formRepo, formDDLExecutor, logger,
+		formVersionRepo, formRepo, formDDLExecutor, logger, appNameDirectory{repo: applicationRepo},
 	)
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
@@ -1459,4 +1460,18 @@ func (a formProjectionPort) UpdateWorkflowProjection(ctx context.Context, record
 		Status:     status,
 		UpdatedAt:  updatedAt,
 	})
+}
+
+// appNameDirectory 应用名称窄端口适配（000070）：动态表注释快照用，查不到
+// 返回空串（注释回落表单维度），绝不阻断 DDL。
+type appNameDirectory struct {
+	repo applicationrepository.ApplicationRepository
+}
+
+func (d appNameDirectory) ApplicationNameByID(ctx context.Context, appID uint) string {
+	app, err := d.repo.GetByID(ctx, appID)
+	if err != nil {
+		return ""
+	}
+	return app.Name
 }

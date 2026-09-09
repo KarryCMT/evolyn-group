@@ -28,10 +28,54 @@ type Executor struct {
 func NewExecutor(db *gorm.DB) *Executor { return &Executor{db: db} }
 
 // TableCommentContext 动态表注释上下文（运维定位用，不含业务值）。
+// AppName/FormName/ColumnLabels 是建表时快照（应用/表单/字段 label 后续
+// 可改名，注释不回刷——注释是运维提示不是事实源，稳定定位靠 FormCode/
+// fieldId 等不可变标识）。
 type TableCommentContext struct {
 	TenantID  uint
 	StorageID uint
 	FormCode  string
+	// AppName 应用名称快照（best-effort，查不到为空串，注释回落表单维度）。
+	AppName string
+	// FormName 表单名称快照。
+	FormName string
+	// ColumnLabels fieldId → 字段 label 快照（发布快照 items 提取，含子表
+	// 单子项）；缺项时列注释回落 widgetName+fieldId 形态。
+	ColumnLabels map[string]string
+}
+
+// LabelOf 取字段 label 快照（无上下文或未命中返回空串）。
+func (c TableCommentContext) LabelOf(fieldID string) string {
+	if c.ColumnLabels == nil {
+		return ""
+	}
+	return c.ColumnLabels[fieldID]
+}
+
+// sqlLiteral 注释文本的单引号转义（应用/表单/字段名称是用户可控文本，
+// 进入 SQL 字符串字面量前必须转义，防注入与语法破坏）。
+func sqlLiteral(text string) string {
+	return strings.ReplaceAll(text, "'", "''")
+}
+
+// tableTitle 表注释标题：应用「X」表单「Y」；应用名缺失时回落表单维度。
+func (c TableCommentContext) tableTitle() string {
+	form := sqlLiteral(c.FormName)
+	if c.AppName != "" {
+		return fmt.Sprintf("应用「%s」表单「%s」", sqlLiteral(c.AppName), form)
+	}
+	return fmt.Sprintf("表单「%s」", form)
+}
+
+// userColumnComment 用户字段列注释：label 为建表时快照（可变名不构成事实
+// 源），widgetName/fieldId/类型是稳定定位三要素。
+func (c TableCommentContext) userColumnComment(column storage.ColumnSpec) string {
+	if label := c.LabelOf(column.FieldID); label != "" {
+		return fmt.Sprintf("表单字段「%s」（%s，fieldId=%s，类型=%s；label 为建表时快照）",
+			sqlLiteral(label), sqlLiteral(column.WidgetName), column.FieldID, column.WidgetType)
+	}
+	return fmt.Sprintf("表单字段 %s（fieldId=%s，类型=%s）",
+		sqlLiteral(column.WidgetName), column.FieldID, column.WidgetType)
 }
 
 // QuoteIdentifier 标识符引用（白名单字符集下等价于原文包裹；双层防线，
@@ -88,11 +132,11 @@ func (e *Executor) ExecutePlan(ctx context.Context, plan storage.Plan, model *st
 		case storage.ActionCreateParent:
 			err = e.createParentTable(db, model, commentCtx)
 		case storage.ActionAddParentColumn:
-			err = e.addColumn(db, action.Table, *action.Column, false)
+			err = e.addColumn(db, action.Table, *action.Column, false, commentCtx)
 		case storage.ActionCreateChild:
 			err = e.createChildTable(db, action.Table, *action.Child, commentCtx)
 		case storage.ActionAddChildColumn:
-			err = e.addColumn(db, action.Table, *action.Column, true)
+			err = e.addColumn(db, action.Table, *action.Column, true, commentCtx)
 		default:
 			err = fmt.Errorf("未知 DDL 动作 %q", action.Kind)
 		}
@@ -164,9 +208,37 @@ func (e *Executor) createParentTable(db *gorm.DB, model *storage.StorageModel, c
 	if err := installRLS(db, model.TableName); err != nil {
 		return err
 	}
+	// 预置系统列注释（与用户列注释同批补齐：建表路径的列不走 addColumn，
+	// 必须在此显式写，否则 DB 工具里预置列全裸）。
+	presetComments := []struct{ column, comment string }{
+		{"tenant_id", "租户 ID（RLS 策略消费 app.current_tenant 做行级隔离）"},
+		{"record_id", "记录信封 tn_form_records.id 引用（复合外键 tenant_id+record_id 防跨租户绑定；主键，与记录一对一）"},
+		{"workflow_instance_no", "流程单号投影（事实源 wf_instance.instance_no，普通表单恒空）"},
+		{"workflow_status", "流程状态投影（NONE/DRAFT/RUNNING/COMPLETED/REJECTED/CANCELLED；事实源 wf_instance.status）"},
+		{"workflow_updated_at", "流程状态最后刷新时间（同事务随实例状态变更刷新）"},
+	}
+	for _, preset := range presetComments {
+		if err := commentOnColumn(db, table, preset.column, preset.comment); err != nil {
+			return err
+		}
+	}
+	for _, column := range model.Columns {
+		if err := commentOnColumn(db, table, column.ColumnName(), commentCtx.userColumnComment(column)); err != nil {
+			return err
+		}
+	}
 	return db.Exec(fmt.Sprintf(
-		"COMMENT ON TABLE %s IS '表单物理值表：storage_id=%d form=%s tenant_id=%d（记录信封见 tn_form_records，本表仅存业务字段值与流程查询投影）'",
-		table, commentCtx.StorageID, commentCtx.FormCode, commentCtx.TenantID)).Error
+		"COMMENT ON TABLE %s IS '%s的物理值表：storage_id=%d form=%s tenant_id=%d（记录信封见 tn_form_records，本表仅存业务字段值与流程查询投影；名称为建表时快照）'",
+		table, commentCtx.tableTitle(), commentCtx.StorageID, commentCtx.FormCode, commentCtx.TenantID)).Error
+}
+
+// commentOnColumn 列注释统一出口（列名走白名单引用，注释文本走单引号转义）。
+func commentOnColumn(db *gorm.DB, table, column, comment string) error {
+	name, err := QuoteIdentifier(column)
+	if err != nil {
+		return err
+	}
+	return db.Exec(fmt.Sprintf("COMMENT ON COLUMN %s.%s IS '%s'", table, name, sqlLiteral(comment))).Error
 }
 
 // createChildTable 首次建子表单明细表（方案 §5.4）：预置行信封列 + 子字段列
@@ -226,15 +298,35 @@ func (e *Executor) createChildTable(db *gorm.DB, tableName string, child storage
 	if err := installRLS(db, tableName); err != nil {
 		return err
 	}
+	// 子表预置列注释（同父表：建表路径不走 addColumn，显式补齐）。
+	childPresetComments := []struct{ column, comment string }{
+		{"tenant_id", "租户 ID（RLS 策略消费 app.current_tenant 做行级隔离）"},
+		{"row_id", "子行代理主键（BIGSERIAL；持久化行身份，不得以数组下标为行身份）"},
+		{"parent_record_id", "父记录 tn_form_records.id 引用（复合外键 tenant_id+parent_record_id 防跨租户绑定）"},
+		{"sort_order", "行顺序（集合替换语义：按提交顺序从 0 起整批重写）"},
+		{"row_revision", "行修订号（乐观并发预留，当前恒 1）"},
+		{"created_at", "子行创建时间"},
+		{"updated_at", "子行更新时间"},
+	}
+	for _, preset := range childPresetComments {
+		if err := commentOnColumn(db, table, preset.column, preset.comment); err != nil {
+			return err
+		}
+	}
+	for _, column := range child.Columns {
+		if err := commentOnColumn(db, table, column.ColumnName(), commentCtx.userColumnComment(column)); err != nil {
+			return err
+		}
+	}
 	return db.Exec(fmt.Sprintf(
-		"COMMENT ON TABLE %s IS '子表单明细表：storage_id=%d form=%s tenant_id=%d（集合替换语义：随父记录同事务整批重写）'",
-		table, commentCtx.StorageID, commentCtx.FormCode, commentCtx.TenantID)).Error
+		"COMMENT ON TABLE %s IS '%s的子表单明细表（%s）：storage_id=%d form=%s tenant_id=%d（集合替换语义：随父记录同事务整批重写；名称为建表时快照）'",
+		table, commentCtx.tableTitle(), sqlLiteral(child.WidgetName), commentCtx.StorageID, commentCtx.FormCode, commentCtx.TenantID)).Error
 }
 
 // addColumn 加用户列（父表/子表通用）：用户列始终可空（required 是提交校验
-// 语义，历史行没有值），并写入中文列注释（widgetName+fieldId 不可变标识，
-// 不固化可变 label）。
-func (e *Executor) addColumn(db *gorm.DB, tableName string, column storage.ColumnSpec, child bool) error {
+// 语义，历史行没有值），并写入中文列注释（widgetName+fieldId 不可变标识
+// 定位，label 作建表时快照补充）。
+func (e *Executor) addColumn(db *gorm.DB, tableName string, column storage.ColumnSpec, child bool, commentCtx TableCommentContext) error {
 	if child {
 		if err := storage.ValidateDynamicTableName(tableName); err != nil {
 			return err
@@ -253,13 +345,7 @@ func (e *Executor) addColumn(db *gorm.DB, tableName string, column storage.Colum
 	if err := db.Exec("ALTER TABLE " + table + " ADD COLUMN IF NOT EXISTS " + def).Error; err != nil {
 		return err
 	}
-	name, err := QuoteIdentifier(column.ColumnName())
-	if err != nil {
-		return err
-	}
-	return db.Exec(fmt.Sprintf(
-		"COMMENT ON COLUMN %s.%s IS '表单字段 %s（fieldId %s，类型 %s）'",
-		table, name, column.WidgetName, column.FieldID, column.WidgetType)).Error
+	return commentOnColumn(db, table, column.ColumnName(), commentCtx.userColumnComment(column))
 }
 
 // columnDefinition 用户列定义片段（含列注释所需的不可变标识信息在 addColumn

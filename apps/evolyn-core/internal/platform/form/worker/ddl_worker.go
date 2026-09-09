@@ -43,6 +43,12 @@ type DDExecutor interface {
 	ExecutePlan(ctx context.Context, plan storage.Plan, model *storage.StorageModel, commentCtx dynamicddl.TableCommentContext) error
 }
 
+// AppNameDirectory 应用名称窄端口（表注释快照 best-effort）：查不到返回
+// 空串即可，绝不因名称缺失阻断 DDL；装配层由 application 仓储适配。
+type AppNameDirectory interface {
+	ApplicationNameByID(ctx context.Context, appID uint) string
+}
+
 // DDLJobWorker 物理表 DDL 执行 Worker。
 type DDLJobWorker struct {
 	pollInterval time.Duration
@@ -57,9 +63,11 @@ type DDLJobWorker struct {
 	versions       repository.FormVersionRepository
 	forms          repository.FormRepository
 	executor       DDExecutor
+	apps           AppNameDirectory
 }
 
-// NewDDLJobWorker 构造 Worker（interval<=0 / logger=nil 取默认）。
+// NewDDLJobWorker 构造 Worker（interval<=0 / logger=nil 取默认；apps 可为
+// nil，注释回落无应用名形态）。
 func NewDDLJobWorker(
 	tx TxManager,
 	jobs repository.FormDDLJobRepository,
@@ -69,6 +77,7 @@ func NewDDLJobWorker(
 	forms repository.FormRepository,
 	executor DDExecutor,
 	logger *logrus.Logger,
+	apps AppNameDirectory,
 ) *DDLJobWorker {
 	w := &DDLJobWorker{
 		pollInterval:   DefaultDDLPollInterval,
@@ -82,6 +91,7 @@ func NewDDLJobWorker(
 		versions:       versions,
 		forms:          forms,
 		executor:       executor,
+		apps:           apps,
 	}
 	if w.pollInterval <= 0 {
 		w.pollInterval = DefaultDDLPollInterval
@@ -213,11 +223,7 @@ func (w *DDLJobWorker) executeClaimedJob(ctx context.Context, job *model.FormDDL
 	if err != nil {
 		return err
 	}
-	if err := w.executor.ExecutePlan(ctx, plan, &parsedModel, dynamicddl.TableCommentContext{
-		TenantID:  job.TenantID,
-		StorageID: binding.ID,
-		FormCode:  form.Code,
-	}); err != nil {
+	if err := w.executor.ExecutePlan(ctx, plan, &parsedModel, w.buildCommentContext(ctx, job, binding, form, formVersion)); err != nil {
 		return err
 	}
 	// 同事务推进：模型版本 APPLIED → 存储 READY → 表单发布指针（运行时
@@ -235,6 +241,69 @@ func (w *DDLJobWorker) executeClaimedJob(ctx context.Context, job *model.FormDDL
 	job.Status = model.DDLJobSucceeded
 	job.FinishedAt = &finished
 	return w.jobs.SaveJob(ctx, job)
+}
+
+// buildCommentContext 组装 DDL 注释上下文：应用/表单名称与字段 label 均为
+// 本次执行时快照（best-effort，应用名缺失回落表单维度）。
+func (w *DDLJobWorker) buildCommentContext(
+	ctx context.Context,
+	job *model.FormDDLJob,
+	binding *model.FormStorage,
+	form *model.Form,
+	formVersion *model.FormVersion,
+) dynamicddl.TableCommentContext {
+	commentCtx := dynamicddl.TableCommentContext{
+		TenantID:     job.TenantID,
+		StorageID:    binding.ID,
+		FormCode:     form.Code,
+		FormName:     form.Name,
+		ColumnLabels: columnLabelsOf(formVersion.Content),
+	}
+	if w.apps != nil {
+		commentCtx.AppName = w.apps.ApplicationNameByID(ctx, form.ApplicationID)
+	}
+	return commentCtx
+}
+
+// columnLabelsOf 发布快照 items → fieldId→label 快照（含子表单子项递归）。
+// label 是 item 级属性（不在 widget 内）；解析失败按空映射处理，DDL 不因
+// 注释数据缺位而中断。
+func columnLabelsOf(content model.JSONContent) map[string]string {
+	labels := map[string]string{}
+	if len(content) == 0 {
+		return labels
+	}
+	var doc struct {
+		Content struct {
+			Items []json.RawMessage `json:"items"`
+		} `json:"content"`
+	}
+	if err := json.Unmarshal(content, &doc); err != nil {
+		return labels
+	}
+	var walk func(items []json.RawMessage)
+	walk = func(items []json.RawMessage) {
+		for _, raw := range items {
+			var item struct {
+				Label  string `json:"label"`
+				Widget struct {
+					FieldID string            `json:"fieldId"`
+					Items   []json.RawMessage `json:"items"`
+				} `json:"widget"`
+			}
+			if err := json.Unmarshal(raw, &item); err != nil {
+				continue
+			}
+			if item.Widget.FieldID != "" && item.Label != "" {
+				labels[item.Widget.FieldID] = item.Label
+			}
+			if len(item.Widget.Items) > 0 {
+				walk(item.Widget.Items)
+			}
+		}
+	}
+	walk(doc.Content.Items)
+	return labels
 }
 
 // recordFailure 独立事务记账：未超限退避回 PENDING（重试幂等——DDL 语句
