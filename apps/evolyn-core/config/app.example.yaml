@@ -20,8 +20,7 @@ server:
   jwtSecret: 'CHANGE_ME' # JWT 签名密钥；示例为占位值，生产必须替换为随机长字符串且多实例保持一致。
   # CORS 来源白名单（精确匹配，含协议与端口）。生产必须显式配置实际站点域名，
   # 空白名单在 release 环境会拒绝启动；debug 空白名单回落放行 localhost/127.0.0.1
-  allowedOrigins: # CORS 允许来源白名单，精确匹配协议、域名和端口；release 环境不能为空。
-    - 'https://www.example.com' # 允许的前端来源示例；本地可填写 http://localhost:5173。
+  allowedOrigins: [] # CORS 允许来源白名单，精确匹配协议、域名和端口；release 环境不能为空。
 
 db:
   port: 5432 # PostgreSQL 端口；示例：5432。

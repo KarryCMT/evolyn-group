@@ -15,8 +15,7 @@ server:
       qps: 10
       cacheSize: 2048
   jwtSecret: 'CHANGE_ME'
-  allowedOrigins:
-    - 'https://www.lingyanyun.com'
+  allowedOrigins: []
 
 db:
   host: 'CHANGE_ME'

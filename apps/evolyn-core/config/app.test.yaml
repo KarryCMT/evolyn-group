@@ -11,8 +11,7 @@ server:
       qps: 500
       cacheSize: 1
   jwtSecret: 'evolyn-test-secret'
-  allowedOrigins:
-    - 'http://localhost:11007'
+  allowedOrigins: []
 
 db:
   host: '127.0.0.1'
