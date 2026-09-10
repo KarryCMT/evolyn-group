@@ -497,7 +497,14 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
 - 主应用 `apps/web/`（`@evolyn.do/web`）：Vue 3.5 + Vite + Element Plus
   （`unplugin-vue-components` 按需自动导入，`components.d.ts` 勿手改）+ Sass，
   路径别名 `~/` 指向 `src/`。
-- 共享库 `packages/`：`ui`（组件库）、`form`（表单三入口，ADR-010 目标保存协议
+- 共享库 `packages/`：`ui`（组件库）、`engines/numeric`（`@evolyn.do/numeric`
+  高精度数值运行时，Phase 1：decimal.js 唯一触达点收口在 DecimalAdapter，
+  对外仅 Numeric 链式类 + NumericRuntime 函数式 API；RoundingMode/
+  EmptyValuePolicy/NumericError 平台自有稳定枚举与错误码；默认上下文
+  precision 40/maxScale 18/HALF_UP/NULL，serialize 输出 canonical decimal
+  string（最短精确表示，尾零属 toFixed/字段策略语义）；业务包禁止直接
+  import decimal.js、禁止 Number()/parseFloat()/裸运算承载关键 decimal）、
+  `form`（表单三入口，ADR-010 目标保存协议
   `content.items[].widget` 为唯一事实结构：`@evolyn.do/form/schema` 纯 TS 协议层
   （27 种 widget.type 字典/严格校验器 JSON Path 级错误/深拷贝/迁移器/基础字段值
   编解码，与后端 internal/platform/form 校验器逐字一致）、`@evolyn.do/form/runtime`

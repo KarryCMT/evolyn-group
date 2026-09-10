@@ -99,6 +99,7 @@ catalogs:
     axios: ^1.19.0
     jsencrypt: ^3.3.2
     lodash-es: ^4.18.1
+    'decimal.js': ^10.4.3
     qs: ^6.15.3
 
 onlyBuiltDependencies:
