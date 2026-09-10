@@ -23,6 +23,7 @@ export const SYSTEM_RECORD_FIELDS = {
   workflowUpdatedAt: 'sys.workflowUpdatedAt',
   submittedBy: 'sys.submittedBy',
   submittedAt: 'sys.submittedAt',
+  updatedBy: 'sys.updatedBy',
   updatedAt: 'sys.updatedAt',
 } as const;
 
@@ -131,6 +132,7 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
             : {}),
           [SYSTEM_RECORD_FIELDS.submittedBy]: item.submittedByName,
           [SYSTEM_RECORD_FIELDS.submittedAt]: item.submittedAt,
+          [SYSTEM_RECORD_FIELDS.updatedBy]: item.updatedByName,
           [SYSTEM_RECORD_FIELDS.updatedAt]: item.updatedAt,
           ...item.values,
         })),
@@ -249,6 +251,12 @@ function columnsFromRuntime(runtime: FormRuntimeBootstrap | null): DataColumn[] 
       icon: markRaw(RiTimeFill),
     },
     {
+      field: SYSTEM_RECORD_FIELDS.updatedBy,
+      title: '更新人',
+      minWidth: 120,
+      icon: markRaw(RiUser3Fill),
+    },
+    {
       field: SYSTEM_RECORD_FIELDS.updatedAt,
       title: '更新时间',
       minWidth: DATETIME_COLUMN_MIN_WIDTH,
@@ -315,6 +323,13 @@ function filterFieldsFromRuntime(runtime: FormRuntimeBootstrap | null): FormReco
       type: 'datetime',
       group: 'system',
       icon: markRaw(RiTimeFill),
+    },
+    {
+      field: SYSTEM_RECORD_FIELDS.updatedBy,
+      label: '更新人',
+      type: 'enum',
+      group: 'system',
+      icon: markRaw(RiUser3Fill),
     },
     {
       field: SYSTEM_RECORD_FIELDS.updatedAt,

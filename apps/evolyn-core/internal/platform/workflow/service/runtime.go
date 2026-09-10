@@ -14,6 +14,7 @@ import (
 	engineruntime "evolyn/internal/engine/workflow/runtime"
 	enginetask "evolyn/internal/engine/workflow/task"
 	auditservice "evolyn/internal/platform/audit/service"
+	formservice "evolyn/internal/platform/form/service"
 	"evolyn/internal/platform/httpx"
 	iammodel "evolyn/internal/platform/iam/model"
 	wfapp "evolyn/internal/platform/workflow"
@@ -218,6 +219,10 @@ func (s *runtimeService) Approve(ctx context.Context, member *iammodel.User, req
 		}
 		formValues[key] = value
 	}
+
+	// 写回操作人（000072）：审批编辑值经引擎写回表单记录时，form 域从 ctx
+	// 读取并刷新「最后写人人」双列（无编辑值时写回不发生，注入无副作用）。
+	ctx = formservice.WithRecordWriteOperator(ctx, member.ID, strings.TrimSpace(member.Nickname))
 
 	var result *model.ApproveTaskResult
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {

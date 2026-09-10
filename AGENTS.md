@@ -261,11 +261,16 @@ internal/
                       （POST /forms/:code/records，Query DSL JSON body）：服务端
                       编译参数化谓词合并行级 view 范围，字段白名单=发布快照
                       field_mappings ∪ 系统字段命名空间 sys.submittedBy/
-                      sys.submittedAt/sys.updatedAt（record_system_fields.go，
+                      sys.submittedAt/sys.updatedAt/sys.updatedBy
+                      （record_system_fields.go，
                       操作符矩阵与前端 @evolyn.do/query 镜像；排序仅开放系统
                       字段，仓储恒定追加 id DESC 稳定尾排序）；迁移 000067 为
                       tn_form_records 落系统字段列（submitted_by_name 提交时
                       固化展示名快照 + updated_at 最后写回时间，存量回填；
+                      000072 补最后写人人双列（updated_by_member_id/
+                      updated_by_name，提交=提交人，审批编辑/发起人修改写回
+                      经 WithRecordWriteOperator 刷新为操作人快照，系统路径
+                      保持原值；sys.updatedBy 可筛可排，isNull 为真列判定）；
                       UpdateValues 同语句刷新 updated_at）；表单权限组
                       （P1，docs/低代码平台/表单权限/，迁移 000058）：
                       tn_asset_permission_groups + subjects 两表承载主体×操作集×

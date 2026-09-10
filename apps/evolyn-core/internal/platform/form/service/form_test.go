@@ -322,10 +322,14 @@ func (f *fakeRecordRepo) GetByID(ctx context.Context, id uint) (*model.FormRecor
 	return nil, gorm.ErrRecordNotFound
 }
 
-func (f *fakeRecordRepo) UpdateValues(ctx context.Context, id uint, values model.JSONContent) error {
+func (f *fakeRecordRepo) UpdateValues(ctx context.Context, id uint, values model.JSONContent, memberID uint, name string) error {
 	for _, record := range f.records {
 		if record.ID == id {
 			record.Values = values
+			if memberID != 0 {
+				record.UpdatedByMemberID = memberID
+				record.UpdatedByName = name
+			}
 			return nil
 		}
 	}
@@ -670,6 +674,12 @@ func (f *fakeRecordRepo) SetWorkflowProjection(ctx context.Context, id uint, sta
 	return nil
 }
 
-func (f *fakeRecordRepo) TouchUpdatedAt(ctx context.Context, id uint) error {
+func (f *fakeRecordRepo) TouchWriteMeta(ctx context.Context, id uint, memberID uint, name string) error {
+	for _, record := range f.records {
+		if record.ID == id && memberID != 0 {
+			record.UpdatedByMemberID = memberID
+			record.UpdatedByName = name
+		}
+	}
 	return nil
 }

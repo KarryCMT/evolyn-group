@@ -16,6 +16,9 @@ const (
 	SysFieldSubmittedBy = "sys.submittedBy"
 	SysFieldSubmittedAt = "sys.submittedAt"
 	SysFieldUpdatedAt   = "sys.updatedAt"
+	// SysFieldUpdatedBy 最后写人人（000072）：提交时=提交人，审批编辑/发起人
+	// 修改写回后=操作人快照；信封物理属性（physical 表无同名列，恒挂 r.）。
+	SysFieldUpdatedBy = "sys.updatedBy"
 	// 流程查询投影系统字段（物理表存储方案 §10.1）：三者同存于记录信封
 	//（tn_form_records）；physical 表额外预置同名列作不依赖 JSONB 解包的
 	// 高频筛选/导出投影。状态直接复制流程实例状态枚举，普通表单为 NONE。
@@ -30,6 +33,7 @@ var systemFieldColumns = map[string]string{
 	SysFieldSubmittedBy:        "submitted_by_member_id",
 	SysFieldSubmittedAt:        "submitted_at",
 	SysFieldUpdatedAt:          "updated_at",
+	SysFieldUpdatedBy:          "updated_by_member_id",
 	SysFieldWorkflowInstanceNo: "workflow_instance_no",
 	SysFieldWorkflowStatus:     "workflow_status",
 	SysFieldWorkflowUpdatedAt:  "workflow_updated_at",
@@ -45,6 +49,8 @@ var systemFieldOperators = map[string]map[string]bool{
 	SysFieldSubmittedBy: {"eq": true, "neq": true, "in": true, "notIn": true, "isNull": true, "isNotNull": true},
 	SysFieldSubmittedAt: {"eq": true, "neq": true, "gt": true, "gte": true, "lt": true, "lte": true, "between": true, "isNull": true, "isNotNull": true},
 	SysFieldUpdatedAt:   {"eq": true, "neq": true, "gt": true, "gte": true, "lt": true, "lte": true, "between": true, "isNull": true, "isNotNull": true},
+	// 最后写人人=enum（与提交人同口径：系统路径可能无写人，isNull 有意义）
+	SysFieldUpdatedBy: {"eq": true, "neq": true, "in": true, "notIn": true, "isNull": true, "isNotNull": true},
 	// 单号=enum 文本；状态=enum（低基数，索引挂复合 (tenant,status,updated)，
 	// 单列不建索引）；更新时间=datetime。
 	SysFieldWorkflowInstanceNo: {"eq": true, "neq": true, "in": true, "notIn": true, "isNull": true, "isNotNull": true, "contains": true, "notContains": true, "startsWith": true},
@@ -81,7 +87,11 @@ func compileSystemRecordCondition(field, operator string, value any, prefix stri
 	// 其余挂信封表 r；legacy 为空串），列名仍是服务端固定枚举。
 	switch trimmedField {
 	case SysFieldSubmittedBy:
-		return compileSystemMemberCondition(prefix+column, operator, value)
+		return compileSystemMemberCondition(prefix+column, operator, value, false)
+	case SysFieldUpdatedBy:
+		// updated_by 可空（系统自动写回路径无操作人）：isNull/isNotNull 是
+		// 真列检查，不是 submittedBy 那样的 NOT NULL 恒真恒假常量
+		return compileSystemMemberCondition(prefix+column, operator, value, true)
 	case SysFieldWorkflowInstanceNo:
 		return compileSystemInstanceNoCondition(prefix+column, operator, value)
 	case SysFieldWorkflowStatus:
@@ -211,10 +221,12 @@ func compileSystemEnumCondition(column, operator string, value any) (CompiledRec
 	}
 }
 
-// compileSystemMemberCondition 提交人（成员 ID）条件：eq/neq/in/notIn 绑定
-// 数字；isNull/isNotNull 编译为常量语义（列 NOT NULL，恒假/恒真），保持
-// enum 操作符集完整而不是在协议层挖特例。
-func compileSystemMemberCondition(column, operator string, value any) (CompiledRecordQuery, error) {
+// compileSystemMemberCondition 成员（成员 ID）条件：eq/neq/in/notIn 绑定
+// 数字；nullable=false（submittedBy，列 NOT NULL）时 isNull/isNotNull 编译为
+// 常量语义（恒假/恒真），保持 enum 操作符集完整而不是在协议层挖特例；
+// nullable=true（updatedBy，000072 列可空——系统自动写回无操作人）时
+// isNull/isNotNull 是真实列检查。
+func compileSystemMemberCondition(column, operator string, value any, nullable bool) (CompiledRecordQuery, error) {
 	memberID := func(raw any) (int64, error) {
 		number, ok := jsonFloat(raw)
 		if !ok || number != float64(int64(number)) || number <= 0 {
@@ -224,8 +236,14 @@ func compileSystemMemberCondition(column, operator string, value any) (CompiledR
 	}
 	switch operator {
 	case "isNull":
+		if nullable {
+			return CompiledRecordQuery{Where: column + " IS NULL"}, nil
+		}
 		return CompiledRecordQuery{Where: "FALSE"}, nil
 	case "isNotNull":
+		if nullable {
+			return CompiledRecordQuery{Where: column + " IS NOT NULL"}, nil
+		}
 		return CompiledRecordQuery{Where: "TRUE"}, nil
 	case "eq", "neq":
 		id, err := memberID(value)

@@ -689,6 +689,58 @@ func TestPhysINTDeprecatedColumnBaseline(t *testing.T) {
 	}
 }
 
+// SEC-PHYS-012 最后写人人（000072）：提交时=提交人快照；审批编辑写回经
+// WithRecordWriteOperator 注入操作人后双列刷新；系统路径（未注入）只推进
+// 时间、写人保持原值；sys.updatedBy 筛选按最新写人命中并可空判定。
+func TestPhysINTRecordWriteMeta(t *testing.T) {
+	env := newPhysEnv(t)
+	member := memberOfTenant(1)
+	code, _ := env.publishPhysical(t, physScalarItems, `"_widget_a","_widget_n","_widget_d"`, member)
+	ctx := tenantCtx(1)
+
+	result, err := env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_phys", FormCode: code, PublishedVersion: 1, SchemaRevision: env.firstSchemaRevision(t, ctx, code),
+		HasResult: submitBool(true), DataOpID: "fffffff1-6666-4666-8666-666666666666",
+		Values: map[string]model.SubmitFieldValue{
+			"_widget_a": {Data: model.JSONContent(`"甲"`), Visible: submitBool(true)},
+			"_widget_n": {Visible: submitBool(true)},
+			"_widget_d": {Visible: submitBool(true)},
+		},
+	})
+	require.NoError(t, err)
+
+	// 提交即创建：最后写人=提交人快照（member 11 / tester）
+	assert.Equal(t, 1, env.countInt(t, fmt.Sprintf(
+		`SELECT count(*) FROM tn_form_records WHERE id = %d AND updated_by_member_id = 11 AND updated_by_name = 'tester'`,
+		result.RecordID)))
+
+	// 审批编辑写回（模拟 workflow 入口注入操作人）：双列刷新为操作人
+	store := env.formSvc.(WorkflowRecordStore)
+	require.NoError(t, store.UpdateRecordValues(
+		WithRecordWriteOperator(ctx, 999, "审批人甲"), result.RecordID, map[string]any{"_widget_a": "乙"}))
+	assert.Equal(t, 1, env.countInt(t, fmt.Sprintf(
+		`SELECT count(*) FROM tn_form_records WHERE id = %d AND updated_by_member_id = 999 AND updated_by_name = '审批人甲'`,
+		result.RecordID)), "operator from ctx must refresh write meta")
+
+	// 系统路径（未注入操作人）：时间推进、写人保持原值
+	require.NoError(t, store.UpdateRecordValues(ctx, result.RecordID, map[string]any{"_widget_a": "丙"}))
+	assert.Equal(t, 1, env.countInt(t, fmt.Sprintf(
+		`SELECT count(*) FROM tn_form_records WHERE id = %d AND updated_by_member_id = 999 AND updated_by_name = '审批人甲'`,
+		result.RecordID)), "system path must keep write meta")
+
+	// sys.updatedBy 筛选：按最新写人命中；isNull 真列判定（可空语义）
+	byUpdater := model.RecordQueryExpression{Type: "condition", Field: "sys.updatedBy", Operator: "eq", Value: float64(999)}
+	page, err := env.formSvc.ListRecords(ctx, member, code, model.RecordQueryDocument{Version: 1, Filter: &byUpdater})
+	require.NoError(t, err)
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, "审批人甲", page.Items[0].UpdatedByName)
+	assert.EqualValues(t, 999, page.Items[0].UpdatedByMemberID)
+	nonNull := model.RecordQueryExpression{Type: "condition", Field: "sys.updatedBy", Operator: "isNull"}
+	page, err = env.formSvc.ListRecords(ctx, member, code, model.RecordQueryDocument{Version: 1, Filter: &nonNull})
+	require.NoError(t, err)
+	assert.Empty(t, page.Items, "isNull on updated_by must be a real column check")
+}
+
 // stubAppNameDir 应用名称窄端口桩（表注释快照断言用）。
 type stubAppNameDir struct{}
 

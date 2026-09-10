@@ -47,6 +47,30 @@ type WorkflowProjectionUpdater interface {
 	UpdateWorkflowProjection(ctx context.Context, recordID uint, projection WorkflowProjection) error
 }
 
+// recordWriteOperator 记录写回操作人（随 ctx 传播；workflow 侧审批编辑/
+// 发起人修改入口经 WithRecordWriteOperator 注入）。
+type recordWriteOperator struct {
+	MemberID uint
+	Name     string
+}
+
+type recordWriteOperatorKey struct{}
+
+// WithRecordWriteOperator 注入记录写回操作人（000072）：form 域在写回路径
+// 读取并随 updated_at 同语句刷新信封 updated_by_* 双列。未注入（系统自动
+// 路径）时只推进时间、最后写人人保持原值。
+func WithRecordWriteOperator(ctx context.Context, memberID uint, name string) context.Context {
+	return context.WithValue(ctx, recordWriteOperatorKey{}, recordWriteOperator{MemberID: memberID, Name: name})
+}
+
+// recordWriteOperatorFromContext 读取写回操作人；MemberID 为 0 视同未注入。
+func recordWriteOperatorFromContext(ctx context.Context) (uint, string) {
+	if op, ok := ctx.Value(recordWriteOperatorKey{}).(recordWriteOperator); ok && op.MemberID != 0 {
+		return op.MemberID, op.Name
+	}
+	return 0, ""
+}
+
 // RecordData 实现 WorkflowRecordStore：physical 记录读物理行（信封 values
 // 恒 NULL），legacy 记录读 values JSONB。
 func (s *formService) RecordData(ctx context.Context, recordID uint) (uint, uint, map[string]any, error) {
@@ -153,20 +177,21 @@ func (s *formService) UpdateRecordValues(ctx context.Context, recordID uint, pat
 }
 
 // persistResolvedValues 落库决议后的记录值：physical 记录整体替换物理父行
-// 值列与子行并刷新信封 updated_at（000067 语义不变）；legacy 记录替换
-// values JSONB（同语句刷 updated_at）。
+// 值列与子行并刷新信封写回元数据（updated_at + 最后写人人，000067/000072）；
+// legacy 记录替换 values JSONB（同语句刷 updated_at/updated_by_*）。
 func (s *formService) persistResolvedValues(ctx context.Context, physical *physicalWriteContext, recordID uint, cleaned map[string]any) error {
+	operatorID, operatorName := recordWriteOperatorFromContext(ctx)
 	if physical != nil {
 		if err := s.replacePhysicalValues(ctx, physical, recordID, cleaned); err != nil {
 			return err
 		}
-		return s.records.TouchUpdatedAt(ctx, recordID)
+		return s.records.TouchWriteMeta(ctx, recordID, operatorID, operatorName)
 	}
 	valuesJSON, err := json.Marshal(cleaned)
 	if err != nil {
 		return err
 	}
-	return s.records.UpdateValues(ctx, recordID, model.JSONContent(valuesJSON))
+	return s.records.UpdateValues(ctx, recordID, model.JSONContent(valuesJSON), operatorID, operatorName)
 }
 
 // UpdateWorkflowProjection 实现 WorkflowProjectionUpdater（物理表存储方案

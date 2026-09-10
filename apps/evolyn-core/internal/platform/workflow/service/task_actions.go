@@ -17,6 +17,7 @@ import (
 	"evolyn/internal/engine/workflow/provider"
 	engineruntime "evolyn/internal/engine/workflow/runtime"
 	auditservice "evolyn/internal/platform/audit/service"
+	formservice "evolyn/internal/platform/form/service"
 	"evolyn/internal/platform/httpx"
 	iammodel "evolyn/internal/platform/iam/model"
 	wfapp "evolyn/internal/platform/workflow"
@@ -217,6 +218,9 @@ func (s *runtimeService) ResubmitInstance(ctx context.Context, member *iammodel.
 			formValues[key] = value
 		}
 	}
+	// 写回操作人（000072）：重提交修改发起表单值时刷新「最后写人人」
+	//（引擎 applyStarterFormValues 经 form 域窄端口消费 ctx）。
+	ctx = formservice.WithRecordWriteOperator(ctx, member.ID, strings.TrimSpace(member.Nickname))
 	var result *model.ActionTaskResult
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
 		out, err := s.engine.Resubmit(tctx, engineruntime.ResubmitInput{

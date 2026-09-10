@@ -200,9 +200,9 @@ type RecordQueryPaging struct {
 }
 
 // FormRecordDTO 是受 record-level view 权限及字段矩阵裁剪后的记录投影。
-// submittedByName/updatedAt/workflowStatus/workflowUpdatedAt 是系统字段数据源
-// （000067 展示名快照；物理表存储方案 §10 流程状态投影），不属于字段矩阵，
-// 凡行可见即出网。
+// submittedByName/updatedAt/updatedBy*/workflowStatus/workflowUpdatedAt 是
+// 系统字段数据源（000067 展示名快照；000072 最后写人人；物理表存储方案
+// §10 流程状态投影），不属于字段矩阵，凡行可见即出网。
 type FormRecordDTO struct {
 	WorkflowInstanceNo string           `json:"workflowInstanceNo"`
 	WorkflowStatus     string           `json:"workflowStatus"`
@@ -214,6 +214,10 @@ type FormRecordDTO struct {
 	SubmittedByName     string          `json:"submittedByName"`
 	SubmittedAt         kernel.JSONTime `json:"submittedAt"`
 	UpdatedAt           kernel.JSONTime `json:"updatedAt"`
+	// UpdatedByMemberID/UpdatedByName 最后写人人（000072）：历史回填=提交人，
+	// 审批编辑/发起人修改写回后=操作人快照。
+	UpdatedByMemberID uint   `json:"updatedByMemberId"`
+	UpdatedByName     string `json:"updatedByName"`
 }
 
 // StorageJobDetail DDL 发布 Job 状态出网：受控失败信息（jobId/错误码/时间），

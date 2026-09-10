@@ -637,6 +637,8 @@ CREATE TABLE IF NOT EXISTS tn_form_records (
     submitted_by_name varchar(100),
     submitted_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP,
     updated_at timestamp with time zone NOT NULL,
+    updated_by_member_id BIGINT,
+    updated_by_name TEXT,
     workflow_instance_no varchar(40) NOT NULL DEFAULT '',
     workflow_status varchar(16) NOT NULL DEFAULT 'NONE',
     workflow_updated_at timestamp with time zone,
@@ -1198,6 +1200,8 @@ COMMENT ON COLUMN tn_form_records.form_id IS '表单 ID';
 COMMENT ON COLUMN tn_form_records.form_version_id IS '受理时依据的发布快照行 ID（任意历史版本均可受理，字段定义可复现）';
 COMMENT ON COLUMN tn_form_records.values IS '字段值 JSONB（键=widgetName）；服务端终审通过的清洗值，隐藏字段与布局字段不落库';
 COMMENT ON COLUMN tn_form_records.submitted_by_member_id IS '提交人（租户成员 ID）';
+COMMENT ON COLUMN tn_form_records.updated_by_member_id IS '最后写人人成员 ID（提交时=提交人；审批编辑/发起人修改写回时刷新为操作人；系统自动路径保持原值）';
+COMMENT ON COLUMN tn_form_records.updated_by_name IS '最后写人人展示名快照（与提交人快照同口径：成员改名/退出后历史展示不失真）';
 COMMENT ON COLUMN tn_form_records.submitted_at IS '提交时间';
 COMMENT ON COLUMN tn_form_records.created_at IS '创建时间';
 

@@ -80,9 +80,10 @@ type FormRecordRepository interface {
 	// 事实源 wf_instance.status，本列仅投影——物理表存储方案 §10）。
 	SetWorkflowProjection(ctx context.Context, id uint, status string, updatedAt time.Time) error
 
-	// TouchUpdatedAt 刷新信封 updated_at（physical 记录写回值时不触碰
-	// values 列，最后写回时间仍需同事务推进）。
-	TouchUpdatedAt(ctx context.Context, id uint) error
+	// TouchWriteMeta 刷新信封 updated_at（physical 记录写回值时不触碰
+	// values 列）；memberID 非 0 时同步刷新最后写人人双列（000072），
+	// 为 0（无操作人上下文的系统路径）时保持原值只推进时间。
+	TouchWriteMeta(ctx context.Context, id uint, memberID uint, name string) error
 
 	// CreateIdempotent 按 (tenant_id,data_op_id) 追加记录；幂等键已存在时返回
 	// 原记录且 created=false，调用方继续复核表单/版本/提交人是否为同一次操作。
@@ -90,8 +91,9 @@ type FormRecordRepository interface {
 	// GetByID 按行 ID 加载（ctx 租户过滤兜底：跨租户记录即 NotFound）
 	GetByID(ctx context.Context, id uint) (*model.FormRecord, error)
 	// UpdateValues 整体替换 values JSONB 并同语句刷新 updated_at（调用方必须
-	// 先按发布快照校验合并结果；不改动提交人与提交时间快照）
-	UpdateValues(ctx context.Context, id uint, values model.JSONContent) error
+	// 先按发布快照校验合并结果；不改动提交人与提交时间快照）；memberID 非 0
+	// 时同步刷新最后写人人双列（000072）。
+	UpdateValues(ctx context.Context, id uint, values model.JSONContent, memberID uint, name string) error
 	// ListControlled 在固定 form_id 与租户上下文下，将 Service 编译的参数化谓词
 	// 应用于数据库分页之前，并返回相同谓词下的总数。Predicate/OrderBy 不接受
 	// 任何来自 HTTP 的原始 SQL；唯一生产构造者是 form/service 的 Query 与权限编译器。

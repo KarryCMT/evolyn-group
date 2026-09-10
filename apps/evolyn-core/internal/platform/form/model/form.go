@@ -108,6 +108,11 @@ type FormRecord struct {
 	SubmittedAt     kernel.JSONTime `json:"submittedAt"`
 	// UpdatedAt 最后写回时间：提交时=提交时间，审批编辑写回 values 时刷新。
 	UpdatedAt kernel.JSONTime `json:"updatedAt"`
+	// UpdatedByMemberID/UpdatedByName 最后写人人（000072）：提交时=提交人，
+	// 审批编辑/发起人修改写回时刷新为操作人快照；系统自动路径（无操作人
+	// 上下文）保持原值。展示名快照与提交人同口径：改名/退出后不失真。
+	UpdatedByMemberID uint   `json:"updatedByMemberId"`
+	UpdatedByName     string `json:"updatedByName" gorm:"size:100"`
 
 	TenantID  uint            `json:"tenantId" gorm:"index;not null;default:1"`
 	CreatedAt kernel.JSONTime `json:"createdAt"`

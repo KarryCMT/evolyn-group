@@ -250,6 +250,8 @@ func assembleRecordItems(rows []envelopeRow, mappings []SnapshotFieldMapping, re
 			SubmittedByName:     submittedByName,
 			SubmittedAt:         row.record.SubmittedAt,
 			UpdatedAt:           row.record.UpdatedAt,
+			UpdatedByMemberID:   row.record.UpdatedByMemberID,
+			UpdatedByName:       strings.TrimSpace(row.record.UpdatedByName),
 		})
 	}
 	return items

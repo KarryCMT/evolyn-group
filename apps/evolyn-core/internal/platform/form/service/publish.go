@@ -418,6 +418,10 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 			SubmittedByName: strings.TrimSpace(member.Nickname),
 			SubmittedAt:     kernel.JSONTime(now),
 			UpdatedAt:       kernel.JSONTime(now),
+			// 最后写人人（000072）：提交即创建，初始=提交人快照；审批编辑/
+			// 发起人修改写回时经 WithRecordWriteOperator 刷新为操作人。
+			UpdatedByMemberID: member.ID,
+			UpdatedByName:     strings.TrimSpace(member.Nickname),
 		}
 		if physical == nil {
 			// 存量 JSONB 路径：业务值以 widgetName 键落 values 列

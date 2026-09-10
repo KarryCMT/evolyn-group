@@ -33,8 +33,8 @@ const props = defineProps<{ fields: readonly FormRecordFilterField[] }>();
 
 /** 条件行数上限：对齐后端 Query group 子条件上限（record_list_query.go）。 */
 const MAX_FILTER_ROWS = 50;
-/** 提交人系统字段：值=成员 ID，渲染成员远程搜索选择器。 */
-const MEMBER_FIELD = 'sys.submittedBy';
+/** 成员类系统字段（提交人/最后写人人）：值=成员 ID，渲染成员远程搜索选择器。 */
+const MEMBER_FIELDS = new Set(['sys.submittedBy', 'sys.updatedBy']);
 
 /** 操作符中文文案：仅展示层字典，语义仍以 @evolyn.do/query 协议为准。 */
 const OPERATOR_LABELS: Record<QueryOperator, string> = {
@@ -106,7 +106,7 @@ const formFields = computed(() => props.fields.filter((item) => item.group !== '
 const systemFields = computed(() => props.fields.filter((item) => item.group === 'system'));
 const fieldMap = computed(() => new Map(props.fields.map((item) => [item.field, item])));
 const hasFilter = computed(() => model.value !== undefined);
-const hasMemberField = computed(() => props.fields.some((item) => item.field === MEMBER_FIELD));
+const hasMemberField = computed(() => props.fields.some((item) => MEMBER_FIELDS.has(item.field)));
 
 /** 模板行视图：预解析字段元信息，避免模板内重复查表与函数调用。 */
 interface FilterRowView {
@@ -137,7 +137,7 @@ const rowViews = computed<FilterRowView[]>(() =>
 const completeCount = computed(() => rows.value.filter((row) => rowComplete(row)).length);
 
 function kindOf(field: FormRecordFilterField): FieldKind {
-  if (field.field === MEMBER_FIELD) return 'member';
+  if (MEMBER_FIELDS.has(field.field)) return 'member';
   if (field.type === 'number') return 'number';
   if (field.type === 'boolean') return 'boolean';
   if (field.type === 'datetime') return 'datetime';

@@ -294,6 +294,7 @@ var envelopeSelectColumns = []string{
 	"r.id", "r.form_id", "r.form_version_id", "r.data_op_id", "r.entry_code",
 	"r.values", "r.submitted_by_member_id", "r.submitted_by_name",
 	"r.submitted_at", "r.updated_at", "r.created_at",
+	"r.updated_by_member_id", "r.updated_by_name",
 	"r.tenant_id", "r.workflow_instance_no", "r.workflow_status", "r.workflow_updated_at",
 }
 
@@ -356,6 +357,7 @@ func (r *physicalValueRepository) ListJoinControlled(ctx context.Context, params
 			&record.ID, &record.FormID, &record.FormVersionID, &record.DataOpID, &record.EntryCode,
 			&valuesJSON, &record.SubmittedByMemberID, &record.SubmittedByName,
 			&record.SubmittedAt, &record.UpdatedAt, &record.CreatedAt,
+			&record.UpdatedByMemberID, &record.UpdatedByName,
 			&record.TenantID, &record.WorkflowInstanceNo, &record.WorkflowStatus, &record.WorkflowUpdatedAt,
 		}
 		scanTargets = append(scanTargets, physicalScan...)

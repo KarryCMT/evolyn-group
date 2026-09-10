@@ -121,14 +121,20 @@ func (r *formRecordRepository) GetByID(ctx context.Context, id uint) (*model.For
 	return record, nil
 }
 
-func (r *formRecordRepository) UpdateValues(ctx context.Context, id uint, values model.JSONContent) error {
+func (r *formRecordRepository) UpdateValues(ctx context.Context, id uint, values model.JSONContent, memberID uint, name string) error {
 	// 值替换与 updated_at 同语句刷新（000067 系统字段）：DB 时钟保证与
-	// LOCALTIMESTAMP 默认值同源，不依赖应用机器时间。
-	return infrastructure.ResolveDB(ctx, r.db).Model(&model.FormRecord{}).
-		Where("id = ?", id).Updates(map[string]any{
+	// LOCALTIMESTAMP 默认值同源，不依赖应用机器时间。memberID 非 0 时同语句
+	// 刷新最后写人人双列（000072）；为 0（系统路径）保持原值。
+	updates := map[string]any{
 		"values":     values,
 		"updated_at": gorm.Expr("LOCALTIMESTAMP"),
-	}).Error
+	}
+	if memberID != 0 {
+		updates["updated_by_member_id"] = memberID
+		updates["updated_by_name"] = name
+	}
+	return infrastructure.ResolveDB(ctx, r.db).Model(&model.FormRecord{}).
+		Where("id = ?", id).Updates(updates).Error
 }
 
 func (r *formRecordRepository) ListControlled(ctx context.Context, params RecordListParams) ([]model.FormRecord, int64, error) {
@@ -176,11 +182,17 @@ func (r *formRecordRepository) SetWorkflowProjection(ctx context.Context, id uin
 		}).Error
 }
 
-// TouchUpdatedAt 刷新信封最后写回时间（physical 写回路径复用 000067 语义）。
-func (r *formRecordRepository) TouchUpdatedAt(ctx context.Context, id uint) error {
+// TouchWriteMeta 刷新信封最后写回时间（physical 写回路径复用 000067 语义）；
+// memberID 非 0 时同步刷新最后写人人双列（000072），为 0（系统路径）只推进时间。
+func (r *formRecordRepository) TouchWriteMeta(ctx context.Context, id uint, memberID uint, name string) error {
+	updates := map[string]any{"updated_at": gorm.Expr("LOCALTIMESTAMP")}
+	if memberID != 0 {
+		updates["updated_by_member_id"] = memberID
+		updates["updated_by_name"] = name
+	}
 	return infrastructure.ResolveDB(ctx, r.db).Model(&model.FormRecord{}).
 		Where("id = ?", id).
-		Update("updated_at", gorm.Expr("LOCALTIMESTAMP")).Error
+		Updates(updates).Error
 }
 
 // SetWorkflowInstanceNo 不修改业务值和更新时间；首次提交事务内绑定一次。

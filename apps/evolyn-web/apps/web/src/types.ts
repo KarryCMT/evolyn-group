@@ -645,6 +645,10 @@ export interface FormRecordListItem {
   submittedAt: string;
   /** 最后更新时间：提交时=提交时间，审批编辑写回时刷新。 */
   updatedAt: string;
+  /** 最后写人人成员 ID（000072）：提交时=提交人，审批编辑/发起人修改写回后=操作人。 */
+  updatedByMemberId: number;
+  /** 最后写人人展示名快照：与提交人快照同口径，改名/退出后历史展示不失真。 */
+  updatedByName: string;
 }
 
 export interface FormRecordPage {
