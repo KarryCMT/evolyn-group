@@ -525,6 +525,13 @@ Makefile 的 `PG_CONTAINER`/`PG_IMAGE`/`PG_HOST`/`PG_PORT`/`TEST_PG_DSN`
   tsdown 构建必须保持单图（见 tsdown.config.ts 注释，分组双写会丢公共导出）、
   `schema/invisible-value-policy.ts` v6 不可见字段赋值策略解析与客户端预演
   （设计器区块/对话框与运行时信封共用，禁在组件内分散写策略判断））、
+  `engines/formula-runtime`（`@evolyn.do/formula-runtime` 公式运行时，
+  数值计算设计 Phase 3：AST 求值器 + 函数注册表（§21 数值函数全走
+  @evolyn.do/numeric，SUMIF/SUMPRODUCT 的条件/数组语义在本层）+ 字段
+  解析器 + 数值桥接；literal 原文切片还原（§20）进 Numeric；空值经
+  of(null) 按策略传播；NumericError→FormulaError 稳定码映射
+  （#DIV/0!/#VALUE!/#NUM!）；进度见
+  docs/低代码平台/表单设计器/表单数值计算运行时-任务清单.md）、
   `workflow`（流程可视化设计器，Phase 9：`schema/` 为 Workflow DSL v1 前端协议层
   （types 与后端 internal/engine/workflow/model/dsl.go 逐字对齐、lifecycle 不可变
   文档操作、validate 即时校验镜像后端校验器错误码）、`adapters/graph.ts` DSL↔
