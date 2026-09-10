@@ -390,6 +390,14 @@ internal/
                       落企业治理类审计（productlog.export.create）；前端：
                       api/productLog.ts + pages/tenant/product-logs.vue
                       （VTable 列表接真实接口）
+  numeric/          Go 高精度数值域（设计《表单数值计算运行时》§29/§30）：
+                      与前端 @evolyn.do/numeric 共读 docs/contracts/
+                      numeric-test-vectors.json 契约向量（JS==Go 双端断言）；
+                      shopspring/decimal 唯一触达点，canonical 序列化
+                      （去尾零/无指数）、七种平台舍入、precision 40/maxScale 18
+                      护栏与六稳定错误码；核心业务金额禁止 float64，
+                      空值走 SQL NULL 传播语义；PG NUMERIC 往返契约测试
+                      pg_roundtrip_test（TEST_PG_DSN 门控）
   notification/     消息中心域（P1+P2，小三层，docs/低代码平台/消息中心/）：
                       租户×成员站内收件箱与租户通知设置（迁移 000039 七表：
                       不可变 tn_notification_messages（纯文本快照物化时固化，

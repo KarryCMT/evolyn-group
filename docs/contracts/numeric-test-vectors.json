@@ -1,0 +1,63 @@
+{
+  "$schema": "numeric contract test vectors (设计 §52)：前端 vitest 与 Go test 共读本文件，保证 JS Runtime == Go Runtime。字段约定：operation 操作名；args 参数（null 表空值）；expected 期望 canonical 序列化结果（null 表空值结果）；roundScale/roundMode 为 round/serialize 前的显式落位参数；expectError 存在时期望稳定错误码而非结果。",
+  "vectors": [
+    { "operation": "parse", "args": ["0.1"], "expected": "0.1" },
+    { "operation": "parse", "args": ["9007199254740993"], "expected": "9007199254740993" },
+    { "operation": "parse", "args": ["1e+3"], "expected": "1000" },
+    { "operation": "parse", "args": ["-0"], "expected": "0" },
+    { "operation": "parse", "args": ["3.330000"], "expected": "3.33" },
+    { "operation": "parse", "args": ["abc"], "expectError": "INVALID_NUMBER" },
+    { "operation": "parse", "args": ["NaN"], "expectError": "NON_FINITE_NUMBER" },
+    { "operation": "parse", "args": ["Infinity"], "expectError": "NON_FINITE_NUMBER" },
+    { "operation": "parse", "args": ["123456789012345678901234567890123456789012345"], "expectError": "PRECISION_EXCEEDED" },
+
+    { "operation": "add", "args": ["0.1", "0.2"], "expected": "0.3" },
+    { "operation": "add", "args": ["9007199254740993", "1"], "expected": "9007199254740994" },
+    { "operation": "add", "args": ["1.10", "2.05"], "expected": "3.15" },
+    { "operation": "add", "args": [null, "1"], "expected": null },
+    { "operation": "subtract", "args": ["1.5", "0.75"], "expected": "0.75" },
+    { "operation": "subtract", "args": ["-5", "3"], "expected": "-8" },
+    { "operation": "multiply", "args": ["1000", "0.13"], "expected": "130" },
+    { "operation": "multiply", "args": ["1.10", "1.10"], "expected": "1.21" },
+    { "operation": "multiply", "args": ["-3", "-4"], "expected": "12" },
+    { "operation": "multiply", "args": ["1e+20", "1e+20"], "expected": "10000000000000000000000000000000000000000" },
+    { "operation": "divide", "args": ["100", "3"], "roundScale": 2, "expected": "33.33" },
+    { "operation": "divide", "args": ["100", "8"], "expected": "12.5" },
+    { "operation": "divide", "args": ["1", "0"], "expectError": "DIVISION_BY_ZERO" },
+    { "operation": "mod", "args": ["10", "3"], "expected": "1" },
+    { "operation": "mod", "args": ["10", "0"], "expectError": "DIVISION_BY_ZERO" },
+
+    { "operation": "abs", "args": ["-5.5"], "expected": "5.5" },
+    { "operation": "negate", "args": ["5.5"], "expected": "-5.5" },
+    { "operation": "sqrt", "args": ["2"], "roundScale": 6, "expected": "1.414214" },
+    { "operation": "sqrt", "args": ["-1"], "expectError": "INVALID_ARGUMENT" },
+
+    { "operation": "round", "args": ["2.345"], "roundScale": 2, "expected": "2.35" },
+    { "operation": "round", "args": ["2.345"], "roundScale": 2, "roundMode": "HALF_DOWN", "expected": "2.34" },
+    { "operation": "round", "args": ["2.345"], "roundScale": 2, "roundMode": "HALF_EVEN", "expected": "2.34" },
+    { "operation": "round", "args": ["2.341"], "roundScale": 2, "roundMode": "UP", "expected": "2.35" },
+    { "operation": "round", "args": ["2.349"], "roundScale": 2, "roundMode": "DOWN", "expected": "2.34" },
+    { "operation": "round", "args": ["2.341"], "roundScale": 2, "roundMode": "CEIL", "expected": "2.35" },
+    { "operation": "round", "args": ["2.349"], "roundScale": 2, "roundMode": "FLOOR", "expected": "2.34" },
+    { "operation": "round", "args": ["-2.5"], "roundScale": 0, "roundMode": "HALF_UP", "expected": "-3" },
+    { "operation": "round", "args": ["-2.5"], "roundScale": 0, "roundMode": "HALF_EVEN", "expected": "-2" },
+    { "operation": "ceil", "args": ["-2.1"], "expected": "-2" },
+    { "operation": "floor", "args": ["-2.1"], "expected": "-3" },
+
+    { "operation": "compare", "args": ["2.5", "2.50"], "expected": "0" },
+    { "operation": "compare", "args": ["-1", "1"], "expected": "-1" },
+    { "operation": "compare", "args": ["3", "2"], "expected": "1" },
+
+    { "operation": "sum", "args": ["1.1", "2.2", "3.3"], "expected": "6.6" },
+    { "operation": "sum", "args": ["1", null, "2"], "expected": "3" },
+    { "operation": "sum", "args": [], "expected": null },
+    { "operation": "average", "args": ["1", null, "3"], "expected": "2" },
+    { "operation": "average", "args": ["1.1", "2.2", "3.3"], "roundScale": 6, "expected": "2.2" },
+    { "operation": "min", "args": ["1.1", "2.2", "3.3"], "expected": "1.1" },
+    { "operation": "max", "args": ["1.1", "2.2", "3.3"], "expected": "3.3" },
+    { "operation": "min", "args": [], "expected": null },
+    { "operation": "product", "args": ["2", "3", "4"], "expected": "24" },
+
+    { "operation": "serialize", "args": ["9999999999999999.123456"], "expected": "9999999999999999.123456" }
+  ]
+}
