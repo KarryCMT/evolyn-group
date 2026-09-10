@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import type { AssetPermissionGroup, PermissionAsset } from './permission.types';
 import { RiAddFill, RiForbid2Fill } from '@remixicon/vue';
 import PermissionGroupCard from './PermissionGroupCard.vue';
-import type { AssetPermissionGroup, PermissionAsset } from './permission.types';
 
 defineOptions({ name: 'PermissionGroupsPanel' });
 
@@ -31,7 +31,7 @@ const emit = defineEmits<{
           <template v-if="props.asset">
             为「{{ props.asset.name }}」添加成员，并配置其访问和数据操作范围。
           </template>
-          <template v-else>请先在左侧选择一个表单或仪表盘。</template>
+          <template v-else> 请先在左侧选择一个表单。 </template>
         </p>
       </div>
       <div class="permission-groups-panel__header-actions">
@@ -62,18 +62,12 @@ const emit = defineEmits<{
         <div class="permission-groups-panel__context">
           <span class="permission-groups-panel__context-label">当前资产</span>
           <strong>{{ props.asset.name }}</strong>
-          <span>{{
-            props.asset.type === 'dashboard'
-              ? '仪表盘访问权限'
-              : props.asset.type === 'workflow-form'
-                ? '流程表单权限'
-                : '普通表单权限'
-          }}</span>
+          <span>{{ props.asset.type === 'workflow-form' ? '流程表单权限' : '普通表单权限' }}</span>
         </div>
         <div v-if="props.groups.length" class="permission-groups-panel__groups">
           <PermissionGroupCard
             v-for="group in props.groups"
-            :key="group.id"
+            :key="group.code"
             :group="group"
             @add-subjects="emit('addSubjects', $event)"
             @clone="emit('cloneGroup', $event)"
@@ -83,7 +77,7 @@ const emit = defineEmits<{
           />
         </div>
         <div v-else class="permission-groups-panel__empty">
-          <p>尚未发布此资产</p>
+          <p>尚未配置权限组</p>
           <span>添加成员后，成员才能在应用中看到并使用该资产。</span>
           <button type="button" @click="emit('addGroup')">
             <RiAddFill aria-hidden="true" /> 添加第一组成员

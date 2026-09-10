@@ -3,6 +3,7 @@ import type {
   AssetPermissionGroup,
   PermissionAssetType,
   PermissionDataScope,
+  PermissionField,
   PermissionFieldPermission,
   PermissionOperation,
 } from './permission.types';
@@ -19,15 +20,13 @@ defineOptions({ name: 'PermissionGroupEditorDialog' });
 const props = defineProps<{
   assetType: PermissionAssetType | undefined;
   group: AssetPermissionGroup | undefined;
+  fields: readonly PermissionField[];
 }>();
 const emit = defineEmits<{
   confirm: [group: AssetPermissionGroup];
 }>();
 type EditorSection = 'name' | 'operations' | 'fields' | 'data';
-type PermissionGroupEditorDraft = Omit<
-  AssetPermissionGroup,
-  'operations' | 'fields' | 'dataScope'
-> & {
+type PermissionGroupEditorDraft = Omit<AssetPermissionGroup, 'operations' | 'fields'> & {
   operations: PermissionOperation[];
   fields: PermissionFieldPermission[];
   dataScope: PermissionDataScope;
@@ -42,16 +41,6 @@ const sections: Array<{ value: EditorSection; label: string }> = [
   { value: 'operations', label: '操作权限' },
   { value: 'fields', label: '字段权限' },
   { value: 'data', label: '数据权限' },
-];
-
-const defaultFields: PermissionFieldPermission[] = [
-  { field: 'employee_name', label: '员工姓名', required: true, visible: true, editable: true },
-  { field: 'contact_phone', label: '联系电话', required: true, visible: true, editable: true },
-  { field: 'department', label: '所属部门', visible: true, editable: true },
-  { field: 'position', label: '岗位', visible: true, editable: true },
-  { field: 'id_number', label: '身份证号码', visible: true, editable: true },
-  { field: 'gender', label: '性别', visible: true, editable: true },
-  { field: 'birthday', label: '出生日期', visible: true, editable: true },
 ];
 
 // 默认操作集与设计 §3.2 一致：普通表单 9 项，流程表单在普通操作之上追加 3 项流程专属操作。
@@ -79,14 +68,18 @@ const confirmDisabled = computed(() => !draft.value?.name.trim());
 /** 将父级只读权限组复制为弹窗草稿，取消不会污染卡片上的当前配置。 */
 function createDraft(group: AssetPermissionGroup): PermissionGroupEditorDraft {
   const defaultOperations = isWorkflow.value ? workflowOperations : standardOperations;
-  const dataScope: PermissionDataScope = group.dataScope
-    ? { ...group.dataScope }
-    : { match: 'all' };
+  const dataScope: PermissionDataScope = {
+    match: group.dataScope.match,
+    conditions: group.dataScope.conditions.map((condition) => ({
+      ...condition,
+      value: [...condition.value],
+    })),
+  };
   return {
     ...group,
     subjects: [...group.subjects],
     operations: [...(group.operations ?? defaultOperations)],
-    fields: (group.fields ?? defaultFields).map((field) => ({ ...field })),
+    fields: group.fields.map((field) => ({ ...field })),
     dataScope,
   };
 }
@@ -129,7 +122,13 @@ function confirm() {
     subjects: [...draft.value.subjects],
     operations: [...(draft.value.operations ?? [])],
     fields: draft.value.fields?.map((field) => ({ ...field })),
-    dataScope: draft.value.dataScope ? { ...draft.value.dataScope } : undefined,
+    dataScope: {
+      match: draft.value.dataScope.match,
+      conditions: draft.value.dataScope.conditions.map((condition) => ({
+        ...condition,
+        value: [...condition.value],
+      })),
+    },
   });
   close();
 }
@@ -198,7 +197,11 @@ watch(visible, (open) => {
           v-else-if="activeSection === 'fields'"
           v-model="draft.fields"
         />
-        <PermissionGroupEditorDataPanel v-else v-model:data-scope="draft.dataScope" />
+        <PermissionGroupEditorDataPanel
+          v-else
+          v-model:data-scope="draft.dataScope"
+          :fields="props.fields"
+        />
       </main>
     </div>
 

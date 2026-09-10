@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { RiAddFill, RiMoreFill } from '@remixicon/vue';
 import type { AssetPermissionGroup } from './permission.types';
+import { RiAddFill, RiMoreFill } from '@remixicon/vue';
 
 defineOptions({ name: 'PermissionGroupCard' });
 
@@ -17,7 +17,7 @@ const emit = defineEmits<{
 }>();
 
 function updateEnabled(enabled: boolean | string | number) {
-  emit('updateEnabled', { groupId: props.group.id, enabled: Boolean(enabled) });
+  emit('updateEnabled', { groupId: props.group.code, enabled: Boolean(enabled) });
 }
 </script>
 
@@ -29,15 +29,19 @@ function updateEnabled(enabled: boolean | string | number) {
     <header class="permission-group-card__header">
       <div class="permission-group-card__heading">
         <div class="permission-group-card__title-row">
-          <h3 class="permission-group-card__title">{{ props.group.name }}</h3>
+          <h3 class="permission-group-card__title">
+            {{ props.group.name }}
+          </h3>
           <span v-if="!props.group.enabled" class="permission-group-card__status">已停用</span>
         </div>
-        <p class="permission-group-card__description">{{ props.group.description }}</p>
+        <p class="permission-group-card__description">
+          {{ props.group.description }}
+        </p>
       </div>
 
       <div class="permission-group-card__actions">
-        <button type="button" @click="emit('edit', props.group.id)">编辑</button>
-        <button type="button" @click="emit('clone', props.group.id)">复制</button>
+        <button type="button" @click="emit('edit', props.group.code)">编辑</button>
+        <button type="button" @click="emit('clone', props.group.code)">复制</button>
         <el-dropdown trigger="click" placement="bottom-end">
           <button class="permission-group-card__more" type="button" aria-label="更多权限组操作">
             <RiMoreFill aria-hidden="true" />
@@ -45,9 +49,9 @@ function updateEnabled(enabled: boolean | string | number) {
           <template #dropdown>
             <el-dropdown-menu class="permission-group-card__menu">
               <el-dropdown-item>权限设置</el-dropdown-item>
-              <el-dropdown-item divided @click="emit('remove', props.group.id)"
-                >删除权限组</el-dropdown-item
-              >
+              <el-dropdown-item divided @click="emit('remove', props.group.code)">
+                删除权限组
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -72,10 +76,10 @@ function updateEnabled(enabled: boolean | string | number) {
       <button
         class="permission-group-card__subject-picker"
         type="button"
-        @click="emit('addSubjects', props.group.id)"
+        @click="emit('addSubjects', props.group.code)"
       >
         <RiAddFill aria-hidden="true" />
-        {{ props.group.subjects.length ? '添加成员或部门' : '选择成员、部门或角色' }}
+        {{ props.group.subjects.length ? '添加授权对象' : '选择成员、部门或角色' }}
       </button>
     </div>
   </article>

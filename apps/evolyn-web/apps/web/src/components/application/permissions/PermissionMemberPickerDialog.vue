@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, shallowRef } from 'vue';
 import type { CreatePermissionGroupPayload, PermissionSubject } from './permission.types';
+import { computed, shallowRef } from 'vue';
 
 defineOptions({ name: 'PermissionMemberPickerDialog' });
 
@@ -22,10 +22,11 @@ const dialogVisible = computed({
   set: (visible: boolean) => emit('update:modelValue', visible),
 });
 
-function toggleSubject(subjectId: string) {
-  selectedSubjectIds.value = selectedSubjectIds.value.includes(subjectId)
-    ? selectedSubjectIds.value.filter((id) => id !== subjectId)
-    : [...selectedSubjectIds.value, subjectId];
+function toggleSubject(subjectId: number) {
+  const id = String(subjectId);
+  selectedSubjectIds.value = selectedSubjectIds.value.includes(id)
+    ? selectedSubjectIds.value.filter((selected) => selected !== id)
+    : [...selectedSubjectIds.value, id];
 }
 
 function confirm() {
@@ -61,7 +62,7 @@ function confirm() {
         class="permission-member-picker-dialog__subject"
         :class="{
           'permission-member-picker-dialog__subject--selected': selectedSubjectIds.includes(
-            subject.id,
+            String(subject.id),
           ),
         }"
         type="button"
@@ -74,10 +75,10 @@ function confirm() {
       </button>
     </div>
     <template #footer>
-      <el-button @click="dialogVisible = false">取消</el-button>
-      <el-button type="primary" :disabled="!selectedSubjectIds.length" @click="confirm"
-        >确定</el-button
-      >
+      <el-button @click="dialogVisible = false"> 取消 </el-button>
+      <el-button type="primary" :disabled="!selectedSubjectIds.length" @click="confirm">
+        确定
+      </el-button>
     </template>
   </el-dialog>
 </template>

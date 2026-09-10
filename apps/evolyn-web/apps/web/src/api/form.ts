@@ -1,19 +1,89 @@
+import type { QueryDocument } from '@evolyn.do/query';
 import type {
   FormDetail,
   FormDraftSaveResult,
   FormPage,
   FormPublishResult,
   FormRecordPage,
-  FormStorageJobDetail,
   FormRecordSubmitResult,
   FormRuntimeBootstrap,
   FormSchemaDocument,
+  FormStorageJobDetail,
   FormType,
 } from '~/types';
-import type { QueryDocument } from '@evolyn.do/query';
 // 表单资产域接口：与后端 /api/v1/forms*、/form-records 一一对应
 // （见 evolyn-core internal/platform/form/controller/form.go）
 import { http } from '@evolyn.do/utils';
+
+/** 表单权限组的稳定操作键，与后端 PermissionOp 字典一一对应。 */
+export type FormPermissionOperation =
+  | 'view'
+  | 'add'
+  | 'copy'
+  | 'edit'
+  | 'delete'
+  | 'batch_print'
+  | 'batch_modify'
+  | 'import'
+  | 'export'
+  | 'workflow_owner_transfer'
+  | 'workflow_terminate'
+  | 'workflow_activate';
+
+export interface FormPermissionSubjectInput {
+  type: 'member' | 'department' | 'role';
+  id: number;
+}
+
+export interface FormPermissionSubject extends FormPermissionSubjectInput {
+  name: string;
+}
+
+export interface FormPermissionFieldRule {
+  field: string;
+  visible: boolean;
+  editable: boolean;
+}
+
+export interface FormPermissionDataCondition {
+  field: string;
+  operator: string;
+  value: unknown[];
+}
+
+export interface FormPermissionDataScope {
+  match: 'all' | 'any';
+  conditions: FormPermissionDataCondition[];
+}
+
+export interface FormPermissionGroup {
+  code: string;
+  name: string;
+  description: string;
+  enabled: boolean;
+  operations: FormPermissionOperation[];
+  fieldPermissions: FormPermissionFieldRule[];
+  dataScope: FormPermissionDataScope;
+  revision: number;
+  subjects: FormPermissionSubject[];
+}
+
+export interface FormPermissionField {
+  field: string;
+  label: string;
+  type: string;
+  required: boolean;
+}
+
+export interface SaveFormPermissionGroupPayload {
+  name: string;
+  description: string;
+  enabled: boolean;
+  operations: FormPermissionOperation[];
+  fieldPermissions: FormPermissionFieldRule[];
+  dataScope: FormPermissionDataScope;
+  subjectIds: FormPermissionSubjectInput[];
+}
 
 /**
  * 创建表单（POST /forms）：后端事务内完成 forms 配额校验，草稿初始化为空协议文档。
@@ -157,4 +227,36 @@ export function listFormRecords(
 /** 每次用户提交生成独立幂等键；同一次 HTTP 调用及其网络重放复用同一载荷。 */
 export function createFormDataOperationId(): string {
   return globalThis.crypto.randomUUID();
+}
+
+/** 读取表单全部权限组（含停用项）。 */
+export function listFormPermissionGroups(formCode: string): Promise<FormPermissionGroup[]> {
+  return http.get(`/forms/${formCode}/permission-groups`);
+}
+
+/** 读取当前表单可配置权限的字段清单。 */
+export function listFormPermissionFields(formCode: string): Promise<FormPermissionField[]> {
+  return http.get(`/forms/${formCode}/permission-fields`);
+}
+
+/** 创建表单权限组。 */
+export function createFormPermissionGroup(
+  formCode: string,
+  payload: SaveFormPermissionGroupPayload,
+): Promise<FormPermissionGroup> {
+  return http.post(`/forms/${formCode}/permission-groups`, payload);
+}
+
+/** 全量更新表单权限组；baseRevision 用于处理并发配置。 */
+export function updateFormPermissionGroup(
+  formCode: string,
+  groupCode: string,
+  payload: SaveFormPermissionGroupPayload & { baseRevision: number },
+): Promise<FormPermissionGroup> {
+  return http.put(`/forms/${formCode}/permission-groups/${groupCode}`, payload);
+}
+
+/** 删除表单权限组。 */
+export function deleteFormPermissionGroup(formCode: string, groupCode: string): Promise<null> {
+  return http.delete(`/forms/${formCode}/permission-groups/${groupCode}`);
 }

@@ -1,21 +1,24 @@
 <script setup lang="ts">
-import type {
-  EvolynMemberDepartmentRolePickerMember,
-  EvolynMemberDepartmentRolePickerSelection,
-  EvolynMemberDepartmentRolePickerTreeNode,
-} from '@evolyn.do/ui';
+import type { EvolynMemberDepartmentRolePickerSelection } from '@evolyn.do/ui';
+import type { SaveFormPermissionGroupPayload } from '~/api/form';
 import type {
   AssetPermissionGroup,
-  PermissionAsset,
+  PermissionFieldPermission,
   PermissionSubject,
 } from '~/components/application/permissions/permission.types';
 import { EvolynMemberDepartmentRolePicker } from '@evolyn.do/ui';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, shallowRef } from 'vue';
 import { useRoute } from 'vue-router';
+import {
+  createFormPermissionGroup,
+  deleteFormPermissionGroup,
+  updateFormPermissionGroup,
+} from '~/api/form';
 import PermissionAssetList from '~/components/application/permissions/PermissionAssetList.vue';
 import PermissionGroupEditorDialog from '~/components/application/permissions/PermissionGroupEditorDialog.vue';
 import PermissionGroupsPanel from '~/components/application/permissions/PermissionGroupsPanel.vue';
+import { useApplicationFormPermissions } from '~/composables/useApplicationFormPermissions';
 import { useApplicationHome } from '~/composables/useApplicationHome';
 
 defineOptions({ name: 'ApplicationSettingPermissionsPage' });
@@ -23,115 +26,12 @@ defineOptions({ name: 'ApplicationSettingPermissionsPage' });
 const route = useRoute();
 const appCode = computed(() => String(route.params.appCode ?? ''));
 const { application, errorMessage, reload, status } = useApplicationHome(appCode);
+const permissionResources = useApplicationFormPermissions(appCode);
 
-// 权限设置仅应用管理员可访问。后端应用级管理员体系尚未落地，先以应用详情
-// 派生的 capabilities.edit（applications:patch）作为管理员口径；
-// 应用级范围授权（AccessEvaluator 扩展）落地后替换判定即可。
+// 应用修改能力仅用于前端入口预检；最终授权始终由后端 form-permissions:* 校验。
 const accessDenied = computed(
   () => status.value === 'ready' && !application.value?.capabilities.edit,
 );
-
-/**
- * 权限 API 尚未落地，页面先用本地预览数据完成交互与视觉验收。
- * 数据源接入后仅替换此处状态装载与操作方法，子组件仍保持 props down / events up。
- */
-const assets = shallowRef<PermissionAsset[]>([
-  { id: 'form_order', name: '订单管理', type: 'workflow-form' },
-  { id: 'form_purchase', name: '采购申请', type: 'workflow-form' },
-  { id: 'form_office', name: '办公用品申请', type: 'workflow-form' },
-  {
-    id: 'form_employee',
-    name: '员工档案员工档案员工档案员工档案员工档案员工档案员工档案',
-    type: 'form',
-  },
-  { id: 'form_product', name: '产品管理', type: 'form' },
-  { id: 'form_customer', name: '客户信息', type: 'form' },
-  { id: 'dashboard_employee', name: '员工信息分析', type: 'dashboard' },
-  { id: 'dashboard_employee2', name: '员工信息分析', type: 'dashboard' },
-  { id: 'dashboard_employee12', name: '员工信息分析', type: 'dashboard' },
-  { id: 'dashboard_empl2oyee2', name: '员工信息分析', type: 'dashboard' },
-  { id: 'dashboard_emplo3yee2', name: '员工信息分析', type: 'dashboard' },
-  { id: 'dashboard_empl4oyee2', name: '员工信息分析', type: 'dashboard' },
-  { id: 'dashboard_employee3', name: '员工信息分析', type: 'dashboard' },
-  { id: 'dashboard_order', name: '订单分析', type: 'dashboard' },
-  { id: 'dashboard_customer', name: '客户信息分析', type: 'dashboard' },
-  {
-    id: 'group_1',
-    name: '分组1',
-    type: 'group',
-    children: [
-      {
-        id: 'group_2_order',
-        name: '订单分析2',
-        type: 'group',
-        children: [{ id: 'form_product_group', name: '产品管理', type: 'form' }],
-      },
-      { id: 'form_employee1', name: '员工档案2', type: 'form' },
-    ],
-  },
-]);
-
-/** 选择器数据暂用本地演示结构；权限主体接口落地后替换为部门树、角色和成员接口响应。 */
-const pickerDepartments: EvolynMemberDepartmentRolePickerTreeNode[] = [
-  {
-    id: 'department_company',
-    label: '重庆万柯互联网科技有限责任公司',
-    children: [
-      { id: 'department_sales', label: '销售部' },
-      { id: 'department_operation', label: '运营部' },
-    ],
-  },
-];
-
-const pickerRoles: EvolynMemberDepartmentRolePickerTreeNode[] = [
-  { id: 'role_sales_manager', label: '销售主管' },
-  { id: 'role_sales_director', label: '销售总监' },
-];
-
-const pickerMembers: EvolynMemberDepartmentRolePickerMember[] = [
-  { id: 'member_zhangsan', label: '张三', departmentIds: ['department_sales'] },
-  { id: 'member_lisi', label: '李四', departmentIds: ['department_sales'] },
-  { id: 'member_wangwu', label: '王五', departmentIds: ['department_operation'] },
-];
-
-const groupsByAssetId = shallowRef<Record<string, AssetPermissionGroup[]>>({
-  form_order: [
-    {
-      id: 'group_order_initiate',
-      name: '发起流程',
-      description: '此分组内的成员可以发起订单审批流程，并查看自己发起的流程。',
-      enabled: true,
-      subjects: [{ id: 'department_sales', name: '销售部', type: 'department' }],
-    },
-    {
-      id: 'group_order_manage',
-      name: '管理全部流程',
-      description: '此分组内的成员可以查看、管理订单的全部流程数据。',
-      enabled: true,
-      subjects: [{ id: 'role_sales_manager', name: '销售主管', type: 'role' }],
-    },
-  ],
-  form_employee: [
-    {
-      id: 'group_employee_manage',
-      name: '管理全部数据',
-      description: '此分组内的成员可以填报、查看和管理员工档案的全部数据。',
-      enabled: true,
-      subjects: [{ id: 'department_operation', name: '运营部', type: 'department' }],
-    },
-  ],
-  dashboard_order: [
-    {
-      id: 'group_dashboard_order_view',
-      name: '查看仪表盘',
-      description: '此分组内的成员可以访问订单分析仪表盘；数据范围遵循图表配置。',
-      enabled: true,
-      subjects: [{ id: 'role_sales_manager', name: '销售主管', type: 'role' }],
-    },
-  ],
-});
-
-const selectedAssetId = shallowRef('form_order');
 const keyword = shallowRef('');
 const pickerVisible = shallowRef(false);
 const targetGroupId = shallowRef<string>();
@@ -139,26 +39,11 @@ const pickerSelection = shallowRef<EvolynMemberDepartmentRolePickerSelection[]>(
 const editorVisible = shallowRef(false);
 const editingGroupId = shallowRef<string>();
 
-/** 资产为树形结构，选中查找需沿 children 递归。 */
-function findAssetById(list: PermissionAsset[], id: string): PermissionAsset | undefined {
-  for (const asset of list) {
-    if (asset.id === id) return asset;
-    const found = asset.children ? findAssetById(asset.children, id) : undefined;
-    if (found) return found;
-  }
-  return undefined;
-}
-
-const selectedAsset = computed(() => findAssetById(assets.value, selectedAssetId.value));
-const selectedGroups = computed(() => groupsByAssetId.value[selectedAssetId.value] ?? []);
+const selectedGroups = computed(() => permissionResources.groups.value);
 const pickerTitle = computed(() => (targetGroupId.value ? '添加授权对象' : '添加成员'));
 const editingGroup = computed(() =>
-  selectedGroups.value.find((group) => group.id === editingGroupId.value),
+  selectedGroups.value.find((group) => group.code === editingGroupId.value),
 );
-
-function updateGroups(assetId: string, groups: AssetPermissionGroup[]) {
-  groupsByAssetId.value = { ...groupsByAssetId.value, [assetId]: groups };
-}
 
 function openGroupPicker() {
   targetGroupId.value = undefined;
@@ -168,7 +53,7 @@ function openGroupPicker() {
 
 function openSubjectPicker(groupId: string) {
   targetGroupId.value = groupId;
-  const group = selectedGroups.value.find((item) => item.id === groupId);
+  const group = selectedGroups.value.find((item) => item.code === groupId);
   pickerSelection.value = group?.subjects.map(toPickerSelection) ?? [];
   pickerVisible.value = true;
 }
@@ -180,132 +65,192 @@ function toPickerSelection(subject: PermissionSubject): EvolynMemberDepartmentRo
 function toPermissionSubject(
   selection: EvolynMemberDepartmentRolePickerSelection,
 ): PermissionSubject {
-  return { id: String(selection.id), name: selection.label, type: selection.type };
+  return { id: Number(selection.id), name: selection.label, type: selection.type };
 }
 
-function createOrUpdateSubjects(selections: EvolynMemberDepartmentRolePickerSelection[]) {
-  const asset = selectedAsset.value;
-  if (!asset) return;
-
+async function createOrUpdateSubjects(selections: EvolynMemberDepartmentRolePickerSelection[]) {
+  const formCode = permissionResources.selectedFormCode.value;
+  if (!formCode) return;
   const subjects = selections.map(toPermissionSubject);
-  const groups = selectedGroups.value;
-  if (targetGroupId.value) {
-    updateGroups(
-      asset.id,
-      groups.map((group) =>
-        group.id === targetGroupId.value
-          ? {
-              ...group,
-              // 选择器打开时已带入当前主体，确认结果即为该权限组的最终主体列表。
-              subjects,
-            }
-          : group,
-      ),
-    );
-    ElMessage.success('已添加授权对象');
-    return;
+  try {
+    if (targetGroupId.value) {
+      const group = selectedGroups.value.find((item) => item.code === targetGroupId.value);
+      if (!group) return;
+      await updateFormPermissionGroup(formCode, group.code, {
+        ...payloadOf(group, subjects),
+        baseRevision: group.revision,
+      });
+      ElMessage.success('授权对象已更新');
+    } else {
+      await createFormPermissionGroup(formCode, {
+        ...defaultPayload(),
+        subjectIds: subjects.map(toSubjectInput),
+      });
+      ElMessage.success('权限组已创建');
+    }
+    await permissionResources.refreshSelectedForm();
+  } catch (error) {
+    handleMutationError(error);
   }
-
-  updateGroups(asset.id, [
-    ...groups,
-    {
-      id: `group_preview_${Date.now()}`,
-      name: defaultGroupName(asset.type),
-      description: defaultGroupDescription(asset.type),
-      enabled: true,
-      subjects,
-    },
-  ]);
-  ElMessage.success('已创建权限组');
 }
 
-function defaultGroupName(type: PermissionAsset['type']) {
-  if (type === 'dashboard') return '查看仪表盘';
-  if (type === 'workflow-form') return '发起流程';
-  return '管理全部数据';
+function defaultPayload(): SaveFormPermissionGroupPayload {
+  const fields = permissionResources.fields.value;
+  const workflow = permissionResources.selectedAsset.value?.type === 'workflow-form';
+  return {
+    name: workflow ? '发起流程' : '管理全部数据',
+    description: workflow ? '此分组内的成员可以发起流程。' : '此分组内的成员可以管理表单数据。',
+    enabled: true,
+    operations: workflow
+      ? [
+          'view',
+          'add',
+          'copy',
+          'edit',
+          'delete',
+          'batch_print',
+          'batch_modify',
+          'import',
+          'export',
+          'workflow_owner_transfer',
+          'workflow_terminate',
+          'workflow_activate',
+        ]
+      : [
+          'view',
+          'add',
+          'copy',
+          'edit',
+          'delete',
+          'batch_print',
+          'batch_modify',
+          'import',
+          'export',
+        ],
+    fieldPermissions: fields.map((field) => ({
+      field: field.field,
+      visible: true,
+      editable: true,
+    })),
+    dataScope: { match: 'all', conditions: [] },
+    subjectIds: [],
+  };
 }
 
-function defaultGroupDescription(type: PermissionAsset['type']) {
-  if (type === 'dashboard') return '此分组内的成员可以访问该仪表盘；数据范围遵循图表配置。';
-  if (type === 'workflow-form') return '此分组内的成员可以发起流程，并查看自己发起的流程。';
-  return '此分组内的成员可以填报、查看和管理全部数据。';
-}
-
-function updateGroupEnabled(payload: { groupId: string; enabled: boolean }) {
-  const asset = selectedAsset.value;
-  if (!asset) return;
-  updateGroups(
-    asset.id,
-    selectedGroups.value.map((group) =>
-      group.id === payload.groupId ? { ...group, enabled: payload.enabled } : group,
-    ),
-  );
-}
-
-/** 卡片编辑入口只保存当前组 ID，弹窗提交后由页面统一更新所属资产的权限组列表。 */
+/** 卡片编辑入口只保存当前组编码，弹窗提交后由页面统一写回服务端。 */
 function openGroupEditor(groupId: string) {
-  if (!selectedGroups.value.some((group) => group.id === groupId)) return;
+  if (!selectedGroups.value.some((group) => group.code === groupId)) return;
   editingGroupId.value = groupId;
   editorVisible.value = true;
 }
 
-function updatePermissionGroup(updatedGroup: AssetPermissionGroup) {
-  const asset = selectedAsset.value;
-  if (!asset) return;
-  updateGroups(
-    asset.id,
-    selectedGroups.value.map((group) => (group.id === updatedGroup.id ? updatedGroup : group)),
-  );
-  ElMessage.success('权限组已更新');
+async function updatePermissionGroup(updatedGroup: AssetPermissionGroup) {
+  const formCode = permissionResources.selectedFormCode.value;
+  if (!formCode) return;
+  try {
+    await updateFormPermissionGroup(formCode, updatedGroup.code, {
+      ...payloadOf(updatedGroup),
+      baseRevision: updatedGroup.revision,
+    });
+    await permissionResources.refreshSelectedForm();
+    ElMessage.success('权限组已更新');
+  } catch (error) {
+    handleMutationError(error);
+  }
 }
 
-function cloneGroup(groupId: string) {
-  const asset = selectedAsset.value;
-  const group = selectedGroups.value.find((item) => item.id === groupId);
-  if (!asset || !group) return;
-  updateGroups(asset.id, [
-    ...selectedGroups.value,
-    { ...group, id: `group_preview_${Date.now()}`, name: `${group.name}（副本）` },
-  ]);
-  ElMessage.success('已复制权限组');
+async function cloneGroup(groupId: string) {
+  const formCode = permissionResources.selectedFormCode.value;
+  const group = selectedGroups.value.find((item) => item.code === groupId);
+  if (!formCode || !group) return;
+  try {
+    await createFormPermissionGroup(formCode, {
+      ...payloadOf(group),
+      name: `${group.name}（副本）`,
+    });
+    await permissionResources.refreshSelectedForm();
+    ElMessage.success('权限组已复制');
+  } catch (error) {
+    handleMutationError(error);
+  }
 }
 
 async function removeGroup(groupId: string) {
-  const asset = selectedAsset.value;
-  if (!asset) return;
+  const formCode = permissionResources.selectedFormCode.value;
+  if (!formCode) return;
   try {
     await ElMessageBox.confirm('删除后该权限组中的成员将立即失去对应权限。', '删除权限组', {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
       type: 'warning',
     });
-    updateGroups(
-      asset.id,
-      selectedGroups.value.filter((group) => group.id !== groupId),
-    );
+    await deleteFormPermissionGroup(formCode, groupId);
+    await permissionResources.refreshSelectedForm();
     ElMessage.success('已删除权限组');
-  } catch {
-    // 用户取消确认不需要反馈；后续接入 API 时在此处理网络异常。
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') handleMutationError(error);
   }
 }
 
 async function disableAll() {
-  const asset = selectedAsset.value;
-  if (!asset) return;
+  const formCode = permissionResources.selectedFormCode.value;
+  if (!formCode || selectedGroups.value.length === 0) return;
   try {
     await ElMessageBox.confirm('停用后，当前资产下所有成员权限都会暂时失效。', '停用全部权限', {
       confirmButtonText: '确认停用',
       cancelButtonText: '取消',
       type: 'warning',
     });
-    updateGroups(
-      asset.id,
-      selectedGroups.value.map((group) => ({ ...group, enabled: false })),
+    await Promise.all(
+      selectedGroups.value
+        .filter((group) => group.enabled)
+        .map((group) =>
+          updateFormPermissionGroup(formCode, group.code, {
+            ...payloadOf(group),
+            enabled: false,
+            baseRevision: group.revision,
+          }),
+        ),
     );
+    await permissionResources.refreshSelectedForm();
     ElMessage.success('已停用全部权限组');
-  } catch {
-    // 用户取消确认不需要反馈；后续接入 API 时在此处理网络异常。
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') handleMutationError(error);
   }
+}
+
+function updateGroupEnabled(payload: { groupId: string; enabled: boolean }) {
+  const group = selectedGroups.value.find((item) => item.code === payload.groupId);
+  if (!group) return;
+  void updatePermissionGroup({ ...group, enabled: payload.enabled });
+}
+
+function payloadOf(
+  group: AssetPermissionGroup,
+  subjects = group.subjects,
+): SaveFormPermissionGroupPayload {
+  return {
+    name: group.name,
+    description: group.description,
+    enabled: group.enabled,
+    operations: group.operations,
+    fieldPermissions: group.fields.map(toFieldRule),
+    dataScope: group.dataScope,
+    subjectIds: subjects.map(toSubjectInput),
+  };
+}
+
+function toFieldRule(field: PermissionFieldPermission) {
+  return { field: field.field, visible: field.visible, editable: field.editable };
+}
+
+function toSubjectInput(subject: PermissionSubject) {
+  return { type: subject.type, id: subject.id };
+}
+
+function handleMutationError(error: unknown) {
+  console.warn('[application-form-permissions] mutation failed', error);
+  ElMessage.error('保存权限组失败；若配置已被他人修改，请刷新后重试。');
 }
 </script>
 
@@ -343,20 +288,38 @@ async function disableAll() {
     class="application-setting-permissions__result"
     icon="warning"
     title="无访问权限"
-    sub-title="仅应用管理员可管理表单和仪表盘权限。"
+    sub-title="仅应用管理员可管理表单权限。"
   />
 
-  <section v-else class="application-setting-permissions" aria-label="表单和仪表盘权限">
+  <section
+    v-else-if="permissionResources.status.value === 'loading'"
+    v-loading="true"
+    class="application-setting-permissions__status"
+  />
+
+  <el-result
+    v-else-if="permissionResources.status.value === 'error'"
+    class="application-setting-permissions__result"
+    icon="error"
+    title="加载表单权限失败"
+    :sub-title="permissionResources.errorMessage.value"
+  >
+    <template #extra>
+      <el-button type="primary" @click="permissionResources.reload()"> 重新加载 </el-button>
+    </template>
+  </el-result>
+
+  <section v-else class="application-setting-permissions" aria-label="表单权限">
     <PermissionAssetList
-      :assets="assets"
+      :assets="permissionResources.assets.value"
       :keyword="keyword"
-      :selected-asset-id="selectedAssetId"
-      @batch-select="ElMessage.info('批量选择将在权限接口接入后开放')"
+      :selected-asset-id="permissionResources.selectedAssetId.value"
+      @batch-select="ElMessage.info('批量配置尚未开放')"
       @update-keyword="keyword = $event"
-      @select="selectedAssetId = $event"
+      @select="permissionResources.selectedAssetId.value = $event"
     />
     <PermissionGroupsPanel
-      :asset="selectedAsset"
+      :asset="permissionResources.selectedAsset.value"
       :groups="selectedGroups"
       @add-group="openGroupPicker"
       @add-subjects="openSubjectPicker"
@@ -368,16 +331,17 @@ async function disableAll() {
     />
     <PermissionGroupEditorDialog
       v-model="editorVisible"
-      :asset-type="selectedAsset?.type"
+      :asset-type="permissionResources.selectedAsset.value?.type"
       :group="editingGroup"
+      :fields="permissionResources.fields.value"
       @confirm="updatePermissionGroup"
     />
     <EvolynMemberDepartmentRolePicker
       v-model="pickerSelection"
       v-model:open="pickerVisible"
-      :departments="pickerDepartments"
-      :roles="pickerRoles"
-      :members="pickerMembers"
+      :departments="permissionResources.departments.value"
+      :roles="permissionResources.roles.value"
+      :members="permissionResources.members.value"
       :title="pickerTitle"
       @confirm="createOrUpdateSubjects"
     />

@@ -1,15 +1,14 @@
 <script setup lang="ts">
+import type { PermissionAsset, PermissionAssetType } from './permission.types';
 import {
   RiArrowDownSFill,
   RiArrowRightSFill,
-  RiBarChartBoxFill,
   RiFileList3Fill,
   RiFolderFill,
   RiGitBranchFill,
   RiSearchFill,
 } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
-import type { PermissionAsset, PermissionAssetType } from './permission.types';
 defineOptions({ name: 'PermissionAssetList' });
 
 const props = defineProps<{
@@ -28,7 +27,6 @@ const emit = defineEmits<{
 const assetTypeIcons: Record<Exclude<PermissionAssetType, 'group'>, typeof RiFileList3Fill> = {
   'workflow-form': RiGitBranchFill,
   form: RiFileList3Fill,
-  dashboard: RiBarChartBoxFill,
 };
 
 const GROUP_INDENT_STEP = 20;

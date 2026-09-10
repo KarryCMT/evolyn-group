@@ -1,6 +1,6 @@
+import type { Component } from 'vue';
 import {
   RiApps2Fill,
-  RiBarChartBoxFill,
   RiBrainFill,
   RiCalculatorFill,
   RiDatabase2Fill,
@@ -10,7 +10,6 @@ import {
   RiSettings3Fill,
   RiShareForwardFill,
 } from '@remixicon/vue';
-import type { Component } from 'vue';
 
 /** 应用后台侧栏中一个功能入口；路由名称避免与动态 appCode 路径拼接耦合。 */
 export interface AppSettingNavigationItem {
@@ -36,7 +35,7 @@ export const appSettingNavigationGroups: AppSettingNavigationGroup[] = [
     items: [
       {
         key: 'permissions',
-        label: '表单/仪表盘权限',
+        label: '表单权限',
         routeName: 'app-setting-permissions',
         icon: RiShareForwardFill,
       },
