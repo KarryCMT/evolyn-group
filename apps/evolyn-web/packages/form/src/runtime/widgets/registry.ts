@@ -1,6 +1,7 @@
 import { defineAsyncComponent, type Component } from 'vue';
 import CheckboxGroupField from './base/CheckboxGroupField.vue';
 import DateTimeField from './base/DateTimeField.vue';
+import DecimalField from './base/DecimalField.vue';
 import DividerWidget from './base/DividerWidget.vue';
 import MultiSelectField from './base/MultiSelectField.vue';
 import NumberField from './base/NumberField.vue';
@@ -71,6 +72,10 @@ export function createMobileFieldRegistry(): FormFieldRegistry {
   registry.register('text', { component: TextField });
   registry.register('textarea', { component: TextAreaField });
   registry.register('number', { component: NumberField });
+  // 数值字段族共用同一 decimal string 输入组件（差异只在属性与展示语义）。
+  registry.register('decimal', { component: DecimalField });
+  registry.register('money', { component: DecimalField });
+  registry.register('percent', { component: DecimalField });
   registry.register('datetime', { component: DateTimeField });
   registry.register('radiogroup', { component: RadioGroupField });
   registry.register('checkboxgroup', { component: CheckboxGroupField });

@@ -152,7 +152,10 @@ func permissionClassOfWidget(widgetType string) permissionFieldClass {
 	switch widgetType {
 	case "text", "textarea":
 		return permFieldClassText
-	case "number":
+	case "number", "decimal", "money", "percent":
+		// 数值字段族值形态 decimal string，物理列 NUMERIC(p,s)：
+		// 与 number 共用数值比较模板（::numeric cast），decimal-string
+		// 查询值协议随数值运行时 Phase 7 统一收口。
 		return permFieldClassNumber
 	case "datetime":
 		return permFieldClassDateTime

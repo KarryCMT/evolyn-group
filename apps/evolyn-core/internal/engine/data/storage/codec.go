@@ -1,10 +1,11 @@
 // DML 值编解码：协议 JSON 值形态 ↔ 物理列 SQL 参数/扫描值的类型收敛。
 //
 // 值形态契约（与 JSONB 记录出网完全一致，保证出网/权限判定/流程表达式在
-// 两种存储模式下同构）：文本/单选=string、数字=float64、date="YYYY-MM-DD"、
-// datetime="YYYY-MM-DD HH:MM:SS"（本地形状直存，与 JSONTime 口径一致）、
-// month="YYYY-MM"、time="HH:MM"（两者原形 TEXT 直存）、单成员/单部门引用
-// =string(十进制 ID)。
+// 两种存储模式下同构）：文本/单选=string、数字=float64、decimal 族=
+// canonical decimal string（设计 §15/§27，高精度禁 float 中转）、
+// date="YYYY-MM-DD"、datetime="YYYY-MM-DD HH:MM:SS"（本地形状直存，与
+// JSONTime 口径一致）、month="YYYY-MM"、time="HH:MM"（两者原形 TEXT 直存）、
+// 单成员/单部门引用=string(十进制 ID)。
 package storage
 
 import (
@@ -38,6 +39,20 @@ func EncodeSQLValue(kind FieldKind, value any) (any, error) {
 			return nil, fmt.Errorf("数字字段值必须是数值，得到 %T", value)
 		}
 		return number, nil
+	case KindDecimal:
+		text, ok := value.(string)
+		if !ok {
+			return nil, fmt.Errorf("数值字段值必须是十进制字符串，得到 %T", value)
+		}
+		if text == "" {
+			return nil, nil
+		}
+		// 提交终审已做形状与位数校验；此处防御复核形状，拒绝绕过校验器
+		// 进入动态 DML 的值。字符串直绑（驱动转 NUMERIC），不经 float。
+		if !canonicalDecimalShape(text) {
+			return nil, fmt.Errorf("数值字段值 %q 不符合十进制形状", text)
+		}
+		return text, nil
 	case KindDate, KindDateTime:
 		text, ok := value.(string)
 		if !ok || text == "" {
@@ -124,6 +139,24 @@ func DecodeSQLValue(kind FieldKind, value any) (any, error) {
 		default:
 			return nil, fmt.Errorf("数值列扫描到未知类型 %T", value)
 		}
+	case KindDecimal:
+		// NUMERIC(p,s) 列扫描值还原 canonical decimal string：去尾随零、
+		// 无指数（§49）；与 platform/numeric Serialize 语义一致（engine 层
+		// 不依赖 platform，此处为纯文本收敛实现）。
+		switch v := value.(type) {
+		case []byte:
+			return canonicalNumericText(string(v))
+		case string:
+			return canonicalNumericText(v)
+		case int64:
+			return strconv.FormatInt(v, 10), nil
+		case float64:
+			// 防御路径：GORM 通用扫描在个别驱动形态下可能产出 float；
+			// 高精度值不会走到这里（列是 NUMERIC，驱动按文本回传）。
+			return strconv.FormatFloat(v, 'f', -1, 64), nil
+		default:
+			return nil, fmt.Errorf("数值列扫描到未知类型 %T", value)
+		}
 	case KindDate:
 		return decodeTimeText(kind, value, "2006-01-02")
 	case KindDateTime:
@@ -193,6 +226,71 @@ func decodeTimeText(kind FieldKind, value any, layout string) (any, error) {
 		return nil, nil // 零值防御：视同未填写
 	}
 	return text, nil
+}
+
+// canonicalDecimalShape 十进制文本形状防御（终审已校验，此处兜底）：
+// 可选负号 + 整数位 + 可选小数位，拒绝指数记法与正号（§49）。
+func canonicalDecimalShape(text string) bool {
+	negative := strings.HasPrefix(text, "-")
+	digits := text
+	if negative {
+		digits = text[1:]
+	}
+	if digits == "" {
+		return false
+	}
+	dot := strings.IndexByte(digits, '.')
+	intPart := digits
+	fracPart := ""
+	if dot >= 0 {
+		intPart = digits[:dot]
+		fracPart = digits[dot+1:]
+		if fracPart == "" {
+			return false
+		}
+	}
+	if intPart == "" {
+		return false
+	}
+	for _, r := range intPart + fracPart {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// canonicalNumericText NUMERIC 文本 → canonical decimal string：去小数尾随零
+// 与孤点，"-0"/"0.00" 收敛 "0"。入参为驱动回传的 NUMERIC 规范文本（无前导
+// 零、无指数），防御性容忍任意形状输入（逐字符数字校验）。
+func canonicalNumericText(text string) (any, error) {
+	if !canonicalDecimalShape(text) {
+		return nil, fmt.Errorf("数值列扫描值 %q 不符合十进制形状", text)
+	}
+	negative := strings.HasPrefix(text, "-")
+	body := strings.TrimPrefix(text, "-")
+	intPart := body
+	fracPart := ""
+	if dot := strings.IndexByte(body, '.'); dot >= 0 {
+		intPart = body[:dot]
+		fracPart = strings.TrimRight(body[dot+1:], "0")
+	}
+	// 只剪整数段前导零（"0.5" 的 0 属于整数段，剪后回填 "0"）。
+	intPart = strings.TrimLeft(intPart, "0")
+	if intPart == "" {
+		intPart = "0"
+	}
+	out := intPart
+	if fracPart != "" {
+		out = intPart + "." + fracPart
+	}
+	if out == "0" {
+		return "0", nil
+	}
+	if negative {
+		out = "-" + out
+	}
+	return out, nil
 }
 
 // canonicalDateOrDateTime 规范形状防御（真实日历校验在提交终审完成）。

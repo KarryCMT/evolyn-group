@@ -18,6 +18,13 @@ import type {
   SubmitValidator,
 } from './types';
 import { createFieldRegistry, type FieldDefinition } from '@evolyn.do/field';
+import {
+  NUMERIC_FIELD_DEFAULTS,
+  NUMERIC_FIELD_LIMITS,
+  NUMERIC_ROUNDING_MODES,
+  NUMERIC_WIDGET_TYPES,
+  type NumericWidgetType,
+} from './numeric';
 
 /** 表单布局切换时批量投影到普通字段的 12 栅格宽度。 */
 export const FORM_LAYOUT_LINE_WIDTH: Readonly<Record<FormLayoutMode, number>> = {
@@ -46,6 +53,7 @@ export type WidgetPropKind =
   | 'string'
   | 'integer'
   | 'number'
+  | 'decimal'
   | 'enum'
   | 'stringArray'
   | 'options'
@@ -78,7 +86,7 @@ export interface WidgetPropSpec {
 /** 表单目标协议对 Field Engine 通用字段定义的具体化。 */
 export type WidgetSpec = FieldDefinition<
   FormWidgetGroupKey,
-  'string' | 'number' | 'stringArray' | 'none' | 'object' | 'rows' | 'fileRefs',
+  'string' | 'number' | 'decimal' | 'stringArray' | 'none' | 'object' | 'rows' | 'fileRefs',
   WidgetPropSpec
 >;
 
@@ -129,6 +137,9 @@ export const FIELD_SHOW_CONDITION_METHODS: Readonly<Record<string, readonly Fiel
   text: ['eq', 'ne', 'contains', 'notContains', 'isEmpty', 'notEmpty'],
   textarea: ['eq', 'ne', 'contains', 'notContains', 'isEmpty', 'notEmpty'],
   number: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between', 'isEmpty', 'notEmpty'],
+  decimal: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between', 'isEmpty', 'notEmpty'],
+  money: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between', 'isEmpty', 'notEmpty'],
+  percent: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between', 'isEmpty', 'notEmpty'],
   datetime: ['eq', 'ne', 'gt', 'gte', 'lt', 'lte', 'between', 'isEmpty', 'notEmpty'],
   radiogroup: ['eq', 'ne', 'in', 'notIn', 'isEmpty', 'notEmpty'],
   combo: ['eq', 'ne', 'in', 'notIn', 'isEmpty', 'notEmpty'],
@@ -171,6 +182,9 @@ export const SUBMIT_RULE_ELIGIBLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'text',
   'textarea',
   'number',
+  'decimal',
+  'money',
+  'percent',
   'datetime',
   'radiogroup',
   'checkboxgroup',
@@ -237,6 +251,17 @@ export const DEFAULT_PRE_SUBMIT_CONFIRM: PreSubmitConfirm = {
   content: '请确认填写内容无误后继续提交。',
 };
 
+/** 舍入模式展示名（设计器属性面板与后续展示层共用；枚举定义见 schema/numeric.ts）。 */
+export const NUMERIC_ROUNDING_MODE_LABELS: Readonly<Record<string, string>> = {
+  UP: '远离零舍入',
+  DOWN: '向零截断',
+  CEIL: '向上取整',
+  FLOOR: '向下取整',
+  HALF_UP: '四舍五入（默认）',
+  HALF_DOWN: '半值向零',
+  HALF_EVEN: '银行家舍入',
+};
+
 export const FIELD_SHOW_METHOD_LABELS: Readonly<Record<FieldShowMethod, string>> = {
   eq: '等于',
   ne: '不等于',
@@ -256,7 +281,37 @@ export const FIELD_SHOW_METHOD_LABELS: Readonly<Record<FieldShowMethod, string>>
   containsNone: '均不包含',
 };
 
-/** 控件字典：27 种类型的完整声明。 */
+/**
+ * 数值字段族（decimal/money/percent）的字典声明工厂：三种类型共享同一属性
+ * 结构，仅有效默认精度不同（schema/numeric.ts）。min/max/defaultValue 是
+ * decimal string（kind=decimal），位数与范围交叉约束在 validate.ts 复核。
+ */
+function numericFamilyWidgetSpec(label: string): WidgetSpec {
+  return {
+    label,
+    group: 'basic',
+    valueKind: 'decimal',
+    props: {
+      placeholder: { kind: 'string', maxLen: FORM_PROTOCOL_LIMITS.placeholderMaxLength },
+      min: { kind: 'decimal' },
+      max: { kind: 'decimal' },
+      precision: {
+        kind: 'integer',
+        min: NUMERIC_FIELD_LIMITS.precisionMin,
+        max: NUMERIC_FIELD_LIMITS.precisionMax,
+      },
+      scale: {
+        kind: 'integer',
+        min: NUMERIC_FIELD_LIMITS.scaleMin,
+        max: NUMERIC_FIELD_LIMITS.scaleMax,
+      },
+      rounding: { kind: 'enum', values: NUMERIC_ROUNDING_MODES },
+      defaultValue: { kind: 'decimal' },
+    },
+  };
+}
+
+/** 控件字典：30 种类型的完整声明。 */
 export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
   text: {
     label: '单行文本',
@@ -294,6 +349,9 @@ export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
       defaultValue: { kind: 'number' },
     },
   },
+  decimal: numericFamilyWidgetSpec('高精度小数'),
+  money: numericFamilyWidgetSpec('金额'),
+  percent: numericFamilyWidgetSpec('百分比'),
   datetime: {
     label: '日期时间',
     group: 'basic',
@@ -636,6 +694,14 @@ export function createWidgetItem(type: FormWidgetType): FormItem {
   // 物理列形态），新建时显式预写 datetime——与服务端缺省兜底口径一致，
   // 避免草稿出现裸 datetime 触发物理发布矩阵的兜底路径。
   if (type === 'datetime') widget.format = 'datetime';
+  // 数值字段族同理：precision/scale 决定物理列 NUMERIC(p,s) 形态且发布后
+  // 不可变，新建时按类型默认显式预写，避免平台默认值调整影响既有草稿的
+  // 发布预期（rounding 不进 DDL，不预写）。
+  if (NUMERIC_WIDGET_TYPES.includes(type as NumericWidgetType)) {
+    const defaults = NUMERIC_FIELD_DEFAULTS[type as NumericWidgetType];
+    widget.precision = defaults.precision;
+    widget.scale = defaults.scale;
+  }
   if (type === 'subform') {
     Object.assign(widget, {
       items: [],

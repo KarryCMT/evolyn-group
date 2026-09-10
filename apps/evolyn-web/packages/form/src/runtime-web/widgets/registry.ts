@@ -9,6 +9,10 @@ export function createWebFieldRegistry(): FormFieldRegistry {
     'text',
     'textarea',
     'number',
+    // 数值字段族在 WebBasicField 内共用 decimal string 文本输入分支。
+    'decimal',
+    'money',
+    'percent',
     'datetime',
     'radiogroup',
     'checkboxgroup',

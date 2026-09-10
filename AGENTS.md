@@ -310,6 +310,15 @@ internal/
                       改 label；物理列名 f_<fieldId>）与物理类型映射字典
                       （internal/engine/data/storage 纯模型：StorageModel/
                       Diff/Plan/标识符白名单/DML 值编解码，禁依赖 gin/gorm）；
+                      数值字段族（表单数值计算运行时 Phase 4）：decimal/money/
+                      percent 三控件值协议 canonical decimal string（§15/§27，
+                      number 保持 JS number 语义），schema 增 precision/scale/
+                      rounding（护栏 1–40/0–18，按类型有效默认 decimal 20/6、
+                      money 20/2、percent 10/6，服务端 numeric_field.go 与前端
+                      schema/numeric.ts 同向量对拍），物理列 NUMERIC(p,s)
+                      （ColumnSpec.Precision/Scale 修饰纳入类型冲突比较与
+                      checksum，发布后不可变；存量 number 列保持裸 NUMERIC），
+                      DML/出网 canonical decimal string（storage codec）
                       发布经模型 Diff——涉及结构变更返回 202 + DDL Job
                       （tn_form_storage_schema_versions + tn_form_ddl_jobs，
                       FORM_STORAGE_BUSY 并发收口，类型变更拒绝

@@ -361,7 +361,9 @@ func columnDefinition(column storage.ColumnSpec) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return name + " " + string(column.Type), nil
+	// ColumnDDLType 产出完整类型：decimal 族带 NUMERIC(p,s) 修饰（Phase 4），
+	// 修饰值在发布侧经护栏解析（1–40 / 0–p），此处不再重复校验。
+	return name + " " + column.ColumnDDLType(), nil
 }
 
 // installRLS 启用并强制行级安全，策略以 app.current_tenant 会话变量为准；

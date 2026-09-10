@@ -40,17 +40,38 @@ var ChildPresetColumns = []PresetColumn{
 
 // ColumnSpec 用户字段物理列（父表列与子表列同构；Deprecated 仅是模型层
 // 标记——新版本不再展示/写入，物理列与历史值保留，清理属人工维护任务）。
+// Precision/Scale 仅 KindDecimal 携带（NUMERIC(p,s) 精度修饰，Phase 4）：
+// 零值表示无修饰（存量 number 列的裸 NUMERIC）；精度修饰纳入类型冲突比较
+// 与 checksum——发布后收窄/放大都按类型变更拒绝（FORM_STORAGE_TYPE_CHANGE
+// _UNSUPPORTED），避免静默舍入历史值。
 type ColumnSpec struct {
 	FieldID    string     `json:"fieldId"`
 	WidgetName string     `json:"widgetName"`
 	WidgetType string     `json:"widgetType"`
 	Kind       FieldKind  `json:"kind"`
 	Type       ColumnType `json:"type"`
+	Precision  int16      `json:"precision,omitempty"`
+	Scale      int16      `json:"scale,omitempty"`
 	Deprecated bool       `json:"deprecated"`
 }
 
 // ColumnName 由不可变 fieldId 推导规范列名（f_<fieldId>，永不变更）。
 func (c ColumnSpec) ColumnName() string { return "f_" + c.FieldID }
+
+// ColumnDDLType 产出 DDL 使用的完整列类型：KindDecimal 携带 NUMERIC(p,s)
+// 修饰，其余值语义为裸类型（与 ColumnTypeOf 的基础枚举一致）。
+func (c ColumnSpec) ColumnDDLType() string {
+	if c.Kind == KindDecimal {
+		return fmt.Sprintf("%s(%d,%d)", string(c.Type), c.Precision, c.Scale)
+	}
+	return string(c.Type)
+}
+
+// columnTypeEqual 列类型等价判定（Diff 类型冲突比较与迁移幂等复核共用）：
+// 基础类型一致，且 decimal 精度修饰逐位一致。
+func columnTypeEqual(a, b ColumnSpec) bool {
+	return a.Kind == b.Kind && a.Type == b.Type && a.Precision == b.Precision && a.Scale == b.Scale
+}
 
 // ChildTableSpec 子表单物理子表：父记录的一对多明细（方案 §5.4）。列名由
 // 子字段各自的 fieldId 推导，不与父表共享命名空间。
@@ -102,6 +123,9 @@ func (m *StorageModel) Validate() error {
 		if ColumnTypeOf(column.Kind) != column.Type {
 			return fmt.Errorf("字段 %s 的类型 %s 与值语义 %s 不一致", column.WidgetName, column.Type, column.Kind)
 		}
+		if err := validateColumnNumericModifiers(column); err != nil {
+			return err
+		}
 	}
 	childIDs := make(map[string]bool, len(m.Children))
 	for _, child := range m.Children {
@@ -136,7 +160,37 @@ func (m *StorageModel) Validate() error {
 			if ColumnTypeOf(column.Kind) != column.Type {
 				return fmt.Errorf("子表字段 %s 的类型 %s 与值语义 %s 不一致", column.WidgetName, column.Type, column.Kind)
 			}
+			if err := validateColumnNumericModifiers(column); err != nil {
+				return err
+			}
 		}
+	}
+	return nil
+}
+
+// numericModifierBounds NUMERIC 精度修饰合法域（与 platform/numeric 护栏
+// precision 40 / maxScale 18 对齐；engine 层不依赖 platform，取值镜像自
+// numeric.go DefaultPrecision/DefaultMaxScale）。
+const (
+	numericModifierPrecisionMin = 1
+	numericModifierPrecisionMax = 40
+	numericModifierScaleMax     = 18
+)
+
+// validateColumnNumericModifiers KindDecimal 的精度修饰自检：p∈[1,40]、
+// s∈[0,p]（PostgreSQL NUMERIC(p,s) 要求 s ≤ p），非 decimal 语义不得携带修饰。
+func validateColumnNumericModifiers(column ColumnSpec) error {
+	if column.Kind != KindDecimal {
+		if column.Precision != 0 || column.Scale != 0 {
+			return fmt.Errorf("字段 %s 的值语义 %s 不允许携带精度修饰", column.WidgetName, column.Kind)
+		}
+		return nil
+	}
+	if column.Precision < numericModifierPrecisionMin || column.Precision > numericModifierPrecisionMax {
+		return fmt.Errorf("字段 %s 的 NUMERIC 精度 %d 超出 %d–%d", column.WidgetName, column.Precision, numericModifierPrecisionMin, numericModifierPrecisionMax)
+	}
+	if column.Scale < 0 || column.Scale > column.Precision || column.Scale > numericModifierScaleMax {
+		return fmt.Errorf("字段 %s 的 NUMERIC 小数位 %d 非法（须 0–%d 且不大于精度）", column.WidgetName, column.Scale, min(numericModifierScaleMax, int(column.Precision)))
 	}
 	return nil
 }

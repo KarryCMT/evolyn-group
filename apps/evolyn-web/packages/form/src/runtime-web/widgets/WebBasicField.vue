@@ -15,6 +15,7 @@ import {
 import { computed } from 'vue';
 import type {
   CheckboxGroupWidget,
+  DecimalFamilyWidget,
   ComboCheckWidget,
   ComboWidget,
   DateTimeWidget,
@@ -47,6 +48,7 @@ const describedBy = computed(() =>
 const textWidget = computed(() => props.item.widget as TextWidget);
 const textareaWidget = computed(() => props.item.widget as TextAreaWidget);
 const numberWidget = computed(() => props.item.widget as NumberWidget);
+const decimalWidget = computed(() => props.item.widget as DecimalFamilyWidget);
 const dateWidget = computed(() => props.item.widget as DateTimeWidget);
 const radioWidget = computed(() => props.item.widget as RadioGroupWidget);
 const checkboxWidget = computed(() => props.item.widget as CheckboxGroupWidget);
@@ -62,6 +64,25 @@ const numberValue = computed<number | undefined>({
   get: () => (typeof props.modelValue === 'number' ? props.modelValue : undefined),
   set: (value) => emit('update:modelValue', value ?? null),
 });
+// 数值字段族：decimal string 原样保存（设计 §16），禁 float 控件承载高精度值。
+const decimalValue = computed<string>({
+  get: () => (typeof props.modelValue === 'string' ? props.modelValue : ''),
+  set: (value) => emit('update:modelValue', value.trim() === '' ? null : value),
+});
+/** 失焦整理宽松形状（正号/裸小数点），位数与范围约束交由校验层终审。 */
+function onDecimalBlur(): void {
+  let text = decimalValue.value;
+  if (text === '') {
+    emit('blur');
+    return;
+  }
+  text = text.trim();
+  if (text.startsWith('+')) text = text.slice(1);
+  if (text.startsWith('.')) text = '0' + text;
+  if (text.endsWith('.') && /^-?\d+\.$/.test(text)) text = text.slice(0, -1);
+  if (text !== decimalValue.value) decimalValue.value = text;
+  emit('blur');
+}
 const choicesValue = computed<string>({
   get: () => (typeof props.modelValue === 'string' ? props.modelValue : ''),
   set: (value) => emit('update:modelValue', value === '' ? null : value),
@@ -149,6 +170,18 @@ function isString(value: unknown): value is string {
     :aria-invalid="errors.length > 0 || undefined"
     :aria-describedby="describedBy"
     @blur="emit('blur')"
+  />
+  <el-input
+    v-else-if="type === 'decimal' || type === 'money' || type === 'percent'"
+    :id="inputId"
+    v-model="decimalValue"
+    class="evf-web-basic-field__decimal"
+    :placeholder="decimalWidget.placeholder ?? '请输入数值'"
+    :disabled="readOnlyDisabled"
+    :aria-required="!item.widget.allowBlank || undefined"
+    :aria-invalid="errors.length > 0 || undefined"
+    :aria-describedby="describedBy"
+    @blur="onDecimalBlur"
   />
   <el-time-picker
     v-else-if="type === 'datetime' && isTimeFormat"

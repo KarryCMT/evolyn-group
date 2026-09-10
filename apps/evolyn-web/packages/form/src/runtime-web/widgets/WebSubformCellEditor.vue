@@ -13,7 +13,13 @@ import {
 } from 'element-plus';
 import { computed, inject, type Component } from 'vue';
 import { readWidgetOptions } from '../../schema/codec';
-import type { DateTimeWidget, FormItem, FormJsonValue, NumberWidget } from '../../schema/types';
+import type {
+  DateTimeWidget,
+  DecimalFamilyWidget,
+  FormItem,
+  FormJsonValue,
+  NumberWidget,
+} from '../../schema/types';
 import { FormRendererContextKey } from '../../runtime/store/injection';
 
 /**
@@ -63,6 +69,20 @@ function dateWidget(): DateTimeWidget {
 
 function numberWidget(): NumberWidget {
   return props.field.widget as NumberWidget;
+}
+
+function decimalWidget(): DecimalFamilyWidget {
+  return props.field.widget as DecimalFamilyWidget;
+}
+
+function isNumericField(): boolean {
+  const type = props.field.widget.type;
+  return type === 'decimal' || type === 'money' || type === 'percent';
+}
+
+/** 数值字段族失焦整理宽松形状；空串回写 null（未填写语义）。 */
+function onDecimalInput(value: string): void {
+  update(value.trim() === '' ? null : value);
 }
 
 function isTimeField(): boolean {
@@ -152,6 +172,17 @@ function blur(): void {
     :validate-event="false"
     :class="{ 'is-error': invalid }"
     @update:model-value="update"
+    @blur="blur"
+  />
+  <ElInput
+    v-else-if="isNumericField()"
+    :id="inputId"
+    :model-value="stringValue"
+    class="evf-web-subform-cell__full-width"
+    :placeholder="decimalWidget().placeholder ?? '请输入数值'"
+    :disabled="isInteractiveDisabled"
+    :class="{ 'is-error': invalid }"
+    @update:model-value="onDecimalInput"
     @blur="blur"
   />
   <ElTimePicker

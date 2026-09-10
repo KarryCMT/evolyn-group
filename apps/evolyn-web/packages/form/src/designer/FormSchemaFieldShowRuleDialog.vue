@@ -81,6 +81,13 @@
             placeholder="比较值"
             @update:model-value="setSingleNumber(condition, $event)"
           />
+          <el-input
+            v-else-if="valueKind(condition) === 'decimal'"
+            :model-value="singleTextValue(condition)"
+            :disabled="!condition.field"
+            placeholder="比较值（十进制数字）"
+            @update:model-value="setSingleText(condition, String($event ?? ''))"
+          />
           <el-date-picker
             v-else-if="valueKind(condition) === 'datetime'"
             :model-value="singleTextValue(condition) || undefined"
@@ -366,6 +373,7 @@ function currentMemberAllowed(condition: FieldShowCondition): boolean {
 type ValueKind =
   | 'text'
   | 'number'
+  | 'decimal'
   | 'datetime'
   | 'time'
   | 'option-single'
@@ -380,6 +388,11 @@ function valueKind(condition: FieldShowCondition): ValueKind {
       return 'text';
     case 'number':
       return 'number';
+    case 'decimal':
+    case 'money':
+    case 'percent':
+      // 值与常量均为 decimal string，走文本输入（禁 float 控件承载高精度值）。
+      return 'decimal';
     case 'datetime':
       return datetimeFormatOf(condition) === 'time' ? 'time' : 'datetime';
     case 'radiogroup':

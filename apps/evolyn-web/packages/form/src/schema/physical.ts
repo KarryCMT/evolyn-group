@@ -11,6 +11,11 @@ const STORAGE_TYPE_BY_WIDGET: Readonly<Partial<Record<FormWidgetType, LogicalSto
   textarea: 'longText',
   phone: 'shortText',
   number: 'decimal',
+  // 数值字段族（Phase 4）：值语义 decimal string，物理列 NUMERIC(p,s) 的
+  // 精度修饰由后端发布期解析（§36：DDL 执行权在后端），前端投影只声明类型。
+  decimal: 'decimal',
+  money: 'decimal',
+  percent: 'decimal',
   datetime: 'datetime',
   radiogroup: 'shortText',
   combo: 'shortText',

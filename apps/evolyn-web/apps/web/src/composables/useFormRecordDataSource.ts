@@ -370,6 +370,12 @@ function queryFieldTypeOf(widgetType: string): QueryFieldType | null {
     case 'textarea':
       return 'text';
     case 'number':
+    // 数值字段族（decimal/money/percent）与 number 共用数值筛选语义：
+    // 条件值暂按 number 协议出网（后端 ::numeric 比较），decimal-string
+    // 查询值协议随数值运行时 Phase 7 落地。
+    case 'decimal':
+    case 'money':
+    case 'percent':
       return 'number';
     case 'datetime':
       return 'datetime';

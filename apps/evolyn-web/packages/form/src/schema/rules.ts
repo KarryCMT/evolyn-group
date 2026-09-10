@@ -15,6 +15,7 @@
 
 import { FIELD_SHOW_EMPTY_METHODS } from './dictionary';
 import { isEmptyWidgetValue } from './codec';
+import { compareDecimalText, isNumericWidgetType } from './numeric';
 import type { FieldShowCondition, FieldShowRule, FormContent, FormJsonValue } from './types';
 import {
   compileRuleGraph,
@@ -217,11 +218,20 @@ function scalarIncludes(
     const num = readNumber(rawValue);
     return num !== null && expected.some((entry) => typeof entry === 'number' && entry === num);
   }
+  if (isNumericWidgetType(type)) {
+    // 数值字段族：值与常量均为 decimal string，按值序精确比较（禁 float 中转）。
+    const left = readText(rawValue);
+    if (left === null) return false;
+    return expected.some((entry) => {
+      const right = readText(entry);
+      return right !== null && compareDecimalText(left, right) === 0;
+    });
+  }
   const text = readText(rawValue);
   return text !== null && expected.some((entry) => textOf(entry) === text);
 }
 
-/** 有序比较：number 按数值、datetime 按规范形状字符串字典序（同格式可比）。 */
+/** 有序比较：number 按数值、decimal 族按精确值序、datetime 按字典序。 */
 function compareOrdered(
   type: string,
   rawValue: unknown,
@@ -233,6 +243,13 @@ function compareOrdered(
     const right = readNumber(expected);
     if (left === null || right === null) return NaN;
     return left - right;
+  }
+  if (isNumericWidgetType(type)) {
+    const left = readText(rawValue);
+    const right = readText(expected);
+    if (left === null || right === null) return NaN;
+    const order = compareDecimalText(left, right);
+    return order === null ? NaN : order;
   }
   const left = readText(rawValue);
   const right = textOf(expected);

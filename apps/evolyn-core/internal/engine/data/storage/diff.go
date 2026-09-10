@@ -89,7 +89,7 @@ func Diff(applied, target *StorageModel) (*DiffResult, error) {
 		for _, column := range applied.Columns {
 			next, exists := targetByID[column.FieldID]
 			if exists {
-				if next.Kind != column.Kind || next.Type != column.Type {
+				if !columnTypeEqual(next, column) {
 					result.TypeConflict = &ErrTypeChange{
 						FieldID: column.FieldID,
 						Detail:  fmt.Sprintf("%s/%s -> %s/%s", column.Kind, column.Type, next.Kind, next.Type),
@@ -204,7 +204,7 @@ func mergeChildTables(appliedChildren map[string]ChildTableSpec, targetChildren 
 			}
 			for _, column := range previous.Columns {
 				if next, ok := currentByID[column.FieldID]; ok {
-					if next.Kind != column.Kind || next.Type != column.Type {
+					if !columnTypeEqual(next, column) {
 						result.TypeConflict = &ErrTypeChange{
 							FieldID: child.FieldID + ":" + column.FieldID,
 							Detail:  fmt.Sprintf("子表列 %s/%s -> %s/%s", column.Kind, column.Type, next.Kind, next.Type),

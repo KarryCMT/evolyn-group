@@ -165,13 +165,20 @@ func buildTargetStorageModel(
 			})
 			return storagepkg.ColumnSpec{}, false
 		}
-		return storagepkg.ColumnSpec{
+		spec := storagepkg.ColumnSpec{
 			FieldID:    fieldID,
 			WidgetName: name,
 			WidgetType: widgetType,
 			Kind:       kind,
 			Type:       storagepkg.ColumnTypeOf(kind),
-		}, true
+		}
+		if kind == storagepkg.KindDecimal {
+			// 数值字段族：物理列 NUMERIC(p,s)，显式配置优先、缺省按类型
+			// 默认解析（numeric_field.go，与提交终审/TS 镜像共用）；精度
+			// 修饰纳入类型冲突比较，发布后不可变。
+			spec.Precision, spec.Scale = resolveNumericColumnSpec(widgetType, widget)
+		}
+		return spec, true
 	}
 	for itemIndex, rawItem := range itemsAny {
 		item, ok := rawItem.(map[string]any)

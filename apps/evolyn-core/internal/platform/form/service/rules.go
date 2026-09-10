@@ -275,8 +275,8 @@ func matchFieldShowCondition(condition fieldShowCondition, rawValue any, current
 	}
 }
 
-// orderedShowMatch number/datetime 的有序比较：数值按大小，datetime 规范
-// 形状字符串按字典序（同格式可比）。
+// orderedShowMatch number/数值字段族/datetime 的有序比较：数值按大小，
+// decimal 族按精确值序，datetime 规范形状字符串按字典序（同格式可比）。
 func orderedShowMatch(condition fieldShowCondition, rawValue any, expected []any) bool {
 	compare := func(a, b string) int {
 		switch {
@@ -288,32 +288,12 @@ func orderedShowMatch(condition fieldShowCondition, rawValue any, expected []any
 			return 0
 		}
 	}
+	if isDecimalWidgetType(condition.typ) {
+		// 数值字段族：decimal string 按精确值序比较（设计 §15 值协议）。
+		return orderedDecimalMatch(condition.method, rawValue, expected)
+	}
 	if condition.typ == "number" {
-		left, ok := rawValue.(float64)
-		if !ok || math.IsNaN(left) || math.IsInf(left, 0) {
-			return false
-		}
-		bounds := make([]float64, 0, 2)
-		for _, entry := range expected {
-			num, ok := entry.(float64)
-			if !ok || math.IsNaN(num) || math.IsInf(num, 0) {
-				return false
-			}
-			bounds = append(bounds, num)
-		}
-		switch condition.method {
-		case "gt":
-			return len(bounds) == 1 && left > bounds[0]
-		case "gte":
-			return len(bounds) == 1 && left >= bounds[0]
-		case "lt":
-			return len(bounds) == 1 && left < bounds[0]
-		case "lte":
-			return len(bounds) == 1 && left <= bounds[0]
-		case "between":
-			return len(bounds) == 2 && left >= bounds[0] && left <= bounds[1]
-		}
-		return false
+		return orderedNumberMatch(condition.method, rawValue, expected)
 	}
 	left, ok := rawValue.(string)
 	if !ok {
@@ -338,6 +318,35 @@ func orderedShowMatch(condition fieldShowCondition, rawValue any, expected []any
 		return len(bounds) == 1 && compare(left, bounds[0]) <= 0
 	case "between":
 		return len(bounds) == 2 && compare(left, bounds[0]) >= 0 && compare(left, bounds[1]) <= 0
+	}
+	return false
+}
+
+// orderedNumberMatch number 控件的 gt/gte/lt/lte/between 求值（float 值序）。
+func orderedNumberMatch(method string, rawValue any, expected []any) bool {
+	left, ok := rawValue.(float64)
+	if !ok || math.IsNaN(left) || math.IsInf(left, 0) {
+		return false
+	}
+	bounds := make([]float64, 0, 2)
+	for _, entry := range expected {
+		num, ok := entry.(float64)
+		if !ok || math.IsNaN(num) || math.IsInf(num, 0) {
+			return false
+		}
+		bounds = append(bounds, num)
+	}
+	switch method {
+	case "gt":
+		return len(bounds) == 1 && left > bounds[0]
+	case "gte":
+		return len(bounds) == 1 && left >= bounds[0]
+	case "lt":
+		return len(bounds) == 1 && left < bounds[0]
+	case "lte":
+		return len(bounds) == 1 && left <= bounds[0]
+	case "between":
+		return len(bounds) == 2 && left >= bounds[0] && left <= bounds[1]
 	}
 	return false
 }
@@ -377,6 +386,23 @@ func scalarIncludes(typ string, rawValue any, expected []any) bool {
 		}
 		for _, entry := range expected {
 			if expectedNum, ok := entry.(float64); ok && expectedNum == num {
+				return true
+			}
+		}
+		return false
+	}
+	if isDecimalWidgetType(typ) {
+		// 数值字段族：值与常量均为 decimal string，按值序精确比较（禁 float 中转）。
+		left, ok := rawValue.(string)
+		if !ok {
+			return false
+		}
+		for _, entry := range expected {
+			right, isString := entry.(string)
+			if !isString {
+				continue
+			}
+			if order, comparable := compareDecimalText(left, right); comparable && order == 0 {
 				return true
 			}
 		}

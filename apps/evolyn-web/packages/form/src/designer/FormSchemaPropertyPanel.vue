@@ -66,6 +66,10 @@
                 <!-- 控件专属配置统一置于公共提示文字之后、校验之前。 -->
                 <TextareaPropertyPanel v-if="widget.type === 'textarea'" :widget="widget" />
                 <NumberPropertyPanel v-else-if="widget.type === 'number'" :widget="widget" />
+                <DecimalPropertyPanel
+                  v-else-if="isNumericWidgetType(widget.type)"
+                  :widget="widget as DecimalFamilyWidget"
+                />
                 <DateTimePropertyPanel v-else-if="widget.type === 'datetime'" :widget="widget" />
                 <SeparatorPropertyPanel v-else-if="widget.type === 'separator'" :widget="widget" />
                 <OptionsPropertyPanel v-else-if="optionsWidget" :widget="optionsWidget" />
@@ -290,13 +294,16 @@ import type {
   PreSubmitConfirm,
   SubmitRule,
   SubmitValidator,
+  DecimalFamilyWidget,
 } from '../schema/types';
 import { widgetTypeLabel } from '../schema/dictionary';
+import { isNumericWidgetType } from '../schema/numeric';
 import { submitRuleLabel } from '../schema/invisible-value-policy';
 import FormSchemaCommonPropertyPanel from './FormSchemaCommonPropertyPanel.vue';
 import DateTimePropertyPanel from './properties/DateTimePropertyPanel.vue';
 import MultitabPropertyPanel from './properties/MultitabPropertyPanel.vue';
 import NumberPropertyPanel from './properties/NumberPropertyPanel.vue';
+import DecimalPropertyPanel from './properties/DecimalPropertyPanel.vue';
 import OptionsPropertyPanel from './properties/OptionsPropertyPanel.vue';
 import SeparatorPropertyPanel from './properties/SeparatorPropertyPanel.vue';
 import FormSchemaPropertySection from './properties/FormSchemaPropertySection.vue';

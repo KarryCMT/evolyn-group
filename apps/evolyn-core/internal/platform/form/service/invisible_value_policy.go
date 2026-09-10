@@ -26,6 +26,7 @@ const submitRuleMaxSpecialRules = 500
 // 与 TS SUBMIT_RULE_ELIGIBLE_WIDGET_TYPES 逐条一致。
 var submitRuleEligibleTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
+	"decimal": true, "money": true, "percent": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
 	"user": true, "usergroup": true,
 }

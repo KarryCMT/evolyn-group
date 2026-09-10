@@ -361,6 +361,8 @@ func validateFieldValue(field snapshotField, value any) []string {
 		return validateTextValue(field, value)
 	case "number":
 		return validateNumberValue(field, value)
+	case "decimal", "money", "percent":
+		return validateDecimalFamilyValue(field, value)
 	case "datetime":
 		return validateDateTimeValue(field, value)
 	case "radiogroup", "combo":
@@ -540,6 +542,38 @@ func validateNumberValue(field snapshotField, value any) []string {
 		scaled := num * math.Pow(10, float64(precision))
 		if math.Abs(scaled-math.Round(scaled)) > 1e-9 {
 			errs = append(errs, fmt.Sprintf("%s最多支持 %d 位小数", field.label, precision))
+		}
+	}
+	return errs
+}
+
+// validateDecimalFamilyValue 数值字段族值终审（与前端 validateDecimalFamilyValue
+// 逐字一致）：decimal string 形状、scale/precision 位数（按值语义：尾随零/
+// 前导零不计位）与 [min,max] 范围（经 platform/numeric 精确比较，禁 float 中转）。
+func validateDecimalFamilyValue(field snapshotField, value any) []string {
+	text, ok := value.(string)
+	if !ok {
+		return []string{fmt.Sprintf("%s的值类型不正确", field.label)}
+	}
+	if !validDecimalText(text) {
+		return []string{fmt.Sprintf("%s格式不正确", field.label)}
+	}
+	var errs []string
+	precision, scale := effectiveNumericPrecisionScale(field.widgetType, field.widget)
+	switch decimalDigitIssue(text, precision, scale) {
+	case "scale":
+		errs = append(errs, fmt.Sprintf("%s最多支持 %d 位小数", field.label, scale))
+	case "precision":
+		errs = append(errs, fmt.Sprintf("%s整数位最多 %d 位", field.label, precision-scale))
+	}
+	if min, ok := field.widget["min"].(string); ok && validDecimalText(min) {
+		if order, comparable := compareDecimalText(text, min); comparable && order < 0 {
+			errs = append(errs, fmt.Sprintf("%s不能小于 %s", field.label, min))
+		}
+	}
+	if max, ok := field.widget["max"].(string); ok && validDecimalText(max) {
+		if order, comparable := compareDecimalText(text, max); comparable && order > 0 {
+			errs = append(errs, fmt.Sprintf("%s不能大于 %s", field.label, max))
 		}
 	}
 	return errs

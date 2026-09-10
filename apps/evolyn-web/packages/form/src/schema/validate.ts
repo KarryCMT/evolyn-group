@@ -24,6 +24,15 @@ import {
 } from './dictionary';
 import { isCanonicalDateTime } from './codec';
 import {
+  compareDecimalText,
+  DECIMAL_TEXT_PATTERN,
+  decimalDigitIssue,
+  effectiveNumericPrecision,
+  effectiveNumericScale,
+  isNumericWidgetType,
+  type NumericWidgetType,
+} from './numeric';
+import {
   type FormSchemaDocument,
   type FormItem,
   type FormWidgetType,
@@ -1042,6 +1051,13 @@ function validateFieldShowConditionValue(
       }
       return;
     }
+    if (isNumericWidgetType(widgetType)) {
+      // 数值字段族条件值是 decimal string（值协议 §15/§27）。
+      if (typeof rawItem !== 'string' || !DECIMAL_TEXT_PATTERN.test(rawItem)) {
+        issues.push({ path: itemPath, message: 'value 条目必须是十进制数字字符串' });
+      }
+      return;
+    }
     if (widgetType === 'datetime') {
       const format = (entry.widget.format as 'date' | 'datetime' | 'month' | 'time') ?? 'datetime';
       if (typeof rawItem !== 'string' || !isCanonicalDateTime(rawItem, format)) {
@@ -1094,6 +1110,16 @@ function orderedPairOk(
       Number.isFinite(lower) &&
       Number.isFinite(upper) &&
       lower <= upper
+    );
+  }
+  if (isNumericWidgetType(widgetType)) {
+    // 数值字段族按 decimal 值序比较（精确比较，禁 parseFloat）。
+    return (
+      typeof lower === 'string' &&
+      typeof upper === 'string' &&
+      DECIMAL_TEXT_PATTERN.test(lower) &&
+      DECIMAL_TEXT_PATTERN.test(upper) &&
+      compareDecimalText(lower, upper) !== 1
     );
   }
   if (widgetType === 'datetime') {
@@ -1530,6 +1556,17 @@ function validateWidgetProp(
         });
       }
       return;
+    case 'decimal':
+      // 数值字段族的 min/max/defaultValue：decimal string（null=未启用），
+      // 形状拒绝指数记法与正号（canonical 协议 §49）；位数约束在交叉规则复核。
+      if (value === null) return;
+      if (typeof value !== 'string' || !DECIMAL_TEXT_PATTERN.test(value)) {
+        issues.push({
+          path,
+          message: `${path.split('.').pop()} 必须是十进制数字字符串（null 表示未启用）`,
+        });
+      }
+      return;
     case 'stringArray':
       if (!Array.isArray(value)) {
         issues.push({ path, message: `${path.split('.').pop()} 必须是字符串数组` });
@@ -1853,6 +1890,11 @@ function validateWidgetCrossRules(
       }
       break;
     }
+    case 'decimal':
+    case 'money':
+    case 'percent':
+      validateNumericFamilyCrossRules(widget as { type: NumericWidgetType }, path, issues);
+      break;
     case 'user':
     case 'usergroup': {
       if (widget.scope === 'department') {
@@ -1898,6 +1940,67 @@ function validateWidgetCrossRules(
 }
 
 // ---- 助手 ----
+
+/**
+ * 数值字段族交叉约束（与 Go 镜像逐字一致）：
+ * 有效 scale ≤ 有效 precision；min ≤ max；defaultValue 落在范围内；
+ * min/max/defaultValue 自身须满足 scale/precision 位数约束（防不可满足范围）。
+ * 属性级形状已在 validateWidgetProp(kind=decimal) 拒绝，此处防御式读取。
+ */
+function validateNumericFamilyCrossRules(
+  widget: { type: NumericWidgetType },
+  path: string,
+  issues: FormSchemaIssue[],
+): void {
+  const record = widget as Record<string, unknown>;
+  const declaredInteger = (key: string): number | null => {
+    const value = record[key];
+    return typeof value === 'number' && Number.isInteger(value) ? value : null;
+  };
+  const precision = effectiveNumericPrecision({
+    type: widget.type,
+    precision: declaredInteger('precision'),
+  });
+  const scale = effectiveNumericScale({ type: widget.type, scale: declaredInteger('scale') });
+  if (scale > precision) {
+    issues.push({ path: `${path}.scale`, message: 'scale 不能大于 precision' });
+  }
+  const decimalOf = (key: string): string | null => {
+    const value = record[key];
+    return typeof value === 'string' && DECIMAL_TEXT_PATTERN.test(value) ? value : null;
+  };
+  const min = decimalOf('min');
+  const max = decimalOf('max');
+  const defaultValue = decimalOf('defaultValue');
+  const bounds: ReadonlyArray<[string, string | null]> = [
+    ['min', min],
+    ['max', max],
+    ['defaultValue', defaultValue],
+  ];
+  for (const [key, text] of bounds) {
+    if (text === null) continue;
+    const issue = decimalDigitIssue(text, precision, scale);
+    if (issue === 'scale') {
+      issues.push({ path: `${path}.${key}`, message: `${key} 最多支持 ${scale} 位小数` });
+    } else if (issue === 'precision') {
+      issues.push({
+        path: `${path}.${key}`,
+        message: `${key} 整数位最多 ${precision - scale} 位`,
+      });
+    }
+  }
+  if (min !== null && max !== null && compareDecimalText(min, max) === 1) {
+    issues.push({ path: `${path}.max`, message: 'max 不能小于 min' });
+  }
+  if (defaultValue !== null) {
+    if (min !== null && compareDecimalText(defaultValue, min) === -1) {
+      issues.push({ path: `${path}.defaultValue`, message: 'defaultValue 不能小于 min' });
+    }
+    if (max !== null && compareDecimalText(defaultValue, max) === 1) {
+      issues.push({ path: `${path}.defaultValue`, message: 'defaultValue 不能大于 max' });
+    }
+  }
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

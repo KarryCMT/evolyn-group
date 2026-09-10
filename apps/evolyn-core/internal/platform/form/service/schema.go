@@ -1,7 +1,7 @@
 // 目标保存协议校验器（Go 侧镜像实现）。
 //
 // 与前端 packages/form/src/schema/{dictionary,validate}.ts 对同一 JSON 的校验结论
-// 必须一致（P1 验收条件）：27 种 widget.type 的属性表、取值范围、未知键拒绝与
+// 必须一致（P1 验收条件）：30 种 widget.type 的属性表、取值范围、未知键拒绝与
 // 错误文案逐条镜像；差异只允许出现在问题排序（Go 按键名排序保证确定性）。
 // 修改本表必须同步：字段字典文档、TS 字典、发布白名单与两侧测试。
 package service
@@ -32,6 +32,7 @@ const (
 	kindString       propKind = "string"
 	kindInteger      propKind = "integer"
 	kindNumber       propKind = "number"
+	kindDecimal      propKind = "decimal"
 	kindEnum         propKind = "enum"
 	kindStringArray  propKind = "stringArray"
 	kindOptions      propKind = "options"
@@ -88,6 +89,7 @@ var (
 // 子项仍须受 subformPublishableWidgetTypes 收口，不能因为结构上允许就提前发布。
 var publishableWidgetTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
+	"decimal": true, "money": true, "percent": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
 	"separator": true, "user": true, "usergroup": true, "subform": true,
 }
@@ -97,12 +99,14 @@ var publishableWidgetTypes = map[string]bool{
 // 混用，否则发布后会出现可提交但无法运行的字段。
 var subformPublishableWidgetTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
+	"decimal": true, "money": true, "percent": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
 }
 
 // subformAllowedTypes 子表单子项白名单：禁止无行值语义的 separator/richtext/subform。
 var subformAllowedTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
+	"decimal": true, "money": true, "percent": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
 	"user": true, "usergroup": true, "dept": true, "deptgroup": true,
 	"image": true, "upload": true, "address": true, "location": true,
@@ -124,6 +128,9 @@ var fieldShowConditionMethods = map[string][]string{
 	"text":          {"eq", "ne", "contains", "notContains", "isEmpty", "notEmpty"},
 	"textarea":      {"eq", "ne", "contains", "notContains", "isEmpty", "notEmpty"},
 	"number":        {"eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "notEmpty"},
+	"decimal":       {"eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "notEmpty"},
+	"money":         {"eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "notEmpty"},
+	"percent":       {"eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "notEmpty"},
 	"datetime":      {"eq", "ne", "gt", "gte", "lt", "lte", "between", "isEmpty", "notEmpty"},
 	"radiogroup":    {"eq", "ne", "in", "notIn", "isEmpty", "notEmpty"},
 	"combo":         {"eq", "ne", "in", "notIn", "isEmpty", "notEmpty"},
@@ -147,7 +154,20 @@ var textProps = map[string]propSpec{
 	"defaultValue": {kind: kindString, maxLen: 1000},
 }
 
-// widgetSpecs 控件字典（27 种；标签仅用于错误文案/内部参考）。
+// numericFamilyProps 数值字段族（decimal/money/percent）共享属性表：min/max/
+// defaultValue 是 decimal string；precision/scale 护栏与 rounding 枚举见
+// numeric_field.go（与 TS schema/numeric.ts 逐字一致）。
+var numericFamilyProps = map[string]propSpec{
+	"placeholder":  {kind: kindString, maxLen: protoPlaceholderMax},
+	"min":          {kind: kindDecimal},
+	"max":          {kind: kindDecimal},
+	"precision":    {kind: kindInteger, min: f64(numericPrecisionMin), max: f64(numericPrecisionMax)},
+	"scale":        {kind: kindInteger, min: f64(numericScaleMin), max: f64(numericScaleMax)},
+	"rounding":     {kind: kindEnum, enum: roundingModeValues},
+	"defaultValue": {kind: kindDecimal},
+}
+
+// widgetSpecs 控件字典（30 种；标签仅用于错误文案/内部参考）。
 var widgetSpecs = map[string]widgetSpec{
 	"text": {label: "单行文本", props: textProps},
 	"textarea": {label: "多行文本", props: map[string]propSpec{
@@ -164,6 +184,9 @@ var widgetSpecs = map[string]widgetSpec{
 		"precision":    {kind: kindInteger, min: f64(0), max: f64(8)},
 		"defaultValue": {kind: kindNumber},
 	}},
+	"decimal": {label: "高精度小数", props: numericFamilyProps},
+	"money":   {label: "金额", props: numericFamilyProps},
+	"percent": {label: "百分比", props: numericFamilyProps},
 	"datetime": {label: "日期时间", props: map[string]propSpec{
 		"format":       {kind: kindEnum, enum: []string{"date", "datetime", "month", "time"}},
 		"placeholder":  {kind: kindString, maxLen: protoPlaceholderMax},
@@ -804,7 +827,7 @@ func validateWidget(raw any, path string, spec widgetSpec, scopeNames map[string
 	validateWidgetCrossRules(widget, widgetType, path, issues)
 }
 
-func validateWidgetProp(value any, spec propSpec, path, key string, protocolVersion int, fieldIDScope map[string]string, issues *[]SchemaIssue) { //nolint:gocyclo // 27 种 widget 协议属性逐 kind 分派，镜像 TS 字典结构
+func validateWidgetProp(value any, spec propSpec, path, key string, protocolVersion int, fieldIDScope map[string]string, issues *[]SchemaIssue) { //nolint:gocyclo // 30 种 widget 协议属性逐 kind 分派，镜像 TS 字典结构
 	switch spec.kind {
 	case kindBoolean:
 		if _, ok := value.(bool); !ok {
@@ -847,6 +870,15 @@ func validateWidgetProp(value any, spec propSpec, path, key string, protocolVers
 			}
 		} else {
 			*issues = append(*issues, SchemaIssue{Path: path, Message: key + " 必须是有限数值（null 表示未启用）"})
+		}
+	case kindDecimal:
+		// 数值字段族的 min/max/defaultValue：decimal string（null=未启用），
+		// 形状拒绝指数记法与正号（canonical 协议 §49）；位数约束在交叉规则复核。
+		if value == nil {
+			return
+		}
+		if text, ok := value.(string); !ok || !validDecimalText(text) {
+			*issues = append(*issues, SchemaIssue{Path: path, Message: key + " 必须是十进制数字字符串（null 表示未启用）"})
 		}
 	case kindEnum:
 		text, ok := value.(string)
@@ -1180,6 +1212,8 @@ func validateWidgetCrossRules(widget map[string]any, widgetType, path string, is
 				*issues = append(*issues, SchemaIssue{Path: path + ".defaultValue", Message: "defaultValue 不能大于 max"})
 			}
 		}
+	case "decimal", "money", "percent":
+		validateNumericFamilyCrossRules(widgetType, widget, path, issues)
 	case "user", "usergroup":
 		if widget["scope"] == "department" {
 			if deps, ok := widget["departments"].([]any); !ok || len(deps) == 0 {
@@ -1589,7 +1623,15 @@ func validateFieldShowConditionValue(
 	}
 
 	// 逐项形状：文本/数值/日期/选项命中/成员部门标识。
-	optionValues := optionValuesOrNil(entry.widget)
+	validateShowConditionValueItems(values, entry.widget, widgetType, condPath, issues)
+}
+
+// validateShowConditionValueItems 条件值逐项形状校验（validateFieldShowConditionValue
+// 的内层循环拆分；语义与 TS validateFieldShowConditionValue 逐字对拍）。
+func validateShowConditionValueItems(
+	values []any, widget map[string]any, widgetType string, condPath string, issues *[]SchemaIssue,
+) {
+	optionValues := optionValuesOrNil(widget)
 	textCap := 0
 	switch widgetType {
 	case "text":
@@ -1606,9 +1648,17 @@ func validateFieldShowConditionValue(
 			}
 			continue
 		}
+		if isDecimalWidgetType(widgetType) {
+			// 数值字段族条件值是 decimal string（值协议 §15/§27）。
+			text, isString := rawItem.(string)
+			if !isString || !validDecimalText(text) {
+				*issues = append(*issues, SchemaIssue{Path: itemPath, Message: "value 条目必须是十进制数字字符串"})
+			}
+			continue
+		}
 		if widgetType == "datetime" {
 			text, isString := rawItem.(string)
-			format, _ := entry.widget["format"].(string)
+			format, _ := widget["format"].(string)
 			if format == "" {
 				format = "datetime"
 			}
@@ -1640,19 +1690,29 @@ func validateFieldShowConditionValue(
 			continue
 		}
 		if seen[text] {
-			*issues = append(*issues, SchemaIssue{Path: itemPath, Message: "value 存在重复项"})
+			*issues = append(*issues, SchemaIssue{Path: itemPath, Message: "value 条目存在重复项"})
 		}
 		seen[text] = true
 	}
 }
 
-// showOrderedPairOK between 下界 ≤ 上界（number 数值序、datetime 规范字符串字典序）。
+// showOrderedPairOK between 下界 ≤ 上界（number 数值序、decimal 族精确值序、
+// datetime 规范字符串字典序）。
 func showOrderedPairOK(widgetType string, lower, upper any, widget map[string]any) bool {
 	if widgetType == "number" {
 		left, leftOK := lower.(float64)
 		right, rightOK := upper.(float64)
 		return leftOK && rightOK && !math.IsNaN(left) && !math.IsInf(left, 0) &&
 			!math.IsNaN(right) && !math.IsInf(right, 0) && left <= right
+	}
+	if isDecimalWidgetType(widgetType) {
+		left, leftOK := lower.(string)
+		right, rightOK := upper.(string)
+		if !leftOK || !rightOK || !validDecimalText(left) || !validDecimalText(right) {
+			return false
+		}
+		order, ok := compareDecimalText(left, right)
+		return ok && order <= 0
 	}
 	if widgetType == "datetime" {
 		left, leftOK := lower.(string)

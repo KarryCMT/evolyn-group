@@ -16,8 +16,12 @@ type FieldKind string
 const (
 	// KindText 文本（text/textarea/单选项值）。
 	KindText FieldKind = "text"
-	// KindNumber 数字（NUMERIC，保留 precision 由值校验层负责）。
+	// KindNumber 数字（JS number 语义，裸 NUMERIC 列；小数位由值校验层负责）。
 	KindNumber FieldKind = "number"
+	// KindDecimal 高精度十进制（decimal/money/percent，Phase 4）：值形态
+	// canonical decimal string，物理列 NUMERIC(p,s)（ColumnSpec.Precision/
+	// Scale 携带修饰，发布后不可变——精度变化按类型变更拒绝）。
+	KindDecimal FieldKind = "decimal"
 	// KindDate 日期（形状 YYYY-MM-DD）。
 	KindDate FieldKind = "date"
 	// KindDateTime 日期时间（形状 YYYY-MM-DD HH:MM:SS，本地时间直存，
@@ -53,6 +57,10 @@ func KindOf(widgetType, format string) (FieldKind, bool) {
 		return KindText, true
 	case "number":
 		return KindNumber, true
+	case "decimal", "money", "percent":
+		// 数值字段族：precision/scale 修饰由发布侧解析后写入 ColumnSpec
+		// （storage_publish.go resolveNumericColumnSpec），KindOf 只定值语义。
+		return KindDecimal, true
 	case "datetime":
 		// format 非必填（字典 enum 无 required），设计器新建字段可能未显式
 		// 设置——缺省兜底为 datetime，与提交校验（value.go）和查询层
@@ -86,12 +94,13 @@ func KindOf(widgetType, format string) (FieldKind, bool) {
 	}
 }
 
-// ColumnTypeOf 值语义 → PostgreSQL 列类型。
+// ColumnTypeOf 值语义 → PostgreSQL 基础列类型（不带精度修饰；带修饰的完整
+// 列类型经 ColumnDDLType 产出）。
 func ColumnTypeOf(kind FieldKind) ColumnType {
 	switch kind {
 	case KindText:
 		return ColumnTypeText
-	case KindNumber:
+	case KindNumber, KindDecimal:
 		return ColumnTypeNumeric
 	case KindDate:
 		return ColumnTypeDate

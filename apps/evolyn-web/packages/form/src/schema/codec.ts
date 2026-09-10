@@ -7,12 +7,20 @@
  */
 
 import type {
+  DecimalFamilyWidget,
   FormItem,
   FormItemWidget,
   FormJsonValue,
   FormWidgetOption,
   FormWidgetType,
 } from './types';
+import {
+  compareDecimalText,
+  DECIMAL_TEXT_PATTERN,
+  decimalDigitIssue,
+  effectiveNumericPrecision,
+  effectiveNumericScale,
+} from './numeric';
 
 /** 无值控件（不进入值表、不校验、不提交）。 */
 const LAYOUT_WIDGET_TYPES: ReadonlySet<string> = new Set(['separator', 'button']);
@@ -114,6 +122,12 @@ export function normalizeWidgetValue(widget: FormItemWidget, value: unknown): Fo
         return Number(value);
       }
       return null;
+    case 'decimal':
+    case 'money':
+    case 'percent':
+      // 数值字段族值是 decimal string（设计 §15/§27）；不做字符串强转，
+      // 形状非法的脏数据收敛为 null（终审在 validateDecimalFamilyValue）。
+      return typeof value === 'string' ? value : null;
     case 'checkboxgroup':
     case 'combocheck':
     case 'usergroup':
@@ -146,6 +160,10 @@ export function validateWidgetValue(item: FormItem, value: unknown): string[] {
       return validateTextValue(item.label, widget, value);
     case 'number':
       return validateNumberValue(item.label, widget, value);
+    case 'decimal':
+    case 'money':
+    case 'percent':
+      return validateDecimalFamilyValue(item.label, widget as DecimalFamilyWidget, value);
     case 'datetime':
       return validateDateTimeValue(item.label, widget, value);
     case 'radiogroup':
@@ -322,6 +340,38 @@ function validateNumberValue(
     if (Math.abs(scaled - Math.round(scaled)) > 1e-9) {
       errors.push(`${label}最多支持 ${precision} 位小数`);
     }
+  }
+  return errors;
+}
+
+/**
+ * 数值字段族值终审（与 Go validateDecimalFamilyValue 逐字一致）：decimal
+ * string 形状、scale/precision 位数（按值语义：尾随零/前导零不计位）与
+ * [min,max] 范围（精确比较，禁 float 中转）。错误按 label 回填。
+ */
+export function validateDecimalFamilyValue(
+  label: string,
+  widget: DecimalFamilyWidget,
+  value: unknown,
+): string[] {
+  if (typeof value !== 'string') return [`${label}的值类型不正确`];
+  if (!DECIMAL_TEXT_PATTERN.test(value)) return [`${label}格式不正确`];
+  const errors: string[] = [];
+  const precision = effectiveNumericPrecision(widget);
+  const scale = effectiveNumericScale(widget);
+  const digitIssue = decimalDigitIssue(value, precision, scale);
+  if (digitIssue === 'scale') {
+    errors.push(`${label}最多支持 ${scale} 位小数`);
+  } else if (digitIssue === 'precision') {
+    errors.push(`${label}整数位最多 ${precision - scale} 位`);
+  }
+  const min = widget.min ?? null;
+  const max = widget.max ?? null;
+  if (min !== null && compareDecimalText(value, min) === -1) {
+    errors.push(`${label}不能小于 ${min}`);
+  }
+  if (max !== null && compareDecimalText(value, max) === 1) {
+    errors.push(`${label}不能大于 ${max}`);
   }
   return errors;
 }

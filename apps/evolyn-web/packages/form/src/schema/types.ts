@@ -23,11 +23,14 @@ export type FormJsonValue =
   | FormJsonValue[]
   | { [key: string]: FormJsonValue };
 
-/** 27 种控件判别键（字段字典 §3）；新增类型必须先修订字典再动代码。 */
+/** 30 种控件判别键（字段字典 §3）；新增类型必须先修订字典再动代码。 */
 export type FormWidgetType =
   | 'text'
   | 'textarea'
   | 'number'
+  | 'decimal'
+  | 'money'
+  | 'percent'
   | 'datetime'
   | 'radiogroup'
   | 'checkboxgroup'
@@ -61,6 +64,9 @@ export const PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'text',
   'textarea',
   'number',
+  'decimal',
+  'money',
+  'percent',
   'datetime',
   'radiogroup',
   'checkboxgroup',
@@ -80,6 +86,9 @@ export const SUBFORM_PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'text',
   'textarea',
   'number',
+  'decimal',
+  'money',
+  'percent',
   'datetime',
   'radiogroup',
   'checkboxgroup',
@@ -148,6 +157,34 @@ export interface NumberWidget extends FormWidgetCommon {
   precision?: number | null;
   defaultValue?: number | null;
 }
+
+/**
+ * 数值字段族（Phase 4，设计 §17）：decimal/money/percent 三种类型共享同一
+ * 属性结构。值协议是 canonical decimal string（设计 §15/§27，业务十进制
+ * 禁止 number 直传），min/max/defaultValue 同为 decimal string。
+ * precision=有效数字总位数（1–40）、scale=小数位（0–18），未配置时按类型
+ * 取有效默认（schema/numeric.ts）；rounding 供计算链消费（设计 §11）。
+ */
+export interface DecimalFamilyWidget extends FormWidgetCommon {
+  type: 'decimal' | 'money' | 'percent';
+  placeholder?: string;
+  min?: string | null;
+  max?: string | null;
+  precision?: number | null;
+  scale?: number | null;
+  rounding?: RoundingModeValue;
+  defaultValue?: string | null;
+}
+
+/** 计算链舍入模式（与 @evolyn.do/numeric RoundingMode 逐字一致，设计 §11）。 */
+export type RoundingModeValue =
+  | 'UP'
+  | 'DOWN'
+  | 'CEIL'
+  | 'FLOOR'
+  | 'HALF_UP'
+  | 'HALF_DOWN'
+  | 'HALF_EVEN';
 
 export type DateTimeFormat = 'date' | 'datetime' | 'month' | 'time';
 
@@ -282,6 +319,9 @@ export const SUBFORM_ALLOWED_WIDGET_TYPES: readonly FormWidgetType[] = [
   'text',
   'textarea',
   'number',
+  'decimal',
+  'money',
+  'percent',
   'datetime',
   'radiogroup',
   'checkboxgroup',
@@ -414,11 +454,12 @@ export interface ButtonWidget extends FormWidgetCommon {
   action?: ButtonAction;
 }
 
-/** 控件判别联合：以 type 为判别键的 27 种控件。 */
+/** 控件判别联合：以 type 为判别键的 30 种控件。 */
 export type FormItemWidget =
   | TextWidget
   | TextAreaWidget
   | NumberWidget
+  | DecimalFamilyWidget
   | DateTimeWidget
   | RadioGroupWidget
   | CheckboxGroupWidget
