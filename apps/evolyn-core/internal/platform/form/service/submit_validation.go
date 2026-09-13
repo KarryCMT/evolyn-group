@@ -223,6 +223,9 @@ func CompileSubmitRules(content map[string]any, protocol int) (model.JSONContent
 		if err := validateFormulaAST(expr); err != nil {
 			return nil, fmt.Errorf("validator %d formula: %w", i, err)
 		}
+		if err := validateSubmitMoneyCurrencyCompatibility(expr, fields); err != nil {
+			return nil, fmt.Errorf("validator %d formula: %w", i, err)
+		}
 		if _, ok := rule["realtime"].(bool); !ok {
 			return nil, fmt.Errorf("validator %d realtime invalid", i)
 		}
@@ -259,10 +262,123 @@ func submitRulesDigest(content map[string]any) string {
 }
 func submitFormulaFieldAllowed(widget string) bool {
 	switch widget {
-	case "text", "textarea", "phone", "number", "datetime", "radiogroup", "combo", "checkboxgroup", "combocheck":
+	case "text", "textarea", "phone", "number", "money", "datetime", "radiogroup", "combo", "checkboxgroup", "combocheck":
 		return true
 	}
 	return false
+}
+
+// validateSubmitMoneyCurrencyCompatibility 把金额字段币种视为表达式量纲。公式
+// 只允许同币种金额直接进入同一计算、聚合或比较；汇率、时点和来源尚未建模前，
+// 绝不能把两个原币种 decimal string 当作可相加的裸数字。
+func validateSubmitMoneyCurrencyCompatibility(expr ast.Expr, fields map[string]snapshotField) error {
+	_, err := validateMoneyCurrencyExpr(expr, fields)
+	return err
+}
+
+// 返回值表示子树是否已经报告过跨币种问题，避免嵌套算式在外层重复报错。
+func validateMoneyCurrencyExpr(expr ast.Expr, fields map[string]snapshotField) (bool, error) {
+	switch node := expr.(type) {
+	case *ast.BinaryExpr:
+		leftReported, err := validateMoneyCurrencyExpr(node.X, fields)
+		if err != nil {
+			return true, err
+		}
+		rightReported, err := validateMoneyCurrencyExpr(node.Y, fields)
+		if err != nil {
+			return true, err
+		}
+		if leftReported || rightReported || !currencySensitiveBinaryOperator(node.Op) {
+			return leftReported || rightReported, nil
+		}
+		return reportMixedMoneyCurrencies(node, fields)
+	case *ast.UnaryExpr:
+		return validateMoneyCurrencyExpr(node.X, fields)
+	case *ast.ParenExpr:
+		return validateMoneyCurrencyExpr(node.X, fields)
+	case *ast.CallExpr:
+		reported := false
+		for _, arg := range node.Args {
+			childReported, err := validateMoneyCurrencyExpr(arg, fields)
+			if err != nil {
+				return true, err
+			}
+			reported = reported || childReported
+		}
+		if reported || !currencySensitiveFunction(node) {
+			return reported, nil
+		}
+		return reportMixedMoneyCurrencies(node, fields)
+	}
+	return false, nil
+}
+
+func currencySensitiveBinaryOperator(op token.Token) bool {
+	switch op {
+	case token.ADD, token.SUB, token.MUL, token.QUO, token.REM,
+		token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ:
+		return true
+	default:
+		return false
+	}
+}
+
+func currencySensitiveFunction(call *ast.CallExpr) bool {
+	name, ok := call.Fun.(*ast.Ident)
+	if !ok {
+		return false
+	}
+	switch name.Name {
+	case "SUM", "AVERAGE", "MIN", "MAX", "PRODUCT", "SUMIF", "SUMPRODUCT":
+		return true
+	default:
+		return false
+	}
+}
+
+func reportMixedMoneyCurrencies(expr ast.Expr, fields map[string]snapshotField) (bool, error) {
+	currencies := map[string]bool{}
+	collectMoneyCurrencies(expr, fields, currencies)
+	if len(currencies) < 2 {
+		return false, nil
+	}
+	ordered := make([]string, 0, len(currencies))
+	for currency := range currencies {
+		ordered = append(ordered, currency)
+	}
+	sort.Strings(ordered)
+	return true, fmt.Errorf("金额字段币种不一致（%s），跨币种计算或比较需要先换汇", strings.Join(ordered, "、"))
+}
+
+func collectMoneyCurrencies(expr ast.Expr, fields map[string]snapshotField, currencies map[string]bool) {
+	ast.Inspect(expr, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		name, ok := call.Fun.(*ast.Ident)
+		if !ok || name.Name != "FIELD" || len(call.Args) != 1 {
+			return true
+		}
+		literal, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING {
+			return true
+		}
+		key, err := strconv.Unquote(literal.Value)
+		if err != nil {
+			return true
+		}
+		field, ok := fields[key]
+		if !ok || field.widgetType != "money" {
+			return true
+		}
+		currency, _ := field.widget["currencyCode"].(string)
+		if currency == "" {
+			currency = "CNY"
+		}
+		currencies[currency] = true
+		return true
+	})
 }
 
 func validateFormulaAST(node ast.Expr) error {

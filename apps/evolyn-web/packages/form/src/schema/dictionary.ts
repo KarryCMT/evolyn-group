@@ -323,6 +323,34 @@ function percentWidgetSpec(): WidgetSpec {
   };
 }
 
+/** 金额字段独占币种属性；枚举与后端 schema.go 保持完全一致。 */
+function moneyWidgetSpec(): WidgetSpec {
+  const spec = numericFamilyWidgetSpec('金额');
+  return {
+    ...spec,
+    props: {
+      ...spec.props,
+      currencyCode: {
+        kind: 'enum',
+        values: [
+          'CNY',
+          'USD',
+          'EUR',
+          'GBP',
+          'JPY',
+          'HKD',
+          'KRW',
+          'SGD',
+          'AUD',
+          'CAD',
+          'CHF',
+          'AED',
+        ],
+      },
+    },
+  };
+}
+
 /** 控件字典：30 种类型的完整声明。 */
 export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
   text: {
@@ -362,7 +390,7 @@ export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
     },
   },
   decimal: numericFamilyWidgetSpec('高精度小数'),
-  money: numericFamilyWidgetSpec('金额'),
+  money: moneyWidgetSpec(),
   percent: percentWidgetSpec(),
   datetime: {
     label: '日期时间',
@@ -721,6 +749,8 @@ export function createWidgetItem(type: FormWidgetType): FormItem {
     widget.min = '0';
     widget.max = '1';
   }
+  // 金额字段必须在新快照中固化默认币种；历史字段缺省时仍按 CNY 兼容展示。
+  if (type === 'money') widget.currencyCode = 'CNY';
   if (type === 'subform') {
     Object.assign(widget, {
       items: [],

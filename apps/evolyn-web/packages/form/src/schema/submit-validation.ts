@@ -1,5 +1,6 @@
 import { parseFormula, type FormulaNode } from '@evolyn.do/formula';
 import type { FormContent, FormJsonValue, FormItem, SubmitValidatorFailAction } from './types';
+import { formatMoneyValue } from './money';
 
 /**
  * v7 表单提交校验的框架无关执行器。它只解释已校验的受控 AST，不接触 Vue、HTTP
@@ -354,6 +355,9 @@ function toDate(value: FormulaRuntimeValue | undefined): Date {
 function formatTemplateValue(value: FormJsonValue | undefined, item?: FormItem): string {
   if (value === undefined || value === null || value === '') return '';
   const widget = item?.widget;
+  if (widget?.type === 'money' && typeof value === 'string') {
+    return formatMoneyValue(value, widget);
+  }
   const options = widget && 'options' in widget ? widget.options : undefined;
   const labelFor = (entry: FormJsonValue): string => {
     if (typeof entry !== 'string') return String(entry);

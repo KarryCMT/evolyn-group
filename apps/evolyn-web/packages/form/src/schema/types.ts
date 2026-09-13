@@ -181,6 +181,11 @@ export interface DecimalFamilyWidget extends FormWidgetCommon {
    * 缺省仅用于兼容既有发布快照，其历史值仍按填写值直接解释，不能补默认值。
    */
   percentValueMode?: 'ratio';
+  /**
+   * 金额字段的 ISO 4217 币种。新字段显式写入 CNY；旧快照缺省时按 CNY 展示。
+   * 数值始终以原币种的 decimal string 保存，不做汇率换算。
+   */
+  currencyCode?: import('./money').MoneyCurrencyCode;
 }
 
 /** 计算链舍入模式（与 @evolyn.do/numeric RoundingMode 逐字一致，设计 §11）。 */

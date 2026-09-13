@@ -182,6 +182,19 @@ var percentProps = map[string]propSpec{
 	"percentValueMode": {kind: kindEnum, enum: []string{"ratio"}},
 }
 
+// moneyProps 在共享高精度数值属性上追加 ISO 4217 币种。金额数值仍是原币种
+// decimal string，currencyCode 不参与换算；缺省只用于读取历史快照时回退 CNY。
+var moneyProps = map[string]propSpec{
+	"placeholder":  {kind: kindString, maxLen: protoPlaceholderMax},
+	"min":          {kind: kindDecimal},
+	"max":          {kind: kindDecimal},
+	"precision":    {kind: kindInteger, min: f64(numericPrecisionMin), max: f64(numericPrecisionMax)},
+	"scale":        {kind: kindInteger, min: f64(numericScaleMin), max: f64(numericScaleMax)},
+	"rounding":     {kind: kindEnum, enum: roundingModeValues},
+	"defaultValue": {kind: kindDecimal},
+	"currencyCode": {kind: kindEnum, enum: []string{"CNY", "USD", "EUR", "GBP", "JPY", "HKD", "KRW", "SGD", "AUD", "CAD", "CHF", "AED"}},
+}
+
 // widgetSpecs 控件字典（30 种；标签仅用于错误文案/内部参考）。
 var widgetSpecs = map[string]widgetSpec{
 	"text": {label: "单行文本", props: textProps},
@@ -200,7 +213,7 @@ var widgetSpecs = map[string]widgetSpec{
 		"defaultValue": {kind: kindNumber},
 	}},
 	"decimal": {label: "高精度小数", props: numericFamilyProps},
-	"money":   {label: "金额", props: numericFamilyProps},
+	"money":   {label: "金额", props: moneyProps},
 	"percent": {label: "百分比", props: percentProps},
 	"datetime": {label: "日期时间", props: map[string]propSpec{
 		"format":       {kind: kindEnum, enum: []string{"date", "datetime", "month", "time"}},

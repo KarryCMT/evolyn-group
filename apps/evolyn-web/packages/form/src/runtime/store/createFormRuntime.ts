@@ -26,6 +26,7 @@ import {
   renderSubmitTemplate,
   type SubmitValidatorFailure,
 } from '../../schema/submit-validation';
+import { formatMoneyValue } from '../../schema/money';
 import type { FormItem, FormSchemaDocument, SubmitRule } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
 import type {
@@ -397,6 +398,10 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     field: string,
     value: FormValue | undefined,
   ): string | undefined {
+    const item = itemMap.get(field);
+    if (item?.widget.type === 'money' && typeof value === 'string') {
+      return formatMoneyValue(value, item.widget);
+    }
     const labels = templateValueLabels.get(field);
     if (!labels) return undefined;
     const labelFor = (entry: FormValue): string | undefined =>

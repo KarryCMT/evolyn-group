@@ -120,7 +120,7 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
   // 子表单不是以 JSON 文本塞进一个单元格，而是展开为明细行：父表字段借由
   // mergeCell 纵向合并，子表字段按行对齐，使分组表头与数据结构一一对应。
   const tableRecords = computed<DataRecord[]>(() =>
-    expandSubformRecords(records.value, runtime.value),
+    formatMoneyRecordValues(expandSubformRecords(records.value, runtime.value), runtime.value),
   );
   const filterFields = computed<FormRecordFilterField[]>(() =>
     filterFieldsFromRuntime(runtime.value),
@@ -267,8 +267,7 @@ function columnsFromRuntime(runtime: FormRuntimeBootstrap | null): DataColumn[] 
           columns: subform.children.map((child) => ({
             field: subformFieldOf(subform.field, child.field),
             title: child.title,
-            minWidth:
-              child.type === 'datetime' ? DATETIME_COLUMN_MIN_WIDTH : FORM_COLUMN_MIN_WIDTH,
+            minWidth: child.type === 'datetime' ? DATETIME_COLUMN_MIN_WIDTH : FORM_COLUMN_MIN_WIDTH,
             icon: markRaw(widgetIconOfType(child.type)),
             ...(isMemberWidgetType(child.type)
               ? {
@@ -287,9 +286,7 @@ function columnsFromRuntime(runtime: FormRuntimeBootstrap | null): DataColumn[] 
         mergeCell: mergeExpandedRecordRows,
         // 列设置面板行内的字段类型图标，与设计器素材面板共用映射
         icon: markRaw(widgetIconOfType(widget.type)),
-        ...(isMemberWidgetType(widget.type)
-          ? { cellType: 'link' as const }
-          : {}),
+        ...(isMemberWidgetType(widget.type) ? { cellType: 'link' as const } : {}),
       },
     ];
   });
@@ -334,7 +331,9 @@ function isMemberWidgetType(type: string): boolean {
 
 /** 名称仅来自服务端本页批量投影；未解析的历史值保留受控回退，绝不触发单元格请求。 */
 export function memberReferenceLabel(record: DataRecord, field: string): string {
-  const names = memberReferencesOf(record, field).map((entry) => entry.name).filter(Boolean);
+  const names = memberReferencesOf(record, field)
+    .map((entry) => entry.name)
+    .filter(Boolean);
   if (names.length > 0) return names.join('、');
   const raw = record[field];
   if (Array.isArray(raw)) return raw.length > 0 ? '未知成员' : '';
@@ -369,7 +368,8 @@ function isMemberRawValues(value: unknown): value is FormRecordMemberRawValues {
 function memberReferenceValues(value: unknown): string[] {
   if (typeof value === 'string') return value.trim() ? [value.trim()] : [];
   if (!Array.isArray(value)) return [];
-  return value.filter((entry): entry is string => typeof entry === 'string' && Boolean(entry.trim()))
+  return value
+    .filter((entry): entry is string => typeof entry === 'string' && Boolean(entry.trim()))
     .map((entry) => entry.trim());
 }
 
@@ -380,7 +380,10 @@ function memberDisplayValues(
   const displayed = { ...values };
   for (const [field, members] of Object.entries(references)) {
     if (!field.startsWith(`${SUBFORM_FIELD_PREFIX}:`) && members.length > 0) {
-      displayed[field] = members.map((member) => member.name).filter(Boolean).join('、');
+      displayed[field] = members
+        .map((member) => member.name)
+        .filter(Boolean)
+        .join('、');
     }
   }
   return displayed;
@@ -393,7 +396,14 @@ interface SubformDefinition {
     field: string;
     title: string;
     type: string;
+    widget?: MoneyDisplayWidget;
   }>;
+}
+
+/** 发布 Schema 的金额展示所需最小视图；不让数据工作台依赖完整表单运行时。 */
+interface MoneyDisplayWidget {
+  currencyCode?: unknown;
+  scale?: number | null;
 }
 
 /**
@@ -419,12 +429,86 @@ function subformDefinitionsFromRuntime(runtime: FormRuntimeBootstrap | null): Su
     const children = widget.items.flatMap((child) => {
       const childWidget = child.widget;
       const childField = childWidget?.widgetName;
-      if (!childField || childWidget.type === 'separator' || childWidget.type === 'button') return [];
-      return [{ field: childField, title: child.label || childField, type: childWidget.type }];
+      if (!childField || childWidget.type === 'separator' || childWidget.type === 'button')
+        return [];
+      return [
+        {
+          field: childField,
+          title: child.label || childField,
+          type: childWidget.type,
+          ...(childWidget.type === 'money'
+            ? { widget: childWidget as unknown as MoneyDisplayWidget }
+            : {}),
+        },
+      ];
     });
     return children.length === 0 ? [] : [{ field, title: item.label || field, children }];
   });
 }
+
+/**
+ * 记录查询仍保留原始 decimal string 供筛选、成员引用和后续操作使用；只在工作台
+ * 行副本上格式化金额。顶层与子表单明细都根据其发布快照中的币种独立呈现。
+ */
+function formatMoneyRecordValues(
+  records: readonly DataRecord[],
+  runtime: FormRuntimeBootstrap | null,
+): DataRecord[] {
+  if (!runtime) return [...records];
+  const moneyFields = new Map<string, MoneyDisplayWidget>();
+  for (const item of runtime.content.content.items) {
+    if (item.widget.type === 'money') {
+      moneyFields.set(item.widget.widgetName, item.widget as unknown as MoneyDisplayWidget);
+    }
+  }
+  for (const subform of subformDefinitionsFromRuntime(runtime)) {
+    for (const child of subform.children) {
+      if (child.widget) moneyFields.set(subformFieldOf(subform.field, child.field), child.widget);
+    }
+  }
+  if (moneyFields.size === 0) return [...records];
+  return records.map((record) => {
+    const displayed: DataRecord = { ...record };
+    for (const [field, widget] of moneyFields) {
+      if (typeof record[field] === 'string')
+        displayed[field] = formatRecordMoney(record[field], widget);
+    }
+    return displayed;
+  });
+}
+
+/**
+ * Web 应用通过已发布包的类型声明消费 Schema，不能依赖未构建的包内运行时代码。
+ * 此处仅消费已终审的 canonical decimal string 做展示，保留原始记录在数据源缓存中。
+ */
+function formatRecordMoney(value: string, widget: MoneyDisplayWidget): string {
+  if (!/^-?\d+(\.\d+)?$/.test(value)) return value;
+  const currency = typeof widget.currencyCode === 'string' ? widget.currencyCode : 'CNY';
+  const symbol = RECORD_MONEY_SYMBOLS[currency] ?? '¥';
+  const scale =
+    typeof widget.scale === 'number' && widget.scale >= 0 && widget.scale <= 18 ? widget.scale : 2;
+  const negative = value.startsWith('-');
+  const [integer = '0', fraction = ''] = (negative ? value.slice(1) : value).split('.');
+  // 值在提交时已按字段 scale 终审；展示只补齐尾零，不执行二次舍入或汇率转换。
+  const fixedFraction = scale === 0 ? '' : `${fraction}${'0'.repeat(scale)}`.slice(0, scale);
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${negative ? '-' : ''}${symbol}${grouped}${scale === 0 ? '' : `.${fixedFraction}`}`;
+}
+
+const RECORD_MONEY_SYMBOLS: Readonly<Record<string, string>> = {
+  CNY: '¥',
+  USD: '$',
+  EUR: '€',
+  GBP: '£',
+  JPY: '￥',
+  HKD: 'HK$',
+  KRW: '₩',
+  SGD: 'S$',
+  AUD: 'A$',
+  CAD: 'CA$',
+  CHF: 'CHF',
+  AED: 'AED',
+};
 
 /**
  * 多个子表单以同一个父记录为行组按索引并排展开，行数取可见子表单明细的最大
@@ -459,7 +543,10 @@ function expandSubformRecords(
             ? expanded[MEMBER_REFERENCE_RAW_VALUES_FIELD]
             : {};
           expanded[MEMBER_REFERENCE_RAW_VALUES_FIELD] = { ...rawValues, [field]: expanded[field] };
-          expanded[field] = members.map((member) => member.name).filter(Boolean).join('、');
+          expanded[field] = members
+            .map((member) => member.name)
+            .filter(Boolean)
+            .join('、');
         }
       });
       return expanded;

@@ -74,6 +74,21 @@ describe('projectFormulaContext', () => {
     );
   });
 
+  it('将金额字段作为带币种量纲的可计算变量投影', () => {
+    const cny = item('money', '_widget_cny', '人民币金额');
+    if (cny.widget.type !== 'money') throw new Error('expected money widget');
+    cny.widget.currencyCode = 'CNY';
+    const fields = projectFormulaContext([cny]);
+    expect(fields).toEqual([
+      expect.objectContaining({
+        widgetName: '_widget_cny',
+        displayType: '金额',
+        formulaAllowed: true,
+        currencyCode: 'CNY',
+      }),
+    ]);
+  });
+
   it('将子表单子项投影为不可插入的数组变量', () => {
     const child = item('text', '_widget_product', '商品名称');
     const subform = {

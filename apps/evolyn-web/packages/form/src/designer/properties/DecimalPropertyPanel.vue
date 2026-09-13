@@ -7,6 +7,12 @@ import {
   effectiveNumericPrecision,
   effectiveNumericScale,
 } from '../../schema/numeric';
+import {
+  MONEY_CURRENCY_OPTIONS,
+  moneyCurrencyFractionDigits,
+  moneyCurrencySymbol,
+  resolveMoneyCurrencyCode,
+} from '../../schema/money';
 import { formatPercentRatio, parsePercentInput, usesPercentRatio } from '../../schema/percent';
 import { NUMERIC_ROUNDING_MODE_LABELS } from '../../schema/dictionary';
 import type { DecimalFamilyWidget, RoundingModeValue } from '../../schema/types';
@@ -21,6 +27,17 @@ import FormSchemaPropertySection from './FormSchemaPropertySection.vue';
  */
 const props = defineProps<{ widget: DecimalFamilyWidget }>();
 const isPercent = computed(() => usesPercentRatio(props.widget));
+const isMoney = computed(() => props.widget.type === 'money');
+const currencyCode = computed(() => resolveMoneyCurrencyCode(props.widget));
+const currencySymbol = computed(() => moneyCurrencySymbol(props.widget));
+
+/** 切换币种时将金额字段重置为该货币的推荐小数位；仍可由设计者手工覆盖。 */
+function setCurrencyCode(value: string): void {
+  if (!isMoney.value) return;
+  const next = resolveMoneyCurrencyCode({ currencyCode: value });
+  props.widget.currencyCode = next;
+  props.widget.scale = moneyCurrencyFractionDigits(next);
+}
 
 /** 文本输入回写：空串收敛 null（未启用语义），与协议缺省一致。 */
 function setDecimalText(key: 'min' | 'max' | 'defaultValue', value: string): void {
@@ -35,6 +52,20 @@ function textValue(value: string | null | undefined): string {
 </script>
 
 <template>
+  <FormSchemaPropertySection v-if="isMoney" title="币种">
+    <el-select
+      aria-label="币种"
+      :model-value="currencyCode"
+      @update:model-value="setCurrencyCode(String($event))"
+    >
+      <el-option
+        v-for="currency in MONEY_CURRENCY_OPTIONS"
+        :key="currency.value"
+        :label="currency.label"
+        :value="currency.value"
+      />
+    </el-select>
+  </FormSchemaPropertySection>
   <FormSchemaPropertySection title="默认值">
     <DefaultValueModeSelect />
     <el-input
@@ -43,6 +74,7 @@ function textValue(value: string | null | undefined): string {
       @update:model-value="setDecimalText('defaultValue', String($event ?? ''))"
     >
       <template v-if="isPercent" #suffix>%</template>
+      <template v-else-if="isMoney" #prefix>{{ currencySymbol }}</template>
     </el-input>
   </FormSchemaPropertySection>
   <FormSchemaPropertySection title="数值范围">
@@ -58,6 +90,7 @@ function textValue(value: string | null | undefined): string {
           @update:model-value="setDecimalText('min', String($event ?? ''))"
         >
           <template v-if="isPercent" #suffix>%</template>
+          <template v-else-if="isMoney" #prefix>{{ currencySymbol }}</template>
         </el-input>
       </div>
       <div>
@@ -71,6 +104,7 @@ function textValue(value: string | null | undefined): string {
           @update:model-value="setDecimalText('max', String($event ?? ''))"
         >
           <template v-if="isPercent" #suffix>%</template>
+          <template v-else-if="isMoney" #prefix>{{ currencySymbol }}</template>
         </el-input>
       </div>
     </div>

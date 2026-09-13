@@ -34,10 +34,12 @@ type FieldMeta struct {
 }
 
 var widgetVariableTypes = map[string]FieldMeta{
-	"text":          {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
-	"textarea":      {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
-	"phone":         {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
-	"number":        {ValueType: ValueTypeNumber, DisplayType: "数字", FormulaAllowed: true},
+	"text":     {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
+	"textarea": {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
+	"phone":    {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
+	"number":   {ValueType: ValueTypeNumber, DisplayType: "数字", FormulaAllowed: true},
+	// 金额能进入公式；跨币种兼容性由服务端发布编译和前端分析器共同校验。
+	"money":         {ValueType: ValueTypeNumber, DisplayType: "金额", FormulaAllowed: true},
 	"datetime":      {ValueType: ValueTypeDate, DisplayType: "时间戳", FormulaAllowed: true},
 	"radiogroup":    {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
 	"combo":         {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
@@ -61,6 +63,7 @@ type Field struct {
 	ValueType      ValueType `json:"valueType"`
 	DisplayType    string    `json:"displayType"`
 	FormulaAllowed bool      `json:"formulaAllowed"`
+	CurrencyCode   string    `json:"currencyCode,omitempty"`
 }
 
 // ProjectFields 从合法表单协议的顶层字段生成公式上下文。布局控件没有用户值，
@@ -72,8 +75,9 @@ func ProjectFields(raw []byte) ([]Field, error) {
 			Items []struct {
 				Label  string `json:"label"`
 				Widget struct {
-					Type       string `json:"type"`
-					WidgetName string `json:"widgetName"`
+					Type         string `json:"type"`
+					WidgetName   string `json:"widgetName"`
+					CurrencyCode string `json:"currencyCode"`
 				} `json:"widget"`
 			} `json:"items"`
 		} `json:"content"`
@@ -98,6 +102,14 @@ func ProjectFields(raw []byte) ([]Field, error) {
 		if label == "" {
 			label = item.Widget.WidgetName
 		}
+		currencyCode := ""
+		if item.Widget.Type == "money" {
+			currencyCode = item.Widget.CurrencyCode
+			if currencyCode == "" {
+				// 历史金额快照未配置币种时与前端保持一致，按 CNY 解释。
+				currencyCode = "CNY"
+			}
+		}
 		fields = append(fields, Field{
 			Key:            item.Widget.WidgetName,
 			Label:          label,
@@ -105,6 +117,7 @@ func ProjectFields(raw []byte) ([]Field, error) {
 			ValueType:      meta.ValueType,
 			DisplayType:    meta.DisplayType,
 			FormulaAllowed: meta.FormulaAllowed,
+			CurrencyCode:   currencyCode,
 		})
 	}
 	return fields, nil

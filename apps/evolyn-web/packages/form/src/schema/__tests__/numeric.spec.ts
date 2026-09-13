@@ -9,6 +9,12 @@ import {
   effectiveNumericScale,
 } from '../numeric';
 import { formatPercentRatio, parsePercentInput, usesPercentRatio } from '../percent';
+import {
+  formatMoneyInputValue,
+  formatMoneyValue,
+  parseMoneyInput,
+  resolveMoneyCurrencyCode,
+} from '../money';
 import { createWidgetItem } from '../dictionary';
 import { normalizeWidgetValue, validateWidgetValue } from '../codec';
 import { validateFormSchema, validatePublishableFormSchema } from '../validate';
@@ -121,6 +127,17 @@ describe('数值字段族语义助手', () => {
     expect(parsePercentInput('1e2')).toBe('1e2');
     expect(usesPercentRatio({ type: 'percent', percentValueMode: 'ratio' })).toBe(true);
     expect(usesPercentRatio({ type: 'percent' })).toBe(false);
+  });
+
+  it('金额按字段币种精确分组与定长展示，输入可剥离展示字符', () => {
+    const cny = { type: 'money' as const, currencyCode: 'CNY' as const, scale: 2 };
+    const jpy = { type: 'money' as const, currencyCode: 'JPY' as const, scale: 0 };
+    expect(formatMoneyInputValue('1234567890123456.5', cny)).toBe('1,234,567,890,123,456.50');
+    expect(formatMoneyValue('1234.5', cny)).toBe('¥1,234.50');
+    expect(formatMoneyValue('-1234', jpy)).toBe('-￥1,234');
+    expect(formatMoneyValue('-1234.5', jpy)).toBe('-1234.5');
+    expect(parseMoneyInput(' HK$ 1,234.50 ', { currencyCode: 'HKD' })).toBe('1234.50');
+    expect(resolveMoneyCurrencyCode({})).toBe('CNY');
   });
 });
 
@@ -245,6 +262,20 @@ describe('数值字段族 schema 校验', () => {
       path: 'content.fieldShowRules[0].filter.cond[0].value[0]',
       message: 'value 条目必须是十进制数字字符串',
     });
+    expect(
+      validateFormSchema(documentWith([numericItem('money', { currencyCode: 'USD' })])).issues,
+    ).toEqual([]);
+    expect(issuesOf(documentWith([numericItem('money', { currencyCode: 'BTC' })]))).toContainEqual({
+      path: 'content.items[0].widget.currencyCode',
+      message:
+        'currencyCode 必须是以下枚举值之一：CNY / USD / EUR / GBP / JPY / HKD / KRW / SGD / AUD / CAD / CHF / AED',
+    });
+    expect(
+      issuesOf(documentWith([numericItem('decimal', { currencyCode: 'CNY' })])),
+    ).toContainEqual({
+      path: 'content.items[0].widget.currencyCode',
+      message: '未知属性「currencyCode」',
+    });
   });
 
   it('新建字段按类型预写 precision/scale（物理列形态显式化）', () => {
@@ -254,6 +285,7 @@ describe('数值字段族 schema 校验', () => {
     const money = createWidgetItem('money').widget as DecimalFamilyWidget;
     expect(money.precision).toBe(20);
     expect(money.scale).toBe(2);
+    expect(money.currencyCode).toBe('CNY');
     const percent = createWidgetItem('percent').widget as DecimalFamilyWidget;
     expect(percent.precision).toBe(10);
     expect(percent.scale).toBe(6);

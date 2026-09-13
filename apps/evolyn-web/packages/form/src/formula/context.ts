@@ -27,6 +27,8 @@ export const FORMULA_WIDGET_VARIABLE_TYPES: Readonly<
   textarea: { valueType: 'text', displayType: '文本', formulaAllowed: true },
   phone: { valueType: 'text', displayType: '文本', formulaAllowed: true },
   number: { valueType: 'number', displayType: '数字', formulaAllowed: true },
+  // 金额允许参与公式，但分析器会把字段级币种作为量纲处理，拒绝跨币种混算。
+  money: { valueType: 'number', displayType: '金额', formulaAllowed: true },
   datetime: { valueType: 'date', displayType: '时间戳', formulaAllowed: true },
   radiogroup: { valueType: 'text', displayType: '文本', formulaAllowed: true },
   combo: { valueType: 'text', displayType: '文本', formulaAllowed: true },
@@ -56,6 +58,9 @@ export function projectFormulaContext(items: readonly FormItem[]): FormulaEditor
         valueType: meta.valueType,
         displayType: meta.displayType,
         formulaAllowed: meta.formulaAllowed,
+        ...(item.widget.type === 'money'
+          ? { currencyCode: item.widget.currencyCode ?? 'CNY' }
+          : {}),
       };
     });
 }

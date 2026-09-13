@@ -62,6 +62,23 @@ func TestCompileSubmitRulesIgnoresLegacySnapshots(t *testing.T) {
 	require.Equal(t, model.JSONContent(`{}`), compiled)
 }
 
+func TestCompileSubmitRulesRejectsCrossCurrencyMoneyCalculation(t *testing.T) {
+	content := map[string]any{"content": map[string]any{
+		"items": []any{
+			map[string]any{"label": "人民币金额", "widget": map[string]any{"type": "money", "widgetName": "cny", "currencyCode": "CNY", "visible": true}},
+			map[string]any{"label": "美元金额", "widget": map[string]any{"type": "money", "widgetName": "usd", "currencyCode": "USD", "visible": true}},
+		},
+		"validators":       []any{map[string]any{"formula": "$cny# + $usd# > 0", "remind": "金额不正确", "realtime": false, "failAction": 0, "remark": ""}},
+		"preSubmitConfirm": map[string]any{"enable": false, "title": "确认", "content": "确认"},
+	}}
+	_, err := CompileSubmitRules(content, 7)
+	require.ErrorContains(t, err, "金额字段币种不一致（CNY、USD），跨币种计算或比较需要先换汇")
+
+	content["content"].(map[string]any)["validators"] = []any{map[string]any{"formula": "AND($cny# > 0, $usd# > 0)", "remind": "金额不正确", "realtime": false, "failAction": 0, "remark": ""}}
+	_, err = CompileSubmitRules(content, 7)
+	require.NoError(t, err)
+}
+
 func TestPublishRejectsExistingAddGroupMissingSubmitRuleField(t *testing.T) {
 	content := map[string]any{"content": map[string]any{
 		"items":            []any{map[string]any{"label": "联系电话", "widget": map[string]any{"type": "text", "widgetName": "phone", "visible": true}}},

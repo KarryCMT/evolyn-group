@@ -25,6 +25,11 @@ export interface FormulaEditorField {
   displayType?: string;
   /** 当前公式 DSL 是否允许将该字段作为直接操作数插入。 */
   formulaAllowed?: boolean;
+  /**
+   * 金额字段的 ISO 4217 币种。仅金额变量携带；分析器据此拒绝跨币种的计算、
+   * 聚合与直接比较，换汇能力上线前绝不把原币种数值静默混算。
+   */
+  currencyCode?: string;
 }
 
 /**

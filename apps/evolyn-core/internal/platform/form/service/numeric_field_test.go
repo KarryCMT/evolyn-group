@@ -117,6 +117,15 @@ func TestNumericFamilySchemaValidation(t *testing.T) {
 	assert.True(t, find(
 		ValidateFormSchema(doc(numericItem("money", map[string]any{"percentValueMode": "ratio"}))),
 		"content.items[0].widget.percentValueMode", "未知属性「percentValueMode」"))
+	// 金额允许字段级币种，默认 CNY 由前端展示层回退；币种不属于其它数值控件。
+	assert.Empty(t, ValidateFormSchema(doc(numericItem("money", map[string]any{"currencyCode": "USD"}))))
+	assert.True(t, find(
+		ValidateFormSchema(doc(numericItem("money", map[string]any{"currencyCode": "BTC"}))),
+		"content.items[0].widget.currencyCode",
+		"currencyCode 必须是以下枚举值之一：CNY / USD / EUR / GBP / JPY / HKD / KRW / SGD / AUD / CAD / CHF / AED"))
+	assert.True(t, find(
+		ValidateFormSchema(doc(numericItem("decimal", map[string]any{"currencyCode": "CNY"}))),
+		"content.items[0].widget.currencyCode", "未知属性「currencyCode」"))
 
 	// 交叉规则：precision 显式 5 时，缺省 scale=6 生效后超限，必须拒绝。
 	assert.True(t, find(

@@ -23,7 +23,113 @@ export function collectFormulaDiagnostics(
     ]),
   );
   analyzeNode(parsed.ast, fieldsByName, functionCatalog, diagnostics);
+  analyzeMoneyCurrencyCompatibility(parsed.ast, fieldsByName, diagnostics);
   return diagnostics;
+}
+
+const CURRENCY_SENSITIVE_BINARY_OPERATORS = new Set([
+  '+',
+  '-',
+  '*',
+  '/',
+  '%',
+  '>',
+  '>=',
+  '<',
+  '<=',
+  '==',
+  '!=',
+]);
+const CURRENCY_SENSITIVE_FUNCTIONS = new Set([
+  'SUM',
+  'AVERAGE',
+  'MIN',
+  'MAX',
+  'PRODUCT',
+  'SUMIF',
+  'SUMPRODUCT',
+]);
+
+/**
+ * 货币不是无量纲数字。仅对真正把多个值放进同一个算式/聚合/比较的节点检查，
+ * 因而 `AND($usd# > 0, $cny# > 0)` 仍可表达两个独立条件；而 `$usd# + $cny#`
+ * 会被拒绝。返回值表示子树已报告错误，防止外层表达式重复报同一问题。
+ */
+function analyzeMoneyCurrencyCompatibility(
+  node: FormulaNode,
+  fields: ReadonlyMap<string, FormulaEditorField>,
+  diagnostics: FormulaDiagnostic[],
+): boolean {
+  if (node.kind === 'array') {
+    return node.elements.some((entry) =>
+      analyzeMoneyCurrencyCompatibility(entry, fields, diagnostics),
+    );
+  }
+  if (node.kind === 'unary')
+    return analyzeMoneyCurrencyCompatibility(node.argument, fields, diagnostics);
+  if (node.kind === 'binary') {
+    const childReported =
+      analyzeMoneyCurrencyCompatibility(node.left, fields, diagnostics) ||
+      analyzeMoneyCurrencyCompatibility(node.right, fields, diagnostics);
+    if (childReported || !CURRENCY_SENSITIVE_BINARY_OPERATORS.has(node.operator))
+      return childReported;
+    return reportMixedMoneyCurrencies(node, fields, diagnostics);
+  }
+  if (node.kind === 'call') {
+    const childReported = node.args.some((entry) =>
+      analyzeMoneyCurrencyCompatibility(entry, fields, diagnostics),
+    );
+    if (childReported || !CURRENCY_SENSITIVE_FUNCTIONS.has(node.name)) return childReported;
+    return reportMixedMoneyCurrencies(node, fields, diagnostics);
+  }
+  return false;
+}
+
+function reportMixedMoneyCurrencies(
+  node: FormulaNode,
+  fields: ReadonlyMap<string, FormulaEditorField>,
+  diagnostics: FormulaDiagnostic[],
+): boolean {
+  const currencies = moneyCurrenciesIn(node, fields);
+  if (currencies.size < 2) return false;
+  diagnostics.push({
+    from: node.from,
+    to: node.to,
+    severity: 'error',
+    message: `金额字段币种不一致（${[...currencies].sort().join('、')}），跨币种计算或比较需要先换汇`,
+  });
+  return true;
+}
+
+function moneyCurrenciesIn(
+  node: FormulaNode,
+  fields: ReadonlyMap<string, FormulaEditorField>,
+): Set<string> {
+  const currencies = new Set<string>();
+  collectMoneyCurrencies(node, fields, currencies);
+  return currencies;
+}
+
+function collectMoneyCurrencies(
+  node: FormulaNode,
+  fields: ReadonlyMap<string, FormulaEditorField>,
+  currencies: Set<string>,
+): void {
+  if (node.kind === 'field') {
+    const currency = fields.get(node.widgetName)?.currencyCode;
+    if (currency) currencies.add(currency);
+    return;
+  }
+  if (node.kind === 'array')
+    return node.elements.forEach((entry) => collectMoneyCurrencies(entry, fields, currencies));
+  if (node.kind === 'unary') return collectMoneyCurrencies(node.argument, fields, currencies);
+  if (node.kind === 'binary') {
+    collectMoneyCurrencies(node.left, fields, currencies);
+    collectMoneyCurrencies(node.right, fields, currencies);
+    return;
+  }
+  if (node.kind === 'call')
+    node.args.forEach((entry) => collectMoneyCurrencies(entry, fields, currencies));
 }
 
 function analyzeNode(

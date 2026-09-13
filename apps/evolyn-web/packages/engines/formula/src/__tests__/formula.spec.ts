@@ -24,4 +24,36 @@ describe('Formula Engine', () => {
       ]),
     );
   });
+
+  it('拒绝跨币种金额混算或直接比较，但允许独立币种条件并列存在', () => {
+    const moneyFields: FormulaEditorField[] = [
+      {
+        widgetName: 'cnyAmount',
+        label: '人民币金额',
+        valueType: 'number',
+        formulaAllowed: true,
+        currencyCode: 'CNY',
+      },
+      {
+        widgetName: 'usdAmount',
+        label: '美元金额',
+        valueType: 'number',
+        formulaAllowed: true,
+        currencyCode: 'USD',
+      },
+    ];
+    expect(collectFormulaDiagnostics('$cnyAmount# + $usdAmount#', moneyFields)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ message: expect.stringContaining('CNY、USD') }),
+      ]),
+    );
+    expect(collectFormulaDiagnostics('$cnyAmount# > $usdAmount#', moneyFields)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ message: expect.stringContaining('需要先换汇') }),
+      ]),
+    );
+    expect(collectFormulaDiagnostics('AND($cnyAmount# > 0, $usdAmount# > 0)', moneyFields)).toEqual(
+      [],
+    );
+  });
 });

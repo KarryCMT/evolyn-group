@@ -23,6 +23,18 @@ func TestProjectFieldsPreservesActualWidgetValueKinds(t *testing.T) {
 	}, fields)
 }
 
+func TestProjectFieldsProjectsMoneyCurrencyDimension(t *testing.T) {
+	fields, err := ProjectFields([]byte(`{"content":{"items":[
+		{"label":"美元金额","widget":{"type":"money","widgetName":"usd","currencyCode":"USD"}},
+		{"label":"历史金额","widget":{"type":"money","widgetName":"legacy"}}
+	]}}`))
+	require.NoError(t, err)
+	require.Equal(t, []Field{
+		{Key: "usd", Label: "美元金额", WidgetType: "money", ValueType: ValueTypeNumber, DisplayType: "金额", FormulaAllowed: true, CurrencyCode: "USD"},
+		{Key: "legacy", Label: "历史金额", WidgetType: "money", ValueType: ValueTypeNumber, DisplayType: "金额", FormulaAllowed: true, CurrencyCode: "CNY"},
+	}, fields)
+}
+
 func TestProjectFieldsRejectsMalformedDocument(t *testing.T) {
 	_, err := ProjectFields([]byte(`{`))
 	require.Error(t, err)

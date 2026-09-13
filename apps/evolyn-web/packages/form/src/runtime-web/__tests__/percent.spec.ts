@@ -54,3 +54,42 @@ describe('WebBasicField 百分比', () => {
     expect((wrapper.find('input').element as HTMLInputElement).value).toBe('15');
   });
 });
+
+describe('金额字段', () => {
+  it('失焦时按币种显示千分位，聚焦后回到可编辑 decimal string', async () => {
+    const item = createWidgetItem('money');
+    if (item.widget.type !== 'money') throw new Error('expected money widget');
+    item.widget.currencyCode = 'USD';
+    const wrapper = mount(WebBasicField, {
+      props: { item, modelValue: '1234.5', disabled: false, readonly: false, errors: [] },
+    });
+    const input = wrapper.find('input');
+    expect((input.element as HTMLInputElement).value).toBe('1,234.50');
+    expect(wrapper.text()).toContain('$');
+    wrapper.findComponent({ name: 'ElInput' }).vm.$emit('focus');
+    await wrapper.vm.$nextTick();
+    expect((input.element as HTMLInputElement).value).toBe('1234.5');
+    await input.setValue('$ 9,876.50');
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual(['9876.50']);
+  });
+
+  it('移动端和子表单编辑器遵循相同的金额展示与回写协议', async () => {
+    const item = createWidgetItem('money');
+    const mobile = mount(DecimalField, {
+      props: { item, modelValue: '1234.5', disabled: false, readonly: false, errors: [] },
+    });
+    expect((mobile.find('input').element as HTMLInputElement).value).toBe('1,234.50');
+    await mobile.find('input').trigger('focus');
+    await mobile.find('input').setValue('¥ 2,000.25');
+    expect(mobile.emitted('update:modelValue')?.[0]).toEqual(['2000.25']);
+
+    const subform = mount(WebSubformCellEditor, {
+      props: { field: item, modelValue: '1234.5', disabled: false, readonly: false },
+    });
+    expect((subform.find('input').element as HTMLInputElement).value).toBe('1,234.50');
+    subform.findComponent({ name: 'ElInput' }).vm.$emit('focus');
+    await subform.vm.$nextTick();
+    await subform.find('input').setValue('¥ 2,000.25');
+    expect(subform.emitted('update:modelValue')?.[0]).toEqual(['2000.25']);
+  });
+});

@@ -12,7 +12,7 @@ import {
   ElSelect,
   ElTimePicker,
 } from 'element-plus';
-import { computed } from 'vue';
+import { computed, shallowRef } from 'vue';
 import type {
   CheckboxGroupWidget,
   ComboCheckWidget,
@@ -27,6 +27,7 @@ import type {
 } from '../../schema/types';
 import { readWidgetOptions } from '../../schema/codec';
 import { formatPercentRatio, parsePercentInput, usesPercentRatio } from '../../schema/percent';
+import { formatMoneyInputValue, moneyCurrencySymbol, parseMoneyInput } from '../../schema/money';
 import { fieldAriaDescribedBy, fieldInputId } from '../../runtime/field-dom';
 import type { RuntimeFieldEmits, RuntimeFieldProps } from '../../runtime/types';
 
@@ -55,6 +56,9 @@ const textareaAutosize = computed(() =>
 const numberWidget = computed(() => props.item.widget as NumberWidget);
 const decimalWidget = computed(() => props.item.widget as DecimalFamilyWidget);
 const isRatioPercent = computed(() => usesPercentRatio(decimalWidget.value));
+const isMoney = computed(() => type.value === 'money');
+const isMoneyEditing = shallowRef(false);
+const moneySymbol = computed(() => moneyCurrencySymbol(decimalWidget.value));
 const dateWidget = computed(() => props.item.widget as DateTimeWidget);
 const radioWidget = computed(() => props.item.widget as RadioGroupWidget);
 const checkboxWidget = computed(() => props.item.widget as CheckboxGroupWidget);
@@ -74,13 +78,22 @@ const numberValue = computed<number | undefined>({
 const decimalValue = computed<string>({
   get: () => {
     const value = typeof props.modelValue === 'string' ? props.modelValue : '';
-    return isRatioPercent.value ? formatPercentRatio(value) : value;
+    if (isRatioPercent.value) return formatPercentRatio(value);
+    return isMoney.value && !isMoneyEditing.value
+      ? formatMoneyInputValue(value, decimalWidget.value)
+      : value;
   },
   set: (value) => {
     const trimmed = value.trim();
     emit(
       'update:modelValue',
-      trimmed === '' ? null : isRatioPercent.value ? parsePercentInput(trimmed) : trimmed,
+      trimmed === ''
+        ? null
+        : isRatioPercent.value
+          ? parsePercentInput(trimmed)
+          : isMoney.value
+            ? parseMoneyInput(trimmed, decimalWidget.value)
+            : trimmed,
     );
   },
 });
@@ -96,7 +109,12 @@ function onDecimalBlur(): void {
   if (text.startsWith('.')) text = '0' + text;
   if (text.endsWith('.') && /^-?\d+\.$/.test(text)) text = text.slice(0, -1);
   if (text !== decimalValue.value) decimalValue.value = text;
+  isMoneyEditing.value = false;
   emit('blur');
+}
+
+function onDecimalFocus(): void {
+  isMoneyEditing.value = true;
 }
 const choicesValue = computed<string>({
   get: () => (typeof props.modelValue === 'string' ? props.modelValue : ''),
@@ -198,9 +216,11 @@ function isString(value: unknown): value is string {
     :aria-required="!item.widget.allowBlank || undefined"
     :aria-invalid="errors.length > 0 || undefined"
     :aria-describedby="describedBy"
+    @focus="onDecimalFocus"
     @blur="onDecimalBlur"
   >
     <template v-if="type === 'percent'" #suffix>%</template>
+    <template v-else-if="isMoney" #prefix>{{ moneySymbol }}</template>
   </el-input>
   <el-time-picker
     v-else-if="type === 'datetime' && isTimeFormat"

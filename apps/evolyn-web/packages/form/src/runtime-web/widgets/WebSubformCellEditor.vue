@@ -11,8 +11,9 @@ import {
   ElSelect,
   ElTimePicker,
 } from 'element-plus';
-import { type Component, computed, inject } from 'vue';
+import { type Component, computed, inject, shallowRef } from 'vue';
 import { readWidgetOptions } from '../../schema/codec';
+import { formatMoneyInputValue, moneyCurrencySymbol, parseMoneyInput } from '../../schema/money';
 import { formatPercentRatio, parsePercentInput, usesPercentRatio } from '../../schema/percent';
 import type {
   DateTimeWidget,
@@ -54,8 +55,15 @@ const organizationFieldComponent = computed<Component | null>(() => {
 });
 
 const stringValue = computed(() => (typeof props.modelValue === 'string' ? props.modelValue : ''));
+const isMoneyEditing = shallowRef(false);
+const isMoney = computed(() => props.field.widget.type === 'money');
+const moneySymbol = computed(() => moneyCurrencySymbol(props.field.widget));
 const decimalInputValue = computed(() =>
-  usesPercentRatio(props.field.widget) ? formatPercentRatio(stringValue.value) : stringValue.value,
+  usesPercentRatio(props.field.widget)
+    ? formatPercentRatio(stringValue.value)
+    : props.field.widget.type === 'money' && !isMoneyEditing.value
+      ? formatMoneyInputValue(stringValue.value, props.field.widget)
+      : stringValue.value,
 );
 const numberValue = computed(() =>
   typeof props.modelValue === 'number' ? props.modelValue : undefined,
@@ -98,8 +106,19 @@ function onDecimalInput(value: string): void {
       ? null
       : usesPercentRatio(props.field.widget)
         ? parsePercentInput(trimmed)
-        : trimmed,
+        : isMoney.value
+          ? parseMoneyInput(trimmed, props.field.widget)
+          : trimmed,
   );
+}
+
+function onDecimalFocus(): void {
+  isMoneyEditing.value = true;
+}
+
+function onDecimalBlur(): void {
+  isMoneyEditing.value = false;
+  blur();
 }
 
 function isTimeField(): boolean {
@@ -200,9 +219,11 @@ function blur(): void {
     :disabled="isInteractiveDisabled"
     :class="{ 'is-error': invalid }"
     @update:model-value="onDecimalInput"
-    @blur="blur"
+    @focus="onDecimalFocus"
+    @blur="onDecimalBlur"
   >
     <template v-if="field.widget.type === 'percent'" #suffix>%</template>
+    <template v-else-if="isMoney" #prefix>{{ moneySymbol }}</template>
   </ElInput>
   <ElTimePicker
     v-else-if="field.widget.type === 'datetime' && isTimeField()"
