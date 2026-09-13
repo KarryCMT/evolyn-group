@@ -7,6 +7,7 @@
 export * from './types';
 export * from './dictionary';
 export * from './numeric';
+export * from './percent';
 export * from './validate';
 export * from './clone';
 export * from './migrate';

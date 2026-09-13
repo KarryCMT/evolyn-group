@@ -26,6 +26,7 @@ import type {
   TextWidget,
 } from '../../schema/types';
 import { readWidgetOptions } from '../../schema/codec';
+import { formatPercentRatio, parsePercentInput, usesPercentRatio } from '../../schema/percent';
 import { fieldAriaDescribedBy, fieldInputId } from '../../runtime/field-dom';
 import type { RuntimeFieldEmits, RuntimeFieldProps } from '../../runtime/types';
 
@@ -53,6 +54,7 @@ const textareaAutosize = computed(() =>
 );
 const numberWidget = computed(() => props.item.widget as NumberWidget);
 const decimalWidget = computed(() => props.item.widget as DecimalFamilyWidget);
+const isRatioPercent = computed(() => usesPercentRatio(decimalWidget.value));
 const dateWidget = computed(() => props.item.widget as DateTimeWidget);
 const radioWidget = computed(() => props.item.widget as RadioGroupWidget);
 const checkboxWidget = computed(() => props.item.widget as CheckboxGroupWidget);
@@ -70,8 +72,17 @@ const numberValue = computed<number | undefined>({
 });
 // 数值字段族：decimal string 原样保存（设计 §16），禁 float 控件承载高精度值。
 const decimalValue = computed<string>({
-  get: () => (typeof props.modelValue === 'string' ? props.modelValue : ''),
-  set: (value) => emit('update:modelValue', value.trim() === '' ? null : value),
+  get: () => {
+    const value = typeof props.modelValue === 'string' ? props.modelValue : '';
+    return isRatioPercent.value ? formatPercentRatio(value) : value;
+  },
+  set: (value) => {
+    const trimmed = value.trim();
+    emit(
+      'update:modelValue',
+      trimmed === '' ? null : isRatioPercent.value ? parsePercentInput(trimmed) : trimmed,
+    );
+  },
 });
 /** 失焦整理宽松形状（正号/裸小数点），位数与范围约束交由校验层终审。 */
 function onDecimalBlur(): void {
@@ -188,7 +199,9 @@ function isString(value: unknown): value is string {
     :aria-invalid="errors.length > 0 || undefined"
     :aria-describedby="describedBy"
     @blur="onDecimalBlur"
-  />
+  >
+    <template v-if="type === 'percent'" #suffix>%</template>
+  </el-input>
   <el-time-picker
     v-else-if="type === 'datetime' && isTimeFormat"
     :id="inputId"

@@ -109,6 +109,14 @@ func TestNumericFamilySchemaValidation(t *testing.T) {
 		"content.items[0].widget.rounding",
 		"rounding 必须是以下枚举值之一：UP / DOWN / CEIL / FLOOR / HALF_UP / HALF_DOWN / HALF_EVEN"))
 	assert.Empty(t, ValidateFormSchema(doc(numericItem("percent", map[string]any{"rounding": "HALF_EVEN"}))))
+	// 新百分比比例协议显式标记；旧快照缺省该键仍保持合法，以免读写历史值时改变语义。
+	assert.Empty(t, ValidateFormSchema(doc(numericItem("percent", map[string]any{"percentValueMode": "ratio"}))))
+	assert.True(t, find(
+		ValidateFormSchema(doc(numericItem("percent", map[string]any{"percentValueMode": "legacy"}))),
+		"content.items[0].widget.percentValueMode", "percentValueMode 必须是以下枚举值之一：ratio"))
+	assert.True(t, find(
+		ValidateFormSchema(doc(numericItem("money", map[string]any{"percentValueMode": "ratio"}))),
+		"content.items[0].widget.percentValueMode", "未知属性「percentValueMode」"))
 
 	// 交叉规则：precision 显式 5 时，缺省 scale=6 生效后超限，必须拒绝。
 	assert.True(t, find(

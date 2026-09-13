@@ -311,6 +311,18 @@ function numericFamilyWidgetSpec(label: string): WidgetSpec {
   };
 }
 
+/** 百分比新增 ratio 标记；旧快照缺省该键时沿用历史“填写值即存储值”语义。 */
+function percentWidgetSpec(): WidgetSpec {
+  const spec = numericFamilyWidgetSpec('百分比');
+  return {
+    ...spec,
+    props: {
+      ...spec.props,
+      percentValueMode: { kind: 'enum', values: ['ratio'] },
+    },
+  };
+}
+
 /** 控件字典：30 种类型的完整声明。 */
 export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
   text: {
@@ -351,7 +363,7 @@ export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
   },
   decimal: numericFamilyWidgetSpec('高精度小数'),
   money: numericFamilyWidgetSpec('金额'),
-  percent: numericFamilyWidgetSpec('百分比'),
+  percent: percentWidgetSpec(),
   datetime: {
     label: '日期时间',
     group: 'basic',
@@ -701,6 +713,13 @@ export function createWidgetItem(type: FormWidgetType): FormItem {
     const defaults = NUMERIC_FIELD_DEFAULTS[type as NumericWidgetType];
     widget.precision = defaults.precision;
     widget.scale = defaults.scale;
+  }
+  // 百分比对填写人使用 0–100% 语义，协议与计算链中则始终存储比例 0–1。
+  // 显式预写范围让发布快照与物理值校验具备稳定、可读的默认约束。
+  if (type === 'percent') {
+    widget.percentValueMode = 'ratio';
+    widget.min = '0';
+    widget.max = '1';
   }
   if (type === 'subform') {
     Object.assign(widget, {

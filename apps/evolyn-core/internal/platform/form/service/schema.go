@@ -169,6 +169,19 @@ var numericFamilyProps = map[string]propSpec{
 	"defaultValue": {kind: kindDecimal},
 }
 
+// percentProps 在共享高精度数值属性上追加新百分比的比例协议标记。缺省值表示
+// 历史快照沿用“填写值即存储值”，只有 ratio 显式存在时才会将 15% 持久化为 0.15。
+var percentProps = map[string]propSpec{
+	"placeholder":      {kind: kindString, maxLen: protoPlaceholderMax},
+	"min":              {kind: kindDecimal},
+	"max":              {kind: kindDecimal},
+	"precision":        {kind: kindInteger, min: f64(numericPrecisionMin), max: f64(numericPrecisionMax)},
+	"scale":            {kind: kindInteger, min: f64(numericScaleMin), max: f64(numericScaleMax)},
+	"rounding":         {kind: kindEnum, enum: roundingModeValues},
+	"defaultValue":     {kind: kindDecimal},
+	"percentValueMode": {kind: kindEnum, enum: []string{"ratio"}},
+}
+
 // widgetSpecs 控件字典（30 种；标签仅用于错误文案/内部参考）。
 var widgetSpecs = map[string]widgetSpec{
 	"text": {label: "单行文本", props: textProps},
@@ -188,7 +201,7 @@ var widgetSpecs = map[string]widgetSpec{
 	}},
 	"decimal": {label: "高精度小数", props: numericFamilyProps},
 	"money":   {label: "金额", props: numericFamilyProps},
-	"percent": {label: "百分比", props: numericFamilyProps},
+	"percent": {label: "百分比", props: percentProps},
 	"datetime": {label: "日期时间", props: map[string]propSpec{
 		"format":       {kind: kindEnum, enum: []string{"date", "datetime", "month", "time"}},
 		"placeholder":  {kind: kindString, maxLen: protoPlaceholderMax},

@@ -8,6 +8,7 @@ import {
   effectiveNumericPrecision,
   effectiveNumericScale,
 } from '../numeric';
+import { formatPercentRatio, parsePercentInput, usesPercentRatio } from '../percent';
 import { createWidgetItem } from '../dictionary';
 import { normalizeWidgetValue, validateWidgetValue } from '../codec';
 import { validateFormSchema, validatePublishableFormSchema } from '../validate';
@@ -109,6 +110,17 @@ describe('数值字段族语义助手', () => {
     expect(compareDecimalText('0.1', '0.10000000000000000000001')).toBe(-1);
     expect(compareDecimalText('100', '99.999999999999999999999')).toBe(1);
     expect(compareDecimalText('-1.5', '-1.50')).toBe(0);
+  });
+
+  it('百分比界面值与协议比例精确互转，非法草稿原文保留给校验器处理', () => {
+    expect(formatPercentRatio('0.15')).toBe('15');
+    expect(formatPercentRatio('1')).toBe('100');
+    expect(formatPercentRatio('0.123456')).toBe('12.3456');
+    expect(parsePercentInput('15')).toBe('0.15');
+    expect(parsePercentInput('12.3456')).toBe('0.123456');
+    expect(parsePercentInput('1e2')).toBe('1e2');
+    expect(usesPercentRatio({ type: 'percent', percentValueMode: 'ratio' })).toBe(true);
+    expect(usesPercentRatio({ type: 'percent' })).toBe(false);
   });
 });
 
@@ -245,6 +257,10 @@ describe('数值字段族 schema 校验', () => {
     const percent = createWidgetItem('percent').widget as DecimalFamilyWidget;
     expect(percent.precision).toBe(10);
     expect(percent.scale).toBe(6);
+    expect(percent.min).toBe('0');
+    expect(percent.max).toBe('1');
+    expect(percent.percentValueMode).toBe('ratio');
+    expect(validateFormSchema(documentWith([createWidgetItem('percent')])).issues).toEqual([]);
     expect(validateFormSchema(documentWith([createWidgetItem('money')])).issues).toEqual([]);
   });
 });

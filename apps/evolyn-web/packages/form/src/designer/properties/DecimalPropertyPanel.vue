@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { ElInput, ElInputNumber, ElOption, ElSelect } from 'element-plus';
+import { computed } from 'vue';
 import {
   NUMERIC_FIELD_LIMITS,
   NUMERIC_ROUNDING_MODES,
   effectiveNumericPrecision,
   effectiveNumericScale,
 } from '../../schema/numeric';
+import { formatPercentRatio, parsePercentInput, usesPercentRatio } from '../../schema/percent';
 import { NUMERIC_ROUNDING_MODE_LABELS } from '../../schema/dictionary';
 import type { DecimalFamilyWidget, RoundingModeValue } from '../../schema/types';
 import DefaultValueModeSelect from './DefaultValueModeSelect.vue';
@@ -18,15 +20,17 @@ import FormSchemaPropertySection from './FormSchemaPropertySection.vue';
  * 生效的默认值；rounding 供计算链消费（Phase 4 仅入协议）。
  */
 const props = defineProps<{ widget: DecimalFamilyWidget }>();
+const isPercent = computed(() => usesPercentRatio(props.widget));
 
 /** 文本输入回写：空串收敛 null（未启用语义），与协议缺省一致。 */
 function setDecimalText(key: 'min' | 'max' | 'defaultValue', value: string): void {
   const trimmed = value.trim();
-  (props.widget[key] as string | null) = trimmed === '' ? null : trimmed;
+  (props.widget[key] as string | null) =
+    trimmed === '' ? null : isPercent.value ? parsePercentInput(trimmed) : trimmed;
 }
 
 function textValue(value: string | null | undefined): string {
-  return value ?? '';
+  return isPercent.value ? formatPercentRatio(value) : (value ?? '');
 }
 </script>
 
@@ -35,29 +39,39 @@ function textValue(value: string | null | undefined): string {
     <DefaultValueModeSelect />
     <el-input
       :model-value="textValue(widget.defaultValue)"
-      placeholder="不设置（十进制数字，如 123.45）"
+      :placeholder="isPercent ? '不设置（百分比，如 15）' : '不设置（十进制数字，如 123.45）'"
       @update:model-value="setDecimalText('defaultValue', String($event ?? ''))"
-    />
+    >
+      <template v-if="isPercent" #suffix>%</template>
+    </el-input>
   </FormSchemaPropertySection>
   <FormSchemaPropertySection title="数值范围">
     <div class="form-schema-property__pair">
       <div>
-        <label class="form-schema-property__control-label" for="decimal-min">最小值</label>
+        <label class="form-schema-property__control-label" for="decimal-min">
+          {{ isPercent ? '最小百分比' : '最小值' }}
+        </label>
         <el-input
           id="decimal-min"
           :model-value="textValue(widget.min)"
-          placeholder="不限（十进制数字）"
+          :placeholder="isPercent ? '不限（如 0）' : '不限（十进制数字）'"
           @update:model-value="setDecimalText('min', String($event ?? ''))"
-        />
+        >
+          <template v-if="isPercent" #suffix>%</template>
+        </el-input>
       </div>
       <div>
-        <label class="form-schema-property__control-label" for="decimal-max">最大值</label>
+        <label class="form-schema-property__control-label" for="decimal-max">
+          {{ isPercent ? '最大百分比' : '最大值' }}
+        </label>
         <el-input
           id="decimal-max"
           :model-value="textValue(widget.max)"
-          placeholder="不限（十进制数字）"
+          :placeholder="isPercent ? '不限（如 100）' : '不限（十进制数字）'"
           @update:model-value="setDecimalText('max', String($event ?? ''))"
-        />
+        >
+          <template v-if="isPercent" #suffix>%</template>
+        </el-input>
       </div>
     </div>
   </FormSchemaPropertySection>

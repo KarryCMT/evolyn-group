@@ -13,6 +13,7 @@ import {
 } from 'element-plus';
 import { type Component, computed, inject } from 'vue';
 import { readWidgetOptions } from '../../schema/codec';
+import { formatPercentRatio, parsePercentInput, usesPercentRatio } from '../../schema/percent';
 import type {
   DateTimeWidget,
   DecimalFamilyWidget,
@@ -53,6 +54,9 @@ const organizationFieldComponent = computed<Component | null>(() => {
 });
 
 const stringValue = computed(() => (typeof props.modelValue === 'string' ? props.modelValue : ''));
+const decimalInputValue = computed(() =>
+  usesPercentRatio(props.field.widget) ? formatPercentRatio(stringValue.value) : stringValue.value,
+);
 const numberValue = computed(() =>
   typeof props.modelValue === 'number' ? props.modelValue : undefined,
 );
@@ -88,7 +92,14 @@ function isNumericField(): boolean {
 
 /** 数值字段族失焦整理宽松形状；空串回写 null（未填写语义）。 */
 function onDecimalInput(value: string): void {
-  update(value.trim() === '' ? null : value);
+  const trimmed = value.trim();
+  update(
+    trimmed === ''
+      ? null
+      : usesPercentRatio(props.field.widget)
+        ? parsePercentInput(trimmed)
+        : trimmed,
+  );
 }
 
 function isTimeField(): boolean {
@@ -183,14 +194,16 @@ function blur(): void {
   <ElInput
     v-else-if="isNumericField()"
     :id="inputId"
-    :model-value="stringValue"
+    :model-value="decimalInputValue"
     class="evf-web-subform-cell__full-width"
     :placeholder="decimalWidget().placeholder ?? '请输入数值'"
     :disabled="isInteractiveDisabled"
     :class="{ 'is-error': invalid }"
     @update:model-value="onDecimalInput"
     @blur="blur"
-  />
+  >
+    <template v-if="field.widget.type === 'percent'" #suffix>%</template>
+  </ElInput>
   <ElTimePicker
     v-else-if="field.widget.type === 'datetime' && isTimeField()"
     :id="inputId"

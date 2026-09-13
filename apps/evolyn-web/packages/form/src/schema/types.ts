@@ -176,6 +176,11 @@ export interface DecimalFamilyWidget extends FormWidgetCommon {
   scale?: number | null;
   rounding?: RoundingModeValue;
   defaultValue?: string | null;
+  /**
+   * 新建百分比字段显式声明 ratio：填写 `15%` 时在记录和计算链保存 `0.15`。
+   * 缺省仅用于兼容既有发布快照，其历史值仍按填写值直接解释，不能补默认值。
+   */
+  percentValueMode?: 'ratio';
 }
 
 /** 计算链舍入模式（与 @evolyn.do/numeric RoundingMode 逐字一致，设计 §11）。 */
