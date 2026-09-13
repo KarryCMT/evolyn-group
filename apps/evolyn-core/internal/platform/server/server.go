@@ -534,6 +534,11 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	if injector, ok := formService.(formservice.FormReferenceSourceInjector); ok {
 		injector.UseReferenceSource(formReferenceSource{menu: menuRepo})
 	}
+	// 数据管理成员字段经 IAM 批量目录解析：表单域只消费最小引用视图，既避免
+	// 前端 N+1，也不与 IAM 仓储形成反向依赖。
+	if injector, ok := formService.(formservice.MemberReferenceDirectoryInjector); ok {
+		injector.UseMemberReferenceDirectory(formMemberReferenceDirectory{users: iamRepo.User()})
+	}
 
 	// 表单权限组（000058，表单权限 P1）：判定器（组绑定判定 + S7 字段合并 +
 	// 内存版数据范围匹配）注入表单服务执行点；主体解析/存在性与展示名经 iam
@@ -1442,6 +1447,31 @@ func (s *Server) Ping() *ServerStatus {
 type formProjectionRecalibrator struct {
 	projector *workflowservice.FormProjector
 	tx        *infrastructure.TxManager
+}
+
+// formMemberReferenceDirectory 是 form.MemberReferenceDirectory 的装配适配器。
+// 它只转换 DTO，不下发账号联系方式或完整成员档案。
+type formMemberReferenceDirectory struct {
+	users repository.UserRepository
+}
+
+func (d formMemberReferenceDirectory) ResolveMemberReferences(ctx context.Context, references []string) ([]formmodel.MemberReference, error) {
+	entries, err := d.users.ResolveMemberReferences(ctx, references)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]formmodel.MemberReference, 0, len(entries))
+	for _, entry := range entries {
+		result = append(result, formmodel.MemberReference{
+			Reference:       entry.Reference,
+			MemberCode:      entry.MemberCode,
+			Name:            entry.Name,
+			Avatar:          entry.Avatar,
+			DepartmentNames: entry.DepartmentNames,
+			Status:          entry.Status,
+		})
+	}
+	return result, nil
 }
 
 func (a formProjectionRecalibrator) RecalibrateByForm(ctx context.Context, formID uint) (int, error) {

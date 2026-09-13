@@ -52,6 +52,16 @@ func TestRequestInfo(t *testing.T) {
 			Name:              "form_01",
 			Parts:             []string{"forms", "form_01", "records"},
 		}},
+		{"form record member card inherits form-records get permission", "GET", "/api/v1/forms/form_01/records/member-cards/mb_01", false, &RequestInfo{
+			IsResourceRequest: true,
+			Verb:              "get",
+			APIPrefix:         "api",
+			APIVersion:        "v1",
+			Namespace:         "root",
+			Resource:          "form-records",
+			Name:              "form_01",
+			Parts:             []string{"forms", "form_01", "records", "member-cards", "mb_01"},
+		}},
 		{"form record delete maps to form-records delete verb", "DELETE", "/api/v1/forms/form_01/records", false, &RequestInfo{
 			IsResourceRequest: true,
 			Verb:              "delete",

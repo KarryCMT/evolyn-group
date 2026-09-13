@@ -3,10 +3,12 @@ package repository
 import (
 	"context"
 	"strconv"
+	"strings"
 
 	"evolyn/internal/infrastructure"
 	"evolyn/internal/platform/iam/model"
 
+	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
@@ -15,7 +17,7 @@ var (
 	// memberCreateField 成员创建仅写归属与展示字段（ADR-006：登录身份在账号侧）。
 	// tenant_id 必须在列：显式指定租户的创建路径（如租户开通建 owner 成员）
 	// 依赖本列写入，Create Select 过滤会丢弃 Callback 注入值之外的字段
-	memberCreateField = []string{"account_id", "nickname", "tenant_id"}
+	memberCreateField = []string{"member_code", "account_id", "nickname", "tenant_id"}
 )
 
 type userRepository struct {
@@ -127,6 +129,9 @@ func (u *userRepository) CountByTenant(ctx context.Context, tenantID uint) (int6
 }
 
 func (u *userRepository) Create(ctx context.Context, member *model.User) (*model.User, error) {
+	if strings.TrimSpace(member.MemberCode) == "" {
+		member.MemberCode = "mb_" + strings.ReplaceAll(uuid.NewString(), "-", "")
+	}
 	if err := u.withContext(ctx).Select(memberCreateField).Create(member).Error; err != nil {
 		return nil, err
 	}
@@ -134,6 +139,63 @@ func (u *userRepository) Create(ctx context.Context, member *model.User) (*model
 	u.setCacheUser(member)
 
 	return member, nil
+}
+
+// ResolveMemberReferences 批量解析表单记录中的历史数值 ID 与新成员编号。
+// 读取经租户 Callback 约束，已离职成员仍可解析，保证历史记录不会退化为裸 ID。
+func (u *userRepository) ResolveMemberReferences(ctx context.Context, references []string) ([]model.MemberReference, error) {
+	seen := make(map[string]struct{}, len(references))
+	refs := make([]string, 0, len(references))
+	for _, reference := range references {
+		reference = strings.TrimSpace(reference)
+		if reference == "" {
+			continue
+		}
+		if _, exists := seen[reference]; exists {
+			continue
+		}
+		seen[reference] = struct{}{}
+		refs = append(refs, reference)
+	}
+	if len(refs) == 0 {
+		return []model.MemberReference{}, nil
+	}
+	users := make(model.Users, 0)
+	if err := u.withContext(ctx).
+		Preload("Account").
+		Preload(model.DepartmentAssociation).
+		Where("CAST(tn_users.id AS TEXT) IN ? OR tn_users.member_code IN ?", refs, refs).
+		Find(&users).Error; err != nil {
+		return nil, err
+	}
+	result := make([]model.MemberReference, 0, len(users)*2)
+	for _, member := range users {
+		name := member.Nickname
+		if name == "" && member.Account != nil {
+			name = member.Account.Nickname
+			if name == "" {
+				name = member.Account.Name
+			}
+		}
+		departments := make([]string, 0, len(member.Departments))
+		for _, department := range member.Departments {
+			departments = append(departments, department.Name)
+		}
+		avatar := ""
+		if member.Account != nil {
+			avatar = member.Account.Avatar
+		}
+		base := model.MemberReference{MemberCode: member.MemberCode, Name: name, Avatar: avatar, DepartmentNames: departments, Status: member.Status}
+		legacy := base
+		legacy.Reference = strconv.FormatUint(uint64(member.ID), 10)
+		result = append(result, legacy)
+		if member.MemberCode != "" {
+			current := base
+			current.Reference = member.MemberCode
+			result = append(result, current)
+		}
+	}
+	return result, nil
 }
 
 func (u *userRepository) Update(ctx context.Context, member *model.User) (*model.User, error) {

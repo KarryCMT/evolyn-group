@@ -2,8 +2,8 @@
 //
 // 只开放可无损转换且筛选语义明确的顶层标量字段；数组类（多选/多成员/
 // 多部门）与尚未建模的控件一律拒绝物理发布，禁止为兼容把用户业务值退回
-// JSONB。本矩阵与前端物理类型映射口径一致（方案 Phase 0.2：relation 统一
-// 为 BIGINT，不使用 UUID）。
+// JSONB。本矩阵与前端物理类型映射口径一致：成员关系使用全局 member_code 文本，
+// 不把分库后会冲突的自增 ID 持久化为业务引用。
 //
 // month/time 采用「原形 TEXT 直存 + 字典序比较」：YYYY-MM 与 HH:MM 均为
 // 等宽零填充定长形状，字典序与时间序严格一致，TEXT 列即可承载全部比较
@@ -32,7 +32,9 @@ const (
 	KindMonth FieldKind = "month"
 	// KindTime 时间（形状 HH:MM，原形 TEXT 直存；字典序==时间序）。
 	KindTime FieldKind = "time"
-	// KindRef 单成员/单部门引用（BIGINT；协议值形态是字符串 ID）。
+	// KindMember 单成员引用（TEXT；协议值形态是全局 member_code）。
+	KindMember FieldKind = "member"
+	// KindRef 单部门引用（BIGINT；协议值形态是字符串 ID）。
 	KindRef FieldKind = "ref"
 )
 
@@ -84,8 +86,11 @@ func KindOf(widgetType, format string) (FieldKind, bool) {
 		default:
 			return "", false
 		}
-	case "user", "dept":
-		// 单成员/单部门引用：后端主键体系是 BIGINT，协议字符串 ID 编解码收敛。
+	case "user":
+		// 成员使用跨数据库稳定的公开编号；内部自增 ID 不进入表单业务数据。
+		return KindMember, true
+	case "dept":
+		// 部门尚未具备公开编号，仍使用租户内 BIGINT 关系键。
 		return KindRef, true
 	default:
 		// checkboxgroup/combocheck/usergroup/deptgroup（数组）、subform（独立子表，
@@ -98,7 +103,7 @@ func KindOf(widgetType, format string) (FieldKind, bool) {
 // 列类型经 ColumnDDLType 产出）。
 func ColumnTypeOf(kind FieldKind) ColumnType {
 	switch kind {
-	case KindText:
+	case KindText, KindMember:
 		return ColumnTypeText
 	case KindNumber, KindDecimal:
 		return ColumnTypeNumeric

@@ -2,7 +2,7 @@ import type { DataContext, DataQuery, DataRecord, DataSource } from '@evolyn.do/
 import type { DataColumn } from '@evolyn.do/data-workspace';
 import type { QueryDocument, QueryFieldType } from '@evolyn.do/query';
 import type { Component, ComputedRef, ShallowRef } from 'vue';
-import type { FormRuntimeBootstrap } from '~/types';
+import type { FormRecordMemberReference, FormRuntimeBootstrap } from '~/types';
 import { normalizeQuery, validateQuery } from '@evolyn.do/query';
 import { RiFileList2Fill, RiFileChartFill, RiTimeFill, RiUser3Fill } from '@remixicon/vue';
 import { computed, markRaw, readonly, shallowRef, watch } from 'vue';
@@ -78,6 +78,13 @@ const DATETIME_COLUMN_MIN_WIDTH = 168;
  */
 const EXPANDED_RECORD_GROUP_FIELD = '__evolyn_form_record_group';
 const SUBFORM_FIELD_PREFIX = '__evolyn_subform';
+/** 表格行私有成员展示投影键：不属于字段值，禁止透传到筛选、导出或提交。 */
+export const MEMBER_REFERENCE_PRESENTATIONS_FIELD = '__evolyn_member_references';
+/** 展示名称覆盖原值后保留的成员引用，用于点击成员卡片与子表单行精确匹配。 */
+const MEMBER_REFERENCE_RAW_VALUES_FIELD = '__evolyn_member_reference_raw_values';
+
+export type FormRecordMemberPresentations = Record<string, FormRecordMemberReference[]>;
+type FormRecordMemberRawValues = Record<string, unknown>;
 
 interface UseFormRecordDataSourceOptions {
   appCode: ComputedRef<string>;
@@ -130,25 +137,35 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
       return {
         // 系统字段以 sys.* 键进入行记录（提交人取展示名快照），与表单字段
         // 值同层供列取数；筛选语义里的提交人值（成员 ID）仅在 Query DSL 中出现。
-        records: response.items.map((item) => ({
-          id: item.id,
-          ...(item.workflowInstanceNo
-            ? { [SYSTEM_RECORD_FIELDS.workflowInstanceNo]: item.workflowInstanceNo }
-            : {}),
-          ...(item.workflowStatus && item.workflowStatus !== 'NONE'
-            ? {
-                [SYSTEM_RECORD_FIELDS.workflowStatus]: item.workflowStatus,
-                ...(item.workflowUpdatedAt
-                  ? { [SYSTEM_RECORD_FIELDS.workflowUpdatedAt]: item.workflowUpdatedAt }
-                  : {}),
-              }
-            : {}),
-          [SYSTEM_RECORD_FIELDS.submittedBy]: item.submittedByName,
-          [SYSTEM_RECORD_FIELDS.submittedAt]: item.submittedAt,
-          [SYSTEM_RECORD_FIELDS.updatedBy]: item.updatedByName,
-          [SYSTEM_RECORD_FIELDS.updatedAt]: item.updatedAt,
-          ...item.values,
-        })),
+        records: response.items.map((item) => {
+          const memberReferences = item.memberReferences ?? {};
+          const rawMemberValues = Object.fromEntries(
+            Object.keys(memberReferences)
+              .filter((field) => !field.startsWith(`${SUBFORM_FIELD_PREFIX}:`))
+              .map((field) => [field, item.values[field]]),
+          );
+          return {
+            id: item.id,
+            ...(item.workflowInstanceNo
+              ? { [SYSTEM_RECORD_FIELDS.workflowInstanceNo]: item.workflowInstanceNo }
+              : {}),
+            ...(item.workflowStatus && item.workflowStatus !== 'NONE'
+              ? {
+                  [SYSTEM_RECORD_FIELDS.workflowStatus]: item.workflowStatus,
+                  ...(item.workflowUpdatedAt
+                    ? { [SYSTEM_RECORD_FIELDS.workflowUpdatedAt]: item.workflowUpdatedAt }
+                    : {}),
+                }
+              : {}),
+            [SYSTEM_RECORD_FIELDS.submittedBy]: item.submittedByName,
+            [SYSTEM_RECORD_FIELDS.submittedAt]: item.submittedAt,
+            [SYSTEM_RECORD_FIELDS.updatedBy]: item.updatedByName,
+            [SYSTEM_RECORD_FIELDS.updatedAt]: item.updatedAt,
+            [MEMBER_REFERENCE_PRESENTATIONS_FIELD]: memberReferences,
+            [MEMBER_REFERENCE_RAW_VALUES_FIELD]: rawMemberValues,
+            ...memberDisplayValues(item.values, memberReferences),
+          };
+        }),
         total: response.total,
       };
     },
@@ -253,6 +270,11 @@ function columnsFromRuntime(runtime: FormRuntimeBootstrap | null): DataColumn[] 
             minWidth:
               child.type === 'datetime' ? DATETIME_COLUMN_MIN_WIDTH : FORM_COLUMN_MIN_WIDTH,
             icon: markRaw(widgetIconOfType(child.type)),
+            ...(isMemberWidgetType(child.type)
+              ? {
+                  cellType: 'link' as const,
+                }
+              : {}),
           })),
         } as unknown as DataColumn,
       ];
@@ -265,6 +287,9 @@ function columnsFromRuntime(runtime: FormRuntimeBootstrap | null): DataColumn[] 
         mergeCell: mergeExpandedRecordRows,
         // 列设置面板行内的字段类型图标，与设计器素材面板共用映射
         icon: markRaw(widgetIconOfType(widget.type)),
+        ...(isMemberWidgetType(widget.type)
+          ? { cellType: 'link' as const }
+          : {}),
       },
     ];
   });
@@ -301,6 +326,64 @@ function columnsFromRuntime(runtime: FormRuntimeBootstrap | null): DataColumn[] 
       icon: markRaw(RiTimeFill),
     },
   ];
+}
+
+function isMemberWidgetType(type: string): boolean {
+  return type === 'user' || type === 'usergroup';
+}
+
+/** 名称仅来自服务端本页批量投影；未解析的历史值保留受控回退，绝不触发单元格请求。 */
+export function memberReferenceLabel(record: DataRecord, field: string): string {
+  const names = memberReferencesOf(record, field).map((entry) => entry.name).filter(Boolean);
+  if (names.length > 0) return names.join('、');
+  const raw = record[field];
+  if (Array.isArray(raw)) return raw.length > 0 ? '未知成员' : '';
+  return raw ? '未知成员' : '';
+}
+
+export function memberReferencesOf(record: DataRecord, field: string): FormRecordMemberReference[] {
+  const presentations = record[MEMBER_REFERENCE_PRESENTATIONS_FIELD];
+  if (!isMemberPresentations(presentations)) return [];
+  const entries = presentations[field] ?? [];
+  const rawReferences = memberReferenceValues(memberReferenceRawValue(record, field));
+  if (rawReferences.length === 0) return entries;
+  // 子表单列会按行展开；只保留当前展开行原始引用命中的成员，避免把其它
+  // 明细行的成员名称/卡片混入本单元格。
+  return entries.filter((entry) => rawReferences.includes(entry.reference));
+}
+
+function memberReferenceRawValue(record: DataRecord, field: string): unknown {
+  const rawValues = record[MEMBER_REFERENCE_RAW_VALUES_FIELD];
+  if (isMemberRawValues(rawValues) && field in rawValues) return rawValues[field];
+  return record[field];
+}
+
+function isMemberPresentations(value: unknown): value is FormRecordMemberPresentations {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function isMemberRawValues(value: unknown): value is FormRecordMemberRawValues {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function memberReferenceValues(value: unknown): string[] {
+  if (typeof value === 'string') return value.trim() ? [value.trim()] : [];
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string' && Boolean(entry.trim()))
+    .map((entry) => entry.trim());
+}
+
+function memberDisplayValues(
+  values: Record<string, unknown>,
+  references: FormRecordMemberPresentations,
+): Record<string, unknown> {
+  const displayed = { ...values };
+  for (const [field, members] of Object.entries(references)) {
+    if (!field.startsWith(`${SUBFORM_FIELD_PREFIX}:`) && members.length > 0) {
+      displayed[field] = members.map((member) => member.name).filter(Boolean).join('、');
+    }
+  }
+  return displayed;
 }
 
 interface SubformDefinition {
@@ -367,7 +450,16 @@ function expandSubformRecords(
       subforms.forEach((subform, subformIndex) => {
         const childRecord = rowsBySubform[subformIndex][rowIndex];
         for (const child of subform.children) {
-          expanded[subformFieldOf(subform.field, child.field)] = childRecord?.[child.field];
+          const field = subformFieldOf(subform.field, child.field);
+          expanded[field] = childRecord?.[child.field];
+          if (!isMemberWidgetType(child.type)) continue;
+          const members = memberReferencesOf(expanded, field);
+          if (members.length === 0) continue;
+          const rawValues = isMemberRawValues(expanded[MEMBER_REFERENCE_RAW_VALUES_FIELD])
+            ? expanded[MEMBER_REFERENCE_RAW_VALUES_FIELD]
+            : {};
+          expanded[MEMBER_REFERENCE_RAW_VALUES_FIELD] = { ...rawValues, [field]: expanded[field] };
+          expanded[field] = members.map((member) => member.name).filter(Boolean).join('、');
         }
       });
       return expanded;

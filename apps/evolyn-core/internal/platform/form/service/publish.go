@@ -545,8 +545,12 @@ func (s *formService) validateSubmitValues(
 	if err != nil {
 		return nil, err
 	}
-	// 提交人成员 ID：显隐规则 includeCurrentMember 的服务端求值注入源。
-	currentMemberID := strconv.FormatUint(uint64(member.ID), 10)
+	// 提交人成员编号：显隐规则 includeCurrentMember 与成员控件的新写入协议一致。
+	// 数字 ID 仅保留给尚未完成迁移的测试/历史执行环境的受控回退。
+	currentMemberID := member.MemberCode
+	if currentMemberID == "" {
+		currentMemberID = strconv.FormatUint(uint64(member.ID), 10)
+	}
 	var (
 		cleaned     map[string]any
 		fieldErrors RecordFieldErrors

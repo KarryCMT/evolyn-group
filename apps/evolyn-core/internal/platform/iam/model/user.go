@@ -30,7 +30,10 @@ const (
 // 登录身份（name/password/phone 等）在 Account，本结构仅承载租户内身份——
 // 归属账号、租户内昵称、部门/分组/角色。存量账号字段列由回填策略处理，此处不声明
 type User struct {
-	ID         uint             `json:"id" gorm:"autoIncrement;primaryKey"`
+	ID uint `json:"id" gorm:"autoIncrement;primaryKey"`
+	// MemberCode 是成员关系的全局、不可变公开编号。内部关联继续使用数值 ID，
+	// 对外协议（表单成员字段、成员卡片）使用本字段，避免分库后自增 ID 冲突。
+	MemberCode string           `json:"memberCode" gorm:"size:40;not null;uniqueIndex:uk_tn_users_member_code"`
 	AccountId  uint             `json:"accountId" gorm:"index;not null;default:0"` // 归属平台账号，存量回填前为 0
 	Nickname   string           `json:"nickname" gorm:"size:100"`                  // 租户内展示名，空则前端回落账号昵称
 	Status     string           `json:"status" gorm:"size:16;not null;default:active"`
@@ -120,6 +123,7 @@ type MemberRole struct {
 // MemberListItem 组织页的成员行读模型：成员身份来自 users，联系方式和头像来自 accounts。
 type MemberListItem struct {
 	ID          uint               `json:"id"`
+	MemberCode  string             `json:"memberCode"`
 	AccountID   uint               `json:"accountId"`
 	Name        string             `json:"name"`
 	Phone       string             `json:"phone"`

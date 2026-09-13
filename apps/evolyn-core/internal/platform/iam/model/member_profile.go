@@ -66,3 +66,14 @@ type MemberProfileAdminView struct {
 	CardValues  map[string]string        `json:"cardValues"`
 	FieldConfig []MemberFieldSettingView `json:"fieldConfig"`
 }
+
+// MemberReference 是成员字段在表单记录中的展示投影。Reference 保留记录原值，
+// 兼容历史数字 ID；MemberCode 是当前稳定公开编号，供新写入和成员卡片查询使用。
+type MemberReference struct {
+	Reference       string   `json:"reference"`
+	MemberCode      string   `json:"memberCode"`
+	Name            string   `json:"name"`
+	Avatar          string   `json:"avatar"`
+	DepartmentNames []string `json:"departmentNames"`
+	Status          string   `json:"status"`
+}

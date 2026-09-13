@@ -24,10 +24,9 @@ type RuntimeStatus = 'loading' | 'ready' | 'not-published' | 'error';
 
 const { userInfo } = useAuth();
 
-/** 当前登录成员 ID：显隐规则 includeCurrentMember 的前端求值注入源。 */
+/** 当前登录成员编号：显隐规则 includeCurrentMember 的前端求值注入源。 */
 const currentMemberId = computed(() => {
-  const id = userInfo.value?.member?.id;
-  return id === undefined || id === null ? undefined : String(id);
+  return userInfo.value?.member?.memberCode;
 });
 
 /** 填写模式（add）字段权限矩阵：未下发时全量放行。 */

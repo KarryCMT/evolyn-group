@@ -219,16 +219,40 @@ type FormRecordDTO struct {
 	WorkflowStatus     string           `json:"workflowStatus"`
 	WorkflowUpdatedAt  *kernel.JSONTime `json:"workflowUpdatedAt"`
 
-	ID                  uint            `json:"id"`
-	Values              map[string]any  `json:"values"`
-	SubmittedByMemberID uint            `json:"submittedByMemberId"`
-	SubmittedByName     string          `json:"submittedByName"`
-	SubmittedAt         kernel.JSONTime `json:"submittedAt"`
-	UpdatedAt           kernel.JSONTime `json:"updatedAt"`
+	ID     uint           `json:"id"`
+	Values map[string]any `json:"values"`
+	// MemberReferences 是本页成员字段的批量展示投影；Values 保持原始稳定引用，
+	// 前端以本字段显示名称并在点击时使用 memberCode 打开受限成员卡片。
+	MemberReferences    map[string][]MemberReference `json:"memberReferences"`
+	SubmittedByMemberID uint                         `json:"submittedByMemberId"`
+	SubmittedByName     string                       `json:"submittedByName"`
+	SubmittedAt         kernel.JSONTime              `json:"submittedAt"`
+	UpdatedAt           kernel.JSONTime              `json:"updatedAt"`
 	// UpdatedByMemberID/UpdatedByName 最后写人人（000072）：历史回填=提交人，
 	// 审批编辑/发起人修改写回后=操作人快照。
 	UpdatedByMemberID uint   `json:"updatedByMemberId"`
 	UpdatedByName     string `json:"updatedByName"`
+}
+
+// MemberReference 是表单域对成员目录的最小展示契约。Reference 与 Values 中
+// 原值相同，兼容历史数字 ID；MemberCode 是全局不可变公开编号。
+type MemberReference struct {
+	Reference       string   `json:"reference"`
+	MemberCode      string   `json:"memberCode"`
+	Name            string   `json:"name"`
+	Avatar          string   `json:"avatar"`
+	DepartmentNames []string `json:"departmentNames"`
+	Status          string   `json:"status"`
+}
+
+// FormRecordMemberCard 是数据管理浮窗专用的脱敏成员视图。它刻意不复用
+// 成员管理完整档案接口，避免把手机号、邮箱等资料暴露给普通数据查看者。
+type FormRecordMemberCard struct {
+	MemberCode  string   `json:"memberCode"`
+	Name        string   `json:"name"`
+	Avatar      string   `json:"avatar"`
+	Status      string   `json:"status"`
+	Departments []string `json:"departments"`
 }
 
 // StorageJobDetail DDL 发布 Job 状态出网：受控失败信息（jobId/错误码/时间），

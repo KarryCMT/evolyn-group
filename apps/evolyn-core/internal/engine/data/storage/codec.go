@@ -24,7 +24,7 @@ func EncodeSQLValue(kind FieldKind, value any) (any, error) {
 		return nil, nil
 	}
 	switch kind {
-	case KindText:
+	case KindText, KindMember:
 		text, ok := value.(string)
 		if !ok {
 			return nil, fmt.Errorf("文本字段值必须是字符串，得到 %T", value)
@@ -100,7 +100,7 @@ func DecodeSQLValue(kind FieldKind, value any) (any, error) {
 		return nil, nil
 	}
 	switch kind {
-	case KindText:
+	case KindText, KindMember:
 		switch v := value.(type) {
 		case string:
 			if v == "" {

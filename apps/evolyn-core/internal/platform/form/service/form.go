@@ -59,6 +59,7 @@ type formService struct {
 	references  ReferenceSource
 	permissions FormPermissionEvaluator   // 权限组判定器（装配期注入；nil=按 S4 基线放行）
 	groups      PermissionGroupReadSource // 权限组只读查询（switch-type/发布阻塞判定）
+	memberRefs  MemberReferenceDirectory  // 成员字段展示/卡片目录（可选注入）
 
 	// 物理表存储（方案 §13）。装配期经 UsePhysicalStorage 注入；nil =
 	// 未装配物理链路（单测桩/存量形态），一切行为与 JSONB 时代一致。
@@ -103,6 +104,17 @@ func NewFormService(
 // 未注入时 ListReferences 返回空集，存量测试桩无需调整。
 func (s *formService) UseReferenceSource(src ReferenceSource) {
 	s.references = src
+}
+
+// UseMemberReferenceDirectory 注入成员引用只读目录。未注入时记录列表仍可用，
+// 只是不提供名称投影，便于既有纯表单测试保持最小桩。
+func (s *formService) UseMemberReferenceDirectory(directory MemberReferenceDirectory) {
+	s.memberRefs = directory
+}
+
+// MemberReferenceDirectoryInjector 是装配期可选能力。
+type MemberReferenceDirectoryInjector interface {
+	UseMemberReferenceDirectory(directory MemberReferenceDirectory)
 }
 
 // FormReferenceSourceInjector 装配期注入能力（可选）。

@@ -33,10 +33,10 @@ function openPicker(): void {
 function onConfirm(members: MemberListItemDto[]): void {
   memberNames.value = {
     ...memberNames.value,
-    ...Object.fromEntries(members.map((member) => [String(member.id), member.name])),
+    ...Object.fromEntries(members.map((member) => [member.memberCode, member.name])),
   };
   runtime.value?.setTemplateValueLabels(props.item.widget.widgetName, memberNames.value);
-  const ids = members.map((member) => String(member.id));
+  const ids = members.map((member) => member.memberCode);
   emit('update:modelValue', multiple.value ? ids : (ids[0] ?? null));
   emit('blur');
 }
@@ -57,8 +57,8 @@ async function hydrateMemberNames(ids: readonly string[]): Promise<void> {
     const resolved = Object.fromEntries(
       pages
         .flatMap((page) => page.items)
-        .filter((member) => missing.includes(String(member.id)))
-        .map((member) => [String(member.id), member.name]),
+        .filter((member) => missing.includes(member.memberCode))
+        .map((member) => [member.memberCode, member.name]),
     );
     if (Object.keys(resolved).length === 0) return;
     memberNames.value = { ...memberNames.value, ...resolved };

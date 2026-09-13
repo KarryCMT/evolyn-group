@@ -148,6 +148,9 @@ func (s *formService) ListRecords(ctx context.Context, member *iammodel.User, co
 		total = t
 		items = assembleRecordItems(rowsOfLegacy(records), mappings, resolved)
 	}
+	if err := s.hydrateMemberReferences(ctx, items, content); err != nil {
+		return nil, err
+	}
 	return &model.FormRecordPage{Items: items, Total: total, Page: page, PageSize: pageSize}, nil
 }
 

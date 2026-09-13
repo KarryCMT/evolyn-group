@@ -20,6 +20,7 @@ func TestEncodeSQLValue(t *testing.T) {
 		{KindText, "hello", "hello"},
 		{KindText, "", nil},
 		{KindText, nil, nil},
+		{KindMember, "mb_019ab", "mb_019ab"},
 		{KindNumber, float64(88.5), float64(88.5)},
 		{KindDate, "2026-09-04", "2026-09-04"},
 		{KindDateTime, "2026-09-04 12:30:00", "2026-09-04 12:30:00"},
@@ -48,6 +49,7 @@ func TestEncodeSQLValueRejectsMalformed(t *testing.T) {
 		value any
 	}{
 		{KindText, 42},
+		{KindMember, 42},
 		{KindNumber, "88"},
 		{KindNumber, true},
 		{KindDate, "2026/09/04"},
@@ -85,6 +87,9 @@ func TestDecodeSQLValue(t *testing.T) {
 	}
 	if got, err := DecodeSQLValue(KindText, "hello"); err != nil || got != "hello" {
 		t.Fatalf("text decode: %v, %v", got, err)
+	}
+	if got, err := DecodeSQLValue(KindMember, "mb_019ab"); err != nil || got != "mb_019ab" {
+		t.Fatalf("member decode: %v, %v", got, err)
 	}
 	if got, err := DecodeSQLValue(KindNumber, float64(12)); err != nil || got != float64(12) {
 		t.Fatalf("number decode: %v, %v", got, err)
@@ -163,8 +168,8 @@ func TestKindOfSupportMatrix(t *testing.T) {
 			t.Fatalf("%s(%s) must be rejected", testCase.widgetType, testCase.format)
 		}
 	}
-	if kind, _ := KindOf("user", ""); kind != KindRef {
-		t.Fatal("user maps to ref")
+	if kind, _ := KindOf("user", ""); kind != KindMember || ColumnTypeOf(kind) != ColumnTypeText {
+		t.Fatal("user maps to global member-code TEXT")
 	}
 	if kind, _ := KindOf("datetime", "date"); kind != KindDate {
 		t.Fatal("datetime/date maps to date")

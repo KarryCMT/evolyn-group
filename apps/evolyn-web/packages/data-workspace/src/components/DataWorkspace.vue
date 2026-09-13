@@ -2,6 +2,7 @@
 import { EvolynTable } from '@evolyn.do/ui';
 import type { EvolynTableColumn } from '@evolyn.do/ui';
 import { computed, shallowRef, watch } from 'vue';
+import type { MousePointerCellEvent } from '@visactor/vtable';
 import type { DataQuery, DataRecord } from '@evolyn.do/data';
 import DataColumnSettings from './DataColumnSettings.vue';
 import DataToolbar from './DataToolbar.vue';
@@ -38,6 +39,8 @@ const emit = defineEmits<{
   updateQuery: [query: DataQuery];
   /** 表格首列勾选状态变化；子表单展开的明细行按父记录 ID 收敛为一次选择。 */
   selectionChange: [ids: DataRecordId[]];
+  /** 透传表体单元格点击，页面按领域字段决定是否打开浮窗。 */
+  cellClick: [event: MousePointerCellEvent];
 }>();
 
 const pageCount = computed(() =>
@@ -172,6 +175,7 @@ function updatePageSize(event: Event) {
         :records="records"
         :options="{ frozenColCount: 1, enableHeaderCheckboxCascade: false }"
         @checkbox-state-change="handleCheckboxStateChange"
+        @click-cell="emit('cellClick', $event)"
       />
     </div>
 

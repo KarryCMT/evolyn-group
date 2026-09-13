@@ -109,6 +109,7 @@ func (u *userService) ListPage(ctx context.Context, query model.MemberListQuery)
 func toMemberListItem(member model.User) model.MemberListItem {
 	item := model.MemberListItem{
 		ID:          member.ID,
+		MemberCode:  member.MemberCode,
 		AccountID:   member.AccountId,
 		Name:        member.Nickname,
 		Status:      member.Status,

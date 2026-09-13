@@ -9,13 +9,19 @@ import {
   RiUpload2Fill,
 } from '@remixicon/vue';
 import { DataWorkspace, useDataWorkspace, type DataAction } from '@evolyn.do/data-workspace';
+import type { DataRecord } from '@evolyn.do/data';
 import type { QueryExpression } from '@evolyn.do/query';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, markRaw, shallowRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { deleteFormRecords } from '~/api/form';
-import { useFormRecordDataSource } from '~/composables/useFormRecordDataSource';
+import {
+  memberReferencesOf,
+  useFormRecordDataSource,
+} from '~/composables/useFormRecordDataSource';
 import FormRecordFilterPanel from '~/components/form/data/FormRecordFilterPanel.vue';
+import FormRecordMemberCardPopover from '~/components/form/data/FormRecordMemberCardPopover.vue';
+import type { FormRecordMemberReference } from '~/types';
 
 defineOptions({ name: 'FormDataPage' });
 
@@ -29,6 +35,9 @@ const { columns, filterFields, tableRecords: expandedRecords, total, status, err
 const tableRecords = computed(() => expandedRecords.value.map((record) => ({ ...record })));
 const selectedRecordIds = shallowRef<number[]>([]);
 const selectionResetVersion = shallowRef(0);
+const memberCardVisible = shallowRef(false);
+const memberCardReferences = shallowRef<FormRecordMemberReference[]>([]);
+const memberCardPosition = shallowRef<{ x: number; y: number } | null>(null);
 // 「筛选」为工具栏工具型入口（搜索框旁的弹层面板），不在业务动作区
 const defaultActions: DataAction[] = [
   { key: 'create', label: '添加', icon: markRaw(RiAddFill), tone: 'primary' },
@@ -94,6 +103,33 @@ function updateFilter(filter: QueryExpression | undefined) {
   // 服务端查询并将筛选结果从第一页开始展示。
   updateQuery({ filter, page: 1 });
 }
+
+/** 成员列由服务端预先投影名称；点击只携带成员编号请求最小化的成员卡片接口。 */
+function handleCellClick(event: unknown) {
+  if (!isRecordCellClick(event)) return;
+  if (event.cellLocation !== 'body' || typeof event.field !== 'string') return;
+  const record = event.originData as DataRecord | undefined;
+  if (!record) return;
+  const references = memberReferencesOf(record, event.field);
+  if (references.length === 0) return;
+
+  const pointer = event.event;
+  const x = typeof pointer?.clientX === 'number' ? pointer.clientX : 24;
+  const y = typeof pointer?.clientY === 'number' ? pointer.clientY : 24;
+  memberCardReferences.value = references;
+  memberCardPosition.value = { x, y };
+  memberCardVisible.value = true;
+}
+
+/** 工作台包与应用的 VTable 类型副本可独立升级，页面只依赖本交互所需的窄事件形状。 */
+function isRecordCellClick(value: unknown): value is {
+  cellLocation?: string;
+  field?: string;
+  originData?: unknown;
+  event?: { clientX?: number; clientY?: number };
+} {
+  return typeof value === 'object' && value !== null;
+}
 </script>
 
 <template>
@@ -114,6 +150,7 @@ function updateFilter(filter: QueryExpression | undefined) {
       :pagination="{ total, page: query.page, pageSize: query.pageSize }"
       :selection-reset-version="selectionResetVersion"
       @action="handleAction"
+      @cell-click="handleCellClick"
       @selection-change="updateSelection"
       @update-query="updateQuery"
     >
@@ -125,6 +162,12 @@ function updateFilter(filter: QueryExpression | undefined) {
         />
       </template>
     </DataWorkspace>
+    <FormRecordMemberCardPopover
+      v-model="memberCardVisible"
+      :form-code="formCode"
+      :position="memberCardPosition"
+      :references="memberCardReferences"
+    />
   </section>
 </template>
 

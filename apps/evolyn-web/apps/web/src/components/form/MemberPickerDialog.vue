@@ -70,7 +70,7 @@ const visibleMembers = computed(() => {
   });
 });
 function memberName(id: string): string {
-  return members.value.find((member) => String(member.id) === id)?.name ?? `成员 ${id}`;
+  return members.value.find((member) => member.memberCode === id)?.name ?? '未知成员';
 }
 
 function toggleMember(memberId: string): void {
@@ -89,7 +89,7 @@ function removeMember(memberId: string): void {
 
 function confirm(): void {
   const selectedMembers = selected.value
-    .map((id) => members.value.find((member) => String(member.id) === id))
+    .map((id) => members.value.find((member) => member.memberCode === id))
     .filter((member): member is MemberListItemDto => Boolean(member));
   emit('confirm', props.multiple ? selectedMembers : selectedMembers.slice(0, 1));
   visible.value = false;
@@ -196,17 +196,17 @@ watch(visible, (open) => {
         </p>
         <label
           v-for="member in visibleMembers"
-          :key="member.id"
+          :key="member.memberCode"
           class="form-member-picker__member"
-          @click.prevent="toggleMember(String(member.id))"
+          @click.prevent="toggleMember(member.memberCode)"
         >
           <span class="form-member-picker__avatar">{{ member.name.slice(0, 1) }}</span>
           <span>{{ member.name }}</span>
           <span class="form-member-picker__member-department">{{
             member.departments.map((item) => item.name).join('、')
           }}</span>
-          <el-checkbox v-if="multiple" :model-value="selectedSet.has(String(member.id))" />
-          <el-radio v-else :model-value="selected[0]" :value="String(member.id)" />
+          <el-checkbox v-if="multiple" :model-value="selectedSet.has(member.memberCode)" />
+          <el-radio v-else :model-value="selected[0]" :value="member.memberCode" />
         </label>
         <p
           v-if="!loading && !loadError && !visibleMembers.length"

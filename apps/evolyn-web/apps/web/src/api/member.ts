@@ -13,6 +13,7 @@ export interface MemberListQuery {
 
 export interface MemberListItemDto {
   id: number;
+  memberCode: string;
   accountId: number;
   name: string;
   phone: string;

@@ -26,6 +26,9 @@ type UserRepository interface {
 	// CountByTenant 指定租户的有效成员数（配额执行用，FIX-011）。
 	// 显式按租户计数：调用方（配额/运营路径）可能无租户上下文
 	CountByTenant(ctx context.Context, tenantID uint) (int64, error)
+	// ResolveMemberReferences 批量解析当前租户中表单保存的成员公开编号，兼容迁移前
+	// 的数值 ID。返回的是脱敏展示投影，不得包含手机、邮箱等完整成员档案字段。
+	ResolveMemberReferences(ctx context.Context, references []string) ([]model.MemberReference, error)
 	Create(ctx context.Context, member *model.User) (*model.User, error)
 	Update(ctx context.Context, member *model.User) (*model.User, error)
 	UpdateStatus(ctx context.Context, member *model.User) (*model.User, error)

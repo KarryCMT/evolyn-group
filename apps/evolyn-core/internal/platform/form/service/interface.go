@@ -15,6 +15,12 @@ type AccessEvaluator interface {
 	Permissions(ctx context.Context, member *iammodel.User) map[string]bool
 }
 
+// MemberReferenceDirectory 是 IAM 到表单域的只读窄端口。列表一次传入本页全部
+// 成员引用，适配器必须批量解析，禁止由前端或记录循环逐个请求成员目录。
+type MemberReferenceDirectory interface {
+	ResolveMemberReferences(ctx context.Context, references []string) ([]model.MemberReference, error)
+}
+
 // MenuMaintenance 表单资产菜单节点维护窄端口（M2-资产-1）：由 application
 // 域在装配层适配；表单域在创建/改名/删除的事务内调用，菜单节点写入与
 // menu_revision 递增随之加入同一事务（跨域经窄端口，域间不直接依赖）。
@@ -100,6 +106,8 @@ type FormService interface {
 	// ListRecords 按最新发布快照的字段映射校验 Query DSL，并在数据库分页前合并
 	// 用户筛选与 record-level view 数据范围；出网记录逐行执行字段可见性裁剪。
 	ListRecords(ctx context.Context, member *iammodel.User, code string, query model.RecordQueryDocument) (*model.FormRecordPage, error)
+	// GetRecordMemberCard 返回数据管理成员名称点击后的最小脱敏卡片。
+	GetRecordMemberCard(ctx context.Context, member *iammodel.User, code, reference string) (*model.FormRecordMemberCard, error)
 	// DeleteRecords 批量永久删除数据管理中勾选的记录；逐条复核 delete 权限。
 	DeleteRecords(ctx context.Context, member *iammodel.User, code string, req *model.DeleteFormRecordsRequest) (*model.DeleteFormRecordsResult, error)
 	// GetStorageJob 查询物理存储 DDL 发布 Job 状态（方案 §14；沿用 forms:get）

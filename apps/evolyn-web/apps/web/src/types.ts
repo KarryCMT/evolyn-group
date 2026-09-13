@@ -141,6 +141,8 @@ export interface RoleBrief {
 /** 租户成员（model.User 字段子集）：租户内身份，昵称/部门/分组/角色挂成员 */
 export interface MemberInfo {
   id: number;
+  /** 成员关系的全局不可变公开编号；表单成员字段等跨库引用使用它而非自增 ID。 */
+  memberCode: string;
   accountId: number;
   /** 租户内展示名，空则回落账号昵称 */
   nickname: string;
@@ -639,6 +641,8 @@ export interface FormRecordListItem {
   workflowUpdatedAt: string | null;
   id: number;
   values: Record<string, unknown>;
+  /** 当前页成员字段的批量展示投影；values 仍保留稳定引用，不混入展示文案。 */
+  memberReferences?: Record<string, FormRecordMemberReference[]>;
   submittedByMemberId: number;
   /** 提交人展示名快照：提交时固化，成员改名/退出后历史展示不失真。 */
   submittedByName: string;
@@ -649,6 +653,24 @@ export interface FormRecordListItem {
   updatedByMemberId: number;
   /** 最后写人人展示名快照：与提交人快照同口径，改名/退出后历史展示不失真。 */
   updatedByName: string;
+}
+
+export interface FormRecordMemberReference {
+  reference: string;
+  memberCode: string;
+  name: string;
+  avatar: string;
+  departmentNames: string[];
+  status: 'active' | 'disabled' | 'resigned';
+}
+
+/** 数据管理成员浮窗的脱敏响应，绝不使用成员管理完整档案接口。 */
+export interface FormRecordMemberCard {
+  memberCode: string;
+  name: string;
+  avatar: string;
+  status: 'active' | 'disabled' | 'resigned';
+  departments: string[];
 }
 
 export interface FormRecordPage {

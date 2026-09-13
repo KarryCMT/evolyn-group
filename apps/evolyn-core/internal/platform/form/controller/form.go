@@ -445,6 +445,30 @@ func (f *FormController) DeleteRecords(c *gin.Context) {
 	httpx.ResponseSuccess(c, result)
 }
 
+// @Summary 数据管理成员卡片
+// @Description 按表单记录数据面的权限读取成员最小公开卡片，仅包含姓名、系统成员编号、状态与部门；不返回成员完整档案中的联系方式等敏感字段。
+// @Produce json
+// @Tags 表单数据
+// @Security JWT
+// @Param code path string true "表单编码"
+// @Param memberCode path string true "成员公开编号或历史成员 ID"
+// @Success 200 {object} httpx.Response{data=formmodel.FormRecordMemberCard}
+// @Router /api/v1/forms/{code}/records/member-cards/{memberCode} [get]
+func (f *FormController) GetRecordMemberCard(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	card, err := f.formService.GetRecordMemberCard(
+		c.Request.Context(), ginctx.GetUser(c), code, strings.TrimSpace(c.Param("memberCode")),
+	)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, card)
+}
+
 // @Summary 切换表单类型
 // @Description standard↔workflow 互转（ADR-011）：流程表单切标准后原流程数据保留，仅不可再发起流程；草稿与发布快照不受影响；目标类型与当前相同返回 FORM_TYPE_UNCHANGED
 // @Accept json
@@ -551,6 +575,7 @@ func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	// DELETE 仍是 form-records:delete，服务层继续按逐条数据范围复核。
 	api.POST("/forms/:code/records", f.ListRecords)
 	api.DELETE("/forms/:code/records", f.DeleteRecords)
+	api.GET("/forms/:code/records/member-cards/:memberCode", f.GetRecordMemberCard)
 	api.POST("/form-records", f.SubmitRecord)
 	// 与 /applications/code/:code 系列同前缀且通配符同名（gin radix tree 要求同
 	// 位置同名，静态段 code 优先），鉴权解析为 applications:get，普通成员可读。
