@@ -11,7 +11,9 @@ import {
   type DataAction,
   type DataColumn,
   type DataPagination,
+  type DataRecordId,
 } from '../types.js';
+import { useDataWorkspaceSelection } from '../composables/useDataWorkspaceSelection.js';
 
 defineOptions({ name: 'DataWorkspace' });
 
@@ -32,6 +34,8 @@ const props = withDefaults(
 const emit = defineEmits<{
   action: [key: string];
   updateQuery: [query: DataQuery];
+  /** 表格首列勾选状态变化；子表单展开的明细行按父记录 ID 收敛为一次选择。 */
+  selectionChange: [ids: DataRecordId[]];
 }>();
 
 const pageCount = computed(() =>
@@ -55,12 +59,18 @@ watch(
   },
 );
 
+const dataRecords = computed(() => props.records);
+const { selectionColumn, handleCheckboxStateChange } = useDataWorkspaceSelection({
+  records: dataRecords,
+  onChange: (ids) => emit('selectionChange', ids),
+});
+
 const columnSettings = computed(() => flattenDataColumns(props.columns));
 const visibleColumns = computed(() => visibleDataColumns(props.columns, hiddenFields.value));
 // 工作台可表达分组列；具体表格实现由 UI 包统一接收 VTable 的分组定义，
 // 因此在边界处收敛为 UI 组件列契约。
 const tableColumns = computed(
-  () => visibleColumns.value as unknown as EvolynTableColumn[],
+  () => [selectionColumn.value, ...visibleColumns.value] as unknown as EvolynTableColumn[],
 );
 
 /**
@@ -150,7 +160,12 @@ function updatePageSize(event: Event) {
     </DataToolbar>
 
     <div class="data-workspace__table">
-      <EvolynTable :columns="tableColumns" :records="records" />
+      <EvolynTable
+        :columns="tableColumns"
+        :records="records"
+        :options="{ frozenColCount: 1, enableHeaderCheckboxCascade: false }"
+        @checkbox-state-change="handleCheckboxStateChange"
+      />
     </div>
 
     <footer class="data-workspace__footer">

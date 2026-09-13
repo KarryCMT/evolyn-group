@@ -34,6 +34,9 @@ export interface DataColumnGroup {
 
 export type DataColumn = DataColumnLeaf | DataColumnGroup;
 
+/** 数据管理记录的稳定选择键；当前表单记录为数值 ID，同时保留字符串兼容性。 */
+export type DataRecordId = string | number;
+
 export interface DataColumnSettingItem {
   column: DataColumnLeaf;
   /** 含父级表头的展示路径，例如「订单明细 / 金额」。 */

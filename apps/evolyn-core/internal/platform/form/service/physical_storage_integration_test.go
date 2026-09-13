@@ -882,8 +882,11 @@ func TestPhysINTZeroColumnForms(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, subValues["_widget_s"].([]any), 1)
 	assert.Equal(t, "行一", subValues["_widget_s"].([]any)[0].(map[string]any)["_widget_r1"])
-	_, err = env.formSvc.ListRecords(ctx, member, subCode, model.RecordQueryDocument{Version: 1})
+	subPage, err := env.formSvc.ListRecords(ctx, member, subCode, model.RecordQueryDocument{Version: 1})
 	require.NoError(t, err, "subform-only form list must not produce invalid SQL")
+	require.Len(t, subPage.Items, 1)
+	require.Len(t, subPage.Items[0].Values["_widget_s"].([]any), 1)
+	assert.Equal(t, "行一", subPage.Items[0].Values["_widget_s"].([]any)[0].(map[string]any)["_widget_r1"])
 
 	// 形态三：子表单暂无子字段——零列子表按行数保留空对象行序
 	emptyChildCode, emptyChildTable := env.publishPhysical(t, physSubformItems(""), `"_widget_s"`, member)
@@ -902,4 +905,8 @@ func TestPhysINTZeroColumnForms(t *testing.T) {
 	_, _, emptyValues, err := store.RecordData(ctx, emptyResult.RecordID)
 	require.NoError(t, err)
 	assert.Len(t, emptyValues["_widget_s"].([]any), 2, "zero-column child rows must read back by count")
+	emptyChildPage, err := env.formSvc.ListRecords(ctx, member, emptyChildCode, model.RecordQueryDocument{Version: 1})
+	require.NoError(t, err, "zero-column child form list must preserve child rows")
+	require.Len(t, emptyChildPage.Items, 1)
+	assert.Len(t, emptyChildPage.Items[0].Values["_widget_s"].([]any), 2)
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"evolyn/internal/contextx"
+	storagepkg "evolyn/internal/engine/data/storage"
 	apperrors "evolyn/internal/platform/form"
 	"evolyn/internal/platform/form/model"
 	"evolyn/internal/platform/form/repository"
@@ -129,6 +130,9 @@ func (s *formService) ListRecords(ctx context.Context, member *iammodel.User, co
 			if lerr != nil {
 				return lerr
 			}
+			if lerr = s.hydratePhysicalListChildren(tctx, rows, listBinding.Children); lerr != nil {
+				return lerr
+			}
 			total = t
 			items = assembleRecordItems(rowsOfPhysical(rows), mappings, resolved)
 			return nil
@@ -178,8 +182,52 @@ func (s *formService) physicalListBinding(ctx context.Context, form *model.Form)
 		physicalColumns[column.WidgetName] = column.ColumnName()
 		columns = append(columns, repository.PhysicalColumn{WidgetName: column.WidgetName, Column: column})
 	}
+	children := make([]storagepkg.ChildTableSpec, 0, len(applied.Children))
+	for _, child := range applied.Children {
+		if !child.Deprecated {
+			children = append(children, child)
+		}
+	}
 	return RecordQueryCompileOptions{Physical: true, PhysicalColumns: physicalColumns},
-		&repository.PhysicalListBinding{TableName: binding.PhysicalTable, Columns: columns}, nil
+		&repository.PhysicalListBinding{
+			TableName: binding.PhysicalTable,
+			Columns:   columns,
+			Children:  children,
+		}, nil
+}
+
+// hydratePhysicalListChildren 在父记录分页完成后，以「每张子表一次查询」批量
+// 水合子表单值。子表绝不直接 JOIN 到父记录分页 SQL，避免一对多 JOIN 让一条
+// 父记录被拆成多行、破坏 count/offset 以及数据管理的合并表头行组。
+func (s *formService) hydratePhysicalListChildren(ctx context.Context, rows []repository.PhysicalRecordRow, children []storagepkg.ChildTableSpec) error {
+	if len(rows) == 0 || len(children) == 0 {
+		return nil
+	}
+	tenantID, ok := contextx.TenantIDFromContext(ctx)
+	if !ok {
+		return fmt.Errorf("tenant context required")
+	}
+	parentRecordIDs := make([]uint, 0, len(rows))
+	for _, row := range rows {
+		parentRecordIDs = append(parentRecordIDs, row.Record.ID)
+	}
+	for _, child := range children {
+		byParent, err := s.physical.ReadChildRowsByParentIDs(
+			ctx, child.TableName, tenantID, parentRecordIDs, child.Columns,
+		)
+		if err != nil {
+			return err
+		}
+		for rowIndex := range rows {
+			childRows := byParent[rows[rowIndex].Record.ID]
+			items := make([]any, 0, len(childRows))
+			for _, childRow := range childRows {
+				items = append(items, childRow)
+			}
+			rows[rowIndex].Values[child.WidgetName] = items
+		}
+	}
+	return nil
 }
 
 // envelopeRow 列表行的统一读取视图（legacy/physical 两路同构组装）。

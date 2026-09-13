@@ -28,6 +28,9 @@ type PhysicalColumn struct {
 type PhysicalListBinding struct {
 	TableName string
 	Columns   []PhysicalColumn
+	// Children 是当前已应用物理模型中的非弃用子表单；列表页在父记录分页后
+	// 按每张子表批量回填明细，避免将一对多 JOIN 混入父记录分页语义。
+	Children []storage.ChildTableSpec
 }
 
 // PhysicalRecordRow 物理行：信封列 + 按 widgetName 解码后的业务值。
@@ -51,6 +54,9 @@ type PhysicalValueRepository interface {
 	ReplaceChildRows(ctx context.Context, tableName string, tenantID, parentRecordID uint, columns []storage.ColumnSpec, rows []map[string]any) error
 	// ReadChildRows 按父记录读取子行（sort_order 升序，返回每行 widgetName 键值）。
 	ReadChildRows(ctx context.Context, tableName string, tenantID, parentRecordID uint, columns []storage.ColumnSpec) ([]map[string]any, error)
+	// ReadChildRowsByParentIDs 按当前页父记录批量读取同一子表单的明细行，避免
+	// 列表页对每条记录逐个查询子表造成 N×M 次往返。
+	ReadChildRowsByParentIDs(ctx context.Context, tableName string, tenantID uint, parentRecordIDs []uint, columns []storage.ColumnSpec) (map[uint][]map[string]any, error)
 	// UpdateWorkflowProjection 同事务更新物理表流程投影列（信封列由
 	// FormRecordRepository 负责）。
 	UpdateWorkflowProjection(ctx context.Context, tableName string, tenantID, recordID uint, instanceNo, status string, updatedAt time.Time) error
@@ -276,6 +282,64 @@ func (r *physicalValueRepository) ReadChildRows(ctx context.Context, tableName s
 			return nil, err
 		}
 		results = append(results, decoded)
+	}
+	return results, rows.Err()
+}
+
+// ReadChildRowsByParentIDs 为列表页按子表单批量水合明细。结果中的每个输入父
+// 记录 ID 均有键（没有明细时为空切片），确保调用方可稳定出网 `[]` 而非遗漏键。
+func (r *physicalValueRepository) ReadChildRowsByParentIDs(ctx context.Context, tableName string, tenantID uint, parentRecordIDs []uint, columns []storage.ColumnSpec) (map[uint][]map[string]any, error) {
+	if err := storage.ValidateDynamicTableName(tableName); err != nil {
+		return nil, err
+	}
+	results := make(map[uint][]map[string]any, len(parentRecordIDs))
+	if len(parentRecordIDs) == 0 {
+		return results, nil
+	}
+	placeholders := make([]string, 0, len(parentRecordIDs))
+	args := make([]any, 0, len(parentRecordIDs)+1)
+	args = append(args, tenantID)
+	for _, parentRecordID := range parentRecordIDs {
+		// 同一页不会出现重复信封记录；即使调用方传入重复 ID，也只保留一次
+		// 结果桶，SQL 的重复占位不影响正确性。
+		results[parentRecordID] = []map[string]any{}
+		placeholders = append(placeholders, "?")
+		args = append(args, parentRecordID)
+	}
+
+	selects := []string{"parent_record_id"}
+	for _, column := range columns {
+		if err := storage.ValidateColumnName(column.ColumnName()); err != nil {
+			return nil, err
+		}
+		selects = append(selects, `"`+column.ColumnName()+`"`)
+	}
+	sql := fmt.Sprintf(
+		"SELECT %s FROM %q WHERE tenant_id = ? AND parent_record_id IN (%s) ORDER BY parent_record_id ASC, sort_order ASC",
+		strings.Join(selects, ", "), tableName, strings.Join(placeholders, ", "),
+	)
+	rows, err := r.withContext(ctx).Raw(sql, args...).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var parentRecordID uint
+		rawValues := make([]any, len(columns))
+		scanTargets := make([]any, 0, len(columns)+1)
+		scanTargets = append(scanTargets, &parentRecordID)
+		for i := range rawValues {
+			rawValues[i] = new(any)
+			scanTargets = append(scanTargets, rawValues[i])
+		}
+		if err := rows.Scan(scanTargets...); err != nil {
+			return nil, err
+		}
+		decoded, err := decodeRow(columns, rawValues)
+		if err != nil {
+			return nil, err
+		}
+		results[parentRecordID] = append(results[parentRecordID], decoded)
 	}
 	return results, rows.Err()
 }
