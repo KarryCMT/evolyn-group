@@ -1,10 +1,17 @@
 <script setup lang="ts">
 import { EvolynTable } from '@evolyn.do/ui';
+import type { EvolynTableColumn } from '@evolyn.do/ui';
 import { computed, shallowRef, watch } from 'vue';
 import type { DataQuery, DataRecord } from '@evolyn.do/data';
 import DataColumnSettings from './DataColumnSettings.vue';
 import DataToolbar from './DataToolbar.vue';
-import type { DataAction, DataColumn, DataPagination } from '../types.js';
+import {
+  flattenDataColumns,
+  isDataColumnGroup,
+  type DataAction,
+  type DataColumn,
+  type DataPagination,
+} from '../types.js';
 
 defineOptions({ name: 'DataWorkspace' });
 
@@ -39,20 +46,42 @@ const hiddenFields = shallowRef<ReadonlySet<string>>(new Set());
 watch(
   () => props.columns,
   (columns) => {
+    const currentFields = new Set(flattenDataColumns(columns).map(({ column }) => column.field));
     const next = new Set<string>();
     for (const field of hiddenFields.value) {
-      if (columns.some((column) => column.field === field)) next.add(field);
+      if (currentFields.has(field)) next.add(field);
     }
     hiddenFields.value = next;
   },
 );
 
-const visibleColumns = computed(() =>
-  props.columns
-    .filter((column) => !hiddenFields.value.has(column.field))
-    // icon 是列设置面板的展示元信息，剥离后再交给表格，避免透传渲染引擎
-    .map(({ icon: _icon, ...column }) => column),
+const columnSettings = computed(() => flattenDataColumns(props.columns));
+const visibleColumns = computed(() => visibleDataColumns(props.columns, hiddenFields.value));
+// 工作台可表达分组列；具体表格实现由 UI 包统一接收 VTable 的分组定义，
+// 因此在边界处收敛为 UI 组件列契约。
+const tableColumns = computed(
+  () => visibleColumns.value as unknown as EvolynTableColumn[],
 );
+
+/**
+ * 子表单分组仅保留仍有可见叶子列的分支；这样列设置隐藏最后一个子字段时，
+ * 父级合并表头会同步消失，不会留下空白表头。
+ */
+function visibleDataColumns(
+  columns: readonly DataColumn[],
+  hidden: ReadonlySet<string>,
+): DataColumn[] {
+  return columns.flatMap<DataColumn>((column): DataColumn | readonly DataColumn[] => {
+    if (isDataColumnGroup(column)) {
+      const children = visibleDataColumns(column.columns, hidden);
+      return children.length === 0 ? [] : [{ ...column, columns: children } as DataColumn];
+    }
+    if (hidden.has(column.field)) return [];
+    // icon 是列设置面板的展示元信息，剥离后再交给表格，避免透传渲染引擎。
+    const { icon: _icon, ...tableColumn } = column;
+    return [tableColumn as DataColumn];
+  });
+}
 
 function toggleColumn(field: string) {
   const next = new Set(hiddenFields.value);
@@ -60,7 +89,7 @@ function toggleColumn(field: string) {
     next.delete(field);
   } else {
     // 至少保留一列：全部勾掉会让表格失去取数锚点
-    if (next.size + 1 >= props.columns.length) return;
+    if (next.size + 1 >= columnSettings.value.length) return;
     next.add(field);
   }
   hiddenFields.value = next;
@@ -74,7 +103,7 @@ function toggleAllColumns(fields: string[], visible: boolean) {
   } else {
     for (const field of fields) {
       // 隐藏至仅剩一列时停止，其余保持可见
-      if (next.size + 1 >= props.columns.length) break;
+      if (next.size + 1 >= columnSettings.value.length) break;
       next.add(field);
     }
   }
@@ -121,7 +150,7 @@ function updatePageSize(event: Event) {
     </DataToolbar>
 
     <div class="data-workspace__table">
-      <EvolynTable :columns="visibleColumns" :records="records" />
+      <EvolynTable :columns="tableColumns" :records="records" />
     </div>
 
     <footer class="data-workspace__footer">

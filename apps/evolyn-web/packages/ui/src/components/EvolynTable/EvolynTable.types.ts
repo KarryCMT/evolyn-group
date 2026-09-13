@@ -22,7 +22,7 @@ export type EvolynTableCustomRenderObj = TYPES.ICustomRenderObj;
  * 收窄后的列定义。未显式声明的 VTable 原生列配置（style/headerIcon/
  * customLayout 等）经索引签名原样透传，作为逃生舱。
  */
-export interface EvolynTableColumn {
+export interface EvolynTableLeafColumn {
   /** 取值字段名 */
   field: string;
   /** 列标题 */
@@ -54,6 +54,21 @@ export interface EvolynTableColumn {
   /** 逃生舱：VTable ColumnDefine 的其余字段原样透传 */
   [key: string]: any;
 }
+
+/**
+ * 分组列只承载合并表头与叶子列，不直接从记录取值。用于子表单等层级数据时，
+ * 由 VTable 将 title 横向合并，叶子列仍沿用 EvolynTableLeafColumn 的取值契约。
+ */
+export interface EvolynTableGroupColumn {
+  /** 分组表头文案。 */
+  title: string;
+  /** 分组下的叶子列或下一层分组。 */
+  columns: EvolynTableColumn[];
+  /** 逃生舱：VTable GroupColumnDefine 的其余字段原样透传。 */
+  [key: string]: any;
+}
+
+export type EvolynTableColumn = EvolynTableLeafColumn | EvolynTableGroupColumn;
 
 /**
  * 逃生舱：ListTable 完整配置。数据入口（columns/records）与主题由组件

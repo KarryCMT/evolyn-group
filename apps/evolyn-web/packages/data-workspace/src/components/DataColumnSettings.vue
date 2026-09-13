@@ -2,7 +2,7 @@
 import { ElCheckbox, ElInput, ElPopover, ElScrollbar, ElTooltip } from 'element-plus';
 import { RiLayoutColumnFill, RiSearchFill } from '@remixicon/vue';
 import { computed, shallowRef, watch } from 'vue';
-import type { DataColumn } from '../types.js';
+import { flattenDataColumns, type DataColumn, type DataColumnSettingItem } from '../types.js';
 
 defineOptions({ name: 'DataColumnSettings' });
 
@@ -28,11 +28,12 @@ watch(open, (value) => {
 });
 
 /** 空格分词过滤：多个关键词需全部命中列名才展示。 */
-const filteredColumns = computed(() => {
+const columnSettings = computed(() => flattenDataColumns(props.columns));
+const filteredColumns = computed<DataColumnSettingItem[]>(() => {
   const keywords = keyword.value.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (!keywords.length) return props.columns;
-  return props.columns.filter((column) => {
-    const title = column.title.toLowerCase();
+  if (!keywords.length) return columnSettings.value;
+  return columnSettings.value.filter(({ titlePath }) => {
+    const title = titlePath.toLowerCase();
     return keywords.every((word) => title.includes(word));
   });
 });
@@ -41,25 +42,25 @@ const filteredColumns = computed(() => {
 const allVisible = computed(
   () =>
     filteredColumns.value.length > 0 &&
-    filteredColumns.value.every((column) => !props.hidden.has(column.field)),
+    filteredColumns.value.every(({ column }) => !props.hidden.has(column.field)),
 );
 const partiallyVisible = computed(
   () =>
-    filteredColumns.value.some((column) => !props.hidden.has(column.field)) && !allVisible.value,
+    filteredColumns.value.some(({ column }) => !props.hidden.has(column.field)) && !allVisible.value,
 );
 
 function onToggleAll(visible: string | number | boolean) {
   emit(
     'toggleAll',
-    filteredColumns.value.map((column) => column.field),
+    filteredColumns.value.map(({ column }) => column.field),
     Boolean(visible),
   );
 }
 
-const visibleCount = computed(() => props.columns.length - props.hidden.size);
+const visibleCount = computed(() => columnSettings.value.length - props.hidden.size);
 
 /** 取消勾选后可见列将为 0 时禁用该项，保证表格至少保留一列。 */
-function disabledOf(column: DataColumn): boolean {
+function disabledOf(column: DataColumnSettingItem['column']): boolean {
   return !props.hidden.has(column.field) && visibleCount.value <= 1;
 }
 </script>
@@ -107,21 +108,21 @@ function disabledOf(column: DataColumn): boolean {
         <!-- 字段项垂直单列排列，每行 = 类型图标 + 字段名 + 右侧勾选框 -->
         <div class="data-column-settings__grid">
           <ElCheckbox
-            v-for="column in filteredColumns"
-            :key="column.field"
+            v-for="setting in filteredColumns"
+            :key="setting.column.field"
             class="data-column-settings__item"
-            :model-value="!hidden.has(column.field)"
-            :disabled="disabledOf(column)"
-            @change="emit('toggle', column.field)"
+            :model-value="!hidden.has(setting.column.field)"
+            :disabled="disabledOf(setting.column)"
+            @change="emit('toggle', setting.column.field)"
           >
             <component
-              :is="column.icon"
-              v-if="column.icon"
+              :is="setting.column.icon"
+              v-if="setting.column.icon"
               class="data-column-settings__type-icon"
             />
             <!-- 字段名超宽省略号截断，悬浮经 Tooltip 展示全名 -->
-            <ElTooltip :content="column.title" placement="top" :show-after="200">
-              <span class="data-column-settings__label">{{ column.title }}</span>
+            <ElTooltip :content="setting.titlePath" placement="top" :show-after="200">
+              <span class="data-column-settings__label">{{ setting.titlePath }}</span>
             </ElTooltip>
           </ElCheckbox>
         </div>

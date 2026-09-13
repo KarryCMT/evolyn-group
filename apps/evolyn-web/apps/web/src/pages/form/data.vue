@@ -22,10 +22,10 @@ const { query, updateQuery } = useDataWorkspace();
 const route = useRoute();
 const appCode = computed(() => String(route.params.appCode ?? ''));
 const formCode = computed(() => String(route.params.formCode ?? ''));
-const { columns, filterFields, records, total, status, errorMessage, reload } =
+const { columns, filterFields, tableRecords: expandedRecords, total, status, errorMessage, reload } =
   useFormRecordDataSource({ appCode, formCode, query });
 // 数据源对外只读；表格接收独立行副本，避免渲染层意外改写领域缓存。
-const tableRecords = computed(() => records.value.map((record) => ({ ...record })));
+const tableRecords = computed(() => expandedRecords.value.map((record) => ({ ...record })));
 // 「筛选」为工具栏工具型入口（搜索框旁的弹层面板），不在业务动作区
 const actions: DataAction[] = [
   { key: 'create', label: '添加', icon: markRaw(RiAddFill), tone: 'primary' },

@@ -72,6 +72,13 @@ export interface FormRecordFilterField {
 const FORM_COLUMN_MIN_WIDTH = 144;
 const DATETIME_COLUMN_MIN_WIDTH = 168;
 
+/**
+ * 数据管理把一条含子表单的记录投影成多行时的私有分组键。它只服务于表格
+ * 的纵向单元格合并，绝不会成为可配置列或传给后端的查询字段。
+ */
+const EXPANDED_RECORD_GROUP_FIELD = '__evolyn_form_record_group';
+const SUBFORM_FIELD_PREFIX = '__evolyn_subform';
+
 interface UseFormRecordDataSourceOptions {
   appCode: ComputedRef<string>;
   formCode: ComputedRef<string>;
@@ -98,10 +105,16 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
         field: SYSTEM_RECORD_FIELDS.workflowInstanceNo,
         title: '流程单号',
         minWidth: 210,
+        mergeCell: mergeExpandedRecordRows,
       });
     }
     return base;
   });
+  // 子表单不是以 JSON 文本塞进一个单元格，而是展开为明细行：父表字段借由
+  // mergeCell 纵向合并，子表字段按行对齐，使分组表头与数据结构一一对应。
+  const tableRecords = computed<DataRecord[]>(() =>
+    expandSubformRecords(records.value, runtime.value),
+  );
   const filterFields = computed<FormRecordFilterField[]>(() =>
     filterFieldsFromRuntime(runtime.value),
   );
@@ -189,6 +202,7 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
     columns,
     filterFields,
     records: readonly(records),
+    tableRecords: readonly(tableRecords),
     total: readonly(total),
     status: readonly(status),
     errorMessage: readonly(errorMessage),
@@ -219,16 +233,36 @@ function columnsFromRuntime(runtime: FormRuntimeBootstrap | null): DataColumn[] 
   if (!runtime) return [];
   const items = runtime.content.content?.items ?? [];
   const permissions = runtime.permissions?.viewFields;
-  const formColumns = items.flatMap((item) => {
+  const subforms = new Map(
+    subformDefinitionsFromRuntime(runtime).map((definition) => [definition.field, definition]),
+  );
+  const formColumns = items.flatMap<DataColumn>((item): DataColumn | readonly DataColumn[] => {
     const widget = item.widget;
     const field = widget?.widgetName;
     if (!field || widget.type === 'separator' || widget.type === 'button') return [];
     if (permissions && !permissions[field]?.visible) return [];
+    if (widget.type === 'subform') {
+      const subform = subforms.get(field);
+      if (!subform) return [];
+      return [
+        {
+          title: subform.title,
+          columns: subform.children.map((child) => ({
+            field: subformFieldOf(subform.field, child.field),
+            title: child.title,
+            minWidth:
+              child.type === 'datetime' ? DATETIME_COLUMN_MIN_WIDTH : FORM_COLUMN_MIN_WIDTH,
+            icon: markRaw(widgetIconOfType(child.type)),
+          })),
+        } as unknown as DataColumn,
+      ];
+    }
     return [
       {
         field,
         title: item.label || field,
         minWidth: widget.type === 'datetime' ? DATETIME_COLUMN_MIN_WIDTH : FORM_COLUMN_MIN_WIDTH,
+        mergeCell: mergeExpandedRecordRows,
         // 列设置面板行内的字段类型图标，与设计器素材面板共用映射
         icon: markRaw(widgetIconOfType(widget.type)),
       },
@@ -242,27 +276,127 @@ function columnsFromRuntime(runtime: FormRuntimeBootstrap | null): DataColumn[] 
       field: SYSTEM_RECORD_FIELDS.submittedBy,
       title: '提交人',
       minWidth: 120,
+      mergeCell: mergeExpandedRecordRows,
       icon: markRaw(RiUser3Fill),
     },
     {
       field: SYSTEM_RECORD_FIELDS.submittedAt,
       title: '提交时间',
       minWidth: DATETIME_COLUMN_MIN_WIDTH,
+      mergeCell: mergeExpandedRecordRows,
       icon: markRaw(RiTimeFill),
     },
     {
       field: SYSTEM_RECORD_FIELDS.updatedBy,
       title: '更新人',
       minWidth: 120,
+      mergeCell: mergeExpandedRecordRows,
       icon: markRaw(RiUser3Fill),
     },
     {
       field: SYSTEM_RECORD_FIELDS.updatedAt,
       title: '更新时间',
       minWidth: DATETIME_COLUMN_MIN_WIDTH,
+      mergeCell: mergeExpandedRecordRows,
       icon: markRaw(RiTimeFill),
     },
   ];
+}
+
+interface SubformDefinition {
+  field: string;
+  title: string;
+  children: Array<{
+    field: string;
+    title: string;
+    type: string;
+  }>;
+}
+
+/**
+ * 子表单的字段名在其自身作用域内唯一。数据表的扁平取值键因此由「子表单键 +
+ * 子字段键」组成；两者均受 schema 字段名规则约束，不会与普通字段冲突。
+ */
+function subformFieldOf(subformField: string, childField: string): string {
+  return `${SUBFORM_FIELD_PREFIX}:${subformField}:${childField}`;
+}
+
+/**
+ * 从发布快照提取真正可展示的子表单明细字段。布局和动作控件不属于记录值，
+ * 没有明细字段的子表单也不渲染空的合并表头。
+ */
+function subformDefinitionsFromRuntime(runtime: FormRuntimeBootstrap | null): SubformDefinition[] {
+  if (!runtime) return [];
+  const permissions = runtime.permissions?.viewFields;
+  return (runtime.content.content?.items ?? []).flatMap((item) => {
+    const widget = item.widget;
+    const field = widget?.widgetName;
+    if (!field || widget.type !== 'subform') return [];
+    if (permissions && !permissions[field]?.visible) return [];
+    const children = widget.items.flatMap((child) => {
+      const childWidget = child.widget;
+      const childField = childWidget?.widgetName;
+      if (!childField || childWidget.type === 'separator' || childWidget.type === 'button') return [];
+      return [{ field: childField, title: child.label || childField, type: childWidget.type }];
+    });
+    return children.length === 0 ? [] : [{ field, title: item.label || field, children }];
+  });
+}
+
+/**
+ * 多个子表单以同一个父记录为行组按索引并排展开，行数取可见子表单明细的最大
+ * 值。这样既能展示两个及以上子表单，也避免笛卡尔积导致一条记录被错误放大。
+ */
+function expandSubformRecords(
+  records: readonly DataRecord[],
+  runtime: FormRuntimeBootstrap | null,
+): DataRecord[] {
+  const subforms = subformDefinitionsFromRuntime(runtime);
+  if (subforms.length === 0) return records.map((record) => ({ ...record }));
+
+  return records.flatMap((record) => {
+    const rowsBySubform = subforms.map((subform) => {
+      const value = record[subform.field];
+      return Array.isArray(value) ? value.filter(isRecordValue) : [];
+    });
+    const rowCount = Math.max(1, ...rowsBySubform.map((rows) => rows.length));
+    const group = String(record.id);
+
+    return Array.from({ length: rowCount }, (_, rowIndex) => {
+      const expanded: DataRecord = { ...record, [EXPANDED_RECORD_GROUP_FIELD]: group };
+      subforms.forEach((subform, subformIndex) => {
+        const childRecord = rowsBySubform[subformIndex][rowIndex];
+        for (const child of subform.children) {
+          expanded[subformFieldOf(subform.field, child.field)] = childRecord?.[child.field];
+        }
+      });
+      return expanded;
+    });
+  });
+}
+
+function isRecordValue(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * VTable 会将同列相邻单元格逐个交给 mergeCell 判断。只有展开自同一父记录的
+ * 明细行才允许合并，避免两条普通记录的相同值被误合并。
+ */
+function mergeExpandedRecordRows(
+  _sourceValue: unknown,
+  _targetValue: unknown,
+  context: {
+    source: { col: number; row: number };
+    target: { col: number; row: number };
+    table: { getRecordByCell(col: number, row: number): unknown };
+  },
+): boolean {
+  const source = context.table.getRecordByCell(context.source.col, context.source.row);
+  const target = context.table.getRecordByCell(context.target.col, context.target.row);
+  if (!isRecordValue(source) || !isRecordValue(target)) return false;
+  const sourceGroup = source[EXPANDED_RECORD_GROUP_FIELD];
+  return sourceGroup !== undefined && sourceGroup === target[EXPANDED_RECORD_GROUP_FIELD];
 }
 
 function filterFieldsFromRuntime(runtime: FormRuntimeBootstrap | null): FormRecordFilterField[] {

@@ -85,6 +85,28 @@ describe('EvolynTable', () => {
     expect(options.records).toEqual([{ name: 'a' }]);
   });
 
+  it('keeps child fields under a grouped header and forwards their merge rule', () => {
+    const mergeCell = vi.fn(() => true);
+    mount(EvolynTable, {
+      props: {
+        columns: [
+          {
+            title: '订单明细',
+            columns: [{ field: 'line.product', title: '商品', mergeCell }],
+          },
+        ],
+        records: [{ 'line.product': '矿泉水' }],
+      },
+    });
+
+    const [group] = (lastOptions?.columns ?? []) as Array<Record<string, any>>;
+    expect(group).toMatchObject({ title: '订单明细' });
+    expect(group.field).toBeUndefined();
+    expect(group.columns).toEqual([
+      expect.objectContaining({ field: 'line.product', title: '商品', mergeCell }),
+    ]);
+  });
+
   it('releases the ListTable instance on unmount', () => {
     const wrapper = mount(EvolynTable, { props: { columns } });
     wrapper.unmount();

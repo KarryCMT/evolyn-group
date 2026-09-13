@@ -36,6 +36,10 @@ const container = useTemplateRef<HTMLElement>('container');
 
 /** 业务列定义 → VTable 列定义：显式字段做名字归一化，其余经 ...rest 原样透传 */
 function normalizeColumn(column: EvolynTableColumn): ColumnDefine {
+  if ('columns' in column) {
+    const { title, columns, ...rest } = column;
+    return { title, ...rest, columns: columns.map(normalizeColumn) } as ColumnDefine;
+  }
   const {
     field,
     title,

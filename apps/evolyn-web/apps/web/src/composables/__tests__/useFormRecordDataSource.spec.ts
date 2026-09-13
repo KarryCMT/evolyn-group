@@ -141,15 +141,16 @@ describe('useFormRecordDataSource', () => {
     await flushPromises();
 
     // 列：表单字段在前，系统列固定追加（列设置面板按列顺序平铺展示）
-    expect(wrapper.vm.columns).toHaveLength(4);
+    expect(wrapper.vm.columns).toHaveLength(5);
     expect(wrapper.vm.columns[0]).toMatchObject({ field: 'name', title: '项目名称' });
     expect(wrapper.vm.columns.slice(1)).toMatchObject([
       { field: SYSTEM_RECORD_FIELDS.submittedBy, title: '提交人' },
       { field: SYSTEM_RECORD_FIELDS.submittedAt, title: '提交时间' },
+      { field: SYSTEM_RECORD_FIELDS.updatedBy, title: '更新人' },
       { field: SYSTEM_RECORD_FIELDS.updatedAt, title: '更新时间' },
     ]);
     // 筛选字段：系统字段进入独立分组（提交人=enum、时间=datetime）
-    expect(wrapper.vm.filterFields.slice(-3)).toMatchObject([
+    expect(wrapper.vm.filterFields.slice(-4)).toMatchObject([
       { field: SYSTEM_RECORD_FIELDS.submittedBy, label: '提交人', type: 'enum', group: 'system' },
       {
         field: SYSTEM_RECORD_FIELDS.submittedAt,
@@ -157,6 +158,7 @@ describe('useFormRecordDataSource', () => {
         type: 'datetime',
         group: 'system',
       },
+      { field: SYSTEM_RECORD_FIELDS.updatedBy, label: '更新人', type: 'enum', group: 'system' },
       {
         field: SYSTEM_RECORD_FIELDS.updatedAt,
         label: '更新时间',
@@ -164,6 +166,106 @@ describe('useFormRecordDataSource', () => {
         group: 'system',
       },
     ]);
+  });
+
+  it('renders subform fields as grouped headers and expands parent records into detail rows', async () => {
+    const runtime = bootstrap();
+    runtime.content.content.items.push({
+      label: '订单明细',
+      description: '',
+      labelHidden: false,
+      lineWidth: 12,
+      widget: {
+        type: 'subform',
+        widgetName: 'lines',
+        enable: true,
+        visible: true,
+        allowBlank: true,
+        items: [
+          {
+            label: '商品',
+            description: '',
+            labelHidden: false,
+            lineWidth: 12,
+            widget: {
+              type: 'text',
+              widgetName: 'product',
+              enable: true,
+              visible: true,
+              allowBlank: true,
+            },
+          },
+          {
+            label: '负责人',
+            description: '',
+            labelHidden: false,
+            lineWidth: 12,
+            widget: {
+              type: 'user',
+              widgetName: 'owner',
+              enable: true,
+              visible: true,
+              allowBlank: true,
+            },
+          },
+        ],
+        subformCreate: true,
+        subformInsert: true,
+        subformEdit: true,
+        subformDelete: true,
+        quickFill: false,
+        pcStickyColumn: { enable: false, limit: 1 },
+        mobileStickyColumn: { enable: false, limit: 1 },
+        mobileViewStyle: 'vertical',
+        mobileSummaryFieldCount: 2,
+      },
+    });
+    api.getFormRuntime.mockResolvedValue(runtime);
+    api.listFormRecords.mockResolvedValue({
+      items: [
+        {
+          id: 7,
+          values: {
+            name: '订单 A',
+            lines: [
+              { product: '矿泉水', owner: '成员 A' },
+              { product: '苏打水', owner: '成员 B' },
+            ],
+          },
+        },
+        { id: 8, values: { name: '订单 B', lines: [] } },
+      ],
+      total: 2,
+      page: 1,
+      pageSize: 20,
+    });
+
+    const { wrapper } = mountSource();
+    await flushPromises();
+
+    expect(wrapper.vm.columns[1]).toMatchObject({
+      title: '订单明细',
+      columns: [
+        { field: '__evolyn_subform:lines:product', title: '商品' },
+        { field: '__evolyn_subform:lines:owner', title: '负责人' },
+      ],
+    });
+    expect(wrapper.vm.tableRecords).toHaveLength(3);
+    expect(wrapper.vm.tableRecords.slice(0, 2)).toMatchObject([
+      {
+        id: 7,
+        name: '订单 A',
+        '__evolyn_subform:lines:product': '矿泉水',
+        '__evolyn_subform:lines:owner': '成员 A',
+      },
+      {
+        id: 7,
+        name: '订单 A',
+        '__evolyn_subform:lines:product': '苏打水',
+        '__evolyn_subform:lines:owner': '成员 B',
+      },
+    ]);
+    wrapper.unmount();
   });
 
   it('clears stale records and exposes a recoverable error state', async () => {
