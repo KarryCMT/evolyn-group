@@ -83,6 +83,14 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 		if err := json.Unmarshal([]byte(form.DraftContent), &content); err != nil {
 			return err
 		}
+		// 金额的币种与 NUMERIC(p,s) 共同决定历史值的解释。物理存储的 Diff
+		// 只能捕获精度变化，故在所有存储模式统一按当前发布快照再做一次兜底。
+		if fields, perr := s.publishedMoneyDefinitionChanges(tctx, form, content); perr != nil {
+			return perr
+		} else if len(fields) > 0 {
+			return httpx.Wrap(apperrors.ErrPublishedMoneyDefinitionLocked.WithData(map[string]any{"fields": fields}),
+				fmt.Errorf("form %s published money definitions changed: %s", code, strings.Join(fields, ", ")))
+		}
 		fieldKeys, err := json.Marshal(ExtractSnapshotTopFieldKeys(content))
 		if err != nil {
 			return err

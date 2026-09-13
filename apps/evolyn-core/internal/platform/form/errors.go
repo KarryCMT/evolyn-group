@@ -136,6 +136,10 @@ var (
 	ErrStorageTypeChangeUnsupported = httpx.NewBiz("FORM_STORAGE_TYPE_CHANGE_UNSUPPORTED", "已发布字段的类型不可修改，请新建字段并弃用原字段", http.StatusConflict)
 
 	// ErrWorkflowProjectionInvalid 流程投影更新入参非法（状态枚举外值等）
+	// ErrPublishedMoneyDefinitionLocked 已发布金额字段的币种与有效精度属于数据
+	// 语义的一部分，不能静默改写历史记录的解释方式；data 携带 fields:[widgetName]。
+	ErrPublishedMoneyDefinitionLocked = httpx.NewBiz("FORM_PUBLISHED_MONEY_DEFINITION_LOCKED", "已发布金额字段的币种或精度不可修改，请新建字段并弃用原字段", http.StatusConflict)
+
 	ErrWorkflowProjectionInvalid = httpx.NewBiz("FORM_WORKFLOW_PROJECTION_INVALID", "流程状态投影无效", http.StatusInternalServerError)
 
 	// ErrStorageJobNotFound DDL 发布 Job 不存在

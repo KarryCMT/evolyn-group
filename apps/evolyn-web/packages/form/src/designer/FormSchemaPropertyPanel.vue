@@ -77,6 +77,7 @@
                 <DecimalPropertyPanel
                   v-else-if="isNumericWidgetType(widget.type)"
                   :widget="widget as DecimalFamilyWidget"
+                  :storage-definition-editable="numericTypeEditable"
                 />
                 <DateTimePropertyPanel v-else-if="widget.type === 'datetime'" :widget="widget" />
                 <SeparatorPropertyPanel v-else-if="widget.type === 'separator'" :widget="widget" />

@@ -249,7 +249,7 @@ func TestNumericColumnSpecResolution(t *testing.T) {
 }
 
 // 数值字段族发布链路：目标物理模型落 NUMERIC(p,s)（显式与缺省精度），
-// 且发布后精度修饰变更按类型变更拒绝（FORM_STORAGE_TYPE_CHANGE_UNSUPPORTED）。
+// 且发布后金额精度/币种定义不可变更（FORM_PUBLISHED_MONEY_DEFINITION_LOCKED）。
 func TestPublishNumericFamilyColumnSpec(t *testing.T) {
 	env := newPhysicalTestEnv()
 	money := `{"widget":{"type":"money","widgetName":"_widget_m","fieldId":"aaaaaaaa03","enable":true,"visible":true,"allowBlank":true,"precision":18,"scale":4},"label":"金额","description":"","labelHidden":false,"lineWidth":6}`
@@ -285,7 +285,7 @@ func TestPublishNumericFamilyColumnSpec(t *testing.T) {
 		}
 	}
 
-	// 完成 Job 后改精度再发布：类型变更拒绝。
+	// 完成 Job 后改精度再发布：金额定义冻结拒绝（不依赖物理存储 Diff）。
 	completeFirstDDLJob(t, env, code)
 	narrowed := `{"widget":{"type":"money","widgetName":"_widget_m","fieldId":"aaaaaaaa03","enable":true,"visible":true,"allowBlank":true,"precision":18,"scale":2},"label":"金额","description":"","labelHidden":false,"lineWidth":6}`
 	saved, err := env.svc.SaveDraft(tenantCtx(1), memberOfTenant(1), code, &model.SaveDraftRequest{
@@ -294,7 +294,17 @@ func TestPublishNumericFamilyColumnSpec(t *testing.T) {
 	})
 	require.NoError(t, err)
 	_, err = env.svc.Publish(tenantCtx(1), memberOfTenant(1), code, &model.PublishRequest{DraftRevision: saved.DraftRevision})
-	assert.ErrorIs(t, err, apperrors.ErrStorageTypeChangeUnsupported)
+	assert.ErrorIs(t, err, apperrors.ErrPublishedMoneyDefinitionLocked)
+
+	// 币种不影响物理列，仍必须在发布期拒绝，避免相同 decimal string 被重解释。
+	currencyChanged := `{"widget":{"type":"money","widgetName":"_widget_m","fieldId":"aaaaaaaa03","enable":true,"visible":true,"allowBlank":true,"precision":18,"scale":4,"currencyCode":"USD"},"label":"金额","description":"","labelHidden":false,"lineWidth":6}`
+	saved, err = env.svc.SaveDraft(tenantCtx(1), memberOfTenant(1), code, &model.SaveDraftRequest{
+		DraftRevision: 3, ProtocolVersion: model.CurrentProtocolVersion,
+		Content: v8PhysicalDraft(currencyChanged),
+	})
+	require.NoError(t, err)
+	_, err = env.svc.Publish(tenantCtx(1), memberOfTenant(1), code, &model.PublishRequest{DraftRevision: saved.DraftRevision})
+	assert.ErrorIs(t, err, apperrors.ErrPublishedMoneyDefinitionLocked)
 }
 
 // 缺省精度的数值字段族发布：按类型默认解析（money → NUMERIC(20,2)）。

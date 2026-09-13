@@ -178,15 +178,22 @@ describe('FormSchemaPropertyPanel', () => {
         scale: 2,
       },
     });
-    expect((updates[updates.length - 1]?.[0] as FormItem).widget).not.toHaveProperty('defaultValue');
+    expect((updates[updates.length - 1]?.[0] as FormItem).widget).not.toHaveProperty(
+      'defaultValue',
+    );
   });
 
-  it('已发布字段将数值类型锁定为只读', () => {
+  it('已发布金额字段将数值类型、币种与精度锁定为只读', () => {
     const wrapper = mount(FormSchemaPropertyPanel, {
       props: { item: createWidgetItem('money'), numericTypeEditable: false },
     });
 
     expect(wrapper.find('[aria-label="数值类型"]').attributes('disabled')).toBeDefined();
+    expect(wrapper.find('[aria-label="币种"]').attributes('disabled')).toBeDefined();
+    const numericInputs = wrapper.findAllComponents({ name: 'ElInputNumber' });
+    expect(numericInputs).toHaveLength(2);
+    expect(numericInputs.every((input) => input.props('disabled'))).toBe(true);
+    expect(wrapper.text()).toContain('如需变更，请新建金额字段并弃用原字段');
   });
 
   it('多行文本同样不展示字符长度限制栏位', () => {

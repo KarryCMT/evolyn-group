@@ -25,7 +25,14 @@ import FormSchemaPropertySection from './FormSchemaPropertySection.vue';
  * precision/scale 决定物理列 NUMERIC(p,s)，发布后不可变，缺省展示按类型
  * 生效的默认值；rounding 供计算链消费（Phase 4 仅入协议）。
  */
-const props = defineProps<{ widget: DecimalFamilyWidget }>();
+const props = withDefaults(
+  defineProps<{
+    widget: DecimalFamilyWidget;
+    /** 已发布金额字段的币种与有效精度不可改写，防止历史值语义漂移。 */
+    storageDefinitionEditable?: boolean;
+  }>(),
+  { storageDefinitionEditable: true },
+);
 const isPercent = computed(() => usesPercentRatio(props.widget));
 const isMoney = computed(() => props.widget.type === 'money');
 const currencyCode = computed(() => resolveMoneyCurrencyCode(props.widget));
@@ -33,7 +40,7 @@ const currencySymbol = computed(() => moneyCurrencySymbol(props.widget));
 
 /** 切换币种时将金额字段重置为该货币的推荐小数位；仍可由设计者手工覆盖。 */
 function setCurrencyCode(value: string): void {
-  if (!isMoney.value) return;
+  if (!isMoney.value || !props.storageDefinitionEditable) return;
   const next = resolveMoneyCurrencyCode({ currencyCode: value });
   props.widget.currencyCode = next;
   props.widget.scale = moneyCurrencyFractionDigits(next);
@@ -56,6 +63,7 @@ function textValue(value: string | null | undefined): string {
     <el-select
       aria-label="币种"
       :model-value="currencyCode"
+      :disabled="!storageDefinitionEditable"
       @update:model-value="setCurrencyCode(String($event))"
     >
       <el-option
@@ -110,6 +118,9 @@ function textValue(value: string | null | undefined): string {
     </div>
   </FormSchemaPropertySection>
   <FormSchemaPropertySection title="精度与舍入">
+    <p v-if="isMoney && !storageDefinitionEditable" class="form-schema-property__deferred">
+      已发布字段的币种和精度已锁定；如需变更，请新建金额字段并弃用原字段。
+    </p>
     <div class="form-schema-property__pair">
       <div>
         <label class="form-schema-property__control-label" for="decimal-precision">
@@ -121,6 +132,7 @@ function textValue(value: string | null | undefined): string {
           :min="NUMERIC_FIELD_LIMITS.precisionMin"
           :max="NUMERIC_FIELD_LIMITS.precisionMax"
           :placeholder="String(effectiveNumericPrecision(widget))"
+          :disabled="!storageDefinitionEditable"
           @update:model-value="widget.precision = $event ?? null"
         />
       </div>
@@ -132,6 +144,7 @@ function textValue(value: string | null | undefined): string {
           :min="NUMERIC_FIELD_LIMITS.scaleMin"
           :max="NUMERIC_FIELD_LIMITS.scaleMax"
           :placeholder="String(effectiveNumericScale(widget))"
+          :disabled="!storageDefinitionEditable"
           @update:model-value="widget.scale = $event ?? null"
         />
       </div>

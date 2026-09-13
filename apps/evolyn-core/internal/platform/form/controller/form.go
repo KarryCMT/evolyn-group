@@ -220,7 +220,7 @@ func (f *FormController) Delete(c *gin.Context) {
 // @Success 200 {object} httpx.Response{data=formmodel.PublishResult}
 // @Success 202 {object} httpx.Response{data=formmodel.PublishResult} "物理结构变更已受理（异步 DDL）"
 // @Failure 400 {object} httpx.Response "errCode=FORM_PUBLISH_UNSUPPORTED_FIELD/FORM_SCHEMA_INVALID/FORM_STORAGE_UNSUPPORTED_FIELD/FORM_STORAGE_TYPE_CHANGE_UNSUPPORTED"
-// @Failure 409 {object} httpx.Response "errCode=FORM_REVISION_CONFLICT/FORM_STORAGE_BUSY/FORM_PERMISSION_BLOCKED_PUBLISH"
+// @Failure 409 {object} httpx.Response "errCode=FORM_REVISION_CONFLICT/FORM_STORAGE_BUSY/FORM_PERMISSION_BLOCKED_PUBLISH/FORM_PUBLISHED_MONEY_DEFINITION_LOCKED"
 // @Router /api/v1/forms/{code}/publish [post]
 func (f *FormController) Publish(c *gin.Context) {
 	code, ok := formCodeFromParam(c, "code")
