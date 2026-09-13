@@ -1,4 +1,9 @@
 <script setup lang="ts">
+import type { DataRecord } from '@evolyn.do/data';
+import type {DataAction} from '@evolyn.do/data-workspace';
+import type { QueryExpression } from '@evolyn.do/query';
+import type { FormRecordMemberReference } from '~/types';
+import {  DataWorkspace, useDataWorkspace } from '@evolyn.do/data-workspace';
 import {
   RiAddFill,
   RiCheckboxMultipleFill,
@@ -8,20 +13,17 @@ import {
   RiHistoryFill,
   RiUpload2Fill,
 } from '@remixicon/vue';
-import { DataWorkspace, useDataWorkspace, type DataAction } from '@evolyn.do/data-workspace';
-import type { DataRecord } from '@evolyn.do/data';
-import type { QueryExpression } from '@evolyn.do/query';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, markRaw, shallowRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { deleteFormRecords } from '~/api/form';
+import FormRecordCreateDialog from '~/components/form/data/FormRecordCreateDialog.vue';
+import FormRecordFilterPanel from '~/components/form/data/FormRecordFilterPanel.vue';
+import FormRecordMemberCardPopover from '~/components/form/data/FormRecordMemberCardPopover.vue';
 import {
   memberReferencesOf,
   useFormRecordDataSource,
 } from '~/composables/useFormRecordDataSource';
-import FormRecordFilterPanel from '~/components/form/data/FormRecordFilterPanel.vue';
-import FormRecordMemberCardPopover from '~/components/form/data/FormRecordMemberCardPopover.vue';
-import type { FormRecordMemberReference } from '~/types';
 
 defineOptions({ name: 'FormDataPage' });
 
@@ -38,6 +40,7 @@ const selectionResetVersion = shallowRef(0);
 const memberCardVisible = shallowRef(false);
 const memberCardReferences = shallowRef<FormRecordMemberReference[]>([]);
 const memberCardPosition = shallowRef<{ x: number; y: number } | null>(null);
+const createDialogVisible = shallowRef(false);
 // 「筛选」为工具栏工具型入口（搜索框旁的弹层面板），不在业务动作区
 const defaultActions: DataAction[] = [
   { key: 'create', label: '添加', icon: markRaw(RiAddFill), tone: 'primary' },
@@ -60,6 +63,10 @@ const actions = computed<DataAction[]>(() => {
 });
 
 async function handleAction(key: string) {
+  if (key === 'create') {
+    createDialogVisible.value = true;
+    return;
+  }
   if (key === 'clear-selection') {
     selectedRecordIds.value = [];
     selectionResetVersion.value += 1;
@@ -91,6 +98,13 @@ async function handleAction(key: string) {
   }
   const action = actions.value.find((item) => item.key === key);
   ElMessage.info(`${action?.label ?? '该'}功能暂未开放`);
+}
+
+/** 新增成功后由弹窗关闭并重新查询；保留当前筛选/分页上下文，不擅自打断用户的数据视图。 */
+async function handleRecordCreated(result: { workflowInstanceNo: string; recordId: number }) {
+  createDialogVisible.value = false;
+  await reload();
+  ElMessage.success(result.workflowInstanceNo ? '数据已提交并发起流程' : '数据添加成功');
 }
 
 function updateSelection(ids: Array<string | number>) {
@@ -136,7 +150,9 @@ function isRecordCellClick(value: unknown): value is {
   <section class="form-data-page" aria-label="数据管理工作台">
     <p v-if="status === 'error'" class="form-data-page__error" role="alert">
       {{ errorMessage }}
-      <button type="button" @click="reload">重试</button>
+      <button type="button" @click="reload">
+        重试
+      </button>
     </p>
     <p v-else-if="status === 'loading'" class="form-data-page__loading" aria-live="polite">
       正在加载表单数据…
@@ -167,6 +183,12 @@ function isRecordCellClick(value: unknown): value is {
       :form-code="formCode"
       :position="memberCardPosition"
       :references="memberCardReferences"
+    />
+    <FormRecordCreateDialog
+      v-model="createDialogVisible"
+      :app-code="appCode"
+      :form-code="formCode"
+      @submitted="handleRecordCreated"
     />
   </section>
 </template>

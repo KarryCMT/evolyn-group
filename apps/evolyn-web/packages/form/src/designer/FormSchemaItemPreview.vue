@@ -152,7 +152,9 @@ const datePlaceholder = computed(() => {
   }
 
   &__number {
-    width: 100%;
+    // Element Plus 的 .el-input-number 默认宽度为 150px；画布预览须与文本输入
+    // 使用同一字段卡片宽度，避免设计态和填写态的视觉尺度不一致。
+    width: 100% !important;
   }
 
   &__member {

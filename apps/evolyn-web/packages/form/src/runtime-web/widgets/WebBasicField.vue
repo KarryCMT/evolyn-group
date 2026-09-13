@@ -15,10 +15,10 @@ import {
 import { computed } from 'vue';
 import type {
   CheckboxGroupWidget,
-  DecimalFamilyWidget,
   ComboCheckWidget,
   ComboWidget,
   DateTimeWidget,
+  DecimalFamilyWidget,
   NumberWidget,
   RadioGroupWidget,
   SeparatorWidget,
@@ -120,6 +120,8 @@ const dateValue = computed<string | null>({
   set: (value) => emit('update:modelValue', value || null),
 });
 const readOnlyDisabled = computed(() => props.disabled || props.readonly);
+/** 覆盖 Element Plus 日期/时间选择器默认的 220px CSS 变量。 */
+const datePickerStyle = { '--el-date-editor-width': '100%' };
 
 function isString(value: unknown): value is string {
   return typeof value === 'string';
@@ -188,6 +190,7 @@ function isString(value: unknown): value is string {
     :id="inputId"
     v-model="dateValue"
     class="evf-web-basic-field__date"
+    :style="datePickerStyle"
     value-format="HH:mm"
     :placeholder="dateWidget.placeholder || '请选择时间'"
     :disabled="readOnlyDisabled"
@@ -201,6 +204,7 @@ function isString(value: unknown): value is string {
     :id="inputId"
     v-model="dateValue"
     class="evf-web-basic-field__date"
+    :style="datePickerStyle"
     :type="dateType"
     :value-format="dateValueFormat"
     :placeholder="dateWidget.placeholder || '请选择日期时间'"
@@ -289,10 +293,19 @@ function isString(value: unknown): value is string {
 </template>
 
 <style scoped lang="scss">
-.evf-web-basic-field__number,
-.evf-web-basic-field__date,
 .evf-web-basic-field__select {
   width: 100%;
+}
+
+// Element Plus 数字输入框默认宽度为 150px，需覆盖后才能与标准输入框同宽。
+.evf-web-basic-field__number {
+  width: 100% !important;
+}
+
+// Element Plus 通过 --el-date-editor-width 设定日期/时间选择器默认 220px；
+// 根节点显式覆盖该变量，再以 width 规则兜底，使其随字段 lineWidth 自适应。
+.evf-web-basic-field__date {
+  width: 100% !important;
 }
 
 .evf-web-basic-field__choices--vertical {
