@@ -113,9 +113,15 @@ export function useDataWorkspaceSelection(options: UseDataWorkspaceSelectionOpti
     setSelectedRecordIds(next);
   }
 
+  function clearSelection() {
+    if (selectedRecordIds.value.size === 0) return;
+    setSelectedRecordIds(new Set());
+  }
+
   return {
     selectionColumn,
     handleCheckboxStateChange,
+    clearSelection,
   };
 }
 

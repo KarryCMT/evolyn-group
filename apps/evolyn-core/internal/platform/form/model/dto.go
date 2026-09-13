@@ -164,6 +164,17 @@ type SubmitRecordResult struct {
 	RecordID uint `json:"recordId"`
 }
 
+// DeleteFormRecordsRequest 是数据管理批量删除的受控载荷。记录 ID 必须由当前
+// 表单的数据列表返回；服务端会再次校验表单归属和逐条数据权限，不能凭此绕过范围。
+type DeleteFormRecordsRequest struct {
+	RecordIDs []uint `json:"recordIds" binding:"required"`
+}
+
+// DeleteFormRecordsResult 返回实际删除条数，便于调用方在并发刷新后准确反馈。
+type DeleteFormRecordsResult struct {
+	DeletedCount int `json:"deletedCount"`
+}
+
 // RecordQueryExpression 是 POST /forms/:code/records 的受控 Query DSL AST。
 // field 只接受发布快照 field_mappings 中的 widgetName；服务端绝不接收 JSONB
 // 路径、数据库列名或 SQL 片段。

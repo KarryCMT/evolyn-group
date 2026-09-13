@@ -24,6 +24,8 @@ const props = withDefaults(
     records: DataRecord[];
     query: DataQuery;
     pagination: DataPagination;
+    /** 递增此值可从页面级批量操作显式清空表格勾选状态。 */
+    selectionResetVersion?: number;
     searchPlaceholder?: string;
   }>(),
   {
@@ -60,10 +62,15 @@ watch(
 );
 
 const dataRecords = computed(() => props.records);
-const { selectionColumn, handleCheckboxStateChange } = useDataWorkspaceSelection({
+const { selectionColumn, handleCheckboxStateChange, clearSelection } = useDataWorkspaceSelection({
   records: dataRecords,
   onChange: (ids) => emit('selectionChange', ids),
 });
+
+watch(
+  () => props.selectionResetVersion,
+  () => clearSelection(),
+);
 
 const columnSettings = computed(() => flattenDataColumns(props.columns));
 const visibleColumns = computed(() => visibleDataColumns(props.columns, hiddenFields.value));

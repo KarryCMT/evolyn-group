@@ -147,13 +147,16 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 	// /forms/{formCode}/records；它并不是表单设计管理面。将这条唯一的
 	// 子资源路由映射到 form-records，才能由记录数据面的 authenticated
 	// 基线和后续 FormPermissionEvaluator 共同裁决，而不会要求 forms:get。
-	// 接口为承载完整 Query DSL 已由 GET 改为 POST，但语义仍是查询：动词
+	// 接口为承载完整 Query DSL 已由 GET 改为 POST，但语义仍是查询：仅 POST
 	// 在此归一化为 get（命中 form-records:view 基线），不落入 POST→create
-	// 的提交门，避免查询权限与提交权限耦合。
+	// 的提交门，避免查询权限与提交权限耦合。DELETE 则保留 delete 动词，供
+	// 数据管理批量删除使用。
 	if requestInfo.Resource == "forms" && requestInfo.Subresource == "records" && requestInfo.Name != "" {
 		requestInfo.Resource = "form-records"
 		requestInfo.Subresource = ""
-		requestInfo.Verb = GetOperation
+		if req.Method == http.MethodPost {
+			requestInfo.Verb = GetOperation
+		}
 	}
 
 	// 待办摘要采用独立 URL 避开 taskId 动态路由，但仍属于待办读取权限。

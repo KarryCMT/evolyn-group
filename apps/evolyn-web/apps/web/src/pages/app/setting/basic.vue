@@ -1,11 +1,11 @@
 <script setup lang="ts">
+import type { UpdateApplicationPayload } from '~/types';
 import { ElMessage } from 'element-plus';
 import { computed, shallowRef } from 'vue';
 import { useRoute } from 'vue-router';
 import { updateApplication } from '~/api/applications';
 import ApplicationBasicSettingsPanel from '~/components/application/setting/ApplicationBasicSettingsPanel.vue';
 import { useApplicationHome } from '~/composables/useApplicationHome';
-import type { UpdateApplicationPayload } from '~/types';
 
 defineOptions({ name: 'ApplicationSettingBasicPage' });
 
@@ -42,10 +42,6 @@ async function copyApplicationId(value: string) {
 function notifyUnavailable() {
   ElMessage.info('该设置项将在后续版本开放');
 }
-
-function downloadIcon() {
-  ElMessage.info('图标下载功能将在后续版本开放');
-}
 </script>
 
 <template>
@@ -67,7 +63,9 @@ function downloadIcon() {
     :sub-title="errorMessage"
   >
     <template #extra>
-      <el-button type="primary" @click="reload()">重新加载</el-button>
+      <el-button type="primary" @click="reload()">
+        重新加载
+      </el-button>
     </template>
   </el-result>
 
@@ -78,7 +76,6 @@ function downloadIcon() {
     @configure-home="notifyUnavailable"
     @configure-url="notifyUnavailable"
     @copy-id="copyApplicationId"
-    @download-icon="downloadIcon"
     @update="updateBasicInfo"
   />
 </template>

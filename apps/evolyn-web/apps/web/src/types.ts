@@ -658,6 +658,11 @@ export interface FormRecordPage {
   pageSize: number;
 }
 
+/** DELETE /forms/:code/records 的服务端实际删除数量。 */
+export interface FormRecordDeleteResult {
+  deletedCount: number;
+}
+
 /* ---- 流程引擎（/workflows，Phase 9 流程设计器） ---- */
 
 /** Workflow DSL v1 文档：结构与 @evolyn.do/workflow 协议层同源 */

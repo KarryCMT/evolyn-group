@@ -131,7 +131,8 @@ const (
 	FormResource = "forms"
 	// FormRecordResource 代表表单记录的数据面（提交与受权限组约束的查看），
 	// 包含 /form-records 和兼容公开路由 /forms/:code/records；authenticated
-	// 基线只授 create/view，逐表单的记录与字段范围仍由 form 域复核。
+	// authenticated 基线只授 create/view；delete 仅由租户管理员或明确授权的
+	// 自定义角色获得，逐表单的记录与字段范围仍由 form 域复核。
 	FormRecordResource = "form-records"
 	// NotificationResource 与 /notifications 路由保持一致，代表成员收件箱
 	//（view 覆盖摘要/列表、update 覆盖已读，授予全体成员）；数据范围只能

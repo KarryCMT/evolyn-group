@@ -1,19 +1,7 @@
 <script setup lang="ts">
-import {
-  RiBookmark3Fill,
-  RiBriefcase4Fill,
-  RiCheckboxCircleFill,
-  RiContactsBook3Fill,
-  RiPieChart2Fill,
-} from '@remixicon/vue';
-import { computed, markRaw, shallowRef, watch, type Component } from 'vue';
-import {
-  DEFAULT_APPLICATION_ICON,
-  getApplicationIconName,
-  type ApplicationIconKey,
-  type ApplicationItem,
-  type UpdateApplicationPayload,
-} from '~/types';
+import type { ApplicationIcon, ApplicationItem, UpdateApplicationPayload } from '~/types';
+import { shallowRef, watch } from 'vue';
+import ApplicationIconPicker from '~/components/application/ApplicationIconPicker.vue';
 
 defineOptions({ name: 'ApplicationBasicSettingsPanel' });
 
@@ -25,38 +13,15 @@ const props = defineProps<{
 const emit = defineEmits<{
   update: [payload: UpdateApplicationPayload];
   copyId: [value: string];
-  downloadIcon: [];
   configureHome: [];
   configureUrl: [];
 }>();
 
-const iconByKey: Record<ApplicationIconKey, Component> = {
-  bookmark: markRaw(RiBookmark3Fill),
-  briefcase: markRaw(RiBriefcase4Fill),
-  contacts: markRaw(RiContactsBook3Fill),
-  chart: markRaw(RiPieChart2Fill),
-  check: markRaw(RiCheckboxCircleFill),
-};
-
-const iconOptions: { key: ApplicationIconKey; label: string; icon: Component }[] = [
-  { key: 'bookmark', label: '书签', icon: iconByKey.bookmark },
-  { key: 'briefcase', label: '公文包', icon: iconByKey.briefcase },
-  { key: 'contacts', label: '通讯录', icon: iconByKey.contacts },
-  { key: 'chart', label: '图表', icon: iconByKey.chart },
-  { key: 'check', label: '完成', icon: iconByKey.check },
-];
-
 const nameEditing = shallowRef(false);
-const iconPickerVisible = shallowRef(false);
 const nameDraft = shallowRef(props.application.name);
 // 当前接口只支持名称和图标持久化；两个开关保留为可交互的界面预览状态。
 const watermarkEnabled = shallowRef(false);
 const attachmentRestricted = shallowRef(false);
-const applicationIcon = computed(
-  () =>
-    iconByKey[getApplicationIconName(props.application.icon) as ApplicationIconKey] ??
-    iconByKey.bookmark,
-);
 
 watch(
   () => props.application.name,
@@ -85,18 +50,25 @@ function submitNameEdit() {
   emit('update', { name });
 }
 
-function selectIcon(icon: ApplicationIconKey) {
-  iconPickerVisible.value = false;
-  if (icon !== getApplicationIconName(props.application.icon)) {
-    emit('update', { icon: { ...DEFAULT_APPLICATION_ICON, name: icon } });
-  }
+/** 图标选择器通过受控值回传；仅在图标确有变化时请求持久化。 */
+function updateIcon(icon: ApplicationIcon) {
+  const current = props.application.icon;
+  const unchanged =
+    current.type === 'custom' && icon.type === 'custom'
+      ? current.name === icon.name
+      : current.type === 'remix' && icon.type === 'remix'
+        ? current.name === icon.name && current.background === icon.background
+        : false;
+  if (!unchanged) emit('update', { icon });
 }
 </script>
 
 <template>
   <article class="application-basic-settings" aria-label="应用设置">
     <header class="application-basic-settings__header">
-      <h1 class="application-basic-settings__title">应用设置</h1>
+      <h1 class="application-basic-settings__title">
+        应用设置
+      </h1>
     </header>
 
     <!-- 标题独立于滚动容器，只有基础设置表格在内容超出时滚动。 -->
@@ -104,7 +76,9 @@ function selectIcon(icon: ApplicationIconKey) {
       <div class="application-basic-settings__body">
         <section class="application-basic-settings__table" aria-label="应用基础信息">
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">应用名称</div>
+            <div class="application-basic-settings__label">
+              应用名称
+            </div>
             <div class="application-basic-settings__value application-basic-settings__value--name">
               <template v-if="nameEditing">
                 <el-input
@@ -146,69 +120,46 @@ function selectIcon(icon: ApplicationIconKey) {
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">应用图标</div>
+            <div class="application-basic-settings__label">
+              应用图标
+            </div>
             <div class="application-basic-settings__value application-basic-settings__value--icon">
-              <button
-                class="application-basic-settings__icon-preview"
-                type="button"
-                aria-label="更换应用图标"
-                @click="iconPickerVisible = !iconPickerVisible"
-              >
-                <component :is="applicationIcon" />
-              </button>
-              <div
-                v-if="iconPickerVisible"
-                class="application-basic-settings__icon-picker"
-                role="listbox"
-              >
-                <button
-                  v-for="option in iconOptions"
-                  :key="option.key"
-                  class="application-basic-settings__icon-option"
-                  :class="{
-                    'application-basic-settings__icon-option--active':
-                      option.key === getApplicationIconName(props.application.icon),
-                  }"
-                  type="button"
-                  :aria-label="`选择${option.label}图标`"
-                  :aria-selected="option.key === getApplicationIconName(props.application.icon)"
-                  role="option"
-                  @click="selectIcon(option.key)"
-                >
-                  <component :is="option.icon" />
-                </button>
-              </div>
-              <button
-                class="application-basic-settings__text-button"
-                type="button"
-                @click="emit('downloadIcon')"
-              >
-                下载图标
-              </button>
+              <ApplicationIconPicker
+                :model-value="props.application.icon"
+                @update:model-value="updateIcon"
+              />
             </div>
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">应用首页</div>
+            <div class="application-basic-settings__label">
+              应用首页
+            </div>
             <div class="application-basic-settings__value">
-              <el-button plain type="primary" @click="emit('configureHome')">设置</el-button>
+              <el-button plain type="primary" @click="emit('configureHome')">
+                设置
+              </el-button>
             </div>
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">应用URL</div>
+            <div class="application-basic-settings__label">
+              应用URL
+            </div>
             <div
               class="application-basic-settings__value application-basic-settings__value--inline"
             >
-              <el-button plain type="primary" @click="emit('configureUrl')">设置</el-button>
-              <span class="application-basic-settings__hint"
-                >自定义应用URL，可使用URL直接打开该应用</span
-              >
+              <el-button plain type="primary" @click="emit('configureUrl')">
+                设置
+              </el-button>
+              <span class="application-basic-settings__hint">自定义应用URL，可使用URL直接打开该应用</span>
             </div>
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">应用ID</div>
+            <div class="application-basic-settings__label">
+              应用ID
+            </div>
             <div
               class="application-basic-settings__value application-basic-settings__value--inline"
             >
@@ -224,21 +175,23 @@ function selectIcon(icon: ApplicationIconKey) {
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">应用水印</div>
+            <div class="application-basic-settings__label">
+              应用水印
+            </div>
             <div class="application-basic-settings__value">
               <el-switch v-model="watermarkEnabled" aria-label="应用水印" />
             </div>
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">附件管控</div>
+            <div class="application-basic-settings__label">
+              附件管控
+            </div>
             <div
               class="application-basic-settings__value application-basic-settings__value--inline"
             >
               <el-switch v-model="attachmentRestricted" aria-label="附件管控" />
-              <span class="application-basic-settings__hint"
-                >开启后，成员在表单和仪表盘中无法下载、打印和导出附件</span
-              >
+              <span class="application-basic-settings__hint">开启后，成员在表单和仪表盘中无法下载、打印和导出附件</span>
             </div>
           </div>
         </section>
@@ -369,75 +322,6 @@ function selectIcon(icon: ApplicationIconKey) {
     &:disabled {
       cursor: not-allowed;
       color: var(--el-text-color-placeholder);
-    }
-  }
-
-  &__icon-preview {
-    display: inline-flex;
-    width: 52px;
-    height: 52px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--el-border-radius-large);
-    align-items: center;
-    justify-content: center;
-    color: var(--el-color-white);
-    cursor: pointer;
-    background: var(--el-color-primary);
-    box-shadow: var(--el-box-shadow-light);
-    font-size: 28px;
-    transition:
-      transform 0.18s ease,
-      box-shadow 0.18s ease;
-
-    &:hover {
-      transform: translateY(-1px);
-      box-shadow: var(--el-box-shadow-light);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--el-color-primary);
-      outline-offset: 3px;
-    }
-  }
-
-  &__icon-picker {
-    position: absolute;
-    z-index: 2;
-    top: calc(50% + 34px);
-    left: 32px;
-    display: flex;
-    padding: var(--el-space-md);
-    gap: var(--el-space-xs);
-    border: 1px solid var(--el-border-color-light);
-    border-radius: var(--el-border-radius-large);
-    background: var(--el-bg-color);
-    box-shadow: var(--el-box-shadow-light);
-  }
-
-  &__icon-option {
-    display: inline-flex;
-    width: 34px;
-    height: 34px;
-    padding: 0;
-    border: 0;
-    border-radius: var(--el-border-radius-medium);
-    align-items: center;
-    justify-content: center;
-    color: var(--el-text-color-secondary);
-    cursor: pointer;
-    background: transparent;
-    font-size: var(--el-font-size-large);
-
-    &:hover,
-    &--active {
-      color: var(--el-color-primary);
-      background: var(--el-color-primary-light-9);
-    }
-
-    &:focus-visible {
-      outline: 2px solid var(--el-color-primary);
-      outline-offset: 1px;
     }
   }
 

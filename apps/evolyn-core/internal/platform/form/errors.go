@@ -56,6 +56,13 @@ var (
 	// 查询语义；不回显 SQL/JSONB 路径等内部细节。
 	ErrRecordQueryInvalid = httpx.NewBiz("FORM_RECORD_QUERY_INVALID", "数据筛选条件不符合要求", http.StatusBadRequest)
 
+	// ErrRecordDeleteInvalid 表示批量删除载荷为空、重复或超出单次上限。
+	ErrRecordDeleteInvalid = httpx.NewBiz("FORM_RECORD_DELETE_INVALID", "请选择有效的数据后重试", http.StatusBadRequest)
+
+	// ErrRecordWorkflowActive 流程记录保留审批历史与关联任务，不能绕过流程运行
+	// 时直接硬删；须先在流程中心结束实例后再进行数据清理。
+	ErrRecordWorkflowActive = httpx.NewBiz("FORM_RECORD_WORKFLOW_ACTIVE", "流程中的数据不能直接删除，请先结束流程", http.StatusConflict)
+
 	// ErrForbidden 表单域操作越权（与鉴权中间件共用 FORBIDDEN 稳定码）
 	ErrForbidden = httpx.NewBiz(httpx.CodeForbidden, "没有执行该操作的权限", http.StatusForbidden)
 

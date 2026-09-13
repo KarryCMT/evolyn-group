@@ -413,6 +413,38 @@ func (f *FormController) ListRecords(c *gin.Context) {
 	httpx.ResponseSuccess(c, page)
 }
 
+// @Summary 批量删除表单记录
+// @Description 永久删除当前表单中勾选的数据。服务端逐条复核 delete 数据权限与
+// 表单归属；流程记录必须先结束流程，物理存储会同步清理子表和父表业务值。
+// @Accept json
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "表单编码（form_ 前缀）"
+// @Param records body formmodel.DeleteFormRecordsRequest true "待删除的记录 ID，单次最多 100 条"
+// @Success 200 {object} httpx.Response{data=formmodel.DeleteFormRecordsResult}
+// @Failure 400 {object} httpx.Response "errCode=FORM_RECORD_DELETE_INVALID"
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN/FORM_PERMISSION_DENIED"
+// @Failure 409 {object} httpx.Response "errCode=FORM_RECORD_WORKFLOW_ACTIVE"
+// @Router /api/v1/forms/{code}/records [delete]
+func (f *FormController) DeleteRecords(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	req := new(formmodel.DeleteFormRecordsRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的删除数据请求"))
+		return
+	}
+	result, err := f.formService.DeleteRecords(c.Request.Context(), ginctx.GetUser(c), code, req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
 // @Summary 切换表单类型
 // @Description standard↔workflow 互转（ADR-011）：流程表单切标准后原流程数据保留，仅不可再发起流程；草稿与发布快照不受影响；目标类型与当前相同返回 FORM_TYPE_UNCHANGED
 // @Accept json
@@ -515,8 +547,10 @@ func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/forms/:code/copy", f.Copy)
 	api.GET("/forms/:code/references", f.ListReferences)
 	// 记录查询以 POST body 承载完整 Query DSL（复杂筛选会超出 URL 长度
-	// 上限）；URL 门动词由 request.go 特判归一化为 get → form-records:view
+	// 上限）；POST 的 URL 门动词由 request.go 特判归一化为 get → form-records:view。
+	// DELETE 仍是 form-records:delete，服务层继续按逐条数据范围复核。
 	api.POST("/forms/:code/records", f.ListRecords)
+	api.DELETE("/forms/:code/records", f.DeleteRecords)
 	api.POST("/form-records", f.SubmitRecord)
 	// 与 /applications/code/:code 系列同前缀且通配符同名（gin radix tree 要求同
 	// 位置同名，静态段 code 优先），鉴权解析为 applications:get，普通成员可读。

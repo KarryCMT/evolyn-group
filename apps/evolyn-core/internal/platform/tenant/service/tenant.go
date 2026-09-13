@@ -510,6 +510,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 表单资产（ADR-010）：表单设计/发布/删除全量；存量租户由 000037
 			// 按「管理员规则签名」补授（与角色名无关）
 			{Resource: iammodel.FormResource, Operation: iammodel.AllOperation},
+			// 数据管理删除是 form-records 数据面独立动作；租户管理员拥有全量
+			// 记录处置权限，存量租户由 000073 按管理员规则签名补授。
+			{Resource: iammodel.FormRecordResource, Operation: request.DeleteOperation},
 			// 通知设置（消息中心）：租户级偏好与自定义提醒对象全量管理；
 			// 存量租户由 000039 按「管理员规则签名」补授。不经管理组间接放行
 			{Resource: iammodel.NotificationSettingResource, Operation: iammodel.AllOperation},

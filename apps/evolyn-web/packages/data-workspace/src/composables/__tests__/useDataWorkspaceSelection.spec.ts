@@ -49,6 +49,9 @@ describe('useDataWorkspaceSelection', () => {
     records.value = [{ id: 8, name: '订单 B' }];
     await nextTick();
     expect(changes[changes.length - 1]).toEqual([8]);
+
+    selection.clearSelection();
+    expect(changes[changes.length - 1]).toEqual([]);
   });
 
   it('merges checkbox cells only when adjacent rows share a parent id', () => {

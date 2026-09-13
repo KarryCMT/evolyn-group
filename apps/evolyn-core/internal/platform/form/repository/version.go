@@ -121,6 +121,16 @@ func (r *formRecordRepository) GetByID(ctx context.Context, id uint) (*model.For
 	return record, nil
 }
 
+func (r *formRecordRepository) DeleteByIDs(ctx context.Context, formID uint, ids []uint) (int64, error) {
+	if formID == 0 || len(ids) == 0 {
+		return 0, fmt.Errorf("form id and record ids are required")
+	}
+	result := infrastructure.ResolveDB(ctx, r.db).
+		Where("form_id = ? AND id IN ?", formID, ids).
+		Delete(&model.FormRecord{})
+	return result.RowsAffected, result.Error
+}
+
 func (r *formRecordRepository) UpdateValues(ctx context.Context, id uint, values model.JSONContent, memberID uint, name string) error {
 	// 值替换与 updated_at 同语句刷新（000067 系统字段）：DB 时钟保证与
 	// LOCALTIMESTAMP 默认值同源，不依赖应用机器时间。memberID 非 0 时同语句

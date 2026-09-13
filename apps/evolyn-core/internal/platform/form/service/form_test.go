@@ -39,7 +39,7 @@ func (f fakeAccess) Permissions(ctx context.Context, member *iammodel.User) map[
 var adminPerms = map[string]bool{
 	"forms:create": true, "forms:get": true, "forms:list": true,
 	"forms:patch": true, "forms:update": true, "forms:delete": true,
-	"form-records:create": true, "form-records:get": true,
+	"form-records:create": true, "form-records:get": true, "form-records:delete": true,
 }
 
 type fakeQuota struct {
@@ -320,6 +320,26 @@ func (f *fakeRecordRepo) GetByID(ctx context.Context, id uint) (*model.FormRecor
 		}
 	}
 	return nil, gorm.ErrRecordNotFound
+}
+
+func (f *fakeRecordRepo) DeleteByIDs(ctx context.Context, formID uint, ids []uint) (int64, error) {
+	selected := make(map[uint]struct{}, len(ids))
+	for _, id := range ids {
+		selected[id] = struct{}{}
+	}
+	kept := make([]*model.FormRecord, 0, len(f.records))
+	var deleted int64
+	for _, record := range f.records {
+		if record.FormID == formID {
+			if _, ok := selected[record.ID]; ok {
+				deleted++
+				continue
+			}
+		}
+		kept = append(kept, record)
+	}
+	f.records = kept
+	return deleted, nil
 }
 
 func (f *fakeRecordRepo) UpdateValues(ctx context.Context, id uint, values model.JSONContent, memberID uint, name string) error {

@@ -57,12 +57,55 @@ type PhysicalValueRepository interface {
 	// ReadChildRowsByParentIDs 按当前页父记录批量读取同一子表单的明细行，避免
 	// 列表页对每条记录逐个查询子表造成 N×M 次往返。
 	ReadChildRowsByParentIDs(ctx context.Context, tableName string, tenantID uint, parentRecordIDs []uint, columns []storage.ColumnSpec) (map[uint][]map[string]any, error)
+	// DeleteParentRows/DeleteChildRows 在删除记录信封前清理物理值。动态表都以
+	// tn_form_records 为外键父级，必须按子表 → 父表 → 信封的顺序执行。
+	DeleteParentRows(ctx context.Context, tableName string, tenantID uint, recordIDs []uint) error
+	DeleteChildRows(ctx context.Context, tableName string, tenantID uint, recordIDs []uint) error
 	// UpdateWorkflowProjection 同事务更新物理表流程投影列（信封列由
 	// FormRecordRepository 负责）。
 	UpdateWorkflowProjection(ctx context.Context, tableName string, tenantID, recordID uint, instanceNo, status string, updatedAt time.Time) error
 	// ListJoinControlled 物理模式列表：以信封表 r 为锚 JOIN 物理表 d，共用
 	// 与 JSONB 模式完全相同的编译谓词/排序/分页。
 	ListJoinControlled(ctx context.Context, params RecordListParams, binding PhysicalListBinding) ([]PhysicalRecordRow, int64, error)
+}
+
+func (r *physicalValueRepository) DeleteParentRows(ctx context.Context, tableName string, tenantID uint, recordIDs []uint) error {
+	if err := storage.ValidateDynamicTableName(tableName); err != nil {
+		return err
+	}
+	if len(recordIDs) == 0 {
+		return nil
+	}
+	placeholders, args := recordIDPlaceholders(tenantID, recordIDs)
+	return r.withContext(ctx).Exec(
+		fmt.Sprintf("DELETE FROM %q WHERE tenant_id = ? AND record_id IN (%s)", tableName, placeholders), args...,
+	).Error
+}
+
+func (r *physicalValueRepository) DeleteChildRows(ctx context.Context, tableName string, tenantID uint, recordIDs []uint) error {
+	if err := storage.ValidateDynamicTableName(tableName); err != nil {
+		return err
+	}
+	if len(recordIDs) == 0 {
+		return nil
+	}
+	placeholders, args := recordIDPlaceholders(tenantID, recordIDs)
+	return r.withContext(ctx).Exec(
+		fmt.Sprintf("DELETE FROM %q WHERE tenant_id = ? AND parent_record_id IN (%s)", tableName, placeholders), args...,
+	).Error
+}
+
+// recordIDPlaceholders 为动态值表删除生成纯参数化 IN 条件；表名/列名不来自
+// 请求，而 ID 仍绝不拼接进 SQL，避免删除路径退化为裸原生语句。
+func recordIDPlaceholders(tenantID uint, recordIDs []uint) (string, []any) {
+	placeholders := make([]string, len(recordIDs))
+	args := make([]any, 0, len(recordIDs)+1)
+	args = append(args, tenantID)
+	for i, id := range recordIDs {
+		placeholders[i] = "?"
+		args = append(args, id)
+	}
+	return strings.Join(placeholders, ", "), args
 }
 
 type physicalValueRepository struct{ db *gorm.DB }

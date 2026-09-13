@@ -5,6 +5,7 @@ import type {
   FormPage,
   FormPublishResult,
   FormRecordPage,
+  FormRecordDeleteResult,
   FormRecordSubmitResult,
   FormRuntimeBootstrap,
   FormSchemaDocument,
@@ -222,6 +223,14 @@ export function listFormRecords(
   signal?: AbortSignal,
 ): Promise<FormRecordPage> {
   return http.post(`/forms/${code}/records`, query, { signal });
+}
+
+/** 永久删除数据管理中勾选的记录；服务端仍会逐条复核数据范围权限。 */
+export function deleteFormRecords(
+  code: string,
+  recordIds: number[],
+): Promise<FormRecordDeleteResult> {
+  return http.delete(`/forms/${code}/records`, { recordIds });
 }
 
 /** 每次用户提交生成独立幂等键；同一次 HTTP 调用及其网络重放复用同一载荷。 */
