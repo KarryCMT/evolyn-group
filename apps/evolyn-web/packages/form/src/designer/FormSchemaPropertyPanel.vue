@@ -51,14 +51,22 @@
               @rename-key="$emit('rename-key', $event)"
             >
               <template #title-suffix>
-                <!-- 当前协议不支持在线切换字段类型，保留只读类型栏位统一布局。 -->
                 <el-select
                   class="form-schema-property__type-select"
                   :model-value="widget.type"
-                  disabled
-                  aria-label="字段类型"
+                  :disabled="!isNumericType || !props.numericTypeEditable"
+                  :aria-label="isNumericType ? '数值类型' : '字段类型'"
+                  @update:model-value="changeNumericType"
                 >
-                  <el-option :label="typeLabel" :value="widget.type" />
+                  <template v-if="isNumericType">
+                    <el-option
+                      v-for="option in numericTypeOptions"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
+                    />
+                  </template>
+                  <el-option v-else :label="typeLabel" :value="widget.type" />
                 </el-select>
               </template>
 
@@ -295,8 +303,9 @@ import type {
   SubmitRule,
   SubmitValidator,
   DecimalFamilyWidget,
+  FormWidgetType,
 } from '../schema/types';
-import { widgetTypeLabel } from '../schema/dictionary';
+import { createWidgetItem, widgetTypeLabel } from '../schema/dictionary';
 import { isNumericWidgetType } from '../schema/numeric';
 import { submitRuleLabel } from '../schema/invisible-value-policy';
 import FormSchemaCommonPropertyPanel from './FormSchemaCommonPropertyPanel.vue';
@@ -338,6 +347,8 @@ const props = withDefaults(
     validators?: SubmitValidator[];
     /** v7 二次确认配置；关闭时标题和正文仍保留。 */
     preSubmitConfirm?: PreSubmitConfirm;
+    /** 已发布字段的物理列及值语义不可重写；初次发布前才允许切换数值类型。 */
+    numericTypeEditable?: boolean;
   }>(),
   {
     item: undefined,
@@ -355,6 +366,7 @@ const props = withDefaults(
       title: '确认继续提交吗？',
       content: '请确认填写内容无误后继续提交。',
     }),
+    numericTypeEditable: true,
   },
 );
 
@@ -410,6 +422,15 @@ const subformDraft = computed<FormItem<SubformWidget>>({
   },
 });
 const typeLabel = computed(() => widgetTypeLabel(widget.value.type));
+const isNumericType = computed(
+  () => widget.value.type === 'number' || isNumericWidgetType(widget.value.type),
+);
+const numericTypeOptions: ReadonlyArray<{ label: string; value: FormWidgetType }> = [
+  { label: '普通数字', value: 'number' },
+  { label: '高精度小数', value: 'decimal' },
+  { label: '金额', value: 'money' },
+  { label: '百分比', value: 'percent' },
+];
 const isSeparator = computed(() => widget.value.type === 'separator');
 type OptionsWidget = RadioGroupWidget | CheckboxGroupWidget | ComboWidget | ComboCheckWidget;
 const optionsWidget = computed<OptionsWidget | null>(() => {
@@ -467,6 +488,41 @@ function sameJSON(left: unknown, right: unknown): boolean {
  */
 function cloneItem(item: FormItem): FormItem {
   return JSON.parse(JSON.stringify(item)) as FormItem;
+}
+
+/**
+ * 数值类型切换保留字段身份及通用配置，但按目标类型重新初始化值协议配置。
+ * 例如 number → money 必须清除 JS number 默认值，并生成金额的 decimal
+ * 精度默认值；不能仅修改 type 让旧属性穿透到新语义。
+ */
+function changeNumericType(value: unknown): void {
+  const nextType = value as FormWidgetType;
+  const current = draftItem.value;
+  if (
+    !current ||
+    !isNumericType.value ||
+    !props.numericTypeEditable ||
+    !numericTypeOptions.some((option) => option.value === nextType) ||
+    nextType === current.widget.type
+  ) {
+    return;
+  }
+
+  const replacement = createWidgetItem(nextType);
+  replacement.label = current.label;
+  replacement.description = current.description;
+  replacement.labelHidden = current.labelHidden;
+  replacement.lineWidth = current.lineWidth;
+  replacement.widget.widgetName = current.widget.widgetName;
+  replacement.widget.fieldId = current.widget.fieldId;
+  replacement.widget.enable = current.widget.enable;
+  replacement.widget.visible = current.widget.visible;
+  replacement.widget.allowBlank = current.widget.allowBlank;
+  const placeholder = (current.widget as { placeholder?: unknown }).placeholder;
+  if (typeof placeholder === 'string') {
+    (replacement.widget as { placeholder?: string }).placeholder = placeholder;
+  }
+  draftItem.value = replacement;
 }
 
 /** 仅在名称确有变化且非空时通知页面调用资产改名接口。 */

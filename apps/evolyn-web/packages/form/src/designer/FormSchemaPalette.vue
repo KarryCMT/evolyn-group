@@ -15,16 +15,48 @@
         :move="createMoveGuard(group)"
       >
         <template #item="{ element }">
-          <button
-            class="form-schema-palette__item"
-            type="button"
-            :disabled="!entryEnabled(group, element)"
-            :title="entryEnabled(group, element) ? element.label : '该字段随后续版本开放'"
-            @click="$emit('add-field', element)"
-          >
-            <el-icon><component :is="element.icon" /></el-icon>
-            <span>{{ element.label }}</span>
-          </button>
+          <div class="form-schema-palette__entry">
+            <button
+              class="form-schema-palette__item"
+              type="button"
+              :disabled="!entryEnabled(group, element)"
+              :title="entryEnabled(group, element) ? element.label : '该字段随后续版本开放'"
+              @click="emit('add-field', element)"
+            >
+              <el-icon><component :is="element.icon" /></el-icon>
+              <span>{{ element.label }}</span>
+            </button>
+            <!-- 数值入口默认创建普通数字；箭头提供语义明确的快速创建，避免素材区平铺四项。 -->
+            <el-dropdown
+              v-if="element.shortcuts?.length"
+              placement="bottom-end"
+              trigger="click"
+              @command="emitShortcut(element, $event)"
+            >
+              <button
+                class="form-schema-palette__shortcut"
+                type="button"
+                :disabled="!entryEnabled(group, element)"
+                aria-label="选择数值字段类型"
+                title="选择数值字段类型"
+                @click.stop
+              >
+                <el-icon><RiArrowDownSLine /></el-icon>
+              </button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item
+                    v-for="shortcut in element.shortcuts"
+                    :key="shortcut.type"
+                    :command="shortcut.type"
+                  >
+                    <el-icon><component :is="shortcut.icon" /></el-icon>
+                    {{ shortcut.label }}
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </template>
       </Draggable>
     </section>
@@ -33,7 +65,8 @@
 
 <script setup lang="ts">
 import { EvolynScrollbar } from '@evolyn.do/ui';
-import { ElIcon } from 'element-plus';
+import { RiArrowDownSLine } from '@remixicon/vue';
+import { ElDropdown, ElDropdownItem, ElDropdownMenu, ElIcon } from 'element-plus';
 import Draggable from 'vuedraggable';
 import { FORM_SCHEMA_DRAG_GROUP, type FormSchemaPaletteDrag } from './palette';
 
@@ -47,12 +80,19 @@ export interface FormSchemaPaletteGroup {
   title: string;
   /** 未开放的分组置灰只展示（后续阶段开放），本期仅基础字段可添加。 */
   enabled: boolean;
-  entries: Array<{ type: string; label: string; icon: unknown; enabled?: boolean }>;
+  entries: Array<{
+    type: string;
+    label: string;
+    icon: unknown;
+    enabled?: boolean;
+    /** 素材面板内的二级快捷创建入口，主入口仍使用当前 type。 */
+    shortcuts?: Array<{ type: string; label: string; icon: unknown }>;
+  }>;
 }
 
 defineProps<{ groups: FormSchemaPaletteGroup[] }>();
 
-defineEmits<{
+const emit = defineEmits<{
   (event: 'add-field', value: { type: string; label: string; icon: unknown }): void;
 }>();
 
@@ -83,6 +123,16 @@ function canDrag(
 function createMoveGuard(group: FormSchemaPaletteGroup) {
   return (event: Parameters<typeof canDrag>[1]): boolean => canDrag(group, event);
 }
+
+/** 二级菜单仅改变创建类型，协议里仍落真实的 decimal/money/percent 控件。 */
+function emitShortcut(
+  entry: FormSchemaPaletteGroup['entries'][number],
+  type: string | number | object,
+): void {
+  if (typeof type !== 'string') return;
+  const shortcut = entry.shortcuts?.find((option) => option.type === type);
+  if (shortcut) emit('add-field', shortcut);
+}
 </script>
 
 <style lang="scss">
@@ -110,12 +160,18 @@ function createMoveGuard(group: FormSchemaPaletteGroup) {
     gap: var(--el-space-md);
   }
 
+  &__entry {
+    display: flex;
+    min-width: 0;
+  }
+
   &__item {
     display: flex;
     gap: var(--el-space-sm);
     align-items: center;
     justify-content: flex-start;
-    width: 100%;
+    flex: 1;
+    min-width: 0;
     min-height: 32px;
     padding: 0 var(--el-space-lg);
     margin-bottom: 0;
@@ -150,6 +206,36 @@ function createMoveGuard(group: FormSchemaPaletteGroup) {
       font-size: var(--el-font-size-medium);
       color: var(--el-text-color-regular);
     }
+  }
+
+  &__shortcut {
+    display: flex;
+    flex: 0 0 32px;
+    align-items: center;
+    justify-content: center;
+    min-height: 32px;
+    padding: 0;
+    margin-left: -1px;
+    color: var(--el-text-color-regular);
+    cursor: pointer;
+    background-color: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 0 var(--el-border-radius-medium) var(--el-border-radius-medium) 0;
+
+    &:hover:not(:disabled) {
+      color: var(--el-color-primary);
+      border-color: var(--el-color-primary);
+    }
+
+    &:disabled {
+      color: var(--el-text-color-disabled);
+      cursor: not-allowed;
+      background-color: var(--el-fill-color-lighter);
+    }
+  }
+
+  &__entry:has(&__shortcut) &__item {
+    border-radius: var(--el-border-radius-medium) 0 0 var(--el-border-radius-medium);
   }
 
   // 拖动源保持轻量选中态，跟随鼠标的拖动卡片固定为横向尺寸，避免窄列中标题折行。

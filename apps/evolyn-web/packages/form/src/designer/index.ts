@@ -24,6 +24,7 @@ import 'element-plus/theme-chalk/src/popover.scss';
 import 'element-plus/theme-chalk/src/radio-button.scss';
 import 'element-plus/theme-chalk/src/radio.scss';
 import 'element-plus/theme-chalk/src/scrollbar.scss';
+import 'element-plus/theme-chalk/src/dropdown.scss';
 import 'element-plus/theme-chalk/src/select.scss';
 import 'element-plus/theme-chalk/src/segmented.scss';
 import 'element-plus/theme-chalk/src/switch.scss';

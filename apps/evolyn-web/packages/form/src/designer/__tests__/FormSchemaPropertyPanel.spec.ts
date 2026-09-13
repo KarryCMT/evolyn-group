@@ -141,7 +141,7 @@ describe('FormSchemaPropertyPanel', () => {
     const number = createWidgetItem('number');
     const wrapper = mount(FormSchemaPropertyPanel, { props: { item: number } });
 
-    expect(wrapper.find('[aria-label="字段类型"]').exists()).toBe(true);
+    expect(wrapper.find('[aria-label="数值类型"]').exists()).toBe(true);
     expect(wrapper.findAll('h3').map((node) => node.text())).toEqual([
       '描述信息',
       '提示文字',
@@ -153,6 +153,40 @@ describe('FormSchemaPropertyPanel', () => {
     ]);
     expect(wrapper.text()).not.toContain('字段安全');
     expect(wrapper.text()).not.toContain('脱敏显示');
+  });
+
+  it('草稿阶段可在数值家族间切换，重置值协议配置并保留字段身份与通用属性', async () => {
+    const number = createWidgetItem('number');
+    if (number.widget.type !== 'number') throw new Error('expected number widget');
+    number.label = '合同金额';
+    number.widget.placeholder = '请输入金额';
+    number.widget.defaultValue = 99;
+    const wrapper = mount(FormSchemaPropertyPanel, { props: { item: number } });
+
+    wrapper.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', 'money');
+    await nextTick();
+
+    const updates = wrapper.emitted('update-item') ?? [];
+    expect(updates[updates.length - 1]?.[0]).toMatchObject({
+      label: '合同金额',
+      widget: {
+        type: 'money',
+        widgetName: number.widget.widgetName,
+        fieldId: number.widget.fieldId,
+        placeholder: '请输入金额',
+        precision: 20,
+        scale: 2,
+      },
+    });
+    expect((updates[updates.length - 1]?.[0] as FormItem).widget).not.toHaveProperty('defaultValue');
+  });
+
+  it('已发布字段将数值类型锁定为只读', () => {
+    const wrapper = mount(FormSchemaPropertyPanel, {
+      props: { item: createWidgetItem('money'), numericTypeEditable: false },
+    });
+
+    expect(wrapper.find('[aria-label="数值类型"]').attributes('disabled')).toBeDefined();
   });
 
   it('多行文本同样不展示字符长度限制栏位', () => {

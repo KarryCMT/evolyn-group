@@ -165,15 +165,29 @@ const paletteGroups = computed<FormSchemaPaletteGroup[]>(() => {
       title: group.title,
       enabled: group.key === 'basic' || group.key === 'orgfile',
       entries: Object.entries(WIDGET_SPECS)
-        .filter(([, spec]) => spec.group === group.key)
+        // 数值字段族保留独立的底层类型；组件面板仅展示一个默认数字入口，
+        // 高精度小数、金额、百分比由其二级快捷菜单创建。
+        .filter(
+          ([type, spec]) =>
+            spec.group === group.key && !['decimal', 'money', 'percent'].includes(type),
+        )
         .map(([type, spec]) => ({
           type,
-          label: spec.label,
+          // “数值”是素材入口的产品名称；新建字段仍默认落 number（数字）类型。
+          label: type === 'number' ? '数值' : spec.label,
           // 控件类型图标统一走共享映射，与数据管理「列设置」保持一致
           icon: widgetIconOfType(type),
           // P4 首先开放子表单设计能力；同组关联字段仍按原计划保持不可添加。
           enabled:
             group.key === 'basic' || type === 'subform' || type === 'user' || type === 'usergroup',
+          shortcuts:
+            type === 'number'
+              ? (['decimal', 'money', 'percent'] as const).map((shortcutType) => ({
+                  type: shortcutType,
+                  label: WIDGET_SPECS[shortcutType].label,
+                  icon: widgetIconOfType(shortcutType),
+                }))
+              : undefined,
         })),
     })),
     {
@@ -547,6 +561,7 @@ function notifyUnavailable(action: string) {
         :widget-submit-rules="document.content.widget_submit_rules"
         :validators="document.content.validators"
         :pre-submit-confirm="document.content.preSubmitConfirm"
+        :numeric-type-editable="publishedVersion === 0"
         @rename-key="editor.renameItemKey"
         @update-item="onUpdateSelectedItem"
         @update-form-name="onUpdateFormName"
