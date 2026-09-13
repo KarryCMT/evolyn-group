@@ -95,12 +95,14 @@ var publishableWidgetTypes = map[string]bool{
 }
 
 // subformPublishableWidgetTypes 是已经在子表单行编辑器中实现输入、归一化和服务端
-// 终审的子项集合。subformAllowedTypes 是设计期结构白名单，范围刻意更大，二者不能
-// 混用，否则发布后会出现可提交但无法运行的字段。
+// 终审的子项集合。成员单选复用宿主注册的人员选择器，值按稳定成员 ID 校验。
+// subformAllowedTypes 是设计期结构白名单，范围刻意更大，二者不能混用，否则发布后
+// 会出现可提交但无法运行的字段。
 var subformPublishableWidgetTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
 	"decimal": true, "money": true, "percent": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
+	"user": true,
 }
 
 // subformAllowedTypes 子表单子项白名单：禁止无行值语义的 separator/richtext/subform。

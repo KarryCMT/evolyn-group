@@ -7,6 +7,9 @@ defineOptions({ name: 'PermissionGroupsPanel' });
 
 const props = defineProps<{
   asset: PermissionAsset | undefined;
+  /** 仅当前资产的权限详情加载；左侧资产树在此期间始终保留。 */
+  loading: boolean;
+  errorMessage: string;
   groups: AssetPermissionGroup[];
 }>();
 
@@ -17,6 +20,7 @@ const emit = defineEmits<{
   disableAll: [];
   editGroup: [groupId: string];
   removeGroup: [groupId: string];
+  reload: [];
   updateGroupEnabled: [payload: { groupId: string; enabled: boolean }];
 }>();
 </script>
@@ -38,7 +42,7 @@ const emit = defineEmits<{
         <button
           class="permission-groups-panel__add"
           type="button"
-          :disabled="!props.asset"
+          :disabled="!props.asset || props.loading"
           @click="emit('addGroup')"
         >
           <RiAddFill aria-hidden="true" />
@@ -47,7 +51,7 @@ const emit = defineEmits<{
         <button
           class="permission-groups-panel__disable-all"
           type="button"
-          :disabled="!props.groups.some((group) => group.enabled)"
+          :disabled="props.loading || !props.groups.some((group) => group.enabled)"
           @click="emit('disableAll')"
         >
           <RiForbid2Fill aria-hidden="true" />
@@ -64,7 +68,14 @@ const emit = defineEmits<{
           <strong>{{ props.asset.name }}</strong>
           <span>{{ props.asset.type === 'workflow-form' ? '流程表单权限' : '普通表单权限' }}</span>
         </div>
-        <div v-if="props.groups.length" class="permission-groups-panel__groups">
+        <div v-if="props.loading" class="permission-groups-panel__loading" role="status">
+          正在加载权限配置…
+        </div>
+        <div v-else-if="props.errorMessage" class="permission-groups-panel__error" role="alert">
+          <p>{{ props.errorMessage }}</p>
+          <button type="button" @click="emit('reload')">重新加载</button>
+        </div>
+        <div v-else-if="props.groups.length" class="permission-groups-panel__groups">
           <PermissionGroupCard
             v-for="group in props.groups"
             :key="group.code"
@@ -237,6 +248,41 @@ const emit = defineEmits<{
     width: 100%;
     flex-direction: column;
     gap: var(--el-space-lg);
+  }
+
+  &__loading,
+  &__error {
+    box-sizing: border-box;
+    display: flex;
+    width: 100%;
+    min-height: 250px;
+    padding: var(--el-space-3xl);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    border: 1px dashed var(--el-border-color);
+    border-radius: var(--el-border-radius-large);
+    color: var(--el-text-color-secondary);
+    background: var(--el-fill-color-lighter);
+    font-size: var(--el-font-size-small);
+  }
+
+  &__error {
+    p {
+      margin: 0;
+    }
+
+    button {
+      min-height: 32px;
+      margin-top: var(--el-space-lg);
+      padding: 0 var(--el-space-lg);
+      border: 0;
+      border-radius: var(--el-border-radius-base);
+      color: var(--el-color-white);
+      cursor: pointer;
+      background: var(--el-color-primary);
+      font: inherit;
+    }
   }
 
   &__empty {

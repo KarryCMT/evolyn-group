@@ -80,7 +80,8 @@ export const PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
 
 /**
  * 子表单行编辑器已实现的子项类型。设计期 SUBFORM_ALLOWED_WIDGET_TYPES 的范围更大，
- * 但其中未实现运行时的控件不能因为能保存 Schema 而被发布。
+ * 但其中未实现运行时的控件不能因为能保存 Schema 而被发布。成员单选复用宿主注册的
+ * 人员选择器，提交值保持为稳定成员 ID。
  */
 export const SUBFORM_PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'text',
@@ -94,6 +95,7 @@ export const SUBFORM_PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'checkboxgroup',
   'combo',
   'combocheck',
+  'user',
 ];
 
 /** 选项结构：label/value 均为 1–100 字符，组内 value 唯一。 */

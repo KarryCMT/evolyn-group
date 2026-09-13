@@ -6,7 +6,8 @@ vendor/
 node_modules/
 dist/
 .DS_Store
-
+.pnpm-store
+.zcode
 # 本地证书与私钥：由 apps/evolyn-core/scripts/cert.sh 现场生成，禁止入库
 certs/
 *.key

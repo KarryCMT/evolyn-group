@@ -361,6 +361,20 @@ func TestValidatePublishable(t *testing.T) {
 	assert.Equal(t, "content.items[1].widget.type", issues[0].Path)
 }
 
+func TestValidatePublishableAllowsSubformUser(t *testing.T) {
+	user := validTextItem()
+	userWidget := user["widget"].(map[string]any)
+	userWidget["type"] = "user"
+	userWidget["widgetName"] = "_widget_owner"
+	delete(userWidget, "placeholder")
+	subform := map[string]any{
+		"widget": validSubformWidget([]any{user}),
+		"label":  "明细", "description": "", "labelHidden": false, "lineWidth": 12,
+	}
+
+	assert.Empty(t, ValidatePublishable(doc(subform)))
+}
+
 func containsPath(issues []SchemaIssue, path string) bool {
 	for _, issue := range issues {
 		if issue.Path == path {

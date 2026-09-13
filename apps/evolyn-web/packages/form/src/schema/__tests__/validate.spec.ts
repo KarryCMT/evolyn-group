@@ -477,6 +477,15 @@ describe('validatePublishableFormSchema 发布白名单', () => {
       'content.items[0].widget.items[0].widget.type',
     ]);
   });
+
+  it('允许子表单中的人员单选控件发布', () => {
+    const subform = createWidgetItem('subform');
+    if (subform.widget.type === 'subform') {
+      subform.widget.items.push(createWidgetItem('user'));
+    }
+
+    expect(validatePublishableFormSchema(documentWith([subform])).valid).toBe(true);
+  });
 });
 
 describe('migrateFormSchema / cloneFormSchema', () => {

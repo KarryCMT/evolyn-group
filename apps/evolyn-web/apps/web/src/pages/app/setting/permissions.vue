@@ -291,6 +291,7 @@ function handleMutationError(error: unknown) {
     sub-title="仅应用管理员可管理表单权限。"
   />
 
+  <!-- 只在初始资产资源加载或加载失败时替换整页；切换左栏资产只更新右侧详情。 -->
   <section
     v-else-if="permissionResources.status.value === 'loading'"
     v-loading="true"
@@ -321,12 +322,15 @@ function handleMutationError(error: unknown) {
     <PermissionGroupsPanel
       :asset="permissionResources.selectedAsset.value"
       :groups="selectedGroups"
+      :loading="permissionResources.selectedFormStatus.value === 'loading'"
+      :error-message="permissionResources.selectedFormErrorMessage.value"
       @add-group="openGroupPicker"
       @add-subjects="openSubjectPicker"
       @clone-group="cloneGroup"
       @disable-all="disableAll"
       @edit-group="openGroupEditor"
       @remove-group="removeGroup"
+      @reload="permissionResources.refreshSelectedForm()"
       @update-group-enabled="updateGroupEnabled"
     />
     <PermissionGroupEditorDialog

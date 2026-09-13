@@ -16,6 +16,7 @@ import { listMembers } from '~/api/member';
 import { getOrganizationRoleTree } from '~/api/role';
 
 export type FormPermissionResourceStatus = 'loading' | 'ready' | 'error';
+export type FormPermissionDetailStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 /**
  * 应用权限页的数据编排：菜单提供表单树，IAM 提供可授权主体，表单权限接口
@@ -30,7 +31,11 @@ export function useApplicationFormPermissions(appCode: Readonly<Ref<string>>) {
   const roles = shallowRef<EvolynMemberDepartmentRolePickerTreeNode[]>([]);
   const members = shallowRef<EvolynMemberDepartmentRolePickerMember[]>([]);
   const status = shallowRef<FormPermissionResourceStatus>('loading');
+  // 资产树和当前表单权限详情分别加载；切换左栏资产时不能让整页回到 loading，
+  // 否则资产树会被卸载并重建，导致滚动位置和展开状态丢失。
+  const selectedFormStatus = shallowRef<FormPermissionDetailStatus>('idle');
   const errorMessage = shallowRef('');
+  const selectedFormErrorMessage = shallowRef('');
   let resourceRequest = 0;
   let formRequest = 0;
 
@@ -42,6 +47,8 @@ export function useApplicationFormPermissions(appCode: Readonly<Ref<string>>) {
     if (!code) {
       assets.value = [];
       selectedAssetId.value = '';
+      selectedFormStatus.value = 'idle';
+      selectedFormErrorMessage.value = '';
       status.value = 'ready';
       return;
     }
@@ -80,6 +87,8 @@ export function useApplicationFormPermissions(appCode: Readonly<Ref<string>>) {
       console.warn('[application-form-permissions] load resources failed', error);
       assets.value = [];
       selectedAssetId.value = '';
+      selectedFormStatus.value = 'idle';
+      selectedFormErrorMessage.value = '';
       status.value = 'error';
       errorMessage.value = '表单权限配置资源加载失败，请稍后重试。';
     }
@@ -91,11 +100,12 @@ export function useApplicationFormPermissions(appCode: Readonly<Ref<string>>) {
     groups.value = [];
     fields.value = [];
     if (!formCode) {
-      status.value = 'ready';
+      selectedFormStatus.value = 'idle';
+      selectedFormErrorMessage.value = '';
       return;
     }
-    status.value = 'loading';
-    errorMessage.value = '';
+    selectedFormStatus.value = 'loading';
+    selectedFormErrorMessage.value = '';
     try {
       const [nextGroups, nextFields] = await Promise.all([
         listFormPermissionGroups(formCode),
@@ -107,12 +117,12 @@ export function useApplicationFormPermissions(appCode: Readonly<Ref<string>>) {
         ...group,
         fields: permissionFieldsFrom(group.fieldPermissions, nextFields),
       }));
-      status.value = 'ready';
+      selectedFormStatus.value = 'ready';
     } catch (error) {
       if (request !== formRequest) return;
       console.warn('[application-form-permissions] load permission groups failed', error);
-      status.value = 'error';
-      errorMessage.value = '表单权限组加载失败，请刷新后重试。';
+      selectedFormStatus.value = 'error';
+      selectedFormErrorMessage.value = '表单权限组加载失败，请刷新后重试。';
     }
   }
 
@@ -131,6 +141,8 @@ export function useApplicationFormPermissions(appCode: Readonly<Ref<string>>) {
     members,
     status: readonly(status),
     errorMessage: readonly(errorMessage),
+    selectedFormStatus: readonly(selectedFormStatus),
+    selectedFormErrorMessage: readonly(selectedFormErrorMessage),
     reload: loadResources,
     refreshSelectedForm,
   };
