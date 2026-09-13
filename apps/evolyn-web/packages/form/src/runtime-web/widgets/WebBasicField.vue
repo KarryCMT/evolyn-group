@@ -47,6 +47,10 @@ const describedBy = computed(() =>
 );
 const textWidget = computed(() => props.item.widget as TextWidget);
 const textareaWidget = computed(() => props.item.widget as TextAreaWidget);
+// 多行文本默认维持单行高度；开启自动增高后，仍从一行起随内容扩展。
+const textareaAutosize = computed(() =>
+  textareaWidget.value.autoHeight ? { minRows: 1 } : undefined,
+);
 const numberWidget = computed(() => props.item.widget as NumberWidget);
 const decimalWidget = computed(() => props.item.widget as DecimalFamilyWidget);
 const dateWidget = computed(() => props.item.widget as DateTimeWidget);
@@ -149,8 +153,8 @@ function isString(value: unknown): value is string {
     type="textarea"
     :placeholder="textareaWidget.placeholder ?? '请输入'"
     :maxlength="textareaWidget.maxLength ?? undefined"
-    :autosize="textareaWidget.autoHeight || undefined"
-    :rows="textareaWidget.autoHeight ? undefined : 3"
+    :autosize="textareaAutosize"
+    :rows="1"
     :disabled="disabled"
     :readonly="readonly"
     :aria-required="!item.widget.allowBlank || undefined"

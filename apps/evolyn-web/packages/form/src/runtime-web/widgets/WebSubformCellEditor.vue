@@ -11,7 +11,7 @@ import {
   ElSelect,
   ElTimePicker,
 } from 'element-plus';
-import { computed, inject, type Component } from 'vue';
+import { type Component, computed, inject } from 'vue';
 import { readWidgetOptions } from '../../schema/codec';
 import type {
   DateTimeWidget,
@@ -62,6 +62,12 @@ const multiValue = computed(() =>
     : [],
 );
 const inputId = computed(() => props.inputId ?? `evf-subform-${props.field.widget.widgetName}`);
+// 子表单与顶层字段保持相同的默认高度；自动增高从一行内容开始计算。
+const textareaAutosize = computed(() =>
+  props.field.widget.type === 'textarea' && props.field.widget.autoHeight
+    ? { minRows: 1 }
+    : undefined,
+);
 
 function dateWidget(): DateTimeWidget {
   return props.field.widget as DateTimeWidget;
@@ -150,8 +156,8 @@ function blur(): void {
     :model-value="stringValue"
     type="textarea"
     :placeholder="placeholder()"
-    :rows="3"
-    :autosize="field.widget.autoHeight || undefined"
+    :rows="1"
+    :autosize="textareaAutosize"
     :disabled="isInteractiveDisabled"
     :readonly="readonly"
     :validate-event="false"
@@ -280,8 +286,8 @@ function blur(): void {
     />
   </ElSelect>
   <component
-    v-else-if="organizationFieldComponent"
     :is="organizationFieldComponent"
+    v-else-if="organizationFieldComponent"
     :item="field"
     :model-value="modelValue"
     :disabled="isInteractiveDisabled"
@@ -304,8 +310,8 @@ function blur(): void {
     display: flex;
     flex-flow: row wrap;
     gap: var(--el-space-sm) var(--el-space-lg);
-    min-height: 32px;
     align-items: center;
+    min-height: 32px;
   }
 
   &__unsupported {
