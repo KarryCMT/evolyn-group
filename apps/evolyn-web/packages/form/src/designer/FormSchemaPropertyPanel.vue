@@ -82,6 +82,12 @@
                 <DateTimePropertyPanel v-else-if="widget.type === 'datetime'" :widget="widget" />
                 <SeparatorPropertyPanel v-else-if="widget.type === 'separator'" :widget="widget" />
                 <OptionsPropertyPanel v-else-if="optionsWidget" :widget="optionsWidget" />
+                <FormSchemaPropertySection v-else-if="widget.type === 'dept'" title="部门选择">
+                  <p class="form-schema-property__deferred">
+                    填写时从当前租户的有效部门树中选择一个部门。默认值与“包含子部门”
+                    的范围语义尚未开放，当前记录只保存直接选中的部门。
+                  </p>
+                </FormSchemaPropertySection>
                 <FormSchemaPropertySection v-else title="专属设置">
                   <p class="form-schema-property__deferred">
                     该控件的专属配置已按协议保存，运行能力随后续版本开放。

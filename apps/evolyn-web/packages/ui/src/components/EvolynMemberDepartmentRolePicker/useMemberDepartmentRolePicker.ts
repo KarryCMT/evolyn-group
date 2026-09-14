@@ -13,6 +13,7 @@ interface UseMemberDepartmentRolePickerOptions {
   departments: MaybeRefOrGetter<EvolynMemberDepartmentRolePickerTreeNode[]>;
   roles: MaybeRefOrGetter<EvolynMemberDepartmentRolePickerTreeNode[]>;
   members: MaybeRefOrGetter<EvolynMemberDepartmentRolePickerMember[]>;
+  currentMemberDepartmentIds: MaybeRefOrGetter<EvolynMemberDepartmentRolePickerItemId[]>;
   selectableTypes: MaybeRefOrGetter<EvolynMemberDepartmentRolePickerItemType[]>;
   multiple: MaybeRefOrGetter<boolean>;
   departmentMultiple: MaybeRefOrGetter<boolean | undefined>;
@@ -104,6 +105,19 @@ export function useMemberDepartmentRolePicker(options: UseMemberDepartmentRolePi
     filterTreeNodes(toValue(options.departments), searchTerms.value),
   );
   const visibleRoles = computed(() => filterTreeNodes(toValue(options.roles), searchTerms.value));
+  // “当前用户所在部门”只展示直接归属部门，而不是将其子树一并作为当前归属范围。
+  // 目录仍由 departments 驱动，避免认证摘要中的旧名称或已停用状态覆盖组织事实。
+  const visibleCurrentMemberDepartments = computed(() => {
+    const seen = new Set<string>();
+    return toValue(options.currentMemberDepartmentIds).flatMap((id) => {
+      const key = String(id);
+      if (seen.has(key)) return [];
+      seen.add(key);
+      const node = findNode(toValue(options.departments), id);
+      if (!node || !matchesKeywords(node, searchTerms.value)) return [];
+      return [{ ...node, children: undefined }];
+    });
+  });
   const activeDepartmentIds = computed(() => {
     if (activeDepartmentId.value === undefined) return undefined;
     const activeDepartment = findNode(toValue(options.departments), activeDepartmentId.value);
@@ -252,6 +266,7 @@ export function useMemberDepartmentRolePicker(options: UseMemberDepartmentRolePi
     selectedKeys,
     toggle,
     visibleDepartments,
+    visibleCurrentMemberDepartments,
     visibleMembers,
     visibleRoles,
   };

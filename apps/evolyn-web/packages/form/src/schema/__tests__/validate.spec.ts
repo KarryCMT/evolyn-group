@@ -457,9 +457,10 @@ describe('validatePublishableFormSchema 发布白名单', () => {
     expect(validatePublishableFormSchema(documentWith(items)).valid).toBe(true);
   });
 
-  it('白名单外控件返回精确路径（如 dept）', () => {
+  it('部门单选已开放，白名单外控件仍返回精确路径', () => {
+    expect(validatePublishableFormSchema(documentWith([createWidgetItem('dept')])).valid).toBe(true);
     const result = validatePublishableFormSchema(
-      documentWith([createWidgetItem('text'), createWidgetItem('dept')]),
+      documentWith([createWidgetItem('text'), createWidgetItem('deptgroup')]),
     );
     expect(result.valid).toBe(false);
     expect(result.issues[0]!.path).toBe('content.items[1].widget.type');
@@ -764,7 +765,7 @@ describe('validateFormSchema 字段显隐规则（v5）', () => {
 
 describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
   it('发布版本未开放运行能力的字段不能作为条件源', () => {
-    const dept = textItem({ type: 'dept', widgetName: '_widget_dept' });
+    const dept = textItem({ type: 'deptgroup', widgetName: '_widget_dept' });
     const target = textItem({ widgetName: '_widget_target' });
     const doc = {
       content: {
@@ -786,7 +787,7 @@ describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
             id: 'r1',
             filter: {
               rel: 'and',
-              cond: [{ field: '_widget_dept', type: 'dept', method: 'eq', value: ['d1'] }],
+              cond: [{ field: '_widget_dept', type: 'deptgroup', method: 'containsAny', value: ['d1'] }],
             },
             fields: ['_widget_target'],
           },
@@ -798,7 +799,7 @@ describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
     // 控件白名单与条件源白名单同时产出精确路径错误。
     expect(result.issues.map((issue) => issue.message)).toEqual(
       expect.arrayContaining([
-        '控件「dept」的运行能力尚未开放，暂不能发布',
+        '控件「deptgroup」的运行能力尚未开放，暂不能发布',
         '条件字段「_widget_dept」的运行能力尚未开放，暂不能发布',
       ]),
     );

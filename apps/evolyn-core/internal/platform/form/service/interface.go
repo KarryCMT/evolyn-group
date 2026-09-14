@@ -21,6 +21,12 @@ type MemberReferenceDirectory interface {
 	ResolveMemberReferences(ctx context.Context, references []string) ([]model.MemberReference, error)
 }
 
+// DepartmentDirectory 是 IAM 到表单域的提交终审窄端口。返回值仅包含当前租户内
+// 可供新记录选择的有效部门 ID；不存在、跨租户或停用部门均不得进入表单记录。
+type DepartmentDirectory interface {
+	ResolveActiveDepartmentIDs(ctx context.Context, references []string) (map[string]bool, error)
+}
+
 // MenuMaintenance 表单资产菜单节点维护窄端口（M2-资产-1）：由 application
 // 域在装配层适配；表单域在创建/改名/删除的事务内调用，菜单节点写入与
 // menu_revision 递增随之加入同一事务（跨域经窄端口，域间不直接依赖）。

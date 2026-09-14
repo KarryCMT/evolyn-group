@@ -8,6 +8,7 @@ import (
 	_ "net/http/pprof"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -538,6 +539,11 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// 前端 N+1，也不与 IAM 仓储形成反向依赖。
 	if injector, ok := formService.(formservice.MemberReferenceDirectoryInjector); ok {
 		injector.UseMemberReferenceDirectory(formMemberReferenceDirectory{users: iamRepo.User()})
+	}
+	// 部门字段的目录终审与成员展示目录职责不同：前者是提交安全边界，只返回
+	// 当前租户内 active 部门 ID，阻止浏览器伪造或复用其他租户的自增 ID。
+	if injector, ok := formService.(formservice.DepartmentDirectoryInjector); ok {
+		injector.UseDepartmentDirectory(formDepartmentDirectory{departments: iamRepo.Department()})
 	}
 
 	// 表单权限组（000058，表单权限 P1）：判定器（组绑定判定 + S7 字段合并 +
@@ -1453,6 +1459,31 @@ type formProjectionRecalibrator struct {
 // 它只转换 DTO，不下发账号联系方式或完整成员档案。
 type formMemberReferenceDirectory struct {
 	users repository.UserRepository
+}
+
+// formDepartmentDirectory 是 form.DepartmentDirectory 的装配适配器。仓储的
+// Tenant Callback 已绑定当前请求上下文，故跨租户部门不会进入返回集合。
+type formDepartmentDirectory struct {
+	departments repository.DepartmentRepository
+}
+
+func (d formDepartmentDirectory) ResolveActiveDepartmentIDs(ctx context.Context, references []string) (map[string]bool, error) {
+	departments, err := d.departments.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	requested := make(map[string]struct{}, len(references))
+	for _, reference := range references {
+		requested[reference] = struct{}{}
+	}
+	resolved := make(map[string]bool, len(requested))
+	for _, department := range departments {
+		id := strconv.FormatUint(uint64(department.ID), 10)
+		if _, wanted := requested[id]; wanted && department.Status == iammodel.DeptActive {
+			resolved[id] = true
+		}
+	}
+	return resolved, nil
 }
 
 func (d formMemberReferenceDirectory) ResolveMemberReferences(ctx context.Context, references []string) ([]formmodel.MemberReference, error) {

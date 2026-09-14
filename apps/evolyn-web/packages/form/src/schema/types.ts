@@ -57,7 +57,7 @@ export type FormWidgetType =
   | 'button';
 
 /**
- * 已开放运行时的发布白名单（字段字典 §6）：基础字段、成员选择与子表单。
+ * 已开放运行时的发布白名单（字段字典 §6）：基础字段、成员选择、部门单选与子表单。
  * 前后端各维护一份并保持一致，新增类型时必须同时补齐运行组件与值校验。
  */
 export const PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
@@ -75,6 +75,7 @@ export const PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'separator',
   'user',
   'usergroup',
+  'dept',
   'subform',
 ];
 

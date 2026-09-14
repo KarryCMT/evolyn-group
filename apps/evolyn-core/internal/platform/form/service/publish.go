@@ -585,6 +585,14 @@ func (s *formService) validateSubmitValues(
 		return nil, httpx.Wrap(apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": fieldErrors}),
 			fmt.Errorf("form %s record invalid: %d field(s) rejected", form.Code, len(fieldErrors)))
 	}
+	departmentErrors, err := s.validateDepartmentReferences(ctx, content, cleaned)
+	if err != nil {
+		return nil, err
+	}
+	if len(departmentErrors) > 0 {
+		return nil, httpx.Wrap(apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": departmentErrors}),
+			fmt.Errorf("form %s record has %d invalid department reference(s)", form.Code, len(departmentErrors)))
+	}
 	return cleaned, nil
 }
 

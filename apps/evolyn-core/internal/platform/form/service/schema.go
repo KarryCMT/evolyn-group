@@ -91,7 +91,7 @@ var publishableWidgetTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
 	"decimal": true, "money": true, "percent": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
-	"separator": true, "user": true, "usergroup": true, "subform": true,
+	"separator": true, "user": true, "usergroup": true, "dept": true, "subform": true,
 }
 
 // subformPublishableWidgetTypes 是已经在子表单行编辑器中实现输入、归一化和服务端

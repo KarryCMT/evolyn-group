@@ -472,8 +472,8 @@ func validateMemberGroupValue(field snapshotField, value any) []string {
 	return nil
 }
 
-// validateDepartmentValue 只接受部门目录返回的稳定字符串 ID。与成员字段一致，目录
-// 有效性由选择器与租户权限保证，提交侧仍须拒绝对象、数字等绕过 UI 的值。
+// validateDepartmentValue 只接受部门目录返回的稳定字符串 ID。本函数只负责值形状，
+// 目录的租户隔离、存在性与启用状态由提交管线的 DepartmentDirectory 终审。
 func validateDepartmentValue(field snapshotField, value any) []string {
 	departmentID, ok := value.(string)
 	if !ok || strings.TrimSpace(departmentID) == "" {

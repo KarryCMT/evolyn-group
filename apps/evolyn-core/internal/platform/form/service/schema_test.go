@@ -335,8 +335,8 @@ func TestValidateFormSchemaSubformWhitelist(t *testing.T) {
 }
 
 func TestValidatePublishable(t *testing.T) {
-	// 基础字段与成员选择字段可发布
-	basic := []string{"text", "textarea", "number", "datetime", "radiogroup", "checkboxgroup", "combo", "combocheck", "separator", "user", "usergroup"}
+	// 基础字段、成员选择与部门单选可发布。
+	basic := []string{"text", "textarea", "number", "datetime", "radiogroup", "checkboxgroup", "combo", "combocheck", "separator", "user", "usergroup", "dept"}
 	items := make([]any, 0, len(basic))
 	for i, widgetType := range basic {
 		item := validTextItem()
@@ -351,10 +351,10 @@ func TestValidatePublishable(t *testing.T) {
 	}
 	assert.Empty(t, ValidatePublishable(doc(items...)))
 
-	// 白名单外（dept）给出精确路径
+	// 白名单外（deptgroup）给出精确路径。
 	dept := validTextItem()
 	deptWidget := dept["widget"].(map[string]any)
-	deptWidget["type"] = "dept"
+	deptWidget["type"] = "deptgroup"
 	deptWidget["widgetName"] = "_widget_d1"
 	delete(deptWidget, "placeholder")
 	issues := ValidatePublishable(doc(validTextItem(), dept))
@@ -554,7 +554,7 @@ func TestValidateFieldShowRuleCycle(t *testing.T) {
 func TestValidatePublishableConditionSource(t *testing.T) {
 	dept := map[string]any{
 		"widget": map[string]any{
-			"type": "dept", "widgetName": "_widget_dept",
+			"type": "deptgroup", "widgetName": "_widget_dept",
 			"enable": true, "visible": true, "allowBlank": true,
 		},
 		"label": "部门", "description": "", "labelHidden": false, "lineWidth": 12,
@@ -562,7 +562,7 @@ func TestValidatePublishableConditionSource(t *testing.T) {
 	target := validTextItem()
 	target["widget"].(map[string]any)["widgetName"] = "_widget_target"
 	issues := ValidatePublishable(rulesDoc([]any{
-		showRule("r1", "_widget_dept", "dept", "eq", []any{"d1"}, "_widget_target"),
+		showRule("r1", "_widget_dept", "deptgroup", "containsAny", []any{"d1"}, "_widget_target"),
 	}, dept, target))
 	found := false
 	for _, issue := range issues {

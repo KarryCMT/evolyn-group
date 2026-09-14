@@ -76,7 +76,9 @@ const editor = useEditor({
   content: modelValue.value,
   editable: props.editable,
   extensions: [
-    StarterKit.configure({ link: false }),
+    // StarterKit v3 已内置 Underline；关闭内置实例后由下方统一配置的 Underline
+    // 接管，避免预览首次挂载富文本字段时注册同名 extension。
+    StarterKit.configure({ link: false, underline: false }),
     Underline,
     TextStyle,
     FontSize,

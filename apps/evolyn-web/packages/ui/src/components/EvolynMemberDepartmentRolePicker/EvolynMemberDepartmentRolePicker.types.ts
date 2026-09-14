@@ -45,6 +45,17 @@ export interface EvolynMemberDepartmentRolePickerProps {
   departments?: EvolynMemberDepartmentRolePickerTreeNode[];
   roles?: EvolynMemberDepartmentRolePickerTreeNode[];
   members?: EvolynMemberDepartmentRolePickerMember[];
+  /**
+   * 当前登录成员已归属的部门 ID；节点名称和禁用状态仍以 departments 目录为唯一事实源。
+   */
+  currentMemberDepartmentIds?: EvolynMemberDepartmentRolePickerItemId[];
+  /**
+   * 纯部门选择器是否展示“当前用户所在部门”页签。即使当前成员尚未归属部门，也应
+   * 由业务侧显式开启该入口，避免目录异步加载时页签闪烁或消失。
+   */
+  showCurrentMemberDepartmentTab?: boolean;
+  /** 当前成员没有部门时，当前成员页签使用的空态文案。 */
+  currentMemberDepartmentEmptyText?: string;
   /** 控制哪些主体页签可用，默认全部可选。 */
   selectableTypes?: EvolynMemberDepartmentRolePickerItemType[];
   /** 是否允许多选；关闭后每次选择会替换暂存结果。 */

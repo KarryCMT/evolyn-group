@@ -124,6 +124,53 @@ describe('EvolynMemberDepartmentRolePicker', () => {
     ]);
   });
 
+  it('provides the current member department tab for a department-only picker', async () => {
+    mount(EvolynMemberDepartmentRolePicker, {
+      props: {
+        open: true,
+        departments,
+        selectableTypes: ['department'],
+        currentMemberDepartmentIds: ['web'],
+        showCurrentMemberDepartmentTab: true,
+      },
+      attachTo: document.body,
+    });
+    await nextTick();
+
+    const currentMemberTab = [
+      ...document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+    ].find((tab) => tab.textContent?.trim() === '当前用户所在部门');
+    expect(currentMemberTab).toBeDefined();
+    currentMemberTab?.click();
+    await nextTick();
+
+    expect(document.body.textContent).toContain('前端组');
+    expect(document.body.textContent).not.toContain('研发部');
+  });
+
+  it('keeps the current member department tab available when the member has no department', async () => {
+    mount(EvolynMemberDepartmentRolePicker, {
+      props: {
+        open: true,
+        departments,
+        selectableTypes: ['department'],
+        currentMemberDepartmentIds: [],
+        showCurrentMemberDepartmentTab: true,
+      },
+      attachTo: document.body,
+    });
+    await nextTick();
+
+    const currentMemberTab = [
+      ...document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+    ].find((tab) => tab.textContent?.trim() === '当前用户所在部门');
+    expect(currentMemberTab).toBeDefined();
+    currentMemberTab?.click();
+    await nextTick();
+
+    expect(document.body.textContent).toContain('当前用户暂未归属部门');
+  });
+
   it('keeps only one member when memberMultiple is false', async () => {
     const wrapper = mount(EvolynMemberDepartmentRolePicker, {
       props: {

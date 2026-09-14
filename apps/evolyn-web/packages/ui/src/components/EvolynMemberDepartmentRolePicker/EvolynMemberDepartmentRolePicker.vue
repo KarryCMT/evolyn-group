@@ -19,11 +19,14 @@ const props = withDefaults(defineProps<EvolynMemberDepartmentRolePickerProps>(),
   departments: () => [],
   roles: () => [],
   members: () => [],
+  currentMemberDepartmentIds: () => [],
+  showCurrentMemberDepartmentTab: false,
   selectableTypes: () => ['department', 'role', 'member'],
   multiple: true,
   allowEmpty: false,
   searchPlaceholder: '搜索（多个关键词用空格隔开）',
   emptyText: '暂无可选择的数据',
+  currentMemberDepartmentEmptyText: '当前用户暂未归属部门',
 });
 
 const emit = defineEmits<EvolynMemberDepartmentRolePickerEmits>();
@@ -31,6 +34,7 @@ const modelValue = defineModel<EvolynMemberDepartmentRolePickerSelection[]>({ de
 const open = defineModel<boolean>('open', { default: false });
 const dialogRef = useTemplateRef<HTMLElement>('dialog');
 const draftSelection = shallowRef<EvolynMemberDepartmentRolePickerSelection[]>([]);
+const departmentView = shallowRef<'organization' | 'current-member'>('organization');
 
 const {
   activeDepartmentId,
@@ -45,12 +49,14 @@ const {
   selectedKeys,
   toggle,
   visibleDepartments,
+  visibleCurrentMemberDepartments,
   visibleMembers,
   visibleRoles,
 } = useMemberDepartmentRolePicker({
   departments: () => props.departments,
   roles: () => props.roles,
   members: () => props.members,
+  currentMemberDepartmentIds: () => props.currentMemberDepartmentIds,
   selectableTypes: () => props.selectableTypes,
   multiple: () => props.multiple,
   departmentMultiple: () => props.departmentMultiple,
@@ -62,13 +68,23 @@ const {
 // 树先拍平再交给虚拟列表，避免深层组织架构递归创建全部节点。
 const { rows: departmentVirtualRows, toggleExpanded: toggleDepartmentExpanded } =
   useVirtualTree(visibleDepartments);
+const { rows: currentMemberDepartmentVirtualRows } = useVirtualTree(
+  visibleCurrentMemberDepartments,
+);
 const { rows: roleVirtualRows, toggleExpanded: toggleRoleExpanded } = useVirtualTree(visibleRoles);
 
 const canConfirm = computed(() => props.allowEmpty || draftSelection.value.length > 0);
+const showCurrentMemberDepartmentTab = computed(
+  () =>
+    props.showCurrentMemberDepartmentTab &&
+    availableTypes.value.length === 1 &&
+    availableTypes.value[0] === 'department',
+);
 
 function resetDraft() {
   draftSelection.value = normalizeSelection(modelValue.value);
   resetView();
+  departmentView.value = 'organization';
 }
 
 function requestClose(reason: 'cancel' | 'close' | 'overlay') {
@@ -100,6 +116,10 @@ watch(
 
 watch(modelValue, () => {
   if (!open.value) resetDraft();
+});
+
+watch(showCurrentMemberDepartmentTab, (visible) => {
+  if (!visible) departmentView.value = 'organization';
 });
 </script>
 
@@ -142,24 +162,69 @@ watch(modelValue, () => {
             role="tablist"
             aria-label="选择类型"
           >
-            <button
-              v-for="type in availableTypes"
-              :key="type"
-              class="evolyn-member-department-role-picker__tab"
-              :class="{
-                'evolyn-member-department-role-picker__tab--active': activeType === type,
-              }"
-              type="button"
-              role="tab"
-              :aria-selected="activeType === type"
-              @click="activeType = type"
-            >
-              {{ type === 'department' ? '组织架构' : type === 'role' ? '角色' : '成员' }}
-            </button>
+            <template v-if="showCurrentMemberDepartmentTab">
+              <button
+                class="evolyn-member-department-role-picker__tab"
+                :class="{
+                  'evolyn-member-department-role-picker__tab--active':
+                    departmentView === 'organization',
+                }"
+                type="button"
+                role="tab"
+                :aria-selected="departmentView === 'organization'"
+                @click="departmentView = 'organization'"
+              >
+                组织架构
+              </button>
+              <button
+                class="evolyn-member-department-role-picker__tab"
+                :class="{
+                  'evolyn-member-department-role-picker__tab--active':
+                    departmentView === 'current-member',
+                }"
+                type="button"
+                role="tab"
+                :aria-selected="departmentView === 'current-member'"
+                @click="departmentView = 'current-member'"
+              >
+                当前用户所在部门
+              </button>
+            </template>
+            <template v-else>
+              <button
+                v-for="type in availableTypes"
+                :key="type"
+                class="evolyn-member-department-role-picker__tab"
+                :class="{
+                  'evolyn-member-department-role-picker__tab--active': activeType === type,
+                }"
+                type="button"
+                role="tab"
+                :aria-selected="activeType === type"
+                @click="activeType = type"
+              >
+                {{ type === 'department' ? '组织架构' : type === 'role' ? '角色' : '成员' }}
+              </button>
+            </template>
           </div>
 
           <section class="evolyn-member-department-role-picker__panel" role="tabpanel">
-            <template v-if="activeType === 'department' || activeType === 'role'">
+            <template v-if="activeType === 'department' && departmentView === 'current-member'">
+              <PickerVirtualTree
+                v-if="currentMemberDepartmentVirtualRows.length"
+                item-type="department"
+                mode="select"
+                :multiple="isMultiple('department')"
+                :rows="currentMemberDepartmentVirtualRows"
+                :selected-keys="selectedKeys"
+                :is-disabled="(item) => isDisabled(item, 'department')"
+                @select="toggle($event, 'department')"
+              />
+              <p v-else class="evolyn-member-department-role-picker__empty">
+                {{ props.currentMemberDepartmentEmptyText }}
+              </p>
+            </template>
+            <template v-else-if="activeType === 'department' || activeType === 'role'">
               <PickerVirtualTree
                 v-if="
                   activeType === 'department'

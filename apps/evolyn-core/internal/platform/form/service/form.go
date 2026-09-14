@@ -60,6 +60,7 @@ type formService struct {
 	permissions FormPermissionEvaluator   // 权限组判定器（装配期注入；nil=按 S4 基线放行）
 	groups      PermissionGroupReadSource // 权限组只读查询（switch-type/发布阻塞判定）
 	memberRefs  MemberReferenceDirectory  // 成员字段展示/卡片目录（可选注入）
+	departments DepartmentDirectory       // 部门字段提交终审目录（可选注入）
 
 	// 物理表存储（方案 §13）。装配期经 UsePhysicalStorage 注入；nil =
 	// 未装配物理链路（单测桩/存量形态），一切行为与 JSONB 时代一致。
@@ -112,9 +113,21 @@ func (s *formService) UseMemberReferenceDirectory(directory MemberReferenceDirec
 	s.memberRefs = directory
 }
 
+// UseDepartmentDirectory 注入部门目录终审端口。表单域只依赖当前租户的最小
+// 有效性视图，禁止直接依赖 IAM 仓储或相信浏览器提供的部门 ID。
+func (s *formService) UseDepartmentDirectory(directory DepartmentDirectory) {
+	s.departments = directory
+}
+
 // MemberReferenceDirectoryInjector 是装配期可选能力。
 type MemberReferenceDirectoryInjector interface {
 	UseMemberReferenceDirectory(directory MemberReferenceDirectory)
+}
+
+// DepartmentDirectoryInjector 是装配期可选能力。生产装配必须注入；未注入仅
+// 保留给历史纯领域单测，避免无 IAM 目录的测试桩被迫构造无关依赖。
+type DepartmentDirectoryInjector interface {
+	UseDepartmentDirectory(directory DepartmentDirectory)
 }
 
 // FormReferenceSourceInjector 装配期注入能力（可选）。

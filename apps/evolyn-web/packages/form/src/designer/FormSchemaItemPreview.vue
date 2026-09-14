@@ -58,6 +58,15 @@
     >
       <span class="form-schema-item-preview__member-placeholder">＋ 选择成员</span>
     </button>
+    <!-- 部门单选与运行时一样使用当前租户组织树；画布只呈现不可交互的外观。 -->
+    <button
+      v-else-if="widget.type === 'dept'"
+      class="form-schema-item-preview__member"
+      type="button"
+      disabled
+    >
+      <span class="form-schema-item-preview__member-placeholder">＋ 选择部门</span>
+    </button>
     <!-- 其余控件（P3+ 分组）：统一占位预览 -->
     <el-input v-else disabled :placeholder="`${widgetLabel}（随后续版本开放）`" />
   </div>

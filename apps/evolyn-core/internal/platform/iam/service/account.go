@@ -563,9 +563,15 @@ type UserInfoResult struct {
 	EffectiveQuotas map[string]int64    `json:"effectiveQuotas"`
 }
 
-// GetUserInfo 聚合账号资料、成员身份与租户配置/套餐（member 由调用方从会话提供）
+// GetUserInfo 聚合账号资料、成员身份与租户配置/套餐。认证中间件中的成员快照只
+// 预载鉴权所需的角色与分组；此处需要向表单运行时提供当前成员的部门，故按成员
+// 档案读模型重新加载，避免把每个受保护请求都扩大为部门关联查询。
 func (s *accountService) GetUserInfo(ctx context.Context, accountID uint, member *model.User) (*UserInfoResult, error) {
 	account, err := s.accountRepo.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	member, err = s.userRepo.GetMemberDetail(ctx, member.ID)
 	if err != nil {
 		return nil, err
 	}

@@ -7,6 +7,7 @@ import { normalizeQuery, validateQuery } from '@evolyn.do/query';
 import { RiFileList2Fill, RiFileChartFill, RiTimeFill, RiUser3Fill } from '@remixicon/vue';
 import { computed, markRaw, readonly, shallowRef, watch } from 'vue';
 import { getFormRuntime, listFormRecords } from '~/api/form';
+import { getDepartmentTree, type DepartmentDto } from '~/api/department';
 import { widgetIconOfType } from '~/components/form/widgetIcons';
 
 export type FormRecordDataStatus = 'loading' | 'ready' | 'error';
@@ -195,7 +196,11 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
       ]);
       if (version !== requestVersion) return;
       runtime.value = bootstrap;
-      records.value = [...page.records];
+      // 部门记录只保存稳定 ID；数据管理页按当前租户目录一次取树并投影名称，
+      // 不能在每个单元格中发请求。历史中已删除的 ID 保留受控回退文案。
+      const departmentNames = await loadDepartmentNames(bootstrap);
+      if (version !== requestVersion) return;
+      records.value = formatDepartmentRecordValues(page.records, bootstrap, departmentNames);
       total.value = page.total;
       status.value = 'ready';
     } catch {
@@ -327,6 +332,52 @@ function columnsFromRuntime(runtime: FormRuntimeBootstrap | null): DataColumn[] 
 
 function isMemberWidgetType(type: string): boolean {
   return type === 'user' || type === 'usergroup';
+}
+
+function hasDepartmentField(runtime: FormRuntimeBootstrap): boolean {
+  return runtime.content.content.items.some((item) => item.widget.type === 'dept');
+}
+
+async function loadDepartmentNames(runtime: FormRuntimeBootstrap): Promise<ReadonlyMap<string, string>> {
+  if (!hasDepartmentField(runtime)) return new Map();
+  try {
+    return flattenDepartmentNames(await getDepartmentTree());
+  } catch {
+    // 名称投影失败不影响已获授权的记录读取；下次分页刷新会重试目录请求。
+    return new Map();
+  }
+}
+
+function flattenDepartmentNames(departments: readonly DepartmentDto[]): ReadonlyMap<string, string> {
+  const names = new Map<string, string>();
+  const visit = (nodes: readonly DepartmentDto[]) => {
+    for (const department of nodes) {
+      names.set(String(department.id), department.name);
+      if (department.children?.length) visit(department.children);
+    }
+  };
+  visit(departments);
+  return names;
+}
+
+function formatDepartmentRecordValues(
+  records: readonly DataRecord[],
+  runtime: FormRuntimeBootstrap,
+  names: ReadonlyMap<string, string>,
+): DataRecord[] {
+  const fields = runtime.content.content.items
+    .filter((item) => item.widget.type === 'dept')
+    .map((item) => item.widget.widgetName);
+  if (fields.length === 0) return [...records];
+  return records.map((record) => {
+    const displayed: DataRecord = { ...record };
+    for (const field of fields) {
+      const reference = record[field];
+      if (typeof reference !== 'string' || !reference) continue;
+      displayed[field] = names.get(reference) ?? `已删除部门（${reference}）`;
+    }
+    return displayed;
+  });
 }
 
 /** 名称仅来自服务端本页批量投影；未解析的历史值保留受控回退，绝不触发单元格请求。 */
