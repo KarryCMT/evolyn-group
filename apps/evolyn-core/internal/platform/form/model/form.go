@@ -14,9 +14,8 @@ import (
 // （standard↔workflow），切换后原类型流程数据保留；切换裁决在 Service 层。
 type FormType string
 
-// CurrentProtocolVersion 当前表单保存协议版本；v8 增加字段不可变标识
-// fieldId（物理表存储方案 §4.1 契约冻结：fieldId→物理列名永不变更）。
-const CurrentProtocolVersion = 8
+// CurrentProtocolVersion 当前表单保存协议版本；v9 将流水号升级为可排序规则片段。
+const CurrentProtocolVersion = 9
 
 // FieldIdentityProtocolVersion 字段身份协议（v8）的最低协议版本：该版本起
 // 值字段必须携带内部不可变 fieldId（10 位小写 base32），发布后 fieldId 与
@@ -119,6 +118,23 @@ type FormRecord struct {
 }
 
 func (*FormRecord) TableName() string { return "tn_form_records" }
+
+// FormSerialCounter 是流水号的服务端计数事实源。NextValue 始终表示下一个可分配值；
+// 周期键由发号服务按提交时刻生成，避免浏览器时钟或记录删除影响连续性。
+type FormSerialCounter struct {
+	ID        uint   `gorm:"autoIncrement;primaryKey"`
+	TenantID  uint   `gorm:"not null;uniqueIndex:uq_form_serial_counter_scope,priority:1"`
+	FormID    uint   `gorm:"not null;uniqueIndex:uq_form_serial_counter_scope,priority:2"`
+	FieldID   string `gorm:"size:10;not null;uniqueIndex:uq_form_serial_counter_scope,priority:3"`
+	CycleKey  string `gorm:"size:16;not null;uniqueIndex:uq_form_serial_counter_scope,priority:4"`
+	NextValue int64  `gorm:"not null"`
+
+	// 计数器是技术状态表，不承载操作者与软删除；保留与 SQL migration 一致的三列。
+	CreatedAt kernel.JSONTime `json:"createdAt"`
+	UpdatedAt kernel.JSONTime `json:"updatedAt"`
+}
+
+func (*FormSerialCounter) TableName() string { return "tn_form_serial_counters" }
 
 // JSONContent JSONB 原文载体：保存协议要求「未编辑属性不丢失」，因此草稿/快照
 // 一律原样字节存取（校验在 Service 层完成），不经 map 往返避免键序与空值失真。

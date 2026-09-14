@@ -60,7 +60,7 @@ export type WidgetPropKind =
   | 'widgetItems'
   | 'stickyColumn'
   | 'expression'
-  | 'snRule'
+  | 'snRules'
   | 'linkFilters'
   | 'linkSorts'
   | 'linkMappings'
@@ -624,7 +624,7 @@ export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
     group: 'relation',
     valueKind: 'string',
     props: {
-      rule: { kind: 'snRule' },
+      rules: { kind: 'snRules', required: true },
     },
   },
   richtext: {
@@ -730,6 +730,9 @@ export function createWidgetItem(type: FormWidgetType): FormItem {
   };
   // 仅选项类控件带必填 options；数值上限类属性缺省即「未启用」，不预写。
   if (spec.props.options?.required) widget.options = defaultOptions();
+  // 单选组与复选组默认横向排列；显式写入草稿，确保后续字典默认调整不会改变已创建
+  // 字段的展示结果，运行时对缺失 layout 的历史快照也按同一默认值解释。
+  if (type === 'radiogroup' || type === 'checkboxgroup') widget.layout = 'horizontal';
   // datetime 的 format 非必填但语义分叉（date/datetime/month/time 对应四种
   // 物理列形态），新建时显式预写 datetime——与服务端缺省兜底口径一致，
   // 避免草稿出现裸 datetime 触发物理发布矩阵的兜底路径。
@@ -751,6 +754,13 @@ export function createWidgetItem(type: FormWidgetType): FormItem {
   }
   // 金额字段必须在新快照中固化默认币种；历史字段缺省时仍按 CNY 兼容展示。
   if (type === 'money') widget.currencyCode = 'CNY';
+  // 流水号默认从 1 开始、固定 5 位且不自动重置；计数器不可删除，但可在属性面板中排序。
+  if (type === 'sn') {
+    widget.enable = false;
+    widget.rules = [
+      { type: 'counter', digits: 5, fixedWidth: true, resetCycle: 'none', initialValue: 1 },
+    ];
+  }
   if (type === 'subform') {
     Object.assign(widget, {
       items: [],

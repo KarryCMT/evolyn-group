@@ -150,7 +150,7 @@ const (
 // 不支持数据条件（无确定值形状的字段：图片/附件/定位/签名/关联/子表单等）
 func permissionClassOfWidget(widgetType string) permissionFieldClass {
 	switch widgetType {
-	case "text", "textarea":
+	case "text", "textarea", "sn":
 		return permFieldClassText
 	case "number", "decimal", "money", "percent":
 		// 数值字段族值形态 decimal string，物理列 NUMERIC(p,s)：

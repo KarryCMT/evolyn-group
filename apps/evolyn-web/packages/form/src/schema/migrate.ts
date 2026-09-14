@@ -72,8 +72,11 @@ export function migrateFormSchema(
   if (sourceVersion <= 6 && isV1Document(candidate)) {
     candidate = normalizeSubmitValidationV7(candidate);
   }
-  if (sourceVersion <= 7 && isV1Document(candidate)) {
+ if (sourceVersion <= 7 && isV1Document(candidate)) {
     candidate = normalizeFieldIdentityV8(candidate);
+  }
+  if (sourceVersion <= 8 && isV1Document(candidate)) {
+    candidate = normalizeSerialNumberV9(candidate);
   }
   const result = validateFormSchema(candidate);
   if (!result.valid || !result.document) {
@@ -169,6 +172,33 @@ function normalizeFieldIdentityV8(input: unknown): unknown {
     }
   };
   walk(content.items);
+  return document;
+}
+
+/** v8 → v9：将从未开放运行时的旧 sn.rule 升级为片段数组，保留其显示顺序。 */
+function normalizeSerialNumberV9(input: unknown): unknown {
+  const document = cloneFormSchema(input as FormSchemaDocument);
+  for (const item of document.content.items) {
+    if (item.widget.type !== 'sn') continue;
+    const legacy = item.widget as unknown as Record<string, unknown>;
+    if (Array.isArray(legacy.rules)) continue;
+    const rule = isPlainRecord(legacy.rule) ? legacy.rule : {};
+    const prefix = typeof rule.prefix === 'string' ? rule.prefix : '';
+    const dateFmt = rule.dateFmt === 'yyyyMM' || rule.dateFmt === 'yyyyMMdd' ? rule.dateFmt : null;
+    const digits = typeof rule.seqLength === 'number' ? rule.seqLength : 5;
+    legacy.rules = [
+      ...(prefix ? [{ type: 'literal', value: prefix }] : []),
+      ...(dateFmt ? [{ type: 'submittedAt', format: dateFmt, formatType: rule.formatType === 'custom' ? 'custom' : 'preset' }] : []),
+      {
+        type: 'counter',
+        digits,
+        fixedWidth: true,
+        resetCycle: typeof rule.resetCycle === 'string' ? rule.resetCycle : 'none',
+        initialValue: 1,
+      },
+    ];
+    delete legacy.rule;
+  }
   return document;
 }
 

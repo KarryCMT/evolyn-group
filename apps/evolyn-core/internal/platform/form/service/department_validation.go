@@ -8,7 +8,8 @@ import (
 
 // validateDepartmentReferences 在值协议终审完成后复核部门目录。值校验只负责
 // string 形状；目录校验才是租户隔离边界，不能由前端部门树或物理 BIGINT 转换替代。
-// 当前仅开放 dept 单选，deptgroup 在具备数组物理存储前仍不会进入已发布快照。
+// 单选与多选均在此逐项复核；多选字段以 BIGINT[] 物理列保存，但目录校验仍
+// 必须发生在写入前，避免浏览器构造跨租户或已停用的部门 ID。
 func (s *formService) validateDepartmentReferences(
 	ctx context.Context,
 	content map[string]any,
@@ -20,11 +21,18 @@ func (s *formService) validateDepartmentReferences(
 	}
 	references := make([]string, 0)
 	for name, field := range fields {
-		if field.widgetType != "dept" {
+		if field.widgetType != "dept" && field.widgetType != "deptgroup" {
 			continue
 		}
 		if reference, ok := values[name].(string); ok && strings.TrimSpace(reference) != "" {
 			references = append(references, reference)
+		}
+		if selections, ok := values[name].([]any); ok {
+			for _, selection := range selections {
+				if reference, ok := selection.(string); ok && strings.TrimSpace(reference) != "" {
+					references = append(references, reference)
+				}
+			}
 		}
 	}
 	if len(references) == 0 {
@@ -41,14 +49,25 @@ func (s *formService) validateDepartmentReferences(
 	}
 	fieldErrors := RecordFieldErrors{}
 	for name, field := range fields {
-		if field.widgetType != "dept" {
+		if field.widgetType != "dept" && field.widgetType != "deptgroup" {
 			continue
 		}
-		reference, ok := values[name].(string)
-		if !ok || strings.TrimSpace(reference) == "" || valid[reference] {
-			continue
+		invalid := false
+		switch references := values[name].(type) {
+		case string:
+			invalid = strings.TrimSpace(references) != "" && !valid[references]
+		case []any:
+			for _, selection := range references {
+				reference, ok := selection.(string)
+				if ok && strings.TrimSpace(reference) != "" && !valid[reference] {
+					invalid = true
+					break
+				}
+			}
 		}
-		fieldErrors[name] = []string{fmt.Sprintf("%s不存在、已停用或无权选择", field.label)}
+		if invalid {
+			fieldErrors[name] = []string{fmt.Sprintf("%s不存在、已停用或无权选择", field.label)}
+		}
 	}
 	return fieldErrors, nil
 }

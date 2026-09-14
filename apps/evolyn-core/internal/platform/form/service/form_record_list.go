@@ -180,9 +180,13 @@ func (s *formService) physicalListBinding(ctx context.Context, form *model.Form)
 			fmt.Errorf("form %s has no applied storage model", form.Code))
 	}
 	physicalColumns := make(map[string]string, len(applied.Columns))
+	physicalArrayColumns := make(map[string]bool)
 	columns := make([]repository.PhysicalColumn, 0, len(applied.Columns))
 	for _, column := range activeColumns(applied.Columns) {
 		physicalColumns[column.WidgetName] = column.ColumnName()
+		if column.Kind == storagepkg.KindRefArray {
+			physicalArrayColumns[column.WidgetName] = true
+		}
 		columns = append(columns, repository.PhysicalColumn{WidgetName: column.WidgetName, Column: column})
 	}
 	children := make([]storagepkg.ChildTableSpec, 0, len(applied.Children))
@@ -191,7 +195,7 @@ func (s *formService) physicalListBinding(ctx context.Context, form *model.Form)
 			children = append(children, child)
 		}
 	}
-	return RecordQueryCompileOptions{Physical: true, PhysicalColumns: physicalColumns},
+	return RecordQueryCompileOptions{Physical: true, PhysicalColumns: physicalColumns, PhysicalArrayColumns: physicalArrayColumns},
 		&repository.PhysicalListBinding{
 			TableName: binding.PhysicalTable,
 			Columns:   columns,

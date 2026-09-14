@@ -40,6 +40,26 @@ func TestCompileRecordQueryConditionCompilesNumericMembership(t *testing.T) {
 	assert.Contains(t, compiled.Args, float64(2.5))
 }
 
+func TestCompileRecordListQueryCompilesPhysicalDepartmentGroup(t *testing.T) {
+	mappings := []SnapshotFieldMapping{{
+		WidgetName: "departments", WidgetType: "deptgroup", JSONBKey: "departments",
+	}}
+	fields := []permissionFieldMeta{{Key: "departments", WidgetType: "deptgroup"}}
+	options := RecordQueryCompileOptions{
+		Physical:             true,
+		PhysicalColumns:      map[string]string{"departments": "f_abcdefghij"},
+		PhysicalArrayColumns: map[string]bool{"departments": true},
+	}
+	compiled, err := CompileRecordListQuery(model.RecordQueryDocument{
+		Version: 1,
+		Filter:  &model.RecordQueryExpression{Type: "condition", Field: "departments", Operator: "in", Value: []any{"12", "25"}},
+	}, mappings, fields, options)
+	require.NoError(t, err)
+	assert.Contains(t, compiled.Where, "ANY(d.f_abcdefghij)")
+	assert.NotContains(t, compiled.Where, "jsonb_exists")
+	assert.Equal(t, []any{int64(12), int64(25)}, compiled.Args)
+}
+
 func TestSnapshotFieldMappingsDerivesLegacyPublishedSnapshot(t *testing.T) {
 	version := &model.FormVersion{
 		// 000065 之前的不可变版本仅有 content；读取侧不得清空这些历史

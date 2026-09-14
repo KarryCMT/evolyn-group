@@ -52,7 +52,7 @@ func compileRecordExpression(expression model.RecordQueryExpression, fields map[
 		if !ok {
 			return CompiledRecordQuery{}, fmt.Errorf("query field %q is not present in published field mappings", expression.Field)
 		}
-		return compileUserCondition(field, expression.Operator, expression.Value, options.compiler())
+		return compileUserCondition(field, expression.Operator, expression.Value, options.compiler(), options.PhysicalArrayColumns[field.mapping.WidgetName])
 	case "group":
 		if len(expression.Children) == 0 || len(expression.Children) > 50 {
 			return CompiledRecordQuery{}, fmt.Errorf("query group must contain 1 to 50 children")

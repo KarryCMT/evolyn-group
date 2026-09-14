@@ -11,7 +11,8 @@
 /** 协议版本常量；递增时必须同步版本迁移器（migrate.ts）与字段字典。
  * v8 起值字段必须携带内部不可变 fieldId（物理表存储 §4.1 契约冻结：
  * fieldId→物理列名 f_<fieldId> 永不变更；widgetName 同步冻结，只允许改 label）。 */
-export const FORM_PROTOCOL_VERSION = 8 as const;
+// v9 将流水号由固定前缀/日期配置升级为可排序的规则片段；历史 v8 文档在读取时迁移。
+export const FORM_PROTOCOL_VERSION = 9 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -57,7 +58,7 @@ export type FormWidgetType =
   | 'button';
 
 /**
- * 已开放运行时的发布白名单（字段字典 §6）：基础字段、成员选择、部门单选与子表单。
+ * 已开放运行时的发布白名单（字段字典 §6）：基础字段、成员/部门选择与子表单。
  * 前后端各维护一份并保持一致，新增类型时必须同时补齐运行组件与值校验。
  */
 export const PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
@@ -76,6 +77,8 @@ export const PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'user',
   'usergroup',
   'dept',
+  'deptgroup',
+  'sn',
   'subform',
 ];
 
@@ -97,6 +100,7 @@ export const SUBFORM_PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
   'combo',
   'combocheck',
   'user',
+  'deptgroup',
 ];
 
 /** 选项结构：label/value 均为 1–100 字符，组内 value 唯一。 */
@@ -440,16 +444,51 @@ export interface AggregationWidget extends FormWidgetCommon {
   displayMode?: 'plain' | 'percent';
 }
 
-export interface SnRule {
-  prefix?: string;
-  dateFmt?: 'none' | 'yyyyMM' | 'yyyyMMdd';
-  seqLength?: number;
-  resetCycle?: 'none' | 'daily' | 'monthly' | 'yearly';
+export type SnResetCycle = 'none' | 'daily' | 'monthly' | 'yearly';
+export type SnDateFormatType = 'preset' | 'custom';
+
+/**
+ * 日期片段使用 Java 风格 yyyy / MM / dd token；预设格式只是编辑器的快捷项，
+ * 自定义格式仍由同一套 token 白名单约束，避免把任意模板带入服务端。
+ */
+export type SnDateFormat = string;
+
+/** 自动计数是流水号的唯一序列来源；每个 sn 字段必须恰好配置一个。 */
+export interface SnCounterRulePart {
+  type: 'counter';
+  digits: number;
+  fixedWidth: boolean;
+  resetCycle: SnResetCycle;
+  initialValue: number;
 }
+
+export interface SnSubmittedAtRulePart {
+  type: 'submittedAt';
+  format: SnDateFormat;
+  /** 缺省视为 preset，兼容首版 v9 文档。 */
+  formatType?: SnDateFormatType;
+}
+
+export interface SnLiteralRulePart {
+  type: 'literal';
+  value: string;
+}
+
+/** 字段引用固定为 fieldId，避免改标题或历史 widgetName 导致规则漂移。 */
+export interface SnFieldRulePart {
+  type: 'field';
+  fieldId: string;
+}
+
+export type SnRulePart =
+  | SnCounterRulePart
+  | SnSubmittedAtRulePart
+  | SnLiteralRulePart
+  | SnFieldRulePart;
 
 export interface SnWidget extends FormWidgetCommon {
   type: 'sn';
-  rule?: SnRule;
+  rules: SnRulePart[];
 }
 
 export interface RichTextWidget extends FormWidgetCommon {

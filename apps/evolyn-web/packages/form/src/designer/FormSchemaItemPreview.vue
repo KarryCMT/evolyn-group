@@ -35,14 +35,33 @@
     />
     <!-- 日期时间：按 format 提示输入形态 -->
     <el-input v-else-if="widget.type === 'datetime'" disabled :placeholder="datePlaceholder" />
-    <!-- 选项类：禁用态下拉预览（单选/多选） -->
-    <el-select
-      v-else-if="widget.type === 'combo' || widget.type === 'radiogroup'"
+    <!-- 流水号由服务端在成功提交时写入，设计态只展示不可填写的占位。 -->
+    <el-input v-else-if="widget.type === 'sn'" disabled placeholder="自动生成无需填写" />
+    <!-- 单选组/复选组直接呈现对应的选择控件，而不是复用下拉框外观。 -->
+    <el-radio-group
+      v-else-if="widget.type === 'radiogroup'"
+      class="form-schema-item-preview__choices"
+      :class="{ 'form-schema-item-preview__choices--vertical': choiceLayout === 'vertical' }"
       disabled
-      :placeholder="placeholderText"
-    />
+    >
+      <el-radio v-for="option in choiceOptions" :key="option.value" :value="option.value">
+        {{ option.label }}
+      </el-radio>
+    </el-radio-group>
+    <el-checkbox-group
+      v-else-if="widget.type === 'checkboxgroup'"
+      class="form-schema-item-preview__choices"
+      :class="{ 'form-schema-item-preview__choices--vertical': choiceLayout === 'vertical' }"
+      disabled
+    >
+      <el-checkbox v-for="option in choiceOptions" :key="option.value" :value="option.value">
+        {{ option.label }}
+      </el-checkbox>
+    </el-checkbox-group>
+    <!-- 下拉框/下拉多选框保留下拉式预览。 -->
+    <el-select v-else-if="widget.type === 'combo'" disabled :placeholder="placeholderText" />
     <el-select
-      v-else-if="widget.type === 'combocheck' || widget.type === 'checkboxgroup'"
+      v-else-if="widget.type === 'combocheck'"
       multiple
       collapse-tags
       disabled
@@ -58,10 +77,13 @@
     >
       <span class="form-schema-item-preview__member-placeholder">＋ 选择成员</span>
     </button>
-    <!-- 部门单选与运行时一样使用当前租户组织树；画布只呈现不可交互的外观。 -->
+    <!-- 部门字段与运行时使用同一「选择部门」视觉语言；设计画布不触发组织树弹窗。 -->
     <button
-      v-else-if="widget.type === 'dept'"
+      v-else-if="widget.type === 'dept' || widget.type === 'deptgroup'"
       class="form-schema-item-preview__member"
+      :class="{
+        'form-schema-item-preview__member--department-multiple': widget.type === 'deptgroup',
+      }"
       type="button"
       disabled
     >
@@ -74,8 +96,18 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
-import { ElDivider, ElInput, ElInputNumber, ElSelect } from 'element-plus';
+import {
+  ElCheckbox,
+  ElCheckboxGroup,
+  ElDivider,
+  ElInput,
+  ElInputNumber,
+  ElRadio,
+  ElRadioGroup,
+  ElSelect,
+} from 'element-plus';
 import type { FormItem } from '../schema/types';
+import { readWidgetOptions } from '../schema/codec';
 import { widgetTypeLabel } from '../schema/dictionary';
 import { sanitizeRichTextDescription } from '../schema/richTextDescription';
 
@@ -102,6 +134,13 @@ const separatorContent = computed(() =>
 const separatorDescriptionHtml = computed(() =>
   widget.value.type === 'separator' ? descriptionHtml.value : '',
 );
+const choiceOptions = computed(() => readWidgetOptions(widget.value));
+const choiceLayout = computed(() => {
+  if (widget.value.type === 'radiogroup' || widget.value.type === 'checkboxgroup') {
+    return widget.value.layout ?? 'horizontal';
+  }
+  return 'horizontal';
+});
 const placeholderText = computed(() => {
   const placeholder = (widget.value as { placeholder?: string }).placeholder;
   if (placeholder !== undefined) return placeholder;
@@ -166,6 +205,22 @@ const datePlaceholder = computed(() => {
     width: 100% !important;
   }
 
+  &__choices {
+    display: flex;
+    flex-flow: row wrap;
+    gap: var(--el-space-sm) var(--el-space-lg);
+  }
+
+  &__choices--vertical {
+    flex-direction: column;
+    align-items: flex-start;
+
+    :deep(.el-radio),
+    :deep(.el-checkbox) {
+      margin-right: 0;
+    }
+  }
+
   &__member {
     display: flex;
     width: 100%;
@@ -183,6 +238,17 @@ const datePlaceholder = computed(() => {
 
     &--multiple {
       min-height: 62px;
+    }
+
+    // 部门多选与运行时统一限制为 68px；标签超出时在字段内部滚动，避免设计画布
+    // 因单个字段被撑高而影响相邻字段的布局。
+    &--department-multiple {
+      box-sizing: border-box;
+      height: 68px;
+      min-height: 68px;
+      max-height: 68px;
+      overflow-x: hidden;
+      overflow-y: auto;
     }
   }
 }

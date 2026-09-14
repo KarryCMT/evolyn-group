@@ -73,6 +73,13 @@ const multiValue = computed(() =>
     ? props.modelValue.filter((entry): entry is string => typeof entry === 'string')
     : [],
 );
+const choiceLayoutVertical = computed(() => {
+  const widget = props.field.widget;
+  return (
+    (widget.type === 'radiogroup' || widget.type === 'checkboxgroup') &&
+    widget.layout === 'vertical'
+  );
+});
 const inputId = computed(() => props.inputId ?? `evf-subform-${props.field.widget.widgetName}`);
 // 子表单与顶层字段保持相同的默认高度；自动增高从一行内容开始计算。
 const textareaAutosize = computed(() =>
@@ -257,7 +264,10 @@ function blur(): void {
     :model-value="stringValue"
     class="evf-web-subform-cell__choice-group"
     :disabled="isInteractiveDisabled"
-    :class="{ 'is-error': invalid }"
+    :class="{
+      'is-error': invalid,
+      'evf-web-subform-cell__choice-group--vertical': choiceLayoutVertical,
+    }"
     @update:model-value="update"
     @change="blur"
   >
@@ -270,7 +280,10 @@ function blur(): void {
     :model-value="multiValue"
     class="evf-web-subform-cell__choice-group"
     :disabled="isInteractiveDisabled"
-    :class="{ 'is-error': invalid }"
+    :class="{
+      'is-error': invalid,
+      'evf-web-subform-cell__choice-group--vertical': choiceLayoutVertical,
+    }"
     @update:model-value="update"
     @change="blur"
   >
@@ -346,6 +359,16 @@ function blur(): void {
     gap: var(--el-space-sm) var(--el-space-lg);
     align-items: center;
     min-height: 32px;
+  }
+
+  &__choice-group--vertical {
+    flex-direction: column;
+    align-items: flex-start;
+
+    :deep(.el-radio),
+    :deep(.el-checkbox) {
+      margin-right: 0;
+    }
   }
 
   &__unsupported {

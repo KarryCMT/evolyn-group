@@ -42,7 +42,7 @@ const (
 	kindLinkSorts    propKind = "linkSorts"
 	kindLinkMaps     propKind = "linkMappings"
 	kindExpression   propKind = "expression"
-	kindSnRule       propKind = "snRule"
+	kindSnRules      propKind = "snRules"
 	kindButtonAct    propKind = "buttonAction"
 )
 
@@ -91,18 +91,18 @@ var publishableWidgetTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
 	"decimal": true, "money": true, "percent": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
-	"separator": true, "user": true, "usergroup": true, "dept": true, "subform": true,
+	"separator": true, "user": true, "usergroup": true, "dept": true, "deptgroup": true, "sn": true, "subform": true,
 }
 
 // subformPublishableWidgetTypes 是已经在子表单行编辑器中实现输入、归一化和服务端
-// 终审的子项集合。成员单选复用宿主注册的人员选择器，值按稳定成员 ID 校验。
+// 终审的子项集合。成员单选与部门多选复用宿主注册的组织选择器，值按稳定 ID 校验。
 // subformAllowedTypes 是设计期结构白名单，范围刻意更大，二者不能混用，否则发布后
 // 会出现可提交但无法运行的字段。
 var subformPublishableWidgetTypes = map[string]bool{
 	"text": true, "textarea": true, "number": true, "datetime": true,
 	"decimal": true, "money": true, "percent": true,
 	"radiogroup": true, "checkboxgroup": true, "combo": true, "combocheck": true,
-	"user": true,
+	"user": true, "deptgroup": true,
 }
 
 // subformAllowedTypes 子表单子项白名单：禁止无行值语义的 separator/richtext/subform。
@@ -323,7 +323,7 @@ var widgetSpecs = map[string]widgetSpec{
 		"displayMode": {kind: kindEnum, enum: []string{"plain", "percent"}},
 	}},
 	"sn": {label: "流水号", props: map[string]propSpec{
-		"rule": {kind: kindSnRule},
+		"rules": {kind: kindSnRules, required: true},
 	}},
 	"richtext": {label: "富文本", props: map[string]propSpec{
 		"toolbar": {kind: kindStringArray, maxItems: 30},
@@ -509,6 +509,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	fieldIDScope := map[string]string{}
 	for i, rawItem := range items {
 		validateItem(rawItem, fmt.Sprintf("content.items[%d]", i), scopeNames, protocolVersion, fieldIDScope, issues)
+	}
+	if protocolVersion >= 9 {
+		validateSerialNumberRules(items, issues)
 	}
 	if protocolVersion >= 2 {
 		validateLayouts(content, scopeNames, issues)
@@ -787,8 +790,13 @@ func validateWidget(raw any, path string, spec widgetSpec, scopeNames map[string
 		// v8 起值字段携带内部不可变 fieldId（物理列名推导的唯一来源）
 		allowed = append(allowed, "fieldId")
 	}
-	for key := range spec.props {
-		allowed = append(allowed, key)
+	legacySerial := widgetType == "sn" && protocolVersion < 9
+	if legacySerial {
+		allowed = append(allowed, "rule")
+	} else {
+		for key := range spec.props {
+			allowed = append(allowed, key)
+		}
 	}
 	rejectUnknownKeys(widget, allowed, path, issues)
 
@@ -837,6 +845,12 @@ func validateWidget(raw any, path string, spec widgetSpec, scopeNames map[string
 		}
 	}
 
+	if legacySerial {
+		if value, present := widget["rule"]; present {
+			validateLegacySnRule(value, path+".rule", issues)
+		}
+		return
+	}
 	for _, key := range sortedKeys(spec.props) {
 		propSpec := spec.props[key]
 		value, present := widget[key]
@@ -950,8 +964,8 @@ func validateWidgetProp(value any, spec propSpec, path, key string, protocolVers
 		validateLinkMappings(value, path, issues)
 	case kindExpression:
 		validateAggregationExpression(value, path, issues)
-	case kindSnRule:
-		validateSnRule(value, path, issues)
+	case kindSnRules:
+		validateSnRules(value, path, issues)
 	case kindButtonAct:
 		validateButtonAction(value, path, issues)
 	}
@@ -1157,7 +1171,8 @@ func validateAggregationExpression(value any, path string, issues *[]SchemaIssue
 	}
 }
 
-func validateSnRule(value any, path string, issues *[]SchemaIssue) {
+// validateLegacySnRule 仅用于读取 v8 及更早的未开放流水号草稿；v9 起统一使用 rules。
+func validateLegacySnRule(value any, path string, issues *[]SchemaIssue) {
 	rule, ok := value.(map[string]any)
 	if !ok {
 		*issues = append(*issues, SchemaIssue{Path: path, Message: "rule 必须是对象"})
@@ -1199,6 +1214,163 @@ func validateSnRule(value any, path string, issues *[]SchemaIssue) {
 	}
 }
 
+func validateSnRules(value any, path string, issues *[]SchemaIssue) {
+	parts, ok := value.([]any)
+	if !ok || len(parts) == 0 || len(parts) > 10 {
+		*issues = append(*issues, SchemaIssue{Path: path, Message: "rules 必须是包含 1–10 个片段的数组"})
+		return
+	}
+	counters := 0
+	for index, rawPart := range parts {
+		partPath := fmt.Sprintf("%s[%d]", path, index)
+		part, ok := rawPart.(map[string]any)
+		if !ok {
+			*issues = append(*issues, SchemaIssue{Path: partPath, Message: "流水号片段必须是对象"})
+			continue
+		}
+		typeName, _ := part["type"].(string)
+		switch typeName {
+		case "counter":
+			counters++
+			rejectUnknownKeys(part, []string{"type", "digits", "fixedWidth", "resetCycle", "initialValue"}, partPath, issues)
+			digits, validDigits := asInteger(part["digits"])
+			if !validDigits || digits < 3 || digits > 8 {
+				*issues = append(*issues, SchemaIssue{Path: partPath + ".digits", Message: "计数位数必须是 3–8 的整数"})
+			}
+			if _, ok := part["fixedWidth"].(bool); !ok {
+				*issues = append(*issues, SchemaIssue{Path: partPath + ".fixedWidth", Message: "fixedWidth 必须是布尔值"})
+			}
+			cycle, _ := part["resetCycle"].(string)
+			if !containsString([]string{"none", "daily", "monthly", "yearly"}, cycle) {
+				*issues = append(*issues, SchemaIssue{Path: partPath + ".resetCycle", Message: "resetCycle 必须是 none / daily / monthly / yearly"})
+			}
+			initial, validInitial := asInteger(part["initialValue"])
+			if !validInitial || initial < 1 || initial > 99999999 {
+				*issues = append(*issues, SchemaIssue{Path: partPath + ".initialValue", Message: "initialValue 必须是 1–99999999 的整数"})
+			}
+		case "submittedAt":
+			rejectUnknownKeys(part, []string{"type", "format", "formatType"}, partPath, issues)
+			format, _ := part["format"].(string)
+			if !validSerialDateFormat(format) {
+				*issues = append(*issues, SchemaIssue{Path: partPath + ".format", Message: "日期格式仅支持 yyyy、MM、dd 与 -、/"})
+			}
+			if formatType, exists := part["formatType"]; exists && !containsString([]string{"preset", "custom"}, fmt.Sprint(formatType)) {
+				*issues = append(*issues, SchemaIssue{Path: partPath + ".formatType", Message: "formatType 必须是 preset / custom"})
+			}
+		case "literal":
+			rejectUnknownKeys(part, []string{"type", "value"}, partPath, issues)
+			text, validText := part["value"].(string)
+			if !validText || len([]rune(text)) > 32 {
+				*issues = append(*issues, SchemaIssue{Path: partPath + ".value", Message: "固定字符必须是不超过 32 个字符的字符串"})
+			}
+		case "field":
+			rejectUnknownKeys(part, []string{"type", "fieldId"}, partPath, issues)
+			fieldID, _ := part["fieldId"].(string)
+			if err := storage.ValidateFieldID(fieldID); err != nil {
+				*issues = append(*issues, SchemaIssue{Path: partPath + ".fieldId", Message: "fieldId 必须是 10 位小写字母/数字"})
+			}
+		default:
+			*issues = append(*issues, SchemaIssue{Path: partPath + ".type", Message: "流水号片段 type 必须是 counter / submittedAt / literal / field"})
+		}
+	}
+	if counters != 1 {
+		*issues = append(*issues, SchemaIssue{Path: path, Message: "流水号必须且只能包含一个自动计数片段"})
+	}
+}
+
+// validSerialDateFormat 只允许固定日期 token 和两种分隔符，避免任意格式串在
+// 提交路径参与解释。既支持预设格式，也支持由设计器保存的自定义排列。
+func validSerialDateFormat(format string) bool {
+	if len(format) == 0 || len(format) > 32 {
+		return false
+	}
+	hasToken := false
+	for len(format) > 0 {
+		switch {
+		case strings.HasPrefix(format, "yyyy"):
+			hasToken = true
+			format = format[4:]
+		case strings.HasPrefix(format, "MM"), strings.HasPrefix(format, "dd"):
+			hasToken = true
+			format = format[2:]
+		case strings.HasPrefix(format, "-"), strings.HasPrefix(format, "/"):
+			format = format[1:]
+		default:
+			return false
+		}
+	}
+	return hasToken
+}
+
+func serialDateFormatContains(format string, tokens ...string) bool {
+	for _, token := range tokens {
+		if !strings.Contains(format, token) {
+			return false
+		}
+	}
+	return true
+}
+
+// validateSerialNumberRules 校验跨字段引用与周期重置的唯一性前提。
+func validateSerialNumberRules(items []any, issues *[]SchemaIssue) {
+	type fieldMeta struct{ widgetType, path string }
+	fields := map[string]fieldMeta{}
+	for index, rawItem := range items {
+		item, _ := rawItem.(map[string]any)
+		widget, _ := item["widget"].(map[string]any)
+		fieldID, _ := widget["fieldId"].(string)
+		widgetType, _ := widget["type"].(string)
+		if fieldID != "" {
+			fields[fieldID] = fieldMeta{widgetType: widgetType, path: fmt.Sprintf("content.items[%d].widget", index)}
+		}
+	}
+	allowed := map[string]bool{"text": true, "textarea": true, "number": true, "decimal": true, "money": true, "percent": true, "datetime": true, "radiogroup": true, "combo": true}
+	for index, rawItem := range items {
+		item, _ := rawItem.(map[string]any)
+		widget, _ := item["widget"].(map[string]any)
+		if widget["type"] != "sn" {
+			continue
+		}
+		parts, _ := widget["rules"].([]any)
+		formats := []string{}
+		cycle := "none"
+		for partIndex, rawPart := range parts {
+			part, _ := rawPart.(map[string]any)
+			switch part["type"] {
+			case "submittedAt":
+				if format, ok := part["format"].(string); ok && validSerialDateFormat(format) {
+					formats = append(formats, format)
+				}
+			case "counter":
+				cycle, _ = part["resetCycle"].(string)
+			case "field":
+				fieldID, _ := part["fieldId"].(string)
+				path := fmt.Sprintf("content.items[%d].widget.rules[%d].fieldId", index, partIndex)
+				meta, found := fields[fieldID]
+				if !found {
+					*issues = append(*issues, SchemaIssue{Path: path, Message: "流水号引用了不存在的表单字段"})
+				} else if !allowed[meta.widgetType] {
+					*issues = append(*issues, SchemaIssue{Path: path, Message: fmt.Sprintf("字段类型「%s」暂不支持拼接到流水号", meta.widgetType)})
+				} else if meta.path == fmt.Sprintf("content.items[%d].widget", index) {
+					*issues = append(*issues, SchemaIssue{Path: path, Message: "流水号不能引用自身"})
+				}
+			}
+		}
+		compatible := cycle == "none"
+		for _, format := range formats {
+			if (cycle == "daily" && serialDateFormatContains(format, "yyyy", "MM", "dd")) ||
+				(cycle == "monthly" && serialDateFormatContains(format, "yyyy", "MM")) ||
+				(cycle == "yearly" && serialDateFormatContains(format, "yyyy")) {
+				compatible = true
+				break
+			}
+		}
+		if !compatible {
+			*issues = append(*issues, SchemaIssue{Path: fmt.Sprintf("content.items[%d].widget.rules", index), Message: "启用周期重置时必须包含与重置周期匹配的提交日期片段，避免号码重复"})
+		}
+	}
+}
+
 func validateButtonAction(value any, path string, issues *[]SchemaIssue) {
 	action, ok := value.(map[string]any)
 	if !ok {
@@ -1228,6 +1400,13 @@ func validateWidgetCrossRules(widget map[string]any, widgetType, path string, is
 		}
 	}
 	switch widgetType {
+	case "sn":
+		if enabled, ok := widget["enable"].(bool); !ok || enabled {
+			*issues = append(*issues, SchemaIssue{Path: path + ".enable", Message: "流水号必须不可填写（enable=false）"})
+		}
+		if allowBlank, ok := widget["allowBlank"].(bool); !ok || !allowBlank {
+			*issues = append(*issues, SchemaIssue{Path: path + ".allowBlank", Message: "流水号由系统生成，必须允许为空"})
+		}
 	case "text", "textarea":
 		minMaxOf("minLength", "maxLength")
 	case "number":

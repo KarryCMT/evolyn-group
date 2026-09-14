@@ -257,7 +257,14 @@ watch(
     cursor: pointer;
   }
   &--multiple .form-department-selection__control {
-    min-height: 60px;
+    // 多部门选择器与设计画布预览统一限制为 68px；部门标签换行超过可用高度时，
+    // 仅在控件内部纵向滚动，避免长列表撑高表单布局。
+    box-sizing: border-box;
+    height: 68px;
+    min-height: 68px;
+    max-height: 68px;
+    overflow-x: hidden;
+    overflow-y: auto;
     align-content: center;
   }
   &--multiple.form-department-selection--has-value .form-department-selection__control {

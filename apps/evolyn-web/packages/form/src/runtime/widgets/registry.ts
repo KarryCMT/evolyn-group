@@ -10,6 +10,7 @@ import SelectField from './base/SelectField.vue';
 import SubformField from './base/SubformField.vue';
 import TextAreaField from './base/TextAreaField.vue';
 import TextField from './base/TextField.vue';
+import SerialNumberField from './base/SerialNumberField.vue';
 
 /**
  * 字段注册表：`widget.type` 表达业务能力，组件实现经注册表解析（P2 起 keys 即
@@ -81,6 +82,7 @@ export function createMobileFieldRegistry(): FormFieldRegistry {
   registry.register('checkboxgroup', { component: CheckboxGroupField });
   registry.register('combo', { component: SelectField });
   registry.register('combocheck', { component: MultiSelectField });
+  registry.register('sn', { component: SerialNumberField });
   registry.register('separator', { component: DividerWidget });
   registry.register('subform', { component: SubformField });
   return registry;

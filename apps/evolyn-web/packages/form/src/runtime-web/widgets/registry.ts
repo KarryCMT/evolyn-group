@@ -18,6 +18,7 @@ export function createWebFieldRegistry(): FormFieldRegistry {
     'checkboxgroup',
     'combo',
     'combocheck',
+    'sn',
     'separator',
   ]) {
     registry.register(type, { component: WebBasicField });

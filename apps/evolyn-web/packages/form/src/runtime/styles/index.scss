@@ -217,15 +217,15 @@
   padding: var(--evf-space-md);
 }
 
-// 选择组（单选/复选）：默认纵向排列（字典 layout=vertical），horizontal 修饰符横排；
+// 选择组（单选/复选）：默认横向排列（字典 layout=horizontal），vertical 修饰符纵排；
 // 行高按触控目标展开，保证移动端可点面积。
 .evf-choice-group {
   display: flex;
-  flex-direction: column;
+  flex-flow: row wrap;
   gap: var(--evf-space-md) var(--evf-space-xl);
 
-  &--horizontal {
-    flex-flow: row wrap;
+  &--vertical {
+    flex-direction: column;
   }
 }
 

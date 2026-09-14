@@ -364,6 +364,13 @@ describe('validateFormSchema 结构校验', () => {
     expect(result.valid).toBe(true);
   });
 
+  it('单选组和复选组工厂默认保存为横向布局', () => {
+    const radio = createWidgetItem('radiogroup');
+    const checkbox = createWidgetItem('checkboxgroup');
+    expect(radio.widget.type === 'radiogroup' && radio.widget.layout).toBe('horizontal');
+    expect(checkbox.widget.type === 'checkboxgroup' && checkbox.widget.layout).toBe('horizontal');
+  });
+
   it('标签页可引用顶层子表单，但不能引用子表单内部字段', () => {
     const child = textItem({ widgetName: '_widget_child' });
     const subform = {
@@ -457,26 +464,29 @@ describe('validatePublishableFormSchema 发布白名单', () => {
     expect(validatePublishableFormSchema(documentWith(items)).valid).toBe(true);
   });
 
-  it('部门单选已开放，白名单外控件仍返回精确路径', () => {
-    expect(validatePublishableFormSchema(documentWith([createWidgetItem('dept')])).valid).toBe(true);
+  it('部门单选和多选已开放，白名单外控件仍返回精确路径', () => {
+    expect(validatePublishableFormSchema(documentWith([createWidgetItem('dept')])).valid).toBe(
+      true,
+    );
+    expect(validatePublishableFormSchema(documentWith([createWidgetItem('deptgroup')])).valid).toBe(
+      true,
+    );
     const result = validatePublishableFormSchema(
-      documentWith([createWidgetItem('text'), createWidgetItem('deptgroup')]),
+      documentWith([createWidgetItem('text'), createWidgetItem('image')]),
     );
     expect(result.valid).toBe(false);
     expect(result.issues[0]!.path).toBe('content.items[1].widget.type');
   });
 
-  it('子表单发布校验返回问题而非读取不存在的 content', () => {
+  it('子表单内的部门多选字段可发布', () => {
     const subform = createWidgetItem('subform');
     if (subform.widget.type === 'subform') {
-      subform.widget.items.push(createWidgetItem('dept'));
+      subform.widget.items.push(createWidgetItem('deptgroup'));
     }
 
     const result = validatePublishableFormSchema(documentWith([subform]));
-    expect(result.valid).toBe(false);
-    expect(result.issues.map((issue) => issue.path)).toEqual([
-      'content.items[0].widget.items[0].widget.type',
-    ]);
+    expect(result.valid).toBe(true);
+    expect(result.issues).toEqual([]);
   });
 
   it('允许子表单中的人员单选控件发布', () => {
@@ -764,7 +774,7 @@ describe('validateFormSchema 字段显隐规则（v5）', () => {
 });
 
 describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
-  it('发布版本未开放运行能力的字段不能作为条件源', () => {
+  it('已开放的部门多选字段可作为条件源', () => {
     const dept = textItem({ type: 'deptgroup', widgetName: '_widget_dept' });
     const target = textItem({ widgetName: '_widget_target' });
     const doc = {
@@ -787,7 +797,9 @@ describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
             id: 'r1',
             filter: {
               rel: 'and',
-              cond: [{ field: '_widget_dept', type: 'deptgroup', method: 'containsAny', value: ['d1'] }],
+              cond: [
+                { field: '_widget_dept', type: 'deptgroup', method: 'containsAny', value: ['d1'] },
+              ],
             },
             fields: ['_widget_target'],
           },
@@ -796,17 +808,8 @@ describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
     };
     ensureFieldIds(doc.content.items);
     const result = validatePublishableFormSchema(doc);
-    // 控件白名单与条件源白名单同时产出精确路径错误。
-    expect(result.issues.map((issue) => issue.message)).toEqual(
-      expect.arrayContaining([
-        '控件「deptgroup」的运行能力尚未开放，暂不能发布',
-        '条件字段「_widget_dept」的运行能力尚未开放，暂不能发布',
-      ]),
-    );
-    expect(
-      result.issues.find((issue) => issue.path === 'content.fieldShowRules[0].filter.cond[0].field')
-        ?.message,
-    ).toBe('条件字段「_widget_dept」的运行能力尚未开放，暂不能发布');
+    expect(result.valid).toBe(true);
+    expect(result.issues).toEqual([]);
   });
 });
 
@@ -933,5 +936,74 @@ describe('migrateFormSchema v5/v4 → v6', () => {
     expect(migrated.document?.content.fieldShowRules).toEqual([]);
     expect(migrated.document?.content.submitRule).toBe(2);
     expect(migrated.document?.content.widget_submit_rules).toEqual({});
+  });
+});
+
+describe('流水号 v9 规则片段', () => {
+  it('接受一个自动计数器与可排序的日期、固定字符、字段片段', () => {
+    const customer = textItem({ widgetName: '_widget_customer', fieldId: 'abc123def4' });
+    const serial = textItem({
+      type: 'sn',
+      widgetName: '_widget_serial',
+      fieldId: 'abc123def5',
+      enable: false,
+      rules: [
+        { type: 'counter', digits: 5, fixedWidth: true, resetCycle: 'daily', initialValue: 1 },
+        { type: 'submittedAt', format: 'yyyy/MM/dd', formatType: 'preset' },
+        { type: 'literal', value: 'MD' },
+        { type: 'field', fieldId: 'abc123def4' },
+      ],
+    });
+    expect(validateFormSchema(documentWith([customer, serial])).issues).toEqual([]);
+  });
+
+  it('拒绝缺失计数器及没有日期片段的周期重置', () => {
+    const serial = textItem({
+      type: 'sn',
+      widgetName: '_widget_serial',
+      fieldId: 'abc123def5',
+      enable: false,
+      rules: [{ type: 'literal', value: 'ORD' }],
+    });
+    const paths = validateFormSchema(documentWith([serial])).issues.map((issue) => issue.path);
+    expect(paths).toContain('content.items[0].widget.rules');
+
+    (serial.widget as Record<string, unknown>).rules = [
+      { type: 'counter', digits: 5, fixedWidth: true, resetCycle: 'daily', initialValue: 1 },
+    ];
+    expect(validateFormSchema(documentWith([serial])).issues.some((issue) => issue.message.includes('匹配的提交日期'))).toBe(true);
+  });
+
+  it('强制流水号保持系统生成且非必填', () => {
+    const serial = textItem({
+      type: 'sn',
+      widgetName: '_widget_serial',
+      fieldId: 'abc123def5',
+      enable: true,
+      allowBlank: false,
+      rules: [{ type: 'counter', digits: 5, fixedWidth: true, resetCycle: 'none', initialValue: 1 }],
+    });
+    const paths = validateFormSchema(documentWith([serial])).issues.map((issue) => issue.path);
+    expect(paths).toContain('content.items[0].widget.enable');
+    expect(paths).toContain('content.items[0].widget.allowBlank');
+  });
+
+  it('接受 token 白名单内的自定义日期格式，拒绝任意模板语法', () => {
+    const serial = textItem({
+      type: 'sn',
+      widgetName: '_widget_serial',
+      fieldId: 'abc123def5',
+      enable: false,
+      rules: [
+        { type: 'counter', digits: 5, fixedWidth: true, resetCycle: 'none', initialValue: 1 },
+        { type: 'submittedAt', format: 'yyyy/MM/dd', formatType: 'custom' },
+      ],
+    });
+    expect(validateFormSchema(documentWith([serial])).issues).toEqual([]);
+    (serial.widget as Record<string, unknown>).rules = [
+      { type: 'counter', digits: 5, fixedWidth: true, resetCycle: 'none', initialValue: 1 },
+      { type: 'submittedAt', format: 'YYYY-MM-DD', formatType: 'custom' },
+    ];
+    expect(validateFormSchema(documentWith([serial])).issues.some((issue) => issue.path.endsWith('.format'))).toBe(true);
   });
 });

@@ -366,15 +366,18 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 	if err != nil {
 		return nil, err
 	}
+	// 流水号是服务端衍生值；幂等重放比较必须忽略它，否则首次提交已生成的值会与
+	// 浏览器重放时携带的空占位不同，错误判为另一次提交。
+	replayValues := valuesWithoutSerialNumbers(content, cleaned)
+	replayValuesJSON, err := json.Marshal(replayValues)
+	if err != nil {
+		return nil, err
+	}
 
 	// 物理存储分派（方案 §9.2）：physical 表单的业务值只落 tn_fd_* 物理行，
 	// 信封 values 恒 NULL（不双写）；结构变更在途（PUBLISHING）按已应用模型
 	// 继续服务，仅从未应用过模型（首次发布 DDL 在途）才拒绝提交。
 	physical, err := s.resolvePhysicalContext(ctx, form)
-	if err != nil {
-		return nil, err
-	}
-	valuesJSON, err := json.Marshal(cleaned)
 	if err != nil {
 		return nil, err
 	}
@@ -395,9 +398,11 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 				if rerr != nil {
 					return rerr
 				}
-				replaySame = replaySame && samePhysicalValues(existingValues, cleaned)
+				replaySame = replaySame && samePhysicalValues(
+					valuesWithoutSerialNumbers(content, existingValues), replayValues,
+				)
 			} else {
-				replaySame = replaySame && sameJSON(existing.Values, model.JSONContent(valuesJSON))
+				replaySame = replaySame && sameJSONIgnoringSerialNumbers(existing.Values, replayValuesJSON, content)
 			}
 			if !replaySame {
 				return httpx.Wrap(apperrors.ErrRecordInvalid, fmt.Errorf("dataOpId %s reused by a different submission", canonicalOperationID))
@@ -410,11 +415,18 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		} else if len(failures) > 0 {
 			return httpx.Wrap(apperrors.ErrRecordValidationFailed.WithData(map[string]any{"validatorErrors": failures}), fmt.Errorf("form %s has %d blocking validator failures", form.Code, len(failures)))
 		}
+		now := time.Now()
+		if serr := s.applySerialNumbers(tctx, tenantID, form.ID, content, cleaned, now); serr != nil {
+			return httpx.Wrap(apperrors.ErrRecordInvalid, serr)
+		}
+		valuesJSON, merr := json.Marshal(cleaned)
+		if merr != nil {
+			return merr
+		}
 		var entryCodeSnapshot *string
 		if entryCode != "" {
 			entryCodeSnapshot = &entryCode
 		}
-		now := time.Now()
 		draft := &model.FormRecord{
 			FormID:              form.ID,
 			FormVersionID:       version.ID,

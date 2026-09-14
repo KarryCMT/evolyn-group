@@ -19,6 +19,8 @@ const props = withDefaults(
     arrangement?: 'default' | 'reference';
     showWidgetName?: boolean;
     titleRequired?: boolean;
+    /** 由服务端生成值的控件（如流水号）不得切换为浏览器可填写。 */
+    valueReadOnly?: boolean;
   }>(),
   {
     isSeparator: false,
@@ -26,6 +28,7 @@ const props = withDefaults(
     arrangement: 'default',
     showWidgetName: true,
     titleRequired: true,
+    valueReadOnly: false,
   },
 );
 const emit = defineEmits<{ renameKey: [key: string] }>();
@@ -99,12 +102,13 @@ const promptText = computed({
         <span>必填</span>
         <el-switch
           :model-value="!model.widget.allowBlank"
+          :disabled="props.valueReadOnly"
           @update:model-value="model.widget.allowBlank = !$event"
         />
       </div>
       <div class="form-schema-common-property__switch">
         <span>可填写</span>
-        <el-switch v-model="model.widget.enable" />
+        <el-switch v-model="model.widget.enable" :disabled="props.valueReadOnly" />
       </div>
       <div class="form-schema-common-property__switch">
         <span>可见</span>

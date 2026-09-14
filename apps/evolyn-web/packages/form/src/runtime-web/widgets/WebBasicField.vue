@@ -191,6 +191,14 @@ function isString(value: unknown): value is string {
     :aria-describedby="describedBy"
     @blur="emit('blur')"
   />
+  <el-input
+    v-else-if="type === 'sn'"
+    :id="inputId"
+    :model-value="typeof modelValue === 'string' ? modelValue : ''"
+    disabled
+    placeholder="自动生成无需填写"
+    :aria-describedby="describedBy"
+  />
   <el-input-number
     v-else-if="type === 'number'"
     :id="inputId"
@@ -254,7 +262,7 @@ function isString(value: unknown): value is string {
   <el-radio-group
     v-else-if="type === 'radiogroup'"
     v-model="choicesValue"
-    :class="{ 'evf-web-basic-field__choices--vertical': radioWidget.layout !== 'horizontal' }"
+    :class="{ 'evf-web-basic-field__choices--vertical': radioWidget.layout === 'vertical' }"
     :disabled="readOnlyDisabled"
     :aria-required="!item.widget.allowBlank || undefined"
     :aria-invalid="errors.length > 0 || undefined"
@@ -268,7 +276,7 @@ function isString(value: unknown): value is string {
   <el-checkbox-group
     v-else-if="type === 'checkboxgroup'"
     v-model="multiChoicesValue"
-    :class="{ 'evf-web-basic-field__choices--vertical': checkboxWidget.layout !== 'horizontal' }"
+    :class="{ 'evf-web-basic-field__choices--vertical': checkboxWidget.layout === 'vertical' }"
     :disabled="readOnlyDisabled"
     :aria-required="!item.widget.allowBlank || undefined"
     :aria-invalid="errors.length > 0 || undefined"

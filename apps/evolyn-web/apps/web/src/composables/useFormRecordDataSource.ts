@@ -335,7 +335,9 @@ function isMemberWidgetType(type: string): boolean {
 }
 
 function hasDepartmentField(runtime: FormRuntimeBootstrap): boolean {
-  return runtime.content.content.items.some((item) => item.widget.type === 'dept');
+  return runtime.content.content.items.some(
+    (item) => item.widget.type === 'dept' || item.widget.type === 'deptgroup',
+  );
 }
 
 async function loadDepartmentNames(runtime: FormRuntimeBootstrap): Promise<ReadonlyMap<string, string>> {
@@ -366,15 +368,23 @@ function formatDepartmentRecordValues(
   names: ReadonlyMap<string, string>,
 ): DataRecord[] {
   const fields = runtime.content.content.items
-    .filter((item) => item.widget.type === 'dept')
-    .map((item) => item.widget.widgetName);
+    .filter((item) => item.widget.type === 'dept' || item.widget.type === 'deptgroup')
+    .map((item) => ({ name: item.widget.widgetName, multiple: item.widget.type === 'deptgroup' }));
   if (fields.length === 0) return [...records];
   return records.map((record) => {
     const displayed: DataRecord = { ...record };
     for (const field of fields) {
-      const reference = record[field];
+      const reference = record[field.name];
+      if (field.multiple) {
+        if (!Array.isArray(reference)) continue;
+        displayed[field.name] = reference
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+          .map((id) => names.get(id) ?? `已删除部门（${id}）`)
+          .join('、');
+        continue;
+      }
       if (typeof reference !== 'string' || !reference) continue;
-      displayed[field] = names.get(reference) ?? `已删除部门（${reference}）`;
+      displayed[field.name] = names.get(reference) ?? `已删除部门（${reference}）`;
     }
     return displayed;
   });

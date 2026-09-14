@@ -177,14 +177,14 @@ const paletteGroups = computed<FormSchemaPaletteGroup[]>(() => {
           label: type === 'number' ? '数值' : spec.label,
           // 控件类型图标统一走共享映射，与数据管理「列设置」保持一致
           icon: widgetIconOfType(type),
-          // 部门单选已完成「设计→发布→填写→服务端终审」闭环；部门多选仍需
-          // 物理数组存储，不能提前开放成“可设计但不可发布”的半成品。
           enabled:
             group.key === 'basic' ||
             type === 'subform' ||
             type === 'user' ||
             type === 'usergroup' ||
-            type === 'dept',
+            type === 'dept' ||
+            type === 'deptgroup' ||
+            type === 'sn',
           shortcuts:
             type === 'number'
               ? (['decimal', 'money', 'percent'] as const).map((shortcutType) => ({

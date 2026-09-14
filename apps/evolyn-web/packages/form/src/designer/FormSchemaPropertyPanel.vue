@@ -48,6 +48,7 @@
               :is-separator="isSeparator"
               :title-required="!isSeparator"
               :show-widget-name="false"
+              :value-read-only="widget.type === 'sn'"
               @rename-key="$emit('rename-key', $event)"
             >
               <template #title-suffix>
@@ -80,12 +81,21 @@
                   :storage-definition-editable="numericTypeEditable"
                 />
                 <DateTimePropertyPanel v-else-if="widget.type === 'datetime'" :widget="widget" />
+                <SerialNumberPropertyPanel
+                  v-else-if="widget.type === 'sn'"
+                  :widget="widget"
+                  :items="schemaDocument?.content.items ?? []"
+                />
                 <SeparatorPropertyPanel v-else-if="widget.type === 'separator'" :widget="widget" />
                 <OptionsPropertyPanel v-else-if="optionsWidget" :widget="optionsWidget" />
-                <FormSchemaPropertySection v-else-if="widget.type === 'dept'" title="部门选择">
+                <FormSchemaPropertySection
+                  v-else-if="widget.type === 'dept' || widget.type === 'deptgroup'"
+                  :title="widget.type === 'deptgroup' ? '部门多选' : '部门选择'"
+                >
                   <p class="form-schema-property__deferred">
-                    填写时从当前租户的有效部门树中选择一个部门。默认值与“包含子部门”
-                    的范围语义尚未开放，当前记录只保存直接选中的部门。
+                    填写时从当前租户的有效部门树中选择{{
+                      widget.type === 'deptgroup' ? '多个部门' : '一个部门'
+                    }}。 默认值与“包含子部门”的范围语义尚未开放，当前记录只保存直接选中的部门。
                   </p>
                 </FormSchemaPropertySection>
                 <FormSchemaPropertySection v-else title="专属设置">
@@ -326,6 +336,7 @@ import FormSchemaPropertySection from './properties/FormSchemaPropertySection.vu
 import SubformPropertyPanel from './properties/SubformPropertyPanel.vue';
 import TextareaPropertyPanel from './properties/TextareaPropertyPanel.vue';
 import TextPropertyPanel from './properties/TextPropertyPanel.vue';
+import SerialNumberPropertyPanel from './properties/SerialNumberPropertyPanel.vue';
 import FormSchemaFieldShowRulesDrawer from './FormSchemaFieldShowRulesDrawer.vue';
 import FormSchemaSubmitRuleDialog from './FormSchemaSubmitRuleDialog.vue';
 import FormSchemaPreSubmitConfirmSettings from './FormSchemaPreSubmitConfirmSettings.vue';

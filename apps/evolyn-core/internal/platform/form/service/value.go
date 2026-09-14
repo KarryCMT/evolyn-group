@@ -357,6 +357,14 @@ func validateFieldValue(field snapshotField, value any) []string {
 		return []string{fmt.Sprintf("请%s%s", choosingVerb(field.widgetType), field.label)}
 	}
 	switch field.widgetType {
+	case "sn":
+		// 流水号由提交事务在字段校验之后覆盖生成。这里接受已持久化记录
+		// 回放/流程写回携带的字符串，避免其被当成未知控件拒绝；新建提交
+		// 中客户端即使伪造该值也不会落库。
+		if _, ok := value.(string); !ok {
+			return []string{fmt.Sprintf("%s的值类型不正确", field.label)}
+		}
+		return nil
 	case "text", "textarea":
 		return validateTextValue(field, value)
 	case "number":

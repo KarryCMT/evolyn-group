@@ -166,6 +166,11 @@ function options(field: FormItem) {
   return readWidgetOptions(field.widget);
 }
 
+/** 子表单的选择组沿用顶层字段默认横向的协议语义。 */
+function choiceLayoutVertical(field: FormItem): boolean {
+  return field.widget.type === 'checkboxgroup' && field.widget.layout === 'vertical';
+}
+
 function placeholder(field: FormItem): string {
   if ('placeholder' in field.widget && typeof field.widget.placeholder === 'string') {
     return field.widget.placeholder;
@@ -239,6 +244,7 @@ function placeholder(field: FormItem): string {
                     field.widget.type === 'checkboxgroup' || field.widget.type === 'combocheck'
                   "
                   class="evf-subform__choices"
+                  :class="{ 'evf-subform__choices--vertical': choiceLayoutVertical(field) }"
                 >
                   <label
                     v-for="option in options(field)"
@@ -360,9 +366,14 @@ function placeholder(field: FormItem): string {
   resize: vertical;
 }
 .evf-subform__choices {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-flow: row wrap;
+  gap: 6px 16px;
   min-width: 140px;
+}
+.evf-subform__choices--vertical {
+  flex-direction: column;
+  align-items: flex-start;
 }
 .evf-subform__choice {
   display: flex;

@@ -172,6 +172,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	formRepo := formrepository.NewRepository(db)
 	formVersionRepo := formrepository.NewVersionRepository(db)
 	formRecordRepo := formrepository.NewRecordRepository(db)
+	formSerialCounterRepo := formrepository.NewFormSerialCounterRepository(db)
 	// 资产权限组仓储（000058，表单权限 P1）：组行 + 主体行
 	formPermRepo := formrepository.NewPermissionGroupRepository(db)
 	// 物理表存储仓储（000070，物理表存储方案）：存储绑定、物理模型版本、
@@ -236,6 +237,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 			return nil, err
 		}
 		if err := formRecordRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := formSerialCounterRepo.Migrate(); err != nil {
 			return nil, err
 		}
 		if err := formPermRepo.Migrate(); err != nil {
@@ -566,6 +570,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	}
 	if injector, ok := formService.(formservice.StorageChildInjector); ok {
 		injector.UseStorageChildren(formStorageChildRepo)
+	}
+	if injector, ok := formService.(formservice.SerialCounterInjector); ok {
+		injector.UseSerialCounter(formSerialCounterRepo)
 	}
 	// 菜单读侧权限裁剪端口（S5/S8）：成员侧表单节点按入口判定（view ∨ add）
 	// 二次裁剪，装配模式同 FormDirectory

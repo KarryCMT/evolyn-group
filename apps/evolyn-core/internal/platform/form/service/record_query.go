@@ -3,6 +3,7 @@ package service
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 
 	storagepkg "evolyn/internal/engine/data/storage"
@@ -33,6 +34,9 @@ type RecordQueryCompileOptions struct {
 	Physical bool
 	// PhysicalColumns widgetName → 物理列名（来自已应用 StorageModel.Columns）。
 	PhysicalColumns map[string]string
+	// PhysicalArrayColumns 标识采用 PostgreSQL BIGINT[] 的多部门列。它们不能
+	// 复用 legacy JSONB 数组函数，须按数组成员关系编译为 ANY/cardinality。
+	PhysicalArrayColumns map[string]bool
 }
 
 // compileOptionsOf 归一可选编译参数（缺省 = legacy JSONB 模式）。
@@ -107,7 +111,7 @@ func CompileRecordQueryCondition(mappings []SnapshotFieldMapping, condition Reco
 	if err := json.Unmarshal(condition.Value, &value); err != nil {
 		return CompiledRecordQuery{}, fmt.Errorf("query value for %q: %w", condition.Field, err)
 	}
-	return compileUserCondition(field, condition.Operator, value, normalizedValueSQL)
+	return compileUserCondition(field, condition.Operator, value, normalizedValueSQL, false)
 }
 
 // CompilePermissionScopeSQL 将已通过配置期校验的数据范围编译为与
@@ -132,7 +136,7 @@ func CompilePermissionScopeSQL(scope model.PermissionDataScopeSpec, mappings []S
 		if !ok {
 			return CompiledRecordQuery{}, fmt.Errorf("permission scope field %q is not present in published field mappings", condition.Field)
 		}
-		part, err := compileScopeCondition(field, condition, options.compiler())
+		part, err := compileScopeCondition(field, condition, options.compiler(), options.PhysicalArrayColumns[field.mapping.WidgetName])
 		if err != nil {
 			return CompiledRecordQuery{}, err
 		}
@@ -189,7 +193,7 @@ func fieldFromMappings(mappings []SnapshotFieldMapping, name string) (recordQuer
 	return recordQueryField{}, false
 }
 
-func compileScopeCondition(field recordQueryField, condition model.PermissionDataCondition, vc valueCompiler) (CompiledRecordQuery, error) {
+func compileScopeCondition(field recordQueryField, condition model.PermissionDataCondition, vc valueCompiler, physicalArray bool) (CompiledRecordQuery, error) {
 	if !permissionClassOperators[field.class][condition.Operator] {
 		return CompiledRecordQuery{}, fmt.Errorf("permission scope operator %q is not applicable to %q", condition.Operator, field.mapping.WidgetName)
 	}
@@ -204,19 +208,19 @@ func compileScopeCondition(field recordQueryField, condition model.PermissionDat
 		}
 		value = condition.Value[0]
 	}
-	return compileCondition(field, condition.Operator, value, vc)
+	return compileCondition(field, condition.Operator, value, vc, physicalArray)
 }
 
-func compileUserCondition(field recordQueryField, operator string, value any, vc valueCompiler) (CompiledRecordQuery, error) {
+func compileUserCondition(field recordQueryField, operator string, value any, vc valueCompiler, physicalArray bool) (CompiledRecordQuery, error) {
 	if field.class == "" {
 		return CompiledRecordQuery{}, fmt.Errorf("query field %q does not support filtering", field.mapping.WidgetName)
 	}
-	return compileCondition(field, operator, value, vc)
+	return compileCondition(field, operator, value, vc, physicalArray)
 }
 
 // compileCondition is the sole SQL-template factory. No user-controlled string can
 // reach Where: field keys and values are always bound through Args.
-func compileCondition(field recordQueryField, operator string, value any, vc valueCompiler) (CompiledRecordQuery, error) {
+func compileCondition(field recordQueryField, operator string, value any, vc valueCompiler, physicalArray bool) (CompiledRecordQuery, error) {
 	vSQL, vArgs := vc(field)
 	copyArgs := func(times int) []any {
 		args := make([]any, 0, len(vArgs)*times)
@@ -266,11 +270,45 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		return out, nil
 	}
 	isArray := field.class == permFieldClassMultiOption
+	departmentID := func(raw any) (int64, error) {
+		text, ok := raw.(string)
+		if !ok {
+			return 0, fmt.Errorf("query value for %q must be a department ID string", field.mapping.WidgetName)
+		}
+		id, err := strconv.ParseInt(text, 10, 64)
+		if err != nil || id <= 0 {
+			return 0, fmt.Errorf("query value for %q must be a positive department ID", field.mapping.WidgetName)
+		}
+		return id, nil
+	}
+	physicalArrayText := func() (int64, error) { return departmentID(value) }
+	physicalArraySet := func() ([]int64, error) {
+		values, err := setValues()
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]int64, 0, len(values))
+		for _, raw := range values {
+			id, err := departmentID(raw)
+			if err != nil {
+				return nil, err
+			}
+			ids = append(ids, id)
+		}
+		return ids, nil
+	}
 
 	switch operator {
 	case "eq":
 		// Query DSL 的 enum=多选控件时，eq 表示“包含该选项”；权限范围
 		// 配置并不开放 multiOption 的 eq，因此不会改变 permissionScopeMatches。
+		if physicalArray {
+			id, err := physicalArrayText()
+			if err != nil {
+				return CompiledRecordQuery{}, err
+			}
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND ? = ANY(" + vSQL + ")", Args: append(copyArgs(2), id)}, nil
+		}
 		if isArray {
 			text, err := textValue()
 			if err != nil {
@@ -292,6 +330,13 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		}
 		return where2("(%s) IS NOT NULL AND (%s) = ?", append(copyArgs(2), text)), nil
 	case "ne", "neq":
+		if physicalArray {
+			id, err := physicalArrayText()
+			if err != nil {
+				return CompiledRecordQuery{}, err
+			}
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND NOT (? = ANY(" + vSQL + "))", Args: append(copyArgs(2), id)}, nil
+		}
 		if isArray {
 			text, err := textValue()
 			if err != nil {
@@ -331,6 +376,13 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		}
 		return where2("(%s) IS NOT NULL AND (%s) "+comparison+" ?", append(copyArgs(2), rhs)), nil
 	case "contains":
+		if physicalArray {
+			id, err := physicalArrayText()
+			if err != nil {
+				return CompiledRecordQuery{}, err
+			}
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND ? = ANY(" + vSQL + ")", Args: append(copyArgs(2), id)}, nil
+		}
 		text, err := textValue()
 		if err != nil {
 			return CompiledRecordQuery{}, err
@@ -340,6 +392,13 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		}
 		return where2("(%s) IS NOT NULL AND position(? in (%s)) > 0", append(copyArgs(2), text)), nil
 	case "notContains":
+		if physicalArray {
+			id, err := physicalArrayText()
+			if err != nil {
+				return CompiledRecordQuery{}, err
+			}
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NULL OR NOT (? = ANY(" + vSQL + "))", Args: append(copyArgs(2), id)}, nil
+		}
 		text, err := textValue()
 		if err != nil {
 			return CompiledRecordQuery{}, err
@@ -364,6 +423,30 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		}
 		return where2("(%s) IS NOT NULL AND (%s) LIKE ? ESCAPE '\\\\'", append(copyArgs(2), pattern)), nil
 	case "in", "not_in", "notIn":
+		if physicalArray {
+			ids, err := physicalArraySet()
+			if err != nil {
+				return CompiledRecordQuery{}, err
+			}
+			if len(ids) == 0 {
+				if operator == "not_in" || operator == "notIn" {
+					return CompiledRecordQuery{Where: "TRUE"}, nil
+				}
+				return CompiledRecordQuery{Where: "FALSE"}, nil
+			}
+			atoms := make([]string, 0, len(ids))
+			args := make([]any, 0, len(ids)*2+1)
+			for _, id := range ids {
+				atoms = append(atoms, "? = ANY("+vSQL+")")
+				args = append(args, id)
+				args = append(args, vArgs...)
+			}
+			membership := strings.Join(atoms, " OR ")
+			if operator == "not_in" || operator == "notIn" {
+				return CompiledRecordQuery{Where: "(" + vSQL + ") IS NULL OR NOT (" + membership + ")", Args: append(append([]any{}, vArgs...), args...)}, nil
+			}
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND (" + membership + ")", Args: append(append([]any{}, vArgs...), args...)}, nil
+		}
 		values, err := setValues()
 		if err != nil {
 			return CompiledRecordQuery{}, err
@@ -393,11 +476,17 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		}
 		return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND (" + membership + ")", Args: args}, nil
 	case "empty":
+		if physicalArray {
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NULL OR cardinality(" + vSQL + ") = 0", Args: copyArgs(2)}, nil
+		}
 		if isArray {
 			return where2("(%s) IS NULL OR (%s) = '[]'::jsonb", copyArgs(2)), nil
 		}
 		return where2("(%s) IS NULL OR (%s) = ''", copyArgs(2)), nil
 	case "not_empty":
+		if physicalArray {
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND cardinality(" + vSQL + ") > 0", Args: copyArgs(2)}, nil
+		}
 		if isArray {
 			return where2("(%s) IS NOT NULL AND (%s) <> '[]'::jsonb", copyArgs(2)), nil
 		}

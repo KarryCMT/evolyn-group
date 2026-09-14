@@ -30,6 +30,13 @@ const layoutWidget = computed<RadioGroupWidget | CheckboxGroupWidget | null>(() 
       return null;
   }
 });
+// 旧快照可能未保存 layout；界面与运行时都将其解释为横向，并在用户切换时显式写回。
+const choiceLayout = computed<'vertical' | 'horizontal'>({
+  get: () => layoutWidget.value?.layout ?? 'horizontal',
+  set: (layout) => {
+    if (layoutWidget.value) layoutWidget.value.layout = layout;
+  },
+});
 const isMultiple = ['checkboxgroup', 'combocheck'].includes(props.widget.type);
 function updateOption(index: number, label: string) {
   props.widget.options[index] = { label, value: label };
@@ -47,7 +54,7 @@ function removeOption(index: number) {
     <el-switch v-model="widget.filterable" inline-prompt active-text="可搜索" />
   </FormSchemaPropertySection>
   <FormSchemaPropertySection v-if="layoutWidget" title="布局">
-    <el-radio-group v-model="layoutWidget.layout">
+    <el-radio-group v-model="choiceLayout">
       <el-radio-button value="vertical">纵向</el-radio-button>
       <el-radio-button value="horizontal">横向</el-radio-button>
     </el-radio-group>

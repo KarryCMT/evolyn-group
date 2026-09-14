@@ -72,6 +72,9 @@ type formService struct {
 	projectionRecalibrator WorkflowProjectionRecalibrator
 	// storageChildren 子表单物理子表映射仓储（Phase 3，000071）
 	storageChildren repository.StorageChildRepository
+	// serialCounters 由流水号服务在提交事务内原子递增；未注入时包含 sn 的提交明确失败，
+	// 不退化为内存计数或客户端生成。
+	serialCounters repository.FormSerialCounterRepository
 }
 
 // NewFormService 构造表单域服务（records 可为 nil：P1 未启记录提交路径；
@@ -160,6 +163,11 @@ func (s *formService) UseStorageChildren(children repository.StorageChildReposit
 	s.storageChildren = children
 }
 
+// UseSerialCounter 注入流水号计数仓储（装配期一次性调用）。
+func (s *formService) UseSerialCounter(counters repository.FormSerialCounterRepository) {
+	s.serialCounters = counters
+}
+
 // PhysicalStorageInjector 装配期注入能力。
 type PhysicalStorageInjector interface {
 	UsePhysicalStorage(storages repository.FormStorageRepository, schemaVersions repository.StorageSchemaVersionRepository, jobs repository.FormDDLJobRepository, physical repository.PhysicalValueRepository)
@@ -168,6 +176,11 @@ type PhysicalStorageInjector interface {
 // StorageChildInjector 装配期注入能力（可选）。
 type StorageChildInjector interface {
 	UseStorageChildren(children repository.StorageChildRepository)
+}
+
+// SerialCounterInjector 是流水号计数能力的装配注入口。
+type SerialCounterInjector interface {
+	UseSerialCounter(counters repository.FormSerialCounterRepository)
 }
 
 // UsePermissionGroupSource 注入权限组只读查询端口（switch-type 阻塞与发布

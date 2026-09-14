@@ -50,7 +50,10 @@ describe('DepartmentSelectionField', () => {
     ]);
     const pinia = createPinia();
     const auth = useAuthStore(pinia);
-    auth.userInfo = { tenant: { id: 1 }, member: { departments: null } } as unknown as UserInfoResult;
+    auth.userInfo = {
+      tenant: { id: 1 },
+      member: { departments: null },
+    } as unknown as UserInfoResult;
     vi.spyOn(auth, 'loadUserInfo').mockImplementation(async () => {
       auth.userInfo = {
         tenant: { id: 1 },
@@ -73,11 +76,44 @@ describe('DepartmentSelectionField', () => {
 
     await wrapper.get('.form-department-selection__control').trigger('click');
     await flushPromises();
-    const currentMemberTab = [...document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
-      (tab) => tab.textContent?.trim() === '当前用户所在部门',
-    );
+    const currentMemberTab = [
+      ...document.body.querySelectorAll<HTMLButtonElement>('[role="tab"]'),
+    ].find((tab) => tab.textContent?.trim() === '当前用户所在部门');
     expect(auth.loadUserInfo).toHaveBeenCalledOnce();
     expect(currentMemberTab).toBeDefined();
     expect(loadDepartmentOptions).toHaveBeenCalledWith('1');
+  });
+
+  it('部门多选在运行时以标签区呈现已选部门', async () => {
+    loadDepartmentOptions.mockResolvedValue([
+      { value: '3', label: '产品部', disabled: false },
+      { value: '4', label: '研发部', disabled: false },
+    ]);
+    const pinia = createPinia();
+    const auth = useAuthStore(pinia);
+    auth.userInfo = { tenant: { id: 1 }, member: { departments: [] } } as unknown as UserInfoResult;
+
+    const wrapper = mount(DepartmentSelectionField, {
+      attachTo: document.body,
+      props: {
+        item: createWidgetItem('deptgroup'),
+        modelValue: ['3', '4'],
+        disabled: false,
+        readonly: false,
+        errors: [],
+      },
+      global: { plugins: [pinia] },
+    });
+
+    await wrapper.get('.form-department-selection__control').trigger('click');
+    await flushPromises();
+
+    expect(wrapper.get('.form-department-selection').classes()).toContain(
+      'form-department-selection--multiple',
+    );
+    expect(wrapper.findAll('.form-department-selection__tag').map((tag) => tag.text())).toEqual([
+      '产品部',
+      '研发部',
+    ]);
   });
 });

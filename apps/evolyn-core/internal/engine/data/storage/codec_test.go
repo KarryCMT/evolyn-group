@@ -29,6 +29,8 @@ func TestEncodeSQLValue(t *testing.T) {
 		{KindTime, nil, nil},
 		{KindRef, "42", int64(42)},
 		{KindRef, "", nil},
+		{KindRefArray, []any{"42", "7"}, []int64{42, 7}},
+		{KindRefArray, []any{}, nil},
 	}
 	for _, testCase := range cases {
 		got, err := EncodeSQLValue(testCase.kind, testCase.value)
@@ -68,6 +70,9 @@ func TestEncodeSQLValueRejectsMalformed(t *testing.T) {
 		{KindTime, true},
 		{KindRef, "not-a-number"},
 		{KindRef, 42},
+		{KindRefArray, []any{"42", "42"}},
+		{KindRefArray, []any{"not-a-number"}},
+		{KindRefArray, []string{"42"}},
 	}
 	for _, testCase := range cases {
 		if _, err := EncodeSQLValue(testCase.kind, testCase.value); err == nil {
@@ -100,6 +105,9 @@ func TestDecodeSQLValue(t *testing.T) {
 	}
 	if got, err := DecodeSQLValue(KindRef, int64(42)); err != nil || got != "42" {
 		t.Fatalf("ref decode: %v, %v", got, err)
+	}
+	if got, err := DecodeSQLValue(KindRefArray, "{42,7}"); err != nil || !reflect.DeepEqual(got, []any{"42", "7"}) {
+		t.Fatalf("reference array decode: %v, %v", got, err)
 	}
 	// month/time 原形 TEXT 直存：字符串/字节回传原样出网，空串=未填写，
 	// 非法形状（脏数据破坏字典序前提）拒绝。
@@ -143,14 +151,14 @@ func TestDecodeSQLValueDateTime(t *testing.T) {
 }
 
 // KindOf 支持矩阵：白名单内放行（datetime 四格式全量开放，month/time 以
-// 原形 TEXT 直存）、数组类与未建模控件拒绝（方案 §4.3）。
+// 原形 TEXT 直存）、多部门数组与未建模控件拒绝（方案 §4.3）。
 func TestKindOfSupportMatrix(t *testing.T) {
 	supported := []struct{ widgetType, format string }{
 		{"text", ""}, {"textarea", ""}, {"radiogroup", ""}, {"combo", ""},
 		{"number", ""}, {"datetime", "date"}, {"datetime", "datetime"},
 		{"datetime", ""}, // format 非必填：缺省兜底 datetime（与 value.go 口径一致）
 		{"datetime", "month"}, {"datetime", "time"},
-		{"user", ""}, {"dept", ""},
+		{"user", ""}, {"dept", ""}, {"deptgroup", ""},
 	}
 	for _, testCase := range supported {
 		if _, ok := KindOf(testCase.widgetType, testCase.format); !ok {
@@ -158,10 +166,10 @@ func TestKindOfSupportMatrix(t *testing.T) {
 		}
 	}
 	rejected := []struct{ widgetType, format string }{
-		{"checkboxgroup", ""}, {"combocheck", ""}, {"usergroup", ""}, {"deptgroup", ""},
+		{"checkboxgroup", ""}, {"combocheck", ""}, {"usergroup", ""},
 		{"datetime", "week"},
 		{"image", ""}, {"upload", ""}, {"address", ""}, {"location", ""},
-		{"signature", ""}, {"sn", ""}, {"richtext", ""},
+		{"signature", ""}, {"richtext", ""},
 	}
 	for _, testCase := range rejected {
 		if _, ok := KindOf(testCase.widgetType, testCase.format); ok {
@@ -170,6 +178,9 @@ func TestKindOfSupportMatrix(t *testing.T) {
 	}
 	if kind, _ := KindOf("user", ""); kind != KindMember || ColumnTypeOf(kind) != ColumnTypeText {
 		t.Fatal("user maps to global member-code TEXT")
+	}
+	if kind, _ := KindOf("deptgroup", ""); kind != KindRefArray || ColumnTypeOf(kind) != ColumnTypeBigintArray {
+		t.Fatal("deptgroup maps to BIGINT[]")
 	}
 	if kind, _ := KindOf("datetime", "date"); kind != KindDate {
 		t.Fatal("datetime/date maps to date")

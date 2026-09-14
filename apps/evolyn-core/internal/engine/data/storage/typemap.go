@@ -1,7 +1,7 @@
 // 控件 → 物理列类型映射（方案 §4.3 支持矩阵的唯一后端事实源）。
 //
-// 只开放可无损转换且筛选语义明确的顶层标量字段；数组类（多选/多成员/
-// 多部门）与尚未建模的控件一律拒绝物理发布，禁止为兼容把用户业务值退回
+// 只开放可无损转换且筛选语义明确的顶层字段；多部门经 BIGINT[] 建模，其余
+// 数组类（多选/多成员）与尚未建模的控件仍拒绝物理发布，禁止为兼容把用户业务值退回
 // JSONB。本矩阵与前端物理类型映射口径一致：成员关系使用全局 member_code 文本，
 // 不把分库后会冲突的自增 ID 持久化为业务引用。
 //
@@ -36,18 +36,21 @@ const (
 	KindMember FieldKind = "member"
 	// KindRef 单部门引用（BIGINT；协议值形态是字符串 ID）。
 	KindRef FieldKind = "ref"
+	// KindRefArray 多部门引用（BIGINT[]；协议值形态是有序字符串 ID 数组）。
+	KindRefArray FieldKind = "ref_array"
 )
 
 // ColumnType PostgreSQL 列类型（DDL 输出的稳定枚举，不带长度/精度修饰）。
 type ColumnType string
 
 const (
-	ColumnTypeText      ColumnType = "TEXT"
-	ColumnTypeNumeric   ColumnType = "NUMERIC"
-	ColumnTypeDate      ColumnType = "DATE"
-	ColumnTypeTimestamp ColumnType = "TIMESTAMP"
-	ColumnTypeBigint    ColumnType = "BIGINT"
-	ColumnTypeInteger   ColumnType = "INTEGER"
+	ColumnTypeText        ColumnType = "TEXT"
+	ColumnTypeNumeric     ColumnType = "NUMERIC"
+	ColumnTypeDate        ColumnType = "DATE"
+	ColumnTypeTimestamp   ColumnType = "TIMESTAMP"
+	ColumnTypeBigint      ColumnType = "BIGINT"
+	ColumnTypeBigintArray ColumnType = "BIGINT[]"
+	ColumnTypeInteger     ColumnType = "INTEGER"
 )
 
 // KindOf 按控件类型（与 datetime 的 format 形状）推导物理值语义。
@@ -55,7 +58,7 @@ const (
 // （FORM_STORAGE_UNSUPPORTED_FIELD），不得静默改用其他类型承载。
 func KindOf(widgetType, format string) (FieldKind, bool) {
 	switch widgetType {
-	case "text", "textarea", "radiogroup", "combo":
+	case "text", "textarea", "radiogroup", "combo", "sn":
 		return KindText, true
 	case "number":
 		return KindNumber, true
@@ -92,9 +95,13 @@ func KindOf(widgetType, format string) (FieldKind, bool) {
 	case "dept":
 		// 部门尚未具备公开编号，仍使用租户内 BIGINT 关系键。
 		return KindRef, true
+	case "deptgroup":
+		// 多部门保持协议中的选择顺序，以 BIGINT[] 无损存储；目录有效性在
+		// 表单提交管线终审，物理层只承担确定的 ID 编解码。
+		return KindRefArray, true
 	default:
-		// checkboxgroup/combocheck/usergroup/deptgroup（数组）、subform（独立子表，
-		// 由子表建模分支处理）与全部未开放控件。
+		// checkboxgroup/combocheck/usergroup（数组）、subform（独立子表，由子表
+		// 建模分支处理）与全部未开放控件。
 		return "", false
 	}
 }
@@ -117,6 +124,8 @@ func ColumnTypeOf(kind FieldKind) ColumnType {
 		return ColumnTypeText
 	case KindRef:
 		return ColumnTypeBigint
+	case KindRefArray:
+		return ColumnTypeBigintArray
 	default:
 		return ""
 	}

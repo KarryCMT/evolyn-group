@@ -14,7 +14,8 @@ const key = computed(() => props.item.widget.widgetName);
 const inputId = computed(() => fieldInputId(key.value));
 const labelId = computed(() => fieldLabelId(key.value));
 const options = computed(() => readWidgetOptions(widget.value));
-const horizontal = computed(() => widget.value.layout === 'horizontal');
+// layout 缺失的历史快照按协议默认值横向排列；仅显式 vertical 才切换为纵向。
+const vertical = computed(() => widget.value.layout === 'vertical');
 const modelValue = computed(() =>
   Array.isArray(props.modelValue) ? (props.modelValue as string[]) : [],
 );
@@ -37,7 +38,7 @@ function onChange(value: string, checked: boolean): void {
 <template>
   <div
     class="evf-choice-group"
-    :class="{ 'evf-choice-group--horizontal': horizontal }"
+    :class="{ 'evf-choice-group--vertical': vertical }"
     role="group"
     :aria-labelledby="labelId"
     :aria-required="!item.widget.allowBlank || undefined"

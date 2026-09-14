@@ -237,15 +237,16 @@ function confirm(): void {
 
 <style lang="scss">
 .form-submit-rule-dialog {
-  width: min(1200px, calc(100vw - 64px)) !important;
+  // 特殊规则只管理字段标签，不需要占用全屏编辑空间；使用设计器常规设置弹窗宽度，
+  // 字段较多时仅滚动内容区，页头和操作按钮始终保持可见。
+  width: min(640px, calc(100vw - 40px)) !important;
   display: flex;
-  height: min(1000px, calc(100vh - 60px));
-  max-width: none !important;
-  margin: max(30px, calc((100vh - 1000px) / 2)) auto 0 !important;
+  max-height: calc(100dvh - 40px);
+  margin: 20px auto !important;
   overflow: hidden;
   background: var(--el-bg-color);
-  border-radius: 20px;
-  box-shadow: 0 24px 64px rgb(15 23 42 / 24%);
+  border-radius: 12px;
+  box-shadow: var(--el-box-shadow-light);
   flex-direction: column;
 
   .el-dialog__header {
@@ -258,7 +259,7 @@ function confirm(): void {
     display: flex;
     min-height: 0;
     padding: 0;
-    flex: 1 1 auto;
+    flex: 0 1 auto;
   }
 
   .el-dialog__footer {
@@ -268,29 +269,29 @@ function confirm(): void {
 
   &__header {
     display: flex;
-    height: 100px;
-    padding: 0 40px;
+    height: 56px;
+    padding: 0 24px;
     align-items: center;
     justify-content: space-between;
   }
 
   &__title {
     margin: 0;
-    font-size: 24px;
-    font-weight: 700;
+    font-size: 18px;
+    font-weight: 600;
     line-height: 1;
     color: var(--el-text-color-primary);
-    letter-spacing: -0.5px;
+    letter-spacing: 0;
   }
 
   &__close {
     display: inline-flex;
-    width: 44px;
-    height: 44px;
+    width: 32px;
+    height: 32px;
     padding: 0;
     align-items: center;
     justify-content: center;
-    font-size: 24px;
+    font-size: 20px;
     color: var(--el-text-color-regular);
     cursor: pointer;
     background: transparent;
@@ -307,24 +308,23 @@ function confirm(): void {
   }
 
   &__body {
-    min-height: 0;
-    padding: 42px 40px 0;
+    max-height: min(360px, calc(100dvh - 160px));
+    padding: 20px 24px;
     overflow-y: auto;
-    flex: 1 1 auto;
   }
 
   &__intro {
-    margin: 0 0 22px;
-    font-size: 16px;
-    line-height: 1.6;
+    margin: 0 0 16px;
+    font-size: 14px;
+    line-height: 1.5;
     color: var(--el-text-color-regular);
   }
 
   &__section {
-    padding: 0 8px 28px;
+    padding: 0 0 16px;
 
     & + & {
-      padding-top: 56px;
+      padding-top: 20px;
       border-top: 1px solid var(--el-border-color-lighter);
     }
   }
@@ -345,26 +345,26 @@ function confirm(): void {
   }
 
   &__section-heading {
-    gap: 10px;
+    gap: 6px;
   }
 
   &__section-title {
     margin: 0;
-    font-size: 20px;
+    font-size: 16px;
     font-weight: 600;
     line-height: 1.25;
     color: var(--el-text-color-primary);
   }
 
   &__help {
-    font-size: 16px;
+    font-size: 14px;
     color: var(--el-text-color-secondary);
   }
 
   &__add {
-    gap: 8px;
-    padding: 4px 0;
-    font-size: 16px;
+    gap: 4px;
+    padding: 2px 0;
+    font-size: 14px;
     line-height: 1.5;
     color: var(--el-color-primary);
     cursor: pointer;
@@ -372,7 +372,7 @@ function confirm(): void {
     border: 0;
 
     .el-icon {
-      font-size: 20px;
+      font-size: 16px;
     }
     &:hover {
       color: var(--el-color-primary-light-3);
@@ -385,31 +385,31 @@ function confirm(): void {
 
   &__tags {
     display: flex;
-    min-height: 56px;
-    gap: 8px;
+    min-height: 32px;
+    gap: 6px;
     flex-wrap: wrap;
     align-content: flex-start;
-    padding-top: 16px;
+    padding-top: 8px;
 
     &.is-empty {
-      min-height: 56px;
+      min-height: 32px;
     }
   }
 
   &__tag {
-    gap: 8px;
-    height: 40px;
-    padding: 0 12px;
-    font-size: 16px;
+    gap: 6px;
+    height: 32px;
+    padding: 0 8px;
+    font-size: 14px;
     line-height: 1;
     color: var(--el-text-color-primary);
     cursor: pointer;
     background: var(--el-fill-color-light);
     border: 0;
-    border-radius: 8px;
+    border-radius: 6px;
 
     .el-icon {
-      font-size: 18px;
+      font-size: 16px;
       color: var(--el-text-color-regular);
     }
     &:hover {
@@ -422,12 +422,12 @@ function confirm(): void {
   }
 
   &__footer {
-    height: 88px;
-    padding: 0 40px 0 54px;
+    height: 64px;
+    padding: 0 24px;
   }
 
   &__help-link {
-    font-size: 16px;
+    font-size: 14px;
     color: var(--el-color-primary);
     text-decoration: underline;
     text-underline-offset: 4px;
@@ -442,13 +442,13 @@ function confirm(): void {
   }
 
   &__actions {
-    gap: 12px;
+    gap: 8px;
   }
 
   &__cancel,
   &__confirm {
-    width: 84px;
-    height: 40px;
+    width: 72px;
+    height: 32px;
     margin: 0 !important;
     font-size: 14px;
     border-radius: 8px;
@@ -481,20 +481,19 @@ function confirm(): void {
 @media (width <= 760px) {
   .form-submit-rule-dialog {
     width: calc(100vw - 24px) !important;
-    height: auto;
     min-height: 0;
     margin-top: 12px !important;
 
     &__header {
-      height: 72px;
-      padding: 0 22px;
+      height: 52px;
+      padding: 0 16px;
     }
     &__title {
-      font-size: 20px;
+      font-size: 16px;
     }
     &__body {
-      min-height: 0;
-      padding: 28px 18px 0;
+      max-height: calc(100dvh - 136px);
+      padding: 16px;
     }
     &__intro {
       font-size: 14px;
@@ -510,16 +509,16 @@ function confirm(): void {
       font-size: 14px;
     }
     &__footer {
-      height: 82px;
-      padding: 0 18px;
+      height: 56px;
+      padding: 0 16px;
     }
     &__help-link {
       font-size: 14px;
     }
     &__cancel,
     &__confirm {
-      width: 72px;
-      height: 34px;
+      width: 68px;
+      height: 32px;
       font-size: 14px;
     }
     &__actions {

@@ -5,7 +5,7 @@
 // canonical decimal string（设计 §15/§27，高精度禁 float 中转）、
 // date="YYYY-MM-DD"、datetime="YYYY-MM-DD HH:MM:SS"（本地形状直存，与
 // JSONTime 口径一致）、month="YYYY-MM"、time="HH:MM"（两者原形 TEXT 直存）、
-// 单成员/单部门引用=string(十进制 ID)。
+// 单成员/单部门引用=string(十进制 ID)，多部门引用=[]string(十进制 ID)。
 package storage
 
 import (
@@ -88,6 +88,34 @@ func EncodeSQLValue(kind FieldKind, value any) (any, error) {
 			return nil, fmt.Errorf("引用字段值 %q 不是合法的正整数 ID", text)
 		}
 		return id, nil
+	case KindRefArray:
+		// 部门多选的顺序是表单协议的一部分。空数组与未填写同样收敛为 NULL，
+		// 读取后由运行时按多值控件的空值语义视为未选择。
+		references, ok := value.([]any)
+		if !ok {
+			return nil, fmt.Errorf("多引用字段值必须是字符串 ID 数组，得到 %T", value)
+		}
+		if len(references) == 0 {
+			return nil, nil
+		}
+		ids := make([]int64, 0, len(references))
+		seen := make(map[int64]struct{}, len(references))
+		for _, raw := range references {
+			text, ok := raw.(string)
+			if !ok {
+				return nil, fmt.Errorf("多引用字段元素必须是字符串 ID，得到 %T", raw)
+			}
+			id, err := strconv.ParseInt(text, 10, 64)
+			if err != nil || id <= 0 {
+				return nil, fmt.Errorf("多引用字段值 %q 不是合法的正整数 ID", text)
+			}
+			if _, duplicate := seen[id]; duplicate {
+				return nil, fmt.Errorf("多引用字段值 %q 重复", text)
+			}
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+		return ids, nil
 	default:
 		return nil, fmt.Errorf("未知值语义 %q", kind)
 	}
@@ -193,9 +221,95 @@ func DecodeSQLValue(kind FieldKind, value any) (any, error) {
 		default:
 			return nil, fmt.Errorf("引用列扫描到未知类型 %T", value)
 		}
+	case KindRefArray:
+		ids, err := decodeReferenceArray(value)
+		if err != nil {
+			return nil, err
+		}
+		if len(ids) == 0 {
+			return nil, nil
+		}
+		values := make([]any, len(ids))
+		for i, id := range ids {
+			values[i] = strconv.FormatInt(id, 10)
+		}
+		return values, nil
 	default:
 		return nil, fmt.Errorf("未知值语义 %q", kind)
 	}
+}
+
+// decodeReferenceArray 兼容 pgx/driver 对 BIGINT[] 的常见扫描形态。数组元素只
+// 允许正整数，因而不接受 PostgreSQL 文本数组的转义/引号语法，避免脏数据被
+// 宽松解析后伪装成合法部门引用。
+func decodeReferenceArray(value any) ([]int64, error) {
+	var ids []int64
+	switch raw := value.(type) {
+	case []int64:
+		ids = append([]int64(nil), raw...)
+	case []int32:
+		ids = make([]int64, len(raw))
+		for i, id := range raw {
+			ids[i] = int64(id)
+		}
+	case []any:
+		ids = make([]int64, len(raw))
+		for i, item := range raw {
+			switch id := item.(type) {
+			case int64:
+				ids[i] = id
+			case int32:
+				ids[i] = int64(id)
+			default:
+				return nil, fmt.Errorf("多引用列元素扫描到未知类型 %T", item)
+			}
+		}
+	case string:
+		var err error
+		ids, err = parseReferenceArray(raw)
+		if err != nil {
+			return nil, err
+		}
+	case []byte:
+		var err error
+		ids, err = parseReferenceArray(string(raw))
+		if err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("多引用列扫描到未知类型 %T", value)
+	}
+	seen := make(map[int64]struct{}, len(ids))
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, fmt.Errorf("多引用列包含非法 ID %d", id)
+		}
+		if _, duplicate := seen[id]; duplicate {
+			return nil, fmt.Errorf("多引用列包含重复 ID %d", id)
+		}
+		seen[id] = struct{}{}
+	}
+	return ids, nil
+}
+
+func parseReferenceArray(text string) ([]int64, error) {
+	if len(text) < 2 || text[0] != '{' || text[len(text)-1] != '}' {
+		return nil, fmt.Errorf("多引用列扫描值 %q 不是 PostgreSQL 数组", text)
+	}
+	body := text[1 : len(text)-1]
+	if body == "" {
+		return nil, nil
+	}
+	parts := strings.Split(body, ",")
+	ids := make([]int64, len(parts))
+	for i, part := range parts {
+		id, err := strconv.ParseInt(part, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("多引用列扫描值 %q 包含非法 ID", text)
+		}
+		ids[i] = id
+	}
+	return ids, nil
 }
 
 // decodeTimeText 日期/时间列统一按东八区规范形状出文本（与 JSONTime 出网

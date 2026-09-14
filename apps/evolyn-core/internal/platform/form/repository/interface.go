@@ -102,6 +102,13 @@ type FormRecordRepository interface {
 	Migrate() error
 }
 
+// FormSerialCounterRepository 为流水号分配递增值。Allocate 必须在记录提交事务内调用，
+// 使用数据库唯一键和原子 upsert 保证并发请求不会获得相同计数。
+type FormSerialCounterRepository interface {
+	Allocate(ctx context.Context, tenantID, formID uint, fieldID, cycleKey string, initialValue int64) (int64, error)
+	Migrate() error
+}
+
 // RecordListParams 是记录列表仓储的受控输入。FormID、分页、已编译谓词与
 // 系统字段排序片段分别由 Service 层校验/生成，仓储不暴露 JSONB 路径或
 // 物理列名选择能力。

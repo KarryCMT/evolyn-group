@@ -287,14 +287,18 @@ function isFormItem(entry: unknown): entry is FormItem {
 
   &__columns {
     display: flex;
-    min-width: 220px;
+    min-width: 150px;
   }
 
   &__column,
   &__pending {
     box-sizing: border-box;
-    flex: 0 0 220px;
-    min-width: 220px;
+    // 子表单在设计画布中始终以 150px 为一列；字段数量增加时交给表格横向滚动，
+    // 不能因内容或剩余空间自动拉伸单个子字段。
+    flex: 0 0 150px;
+    width: 150px;
+    min-width: 150px;
+    max-width: 150px;
     border-right: 1px solid var(--el-border-color-lighter);
   }
 

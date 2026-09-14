@@ -129,6 +129,41 @@ func TestValidateFormSchemaMultitabWithSubformReference(t *testing.T) {
 	assert.True(t, containsPath(issues, "content.layout_fields[0].container[0].field_layout[0]"))
 }
 
+func TestValidateSerialNumberRulesV9(t *testing.T) {
+	customer := validTextItem()
+	customerWidget := customer["widget"].(map[string]any)
+	customerWidget["widgetName"] = "_widget_customer"
+	customerWidget["fieldId"] = "abc123def4"
+	serial := map[string]any{
+		"widget": map[string]any{
+			"type": "sn", "widgetName": "_widget_serial", "fieldId": "abc123def5",
+			"enable": false, "visible": true, "allowBlank": true,
+			"rules": []any{
+				map[string]any{"type": "counter", "digits": 5, "fixedWidth": true, "resetCycle": "daily", "initialValue": 1},
+				map[string]any{"type": "submittedAt", "format": "yyyy/MM/dd", "formatType": "custom"},
+				map[string]any{"type": "field", "fieldId": "abc123def4"},
+			},
+		},
+		"label": "订单编号", "description": "", "labelHidden": false, "lineWidth": 12,
+	}
+	assert.Empty(t, ValidateFormSchema(doc(customer, serial)))
+
+	serial["widget"].(map[string]any)["rules"] = []any{
+		map[string]any{"type": "counter", "digits": 5, "fixedWidth": true, "resetCycle": "daily", "initialValue": 1},
+	}
+	issues := ValidateFormSchema(doc(customer, serial))
+	assert.True(t, containsPath(issues, "content.items[1].widget.rules"))
+
+	serialWidget := serial["widget"].(map[string]any)
+	serialWidget["rules"] = []any{
+		map[string]any{"type": "counter", "digits": 5, "fixedWidth": true, "resetCycle": "daily", "initialValue": 1},
+		map[string]any{"type": "submittedAt", "format": "yyyyMMdd"},
+	}
+	serialWidget["allowBlank"] = false
+	issues = ValidateFormSchema(doc(customer, serial))
+	assert.True(t, containsPath(issues, "content.items[1].widget.allowBlank"))
+}
+
 func TestValidateFormSchemaValidSample(t *testing.T) {
 	assert.Empty(t, ValidateFormSchema(doc(validTextItem())))
 	assert.Empty(t, ValidateFormSchema(doc()))
@@ -335,8 +370,8 @@ func TestValidateFormSchemaSubformWhitelist(t *testing.T) {
 }
 
 func TestValidatePublishable(t *testing.T) {
-	// 基础字段、成员选择与部门单选可发布。
-	basic := []string{"text", "textarea", "number", "datetime", "radiogroup", "checkboxgroup", "combo", "combocheck", "separator", "user", "usergroup", "dept"}
+	// 基础字段、成员选择与部门单/多选可发布。
+	basic := []string{"text", "textarea", "number", "datetime", "radiogroup", "checkboxgroup", "combo", "combocheck", "separator", "user", "usergroup", "dept", "deptgroup"}
 	items := make([]any, 0, len(basic))
 	for i, widgetType := range basic {
 		item := validTextItem()
@@ -351,24 +386,29 @@ func TestValidatePublishable(t *testing.T) {
 	}
 	assert.Empty(t, ValidatePublishable(doc(items...)))
 
-	// 白名单外（deptgroup）给出精确路径。
-	dept := validTextItem()
-	deptWidget := dept["widget"].(map[string]any)
-	deptWidget["type"] = "deptgroup"
-	deptWidget["widgetName"] = "_widget_d1"
-	delete(deptWidget, "placeholder")
-	issues := ValidatePublishable(doc(validTextItem(), dept))
+	// 白名单外控件仍给出精确路径。
+	unsupported := validTextItem()
+	unsupportedWidget := unsupported["widget"].(map[string]any)
+	unsupportedWidget["type"] = "image"
+	unsupportedWidget["widgetName"] = "_widget_d1"
+	delete(unsupportedWidget, "placeholder")
+	issues := ValidatePublishable(doc(validTextItem(), unsupported))
 	assert.Equal(t, "content.items[1].widget.type", issues[0].Path)
 }
 
-func TestValidatePublishableAllowsSubformUser(t *testing.T) {
+func TestValidatePublishableAllowsSubformOrganizationFields(t *testing.T) {
 	user := validTextItem()
 	userWidget := user["widget"].(map[string]any)
 	userWidget["type"] = "user"
 	userWidget["widgetName"] = "_widget_owner"
 	delete(userWidget, "placeholder")
+	departments := validTextItem()
+	departmentsWidget := departments["widget"].(map[string]any)
+	departmentsWidget["type"] = "deptgroup"
+	departmentsWidget["widgetName"] = "_widget_departments"
+	delete(departmentsWidget, "placeholder")
 	subform := map[string]any{
-		"widget": validSubformWidget([]any{user}),
+		"widget": validSubformWidget([]any{user, departments}),
 		"label":  "明细", "description": "", "labelHidden": false, "lineWidth": 12,
 	}
 
@@ -564,14 +604,7 @@ func TestValidatePublishableConditionSource(t *testing.T) {
 	issues := ValidatePublishable(rulesDoc([]any{
 		showRule("r1", "_widget_dept", "deptgroup", "containsAny", []any{"d1"}, "_widget_target"),
 	}, dept, target))
-	found := false
-	for _, issue := range issues {
-		if issue.Path == "content.fieldShowRules[0].filter.cond[0].field" &&
-			issue.Message == "条件字段「_widget_dept」的运行能力尚未开放，暂不能发布" {
-			found = true
-		}
-	}
-	assert.True(t, found)
+	assert.Empty(t, issues)
 }
 
 // ---- 不可见字段赋值校验（v6，与 TS validate.spec.ts 对拍） ----
