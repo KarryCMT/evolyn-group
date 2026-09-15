@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import type { Component } from 'vue';
+import type { DashboardWidgetPreset } from '~/types/dashboard';
 import { DashboardWidgetPalette } from '@evolyn.do/dashboard';
 import {
   RiApps2Fill,
-  RiBarChartBoxFill,
   RiArticleFill,
+  RiBarChartBoxFill,
   RiDashboardFill,
   RiFileTextFill,
   RiSendPlaneFill,
@@ -12,15 +14,12 @@ import {
   RiTimerFill,
   RiUserFill,
 } from '@remixicon/vue';
-import type { Component } from 'vue';
-import type { DashboardWidgetPreset } from '~/types/dashboard';
 
 defineOptions({ name: 'WidgetPalette' });
+defineProps<{ disabledKeys: string[] }>();
 const emit = defineEmits<{
   add: [preset: DashboardWidgetPreset];
 }>();
-defineProps<{ disabledKeys: string[] }>();
-
 type PaletteItem = DashboardWidgetPreset & { icon: Component; label: string };
 
 const palette: PaletteItem[] = [
@@ -34,6 +33,7 @@ const palette: PaletteItem[] = [
     h: 4,
     minW: 3,
     minH: 3,
+    maxW: 3,
   },
   {
     key: 'apps',

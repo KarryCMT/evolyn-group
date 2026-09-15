@@ -1,16 +1,16 @@
 <script setup lang="ts">
-import { RiAddFill, RiSearchFill } from '@remixicon/vue';
+import type { BlankApplicationDraft } from '~/components/application/create/BlankApplicationDialog.vue';
+import type { ApplicationItem } from '~/types';
+import type { DashboardWidgetContent } from '~/types/dashboard';
 import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
 import { EvolynIconPicker } from '@evolyn.do/ui';
 import { ApiError, ERROR_CODES } from '@evolyn.do/utils';
+import { RiAddFill, RiSearchFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, onMounted, ref, shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
 import { createBlankApplication, listApplications } from '~/api/applications';
 import CreateApplicationDialog from '~/components/application/create/CreateApplicationDialog.vue';
-import type { BlankApplicationDraft } from '~/components/application/create/BlankApplicationDialog.vue';
-import type { DashboardWidgetContent } from '~/types/dashboard';
-import type { ApplicationItem } from '~/types';
 
 defineOptions({ name: 'AppsWidget' });
 const props = withDefaults(
@@ -92,7 +92,11 @@ onMounted(() => {
         </el-button>
       </div>
     </template>
-    <div v-loading="loading" class="apps-widget">
+    <div
+      v-loading="loading"
+      class="apps-widget"
+      :class="{ 'apps-widget--empty': !filteredApps.length }"
+    >
       <el-empty
         v-if="!filteredApps.length"
         class="apps-widget__empty"
@@ -127,6 +131,12 @@ onMounted(() => {
   align-content: start;
   height: 100%;
   gap: var(--el-space-4xl) var(--el-space-2xl);
+
+  &--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
   &__empty {
     width: 100%;

@@ -82,7 +82,8 @@ const visible = defineModel<boolean>({ default: false });
   width: 100vw;
   min-height: 500px;
   overflow: hidden;
-  background: #f6f7f9;
+  /* 使用页面语义色，抽屉传送至 body 后仍能跟随明暗主题切换。 */
+  background: var(--el-bg-color-page);
   box-shadow: none;
 
   /* 弹层已传送至 body，显式继承项目品牌蓝。 */

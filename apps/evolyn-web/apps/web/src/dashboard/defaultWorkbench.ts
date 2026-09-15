@@ -10,10 +10,10 @@ const defaultWidgets: DashboardWidget[] = [
   widget('greeting', '问候语', 0, 2, 3, 1, { minW: 3, minH: 1, maxH: 1, presetKey: 'greeting' }),
   widget('favorites', '最近使用', 3, 2, 9, 2, { minW: 4, minH: 2, presetKey: 'recent' }),
   widget('shortcut', '未命名快捷入口', 0, 4, 12, 2, { minH: 2, presetKey: 'shortcut' }),
-  widget('todo', '流程中心', 0, 6, 3, 4, { minW: 3, minH: 3, presetKey: 'todo' }),
-  widget('favorites', '我的收藏', 3, 6, 9, 2, { minW: 4, minH: 2, presetKey: 'favorites' }),
-  widget('apps', '我的应用', 3, 8, 9, 3, { minW: 4, minH: 3, presetKey: 'apps' }),
-  widget('charts', '我的图表', 3, 11, 9, 2, { minW: 4, minH: 2, presetKey: 'my-charts' }),
+  widget('todo', '流程中心', 0, 6, 2, 4, { minW: 2, maxW: 3, minH: 3, presetKey: 'todo' }),
+  widget('favorites', '我的收藏', 2, 6, 10, 2, { minW: 4, minH: 2, presetKey: 'favorites' }),
+  widget('apps', '我的应用', 2, 8, 10, 3, { minW: 4, minH: 3, presetKey: 'apps' }),
+  widget('charts', '我的图表', 2, 11, 10, 2, { minW: 4, minH: 2, presetKey: 'my-charts' }),
 ];
 
 /** 返回新对象，避免 GridStack 更新坐标时修改默认布局常量。 */
