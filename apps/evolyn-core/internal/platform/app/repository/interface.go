@@ -64,11 +64,11 @@ type MenuRepository interface {
 	// GetSnapshot 按租户与应用编码读取「应用元信息 + 未软删菜单节点」的
 	// 一致性快照；应用不存在/跨租户返回 gorm.ErrRecordNotFound
 	GetSnapshot(ctx context.Context, tenantID uint, code string) (*MenuSnapshot, error)
-	// CreateGroupEntry 创建不绑定资产的 group 节点；code 由仓储生成。
-	CreateGroupEntry(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error)
-	// CreateFormEntry 在表单创建事务内插入 form 资产节点：code 服务端生成，
+	// CreateGroupNode 创建不绑定资产的 group 节点；code 由仓储生成。
+	CreateGroupNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error)
+	// CreateFormNode 在表单创建事务内插入 form 资产节点：code 服务端生成，
 	// sort_order 取同父（根级或指定分组）最大值 + 1024（首个 1024）
-	CreateFormEntry(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error)
+	CreateFormNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error)
 	// UpdateNameByFormTarget 按应用与表单目标同步节点名（表单改名事务内）
 	UpdateNameByFormTarget(ctx context.Context, appID, formID uint, name string) error
 	// UpdateAppearanceByFormTarget 按应用与表单目标同步节点图标/颜色
@@ -85,9 +85,9 @@ type MenuRepository interface {
 	// BumpMenuRevisionFrom 仅当当前修订号等于 baseRevision 时递增；false
 	// 表示并发写入已抢先提交，调用方应返回 APP_MENU_VERSION_CONFLICT。
 	BumpMenuRevisionFrom(ctx context.Context, appID uint, baseRevision int64) (bool, error)
-	// UpdateEntryFields 节点白名单字段更新（fields 由 Service 组装；
+	// UpdateNodeFields 节点白名单字段更新（fields 由 Service 组装；
 	// 须先经 BumpMenuRevisionFrom 占用修订号后同事务调用）
-	UpdateEntryFields(ctx context.Context, appID, entryID uint, fields map[string]interface{}) error
+	UpdateNodeFields(ctx context.Context, appID, nodeID uint, fields map[string]interface{}) error
 	// CreateFavorite 写入成员收藏（(member_id, menu_id) 唯一幂等）
 	CreateFavorite(ctx context.Context, fav *model.MenuFavorite) error
 	// DeleteFavoriteByCode 按成员 + 节点编码取消收藏（幂等）；返回是否实际删除

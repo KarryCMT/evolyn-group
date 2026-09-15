@@ -195,7 +195,7 @@ func TestSECMENU005PruningAndIntegrity(t *testing.T) {
 }
 
 // SEC-MENU-006：软删节点（deleted_at 置位）从快照排除
-func TestSECMENU006SoftDeletedEntryExcluded(t *testing.T) {
+func TestSECMENU006SoftDeletedNodeExcluded(t *testing.T) {
 	env := newMenuEnv(t)
 
 	created, err := env.appSvc.CreateBlank(appCtx(env.alpha.ID), env.alphaMember, blankReq("软删节点"))

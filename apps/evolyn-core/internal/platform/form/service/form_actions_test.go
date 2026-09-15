@@ -131,7 +131,7 @@ func TestListReferences(t *testing.T) {
 	// 端口注入：透传反查结果
 	stub := &fakeReferenceSource{items: []FormReference{{
 		AppCode: "app_x", AppName: "示例应用",
-		MenuID: "menu_a", EntryName: "请假申请",
+		MenuID: "menu_a", NodeName: "请假申请",
 	}}}
 	if impl, ok := svc.(FormReferenceSourceInjector); ok {
 		impl.UseReferenceSource(stub)

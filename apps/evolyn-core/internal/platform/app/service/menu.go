@@ -209,7 +209,7 @@ func (s *menuService) CreateGroup(ctx context.Context, member *iammodel.User, co
 			return err
 		}
 		appID, appCode, appName = snap.AppID, snap.AppCode, snap.AppName
-		created, err = s.repo.CreateGroupEntry(tctx, &model.MenuNode{
+		created, err = s.repo.CreateGroupNode(tctx, &model.MenuNode{
 			TenantID:     tenantID,
 			AppID:        snap.AppID,
 			ParentMenuID: parentMenuID,
@@ -231,7 +231,7 @@ func (s *menuService) CreateGroup(ctx context.Context, member *iammodel.User, co
 	}
 	if s.audit != nil {
 		s.audit.Record(ctx, auditservice.Entry{
-			Module: "app", Action: "create", ResourceType: "app_menu_entry",
+			Module: "app", Action: "create", ResourceType: "app_menu_node",
 			ResourceID: created.Code,
 			After: map[string]any{
 				"appCode":      code,
@@ -260,10 +260,10 @@ func menuNodeByCode(nodes []model.MenuNode, code string) (*model.MenuNode, error
 	return nil, gorm.ErrRecordNotFound
 }
 
-// UpdateEntry 菜单节点管理更新（ADR-011）：分组改名 / 资产节点对成员隐藏 /
+// UpdateNode 菜单节点管理更新（ADR-011）：分组改名 / 资产节点对成员隐藏 /
 // 移动节点，统一走 menuRevision 乐观锁串行化。资产节点名称以资产域为事实
 // 源，本接口拒绝改名（经对应资产接口修改后同事务同步回节点）。
-func (s *menuService) UpdateEntry(ctx context.Context, member *iammodel.User, code, menuCode string, req *model.UpdateMenuNodeRequest) (*model.MenuNodeMutation, error) {
+func (s *menuService) UpdateNode(ctx context.Context, member *iammodel.User, code, menuCode string, req *model.UpdateMenuNodeRequest) (*model.MenuNodeMutation, error) {
 	tenantID, ok := contextx.TenantIDFromContext(ctx)
 	if !ok {
 		return nil, fmt.Errorf("tenant context required")
@@ -377,7 +377,7 @@ func (s *menuService) UpdateEntry(ctx context.Context, member *iammodel.User, co
 			// 移动节点追加到目标父节点末位（服务端排序，不信任客户端排序值）
 			fields["sort_order"] = sortOrder + 1024
 		}
-		if err := s.repo.UpdateEntryFields(tctx, snap.AppID, node.ID, fields); err != nil {
+		if err := s.repo.UpdateNodeFields(tctx, snap.AppID, node.ID, fields); err != nil {
 			return err
 		}
 		appID, appCode, appName = snap.AppID, snap.AppCode, snap.AppName
@@ -391,7 +391,7 @@ func (s *menuService) UpdateEntry(ctx context.Context, member *iammodel.User, co
 
 	if s.audit != nil {
 		s.audit.Record(ctx, auditservice.Entry{
-			Module: "app", Action: "update", ResourceType: "app_menu_entry",
+			Module: "app", Action: "update", ResourceType: "app_menu_node",
 			ResourceID: updated.Code,
 			After: map[string]any{
 				"appCode":        code,

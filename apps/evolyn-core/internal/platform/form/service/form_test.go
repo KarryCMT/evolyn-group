@@ -90,7 +90,7 @@ type fakeMenuPort struct {
 	}
 }
 
-func (f *fakeMenuPort) AttachFormEntry(ctx context.Context, appID, formID uint, name, parentMenuCode string) error {
+func (f *fakeMenuPort) AttachFormNode(ctx context.Context, appID, formID uint, name, parentMenuCode string) error {
 	f.attached = append(f.attached, struct {
 		appID  uint
 		formID uint
@@ -100,7 +100,7 @@ func (f *fakeMenuPort) AttachFormEntry(ctx context.Context, appID, formID uint, 
 	return nil
 }
 
-func (f *fakeMenuPort) SyncFormEntryName(ctx context.Context, appID, formID uint, name string) error {
+func (f *fakeMenuPort) SyncFormNodeName(ctx context.Context, appID, formID uint, name string) error {
 	f.renamed = append(f.renamed, struct {
 		appID  uint
 		formID uint
@@ -109,11 +109,11 @@ func (f *fakeMenuPort) SyncFormEntryName(ctx context.Context, appID, formID uint
 	return nil
 }
 
-func (f *fakeMenuPort) SyncFormEntryAppearance(ctx context.Context, appID, formID uint, icon, color string) error {
+func (f *fakeMenuPort) SyncFormNodeAppearance(ctx context.Context, appID, formID uint, icon, color string) error {
 	return nil
 }
 
-func (f *fakeMenuPort) DetachFormEntry(ctx context.Context, appID, formID uint) error {
+func (f *fakeMenuPort) DetachFormNode(ctx context.Context, appID, formID uint) error {
 	f.detached = append(f.detached, struct {
 		appID  uint
 		formID uint

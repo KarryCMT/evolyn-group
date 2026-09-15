@@ -166,9 +166,9 @@ func (r *menuRepository) FindByCode(ctx context.Context, appID uint, code string
 	return &node, nil
 }
 
-// CreateFormEntry 在表单创建事务内插入 form 资产节点（根级或指定分组下、
+// CreateFormNode 在表单创建事务内插入 form 资产节点（根级或指定分组下、
 // target 指向表单 ID）；code 冲突由唯一索引兜底，随机空间下可忽略。
-func (r *menuRepository) CreateFormEntry(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
+func (r *menuRepository) CreateFormNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
 	code, err := newMenuNodeCode()
 	if err != nil {
 		return nil, err
@@ -180,9 +180,9 @@ func (r *menuRepository) CreateFormEntry(ctx context.Context, node *model.MenuNo
 	return node, nil
 }
 
-// CreateGroupEntry 创建菜单分组；group 不携带 target，数据库 CHECK 约束与
+// CreateGroupNode 创建菜单分组；group 不携带 target，数据库 CHECK 约束与
 // 服务层类型常量共同保证分组不会伪装成资产节点。
-func (r *menuRepository) CreateGroupEntry(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
+func (r *menuRepository) CreateGroupNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
 	code, err := newMenuNodeCode()
 	if err != nil {
 		return nil, err
@@ -234,11 +234,11 @@ func (r *menuRepository) BumpMenuRevisionFrom(ctx context.Context, appID uint, b
 	return result.RowsAffected == 1, result.Error
 }
 
-// UpdateEntryFields 节点白名单字段更新（fields 由 Service 组装，仓储不做
+// UpdateNodeFields 节点白名单字段更新（fields 由 Service 组装，仓储不做
 // 二次裁剪；先经 BumpMenuRevisionFrom 占用修订号后再调用，同事务执行）。
-func (r *menuRepository) UpdateEntryFields(ctx context.Context, appID, entryID uint, fields map[string]interface{}) error {
+func (r *menuRepository) UpdateNodeFields(ctx context.Context, appID, nodeID uint, fields map[string]interface{}) error {
 	return infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuNode{}).
-		Where("app_id = ? AND id = ?", appID, entryID).
+		Where("app_id = ? AND id = ?", appID, nodeID).
 		Updates(fields).Error
 }
 
@@ -298,7 +298,7 @@ type FormMenuReference struct {
 	AppCode        string
 	AppName        string
 	MenuCode       string
-	EntryName      string
+	NodeName      string
 	MenuType       string
 	ParentMenuCode *string
 }
@@ -312,7 +312,7 @@ func (r *menuRepository) ListFormMenuReferences(ctx context.Context, tenantID, f
 SELECT a.code AS app_code,
        a.name AS app_name,
        e.code AS menu_code,
-       e.name AS entry_name,
+       e.name AS node_name,
        e.menu_type AS menu_type,
        p.code AS parent_menu_code
 FROM tn_app_menu_nodes e

@@ -331,7 +331,7 @@ func (s *formService) provision(
 		// M2-资产-1：同事务挂菜单节点（form 类型、target 指向本表单，
 		// menu_revision 随之递增）；端口未注入（单测）时跳过。
 		if s.menu != nil {
-			return s.menu.AttachFormEntry(tctx, appID, form.ID, name, parentMenuCode)
+			return s.menu.AttachFormNode(tctx, appID, form.ID, name, parentMenuCode)
 		}
 		return nil
 	})
@@ -425,7 +425,7 @@ func (s *formService) Update(ctx context.Context, member *iammodel.User, code st
 					return err
 				}
 				if s.menu != nil {
-					if err := s.menu.SyncFormEntryName(tctx, form.AppID, form.ID, newName); err != nil {
+					if err := s.menu.SyncFormNodeName(tctx, form.AppID, form.ID, newName); err != nil {
 						return err
 					}
 				}
@@ -448,7 +448,7 @@ func (s *formService) Update(ctx context.Context, member *iammodel.User, code st
 				return httpx.Wrap(apperrors.ErrFormIconInvalid, fmt.Errorf("invalid icon/color key length"))
 			}
 			if s.menu != nil {
-				if err := s.menu.SyncFormEntryAppearance(tctx, form.AppID, form.ID, newIcon, newColor); err != nil {
+				if err := s.menu.SyncFormNodeAppearance(tctx, form.AppID, form.ID, newIcon, newColor); err != nil {
 					return err
 				}
 			}
@@ -664,7 +664,7 @@ func (s *formService) Delete(ctx context.Context, member *iammodel.User, code st
 			return err
 		}
 		if s.menu != nil {
-			return s.menu.DetachFormEntry(tctx, form.AppID, form.ID)
+			return s.menu.DetachFormNode(tctx, form.AppID, form.ID)
 		}
 		return nil
 	}); err != nil {

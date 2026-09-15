@@ -33,20 +33,20 @@ func readOnlyPerms() map[string]bool {
 	return map[string]bool{"apps:get": true, "form-records:create": true}
 }
 
-// recordingMenuRepo 在 fakeMenuRepo 上记录 UpdateEntryFields 写入，供移动/
+// recordingMenuRepo 在 fakeMenuRepo 上记录 UpdateNodeFields 写入，供移动/
 // 改名/隐藏断言
 type recordingMenuRepo struct {
 	fakeMenuRepo
 	updatedFields map[string]map[string]interface{} // menuCode → fields（按快照内编码）
 }
 
-func (f *recordingMenuRepo) UpdateEntryFields(ctx context.Context, appID, entryID uint, fields map[string]interface{}) error {
+func (f *recordingMenuRepo) UpdateNodeFields(ctx context.Context, appID, nodeID uint, fields map[string]interface{}) error {
 	if f.updatedFields == nil {
 		f.updatedFields = map[string]map[string]interface{}{}
 	}
 	for i := range f.snapshots {
 		for _, node := range f.snapshots[i].Nodes {
-			if node.ID == entryID {
+			if node.ID == nodeID {
 				f.updatedFields[node.Code] = fields
 			}
 		}
@@ -93,13 +93,13 @@ func TestMenuHiddenVisibility(t *testing.T) {
 	assert.False(t, menuFav.NodeMap["menu_form"].Capabilities.Actions.Hide) // 只读成员无动作
 }
 
-func TestMenuUpdateEntryRename(t *testing.T) {
+func TestMenuUpdateNodeRename(t *testing.T) {
 	snap := hiddenMenuSnapshot()
 	repo := &recordingMenuRepo{fakeMenuRepo: fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": snap}}}
 	svc := newMenuTestService(repo, menuAdminPerms())
 
 	// 分组改名成功：修订号推进 + name 写入
-	out, err := svc.UpdateEntry(alphaCtx(), alphaMember(), "app_a", "menu_group",
+	out, err := svc.UpdateNode(alphaCtx(), alphaMember(), "app_a", "menu_group",
 		&model.UpdateMenuNodeRequest{Name: strPtr("新分组"), BaseMenuRevision: 1})
 	assert.NoError(t, err)
 	assert.Equal(t, "menu_group", out.MenuID)
@@ -108,25 +108,25 @@ func TestMenuUpdateEntryRename(t *testing.T) {
 
 	// 资产节点改名拒绝：名称以资产域为事实源（须经 PATCH /forms/:code）
 	resetRevision(snap, 1)
-	_, err = svc.UpdateEntry(alphaCtx(), alphaMember(), "app_a", "menu_form",
+	_, err = svc.UpdateNode(alphaCtx(), alphaMember(), "app_a", "menu_form",
 		&model.UpdateMenuNodeRequest{Name: strPtr("旁路改名"), BaseMenuRevision: 1})
 	assert.True(t, errors.Is(err, apperrors.ErrMenuNodeRenameForbidden))
 }
 
-func TestMenuUpdateEntryHidden(t *testing.T) {
+func TestMenuUpdateNodeHidden(t *testing.T) {
 	snap := hiddenMenuSnapshot()
 	repo := &recordingMenuRepo{fakeMenuRepo: fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": snap}}}
 	svc := newMenuTestService(repo, menuAdminPerms())
 
 	// 恢复显示（hidden=false）成功
-	_, err := svc.UpdateEntry(alphaCtx(), alphaMember(), "app_a", "menu_form",
+	_, err := svc.UpdateNode(alphaCtx(), alphaMember(), "app_a", "menu_form",
 		&model.UpdateMenuNodeRequest{Hidden: boolPtr(false), BaseMenuRevision: 1})
 	assert.NoError(t, err)
 	assert.Equal(t, false, repo.updatedFields["menu_form"]["hidden"])
 
 	// 分组节点不支持对成员隐藏
 	resetRevision(snap, 1)
-	_, err = svc.UpdateEntry(alphaCtx(), alphaMember(), "app_a", "menu_group",
+	_, err = svc.UpdateNode(alphaCtx(), alphaMember(), "app_a", "menu_group",
 		&model.UpdateMenuNodeRequest{Hidden: boolPtr(true), BaseMenuRevision: 1})
 	assert.True(t, errors.Is(err, apperrors.ErrMenuHiddenInvalid))
 
@@ -135,12 +135,12 @@ func TestMenuUpdateEntryHidden(t *testing.T) {
 	delete(perms, "form-actions:hide")
 	svcNoHide := newMenuTestService(repo, perms)
 	resetRevision(snap, 1)
-	_, err = svcNoHide.UpdateEntry(alphaCtx(), alphaMember(), "app_a", "menu_dash",
+	_, err = svcNoHide.UpdateNode(alphaCtx(), alphaMember(), "app_a", "menu_dash",
 		&model.UpdateMenuNodeRequest{Hidden: boolPtr(true), BaseMenuRevision: 1})
 	assert.True(t, errors.Is(err, apperrors.ErrForbidden))
 }
 
-func TestMenuUpdateEntryMove(t *testing.T) {
+func TestMenuUpdateNodeMove(t *testing.T) {
 	snap := hiddenMenuSnapshot()
 	// 追加第二层分组，构造「分组移动到自身后代」用例
 	nested := menuNodeFixture(4, "menu_nested", ptrUint(1), model.MenuTypeGroup, 3072)
@@ -149,7 +149,7 @@ func TestMenuUpdateEntryMove(t *testing.T) {
 	svc := newMenuTestService(repo, menuAdminPerms())
 
 	// 表单节点移动到根级（空串父编码）
-	_, err := svc.UpdateEntry(alphaCtx(), alphaMember(), "app_a", "menu_form",
+	_, err := svc.UpdateNode(alphaCtx(), alphaMember(), "app_a", "menu_form",
 		&model.UpdateMenuNodeRequest{ParentMenuCode: strPtr(""), BaseMenuRevision: 1})
 	assert.NoError(t, err)
 	assert.Contains(t, repo.updatedFields["menu_form"], "parent_menu_id")
@@ -157,23 +157,23 @@ func TestMenuUpdateEntryMove(t *testing.T) {
 
 	// 分组移动到自身后代：APP_MENU_MOVE_INVALID
 	resetRevision(snap, 1)
-	_, err = svc.UpdateEntry(alphaCtx(), alphaMember(), "app_a", "menu_group",
+	_, err = svc.UpdateNode(alphaCtx(), alphaMember(), "app_a", "menu_group",
 		&model.UpdateMenuNodeRequest{ParentMenuCode: strPtr("menu_nested"), BaseMenuRevision: 1})
 	assert.True(t, errors.Is(err, apperrors.ErrMenuMoveInvalid))
 
 	// 分组移动到根级：合法（两层结构的正常形态）
 	resetRevision(snap, 1)
-	_, err = svc.UpdateEntry(alphaCtx(), alphaMember(), "app_a", "menu_nested",
+	_, err = svc.UpdateNode(alphaCtx(), alphaMember(), "app_a", "menu_nested",
 		&model.UpdateMenuNodeRequest{ParentMenuCode: strPtr(""), BaseMenuRevision: 1})
 	assert.NoError(t, err)
 	assert.Contains(t, repo.updatedFields["menu_nested"], "parent_menu_id")
 }
 
-func TestMenuUpdateEntryRevisionConflict(t *testing.T) {
+func TestMenuUpdateNodeRevisionConflict(t *testing.T) {
 	repo := &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": hiddenMenuSnapshot()}}
 	svc := newMenuTestService(repo, menuAdminPerms())
 	// baseMenuRevision 与服务端不一致：APP_MENU_VERSION_CONFLICT
-	_, err := svc.UpdateEntry(alphaCtx(), alphaMember(), "app_a", "menu_form",
+	_, err := svc.UpdateNode(alphaCtx(), alphaMember(), "app_a", "menu_form",
 		&model.UpdateMenuNodeRequest{Hidden: boolPtr(true), BaseMenuRevision: 99})
 	assert.True(t, errors.Is(err, apperrors.ErrMenuVersionConflict))
 }
@@ -206,7 +206,7 @@ func strPtr(v string) *string { return &v }
 func boolPtr(v bool) *bool    { return &v }
 
 // resetRevision 重置快照修订号：fakeMenuRepo.BumpMenuRevisionFrom 会推进
-// 共享快照，同用例多次调用 UpdateEntry 时需回传一致的 baseMenuRevision
+// 共享快照，同用例多次调用 UpdateNode 时需回传一致的 baseMenuRevision
 func resetRevision(snap *repository.MenuSnapshot, revision int64) {
 	snap.MenuRevision = revision
 }

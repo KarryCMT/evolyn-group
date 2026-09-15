@@ -121,7 +121,7 @@ var resourceRegistry = map[string]ResourceMeta{
 		"create": "创建", "update": "更新", "delete": "删除",
 	}},
 	// 应用菜单配置（产品日志）
-	"app/app_menu_entry": {CategoryProductAppMenu, "菜单", map[string]string{
+	"app/app_menu_node": {CategoryProductAppMenu, "菜单", map[string]string{
 		"create": "创建", "update": "更新",
 	}},
 	// 表单资产（产品日志）：表单及表单设计变更
@@ -203,7 +203,7 @@ var resourceActions = map[string][]string{
 	"notification/notification_setting": {"update"},
 	"notification/custom_recipient":     {"create", "delete"},
 	"app/app":                           {"create", "update", "delete"},
-	"app/app_menu_entry":                {"create", "update"},
+	"app/app_menu_node":                {"create", "update"},
 	"form/form":                         {"create", "update", "publish", "delete", "switch-type", "copy"},
 	"workflow/workflow":                 {"create", "update", "publish", "delete"},
 	"form/form_record":                  {"submit"},

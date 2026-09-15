@@ -27,7 +27,7 @@ type fakeMaintenanceRepo struct {
 	maxSortErr error
 }
 
-func (f *fakeMaintenanceRepo) CreateFormEntry(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
+func (f *fakeMaintenanceRepo) CreateFormNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
 	if f.createErr != nil {
 		return nil, f.createErr
 	}
@@ -61,7 +61,7 @@ func (f *fakeMaintenanceRepo) BumpMenuRevision(ctx context.Context, appID uint) 
 	return nil
 }
 
-func TestAttachFormEntryRootAndGroup(t *testing.T) {
+func TestAttachFormNodeRootAndGroup(t *testing.T) {
 	group := menuNodeFixture(10, "menu_group", nil, model.MenuTypeGroup, 1024)
 
 	cases := []struct {
@@ -77,7 +77,7 @@ func TestAttachFormEntryRootAndGroup(t *testing.T) {
 			repo := &fakeMaintenanceRepo{byCode: map[string]*model.MenuNode{"menu_group": &group}}
 			svc := NewMenuMaintenanceService(repo)
 
-			err := svc.AttachFormEntry(alphaCtx(), 1, 77, "分组表单", tc.parentCode)
+			err := svc.AttachFormNode(alphaCtx(), 1, 77, "分组表单", tc.parentCode)
 
 			assert.NoError(t, err)
 			require.Len(t, repo.created, 1)
@@ -95,8 +95,8 @@ func TestAttachFormEntryRootAndGroup(t *testing.T) {
 	}
 }
 
-func TestAttachFormEntryParentInvalid(t *testing.T) {
-	formEntry := menuNodeFixture(11, "menu_form", nil, model.MenuTypeForm, 1024)
+func TestAttachFormNodeParentInvalid(t *testing.T) {
+	formNode := menuNodeFixture(11, "menu_form", nil, model.MenuTypeForm, 1024)
 
 	cases := []struct {
 		name     string
@@ -113,7 +113,7 @@ func TestAttachFormEntryParentInvalid(t *testing.T) {
 		{
 			name:     "父节点不是分组（指向表单节点）",
 			parent:   "menu_form",
-			byCode:   map[string]*model.MenuNode{"menu_form": &formEntry},
+			byCode:   map[string]*model.MenuNode{"menu_form": &formNode},
 			wantCode: apperrors.ErrMenuParentInvalid.Code,
 		},
 	}
@@ -122,7 +122,7 @@ func TestAttachFormEntryParentInvalid(t *testing.T) {
 			repo := &fakeMaintenanceRepo{byCode: tc.byCode}
 			svc := NewMenuMaintenanceService(repo)
 
-			err := svc.AttachFormEntry(alphaCtx(), 1, 77, "分组表单", tc.parent)
+			err := svc.AttachFormNode(alphaCtx(), 1, 77, "分组表单", tc.parent)
 
 			var biz *httpx.BizError
 			if !errors.As(err, &biz) {

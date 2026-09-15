@@ -41,10 +41,10 @@ type AppMenuService interface {
 	// CreateGroup 创建根分组或二级子分组；应用、父节点、层级、状态和修订号
 	// 均由服务端复核，成功后返回新节点编码与推进后的菜单修订号。
 	CreateGroup(ctx context.Context, member *iammodel.User, code string, req *model.CreateMenuGroupRequest) (*model.MenuGroupMutation, error)
-	// UpdateEntry 菜单节点管理更新（PATCH .../menu/nodes/:menuCode）：
+	// UpdateNode 菜单节点管理更新（PATCH .../menu/nodes/:menuCode）：
 	// 分组改名 / 资产节点对成员隐藏（须 form-actions:hide）/ 移动节点，
 	// 经 menuRevision 乐观锁串行化。
-	UpdateEntry(ctx context.Context, member *iammodel.User, code, menuCode string, req *model.UpdateMenuNodeRequest) (*model.MenuNodeMutation, error)
+	UpdateNode(ctx context.Context, member *iammodel.User, code, menuCode string, req *model.UpdateMenuNodeRequest) (*model.MenuNodeMutation, error)
 	// AddFavorite 收藏菜单节点（POST /menu-favorites）：个人状态动作，
 	// 凡能读取应用菜单的成员即可收藏；重复收藏幂等。
 	AddFavorite(ctx context.Context, member *iammodel.User, appCode, menuCode string) (*model.MenuFavoriteMutation, error)

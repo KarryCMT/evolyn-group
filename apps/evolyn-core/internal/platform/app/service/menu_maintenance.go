@@ -49,18 +49,18 @@ type FormPermissionDirectoryInjector interface {
 // 菜单管理写接口（分组/移动/重排）仍随 M2-菜单-3 落地，本端口只承载
 // 资产生命周期驱动的节点维护。
 type MenuMaintenance interface {
-	// AttachFormEntry 表单创建事务内挂 form 资产节点（target_id 保留内部表单 ID，出网投影 code）；
+	// AttachFormNode 表单创建事务内挂 form 资产节点（target_id 保留内部表单 ID，出网投影 code）；
 	// parentMenuCode 为空挂应用根级，非空须为同应用下未软删的分组节点，
 	// 否则返回 APP_MENU_PARENT_INVALID（BizError 透传出网）
-	AttachFormEntry(ctx context.Context, appID, formID uint, name, parentMenuCode string) error
-	// SyncFormEntryName 表单改名事务内同步节点展示名
-	SyncFormEntryName(ctx context.Context, appID, formID uint, name string) error
-	// SyncFormEntryAppearance 表单图标/颜色修改事务内同步节点展示属性
+	AttachFormNode(ctx context.Context, appID, formID uint, name, parentMenuCode string) error
+	// SyncFormNodeName 表单改名事务内同步节点展示名
+	SyncFormNodeName(ctx context.Context, appID, formID uint, name string) error
+	// SyncFormNodeAppearance 表单图标/颜色修改事务内同步节点展示属性
 	//（ADR-011：资产节点的展示属性以资产域为事实源；空串表示清空，
 	// 出网投影为 null）
-	SyncFormEntryAppearance(ctx context.Context, appID, formID uint, icon, color string) error
-	// DetachFormEntry 表单删除事务内软删节点
-	DetachFormEntry(ctx context.Context, appID, formID uint) error
+	SyncFormNodeAppearance(ctx context.Context, appID, formID uint, icon, color string) error
+	// DetachFormNode 表单删除事务内软删节点
+	DetachFormNode(ctx context.Context, appID, formID uint) error
 }
 
 // menuMaintenanceService 端口实现：每次维护同事务写节点并递增修订号。
@@ -73,10 +73,10 @@ func NewMenuMaintenanceService(repo repository.MenuRepository) MenuMaintenance {
 	return &menuMaintenanceService{repo: repo}
 }
 
-// AttachFormEntry 挂 form 资产节点：parentMenuCode 为空挂应用根级，非空
+// AttachFormNode 挂 form 资产节点：parentMenuCode 为空挂应用根级，非空
 // 先定位分组节点并校验（存在 + 分组类型，跨应用/跨租户编码定位不到，
 // 统一按 APP_MENU_PARENT_INVALID 拒绝），sortOrder 取同父最大值 + 1024。
-func (s *menuMaintenanceService) AttachFormEntry(ctx context.Context, appID, formID uint, name, parentMenuCode string) error {
+func (s *menuMaintenanceService) AttachFormNode(ctx context.Context, appID, formID uint, name, parentMenuCode string) error {
 	var parentMenuID *uint
 	if parentMenuCode != "" {
 		parent, err := s.repo.FindByCode(ctx, appID, parentMenuCode)
@@ -108,29 +108,29 @@ func (s *menuMaintenanceService) AttachFormEntry(ctx context.Context, appID, for
 		TargetID:     &formID,
 		SortOrder:    sortOrder + 1024,
 	}
-	if _, err := s.repo.CreateFormEntry(ctx, node); err != nil {
+	if _, err := s.repo.CreateFormNode(ctx, node); err != nil {
 		return err
 	}
 	return s.repo.BumpMenuRevision(ctx, appID)
 }
 
-func (s *menuMaintenanceService) SyncFormEntryName(ctx context.Context, appID, formID uint, name string) error {
+func (s *menuMaintenanceService) SyncFormNodeName(ctx context.Context, appID, formID uint, name string) error {
 	if err := s.repo.UpdateNameByFormTarget(ctx, appID, formID, name); err != nil {
 		return err
 	}
 	return s.repo.BumpMenuRevision(ctx, appID)
 }
 
-// SyncFormEntryAppearance 图标/颜色同步：展示属性变更递增修订号
+// SyncFormNodeAppearance 图标/颜色同步：展示属性变更递增修订号
 // （节点出网视图随target投影变化）。
-func (s *menuMaintenanceService) SyncFormEntryAppearance(ctx context.Context, appID, formID uint, icon, color string) error {
+func (s *menuMaintenanceService) SyncFormNodeAppearance(ctx context.Context, appID, formID uint, icon, color string) error {
 	if err := s.repo.UpdateAppearanceByFormTarget(ctx, appID, formID, icon, color); err != nil {
 		return err
 	}
 	return s.repo.BumpMenuRevision(ctx, appID)
 }
 
-func (s *menuMaintenanceService) DetachFormEntry(ctx context.Context, appID, formID uint) error {
+func (s *menuMaintenanceService) DetachFormNode(ctx context.Context, appID, formID uint) error {
 	// 先清理关联收藏行（ADR-011：个人状态不指向软删节点），再软删节点
 	if err := s.repo.DeleteFavoritesByFormTarget(ctx, appID, formID); err != nil {
 		return err

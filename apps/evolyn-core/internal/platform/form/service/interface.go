@@ -31,16 +31,16 @@ type DepartmentDirectory interface {
 // 域在装配层适配；表单域在创建/改名/删除的事务内调用，菜单节点写入与
 // menu_revision 递增随之加入同一事务（跨域经窄端口，域间不直接依赖）。
 type MenuMaintenance interface {
-	// AttachFormEntry 表单创建事务内挂 form 资产节点；parentMenuCode 为空
+	// AttachFormNode 表单创建事务内挂 form 资产节点；parentMenuCode 为空
 	// 挂应用根级，非空挂同应用指定分组下（非法分组返回 APP_MENU_PARENT_INVALID）
-	AttachFormEntry(ctx context.Context, appID, formID uint, name, parentMenuCode string) error
-	// SyncFormEntryName 表单改名事务内同步节点展示名
-	SyncFormEntryName(ctx context.Context, appID, formID uint, name string) error
-	// SyncFormEntryAppearance 表单图标/颜色修改事务内同步节点展示属性
+	AttachFormNode(ctx context.Context, appID, formID uint, name, parentMenuCode string) error
+	// SyncFormNodeName 表单改名事务内同步节点展示名
+	SyncFormNodeName(ctx context.Context, appID, formID uint, name string) error
+	// SyncFormNodeAppearance 表单图标/颜色修改事务内同步节点展示属性
 	//（ADR-011：展示属性以资产域为事实源；空串清空，出网投影为 null）
-	SyncFormEntryAppearance(ctx context.Context, appID, formID uint, icon, color string) error
-	// DetachFormEntry 表单删除事务内软删节点
-	DetachFormEntry(ctx context.Context, appID, formID uint) error
+	SyncFormNodeAppearance(ctx context.Context, appID, formID uint, icon, color string) error
+	// DetachFormNode 表单删除事务内软删节点
+	DetachFormNode(ctx context.Context, appID, formID uint) error
 }
 
 // AppDirectory 应用域只读窄端口（装配层由 app 仓储适配）：
@@ -68,7 +68,7 @@ type FormReference struct {
 	AppCode      string  `json:"appCode"`
 	AppName      string  `json:"appName"`
 	MenuID       string  `json:"menuId"`
-	EntryName    string  `json:"entryName"`
+	NodeName    string  `json:"entryName"`
 	ParentMenuID *string `json:"parentMenuId"`
 }
 

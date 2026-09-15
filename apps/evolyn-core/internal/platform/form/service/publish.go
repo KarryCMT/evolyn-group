@@ -334,7 +334,7 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 			fmt.Errorf("app %s unavailable for form %s submit", appCode, req.FormCode))
 	}
 	menuCode := strings.TrimSpace(req.MenuCode)
-	if err := s.validateSubmitEntry(ctx, form, appCode, menuCode); err != nil {
+	if err := s.validateSubmitMenuNode(ctx, form, appCode, menuCode); err != nil {
 		return nil, err
 	}
 	if req.HasResult == nil || !*req.HasResult {
@@ -531,10 +531,10 @@ func findRecordReplay(ctx context.Context, records repository.FormRecordReposito
 	return nil, false, nil
 }
 
-// validateSubmitEntry 提交入口校验：携带 menuCode 时复核该菜单节点确实
+// validateSubmitMenuNode 提交入口校验：携带 menuCode 时复核该菜单节点确实
 // 引用目标表单（跨应用/伪造入口直接拒绝）；references 端口未注入（单测桩）
 // 时跳过复核。
-func (s *formService) validateSubmitEntry(ctx context.Context, form *model.Form, appCode, menuCode string) error {
+func (s *formService) validateSubmitMenuNode(ctx context.Context, form *model.Form, appCode, menuCode string) error {
 	if menuCode == "" || s.references == nil {
 		return nil
 	}

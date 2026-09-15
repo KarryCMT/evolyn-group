@@ -35,7 +35,7 @@ func (f *fakeMenuRepo) GetSnapshot(ctx context.Context, tenantID uint, code stri
 
 func (f *fakeMenuRepo) Migrate() error { return nil }
 
-func (f *fakeMenuRepo) CreateGroupEntry(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
+func (f *fakeMenuRepo) CreateGroupNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
 	f.nextID++
 	node.ID = f.nextID
 	node.Code = fmt.Sprintf("menu_created_%d", f.nextID)
@@ -44,7 +44,7 @@ func (f *fakeMenuRepo) CreateGroupEntry(ctx context.Context, node *model.MenuNod
 }
 
 // M2-资产-1 写路径桩（菜单维护用例见 menu_maintenance_test.go；只读用例不触达）
-func (f *fakeMenuRepo) CreateFormEntry(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
+func (f *fakeMenuRepo) CreateFormNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
 	return node, nil
 }
 func (f *fakeMenuRepo) UpdateNameByFormTarget(ctx context.Context, appID, formID uint, name string) error {
@@ -77,7 +77,7 @@ func (f *fakeMenuRepo) BumpMenuRevisionFrom(ctx context.Context, appID uint, bas
 }
 
 // ADR-011 新增接口的默认桩：只读用例不触达；节点管理/收藏用例在需要时覆写
-func (f *fakeMenuRepo) UpdateEntryFields(ctx context.Context, appID, entryID uint, fields map[string]interface{}) error {
+func (f *fakeMenuRepo) UpdateNodeFields(ctx context.Context, appID, nodeID uint, fields map[string]interface{}) error {
 	return nil
 }
 func (f *fakeMenuRepo) CreateFavorite(ctx context.Context, fav *model.MenuFavorite) error {

@@ -40,7 +40,7 @@ func TestCatalogProductCategoriesCoversCoreEvents(t *testing.T) {
 	// 设计文档 §3.3 点名的核心事件齐备（3 段式事件码与注册表机械拼接一致）
 	expect := map[string]bool{
 		"app.app.create":                    false,
-		"app.app_menu_entry.create":         false,
+		"app.app_menu_node.create":         false,
 		"form.form.create":                  false,
 		"form.form.delete":                  false,
 		"workflow.workflow.publish":         false,

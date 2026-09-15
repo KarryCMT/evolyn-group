@@ -1183,7 +1183,7 @@ func (s formReferenceSource) ListFormReferences(ctx context.Context, formID uint
 			AppCode:      row.AppCode,
 			AppName:      row.AppName,
 			MenuID:       row.MenuCode,
-			EntryName:    row.EntryName,
+			NodeName:    row.NodeName,
 			ParentMenuID: row.ParentMenuCode,
 		})
 	}

@@ -86,7 +86,7 @@ func (a *MenuController) GetMenu(c *gin.Context) {
 	httpx.ResponseSuccess(c, menu)
 }
 
-// UpdateEntry 菜单节点管理更新（ADR-011）
+// UpdateNode 菜单节点管理更新（ADR-011）
 // @Summary 更新应用菜单节点
 // @Description 分组改名 / 资产节点对成员隐藏（须 form-actions:hide 动作授权）/ 移动节点（换父分组或根级，追加到目标末位）；携带 baseMenuRevision 乐观并发口令，冲突返回 409
 // @Accept json
@@ -97,12 +97,12 @@ func (a *MenuController) GetMenu(c *gin.Context) {
 // @Param menuCode path string true "菜单节点编码（menu_ 前缀）"
 // @Param node body appmodel.UpdateMenuNodeRequest true "更新字段（name 仅分组 / hidden 仅资产节点 / parentMenuCode 空串移动到根级）"
 // @Success 200 {object} httpx.Response{data=appmodel.MenuNodeMutation}
-// @Failure 400 {object} httpx.Response "errCode=APP_MENU_NAME_INVALID/APP_MENU_ENTRY_RENAME_FORBIDDEN/APP_MENU_HIDDEN_INVALID/APP_MENU_PARENT_INVALID/APP_MENU_MOVE_INVALID/APP_MENU_DEPTH_EXCEEDED"
+// @Failure 400 {object} httpx.Response "errCode=APP_MENU_NAME_INVALID/APP_MENU_NODE_RENAME_FORBIDDEN/APP_MENU_HIDDEN_INVALID/APP_MENU_PARENT_INVALID/APP_MENU_MOVE_INVALID/APP_MENU_DEPTH_EXCEEDED"
 // @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
 // @Failure 404 {object} httpx.Response "errCode=APP_NOT_FOUND/APP_MENU_NOT_FOUND"
 // @Failure 409 {object} httpx.Response "errCode=APP_MENU_VERSION_CONFLICT/APP_STATUS_INVALID/APP_PROVISIONING"
 // @Router /api/v1/apps/code/{code}/menu/nodes/{menuCode} [patch]
-func (a *MenuController) UpdateEntry(c *gin.Context) {
+func (a *MenuController) UpdateNode(c *gin.Context) {
 	code, ok := codeFromParam(c)
 	if !ok {
 		return
@@ -117,7 +117,7 @@ func (a *MenuController) UpdateEntry(c *gin.Context) {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	updated, err := a.menuService.UpdateEntry(c.Request.Context(), ginctx.GetUser(c), code, menuCode, &req)
+	updated, err := a.menuService.UpdateNode(c.Request.Context(), ginctx.GetUser(c), code, menuCode, &req)
 	if err != nil {
 		responseError(c, err)
 		return
@@ -186,7 +186,7 @@ func (a *MenuController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/apps/code/:code/menu/groups", a.CreateGroup)
 	// PATCH 映射 apps:patch；隐藏开关另经 form-actions:hide 动作复核
 	//（ADR-011：动作授权键不随菜单管理权限放大）
-	api.PATCH("/apps/code/:code/menu/nodes/:menuCode", a.UpdateEntry)
+	api.PATCH("/apps/code/:code/menu/nodes/:menuCode", a.UpdateNode)
 	// 个人收藏（ADR-011）：独立资源 menu-favorites（create/delete 授全体
 	// 成员），与菜单管理权限彻底分离，口径同 form-records 与 forms 的关系
 	api.POST("/menu-favorites", a.AddFavorite)

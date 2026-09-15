@@ -73,7 +73,7 @@ var (
 
 	// ErrMenuNodeRenameForbidden 资产节点不支持经菜单接口改名：资产节点
 	// 名称/图标以资产域为事实源，须经对应资产接口修改（同事务同步回节点）
-	ErrMenuNodeRenameForbidden = httpx.NewBiz("APP_MENU_ENTRY_RENAME_FORBIDDEN", "资产节点名称请通过对应资产接口修改", http.StatusBadRequest)
+	ErrMenuNodeRenameForbidden = httpx.NewBiz("APP_MENU_NODE_RENAME_FORBIDDEN", "资产节点名称请通过对应资产接口修改", http.StatusBadRequest)
 
 	// ErrMenuHiddenInvalid 分组节点不支持对成员隐藏：分组可见性由后代节点
 	// 派生，隐藏语义仅对资产节点成立
