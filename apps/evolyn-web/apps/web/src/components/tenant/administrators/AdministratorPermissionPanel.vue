@@ -2,14 +2,14 @@
 import { RiAddFill, RiQuestionFill, RiTeamFill, RiUserSettingsFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, onMounted, shallowRef } from 'vue';
-import { listApplications } from '~/api/applications';
+import { listApps } from '~/api/apps';
 import { getDepartmentTree, type DepartmentDto } from '~/api/department';
 import { listMembers } from '~/api/member';
 import { getOrganizationRoleTree } from '~/api/role';
 import { useAuth } from '~/composables/auth';
-import type { ApplicationIcon } from '~/types';
+import type { AppIcon } from '~/types';
 import AddressBookManagementDrawer from './AddressBookManagementDrawer.vue';
-import AdministratorApplicationPickerDialog from './AdministratorApplicationPickerDialog.vue';
+import AdministratorAppPickerDialog from './AdministratorAppPickerDialog.vue';
 import AdministratorMemberPickerDialog from './AdministratorMemberPickerDialog.vue';
 import AdministratorScopePickerDialog from './AdministratorScopePickerDialog.vue';
 import type {
@@ -32,7 +32,7 @@ const props = defineProps<{
 }>();
 
 const memberPickerVisible = shallowRef(false);
-const applicationPickerVisible = shallowRef(false);
+const appPickerVisible = shallowRef(false);
 const addressBookVisible = shallowRef(false);
 const departmentPickerVisible = shallowRef(false);
 const rolePickerVisible = shallowRef(false);
@@ -46,7 +46,7 @@ const currentMemberId = computed(() => userInfo.value?.member.id ?? null);
 const members = shallowRef<AdministratorPickerMember[]>([]);
 const departments = shallowRef<DepartmentDto[]>([]);
 const roles = shallowRef<{ id: number; name: string }[]>([]);
-const applications = shallowRef<{ id: number; name: string; icon: ApplicationIcon }[]>([]);
+const apps = shallowRef<{ id: number; name: string; icon: AppIcon }[]>([]);
 
 /** 部门/角色 ID → 名称（清单 chip 展示用）。 */
 const departmentNameById = computed(() => {
@@ -76,20 +76,20 @@ const hasSelectedDepartments = computed(() => selectedDepartmentNames.value.leng
 const hasSelectedRoles = computed(() => selectedRoleNames.value.length > 0);
 
 /** 面板展示的可编辑应用：全量语义展开为全部应用，否则按清单过滤。 */
-const selectedApplications = computed(() => {
+const selectedApps = computed(() => {
   const group = props.group;
   if (!group) return [];
-  if (group.allApplications) return applications.value;
-  const ids = new Set(group.applicationIds ?? []);
-  return applications.value.filter((app) => ids.has(app.id));
+  if (group.allApps) return apps.value;
+  const ids = new Set(group.appIds ?? []);
+  return apps.value.filter((app) => ids.has(app.id));
 });
 
 async function loadPickerSources() {
-  const [memberPage, departmentTree, roleTree, applicationPage] = await Promise.allSettled([
+  const [memberPage, departmentTree, roleTree, appPage] = await Promise.allSettled([
     listMembers({ page: 1, pageSize: 500 }),
     getDepartmentTree(),
     getOrganizationRoleTree(),
-    listApplications({ limit: 100 }),
+    listApps({ limit: 100 }),
   ]);
   if (memberPage.status === 'fulfilled') {
     members.value = memberPage.value.items.map((item) => ({
@@ -104,8 +104,8 @@ async function loadPickerSources() {
   if (roleTree.status === 'fulfilled') {
     roles.value = roleTree.value.groups.flatMap((group) => group.roles);
   }
-  if (applicationPage.status === 'fulfilled') {
-    applications.value = applicationPage.value.items.map((app) => ({
+  if (appPage.status === 'fulfilled') {
+    apps.value = appPage.value.items.map((app) => ({
       id: app.id,
       name: app.name,
       icon: app.icon,
@@ -153,18 +153,18 @@ function patchRole(visible?: boolean, manage?: boolean, mode?: ScopeMode, ids?: 
   });
 }
 
-function patchApplication(manage?: boolean, ids?: number[], all?: boolean) {
+function patchApp(manage?: boolean, ids?: number[], all?: boolean) {
   const group = props.group;
   if (!group) return;
   void patch({
-    allApplications: all ?? group.allApplications,
-    applicationIds: ids ?? group.applicationIds ?? [],
-    applicationManage: manage ?? group.applicationManage,
+    allApps: all ?? group.allApps,
+    appIds: ids ?? group.appIds ?? [],
+    appManage: manage ?? group.appManage,
   });
 }
 
-function onApplicationPickerConfirm(payload: { ids: number[]; all: boolean }) {
-  patchApplication(undefined, payload.ids, payload.all);
+function onAppPickerConfirm(payload: { ids: number[]; all: boolean }) {
+  patchApp(undefined, payload.ids, payload.all);
 }
 
 async function saveAddressBook(scope: AddressBookScope) {
@@ -340,29 +340,27 @@ async function saveAddressBook(scope: AddressBookScope) {
           </section>
         </template>
 
-        <template v-else-if="scope === 'application'">
+        <template v-else-if="scope === 'app'">
           <section class="administrator-permission-panel__row">
             <h2>应用管理</h2>
             <button
               class="administrator-permission-panel__text-action"
               type="button"
               :disabled="saving"
-              @click="applicationPickerVisible = true"
+              @click="appPickerVisible = true"
             >
               <RiAddFill />选择可编辑的应用
             </button>
           </section>
           <section class="administrator-permission-panel__app-settings">
             <el-checkbox
-              :model-value="group.applicationManage"
+              :model-value="group.appManage"
               :disabled="saving"
-              @update:model-value="patchApplication(Boolean($event))"
+              @update:model-value="patchApp(Boolean($event))"
               >可添加/删除应用</el-checkbox
             >
             <div class="administrator-permission-panel__app-tags">
-              <span v-for="application in selectedApplications" :key="application.id">{{
-                application.name
-              }}</span>
+              <span v-for="app in selectedApps" :key="app.id">{{ app.name }}</span>
             </div>
           </section>
           <section class="administrator-permission-panel__row">
@@ -478,14 +476,12 @@ async function saveAddressBook(scope: AddressBookScope) {
         :current-member-id="currentMemberId"
         @confirm="patch({ members: $event })"
       />
-      <AdministratorApplicationPickerDialog
-        v-if="scope === 'application'"
-        v-model="applicationPickerVisible"
-        :applications="applications"
-        :selected-ids="
-          group.allApplications ? applications.map((app) => app.id) : (group.applicationIds ?? [])
-        "
-        @confirm="onApplicationPickerConfirm"
+      <AdministratorAppPickerDialog
+        v-if="scope === 'app'"
+        v-model="appPickerVisible"
+        :apps="apps"
+        :selected-ids="group.allApps ? apps.map((app) => app.id) : (group.appIds ?? [])"
+        @confirm="onAppPickerConfirm"
       />
       <AdministratorScopePickerDialog
         v-model="departmentPickerVisible"
@@ -500,7 +496,7 @@ async function saveAddressBook(scope: AddressBookScope) {
         @confirm="patchRole(undefined, undefined, undefined, $event)"
       />
       <AddressBookManagementDrawer
-        v-if="scope === 'application'"
+        v-if="scope === 'app'"
         v-model="addressBookVisible"
         :initial="group.addressBook ?? null"
         :save="saveAddressBook"

@@ -100,11 +100,11 @@ func TestPermissionsOfMenuActionCodes(t *testing.T) {
 	assert.True(t, permissions["form-actions:switch-type"])
 	assert.True(t, permissions["form-actions:hide"])
 
-	// 非 form-actions 资源的通配不产出动作键（如 applications:*）
+	// 非 form-actions 资源的通配不产出动作键（如 apps:*）
 	user = &model.User{
 		ID: 4,
 		Roles: []model.Role{
-			{Rules: model.Rules{{Resource: "applications", Operation: model.AllOperation}}},
+			{Rules: model.Rules{{Resource: "apps", Operation: model.AllOperation}}},
 		},
 	}
 	permissions = PermissionsOf(user)

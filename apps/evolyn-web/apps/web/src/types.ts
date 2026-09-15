@@ -288,90 +288,90 @@ export interface AppConf {
   register_persona: boolean;
 }
 
-// ---------- 应用管理域 API 契约（M2-A，与 evolyn-core application 域对齐） ----------
+// ---------- 应用管理域 API 契约（M2-A，与 evolyn-core app 域对齐） ----------
 
 /** 历史图标键，仅用于旧页面的回退渲染。 */
-export type ApplicationIconKey = 'bookmark' | 'briefcase' | 'contacts' | 'chart' | 'check';
+export type AppIconKey = 'bookmark' | 'briefcase' | 'contacts' | 'chart' | 'check';
 
 /** 应用图标：系统 Remix 图标或自定义文件地址。 */
-export type ApplicationIcon = EvolynIconPickerValue;
+export type AppIcon = EvolynIconPickerValue;
 
-export const DEFAULT_APPLICATION_ICON: ApplicationIcon = {
+export const DEFAULT_APPLICATION_ICON: AppIcon = {
   type: 'remix',
   name: 'bookmark',
   background: '#f7be54,#eda426',
 };
 
-/** 旧图标展示入口使用该键回退，完整图标渲染由 ApplicationIconPicker 负责。 */
-export function getApplicationIconName(icon: ApplicationIcon | undefined): string {
+/** 旧图标展示入口使用该键回退，完整图标渲染由 AppIconPicker 负责。 */
+export function getAppIconName(icon: AppIcon | undefined): string {
   return icon?.type === 'remix' ? icon.name : 'bookmark';
 }
 
 /** 应用稳定颜色键（服务端枚举，渲染时映射主题色变量） */
-export type ApplicationColor = 'primary';
+export type AppColor = 'primary';
 
 /** 应用入口形态：构建引导与运行时首页由应用自身状态决定，不依赖当前成员菜单数量。 */
-export type ApplicationHomeMode = 'builder' | 'application';
+export type AppHomeMode = 'builder' | 'app';
 
-/** 创建空白应用请求（POST /applications）：名称必填，图标/颜色可省略取服务端默认 */
-export interface CreateBlankApplicationPayload {
+/** 创建空白应用请求（POST /apps）：名称必填，图标/颜色可省略取服务端默认 */
+export interface CreateBlankAppPayload {
   name: string;
-  icon?: ApplicationIcon;
-  color?: ApplicationColor;
+  icon?: AppIcon;
+  color?: AppColor;
 }
 
-/** 更新应用请求（PATCH /applications/:id）：白名单字段，指针语义（未传不改） */
-export interface UpdateApplicationPayload {
+/** 更新应用请求（PATCH /apps/:id）：白名单字段，指针语义（未传不改） */
+export interface UpdateAppPayload {
   name?: string;
-  icon?: ApplicationIcon;
-  color?: ApplicationColor;
+  icon?: AppIcon;
+  color?: AppColor;
   sortOrder?: number;
   /** 仅 active↔archived 互转（承载归档/恢复） */
   status?: 'active' | 'archived';
 }
 
 /** 应用来源摘要：type=blank 空白创建 / template 模板安装（M2-B） */
-export interface ApplicationSource {
+export interface AppSource {
   type: 'blank' | 'template';
   channel: 'self' | 'template_center' | 'admin' | 'api';
 }
 
 /** 当前成员的运行时能力（后端读取时派生，不落库） */
-export interface ApplicationCapabilities {
+export interface AppCapabilities {
   view: boolean;
   edit: boolean;
   delete: boolean;
 }
 
-/** 应用详情（创建/详情/列表条目共用，model.ApplicationDetail 字段子集） */
-export interface ApplicationItem {
+/** 应用详情（创建/详情/列表条目共用，model.AppDetail 字段子集） */
+export interface AppItem {
   id: number;
   code: string;
   name: string;
-  icon: ApplicationIcon;
-  color: ApplicationColor;
-  source: ApplicationSource;
+  icon: AppIcon;
+  color: AppColor;
+  source: AppSource;
   status: 'active' | 'archived';
   provisionStatus: 'ready' | 'pending' | 'running' | 'failed';
-  homeMode: ApplicationHomeMode;
+  homeMode: AppHomeMode;
   ownerMemberId: number;
   creatorMemberId: number;
   sortOrder: number;
-  capabilities: ApplicationCapabilities;
+  capabilities: AppCapabilities;
   /** 后端 JSONTime 秒级东八区 yyyy-MM-dd HH:mm:ss */
   createdAt: string;
   updatedAt: string;
 }
 
 /** 应用列表游标分页结果：nextCursor 为空且 hasMore=false 即末页，游标只原样回传 */
-export interface ApplicationPage {
-  items: ApplicationItem[];
+export interface AppPage {
+  items: AppItem[];
   nextCursor: string;
   hasMore: boolean;
 }
 
 /** 应用列表查询参数 */
-export interface ApplicationListQuery {
+export interface AppListQuery {
   keyword?: string;
   status?: 'active' | 'archived';
   limit?: number;
@@ -381,10 +381,10 @@ export interface ApplicationListQuery {
 // ---------- 应用菜单 API 契约（M2-菜单-1，与后端 MenuSnapshot 出网对齐） ----------
 
 /** 应用菜单节点类型：group 分组无资产引用，其余为可打开的资产节点 */
-export type ApplicationMenuEntryType = 'group' | 'form' | 'dashboard' | 'page';
+export type AppMenuType = 'group' | 'form' | 'dashboard' | 'page';
 
 /** 菜单节点资产引用：code 为稳定公开编码；formType 仅属于表单目标。 */
-export type ApplicationMenuTarget =
+export type AppMenuTarget =
   | {
       type: 'form';
       code: string;
@@ -401,7 +401,7 @@ export type ApplicationMenuTarget =
 
 /** 菜单节点按钮级动作能力（ADR-011：动作注册表 × 权限集 × 应用状态读时派生，
  * 不落库；未适配当前节点类型的动作恒 false） */
-export interface ApplicationMenuEntryActions {
+export interface AppMenuNodeActions {
   edit: boolean;
   rename: boolean;
   switchType: boolean;
@@ -416,65 +416,65 @@ export interface ApplicationMenuEntryActions {
 /** 菜单节点运行时能力（后端按当前成员权限与应用状态读取时派生，不落库）：
  * 按钮级动作以 actions 为唯一事实源（ADR-011），favorite 是个人状态能力
  *（凡可见即可收藏），view 为可见标记 */
-export interface ApplicationMenuCapabilities {
+export interface AppMenuCapabilities {
   view: boolean;
   favorite: boolean;
-  actions: ApplicationMenuEntryActions;
+  actions: AppMenuNodeActions;
 }
 
-/** 应用菜单节点（entryMap 的值；parentEntryId 为 null 即根节点） */
-export interface ApplicationMenuEntry {
-  entryId: string;
-  parentEntryId: string | null;
-  type: ApplicationMenuEntryType;
+/** 应用菜单节点（nodeMap 的值；parentMenuId 为 null 即根节点） */
+export interface AppMenuNode {
+  menuId: string;
+  parentMenuId: string | null;
+  type: AppMenuType;
   name: string;
   /** 后端稳定图标键，可为 null；前端受控映射表转换为图标组件 */
   icon: string | null;
   color: string | null;
   sortOrder: number;
-  target: ApplicationMenuTarget | null;
-  capabilities: ApplicationMenuCapabilities;
+  target: AppMenuTarget | null;
+  capabilities: AppMenuCapabilities;
   /** 当前成员的收藏状态（ADR-011 个人状态，随菜单读取出网） */
   favorited?: boolean;
 }
 
-/** 应用菜单快照（GET /applications/code/:code/menu）：entryMap 仅含当前
+/** 应用菜单快照（GET /apps/code/:code/menu）：nodeMap 仅含当前
  * 成员可见节点，无可见后代的分组已被服务端裁剪；menuRevision 供后续
- * 管理接口做乐观并发；空菜单（rootEntryIds 为空数组）是合法结果 */
-export interface ApplicationMenu {
-  applicationCode: string;
+ * 管理接口做乐观并发；空菜单（rootMenuIds 为空数组）是合法结果 */
+export interface AppMenu {
+  appCode: string;
   menuRevision: number;
-  rootEntryIds: string[];
-  entryMap: Record<string, ApplicationMenuEntry>;
+  rootMenuIds: string[];
+  nodeMap: Record<string, AppMenuNode>;
   /** 只表达已注册的后端能力，流程引擎未接入前 workflow 恒 false */
   features: { workflow: boolean };
 }
 
-/** 创建应用菜单分组请求：parentEntryId 为空时创建根分组。 */
-export interface CreateApplicationMenuGroupPayload {
+/** 创建应用菜单分组请求：parentMenuId 为空时创建根分组。 */
+export interface CreateAppMenuGroupPayload {
   name: string;
-  parentEntryId?: string;
+  parentMenuId?: string;
   baseMenuRevision: number;
 }
 
 /** 分组创建后的增量结果；完整树仍以重新读取菜单快照为准。 */
-export interface ApplicationMenuGroupMutation {
-  entryId: string;
-  parentEntryId: string | null;
+export interface AppMenuGroupMutation {
+  menuId: string;
+  parentMenuId: string | null;
   name: string;
   menuRevision: number;
 }
 
 /** 更新应用菜单节点请求：移动时传入目标分组编码和当前菜单修订号。 */
-export interface UpdateApplicationMenuEntryPayload {
+export interface UpdateAppMenuNodePayload {
   /** 目标分组的菜单节点编码；空字符串表示移动到应用根级。 */
-  parentEntryCode?: string;
+  parentMenuCode?: string;
   baseMenuRevision: number;
 }
 
 /** 菜单节点更新后的最小结果；客户端需重新读取菜单快照以获取完整树。 */
-export interface ApplicationMenuEntryMutation {
-  entryId: string;
+export interface AppMenuNodeMutation {
+  menuId: string;
   menuRevision: number;
 }
 
@@ -547,7 +547,7 @@ export type FormType = 'standard' | 'workflow';
 
 /** 表单详情（GET /forms/:code）：含草稿全文与修订口令 */
 export interface FormDetail {
-  applicationId: number;
+  appId: number;
   code: string;
   name: string;
   formType: FormType;
@@ -561,7 +561,7 @@ export interface FormDetail {
 
 /** 表单列表条目（不含草稿全文） */
 export interface FormSummary {
-  applicationId: number;
+  appId: number;
   code: string;
   name: string;
   formType: FormType;
@@ -590,7 +590,7 @@ export interface FormPublishResult {
   jobId?: number;
 }
 
-/** GET /applications/code/:appCode/forms/:formCode/runtime 响应（运行时引导） */
+/** GET /apps/code/:appCode/forms/:formCode/runtime 响应（运行时引导） */
 export interface FormRuntimeFieldPermissionInfo {
   visible: boolean;
   editable: boolean;

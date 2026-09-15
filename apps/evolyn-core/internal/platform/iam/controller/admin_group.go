@@ -18,7 +18,7 @@ import (
 var _ = model.AdminGroupDetailView{}
 
 // AdminGroupController 管理组（权限中心-管理员模块）：系统管理员页
-// （scope=system）与灵衍云管理员页（scope=application）共用同一套接口，
+// （scope=system）与灵衍云管理员页（scope=app）共用同一套接口，
 // 勾选/选择确认即分区块即时保存
 type AdminGroupController struct {
 	adminGroupService service.AdminGroupService
@@ -29,11 +29,11 @@ func NewAdminGroupController(adminGroupService service.AdminGroupService) platfo
 }
 
 // @Summary 管理组列表
-// @Description 按 scope 查询当前租户的管理组概要（内置系统管理员组恒在最前）；scope=system 为系统管理员页（通讯录管理组），scope=application 为灵衍云管理员页（普通管理组）
+// @Description 按 scope 查询当前租户的管理组概要（内置系统管理员组恒在最前）；scope=system 为系统管理员页（通讯录管理组），scope=app 为灵衍云管理员页（普通管理组）
 // @Produce json
 // @Tags 管理组
 // @Security JWT
-// @Param scope query string false "管理组类型：system|application，缺省返回全部" Enums(system, application)
+// @Param scope query string false "管理组类型：system|app，缺省返回全部" Enums(system, app)
 // @Success 200 {object} httpx.Response{data=[]model.AdminGroupSummary}
 // @Failure 400 {object} httpx.Response "errCode=ADMIN_GROUP_CONFIG_INVALID"
 // @Router /api/v1/admin-groups [get]
@@ -96,7 +96,7 @@ func (a *AdminGroupController) Create(c *gin.Context) {
 }
 
 // @Summary 即时更新管理组的一个配置区块
-// @Description 每次请求至多携带一个区块（name/members/departmentScope/roleScope/externalOrg/applicationScope/addressBook），区块整体替换；内置系统管理员组仅允许 members（代理 tenant-admin 角色绑定），且必须包含租户创建人；创建人不能加入自定义管理组，且至少保留一名管理员
+// @Description 每次请求至多携带一个区块（name/members/departmentScope/roleScope/externalOrg/appScope/addressBook），区块整体替换；内置系统管理员组仅允许 members（代理 tenant-admin 角色绑定），且必须包含租户创建人；创建人不能加入自定义管理组，且至少保留一名管理员
 // @Accept json
 // @Produce json
 // @Tags 管理组

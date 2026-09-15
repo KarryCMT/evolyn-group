@@ -5,12 +5,12 @@ import { useRoute } from 'vue-router';
 import AppSettingSidebar from '~/components/app/AppSettingSidebar.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 
-defineOptions({ name: 'ApplicationSettingLayout' });
+defineOptions({ name: 'AppSettingLayout' });
 
 const route = useRoute();
 const sidebarCollapsed = shallowRef(false);
 const appCode = computed(() => String(route.params.appCode ?? ''));
-const applicationHomePath = computed(() => `/app/${appCode.value}`);
+const appHomePath = computed(() => `/app/${appCode.value}`);
 
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value;
@@ -18,23 +18,19 @@ function toggleSidebar() {
 </script>
 
 <template>
-  <div class="application-setting-layout">
-    <TopNavigation
-      title="应用后台"
-      :back-to="applicationHomePath"
-      :show-default-navigation="false"
-    />
+  <div class="app-setting-layout">
+    <TopNavigation title="应用后台" :back-to="appHomePath" :show-default-navigation="false" />
 
     <main
-      class="application-setting-layout__main"
-      :class="{ 'application-setting-layout__main--sidebar-collapsed': sidebarCollapsed }"
+      class="app-setting-layout__main"
+      :class="{ 'app-setting-layout__main--sidebar-collapsed': sidebarCollapsed }"
     >
-      <div class="application-setting-layout__sidebar-shell">
+      <div class="app-setting-layout__sidebar-shell">
         <AppSettingSidebar :collapsed="sidebarCollapsed" />
       </div>
       <el-tooltip :content="sidebarCollapsed ? '展开' : '收起'" placement="right">
         <button
-          class="application-setting-layout__collapse-button"
+          class="app-setting-layout__collapse-button"
           type="button"
           :aria-expanded="!sidebarCollapsed"
           :aria-label="sidebarCollapsed ? '展开应用后台导航' : '收起应用后台导航'"
@@ -43,7 +39,7 @@ function toggleSidebar() {
           <RiArrowLeftDoubleFill />
         </button>
       </el-tooltip>
-      <section class="application-setting-layout__content">
+      <section class="app-setting-layout__content">
         <RouterView />
       </section>
     </main>
@@ -51,7 +47,7 @@ function toggleSidebar() {
 </template>
 
 <style scoped lang="scss">
-.application-setting-layout {
+.app-setting-layout {
   display: flex;
   height: 100vh;
   min-width: 0;
@@ -123,11 +119,11 @@ function toggleSidebar() {
   }
 
   &__main--sidebar-collapsed {
-    .application-setting-layout__sidebar-shell {
+    .app-setting-layout__sidebar-shell {
       flex-basis: 64px;
     }
 
-    .application-setting-layout__collapse-button {
+    .app-setting-layout__collapse-button {
       left: 18px;
 
       svg {
@@ -138,7 +134,7 @@ function toggleSidebar() {
 }
 
 @media (max-width: 720px) {
-  .application-setting-layout__main {
+  .app-setting-layout__main {
     overflow-x: hidden;
   }
 }

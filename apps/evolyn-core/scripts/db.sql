@@ -1,9 +1,10 @@
 -- evolyn-core 冷启动初始化（终态快照）
--- 本文件 = migrations/ 000001..000078 全链执行后的等价状态，仅作
+-- 本文件 = migrations/ 000001..000080 全链执行后的等价状态，仅作
 -- make postgres 快速起库用；Schema 唯一事实来源是 migrations/（FIX-009），
 -- 结构变更必须同时提交 Migration，并同步维护本快照。
--- 快照库上重放迁移链应当零副作用：表/索引/约束使用与迁移一致的名字，
--- 种子写入均带 ON CONFLICT DO NOTHING。
+-- 快照库自带 schema_migrations 全量版本登记（文末种子，checksum 与迁移
+-- 文件 sha256 一致）：启动迁移器识别全部版本已应用，零重放；文件被篡改时
+-- 由迁移器既有防漂移机制拒绝启动。种子写入均带 ON CONFLICT DO NOTHING。
 -- 模型定版：ADR-006 账号×成员拆分 + ADR-007 域模块化 + 第一期整改 FIX-001~017
 -- 表命名空间（000063）：pf_ 平台 / sys_ 系统 / tn_ 租户 / wf_ 流程引擎；
 -- 详细归类见 docs/低代码平台/数据库表命名空间前缀调整方案.md
@@ -310,7 +311,7 @@ ALTER TABLE tn_roles ADD CONSTRAINT fk_tn_roles_role_group
 
 INSERT INTO tn_roles (name, scope, rules) VALUES
     ('平台管理员', 'cluster', '[{"resource": "*", "operation": "*"}]'),
-    ('已认证用户', 'cluster', '[{"resource": "tn_users", "operation": "*"},{"resource": "auth", "operation": "*"},{"resource": "pf_accounts", "operation": "*"},{"resource": "tn_applications", "operation": "view"},{"resource": "tn_files", "operation": "edit"},{"resource": "form-records", "operation": "create"},{"resource": "notifications", "operation": "view"},{"resource": "notifications", "operation": "update"}]'),
+    ('已认证用户', 'cluster', '[{"resource": "tn_users", "operation": "*"},{"resource": "auth", "operation": "*"},{"resource": "pf_accounts", "operation": "*"},{"resource": "tn_apps", "operation": "view"},{"resource": "tn_files", "operation": "edit"},{"resource": "form-records", "operation": "create"},{"resource": "notifications", "operation": "view"},{"resource": "notifications", "operation": "update"}]'),
     ('未认证用户', 'cluster', '[{"resource": "auth", "operation": "create"}]') ON CONFLICT DO NOTHING;
 
 -- 租户管理员可更新组织根节点（租户名称）；存量数据库由迁移 000022 同步。
@@ -378,9 +379,9 @@ CREATE TABLE IF NOT EXISTS tn_audit_logs (
     actor_name_snapshot varchar(128) NOT NULL DEFAULT '',
     target_name_snapshot varchar(256) NOT NULL DEFAULT '',
     summary varchar(1000) NOT NULL DEFAULT '',
-    application_id BIGINT NULL,
-    application_code varchar(128) NOT NULL DEFAULT '',
-    application_name_snapshot varchar(256) NOT NULL DEFAULT '',
+    app_id BIGINT NULL,
+    app_code varchar(128) NOT NULL DEFAULT '',
+    app_name_snapshot varchar(256) NOT NULL DEFAULT '',
     created_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP
 );
 
@@ -390,7 +391,7 @@ CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_resource ON tn_audit_logs (resource
 CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_tenant_created ON tn_audit_logs (tenant_id, created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_tenant_category_created ON tn_audit_logs (tenant_id, category_code, created_at DESC, id DESC);
 CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_tenant_member_created ON tn_audit_logs (tenant_id, member_id, created_at DESC, id DESC);
-CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_tenant_application_created ON tn_audit_logs (tenant_id, application_id, created_at DESC, id DESC);
+CREATE INDEX IF NOT EXISTS idx_tn_audit_logs_tenant_app_created ON tn_audit_logs (tenant_id, app_id, created_at DESC, id DESC);
 
 -- 登录日志（000013）：会话建立事件流水，账号维度追加写；与 tn_audit_logs 职责互斥
 CREATE TABLE IF NOT EXISTS pf_login_logs (
@@ -451,7 +452,7 @@ CREATE INDEX IF NOT EXISTS idx_tn_product_log_exports_tenant ON tn_product_log_e
 
 -- 应用实例（000014，M2-A）：status 仅 active/archived，删除只写 deleted_at；
 -- provision_status 独立表达实例化进度（M2-A 空白应用同步创建即 ready）
-CREATE TABLE IF NOT EXISTS tn_applications (
+CREATE TABLE IF NOT EXISTS tn_apps (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     tenant_id BIGINT NOT NULL DEFAULT 1,
     code varchar(64) NOT NULL,
@@ -473,30 +474,30 @@ CREATE TABLE IF NOT EXISTS tn_applications (
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     deleted_at timestamp with time zone,
-    CONSTRAINT chk_tn_applications_source_type CHECK (source_type IN ('blank', 'template')),
-    CONSTRAINT chk_tn_applications_status CHECK (status IN ('active', 'archived')),
-    CONSTRAINT chk_tn_applications_provision_status CHECK (provision_status IN ('ready', 'pending', 'running', 'failed')),
-    CONSTRAINT chk_tn_applications_home_mode CHECK (home_mode IN ('builder', 'application'))
+    CONSTRAINT chk_tn_apps_source_type CHECK (source_type IN ('blank', 'template')),
+    CONSTRAINT chk_tn_apps_status CHECK (status IN ('active', 'archived')),
+    CONSTRAINT chk_tn_apps_provision_status CHECK (provision_status IN ('ready', 'pending', 'running', 'failed')),
+    CONSTRAINT chk_tn_apps_home_mode CHECK (home_mode IN ('builder', 'app'))
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_applications_tenant_code
-    ON tn_applications (tenant_id, code)
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_apps_tenant_code
+    ON tn_apps (tenant_id, code)
     WHERE deleted_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_tn_applications_tenant_status_sort
-    ON tn_applications (tenant_id, status, sort_order, id DESC)
+CREATE INDEX IF NOT EXISTS idx_tn_apps_tenant_status_sort
+    ON tn_apps (tenant_id, status, sort_order, id DESC)
     WHERE deleted_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_tn_applications_tenant_owner
-    ON tn_applications (tenant_id, owner_member_id)
+CREATE INDEX IF NOT EXISTS idx_tn_apps_tenant_owner
+    ON tn_apps (tenant_id, owner_member_id)
     WHERE deleted_at IS NULL;
 
 -- 安装记录（000014）：应用创建来源快照，一应用一条、追加写无软删；
 -- template_* 两列 M2-A 恒为 NULL，M2-B 模板安装启用
-CREATE TABLE IF NOT EXISTS tn_application_installations (
+CREATE TABLE IF NOT EXISTS tn_app_installations (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     tenant_id BIGINT NOT NULL DEFAULT 1,
-    application_id BIGINT NOT NULL UNIQUE REFERENCES tn_applications(id),
+    app_id BIGINT NOT NULL UNIQUE REFERENCES tn_apps(id),
     source_type varchar(16) NOT NULL,
     template_id BIGINT,
     template_version_id BIGINT,
@@ -506,19 +507,19 @@ CREATE TABLE IF NOT EXISTS tn_application_installations (
     installed_at timestamp with time zone NOT NULL DEFAULT LOCALTIMESTAMP
 );
 
-CREATE INDEX IF NOT EXISTS idx_tn_application_installations_tenant
-    ON tn_application_installations (tenant_id, id);
+CREATE INDEX IF NOT EXISTS idx_tn_app_installations_tenant
+    ON tn_app_installations (tenant_id, id);
 
 -- 应用菜单节点（000016，M2-菜单）：分组/表单/仪表盘/页面统一为菜单节点；
--- 分组无 target，非分组节点 target_type=entry_type 且引用资产；读取序
--- sort_order ASC, code ASC（tiebreak 与出网 entryId 同源）
-CREATE TABLE IF NOT EXISTS tn_application_menu_entries (
+-- 分组无 target，非分组节点 target_type=menu_type 且引用资产；读取序
+-- sort_order ASC, code ASC（tiebreak 与出网 menuId 同源）
+CREATE TABLE IF NOT EXISTS tn_app_menu_nodes (
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL,
-    application_id BIGINT NOT NULL REFERENCES tn_applications(id),
+    app_id BIGINT NOT NULL REFERENCES tn_apps(id),
     code varchar(64) NOT NULL,
-    parent_entry_id BIGINT NULL REFERENCES tn_application_menu_entries(id),
-    entry_type varchar(16) NOT NULL,
+    parent_menu_id BIGINT NULL REFERENCES tn_app_menu_nodes(id),
+    menu_type varchar(16) NOT NULL,
     name varchar(128) NOT NULL,
     icon varchar(32) NULL,
     color varchar(32) NULL,
@@ -532,50 +533,50 @@ CREATE TABLE IF NOT EXISTS tn_application_menu_entries (
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     deleted_at timestamp with time zone,
-    CONSTRAINT chk_tn_application_menu_entry_type
-      CHECK (entry_type IN ('group', 'form', 'dashboard', 'page')),
-    CONSTRAINT chk_tn_application_menu_target
+    CONSTRAINT chk_tn_app_menu_nodes_menu_type
+      CHECK (menu_type IN ('group', 'form', 'dashboard', 'page')),
+    CONSTRAINT chk_tn_app_menu_nodes_target
       CHECK (
-        (entry_type = 'group' AND target_type IS NULL AND target_id IS NULL)
+        (menu_type = 'group' AND target_type IS NULL AND target_id IS NULL)
         OR
-        (entry_type <> 'group' AND target_type = entry_type AND target_id IS NOT NULL)
+        (menu_type <> 'group' AND target_type = menu_type AND target_id IS NOT NULL)
       )
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_application_menu_entries_tenant_code
-    ON tn_application_menu_entries (tenant_id, code)
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_app_menu_nodes_tenant_code
+    ON tn_app_menu_nodes (tenant_id, code)
     WHERE deleted_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_tn_application_menu_entries_app_parent_sort
-    ON tn_application_menu_entries (tenant_id, application_id, parent_entry_id, sort_order, code)
+CREATE INDEX IF NOT EXISTS idx_tn_app_menu_nodes_app_parent_sort
+    ON tn_app_menu_nodes (tenant_id, app_id, parent_menu_id, sort_order, code)
     WHERE deleted_at IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_tn_application_menu_entries_app_target
-    ON tn_application_menu_entries (tenant_id, application_id, target_type, target_id)
+CREATE INDEX IF NOT EXISTS idx_tn_app_menu_nodes_app_target
+    ON tn_app_menu_nodes (tenant_id, app_id, target_type, target_id)
     WHERE deleted_at IS NULL AND target_id IS NOT NULL;
 
 -- 应用菜单个人收藏（000046，ADR-011）：成员×菜单节点的个人状态，不参与
 -- 菜单共享结构与修订号；节点软删时同事务硬删关联行
-CREATE TABLE IF NOT EXISTS tn_application_menu_favorites (
+CREATE TABLE IF NOT EXISTS tn_app_menu_favorites (
     id BIGSERIAL PRIMARY KEY,
     tenant_id BIGINT NOT NULL,
     member_id BIGINT NOT NULL,
-    application_id BIGINT NOT NULL REFERENCES tn_applications(id),
-    entry_id BIGINT NOT NULL REFERENCES tn_application_menu_entries(id),
+    app_id BIGINT NOT NULL REFERENCES tn_apps(id),
+    menu_id BIGINT NOT NULL REFERENCES tn_app_menu_nodes(id),
     created_at timestamp with time zone,
-    CONSTRAINT uk_tn_application_menu_favorites_member_entry UNIQUE (member_id, entry_id)
+    CONSTRAINT uk_tn_app_menu_favorites_member_menu UNIQUE (member_id, menu_id)
 );
 
-CREATE INDEX IF NOT EXISTS idx_tn_application_menu_favorites_member
-    ON tn_application_menu_favorites (tenant_id, member_id, application_id);
+CREATE INDEX IF NOT EXISTS idx_tn_app_menu_favorites_member
+    ON tn_app_menu_favorites (tenant_id, member_id, app_id);
 
-COMMENT ON TABLE tn_application_menu_favorites IS '应用菜单个人收藏（000046，ADR-011）：成员×菜单节点的个人状态，不参与菜单共享结构与修订号；节点软删时同事务硬删关联行';
-COMMENT ON COLUMN tn_application_menu_favorites.id IS '自增主键';
-COMMENT ON COLUMN tn_application_menu_favorites.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN tn_application_menu_favorites.member_id IS '收藏成员 ID（租户成员，读写一律叠加本列双条件）';
-COMMENT ON COLUMN tn_application_menu_favorites.application_id IS '收藏节点所属应用 ID（外键指向 tn_applications）';
-COMMENT ON COLUMN tn_application_menu_favorites.entry_id IS '收藏的菜单节点 ID（外键指向 tn_application_menu_entries；(member_id, entry_id) 唯一幂等）';
-COMMENT ON COLUMN tn_application_menu_favorites.created_at IS '收藏时间';
+COMMENT ON TABLE tn_app_menu_favorites IS '应用菜单个人收藏（000046，ADR-011）：成员×菜单节点的个人状态，不参与菜单共享结构与修订号；节点软删时同事务硬删关联行';
+COMMENT ON COLUMN tn_app_menu_favorites.id IS '自增主键';
+COMMENT ON COLUMN tn_app_menu_favorites.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN tn_app_menu_favorites.member_id IS '收藏成员 ID（租户成员，读写一律叠加本列双条件）';
+COMMENT ON COLUMN tn_app_menu_favorites.app_id IS '收藏节点所属应用 ID（外键指向 tn_apps）';
+COMMENT ON COLUMN tn_app_menu_favorites.menu_id IS '收藏的菜单节点 ID（外键指向 tn_app_menu_nodes；(member_id, menu_id) 唯一幂等）';
+COMMENT ON COLUMN tn_app_menu_favorites.created_at IS '收藏时间';
 
 -- 表单资产与草稿（000037/000044/000045，ADR-010）：code 为稳定公开编码，
 -- draft_content 为目标保存协议草稿全文
@@ -583,7 +584,7 @@ COMMENT ON COLUMN tn_application_menu_favorites.created_at IS '收藏时间';
 CREATE TABLE IF NOT EXISTS tn_forms (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     tenant_id BIGINT NOT NULL DEFAULT 1,
-    application_id BIGINT NOT NULL,
+    app_id BIGINT NOT NULL,
     code varchar(64) NOT NULL,
     name varchar(128) NOT NULL,
     form_type varchar(16) NOT NULL DEFAULT 'standard',
@@ -603,7 +604,7 @@ CREATE TABLE IF NOT EXISTS tn_forms (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tn_forms_tenant_app
-    ON tn_forms (tenant_id, application_id, id DESC)
+    ON tn_forms (tenant_id, app_id, id DESC)
     WHERE deleted_at IS NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_forms_tenant_code
@@ -642,7 +643,7 @@ CREATE TABLE IF NOT EXISTS tn_form_records (
     form_id BIGINT NOT NULL REFERENCES tn_forms(id),
     form_version_id BIGINT NOT NULL REFERENCES tn_form_versions(id),
     data_op_id varchar(36),
-    entry_code varchar(64),
+    menu_code varchar(64),
     values JSONB,
     submitted_by_member_id BIGINT NOT NULL,
     submitted_by_name varchar(100),
@@ -672,7 +673,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_form_records_tenant_data_op
     ON tn_form_records (tenant_id, data_op_id);
 
 COMMENT ON COLUMN tn_form_records.data_op_id IS '客户端生成的单次提交幂等 UUID；同一租户内唯一，历史记录允许为空';
-COMMENT ON COLUMN tn_form_records.entry_code IS '触发提交的应用菜单节点公开编码快照；设计预览直提允许为空';
+COMMENT ON COLUMN tn_form_records.menu_code IS '触发提交的应用菜单节点公开编码快照；设计预览直提允许为空';
 COMMENT ON COLUMN tn_form_records.submitted_by_name IS '提交人展示名快照（提交时按租户内昵称固化，昵称空回落账号昵称/登录名；存量与未命中行回填固定文案）';
 COMMENT ON COLUMN tn_form_records.updated_at IS '记录最后更新时间（提交时等于提交时间；审批编辑写回时同事务刷新）';
 COMMENT ON COLUMN tn_form_records.values IS '业务值 JSONB：仅存量历史记录；新记录（physical 存储）恒为 NULL，业务值在 tn_fd_* 物理表';
@@ -687,7 +688,7 @@ COMMENT ON COLUMN tn_form_records.workflow_updated_at IS '流程投影最后更�
 CREATE TABLE IF NOT EXISTS tn_asset_permission_groups (
     id BIGSERIAL PRIMARY KEY NOT NULL,
     tenant_id BIGINT NOT NULL,
-    application_id BIGINT NOT NULL,
+    app_id BIGINT NOT NULL,
     asset_type VARCHAR(16) NOT NULL DEFAULT 'form',
     asset_id BIGINT NOT NULL,
     code VARCHAR(64) NOT NULL,
@@ -1074,13 +1075,13 @@ COMMENT ON COLUMN tn_audit_logs.user_agent IS '客户端 User-Agent，可空';
 COMMENT ON COLUMN tn_audit_logs.before_data IS '变更前数据快照 JSONB，可空';
 COMMENT ON COLUMN tn_audit_logs.after_data IS '变更后数据快照 JSONB，可空';
 COMMENT ON COLUMN tn_audit_logs.event_code IS '稳定事件码（模块.资源类型.动作，如 iam.member.update），由审计服务按事件注册表生成；空为存量历史行，展示降级为「历史操作记录」';
-COMMENT ON COLUMN tn_audit_logs.category_code IS '稳定日志范围码：member_management 成员管理 / organization 组织架构 / role_permission 角色权限 / tenant_settings 企业设置 / application 应用管理 / file_storage 文件管理 / account_security 账号安全 / log_export 日志导出';
+COMMENT ON COLUMN tn_audit_logs.category_code IS '稳定日志范围码：member_management 成员管理 / organization 组织架构 / role_permission 角色权限 / tenant_settings 企业设置 / app 应用管理 / file_storage 文件管理 / account_security 账号安全 / log_export 日志导出';
 COMMENT ON COLUMN tn_audit_logs.actor_name_snapshot IS '操作人显示名快照（写时固化，成员资料变更不影响历史展示）';
 COMMENT ON COLUMN tn_audit_logs.target_name_snapshot IS '目标资源展示名快照（成员/部门/角色/应用等当时名称）';
 COMMENT ON COLUMN tn_audit_logs.summary IS '服务端生成并经脱敏的操作详情，可直接展示与导出；不含密码/验证码/令牌/私钥/完整手机号邮箱等敏感值';
-COMMENT ON COLUMN tn_audit_logs.application_id IS '应用内操作所属应用 ID（产品日志查询与租户归属校验维度）；NULL=非应用内操作或历史数据。应用维度查询必须以前置 tenant_id 为首列，禁止仅凭本列查询';
-COMMENT ON COLUMN tn_audit_logs.application_code IS '应用稳定编码快照（写时固化，应用删除后历史展示不依赖当前应用行）';
-COMMENT ON COLUMN tn_audit_logs.application_name_snapshot IS '应用名称快照（写时固化，应用改名/删除后历史展示一致）';
+COMMENT ON COLUMN tn_audit_logs.app_id IS '应用内操作所属应用 ID（产品日志查询与租户归属校验维度）；NULL=非应用内操作或历史数据。应用维度查询必须以前置 tenant_id 为首列，禁止仅凭本列查询';
+COMMENT ON COLUMN tn_audit_logs.app_code IS '应用稳定编码快照（写时固化，应用删除后历史展示不依赖当前应用行）';
+COMMENT ON COLUMN tn_audit_logs.app_name_snapshot IS '应用名称快照（写时固化，应用改名/删除后历史展示一致）';
 COMMENT ON COLUMN tn_audit_logs.created_at IS '记录发生时间，默认当前时间';
 
 COMMENT ON TABLE pf_login_logs IS '登录日志：会话建立事件流水（登录/注册即登录），账号维度自查（ADR-006 平台级）；与 tn_audit_logs 职责互斥，登录不写业务审计';
@@ -1124,62 +1125,62 @@ COMMENT ON COLUMN tn_product_log_exports.file_data IS '导出文件内容（一�
 COMMENT ON COLUMN tn_product_log_exports.expires_at IS '导出文件过期时间，过期后不可下载';
 COMMENT ON COLUMN tn_product_log_exports.created_at IS '任务创建时间';
 
-COMMENT ON TABLE tn_applications IS '应用实例（租户内一级资源，M2-A）：空白/模板安装创建的低代码应用；owner/creator 引用租户成员，删除只写 deleted_at（状态列不设 deleted）';
-COMMENT ON COLUMN tn_applications.id IS '自增主键';
-COMMENT ON COLUMN tn_applications.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN tn_applications.code IS '服务端生成的应用编码，租户内唯一（uk_tn_applications_tenant_code，软删行释放），供 URL/外部引用/日志使用，创建后不可修改';
-COMMENT ON COLUMN tn_applications.name IS '展示名称，允许同租户重名，不作业务主键';
-COMMENT ON COLUMN tn_applications.icon IS '应用图标 JSONB：remix 为 type/name/background，自定义图标为 type/name';
-COMMENT ON COLUMN tn_applications.color IS '稳定颜色键（primary），不存 CSS 字面值';
-COMMENT ON COLUMN tn_applications.owner_member_id IS '应用所有者（租户成员 ID），同租户约束由服务层校验';
-COMMENT ON COLUMN tn_applications.creator_member_id IS '创建者（租户成员 ID），成员删除后保留 ID 审计语义';
-COMMENT ON COLUMN tn_applications.source_type IS '创建来源：blank 空白创建 / template 模板安装（冗余于安装记录，便于列表查询）';
-COMMENT ON COLUMN tn_applications.status IS '可见业务状态：active 正常 / archived 归档；删除只写 deleted_at，不设 deleted 状态值';
-COMMENT ON COLUMN tn_applications.provision_status IS '实例化进度（与 status 独立）：ready 就绪 / pending 待处理 / running 处理中 / failed 失败；M2-A 空白应用同步创建即 ready';
-COMMENT ON COLUMN tn_applications.home_mode IS '应用首页形态：builder 显示首次构建引导 / application 进入运行时应用首页；由应用生命周期维护，不按当前成员可见菜单数量推导';
-COMMENT ON COLUMN tn_applications.definition_version IS '应用定义版本（发布演进用），非数据库乐观锁';
-COMMENT ON COLUMN tn_applications.menu_revision IS '菜单修订号（菜单结构乐观并发口令）：菜单写入在同事务内条件递增；与 definition_version（发布演进）独立，应用名称/图标/归档等非菜单更新不递增';
-COMMENT ON COLUMN tn_applications.sort_order IS '列表排序值，小者在前，同值按 id 倒序';
-COMMENT ON COLUMN tn_applications.config IS '小型应用级配置 JSONB；严禁混入表单/页面/流程大定义';
-COMMENT ON COLUMN tn_applications.created_at IS '创建时间';
-COMMENT ON COLUMN tn_applications.updated_at IS '更新时间';
-COMMENT ON COLUMN tn_applications.deleted_at IS '软删除时间，NULL=未删除；置位即从常规列表隐藏并释放配额';
+COMMENT ON TABLE tn_apps IS '应用实例（租户内一级资源，M2-A）：空白/模板安装创建的低代码应用；owner/creator 引用租户成员，删除只写 deleted_at（状态列不设 deleted）';
+COMMENT ON COLUMN tn_apps.id IS '自增主键';
+COMMENT ON COLUMN tn_apps.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN tn_apps.code IS '服务端生成的应用编码，租户内唯一（uk_tn_apps_tenant_code，软删行释放），供 URL/外部引用/日志使用，创建后不可修改';
+COMMENT ON COLUMN tn_apps.name IS '展示名称，允许同租户重名，不作业务主键';
+COMMENT ON COLUMN tn_apps.icon IS '应用图标 JSONB：remix 为 type/name/background，自定义图标为 type/name';
+COMMENT ON COLUMN tn_apps.color IS '稳定颜色键（primary），不存 CSS 字面值';
+COMMENT ON COLUMN tn_apps.owner_member_id IS '应用所有者（租户成员 ID），同租户约束由服务层校验';
+COMMENT ON COLUMN tn_apps.creator_member_id IS '创建者（租户成员 ID），成员删除后保留 ID 审计语义';
+COMMENT ON COLUMN tn_apps.source_type IS '创建来源：blank 空白创建 / template 模板安装（冗余于安装记录，便于列表查询）';
+COMMENT ON COLUMN tn_apps.status IS '可见业务状态：active 正常 / archived 归档；删除只写 deleted_at，不设 deleted 状态值';
+COMMENT ON COLUMN tn_apps.provision_status IS '实例化进度（与 status 独立）：ready 就绪 / pending 待处理 / running 处理中 / failed 失败；M2-A 空白应用同步创建即 ready';
+COMMENT ON COLUMN tn_apps.home_mode IS '应用首页形态：builder 显示首次构建引导 / app 进入运行时应用首页；由应用生命周期维护，不按当前成员可见菜单数量推导';
+COMMENT ON COLUMN tn_apps.definition_version IS '应用定义版本（发布演进用），非数据库乐观锁';
+COMMENT ON COLUMN tn_apps.menu_revision IS '菜单修订号（菜单结构乐观并发口令）：菜单写入在同事务内条件递增；与 definition_version（发布演进）独立，应用名称/图标/归档等非菜单更新不递增';
+COMMENT ON COLUMN tn_apps.sort_order IS '列表排序值，小者在前，同值按 id 倒序';
+COMMENT ON COLUMN tn_apps.config IS '小型应用级配置 JSONB；严禁混入表单/页面/流程大定义';
+COMMENT ON COLUMN tn_apps.created_at IS '创建时间';
+COMMENT ON COLUMN tn_apps.updated_at IS '更新时间';
+COMMENT ON COLUMN tn_apps.deleted_at IS '软删除时间，NULL=未删除；置位即从常规列表隐藏并释放配额';
 
-COMMENT ON TABLE tn_application_installations IS '安装记录：应用创建来源快照（一应用一条），供升级、问题定位与审计；追加写无更新/软删语义';
-COMMENT ON COLUMN tn_application_installations.id IS '自增主键';
-COMMENT ON COLUMN tn_application_installations.tenant_id IS '所属租户 ID（与应用一致）';
-COMMENT ON COLUMN tn_application_installations.application_id IS '应用 ID，唯一，一个应用只有一条初始来源记录';
-COMMENT ON COLUMN tn_application_installations.source_type IS '来源类型：blank / template';
-COMMENT ON COLUMN tn_application_installations.template_id IS '模板 ID，空白应用为 NULL（M2-B 启用）';
-COMMENT ON COLUMN tn_application_installations.template_version_id IS '模板版本 ID，空白应用为 NULL（M2-B 启用）';
-COMMENT ON COLUMN tn_application_installations.channel IS '安装渠道：self 空白创建 / template_center 模板中心 / admin 运营 / api 开放接口';
-COMMENT ON COLUMN tn_application_installations.blueprint_checksum IS '安装时实际使用的蓝图校验值，空白应用为 NULL（M2-B 启用）';
-COMMENT ON COLUMN tn_application_installations.installed_by_member_id IS '发起安装的租户成员 ID';
-COMMENT ON COLUMN tn_application_installations.installed_at IS '安装时间';
+COMMENT ON TABLE tn_app_installations IS '安装记录：应用创建来源快照（一应用一条），供升级、问题定位与审计；追加写无更新/软删语义';
+COMMENT ON COLUMN tn_app_installations.id IS '自增主键';
+COMMENT ON COLUMN tn_app_installations.tenant_id IS '所属租户 ID（与应用一致）';
+COMMENT ON COLUMN tn_app_installations.app_id IS '应用 ID，唯一，一个应用只有一条初始来源记录';
+COMMENT ON COLUMN tn_app_installations.source_type IS '来源类型：blank / template';
+COMMENT ON COLUMN tn_app_installations.template_id IS '模板 ID，空白应用为 NULL（M2-B 启用）';
+COMMENT ON COLUMN tn_app_installations.template_version_id IS '模板版本 ID，空白应用为 NULL（M2-B 启用）';
+COMMENT ON COLUMN tn_app_installations.channel IS '安装渠道：self 空白创建 / template_center 模板中心 / admin 运营 / api 开放接口';
+COMMENT ON COLUMN tn_app_installations.blueprint_checksum IS '安装时实际使用的蓝图校验值，空白应用为 NULL（M2-B 启用）';
+COMMENT ON COLUMN tn_app_installations.installed_by_member_id IS '发起安装的租户成员 ID';
+COMMENT ON COLUMN tn_app_installations.installed_at IS '安装时间';
 
-COMMENT ON TABLE tn_application_menu_entries IS '应用菜单节点（000016，M2-菜单）：分组/表单/仪表盘/页面的导航树（一资产一节点）；分组无 target，非分组节点 target_type=entry_type 且必须引用资产；租户/应用归属由服务层校验回填';
-COMMENT ON COLUMN tn_application_menu_entries.id IS '自增主键';
-COMMENT ON COLUMN tn_application_menu_entries.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN tn_application_menu_entries.application_id IS '所属应用 ID（外键指向 tn_applications），同应用约束由服务层在加载校验';
-COMMENT ON COLUMN tn_application_menu_entries.code IS '服务端生成的节点编码（menu_ 前缀），租户内唯一（uk_tn_application_menu_entries_tenant_code，软删行释放），出网即 entryId';
-COMMENT ON COLUMN tn_application_menu_entries.parent_entry_id IS '父节点 ID，根节点为 NULL；父节点须同租户同应用且为 group（服务层校验，单列外键表达不了同应用约束）';
-COMMENT ON COLUMN tn_application_menu_entries.entry_type IS '节点类型：group 分组 / form 表单 / dashboard 仪表盘 / page 页面';
-COMMENT ON COLUMN tn_application_menu_entries.name IS '节点展示名';
-COMMENT ON COLUMN tn_application_menu_entries.icon IS '稳定图标键（可空），不存前端组件名；前端受控映射表转换为图标组件';
-COMMENT ON COLUMN tn_application_menu_entries.color IS '稳定颜色键（可空），不存 CSS 字面值';
-COMMENT ON COLUMN tn_application_menu_entries.target_type IS '资产引用类型：group 为 NULL，非分组节点等于 entry_type（CHECK 约束）';
-COMMENT ON COLUMN tn_application_menu_entries.target_id IS '资产域内部数字主键；出网时由资产查询投影为稳定公开编码，不直接暴露';
-COMMENT ON COLUMN tn_application_menu_entries.sort_order IS '同父节点排序值，仅同父内有意义；新增 1024 间隔，服务端重排写连续间隔值，不信任客户端排序值';
-COMMENT ON COLUMN tn_application_menu_entries.config IS '小型显示配置 JSONB（如页面打开方式）；严禁存放表单 Schema、流程定义、权限或前端组件名';
-COMMENT ON COLUMN tn_application_menu_entries.hidden IS '对成员隐藏（000046，导航隐藏）：普通成员读取菜单时按不存在裁剪，持 tn_applications:create/patch 的菜单管理成员仍可见以便恢复；仅导航语义，不拦截 runtime 直连';
-COMMENT ON COLUMN tn_application_menu_entries.created_at IS '创建时间';
-COMMENT ON COLUMN tn_application_menu_entries.updated_at IS '更新时间';
-COMMENT ON COLUMN tn_application_menu_entries.deleted_at IS '软删除时间，NULL=未删除；资产软删时同事务软删关联节点，应用软删后的节点由清理任务处理';
+COMMENT ON TABLE tn_app_menu_nodes IS '应用菜单节点（000016，M2-菜单）：分组/表单/仪表盘/页面的导航树（一资产一节点）；分组无 target，非分组节点 target_type=menu_type 且必须引用资产；租户/应用归属由服务层校验回填';
+COMMENT ON COLUMN tn_app_menu_nodes.id IS '自增主键';
+COMMENT ON COLUMN tn_app_menu_nodes.tenant_id IS '所属租户 ID';
+COMMENT ON COLUMN tn_app_menu_nodes.app_id IS '所属应用 ID（外键指向 tn_apps），同应用约束由服务层在加载校验';
+COMMENT ON COLUMN tn_app_menu_nodes.code IS '服务端生成的节点编码（menu_ 前缀），租户内唯一（uk_tn_app_menu_nodes_tenant_code，软删行释放），出网即 menuId';
+COMMENT ON COLUMN tn_app_menu_nodes.parent_menu_id IS '父节点 ID，根节点为 NULL；父节点须同租户同应用且为 group（服务层校验，单列外键表达不了同应用约束）';
+COMMENT ON COLUMN tn_app_menu_nodes.menu_type IS '节点类型：group 分组 / form 表单 / dashboard 仪表盘 / page 页面';
+COMMENT ON COLUMN tn_app_menu_nodes.name IS '节点展示名';
+COMMENT ON COLUMN tn_app_menu_nodes.icon IS '稳定图标键（可空），不存前端组件名；前端受控映射表转换为图标组件';
+COMMENT ON COLUMN tn_app_menu_nodes.color IS '稳定颜色键（可空），不存 CSS 字面值';
+COMMENT ON COLUMN tn_app_menu_nodes.target_type IS '资产引用类型：group 为 NULL，非分组节点等于 menu_type（CHECK 约束）';
+COMMENT ON COLUMN tn_app_menu_nodes.target_id IS '资产域内部数字主键；出网时由资产查询投影为稳定公开编码，不直接暴露';
+COMMENT ON COLUMN tn_app_menu_nodes.sort_order IS '同父节点排序值，仅同父内有意义；新增 1024 间隔，服务端重排写连续间隔值，不信任客户端排序值';
+COMMENT ON COLUMN tn_app_menu_nodes.config IS '小型显示配置 JSONB（如页面打开方式）；严禁存放表单 Schema、流程定义、权限或前端组件名';
+COMMENT ON COLUMN tn_app_menu_nodes.hidden IS '对成员隐藏（000046，导航隐藏）：普通成员读取菜单时按不存在裁剪，持 tn_apps:create/patch 的菜单管理成员仍可见以便恢复；仅导航语义，不拦截 runtime 直连';
+COMMENT ON COLUMN tn_app_menu_nodes.created_at IS '创建时间';
+COMMENT ON COLUMN tn_app_menu_nodes.updated_at IS '更新时间';
+COMMENT ON COLUMN tn_app_menu_nodes.deleted_at IS '软删除时间，NULL=未删除；资产软删时同事务软删关联节点，应用软删后的节点由清理任务处理';
 
 COMMENT ON TABLE tn_forms IS '表单资产（租户内从属于应用，ADR-010）：draft_content 为目标保存协议草稿全文（content.items 两层结构，保存前经字段字典严格校验）；草稿与发布快照分表，删除只写 deleted_at，发布版本行保留';
 COMMENT ON COLUMN tn_forms.id IS '自增主键（菜单 target_id 引用值）';
 COMMENT ON COLUMN tn_forms.tenant_id IS '所属租户 ID';
-COMMENT ON COLUMN tn_forms.application_id IS '所属应用 ID（同租户，服务层归属校验，禁止裸 ID 写入）';
+COMMENT ON COLUMN tn_forms.app_id IS '所属应用 ID（同租户，服务层归属校验，禁止裸 ID 写入）';
 COMMENT ON COLUMN tn_forms.code IS '表单稳定公开编码（form_ 前缀）；路由、API 与菜单 target 使用，禁止暴露自增主键';
 COMMENT ON COLUMN tn_forms.name IS '表单名称（trim 后 1–128 字符）；表单名称不进入协议 content';
 COMMENT ON COLUMN tn_forms.form_type IS '表单类型：standard 标准表单 / workflow 流程表单；可经 form-actions:switch-type 切换（ADR-011），切换后原类型流程数据保留，设计器能力以此字段为准';
@@ -1454,7 +1455,7 @@ SELECT p.id, 1, '免费版', 'none', 'free', $JSON${
     {"key": "workflow_runs_month", "category": "periodic", "limit": 100, "unit": "count", "resetCycle": "monthly"}
   ],
   "features": [
-    {"key": "application_management", "group": "基础管理", "name": "应用管理", "available": true},
+    {"key": "app_management", "group": "基础管理", "name": "应用管理", "available": true},
     {"key": "member_management", "group": "基础管理", "name": "成员管理", "available": true},
     {"key": "department_management", "group": "基础管理", "name": "部门管理", "available": true},
     {"key": "group_management", "group": "基础管理", "name": "分组管理", "available": true},
@@ -1476,7 +1477,7 @@ SELECT p.id, 1, '试用版', 'none', 'trial', $JSON${
     {"key": "workflow_runs_month", "category": "periodic", "limit": 10000, "unit": "count", "resetCycle": "monthly"}
   ],
   "features": [
-    {"key": "application_management", "group": "基础管理", "name": "应用管理", "available": true},
+    {"key": "app_management", "group": "基础管理", "name": "应用管理", "available": true},
     {"key": "member_management", "group": "基础管理", "name": "成员管理", "available": true},
     {"key": "department_management", "group": "基础管理", "name": "部门管理", "available": true},
     {"key": "group_management", "group": "基础管理", "name": "分组管理", "available": true},
@@ -1498,7 +1499,7 @@ SELECT p.id, 1, '专业版', 'none', 'pro', $JSON${
     {"key": "workflow_runs_month", "category": "periodic", "limit": -1, "unit": "count", "resetCycle": "monthly"}
   ],
   "features": [
-    {"key": "application_management", "group": "基础管理", "name": "应用管理", "available": true},
+    {"key": "app_management", "group": "基础管理", "name": "应用管理", "available": true},
     {"key": "member_management", "group": "基础管理", "name": "成员管理", "available": true},
     {"key": "department_management", "group": "基础管理", "name": "部门管理", "available": true},
     {"key": "group_management", "group": "基础管理", "name": "分组管理", "available": true},
@@ -1768,9 +1769,9 @@ WHERE name = '租户管理员'
 COMMENT ON TABLE tn_admin_groups IS '租户管理组（权限中心-管理员模块）：一组成员 + 对部门/角色/应用/互联组织的带范围委托管理权；内置组（built_in）成员由 tenant-admin 角色绑定推导';
 COMMENT ON COLUMN tn_admin_groups.tenant_id IS '所属租户 ID';
 COMMENT ON COLUMN tn_admin_groups.name IS '管理组名称，租户内有效记录唯一，最长 30 字符（服务层校验）';
-COMMENT ON COLUMN tn_admin_groups.scope IS '管理组类型：system=系统管理员页（通讯录管理组），application=灵衍云管理员页（普通管理组）';
+COMMENT ON COLUMN tn_admin_groups.scope IS '管理组类型：system=系统管理员页（通讯录管理组），app=灵衍云管理员页（普通管理组）';
 COMMENT ON COLUMN tn_admin_groups.built_in IS '是否内置组：true 为系统管理员组，不可改名/删除/改配置，成员读写代理到 tenant-admin 角色绑定';
-COMMENT ON COLUMN tn_admin_groups.scope_config IS '范围配置 JSONB：department/role/externalOrg/application/addressBook 区块，按 scope 适用性由服务层校验；ID 清单悬挂引用由读取侧丢弃';
+COMMENT ON COLUMN tn_admin_groups.scope_config IS '范围配置 JSONB：department/role/externalOrg/app/addressBook 区块，按 scope 适用性由服务层校验；ID 清单悬挂引用由读取侧丢弃';
 COMMENT ON COLUMN tn_admin_groups.created_at IS '创建时间';
 COMMENT ON COLUMN tn_admin_groups.updated_at IS '最后更新时间';
 COMMENT ON COLUMN tn_admin_groups.deleted_at IS '软删除时间，NULL 表示有效';
@@ -1879,7 +1880,7 @@ WHERE name = '租户管理员'
   );
 
 -- 000033: 数据字典注释
-COMMENT ON TABLE pf_product_catalogs IS '平台内置产品目录：平台提供、可被多个租户启用的产品（如灵衍云）；不是租户自建的 tn_applications 应用';
+COMMENT ON TABLE pf_product_catalogs IS '平台内置产品目录：平台提供、可被多个租户启用的产品（如灵衍云）；不是租户自建的 tn_apps 应用';
 COMMENT ON COLUMN pf_product_catalogs.id IS '自增主键';
 COMMENT ON COLUMN pf_product_catalogs.code IS '产品稳定机器码（如 lingyanyun），创建后不可修改，租户侧接口以 code 定位产品';
 COMMENT ON COLUMN pf_product_catalogs.name IS '产品展示名称';
@@ -2654,7 +2655,7 @@ BEGIN
         'tn_users', 'tn_departments', 'tn_groups', 'tn_role_groups', 'tn_roles',
         'tn_member_invitations', 'tn_public_invitation_links',
         'tn_member_field_settings', 'tn_member_profiles', 'tn_admin_groups',
-        'tn_applications', 'tn_application_menu_entries', 'tn_forms',
+        'tn_apps', 'tn_app_menu_nodes', 'tn_forms',
         'tn_asset_permission_groups', 'tn_files',
         'tn_notification_settings', 'tn_notification_custom_recipients',
         'tn_product_configs',
@@ -2810,3 +2811,96 @@ SELECT t.id, $doc${"version":1,"widgets":[
 FROM pf_tenants t
 WHERE t.purged_at IS NULL
 ON CONFLICT (tenant_id) DO NOTHING;
+
+-- 迁移版本登记（与 migrations/ 全链一致）：make postgres 导入快照后，
+-- 启动迁移器识别全部版本已应用，零重放（checksum 与迁移文件 sha256 一致，
+-- 文件被篡改时迁移器按既有防漂移机制拒绝启动）。种子幂等：ON CONFLICT 不覆盖。
+CREATE TABLE IF NOT EXISTS schema_migrations (
+    version BIGINT PRIMARY KEY,
+    name TEXT NOT NULL,
+    checksum TEXT NOT NULL,
+    applied_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+INSERT INTO schema_migrations (version, name, checksum) VALUES
+    (1, 'init', 'e94c1b003f74bbd56757dcb0e6c3d0e6d8ff1cd19a2bafd4f2867c66daaf4332'),
+    (2, 'tenant_scoped_uniques', 'be633428666105f0c53134b901ab49ec2378cfa2339d46a2db647194c1d98340'),
+    (3, 'member_constraints', '7bd6671a64ad8e40fd0905bc6e0f7adc5cd71d59a66bfaacb76a04ef1414eb4c'),
+    (4, 'tenant_model_cleanup', 'd47638b83b7dd6b35cd8a5a3490d4cf4c6b43746eaaeadb0b8dc908cea240c72'),
+    (5, 'dept_authinfo_constraints', 'dc7497df99065521c65222d0f17d91b464ef36beb38accbd1b60648dfb01e9ab'),
+    (6, 'lifecycle_audit', '2d58b21b63142b1ef3a09a1e6ee213fe1bea442ba4ad058df3889e4d033d2e19'),
+    (7, 'account_phone_unique', 'a8d737ba0208d94bdee06c485210b7f5e5c433b7cfa1a7d5e8a51d4c440a962a'),
+    (8, 'schema_comments', '5cf461b2bfb8603ba0c2857fa3e80178029c835460fa0bb7fd490c4125c14b30'),
+    (9, 'clean_weave_seed', 'c44eae4c41c3f9eb7252ed986991f418bcc54de5ea02babcbfedab33dfa1fb88'),
+    (10, 'account_onboarding', 'a617d0a99d41a85ff1c61bf9a58b7f03dbbd9ec420af66a976460e4ee7df2e33'),
+    (11, 'authenticated_accounts_rule', 'f00802d9b12ae68628effb777a0371682ffaef0e7793a89c846573fff4de0c2e'),
+    (12, 'account_password_initialized', '6aed0ab84058a8049c57958cdd8859480eb789b11efd8439731a66d59192f0aa'),
+    (13, 'login_log', '67ee63c064183895d23d495dc3d9a198e1fd26ddd799af0e83158a05b34da4de'),
+    (14, 'applications', 'f39ffe6a35b788907136445d7a2c1bcfaf80d5988d2e45a17a6697e025e2a914'),
+    (15, 'account_session_version', '5c0ef0b796e9d8e89eb776a03ea408f881e43c8301157279b0223f131741f632'),
+    (16, 'application_menu', '4e68129a1dfc7f6e3ed5f192f741fab5b042ef906bac521bcaf40e7f9d946dc8'),
+    (17, 'files', '96883545e7d2337c67441b39a397e07607f015c2bff5bf41db6a997ecfd9cff3'),
+    (18, 'account_avatar_text', 'd69ba7672217e9c95694a43f054afdfaf0edf7dd6d63d6952013110f274aa2d3'),
+    (19, 'account_security_and_sessions', 'fa5d01f4333a0b2f94da19cd25a7477c59332a52dee28e02d082c6298cb3386c'),
+    (20, 'account_security_schema_comments', '551e08b73574ca5f842ac546900158b18d2119337ba256ba37d4b4e3fb1148fa'),
+    (21, 'application_home_mode', '405accbf7fd58f403e1ecd19020e365f9cb01ab59549ceefbd0afab588cd1de1'),
+    (22, 'tenant_profile_permission', 'a881959052136450093775f08ec9e73d4379227998d5da67184ca235cdefceeb'),
+    (23, 'member_status', 'eb02b191e7321dbf84f549b4abe80d0441bc8433b7313287c775b0dc5819d932'),
+    (24, 'member_permission', 'ff5e4ad127ad4d08ee3b92b09ee6e0d51d24205c5e5adbf2ed626f78b8feb800'),
+    (25, 'role_groups', 'df89d8f1e2eb3b4b8ec2c4a9998ee3684e524ddcc696f6b9895626e1aaccd7f8'),
+    (26, 'member_invitations', '2bf640751106c73291a796f40a63040ceb9495c1df0d5c5dee486a38d19dca8f'),
+    (27, 'role_group_sort', '54ef69b65428133076dce8ac7c4839ce7bcb6afd34be790ce0efb582158bbce1'),
+    (28, 'role_sort', 'd689295124516a9c4c29ce16ab3f2c95e0e59d13c1d8b04f5c880ad46ad6f2e6'),
+    (29, 'localize_baseline_role_names', '8e61d9028b33118c018f3f3319bcbc5ba1953cde18a3a0f0154621f7a2b15028'),
+    (30, 'edition_subscriptions', '7271ac5499b3a619a299be13558d13f1eb574edba86882d92d5e4a42b681871f'),
+    (31, 'member_field_settings', '558cf9a86b173e228fc40803f9a7609ace5ccb130662f2047857958de5ef5d7c'),
+    (32, 'admin_groups', '68afa1d923f7232c69e94967a39b3a6e7f30165a306f620deae538e85d5a636a'),
+    (33, 'tenant_products', 'f9c7572deb081ce1a895b2f36692fdc719d7e0161a0e37da2caf65f505218b6c'),
+    (34, 'tenant_products_admin_grant_fallback', '3a09b6f1afe9e73a8c63a27f511c179166a0301f3776bdebe71964670c0b7911'),
+    (35, 'baseline_admin_grant_fallback', 'cc7f838e2440d1a82c3377de85032ea2c48e7ca6f213917b27df5248cd2009d5'),
+    (36, 'enterprise_logs', 'ad6e6b5edb36fc1eb81751dcd1ace1e885fff9f07c5d2f917739cb183e9363bc'),
+    (37, 'forms', 'b77562d39765b172534a057926c913fe0e7550b3520e7780ec5a45dc25bce7f4'),
+    (38, 'form_records', '6fdf9dcdd25000043a7e7852a4732448b97f2ef5dcc1007da5c1dbc20d593017'),
+    (39, 'notification', 'fa58d4a9f1ce4ad87fdc0922f7d8733455edd353317f2379a4078dcc2d5a5421'),
+    (40, 'repair_authenticated_baseline_rules', '461e7c5f73d08bb3faeb651802f85711f130513eae74292f207e6f19de46ac45'),
+    (41, 'application_icon_payload', '5efd5fe9c6b8d996cf1ac9a5fb8e2f45c9b337db3071b22a1292ab3e5ff893f6'),
+    (42, 'application_icon_jsonb', '33ba6744f571c93edefff2d3fccf28f392ab544f5605a5147aee691bb35666ec'),
+    (43, 'normalize_application_icon_background', 'a5248610d7635bb3dde276657f59db4236347134c75b4389834ae4d03f0745fb'),
+    (44, 'form_type', '997d2ce77bdcb33c4def40260ddc174938d6e8308e5c5d498f22fc311be080d9'),
+    (45, 'form_code', 'bac505eceee934b106c40dd1f9c0c92f0da0db2f49441d805e796dd96239292e'),
+    (46, 'menu_hidden_and_favorites', 'ac63e547cc1fe766b18202097879270bc9f4bef6c0695b653f78f61de531ef9e'),
+    (47, 'form_menu_action_grants', 'ced38bbf1ce2b23c39c5fe619d260dfc0b069adb33ccac8d95df9920161d0564'),
+    (48, 'workflow_definitions', 'e9f9bc1d14744ecd6117b7ad3df705e66c7059e6f4b41526e4891c30bdb93241'),
+    (49, 'workflow_runtime', 'aa6bcbc89eb0791f6d5b973fe0a2dfd31f108bf58e4191d5c3eff6307744bc6b'),
+    (50, 'department_leader', '3bda8913577fbe55cf00613127ed159fa2bbd2d2c6c888d21b2548894af53810'),
+    (51, 'workflow_cc_record', '4e2249ca4464f560075ec5830d01c3e26e9d2a27f2ad65ee3a702a848286d44c'),
+    (52, 'workflow_job', '50217220bda7d9c2dba7cee820dc22ab4f4f35cd3d055be16f67e70e6b8297ee'),
+    (53, 'workflow_service', 'a3f5d6ae19208df614bff41f27ca6bab0ac95ff22c913874962ea168fe9ab6b2'),
+    (54, 'form_protocol_v2_layout', 'b27f0d88abc63e6257d40a1b599c795fe821c8e2d5fb55af17380a308600241a'),
+    (55, 'form_protocol_v3_layout', '8e994ead29bf6b20b0c279f48deead50cbb598de40d882d1ffc14c440f172637'),
+    (56, 'form_protocol_v4_subform', '555d9cf425c53f74d86122d435d14ac8ec6e7b3f41e743c46ed9341a77cbcdc4'),
+    (57, 'form_record_submission_envelope', '1349b278df76e92e66dbf6fd07384059128da20ad22d9db21a399892c6e26afa'),
+    (58, 'form_permission_groups', '7357a8fc3f1f91202173d5f23b890a2c1b610cf8fe450a0747079937d063d6c7'),
+    (59, 'system_actor_fields', '6722a9d796ebac5252bb9a69b7245ea2fade626f431f963d232971b99748d4e5'),
+    (60, 'workflow_form_binding', '7029a611df26995a49ad6e2ed1e90099143ad5f0db0d3095905c8864be9d4554'),
+    (61, 'restore_member_creator_fields', 'abbc10689dafd8e93b0fec34197f1b410df3a984865cacd9c0c7220867e535ba'),
+    (62, 'restore_account_actor_fields', 'f850f4f560e6acef50c34c2105059f0a3a03b2eab8a74fc689df49476b5ba87d'),
+    (63, 'table_prefixes', '30c1022284292217ede9922241c2df29dc86485b3097a7582f9e792302f86d30'),
+    (64, 'product_logs', 'ba6fb1dfbd7c53bf9944a1534382b6359d668b5dac14bd6cd6109caae71116b0'),
+    (65, 'form_version_field_mappings', '729793351e970b826c12689276026ca19541e1d4fa218c003b47402dbe8650b5'),
+    (66, 'form_record_list_permissions', '159252c1c7ca156e2d0b73d85c3d42afddd997bc1ae6359c84648ab1e7b93271'),
+    (67, 'form_record_system_fields', 'e6141b465aeee6ff5343ecf30d1f599a5bfdd638435a4da568dcd1170f87da97'),
+    (68, 'workflow_instance_numbers', 'c5aebf51b8f2831efaabd81c78682644ae5aff6a3682a1208acdc34f8904c1a1'),
+    (69, 'form_compiled_submit_rules', 'def7f5ed3879d87f6a3c03313f5d2fda050935bc40aace41ee1a8aec95ce6c04'),
+    (70, 'form_physical_storage', '5c53f8569d658c9070c5ab4ffcfdff622d45c072e68b4cb63e3f19153b456bb3'),
+    (71, 'form_storage_children', 'f8602da35ee06fadbca197f7977126f3436b6457617a1074e8356981c77415b7'),
+    (72, 'form_record_write_meta', '79ddfbeb277534d2edb091036821b11bd2c28c7fc2b0a9b7f54dd79f803eaf1d'),
+    (73, 'form_record_delete_permissions', '52d82483735a02b9e5e268f5c739eda72dd56fcbf9e754abd2b3fd5e85ff9311'),
+    (74, 'member_code', 'ab93f3e717e0a69fd61a9ecdef4a26bcf067636cc504a760cd03c6ddeabd9af9'),
+    (75, 'form_member_code_storage', '37a742ebc2d3add54e7ce3770fd059cc78fc244a6c68358418c08e00cb329d6f'),
+    (76, 'form_serial_counters', 'd872be20274e8be6018c906a2e0890e82f9a30d102112f104e00bf7fd73280fd'),
+    (77, 'member_workbench', 'b7dbf3efc5b9b6771867f890d55757099d7fb45230f4cade5fc4d63fb00be34c'),
+    (78, 'tenant_workbench', '53db18b0ab1cd8031e46d3c51ae0b9eb2e91bcf6584d66b725e8582959128f0c'),
+    (79, 'rename_application_to_app', 'dc53b8d41e3c634b9f58b8958e3293ffafc5b212bbdba557ca30cfdd09a1c109'),
+    (80, 'rename_menu_entry_to_node', '284446680ed5c811353be8588b41df39f609faedc17aec9cec0f332feaf6f2ff')
+ON CONFLICT (version) DO NOTHING;

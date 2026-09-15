@@ -10,7 +10,7 @@ import (
 func TestSubmitRecordRequestEnvelope(t *testing.T) {
 	raw := []byte(`{
 		"appCode":"app_demo",
-		"entryCode":"menu_demo",
+		"menuCode":"menu_demo",
 		"formCode":"form_demo",
 		"publishedVersion":3,
 		"schemaRevision":"77",
@@ -25,7 +25,7 @@ func TestSubmitRecordRequestEnvelope(t *testing.T) {
 	var req SubmitRecordRequest
 	assert.NoError(t, json.Unmarshal(raw, &req))
 	assert.Equal(t, "app_demo", req.AppCode)
-	assert.Equal(t, "menu_demo", req.EntryCode)
+	assert.Equal(t, "menu_demo", req.MenuCode)
 	assert.Equal(t, JSONContent(`"测试"`), req.Values["_widget_text"].Data)
 	assert.Empty(t, req.Values["_widget_empty"].Data)
 	assert.True(t, *req.Values["_widget_empty"].Visible)

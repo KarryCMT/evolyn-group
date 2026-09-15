@@ -220,7 +220,7 @@ func (s *PermissionDataScopeValue) Scan(value interface{}) error {
 // 同样维持收口（S5）但不授权。code 为 fpg_ 前缀服务端生成的出网稳定标识。
 type AssetPermissionGroup struct {
 	ID               uint                     `json:"id" gorm:"autoIncrement;primaryKey"`
-	ApplicationID    uint                     `json:"applicationId" gorm:"not null"` // 冗余归属，Service 校验与资产一致
+	AppID            uint                     `json:"appId" gorm:"not null"` // 冗余归属，Service 校验与资产一致
 	AssetType        string                   `json:"assetType" gorm:"size:16;not null;default:form"`
 	AssetID          uint                     `json:"assetId" gorm:"not null"` // form → tn_forms.id（内部主键）
 	Code             string                   `json:"code" gorm:"size:64;not null"`

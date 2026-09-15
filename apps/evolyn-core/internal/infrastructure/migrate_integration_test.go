@@ -29,8 +29,8 @@ func TestMigrateINT001EmptyDatabaseUp(t *testing.T) {
 	// 版本登记完整：全部版本（与 migrations/*.up.sql 数量一致，新增随链顺延）落库
 	var count int64
 	assert.NoError(t, db.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&count).Error)
-	// 与 migrations/*.up.sql 数量一致（000078 企业自定义工作台，随链顺延更新）
-	assert.EqualValues(t, 78, count)
+	// 与 migrations/*.up.sql 数量一致（000080 菜单域 entry→menu 命名收敛，随链顺延更新）
+	assert.EqualValues(t, 80, count)
 
 	// 关键业务表已建齐（表名与迁移链一致；000063 起 pf_/sys_/tn_ 命名空间前缀）
 	for _, table := range []string{
@@ -73,7 +73,7 @@ func TestMigrateINT002IdempotentReplay(t *testing.T) {
 
 	var count int64
 	assert.NoError(t, db.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&count).Error)
-	assert.EqualValues(t, 78, count, "重放不得产生重复版本记录")
+	assert.EqualValues(t, 80, count, "重放不得产生重复版本记录")
 }
 
 // MIGRATE-INT-003：已执行迁移内容被篡改（checksum 改变）必须拒绝
@@ -139,6 +139,28 @@ func TestMigrateINT005SchemaMatchesSnapshot(t *testing.T) {
 
 	assert.Equal(t, schemaFingerprint(t, snapshot), schemaFingerprint(t, migrated),
 		"迁移链终态与 db.sql 快照的表/列/索引/约束必须一致")
+}
+
+// MIGRATE-INT-006：db.sql 快照自带 schema_migrations 全量版本登记（含与
+// 迁移文件一致的 sha256 checksum），快照库上启动迁移器必须零重放成功——
+// 这是 make postgres（导入快照）+ make run（migrations: true）的联用路径；
+// 版本登记缺失时迁移器会重放整条链，在含改名迁移的链上必然撞名
+func TestMigrateINT006SnapshotSeedsMigrationsNoReplay(t *testing.T) {
+	snapshot := testsupport.NewPostgresRaw(t)
+	execSnapshotSQL(t, snapshot)
+
+	// 快照种子版本数 = 迁移链版本数（新增迁移须同步补种并顺延此断言）
+	var seeded int64
+	assert.NoError(t, snapshot.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&seeded).Error)
+	assert.EqualValues(t, 80, seeded)
+
+	// 启动迁移器：版本齐全 + checksum 一致 → 不执行任何迁移且成功，重复亦幂等
+	assert.NoError(t, infrastructure.NewMigrator(snapshot).Up(), "快照库上迁移器必须零重放成功")
+	assert.NoError(t, infrastructure.NewMigrator(snapshot).Up(), "重复启动保持幂等")
+
+	var count int64
+	assert.NoError(t, snapshot.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&count).Error)
+	assert.EqualValues(t, 80, count, "零重放不得产生重复版本记录")
 }
 
 // execSnapshotSQL 在空库上重放 scripts/db.sql：剥离 psql 元命令

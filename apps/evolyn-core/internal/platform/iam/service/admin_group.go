@@ -15,10 +15,10 @@ import (
 	"gorm.io/gorm"
 )
 
-// AdminGroupApplicationCatalog 管理组应用清单窄端口：校验 application 组提交的
+// AdminGroupAppCatalog 管理组应用清单窄端口：校验 app 组提交的
 // 应用 ID 是否存在于本租户。iam 不能反向依赖应用域（应用域已依赖 iam 鉴权），
 // 由装配层以适配器桥接（server.go），测试以桩替身
-type AdminGroupApplicationCatalog interface {
+type AdminGroupAppCatalog interface {
 	// Exists 应用 ID 是否属于当前租户（不存在/已删即 false）
 	Exists(ctx context.Context, id uint) (bool, error)
 }
@@ -34,14 +34,14 @@ type AdminGroupTenantReader interface {
 // 事实源，杜绝双写漂移）。租户创建人是内置系统管理员组的固定成员；管理组自身
 // 的资源权限（admin-groups）只授予租户管理员，通讯录管理组成员无法经本服务自我扩权
 type adminGroupService struct {
-	tx           TxManager
-	groups       repository.AdminGroupRepository
-	users        repository.UserRepository
-	departments  repository.DepartmentRepository
-	rbac         repository.RBACRepository
-	applications AdminGroupApplicationCatalog
-	tenants      AdminGroupTenantReader
-	audit        auditservice.Recorder
+	tx          TxManager
+	groups      repository.AdminGroupRepository
+	users       repository.UserRepository
+	departments repository.DepartmentRepository
+	rbac        repository.RBACRepository
+	apps        AdminGroupAppCatalog
+	tenants     AdminGroupTenantReader
+	audit       auditservice.Recorder
 }
 
 func NewAdminGroupService(
@@ -50,19 +50,19 @@ func NewAdminGroupService(
 	users repository.UserRepository,
 	departments repository.DepartmentRepository,
 	rbac repository.RBACRepository,
-	applications AdminGroupApplicationCatalog,
+	apps AdminGroupAppCatalog,
 	tenants AdminGroupTenantReader,
 	audit auditservice.Recorder,
 ) AdminGroupService {
 	return &adminGroupService{
-		tx:           tx,
-		groups:       groups,
-		users:        users,
-		departments:  departments,
-		rbac:         rbac,
-		applications: applications,
-		tenants:      tenants,
-		audit:        audit,
+		tx:          tx,
+		groups:      groups,
+		users:       users,
+		departments: departments,
+		rbac:        rbac,
+		apps:        apps,
+		tenants:     tenants,
+		audit:       audit,
 	}
 }
 
@@ -70,7 +70,7 @@ func NewAdminGroupService(
 // MemberCount 内置组为 tenant-admin 绑定数（包含企业创建人）、
 // 自定义组为成员表计数
 func (s *adminGroupService) List(ctx context.Context, scope string) ([]model.AdminGroupSummary, error) {
-	if scope != "" && scope != model.AdminGroupScopeSystem && scope != model.AdminGroupScopeApplication {
+	if scope != "" && scope != model.AdminGroupScopeSystem && scope != model.AdminGroupScopeApp {
 		return nil, ErrAdminGroupConfigInvalid
 	}
 	if err := s.ensureBuiltin(ctx); err != nil {
@@ -140,7 +140,7 @@ func (s *adminGroupService) Create(ctx context.Context, req *AdminGroupCreateReq
 	if name == "" || utf8.RuneCountInString(name) > 30 {
 		return nil, ErrAdminGroupNameInvalid
 	}
-	if req.Scope != model.AdminGroupScopeSystem && req.Scope != model.AdminGroupScopeApplication {
+	if req.Scope != model.AdminGroupScopeSystem && req.Scope != model.AdminGroupScopeApp {
 		return nil, ErrAdminGroupConfigInvalid
 	}
 
@@ -529,8 +529,8 @@ func (s *adminGroupService) updateScopeBlock(ctx context.Context, group *model.A
 		} else if err := s.validateDepartmentIDs(ctx, scope.DepartmentIDs); err != nil {
 			return nil, err
 		}
-		// application 组的分发范围无开关语义（主行直接选全部/部分），恒开启
-		if group.Scope == model.AdminGroupScopeApplication {
+		// app 组的分发范围无开关语义（主行直接选全部/部分），恒开启
+		if group.Scope == model.AdminGroupScopeApp {
 			scope.Enabled = true
 		}
 		config.Department = &scope
@@ -551,21 +551,21 @@ func (s *adminGroupService) updateScopeBlock(ctx context.Context, group *model.A
 		config.Role = &scope
 	case "externalOrg":
 		config.ExternalOrg = req.ExternalOrg
-	case "applicationScope":
-		if group.Scope != model.AdminGroupScopeApplication {
+	case "appScope":
+		if group.Scope != model.AdminGroupScopeApp {
 			return nil, ErrAdminGroupScopeMismatch
 		}
-		scope := *req.ApplicationScope
-		if !scope.AllApplications {
-			if err := s.validateApplicationIDs(ctx, scope.ApplicationIDs); err != nil {
+		scope := *req.AppScope
+		if !scope.AllApps {
+			if err := s.validateAppIDs(ctx, scope.AppIDs); err != nil {
 				return nil, err
 			}
 		} else {
-			scope.ApplicationIDs = nil
+			scope.AppIDs = nil
 		}
-		config.Application = &scope
+		config.App = &scope
 	case "addressBook":
-		if group.Scope != model.AdminGroupScopeApplication {
+		if group.Scope != model.AdminGroupScopeApp {
 			return nil, ErrAdminGroupScopeMismatch
 		}
 		config.AddressBook = req.AddressBook
@@ -657,14 +657,14 @@ func (s *adminGroupService) validateRoleIDs(ctx context.Context, ids []uint) err
 	return nil
 }
 
-// validateApplicationIDs 应用 ID 全部属于当前租户（经装配层窄端口，
-// 不引入 iam→application 反向依赖）
-func (s *adminGroupService) validateApplicationIDs(ctx context.Context, ids []uint) error {
-	if s.applications == nil {
+// validateAppIDs 应用 ID 全部属于当前租户（经装配层窄端口，
+// 不引入 iam→app 反向依赖）
+func (s *adminGroupService) validateAppIDs(ctx context.Context, ids []uint) error {
+	if s.apps == nil {
 		return nil // 端口未注入（测试/降级）：跳过校验，由读取侧悬挂丢弃兜底
 	}
 	for _, id := range ids {
-		ok, err := s.applications.Exists(ctx, id)
+		ok, err := s.apps.Exists(ctx, id)
 		if err != nil {
 			return err
 		}
@@ -687,11 +687,11 @@ func (s *adminGroupService) recordMembersAudit(ctx context.Context, group *model
 }
 
 // defaultScopeConfig 新建组的默认范围配置：对齐前端新建管理组的初始态
-// （全关 + partial 空清单；application 组的分发范围恒开启）
+// （全关 + partial 空清单；app 组的分发范围恒开启）
 func defaultScopeConfig(scope string) model.AdminGroupScopeConfig {
 	config := model.AdminGroupScopeConfig{
 		Department: &model.AdminDepartmentScope{
-			Enabled: scope == model.AdminGroupScopeApplication,
+			Enabled: scope == model.AdminGroupScopeApp,
 			Mode:    model.AdminScopePartial,
 		},
 		Role: &model.AdminRoleScope{
@@ -699,8 +699,8 @@ func defaultScopeConfig(scope string) model.AdminGroupScopeConfig {
 		},
 		ExternalOrg: &model.AdminExternalOrgScope{},
 	}
-	if scope == model.AdminGroupScopeApplication {
-		config.Application = &model.AdminApplicationScope{}
+	if scope == model.AdminGroupScopeApp {
+		config.App = &model.AdminAppScope{}
 		config.AddressBook = &model.AdminAddressBookScope{}
 	}
 	return config
@@ -732,7 +732,7 @@ func memberView(member *model.User) model.AdminGroupMemberView {
 }
 
 // buildAdminGroupDetailView 聚合详情读模型：内置组恒全量权限（不读配置），
-// 自定义组按 scope_config 展开；application 专属区块仅 application 组出网
+// 自定义组按 scope_config 展开；app 专属区块仅 app 组出网
 func buildAdminGroupDetailView(group *model.AdminGroup, members []model.AdminGroupMemberView) *model.AdminGroupDetailView {
 	view := &model.AdminGroupDetailView{
 		ID:      group.ID,
@@ -773,11 +773,11 @@ func buildAdminGroupDetailView(group *model.AdminGroup, members []model.AdminGro
 	if config.ExternalOrg != nil {
 		view.ExternalEnabled = config.ExternalOrg.Enabled
 	}
-	if group.Scope == model.AdminGroupScopeApplication {
-		if config.Application != nil {
-			view.AllApplications = config.Application.AllApplications
-			view.ApplicationManage = config.Application.Manage
-			view.ApplicationIDs = nonEmptyIDs(config.Application.ApplicationIDs)
+	if group.Scope == model.AdminGroupScopeApp {
+		if config.App != nil {
+			view.AllApps = config.App.AllApps
+			view.AppManage = config.App.Manage
+			view.AppIDs = nonEmptyIDs(config.App.AppIDs)
 		}
 		view.AddressBook = config.AddressBook
 	}

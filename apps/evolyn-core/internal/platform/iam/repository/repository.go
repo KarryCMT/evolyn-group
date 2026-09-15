@@ -160,7 +160,7 @@ func (r *Repositories) Init() error {
 		},
 		// 应用管理（M2-A）：工作台/应用域 API 的鉴权资源
 		{
-			Name:  "applications",
+			Name:  "apps",
 			Scope: model.ClusterScope,
 		},
 		// 文件上传会话与私有下载地址（RustFS 对象仅由文件域签发访问）
@@ -192,7 +192,7 @@ func (r *Repositories) Init() error {
 			Scope: model.ClusterScope,
 		},
 		// 表单资产（ADR-010）：表单设计与管理仅授予租户管理员（forms:*）；
-		// 运行时填写走 applications:get（bootstrap）与 form-records（提交），
+		// 运行时填写走 apps:get（bootstrap）与 form-records（提交），
 		// 不要求本资源
 		{
 			Name:  model.FormResource,

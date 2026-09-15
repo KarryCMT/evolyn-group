@@ -2,29 +2,24 @@
 import { shallowRef } from 'vue';
 import FavoritePickerDialog from './FavoritePickerDialog.vue';
 import FavoritesDialog from './FavoritesDialog.vue';
-import { useFavoriteApplications } from './useFavoriteApplications';
+import { useFavoriteApps } from './useFavoriteApps';
 
 defineOptions({ name: 'FavoritesWorkspaceDialog' });
 
 const visible = defineModel<boolean>({ default: false });
 const pickerVisible = shallowRef(false);
-const { favoriteApplications, selectedApplicationIds, replaceFavoriteApplications } =
-  useFavoriteApplications();
+const { favoriteApps, selectedAppIds, replaceFavoriteApps } = useFavoriteApps();
 
 function saveFavorites(ids: string[]) {
-  replaceFavoriteApplications(ids);
+  replaceFavoriteApps(ids);
 }
 </script>
 
 <template>
-  <FavoritesDialog
-    v-model="visible"
-    :applications="favoriteApplications"
-    @add="pickerVisible = true"
-  />
+  <FavoritesDialog v-model="visible" :apps="favoriteApps" @add="pickerVisible = true" />
   <FavoritePickerDialog
     v-model="pickerVisible"
-    :selected-ids="selectedApplicationIds"
+    :selected-ids="selectedAppIds"
     @confirm="saveFavorites"
   />
 </template>

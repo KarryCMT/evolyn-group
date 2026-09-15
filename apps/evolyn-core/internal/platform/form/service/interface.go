@@ -10,7 +10,7 @@ import (
 	iammodel "evolyn/internal/platform/iam/model"
 )
 
-// AccessEvaluator 权限集窄端口（装配层由 application 域 RBAC 评估器适配）。
+// AccessEvaluator 权限集窄端口（装配层由 app 域 RBAC 评估器适配）。
 type AccessEvaluator interface {
 	Permissions(ctx context.Context, member *iammodel.User) map[string]bool
 }
@@ -27,34 +27,34 @@ type DepartmentDirectory interface {
 	ResolveActiveDepartmentIDs(ctx context.Context, references []string) (map[string]bool, error)
 }
 
-// MenuMaintenance 表单资产菜单节点维护窄端口（M2-资产-1）：由 application
+// MenuMaintenance 表单资产菜单节点维护窄端口（M2-资产-1）：由 app
 // 域在装配层适配；表单域在创建/改名/删除的事务内调用，菜单节点写入与
 // menu_revision 递增随之加入同一事务（跨域经窄端口，域间不直接依赖）。
 type MenuMaintenance interface {
-	// AttachFormEntry 表单创建事务内挂 form 资产节点；parentEntryCode 为空
+	// AttachFormEntry 表单创建事务内挂 form 资产节点；parentMenuCode 为空
 	// 挂应用根级，非空挂同应用指定分组下（非法分组返回 APP_MENU_PARENT_INVALID）
-	AttachFormEntry(ctx context.Context, applicationID, formID uint, name, parentEntryCode string) error
+	AttachFormEntry(ctx context.Context, appID, formID uint, name, parentMenuCode string) error
 	// SyncFormEntryName 表单改名事务内同步节点展示名
-	SyncFormEntryName(ctx context.Context, applicationID, formID uint, name string) error
+	SyncFormEntryName(ctx context.Context, appID, formID uint, name string) error
 	// SyncFormEntryAppearance 表单图标/颜色修改事务内同步节点展示属性
 	//（ADR-011：展示属性以资产域为事实源；空串清空，出网投影为 null）
-	SyncFormEntryAppearance(ctx context.Context, applicationID, formID uint, icon, color string) error
+	SyncFormEntryAppearance(ctx context.Context, appID, formID uint, icon, color string) error
 	// DetachFormEntry 表单删除事务内软删节点
-	DetachFormEntry(ctx context.Context, applicationID, formID uint) error
+	DetachFormEntry(ctx context.Context, appID, formID uint) error
 }
 
-// ApplicationDirectory 应用域只读窄端口（装配层由 application 仓储适配）：
-// 表单归属校验与运行时 bootstrap 使用，form 域不直接依赖 application 域。
-type ApplicationDirectory interface {
-	// ApplicationByID 按应用 ID 取只读视图（ctx 租户过滤：跨租户即 notFound）
-	ApplicationByID(ctx context.Context, id uint) (app ApplicationView, notFound bool, err error)
-	// ApplicationByCode 按应用编码取只读视图
-	ApplicationByCode(ctx context.Context, code string) (app ApplicationView, notFound bool, err error)
+// AppDirectory 应用域只读窄端口（装配层由 app 仓储适配）：
+// 表单归属校验与运行时 bootstrap 使用，form 域不直接依赖 app 域。
+type AppDirectory interface {
+	// AppByID 按应用 ID 取只读视图（ctx 租户过滤：跨租户即 notFound）
+	AppByID(ctx context.Context, id uint) (app AppView, notFound bool, err error)
+	// AppByCode 按应用编码取只读视图
+	AppByCode(ctx context.Context, code string) (app AppView, notFound bool, err error)
 }
 
-// ApplicationView 应用只读视图（form 域关心的最小字段）。
+// AppView 应用只读视图（form 域关心的最小字段）。
 // Code/Name 供审计事件的应用维度快照固化（000064 产品日志）。
-type ApplicationView struct {
+type AppView struct {
 	ID     uint
 	Status string
 	Code   string
@@ -63,16 +63,16 @@ type ApplicationView struct {
 
 // FormReference 引用视图条目（ADR-011「查看引用视图」）：表单被哪个应用
 // 的哪个菜单节点引用。字段为出网 DTO 直接复用（form 域自有词汇，不依赖
-// application 域模型）。
+// app 域模型）。
 type FormReference struct {
-	ApplicationCode string  `json:"applicationCode"`
-	ApplicationName string  `json:"applicationName"`
-	EntryID         string  `json:"entryId"`
-	EntryName       string  `json:"entryName"`
-	ParentEntryID   *string `json:"parentEntryId"`
+	AppCode      string  `json:"appCode"`
+	AppName      string  `json:"appName"`
+	MenuID       string  `json:"menuId"`
+	EntryName    string  `json:"entryName"`
+	ParentMenuID *string `json:"parentMenuId"`
 }
 
-// ReferenceSource 引用视图只读窄端口（装配层由 application 域菜单仓储
+// ReferenceSource 引用视图只读窄端口（装配层由 app 域菜单仓储
 // 适配）：跨应用反查引用指定表单的菜单节点；端口未注入（单测）时引用
 // 视图返回空集。
 type ReferenceSource interface {

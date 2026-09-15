@@ -50,7 +50,7 @@ func (r *formRepository) GetByID(ctx context.Context, id uint) (*model.Form, err
 // List 应用内游标分页：固定序 id DESC，游标行之后取 limit 条，多取一条探测 hasMore
 func (r *formRepository) List(ctx context.Context, params ListParams) ([]model.Form, bool, error) {
 	query := r.withContext(ctx).Model(&model.Form{}).
-		Where("application_id = ?", params.ApplicationID)
+		Where("app_id = ?", params.AppID)
 	if params.HasCursor {
 		query = query.Where("id < ?", params.AfterID)
 	}

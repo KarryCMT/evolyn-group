@@ -554,7 +554,7 @@ func (f *fakeReadSource) EnabledDataScopeFields(ctx context.Context, formID uint
 func TestSwitchTypeBlockedByWorkflowOperations(t *testing.T) {
 	member := memberOfTenant(1)
 	formRepo := newFakeFormRepo()
-	form := &model.Form{Code: "form_test", FormType: model.FormTypeWorkflow, ApplicationID: 1}
+	form := &model.Form{Code: "form_test", FormType: model.FormTypeWorkflow, AppID: 1}
 	form.ID = 1
 	form.TenantID = 1
 	formRepo.forms[1] = form
@@ -582,7 +582,7 @@ func TestSwitchTypeBlockedByWorkflowOperations(t *testing.T) {
 func TestPublishBlockedByDataScopeFieldLifecycle(t *testing.T) {
 	formRepo := newFakeFormRepo()
 	form := &model.Form{
-		Code: "form_test", FormType: model.FormTypeStandard, ApplicationID: 1,
+		Code: "form_test", FormType: model.FormTypeStandard, AppID: 1,
 		DraftRevision: 2, ProtocolVersion: model.CurrentProtocolVersion,
 	}
 	form.ID = 1
@@ -675,7 +675,7 @@ func TestSubmitRecordPermissionExecution(t *testing.T) {
 	versionRepo := newFakeVersionRepo()
 	recordRepo := &fakeRecordRepo{}
 	form := &model.Form{
-		Code: "form_test", FormType: model.FormTypeStandard, ApplicationID: 1,
+		Code: "form_test", FormType: model.FormTypeStandard, AppID: 1,
 		DraftRevision: 1, ProtocolVersion: model.CurrentProtocolVersion,
 		DraftContent: model.JSONContent(permTestDoc),
 	}

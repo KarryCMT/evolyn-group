@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { FavoriteApplication } from './favoriteCatalog';
+import type { FavoriteApp } from './favoriteCatalog';
 import {
   RiArrowDownSFill,
   RiArrowRightSFill,
@@ -8,7 +8,7 @@ import {
   RiSearchFill,
 } from '@remixicon/vue';
 import { computed, shallowRef, watch } from 'vue';
-import { favoriteApplicationCatalog } from './favoriteCatalog';
+import { favoriteAppCatalog } from './favoriteCatalog';
 
 defineOptions({ name: 'FavoritePickerDialog' });
 
@@ -36,23 +36,16 @@ watch(
   },
 );
 
-const visibleApplications = computed(() =>
-  filterApplications(favoriteApplicationCatalog, searchText.value),
-);
+const visibleApps = computed(() => filterApps(favoriteAppCatalog, searchText.value));
 
-function filterApplications(
-  applications: FavoriteApplication[],
-  keyword: string,
-): FavoriteApplication[] {
+function filterApps(apps: FavoriteApp[], keyword: string): FavoriteApp[] {
   const normalizedKeyword = keyword.trim().toLocaleLowerCase();
-  if (!normalizedKeyword) return applications;
+  if (!normalizedKeyword) return apps;
 
-  return applications.flatMap((application) => {
-    const matchingChildren = filterApplications(application.children ?? [], normalizedKeyword);
-    const isMatched = application.label.toLocaleLowerCase().includes(normalizedKeyword);
-    return isMatched || matchingChildren.length
-      ? [{ ...application, children: matchingChildren }]
-      : [];
+  return apps.flatMap((app) => {
+    const matchingChildren = filterApps(app.children ?? [], normalizedKeyword);
+    const isMatched = app.label.toLocaleLowerCase().includes(normalizedKeyword);
+    return isMatched || matchingChildren.length ? [{ ...app, children: matchingChildren }] : [];
   });
 }
 
@@ -72,8 +65,8 @@ function toggleExpanded(id: string) {
   expandedIds.value = nextExpandedIds;
 }
 
-function isExpanded(application: FavoriteApplication) {
-  return Boolean(searchText.value.trim()) || expandedIds.value.has(application.id);
+function isExpanded(app: FavoriteApp) {
+  return Boolean(searchText.value.trim()) || expandedIds.value.has(app.id);
 }
 
 function confirm() {
@@ -115,56 +108,54 @@ function confirm() {
       />
 
       <div class="favorite-picker-dialog__list" role="tree" aria-label="应用列表">
-        <template v-for="application in visibleApplications" :key="application.id">
+        <template v-for="app in visibleApps" :key="app.id">
           <div
             class="favorite-picker-dialog__row"
             role="treeitem"
-            :aria-expanded="application.children?.length ? isExpanded(application) : undefined"
+            :aria-expanded="app.children?.length ? isExpanded(app) : undefined"
           >
             <button
-              v-if="application.children?.length"
+              v-if="app.children?.length"
               type="button"
               class="favorite-picker-dialog__expander"
-              :aria-label="
-                isExpanded(application) ? `收起${application.label}` : `展开${application.label}`
-              "
-              @click="toggleExpanded(application.id)"
+              :aria-label="isExpanded(app) ? `收起${app.label}` : `展开${app.label}`"
+              @click="toggleExpanded(app.id)"
             >
               <el-icon>
-                <component :is="isExpanded(application) ? RiArrowDownSFill : RiArrowRightSFill" />
+                <component :is="isExpanded(app) ? RiArrowDownSFill : RiArrowRightSFill" />
               </el-icon>
             </button>
             <span v-else class="favorite-picker-dialog__indent" aria-hidden="true" />
             <span
               class="favorite-picker-dialog__app-icon"
-              :class="`favorite-picker-dialog__app-icon--${application.tone}`"
+              :class="`favorite-picker-dialog__app-icon--${app.tone}`"
               aria-hidden="true"
             >
-              <el-icon><component :is="application.icon" /></el-icon>
+              <el-icon><component :is="app.icon" /></el-icon>
             </span>
-            <span class="favorite-picker-dialog__name">{{ application.label }}</span>
+            <span class="favorite-picker-dialog__name">{{ app.label }}</span>
             <button
               type="button"
               class="favorite-picker-dialog__checkbox"
-              :class="{ 'favorite-picker-dialog__checkbox--checked': isChecked(application.id) }"
+              :class="{ 'favorite-picker-dialog__checkbox--checked': isChecked(app.id) }"
               role="checkbox"
-              :aria-checked="isChecked(application.id)"
-              :aria-label="`收藏${application.label}`"
-              @click="toggleSelection(application.id)"
+              :aria-checked="isChecked(app.id)"
+              :aria-label="`收藏${app.label}`"
+              @click="toggleSelection(app.id)"
             >
-              <el-icon v-if="isChecked(application.id)">
+              <el-icon v-if="isChecked(app.id)">
                 <RiCheckFill />
               </el-icon>
             </button>
           </div>
 
           <div
-            v-if="application.children?.length && isExpanded(application)"
+            v-if="app.children?.length && isExpanded(app)"
             class="favorite-picker-dialog__children"
             role="group"
           >
             <div
-              v-for="child in application.children"
+              v-for="child in app.children"
               :key="child.id"
               class="favorite-picker-dialog__row favorite-picker-dialog__row--child"
               role="treeitem"

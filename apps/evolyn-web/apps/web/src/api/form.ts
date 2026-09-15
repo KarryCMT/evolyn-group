@@ -90,21 +90,21 @@ export interface SaveFormPermissionGroupPayload {
 /**
  * 创建表单（POST /forms）：后端事务内完成 forms 配额校验，草稿初始化为空协议文档。
  * formType 创建时固化为表单资产事实，后续设计器从详情接口读取。
- * parentEntryCode 可选：传入时菜单节点挂到该分组下（须为同应用分组节点编码，
+ * parentMenuCode 可选：传入时菜单节点挂到该分组下（须为同应用分组节点编码，
  * 非法分组抛 APP_MENU_PARENT_INVALID），否则挂应用根级。
  */
 export function createForm(payload: {
-  applicationId: number;
+  appId: number;
   name: string;
   formType: FormType;
-  parentEntryCode?: string;
+  parentMenuCode?: string;
 }): Promise<FormDetail> {
   return http.post('/forms', payload);
 }
 
 /** 应用内表单列表（游标分页，id 倒序） */
 export function listForms(query: {
-  applicationId: number;
+  appId: number;
   limit?: number;
   cursor?: string;
 }): Promise<FormPage> {
@@ -179,7 +179,7 @@ export function retryFormStorageJob(code: string, jobId: number): Promise<FormSt
 }
 
 /**
- * 运行时引导（GET /applications/code/:appCode/forms/:formCode/runtime）：
+ * 运行时引导（GET /apps/code/:appCode/forms/:formCode/runtime）：
  * 返回已发布快照与双口令；未发布抛 FORM_NOT_PUBLISHED。
  */
 export function getFormRuntime(
@@ -187,7 +187,7 @@ export function getFormRuntime(
   formCode: string,
   signal?: AbortSignal,
 ): Promise<FormRuntimeBootstrap> {
-  return http.get(`/applications/code/${appCode}/forms/${formCode}/runtime`, undefined, signal);
+  return http.get(`/apps/code/${appCode}/forms/${formCode}/runtime`, undefined, signal);
 }
 
 /**
@@ -199,7 +199,7 @@ export function getFormRuntime(
 export function submitFormRecord(
   payload: {
     appCode: string;
-    entryCode?: string;
+    menuCode?: string;
     formCode: string;
     publishedVersion: number;
     schemaRevision: string;

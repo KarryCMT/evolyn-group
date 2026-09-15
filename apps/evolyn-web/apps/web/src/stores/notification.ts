@@ -3,7 +3,7 @@ import { computed, ref, shallowRef } from 'vue';
 import { getNotificationUnreadSummary, type NotificationUnreadSummary } from '~/api/notifications';
 
 // 消息中心未读摘要 store（消息中心 P1）：会话级未读数的唯一事实源——两个
-// 顶栏入口（TopNavigation / ApplicationWorkspaceHeader）与消息中心抽屉都
+// 顶栏入口（TopNavigation / AppWorkspaceHeader）与消息中心抽屉都
 // 只读这里，单条/批量已读成功后以服务端响应的摘要覆盖本地，不再依赖各抽屉
 // 实例各自的 unreadChange 事件。切换租户/退出登录时由 auth store 联动清空
 export const useNotificationStore = defineStore('notification', () => {

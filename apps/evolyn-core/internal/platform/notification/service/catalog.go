@@ -83,9 +83,9 @@ type EventDef struct {
 // 事件码只增不改；应用日志分类首批事件 + 真实生产者应用资产变更 + 流程引擎
 // 审批动态（workflow.*，Phase 6 接入既有 Outbox）。
 var eventRegistry = map[string]EventDef{
-	// 应用资产变更：application 域创建/删除应用事务内发布（P1 端到端生产者）
-	"application.asset.changed": {
-		Code:     "application.asset.changed",
+	// 应用资产变更：app 域创建/删除应用事务内发布（P1 端到端生产者）
+	"app.asset.changed": {
+		Code:     "app.asset.changed",
 		Category: CategoryAppLog,
 		Label:    "应用资产变更",
 		Severity: "info",
@@ -95,7 +95,7 @@ var eventRegistry = map[string]EventDef{
 			{Name: "verb", Required: true, MaxLen: 16},
 			{Name: "appCode", Required: true, MaxLen: 64},
 		},
-		ActionType:        "open_application",
+		ActionType:        "open_app",
 		ActionParamKeys:   []string{"appCode"},
 		SupportedChannels: []string{ChannelSystem, ChannelEmail, ChannelSMS},
 		LockedChannels:    []string{ChannelSystem},
@@ -103,8 +103,8 @@ var eventRegistry = map[string]EventDef{
 		DefaultRecipients: []string{model.RecipientEventActor, model.RecipientTenantAdmin},
 	},
 	// 数据推送提醒：数据推送任务结果（数据源随低代码引擎落地接入）
-	"application.data_push.notice": {
-		Code:     "application.data_push.notice",
+	"app.data_push.notice": {
+		Code:     "app.data_push.notice",
 		Category: CategoryAppLog,
 		Label:    "数据推送提醒",
 		Severity: "info",
@@ -119,8 +119,8 @@ var eventRegistry = map[string]EventDef{
 		DefaultRecipients: []string{model.RecipientEventActor, model.RecipientTenantAdmin},
 	},
 	// 智能助手执行失败
-	"application.assistant.run_failed": {
-		Code:     "application.assistant.run_failed",
+	"app.assistant.run_failed": {
+		Code:     "app.assistant.run_failed",
 		Category: CategoryAppLog,
 		Label:    "智能助手执行失败",
 		Severity: "error",
@@ -134,8 +134,8 @@ var eventRegistry = map[string]EventDef{
 		DefaultRecipients: []string{model.RecipientEventActor, model.RecipientTenantAdmin},
 	},
 	// 数据流执行失败
-	"application.data_flow.run_failed": {
-		Code:     "application.data_flow.run_failed",
+	"app.data_flow.run_failed": {
+		Code:     "app.data_flow.run_failed",
 		Category: CategoryAppLog,
 		Label:    "数据流执行失败",
 		Severity: "error",
@@ -149,8 +149,8 @@ var eventRegistry = map[string]EventDef{
 		DefaultRecipients: []string{model.RecipientEventActor, model.RecipientTenantAdmin},
 	},
 	// 输出表同步失败
-	"application.output_sync.failed": {
-		Code:     "application.output_sync.failed",
+	"app.output_sync.failed": {
+		Code:     "app.output_sync.failed",
 		Category: CategoryAppLog,
 		Label:    "输出表同步失败",
 		Severity: "error",
@@ -338,11 +338,11 @@ func EventsOfCategory(categoryCode string) []EventDef {
 // eventRegistry 迭代顺序不稳定（map），事件展示顺序按注册序列显式固定
 func eventOrder() []EventDef {
 	return []EventDef{
-		eventRegistry["application.asset.changed"],
-		eventRegistry["application.data_push.notice"],
-		eventRegistry["application.assistant.run_failed"],
-		eventRegistry["application.data_flow.run_failed"],
-		eventRegistry["application.output_sync.failed"],
+		eventRegistry["app.asset.changed"],
+		eventRegistry["app.data_push.notice"],
+		eventRegistry["app.assistant.run_failed"],
+		eventRegistry["app.data_flow.run_failed"],
+		eventRegistry["app.output_sync.failed"],
 		eventRegistry["workflow.task.created"],
 		eventRegistry["workflow.task.transferred"],
 		eventRegistry["workflow.task.reminder"],

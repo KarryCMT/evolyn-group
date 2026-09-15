@@ -13,7 +13,7 @@ import {
   downloadProductLogExport,
   listProductLogOptions,
   listProductLogs,
-  type ProductApplicationOption,
+  type ProductAppOption,
   type ProductCategoryOption,
   type ProductExportTaskView,
   type ProductLogFilterQuery,
@@ -30,7 +30,7 @@ interface ProductLogRecord {
   operatedAt: string;
   category: string;
   operationType: string;
-  application: string;
+  app: string;
   target: string;
   detail: string;
   ip: string;
@@ -43,7 +43,7 @@ interface ProductLogFilters {
   memberId?: number;
   startDate: string;
   endDate: string;
-  applicationOrTarget: string;
+  appOrTarget: string;
 }
 
 const PAGE_SIZE = 12;
@@ -53,7 +53,7 @@ const CELL_HORIZONTAL_PADDING = 12;
 // ---- 筛选项（分类/操作类型/操作人/应用均由 options 接口下发，不硬编码） ----
 const categoryOptions = shallowRef<ProductCategoryOption[]>([]);
 const memberOptions = shallowRef<ProductMemberOption[]>([]);
-const applicationOptions = shallowRef<ProductApplicationOption[]>([]);
+const appOptions = shallowRef<ProductAppOption[]>([]);
 
 /** 操作类型清单：选中日志范围时收敛到该范围事件，未选时展示全部 */
 const eventOptions = computed(() => {
@@ -71,7 +71,7 @@ const filters = reactive<ProductLogFilters>({
   memberId: undefined,
   startDate: '',
   endDate: '',
-  applicationOrTarget: '',
+  appOrTarget: '',
 });
 /** 已生效筛选快照（查询按钮触发刷新；翻页沿用） */
 const appliedFilters = shallowRef<ProductLogFilterQuery>({});
@@ -141,7 +141,7 @@ const columns = computed<EvolynTableColumn[]>(() => {
     },
     { field: 'operatedAt', title: '操作时间', width: 172 },
     { field: 'operationType', title: '操作类型', width: 160 },
-    { field: 'application', title: '所属应用', width: 190 },
+    { field: 'app', title: '所属应用', width: 190 },
     { field: 'target', title: '操作对象', width: 180 },
     { field: 'detail', title: '操作详情', minWidth: 330 },
     { field: 'ip', title: 'IP', width: 170 },
@@ -151,15 +151,13 @@ const columns = computed<EvolynTableColumn[]>(() => {
 const tableOptions = { defaultHeaderRowHeight: 42, defaultRowHeight: ROW_HEIGHT };
 
 /** 应用/对象选择值 → 查询参数：命中应用名走应用 ID 精确过滤，自由输入按关键词匹配 */
-function resolveApplicationOrTarget(
-  value: string,
-): Pick<ProductLogFilterQuery, 'applicationId' | 'keyword'> {
+function resolveAppOrTarget(value: string): Pick<ProductLogFilterQuery, 'appId' | 'keyword'> {
   const trimmed = value.trim();
   if (!trimmed) {
     return {};
   }
-  const matched = applicationOptions.value.find((application) => application.name === trimmed);
-  return matched ? { applicationId: matched.applicationId } : { keyword: trimmed };
+  const matched = appOptions.value.find((app) => app.name === trimmed);
+  return matched ? { appId: matched.appId } : { keyword: trimmed };
 }
 
 /** 筛选草稿 → 查询参数（日期闭区间直传，服务端换算半开区间） */
@@ -170,7 +168,7 @@ function buildQuery(): ProductLogFilterQuery {
     memberId: filters.memberId,
     startAt: filters.startDate || undefined,
     endAt: filters.endDate || undefined,
-    ...resolveApplicationOrTarget(filters.applicationOrTarget),
+    ...resolveAppOrTarget(filters.appOrTarget),
   };
 }
 
@@ -188,7 +186,7 @@ async function fetchPage() {
       operatedAt: item.operatedAt,
       category: item.categoryName,
       operationType: item.eventName,
-      application: item.applicationName || '—',
+      app: item.appName || '—',
       target: item.targetName || '—',
       detail: item.summary,
       ip: item.ip,
@@ -252,7 +250,7 @@ onMounted(async () => {
     const options = await listProductLogOptions();
     categoryOptions.value = options.categories;
     memberOptions.value = options.members;
-    applicationOptions.value = options.applications;
+    appOptions.value = options.apps;
   } catch {
     ElMessage.warning('筛选项加载失败，请刷新重试');
   }
@@ -316,10 +314,10 @@ onMounted(async () => {
         />
       </label>
 
-      <label class="product-logs-page__filter product-logs-page__filter--application">
+      <label class="product-logs-page__filter product-logs-page__filter--app">
         <span>应用/对象</span>
         <el-select
-          v-model="filters.applicationOrTarget"
+          v-model="filters.appOrTarget"
           clearable
           filterable
           allow-create
@@ -327,10 +325,10 @@ onMounted(async () => {
           placeholder="搜索并选择应用/对象"
         >
           <el-option
-            v-for="application in applicationOptions"
-            :key="application.applicationId"
-            :label="application.name"
-            :value="application.name"
+            v-for="app in appOptions"
+            :key="app.appId"
+            :label="app.name"
+            :value="app.name"
           />
         </el-select>
       </label>

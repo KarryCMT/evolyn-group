@@ -7,8 +7,8 @@ import (
 
 	"evolyn/internal/contextx"
 	"evolyn/internal/infrastructure"
-	applicationmodel "evolyn/internal/platform/application/model"
-	applicationrepository "evolyn/internal/platform/application/repository"
+	appmodel "evolyn/internal/platform/app/model"
+	apprepository "evolyn/internal/platform/app/repository"
 	auditrepository "evolyn/internal/platform/audit/repository"
 	auditservice "evolyn/internal/platform/audit/service"
 	iammodel "evolyn/internal/platform/iam/model"
@@ -61,33 +61,33 @@ func (d integrationMemberDirectory) ListMembers(ctx context.Context, tenantID ui
 	return options, nil
 }
 
-// integrationApplicationDirectory 应用目录窄端口的测试适配（与 server.go 同语义）
-type integrationApplicationDirectory struct {
-	applications applicationrepository.ApplicationRepository
+// integrationAppDirectory 应用目录窄端口的测试适配（与 server.go 同语义）
+type integrationAppDirectory struct {
+	apps apprepository.AppRepository
 }
 
-func (d integrationApplicationDirectory) ValidateApplication(ctx context.Context, tenantID, applicationID uint) error {
-	_, err := d.applications.GetByID(contextx.NewTenantContext(ctx, tenantID), applicationID)
+func (d integrationAppDirectory) ValidateApp(ctx context.Context, tenantID, appID uint) error {
+	_, err := d.apps.GetByID(contextx.NewTenantContext(ctx, tenantID), appID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return apperrors.ErrApplicationInvalid
+			return apperrors.ErrAppInvalid
 		}
 		return err
 	}
 	return nil
 }
 
-func (d integrationApplicationDirectory) ListApplications(ctx context.Context, tenantID uint) ([]model.ApplicationOption, error) {
-	apps, _, err := d.applications.List(
+func (d integrationAppDirectory) ListApps(ctx context.Context, tenantID uint) ([]model.AppOption, error) {
+	apps, _, err := d.apps.List(
 		contextx.NewTenantContext(ctx, tenantID),
-		applicationrepository.ListParams{Limit: 100},
+		apprepository.ListParams{Limit: 100},
 	)
 	if err != nil {
 		return nil, err
 	}
-	options := make([]model.ApplicationOption, 0, len(apps))
+	options := make([]model.AppOption, 0, len(apps))
 	for _, app := range apps {
-		options = append(options, model.ApplicationOption{ApplicationID: app.ID, Code: app.Code, Name: app.Name})
+		options = append(options, model.AppOption{AppID: app.ID, Code: app.Code, Name: app.Name})
 	}
 	return options, nil
 }
@@ -100,13 +100,13 @@ func TestProductLogIntegration(t *testing.T) {
 	auditRepo := auditrepository.NewRepository(db)
 	auditSvc := auditservice.NewService(auditRepo)
 	txManager := infrastructure.NewTxManager(db)
-	applicationRepo := applicationrepository.NewRepository(db)
+	appRepo := apprepository.NewRepository(db)
 
 	repo := productlogrepository.NewRepository(db)
 	svc := NewProductLogService(
 		repo,
 		integrationMemberDirectory{users: iamRepo.User()},
-		integrationApplicationDirectory{applications: applicationRepo},
+		integrationAppDirectory{apps: appRepo},
 		auditSvc,
 	)
 
@@ -139,7 +139,7 @@ func TestProductLogIntegration(t *testing.T) {
 	betaMember := ownerMember(beta, "owner-plog-beta")
 
 	alphaCtx := contextx.NewTenantContext(ctx, alpha.ID)
-	alphaApp, err := applicationRepo.Create(alphaCtx, &applicationmodel.Application{
+	alphaApp, err := appRepo.Create(alphaCtx, &appmodel.App{
 		Code: "app_plog_alpha", Name: "甲测试应用", SourceType: "blank",
 	})
 	require.NoError(t, err)
@@ -149,7 +149,7 @@ func TestProductLogIntegration(t *testing.T) {
 	auditSvc.Record(alphaCtx, auditservice.Entry{
 		Module: "form", Action: "delete", ResourceType: "form", ResourceID: "f_alpha_1",
 		MemberID: alphaMember.ID, TargetName: "采购申请",
-		ApplicationID: alphaApp.ID, ApplicationCode: alphaApp.Code, ApplicationName: alphaApp.Name,
+		AppID: alphaApp.ID, AppCode: alphaApp.Code, AppName: alphaApp.Name,
 	})
 	auditSvc.Record(alphaCtx, auditservice.Entry{
 		Module: "iam", Action: "update", ResourceType: "member", ResourceID: "1",
@@ -169,7 +169,7 @@ func TestProductLogIntegration(t *testing.T) {
 	item := page.Items[0]
 	assert.Equal(t, "删除表单", item.EventName)
 	assert.Equal(t, "表单管理", item.CategoryName)
-	assert.Equal(t, "甲测试应用", item.ApplicationName, "应用维度快照应随行出网")
+	assert.Equal(t, "甲测试应用", item.AppName, "应用维度快照应随行出网")
 	assert.Equal(t, "删除表单「采购申请」", item.Summary)
 	assert.Equal(t, "采购申请", item.TargetName)
 
@@ -178,7 +178,7 @@ func TestProductLogIntegration(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, betaPage.Items, 1)
 	assert.Equal(t, "创建表单", betaPage.Items[0].EventName)
-	assert.Empty(t, betaPage.Items[0].ApplicationName)
+	assert.Empty(t, betaPage.Items[0].AppName)
 
 	// ---- 2. 筛选：关键词/事件码/成员；跨租户成员与应用拒绝 ----
 	byKeyword, err := svc.List(ctx, alpha.ID, model.ProductLogQuery{Keyword: "采购"})
@@ -190,8 +190,8 @@ func TestProductLogIntegration(t *testing.T) {
 
 	_, err = svc.List(ctx, alpha.ID, model.ProductLogQuery{MemberID: betaMember.ID})
 	assert.ErrorIs(t, err, apperrors.ErrMemberInvalid)
-	_, err = svc.List(ctx, alpha.ID, model.ProductLogQuery{ApplicationID: 99999})
-	assert.ErrorIs(t, err, apperrors.ErrApplicationInvalid)
+	_, err = svc.List(ctx, alpha.ID, model.ProductLogQuery{AppID: 99999})
+	assert.ErrorIs(t, err, apperrors.ErrAppInvalid)
 	_, err = svc.List(ctx, alpha.ID, model.ProductLogQuery{CategoryCode: "member_management"})
 	assert.ErrorIs(t, err, apperrors.ErrCategoryUnknown)
 
@@ -199,8 +199,8 @@ func TestProductLogIntegration(t *testing.T) {
 	options, err := svc.Options(ctx, alpha.ID)
 	require.NoError(t, err)
 	require.Len(t, options.Categories, 6)
-	require.Len(t, options.Applications, 1)
-	assert.Equal(t, "甲测试应用", options.Applications[0].Name)
+	require.Len(t, options.Apps, 1)
+	assert.Equal(t, "甲测试应用", options.Apps[0].Name)
 	assert.NotEmpty(t, options.Members)
 
 	// ---- 4. 导出全链路：创建（同步就绪）→ 跨租户不可见 → 下载内容 ----

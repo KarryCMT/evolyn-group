@@ -28,7 +28,7 @@ const legacyDisplay = "历史操作记录"
 type productLogService struct {
 	repo    repository.Repository
 	members MemberDirectory
-	apps    ApplicationDirectory
+	apps    AppDirectory
 	audit   auditservice.Recorder
 }
 
@@ -72,7 +72,7 @@ func parseDateRange(startDate, endDate string) (repository.LogTimeRange, error) 
 
 // validateQuery 列表/导出共用的筛选规范化与归属校验：日期/成员/应用/
 // 分类/事件码全量校验（未知码直接拒绝，避免拼错参数静默返回空列表）
-func (s *productLogService) validateQuery(ctx context.Context, tenantID uint, categoryCode, eventCode string, memberID, applicationID uint, startDate, endDate string) (repository.LogTimeRange, error) {
+func (s *productLogService) validateQuery(ctx context.Context, tenantID uint, categoryCode, eventCode string, memberID, appID uint, startDate, endDate string) (repository.LogTimeRange, error) {
 	rng, err := parseDateRange(startDate, endDate)
 	if err != nil {
 		return rng, err
@@ -88,10 +88,10 @@ func (s *productLogService) validateQuery(ctx context.Context, tenantID uint, ca
 			return rng, err
 		}
 	}
-	// application_id 只是租户内的进一步筛选维度：必须先校验归属，不可
+	// app_id 只是租户内的进一步筛选维度：必须先校验归属，不可
 	// 替代租户过滤（跨租户应用 ID 与无效同义）
-	if applicationID != 0 && s.apps != nil {
-		if err := s.apps.ValidateApplication(ctx, tenantID, applicationID); err != nil {
+	if appID != 0 && s.apps != nil {
+		if err := s.apps.ValidateApp(ctx, tenantID, appID); err != nil {
 			return rng, err
 		}
 	}
@@ -100,19 +100,19 @@ func (s *productLogService) validateQuery(ctx context.Context, tenantID uint, ca
 
 func (s *productLogService) List(ctx context.Context, tenantID uint, q model.ProductLogQuery) (*model.ProductLogPage, error) {
 	page, pageSize := normalizePage(q.Page, q.PageSize)
-	rng, err := s.validateQuery(ctx, tenantID, q.CategoryCode, q.EventCode, q.MemberID, q.ApplicationID, q.StartDate, q.EndDate)
+	rng, err := s.validateQuery(ctx, tenantID, q.CategoryCode, q.EventCode, q.MemberID, q.AppID, q.StartDate, q.EndDate)
 	if err != nil {
 		return nil, err
 	}
 
 	rows, total, err := s.repo.ListProductLogs(ctx, repository.ProductLogFilter{
-		TenantID:      tenantID,
-		MemberID:      q.MemberID,
-		CategoryCode:  q.CategoryCode,
-		EventCode:     q.EventCode,
-		ApplicationID: q.ApplicationID,
-		Keyword:       q.Keyword,
-		Range:         rng,
+		TenantID:     tenantID,
+		MemberID:     q.MemberID,
+		CategoryCode: q.CategoryCode,
+		EventCode:    q.EventCode,
+		AppID:        q.AppID,
+		Keyword:      q.Keyword,
+		Range:        rng,
 		// 产品分类白名单：产品日志只读应用内操作，与企业日志范围互斥
 		Categories: auditservice.ProductCategoryCodes(),
 	}, (page-1)*pageSize, pageSize)
@@ -123,15 +123,15 @@ func (s *productLogService) List(ctx context.Context, tenantID uint, q model.Pro
 	items := make([]model.ProductLogItem, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, model.ProductLogItem{
-			ActorName:       actorDisplayName(row.ActorNameSnapshot, row.DisplayName),
-			OperatedAt:      kernel.JSONTime(row.CreatedAt),
-			CategoryCode:    row.CategoryCode,
-			CategoryName:    categoryDisplay(row.CategoryCode),
-			EventName:       eventDisplay(row.EventCode),
-			ApplicationName: row.ApplicationNameSnapshot,
-			TargetName:      targetDisplay(row.TargetNameSnapshot),
-			Summary:         summaryDisplay(row.Summary),
-			IP:              row.IP,
+			ActorName:    actorDisplayName(row.ActorNameSnapshot, row.DisplayName),
+			OperatedAt:   kernel.JSONTime(row.CreatedAt),
+			CategoryCode: row.CategoryCode,
+			CategoryName: categoryDisplay(row.CategoryCode),
+			EventName:    eventDisplay(row.EventCode),
+			AppName:      row.AppNameSnapshot,
+			TargetName:   targetDisplay(row.TargetNameSnapshot),
+			Summary:      summaryDisplay(row.Summary),
+			IP:           row.IP,
 		})
 	}
 	return &model.ProductLogPage{Items: items, Total: total}, nil
@@ -154,9 +154,9 @@ func (s *productLogService) Options(ctx context.Context, tenantID uint) (*model.
 	}
 
 	options := &model.ProductLogOptions{
-		Categories:   categories,
-		Members:      []model.MemberOption{},
-		Applications: []model.ApplicationOption{},
+		Categories: categories,
+		Members:    []model.MemberOption{},
+		Apps:       []model.AppOption{},
 	}
 	// 目录适配器可空（单测/降级）：跳过对应筛选项
 	if s.members != nil {
@@ -167,11 +167,11 @@ func (s *productLogService) Options(ctx context.Context, tenantID uint) (*model.
 		options.Members = members
 	}
 	if s.apps != nil {
-		applications, err := s.apps.ListApplications(ctx, tenantID)
+		apps, err := s.apps.ListApps(ctx, tenantID)
 		if err != nil {
 			return nil, err
 		}
-		options.Applications = applications
+		options.Apps = apps
 	}
 	return options, nil
 }
@@ -219,19 +219,19 @@ func actorDisplayName(snapshot, fallback string) string {
 // best-effort 记导出行为审计（企业治理类，不记录导出文件内容）
 func (s *productLogService) CreateExport(ctx context.Context, tenantID uint, req model.CreateExportRequest) (*model.ExportTaskView, error) {
 	// 与列表一致的筛选规范化（日期/成员/应用/分类/事件码全量校验）
-	rng, err := s.validateQuery(ctx, tenantID, req.CategoryCode, req.EventCode, req.MemberID, req.ApplicationID, req.StartDate, req.EndDate)
+	rng, err := s.validateQuery(ctx, tenantID, req.CategoryCode, req.EventCode, req.MemberID, req.AppID, req.StartDate, req.EndDate)
 	if err != nil {
 		return nil, err
 	}
 	filters := repository.ProductLogFilter{
-		TenantID:      tenantID,
-		MemberID:      req.MemberID,
-		CategoryCode:  req.CategoryCode,
-		EventCode:     req.EventCode,
-		ApplicationID: req.ApplicationID,
-		Keyword:       req.Keyword,
-		Range:         rng,
-		Categories:    auditservice.ProductCategoryCodes(),
+		TenantID:     tenantID,
+		MemberID:     req.MemberID,
+		CategoryCode: req.CategoryCode,
+		EventCode:    req.EventCode,
+		AppID:        req.AppID,
+		Keyword:      req.Keyword,
+		Range:        rng,
+		Categories:   auditservice.ProductCategoryCodes(),
 	}
 
 	// 数据量预检：超过单次导出上限即拒绝（提示缩小范围）
@@ -248,13 +248,13 @@ func (s *productLogService) CreateExport(ctx context.Context, tenantID uint, req
 	now := time.Now()
 	expiresAt := kernel.JSONTime(now.Add(ExportFileTTL))
 	rawFilters, err := json.Marshal(model.ExportFilters{
-		MemberID:      req.MemberID,
-		CategoryCode:  req.CategoryCode,
-		EventCode:     req.EventCode,
-		ApplicationID: req.ApplicationID,
-		Keyword:       req.Keyword,
-		StartDate:     req.StartDate,
-		EndDate:       req.EndDate,
+		MemberID:     req.MemberID,
+		CategoryCode: req.CategoryCode,
+		EventCode:    req.EventCode,
+		AppID:        req.AppID,
+		Keyword:      req.Keyword,
+		StartDate:    req.StartDate,
+		EndDate:      req.EndDate,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("marshal export filters: %w", err)

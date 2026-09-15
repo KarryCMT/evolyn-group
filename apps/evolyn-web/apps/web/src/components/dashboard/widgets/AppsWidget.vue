@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { BlankApplicationDraft } from '~/components/application/create/BlankApplicationDialog.vue';
-import type { ApplicationItem } from '~/types';
+import type { BlankAppDraft } from '~/components/app/create/BlankAppDialog.vue';
+import type { AppItem } from '~/types';
 import type { DashboardWidgetContent } from '~/types/dashboard';
 import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
 import { EvolynIconPicker } from '@evolyn.do/ui';
@@ -9,8 +9,8 @@ import { RiAddFill, RiSearchFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, onMounted, ref, shallowRef } from 'vue';
 import { useRouter } from 'vue-router';
-import { createBlankApplication, listApplications } from '~/api/applications';
-import CreateApplicationDialog from '~/components/application/create/CreateApplicationDialog.vue';
+import { createBlankApp, listApps } from '~/api/apps';
+import CreateAppDialog from '~/components/app/create/CreateAppDialog.vue';
 
 defineOptions({ name: 'AppsWidget' });
 const props = withDefaults(
@@ -22,11 +22,11 @@ const props = withDefaults(
 );
 const router = useRouter();
 
-const apps = ref<ApplicationItem[]>([]);
+const apps = ref<AppItem[]>([]);
 const loading = shallowRef(false);
 const keyword = ref('');
 // 弹窗只由「我的应用」入口控制；创建流程本身由应用领域组件承载，避免工作台耦合模板数据。
-const createApplicationVisible = shallowRef(false);
+const createAppVisible = shallowRef(false);
 
 const filteredApps = computed(() => {
   const kw = keyword.value.trim().toLowerCase();
@@ -37,10 +37,10 @@ const filteredApps = computed(() => {
 async function loadApps() {
   loading.value = true;
   try {
-    const page = await listApplications({ limit: 100 });
+    const page = await listApps({ limit: 100 });
     apps.value = page.items;
   } catch {
-    // 无 applications:list 权限（普通成员未授权）等工作台场景回落空列表，
+    // 无 apps:list 权限（普通成员未授权）等工作台场景回落空列表，
     // 不弹错误打断工作台渲染；按钮级能力由 capabilities 字段驱动
     apps.value = [];
   } finally {
@@ -50,9 +50,9 @@ async function loadApps() {
 
 // 创建空白应用（§15 前端契约）：异步提交——成功后刷新「我的应用」并放行
 // 关闭弹窗；失败按 errCode 分支提示并保留弹窗填写内容
-async function handleCreateBlank(draft: BlankApplicationDraft): Promise<boolean> {
+async function handleCreateBlank(draft: BlankAppDraft): Promise<boolean> {
   try {
-    await createBlankApplication({ name: draft.name, icon: draft.icon });
+    await createBlankApp({ name: draft.name, icon: draft.icon });
     ElMessage.success('应用创建成功');
     await loadApps();
     return true;
@@ -67,7 +67,7 @@ async function handleCreateBlank(draft: BlankApplicationDraft): Promise<boolean>
 }
 
 /** 打开应用首页：路由参数使用可公开引用的稳定应用编码，不暴露内部主键。 */
-function openApplication(app: ApplicationItem) {
+function openApp(app: AppItem) {
   void router.push({ name: 'App', params: { appCode: app.code } });
 }
 
@@ -87,7 +87,7 @@ onMounted(() => {
           :prefix-icon="RiSearchFill"
           clearable
         />
-        <el-button type="primary" :icon="RiAddFill" @click="createApplicationVisible = true">
+        <el-button type="primary" :icon="RiAddFill" @click="createAppVisible = true">
           新建应用
         </el-button>
       </div>
@@ -109,7 +109,7 @@ onMounted(() => {
         :key="app.id"
         class="apps-widget__item"
         type="button"
-        @click="openApplication(app)"
+        @click="openApp(app)"
       >
         <EvolynIconPicker
           class="apps-widget__icon"
@@ -121,7 +121,7 @@ onMounted(() => {
       </button>
     </div>
   </DashboardWidgetFrame>
-  <CreateApplicationDialog v-model="createApplicationVisible" :submit-blank="handleCreateBlank" />
+  <CreateAppDialog v-model="createAppVisible" :submit-blank="handleCreateBlank" />
 </template>
 
 <style scoped lang="scss">

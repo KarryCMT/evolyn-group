@@ -316,7 +316,7 @@ func (s *formService) publishStorageModel(
 			}
 		}
 	}
-	appID := form.ApplicationID
+	appID := form.AppID
 	namer := func(fieldID string) (string, error) {
 		if s.storageChildren == nil {
 			// 映射仓储未装配（单测桩）：退化为纯随机名（无防重，仅测试语义）
@@ -712,15 +712,15 @@ func (s *formService) RecalibrateWorkflowProjection(ctx context.Context, member 
 		return nil, err
 	}
 	if s.audit != nil {
-		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
+		appID, appCode, appName := s.appSnapshot(ctx, form.AppID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "recalibrate-projection", ResourceType: "form",
-			ResourceID:      form.Code,
-			After:           map[string]any{"instances": count},
-			TargetName:      form.Name,
-			ApplicationID:   appID,
-			ApplicationCode: appCode,
-			ApplicationName: appName,
+			ResourceID: form.Code,
+			After:      map[string]any{"instances": count},
+			TargetName: form.Name,
+			AppID:      appID,
+			AppCode:    appCode,
+			AppName:    appName,
 		})
 	}
 	return &model.WorkflowProjectionRecalibrateResult{Instances: count}, nil

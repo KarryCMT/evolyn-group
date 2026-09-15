@@ -15,7 +15,7 @@ import (
 const productLogSelect = `
 tn_audit_logs.id, tn_audit_logs.member_id, tn_audit_logs.event_code, tn_audit_logs.category_code,
 tn_audit_logs.actor_name_snapshot, tn_audit_logs.target_name_snapshot, tn_audit_logs.summary,
-tn_audit_logs.application_name_snapshot, tn_audit_logs.ip, tn_audit_logs.created_at,` +
+tn_audit_logs.app_name_snapshot, tn_audit_logs.ip, tn_audit_logs.created_at,` +
 	"\n" + `COALESCE(
 	NULLIF(tn_audit_logs.actor_name_snapshot, ''),
 	NULLIF(u.nickname, ''),
@@ -48,15 +48,15 @@ func applyProductLogFilter(q *gorm.DB, f ProductLogFilter) *gorm.DB {
 	if f.EventCode != "" {
 		q = q.Where("tn_audit_logs.event_code = ?", f.EventCode)
 	}
-	if f.ApplicationID != 0 {
-		q = q.Where("tn_audit_logs.application_id = ?", f.ApplicationID)
+	if f.AppID != 0 {
+		q = q.Where("tn_audit_logs.app_id = ?", f.AppID)
 	}
 	if f.Keyword != "" {
 		// 关键词仅匹配受控展示字段（应用名快照/操作对象/摘要），不查
 		// before/after 原始快照
 		pattern := likePattern(f.Keyword)
 		q = q.Where(
-			"tn_audit_logs.application_name_snapshot ILIKE ? OR tn_audit_logs.target_name_snapshot ILIKE ? OR tn_audit_logs.summary ILIKE ?",
+			"tn_audit_logs.app_name_snapshot ILIKE ? OR tn_audit_logs.target_name_snapshot ILIKE ? OR tn_audit_logs.summary ILIKE ?",
 			pattern, pattern, pattern,
 		)
 	}
@@ -87,7 +87,7 @@ func (r *productLogRepository) ListProductLogs(ctx context.Context, f ProductLog
 
 // ScanProductLogs keyset 游标扫描：(created_at, id) 严格小于游标值的下一批，
 // 行比较谓词可完整命中 (tenant_id, category_code, created_at DESC, id DESC)
-// 或 (tenant_id, application_id, created_at DESC, id DESC) 索引
+// 或 (tenant_id, app_id, created_at DESC, id DESC) 索引
 func (r *productLogRepository) ScanProductLogs(ctx context.Context, f ProductLogFilter, batch int, fn func(rows []model.ProductLogRow) error) error {
 	if batch <= 0 {
 		batch = 500

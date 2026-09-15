@@ -2,15 +2,15 @@
 import { RiAddFill } from '@remixicon/vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { shallowRef } from 'vue';
-import ManagementGroupDialog from '~/components/application/management-groups/ManagementGroupDialog.vue';
-import ManagementGroupList from '~/components/application/management-groups/ManagementGroupList.vue';
-import ManagementGroupsEmptyState from '~/components/application/management-groups/ManagementGroupsEmptyState.vue';
+import ManagementGroupDialog from '~/components/app/management-groups/ManagementGroupDialog.vue';
+import ManagementGroupList from '~/components/app/management-groups/ManagementGroupList.vue';
+import ManagementGroupsEmptyState from '~/components/app/management-groups/ManagementGroupsEmptyState.vue';
 import type {
   ManagementGroup,
   ManagementGroupDraft,
-} from '~/components/application/management-groups/managementGroup.types';
+} from '~/components/app/management-groups/managementGroup.types';
 
-defineOptions({ name: 'ApplicationSettingManagementGroupsPage' });
+defineOptions({ name: 'AppSettingManagementGroupsPage' });
 
 /** 管理组接口尚未落地，页面先以本地状态呈现完整操作流，后续可替换为接口读写。 */
 const groups = shallowRef<ManagementGroup[]>([]);

@@ -45,7 +45,7 @@ const ACTION_ROUTES: Record<
   string,
   (action: MessageAction) => { name: string; params?: Record<string, string> }
 > = {
-  open_application: (action) => ({ name: 'App', params: { appCode: action.appCode } }),
+  open_app: (action) => ({ name: 'App', params: { appCode: action.appCode } }),
 };
 
 /**

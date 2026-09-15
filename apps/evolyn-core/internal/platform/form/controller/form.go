@@ -1,6 +1,6 @@
 // Package controller 表单资产域 HTTP 接口：解析请求、取当前成员、返回 httpx 统信封。
 // 权限由租户域中间件链执行；URL 首段即 RBAC 资源名（/forms → forms、
-// /form-records → form-records、bootstrap 挂 /applications 前缀 → applications:get）。
+// /form-records → form-records、bootstrap 挂 /apps 前缀 → apps:get）。
 package controller
 
 import (
@@ -52,7 +52,7 @@ func formCodeFromParam(c *gin.Context, name string) (string, bool) {
 }
 
 // @Summary 创建表单
-// @Description 在当前租户创建表单资产（名称必填，归属指定应用）；事务内完成 forms 配额校验，草稿初始化为空目标协议文档。parentEntryCode 可选：传入时菜单节点挂到该分组下（须为同应用分组节点编码），否则挂应用根级
+// @Description 在当前租户创建表单资产（名称必填，归属指定应用）；事务内完成 forms 配额校验，草稿初始化为空目标协议文档。parentMenuCode 可选：传入时菜单节点挂到该分组下（须为同应用分组节点编码），否则挂应用根级
 // @Accept json
 // @Produce json
 // @Tags 表单管理
@@ -81,23 +81,23 @@ func (f *FormController) Create(c *gin.Context) {
 // @Produce json
 // @Tags 表单管理
 // @Security JWT
-// @Param applicationId query int true "应用 ID"
+// @Param appId query int true "应用 ID"
 // @Param limit query int false "每页数量，默认 20，上限 100"
 // @Param cursor query string false "分页游标（上一页 nextCursor 原样回传）"
 // @Success 200 {object} httpx.Response{data=formmodel.FormPage}
 // @Failure 400 {object} httpx.Response "errCode=FORM_APP_INVALID"
 // @Router /api/v1/forms [get]
 func (f *FormController) List(c *gin.Context) {
-	applicationID, err := strconv.ParseUint(c.Query("applicationId"), 10, 64)
-	if err != nil || applicationID == 0 {
-		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的应用 ID：%s", c.Query("applicationId")))
+	appID, err := strconv.ParseUint(c.Query("appId"), 10, 64)
+	if err != nil || appID == 0 {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的应用 ID：%s", c.Query("appId")))
 		return
 	}
 	limit, _ := strconv.Atoi(c.Query("limit"))
 	page, err := f.formService.List(c.Request.Context(), ginctx.GetUser(c), formmodel.ListFormsQuery{
-		ApplicationID: uint(applicationID),
-		Limit:         limit,
-		Cursor:        c.Query("cursor"),
+		AppID:  uint(appID),
+		Limit:  limit,
+		Cursor: c.Query("cursor"),
 	})
 	if err != nil {
 		responseError(c, err)
@@ -333,9 +333,9 @@ func (f *FormController) RetryStorageJob(c *gin.Context) {
 // @Param formCode path string true "表单编码（form_ 前缀）"
 // @Success 200 {object} httpx.Response{data=formmodel.FormRuntime}
 // @Failure 404 {object} httpx.Response "errCode=FORM_NOT_FOUND/FORM_NOT_PUBLISHED/FORM_APP_INVALID"
-// @Router /api/v1/applications/code/{code}/forms/{formCode}/runtime [get]
+// @Router /api/v1/apps/code/{code}/forms/{formCode}/runtime [get]
 func (f *FormController) GetRuntime(c *gin.Context) {
-	// 参数名与既有 /applications/code/:code 系列保持一致（gin 同位置通配符必须同名，
+	// 参数名与既有 /apps/code/:code 系列保持一致（gin 同位置通配符必须同名，
 	// 否则路由注册 panic）。
 	appCode := c.Param("code")
 	if appCode == "" {
@@ -501,7 +501,7 @@ func (f *FormController) SwitchType(c *gin.Context) {
 }
 
 // @Summary 复制表单
-// @Description 复制表单资产（ADR-011）：targetApplicationId 为空或等于源应用走 copy-in-app 动作，跨应用走 copy-cross-app 动作；复制草稿全文与表单类型（不复制发布快照与记录），名称追加「（副本）」，事务内占目标应用配额并挂目标应用菜单
+// @Description 复制表单资产（ADR-011）：targetAppId 为空或等于源应用走 copy-in-app 动作，跨应用走 copy-cross-app 动作；复制草稿全文与表单类型（不复制发布快照与记录），名称追加「（副本）」，事务内占目标应用配额并挂目标应用菜单
 // @Accept json
 // @Produce json
 // @Tags 表单管理
@@ -577,9 +577,9 @@ func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.DELETE("/forms/:code/records", f.DeleteRecords)
 	api.GET("/forms/:code/records/member-cards/:memberCode", f.GetRecordMemberCard)
 	api.POST("/form-records", f.SubmitRecord)
-	// 与 /applications/code/:code 系列同前缀且通配符同名（gin radix tree 要求同
-	// 位置同名，静态段 code 优先），鉴权解析为 applications:get，普通成员可读。
-	api.GET("/applications/code/:code/forms/:formCode/runtime", f.GetRuntime)
+	// 与 /apps/code/:code 系列同前缀且通配符同名（gin radix tree 要求同
+	// 位置同名，静态段 code 优先），鉴权解析为 apps:get，普通成员可读。
+	api.GET("/apps/code/:code/forms/:formCode/runtime", f.GetRuntime)
 }
 
 func (f *FormController) Name() string {

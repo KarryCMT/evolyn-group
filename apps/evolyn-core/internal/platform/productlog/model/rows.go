@@ -9,15 +9,15 @@ import (
 // 行（actor_name_snapshot 为空）使用；不含 before/after 原始快照与请求
 // 元数据（受控内部审计数据不进产品日志出网链路）
 type ProductLogRow struct {
-	ID                      uint
-	MemberID                uint
-	EventCode               string
-	CategoryCode            string
-	ActorNameSnapshot       string
-	TargetNameSnapshot      string
-	Summary                 string
-	ApplicationNameSnapshot string
-	IP                      string
-	CreatedAt               time.Time
-	DisplayName             string
+	ID                 uint
+	MemberID           uint
+	EventCode          string
+	CategoryCode       string
+	ActorNameSnapshot  string
+	TargetNameSnapshot string
+	Summary            string
+	AppNameSnapshot    string
+	IP                 string
+	CreatedAt          time.Time
+	DisplayName        string
 }

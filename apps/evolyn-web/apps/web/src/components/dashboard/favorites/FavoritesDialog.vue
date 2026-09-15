@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { FavoriteApplication } from './favoriteCatalog';
+import type { FavoriteApp } from './favoriteCatalog';
 import { RiAddFill, RiCloseFill } from '@remixicon/vue';
 
 defineOptions({ name: 'FavoritesDialog' });
 
 defineProps<{
-  applications: FavoriteApplication[];
+  apps: FavoriteApp[];
 }>();
 
 const emit = defineEmits<{
@@ -48,21 +48,16 @@ const visible = defineModel<boolean>({ default: false });
           </el-button>
         </header>
 
-        <div v-if="applications.length" class="favorites-dialog__grid">
-          <button
-            v-for="application in applications"
-            :key="application.id"
-            type="button"
-            class="favorites-dialog__application"
-          >
+        <div v-if="apps.length" class="favorites-dialog__grid">
+          <button v-for="app in apps" :key="app.id" type="button" class="favorites-dialog__app">
             <span
-              class="favorites-dialog__application-icon"
-              :class="`favorites-dialog__application-icon--${application.tone}`"
+              class="favorites-dialog__app-icon"
+              :class="`favorites-dialog__app-icon--${app.tone}`"
               aria-hidden="true"
             >
-              <el-icon><component :is="application.icon" /></el-icon>
+              <el-icon><component :is="app.icon" /></el-icon>
             </span>
-            <span class="favorites-dialog__application-name">{{ application.label }}</span>
+            <span class="favorites-dialog__app-name">{{ app.label }}</span>
           </button>
         </div>
         <div v-else class="favorites-dialog__empty">
@@ -200,7 +195,7 @@ const visible = defineModel<boolean>({ default: false });
   color: var(--el-text-color-secondary);
 }
 
-.favorites-dialog__application {
+.favorites-dialog__app {
   display: flex;
   align-items: center;
   min-width: 0;
@@ -213,11 +208,11 @@ const visible = defineModel<boolean>({ default: false });
   border: 0;
 }
 
-.favorites-dialog__application:hover .favorites-dialog__application-name {
+.favorites-dialog__app:hover .favorites-dialog__app-name {
   color: var(--el-color-primary);
 }
 
-.favorites-dialog__application-icon {
+.favorites-dialog__app-icon {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
@@ -229,30 +224,30 @@ const visible = defineModel<boolean>({ default: false });
   border-radius: var(--el-border-radius-large);
 }
 
-.favorites-dialog__application-icon .el-icon {
+.favorites-dialog__app-icon .el-icon {
   font-size: var(--el-font-size-medium);
 }
 
-.favorites-dialog__application-icon--blue {
+.favorites-dialog__app-icon--blue {
   background: #4b8cf7;
 }
-.favorites-dialog__application-icon--cyan {
+.favorites-dialog__app-icon--cyan {
   background: #1aaee2;
 }
-.favorites-dialog__application-icon--green {
+.favorites-dialog__app-icon--green {
   background: #48b860;
 }
-.favorites-dialog__application-icon--orange {
+.favorites-dialog__app-icon--orange {
   background: #ff9d32;
 }
-.favorites-dialog__application-icon--purple {
+.favorites-dialog__app-icon--purple {
   background: #8367ee;
 }
-.favorites-dialog__application-icon--red {
+.favorites-dialog__app-icon--red {
   background: #f36061;
 }
 
-.favorites-dialog__application-name {
+.favorites-dialog__app-name {
   overflow: hidden;
   font-size: var(--el-font-size-medium);
   line-height: 1.4;
@@ -271,10 +266,10 @@ const visible = defineModel<boolean>({ default: false });
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding-inline: 0;
   }
-  .favorites-dialog__application-icon {
+  .favorites-dialog__app-icon {
     margin-right: var(--el-space-lg);
   }
-  .favorites-dialog__application-name {
+  .favorites-dialog__app-name {
     font-size: var(--el-font-size-large);
   }
 }

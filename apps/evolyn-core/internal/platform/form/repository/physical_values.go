@@ -398,7 +398,7 @@ func (r *physicalValueRepository) UpdateWorkflowProjection(ctx context.Context, 
 
 // envelopeSelectColumns 信封表 r 的固定投影列（与 model.FormRecord 字段对齐）。
 var envelopeSelectColumns = []string{
-	"r.id", "r.form_id", "r.form_version_id", "r.data_op_id", "r.entry_code",
+	"r.id", "r.form_id", "r.form_version_id", "r.data_op_id", "r.menu_code",
 	"r.values", "r.submitted_by_member_id", "r.submitted_by_name",
 	"r.submitted_at", "r.updated_at", "r.created_at",
 	"r.updated_by_member_id", "r.updated_by_name",
@@ -461,7 +461,7 @@ func (r *physicalValueRepository) ListJoinControlled(ctx context.Context, params
 			physicalScan[i] = physicalRaw[i]
 		}
 		scanTargets := []any{
-			&record.ID, &record.FormID, &record.FormVersionID, &record.DataOpID, &record.EntryCode,
+			&record.ID, &record.FormID, &record.FormVersionID, &record.DataOpID, &record.MenuCode,
 			&valuesJSON, &record.SubmittedByMemberID, &record.SubmittedByName,
 			&record.SubmittedAt, &record.UpdatedAt, &record.CreatedAt,
 			&record.UpdatedByMemberID, &record.UpdatedByName,

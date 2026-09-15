@@ -86,11 +86,11 @@ func (s *auditService) Record(ctx context.Context, e Entry) {
 	log.TargetNameSnapshot = truncateRunes(targetName, 256)
 
 	// 产品日志应用维度快照（000064）：应用内操作写时固化，0 视为非应用内操作
-	if e.ApplicationID != 0 {
-		appID := e.ApplicationID
-		log.ApplicationID = &appID
-		log.ApplicationCode = truncateRunes(e.ApplicationCode, 128)
-		log.ApplicationNameSnapshot = truncateRunes(e.ApplicationName, 256)
+	if e.AppID != 0 {
+		appID := e.AppID
+		log.AppID = &appID
+		log.AppCode = truncateRunes(e.AppCode, 128)
+		log.AppNameSnapshot = truncateRunes(e.AppName, 256)
 	}
 
 	log.ActorNameSnapshot = e.ActorName

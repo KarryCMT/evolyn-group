@@ -21,7 +21,7 @@ const (
 )
 
 // ProductCatalog 平台内置产品目录：稳定机器码 + 展示信息 + 站内入口。
-// 不是租户自建的 applications 应用，两者不共用表与权限资源
+// 不是租户自建的 apps 应用，两者不共用表与权限资源
 type ProductCatalog struct {
 	ID        uint            `json:"id" gorm:"autoIncrement;primaryKey"`
 	Code      string          `json:"code" gorm:"size:64;not null"`

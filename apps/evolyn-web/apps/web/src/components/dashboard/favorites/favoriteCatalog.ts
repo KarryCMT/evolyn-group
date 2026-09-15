@@ -14,21 +14,21 @@ import {
   RiUserFill,
 } from '@remixicon/vue';
 
-export type FavoriteApplicationTone = 'blue' | 'cyan' | 'green' | 'orange' | 'purple' | 'red';
+export type FavoriteAppTone = 'blue' | 'cyan' | 'green' | 'orange' | 'purple' | 'red';
 
-export interface FavoriteApplication {
+export interface FavoriteApp {
   id: string;
   label: string;
   icon: Component;
-  tone: FavoriteApplicationTone;
-  children?: FavoriteApplication[];
+  tone: FavoriteAppTone;
+  children?: FavoriteApp[];
 }
 
 /**
  * 应用目录临时由前端维护，后续接入应用中心接口时仅替换此数据源。
  * 每个节点既可作为应用收藏，也可展开浏览其下的业务页面。
  */
-export const favoriteApplicationCatalog: FavoriteApplication[] = [
+export const favoriteAppCatalog: FavoriteApp[] = [
   {
     id: 'sample-app',
     label: '灵衍云示例应用',
@@ -53,7 +53,7 @@ export const favoriteApplicationCatalog: FavoriteApplication[] = [
 ];
 
 /** 收藏顺序保留用户在面板中选择的顺序，便于在工作台呈现稳定的位置。 */
-export const defaultFavoriteApplicationIds = [
+export const defaultFavoriteAppIds = [
   'contract-management',
   'advanced-guide',
   'it-project-management',
@@ -62,11 +62,6 @@ export const defaultFavoriteApplicationIds = [
 ];
 
 /** 将树状目录拍平，供收藏列表和搜索结果按 id 快速定位。 */
-export function flattenFavoriteApplications(
-  applications = favoriteApplicationCatalog,
-): FavoriteApplication[] {
-  return applications.flatMap((application) => [
-    application,
-    ...flattenFavoriteApplications(application.children ?? []),
-  ]);
+export function flattenFavoriteApps(apps = favoriteAppCatalog): FavoriteApp[] {
+  return apps.flatMap((app) => [app, ...flattenFavoriteApps(app.children ?? [])]);
 }

@@ -3,7 +3,7 @@
 // tn_product_log_exports 任务存取。列表统一按 (created_at DESC, id DESC)
 // 稳定排序；导出扫描走时间+ID 的 keyset 游标，避免深分页扫描。
 // 应用维度查询始终以前置 tenant_id 为首列（000064 索引口径），禁止仅凭
-// application_id 查询审计日志
+// app_id 查询审计日志
 package repository
 
 import (
@@ -25,14 +25,14 @@ type LogTimeRange struct {
 // ProductLogFilter 产品日志查询条件：Categories 为产品分类白名单（必填，
 // 与企业日志查询范围互斥），由服务层经 audit 注册表下发
 type ProductLogFilter struct {
-	TenantID      uint
-	MemberID      uint
-	CategoryCode  string
-	EventCode     string
-	ApplicationID uint
-	Keyword       string
-	Range         LogTimeRange
-	Categories    []string
+	TenantID     uint
+	MemberID     uint
+	CategoryCode string
+	EventCode    string
+	AppID        uint
+	Keyword      string
+	Range        LogTimeRange
+	Categories   []string
 }
 
 // Repository 产品日志域仓储

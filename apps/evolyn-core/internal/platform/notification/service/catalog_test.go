@@ -21,8 +21,8 @@ func TestCatalogLookupAndOrder(t *testing.T) {
 	// 事件按分类检索且顺序稳定（事件码只增不改）
 	events := EventsOfCategory(CategoryAppLog)
 	assert.Len(t, events, 5)
-	assert.Equal(t, "application.asset.changed", events[0].Code)
-	assert.Equal(t, "application.output_sync.failed", events[4].Code)
+	assert.Equal(t, "app.asset.changed", events[0].Code)
+	assert.Equal(t, "app.output_sync.failed", events[4].Code)
 
 	// 未知分类/事件
 	_, ok := LookupCategory("not-exists")
@@ -32,7 +32,7 @@ func TestCatalogLookupAndOrder(t *testing.T) {
 }
 
 func TestValidateParams(t *testing.T) {
-	def, ok := LookupEvent("application.data_flow.run_failed")
+	def, ok := LookupEvent("app.data_flow.run_failed")
 	assert.True(t, ok)
 
 	// 必填齐全通过
@@ -46,7 +46,7 @@ func TestValidateParams(t *testing.T) {
 }
 
 func TestRenderContentPlain(t *testing.T) {
-	def, _ := LookupEvent("application.asset.changed")
+	def, _ := LookupEvent("app.asset.changed")
 
 	// 占位符替换 + actorName 内置变量；输出为纯文本，不拼接 HTML
 	content := RenderContent(def, map[string]string{"appName": "CRM", "verb": "创建了应用"}, "李同学")
@@ -66,11 +66,11 @@ func TestRenderContentPlain(t *testing.T) {
 }
 
 func TestBuildAction(t *testing.T) {
-	def, _ := LookupEvent("application.asset.changed")
+	def, _ := LookupEvent("app.asset.changed")
 
 	// 稳定动作码 + 参数键白名单取值
 	action := BuildAction(def, map[string]string{"appCode": "app_abc", "verb": "x", "appName": "n"})
-	assert.Equal(t, map[string]string{"type": "open_application", "appCode": "app_abc"}, action)
+	assert.Equal(t, map[string]string{"type": "open_app", "appCode": "app_abc"}, action)
 
 	// 无动作事件返回 nil
 	noAction := EventDef{Code: "x"}
@@ -78,7 +78,7 @@ func TestBuildAction(t *testing.T) {
 }
 
 func TestChannelRules(t *testing.T) {
-	def, _ := LookupEvent("application.asset.changed")
+	def, _ := LookupEvent("app.asset.changed")
 	assert.True(t, channelSupported(def, ChannelEmail))
 	assert.False(t, channelSupported(def, "voice"))
 	assert.True(t, channelLocked(def, ChannelSystem))

@@ -29,12 +29,12 @@ const (
 	maxListLimit     = 100
 	maxFormNameRunes = 128
 
-	// applicationStatusActive 应用可见状态（与应用域 model.ApplicationStatusActive 一致；
+	// appStatusActive 应用可见状态（与应用域 model.AppStatusActive 一致；
 	// 经窄端口传递字符串，避免跨域模型依赖）
-	applicationStatusActive = "active"
+	appStatusActive = "active"
 )
 
-// TxManager 事务边界抽象（FIX-021）：与 application 域同形，具体实现在 infrastructure。
+// TxManager 事务边界抽象（FIX-021）：与 app 域同形，具体实现在 infrastructure。
 type TxManager interface {
 	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error
 }
@@ -54,7 +54,7 @@ type formService struct {
 	quota       tenantservice.QuotaService
 	audit       auditservice.Recorder
 	access      AccessEvaluator
-	apps        ApplicationDirectory
+	apps        AppDirectory
 	menu        MenuMaintenance
 	references  ReferenceSource
 	permissions FormPermissionEvaluator   // 权限组判定器（装配期注入；nil=按 S4 基线放行）
@@ -88,7 +88,7 @@ func NewFormService(
 	quota tenantservice.QuotaService,
 	audit auditservice.Recorder,
 	access AccessEvaluator,
-	apps ApplicationDirectory,
+	apps AppDirectory,
 	menu MenuMaintenance,
 ) FormService {
 	return &formService{
@@ -249,15 +249,15 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 		return nil, httpx.Wrap(apperrors.ErrFormTypeInvalid,
 			fmt.Errorf("invalid form type %q", req.FormType))
 	}
-	app, notFound, err := s.apps.ApplicationByID(ctx, req.ApplicationID)
+	app, notFound, err := s.apps.AppByID(ctx, req.AppID)
 	if err != nil {
 		return nil, err
 	}
 	if notFound {
-		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid, fmt.Errorf("application %d not found", req.ApplicationID))
+		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid, fmt.Errorf("app %d not found", req.AppID))
 	}
-	if app.Status != applicationStatusActive {
-		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid, fmt.Errorf("application %d status %s", app.ID, app.Status))
+	if app.Status != appStatusActive {
+		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid, fmt.Errorf("app %d status %s", app.ID, app.Status))
 	}
 	code, err := newFormCode()
 	if err != nil {
@@ -267,26 +267,26 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 	var created *model.Form
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
 		var err error
-		created, err = s.provision(tctx, tenantID, member, req.ApplicationID, code, name, req.FormType,
-			model.CurrentProtocolVersion, emptyFormDocument, strings.TrimSpace(req.ParentEntryCode))
+		created, err = s.provision(tctx, tenantID, member, req.AppID, code, name, req.FormType,
+			model.CurrentProtocolVersion, emptyFormDocument, strings.TrimSpace(req.ParentMenuCode))
 		return err
 	}); err != nil {
 		return nil, err
 	}
 
 	if s.audit != nil {
-		appID, appCode, appName := s.appSnapshot(ctx, created.ApplicationID)
+		appID, appCode, appName := s.appSnapshot(ctx, created.AppID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "create", ResourceType: "form",
 			ResourceID: created.Code,
 			After: map[string]any{
 				"name": created.Name, "formType": created.FormType,
-				"applicationId": created.ApplicationID,
+				"appId": created.AppID,
 			},
-			TargetName:      created.Name,
-			ApplicationID:   appID,
-			ApplicationCode: appCode,
-			ApplicationName: appName,
+			TargetName: created.Name,
+			AppID:      appID,
+			AppCode:    appCode,
+			AppName:    appName,
 		})
 	}
 	return detailOf(created), nil
@@ -295,17 +295,17 @@ func (s *formService) Create(ctx context.Context, member *iammodel.User, req *mo
 // provision 事务内的创建主流程（Create 与 Copy 共用，ADR-011）：配额占位
 // （CheckAndReserve 内先锁租户行再判限额），通过后写入资产行；任一步失败
 // 随外层事务整体回滚。draftContent 由调用方给定（Create 传空协议文档，
-// Copy 传源表单草稿全文）。parentEntryCode 为空挂应用根级菜单，非空挂指定
+// Copy 传源表单草稿全文）。parentMenuCode 为空挂应用根级菜单，非空挂指定
 // 分组下（合法性由菜单维护端口校验，非法分组随整个创建事务回滚）。
 func (s *formService) provision(
-	ctx context.Context, tenantID uint, member *iammodel.User, applicationID uint,
+	ctx context.Context, tenantID uint, member *iammodel.User, appID uint,
 	code, name string, formType model.FormType, protocolVersion int,
-	draftContent model.JSONContent, parentEntryCode string,
+	draftContent model.JSONContent, parentMenuCode string,
 ) (*model.Form, error) {
 	var created *model.Form
 	err := s.quota.CheckAndReserve(ctx, tenantID, tenantmodel.QuotaForms, func(tctx context.Context) error {
 		draft := &model.Form{
-			ApplicationID:   applicationID,
+			AppID:           appID,
 			Code:            code,
 			Name:            name,
 			FormType:        formType,
@@ -324,14 +324,14 @@ func (s *formService) provision(
 		// physical 存储绑定，不接收任何存储模式入参；物理表本体在首次发布
 		// 时由 DDL Job 创建。存储链路未装配（单测桩）时跳过，保持存量行为。
 		if s.storages != nil {
-			if aerr := s.attachPhysicalStorage(tctx, tenantID, form, applicationID); aerr != nil {
+			if aerr := s.attachPhysicalStorage(tctx, tenantID, form, appID); aerr != nil {
 				return aerr
 			}
 		}
 		// M2-资产-1：同事务挂菜单节点（form 类型、target 指向本表单，
 		// menu_revision 随之递增）；端口未注入（单测）时跳过。
 		if s.menu != nil {
-			return s.menu.AttachFormEntry(tctx, applicationID, form.ID, name, parentEntryCode)
+			return s.menu.AttachFormEntry(tctx, appID, form.ID, name, parentMenuCode)
 		}
 		return nil
 	})
@@ -347,8 +347,8 @@ func (s *formService) List(ctx context.Context, member *iammodel.User, query mod
 	if !s.access.Permissions(ctx, member)["forms:list"] {
 		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot list forms"))
 	}
-	if query.ApplicationID == 0 {
-		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid, fmt.Errorf("applicationId required"))
+	if query.AppID == 0 {
+		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid, fmt.Errorf("appId required"))
 	}
 	limit := query.Limit
 	if limit <= 0 {
@@ -363,10 +363,10 @@ func (s *formService) List(ctx context.Context, member *iammodel.User, query mod
 	}
 
 	forms, hasMore, err := s.repo.List(ctx, repository.ListParams{
-		ApplicationID: query.ApplicationID,
-		Limit:         limit,
-		HasCursor:     hasCursor,
-		AfterID:       afterID,
+		AppID:     query.AppID,
+		Limit:     limit,
+		HasCursor: hasCursor,
+		AfterID:   afterID,
 	})
 	if err != nil {
 		return nil, err
@@ -425,7 +425,7 @@ func (s *formService) Update(ctx context.Context, member *iammodel.User, code st
 					return err
 				}
 				if s.menu != nil {
-					if err := s.menu.SyncFormEntryName(tctx, form.ApplicationID, form.ID, newName); err != nil {
+					if err := s.menu.SyncFormEntryName(tctx, form.AppID, form.ID, newName); err != nil {
 						return err
 					}
 				}
@@ -448,7 +448,7 @@ func (s *formService) Update(ctx context.Context, member *iammodel.User, code st
 				return httpx.Wrap(apperrors.ErrFormIconInvalid, fmt.Errorf("invalid icon/color key length"))
 			}
 			if s.menu != nil {
-				if err := s.menu.SyncFormEntryAppearance(tctx, form.ApplicationID, form.ID, newIcon, newColor); err != nil {
+				if err := s.menu.SyncFormEntryAppearance(tctx, form.AppID, form.ID, newIcon, newColor); err != nil {
 					return err
 				}
 			}
@@ -464,16 +464,16 @@ func (s *formService) Update(ctx context.Context, member *iammodel.User, code st
 		return nil, err
 	}
 	if s.audit != nil && len(auditAfter) > 0 {
-		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
+		appID, appCode, appName := s.appSnapshot(ctx, form.AppID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "update", ResourceType: "form",
-			ResourceID:      form.Code,
-			Before:          auditBefore,
-			After:           auditAfter,
-			TargetName:      form.Name,
-			ApplicationID:   appID,
-			ApplicationCode: appCode,
-			ApplicationName: appName,
+			ResourceID: form.Code,
+			Before:     auditBefore,
+			After:      auditAfter,
+			TargetName: form.Name,
+			AppID:      appID,
+			AppCode:    appCode,
+			AppName:    appName,
 		})
 	}
 	updated, err := s.loadByCode(ctx, code)
@@ -524,16 +524,16 @@ func (s *formService) SwitchType(ctx context.Context, member *iammodel.User, cod
 		return nil, err
 	}
 	if s.audit != nil {
-		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
+		appID, appCode, appName := s.appSnapshot(ctx, form.AppID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "switch-type", ResourceType: "form",
-			ResourceID:      form.Code,
-			Before:          map[string]any{"formType": before},
-			After:           map[string]any{"formType": req.FormType},
-			TargetName:      form.Name,
-			ApplicationID:   appID,
-			ApplicationCode: appCode,
-			ApplicationName: appName,
+			ResourceID: form.Code,
+			Before:     map[string]any{"formType": before},
+			After:      map[string]any{"formType": req.FormType},
+			TargetName: form.Name,
+			AppID:      appID,
+			AppCode:    appCode,
+			AppName:    appName,
 		})
 	}
 	updated, err := s.loadByCode(ctx, code)
@@ -570,26 +570,26 @@ func (s *formService) Copy(ctx context.Context, member *iammodel.User, code stri
 	}
 
 	// 动作裁决：目标应用与源应用同/异决定走哪个动作码
-	targetAppID := form.ApplicationID
-	if req.TargetApplicationID != nil && *req.TargetApplicationID != 0 && *req.TargetApplicationID != form.ApplicationID {
+	targetAppID := form.AppID
+	if req.TargetAppID != nil && *req.TargetAppID != 0 && *req.TargetAppID != form.AppID {
 		if !perms["form-actions:copy-cross-app"] {
 			return nil, httpx.Wrap(apperrors.ErrForbidden,
 				fmt.Errorf("member lacks form-actions:copy-cross-app"))
 		}
-		targetAppID = *req.TargetApplicationID
+		targetAppID = *req.TargetAppID
 	} else if !perms["form-actions:copy-in-app"] {
 		return nil, httpx.Wrap(apperrors.ErrForbidden,
 			fmt.Errorf("member lacks form-actions:copy-in-app"))
 	}
 
 	// 目标应用复核（同应用复制同样要求目标应用可用，口径同 Create）
-	targetApp, notFound, err := s.apps.ApplicationByID(ctx, targetAppID)
+	targetApp, notFound, err := s.apps.AppByID(ctx, targetAppID)
 	if err != nil {
 		return nil, err
 	}
-	if notFound || targetApp.Status != applicationStatusActive {
+	if notFound || targetApp.Status != appStatusActive {
 		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid,
-			fmt.Errorf("copy target application %d unavailable", targetAppID))
+			fmt.Errorf("copy target app %d unavailable", targetAppID))
 	}
 
 	// 名称追加「（副本）」，超长按 rune 截断到 128
@@ -607,7 +607,7 @@ func (s *formService) Copy(ctx context.Context, member *iammodel.User, code stri
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
 		var err error
 		created, err = s.provision(tctx, tenantID, member, targetAppID, newCode, name, form.FormType,
-			form.ProtocolVersion, form.DraftContent, strings.TrimSpace(req.ParentEntryCode))
+			form.ProtocolVersion, form.DraftContent, strings.TrimSpace(req.ParentMenuCode))
 		return err
 	}); err != nil {
 		return nil, err
@@ -618,15 +618,15 @@ func (s *formService) Copy(ctx context.Context, member *iammodel.User, code stri
 			Module: "form", Action: "copy", ResourceType: "form",
 			ResourceID: created.Code,
 			After: map[string]any{
-				"sourceCode":        form.Code,
-				"sourceApplication": form.ApplicationID,
-				"targetApplication": targetAppID,
-				"formType":          created.FormType,
+				"sourceCode": form.Code,
+				"sourceApp":  form.AppID,
+				"targetApp":  targetAppID,
+				"formType":   created.FormType,
 			},
-			TargetName:      created.Name,
-			ApplicationID:   targetApp.ID,
-			ApplicationCode: targetApp.Code,
-			ApplicationName: targetApp.Name,
+			TargetName: created.Name,
+			AppID:      targetApp.ID,
+			AppCode:    targetApp.Code,
+			AppName:    targetApp.Name,
 		})
 	}
 	return detailOf(created), nil
@@ -664,22 +664,22 @@ func (s *formService) Delete(ctx context.Context, member *iammodel.User, code st
 			return err
 		}
 		if s.menu != nil {
-			return s.menu.DetachFormEntry(tctx, form.ApplicationID, form.ID)
+			return s.menu.DetachFormEntry(tctx, form.AppID, form.ID)
 		}
 		return nil
 	}); err != nil {
 		return err
 	}
 	if s.audit != nil {
-		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
+		appID, appCode, appName := s.appSnapshot(ctx, form.AppID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "delete", ResourceType: "form",
-			ResourceID:      form.Code,
-			After:           map[string]any{"name": form.Name},
-			TargetName:      form.Name,
-			ApplicationID:   appID,
-			ApplicationCode: appCode,
-			ApplicationName: appName,
+			ResourceID: form.Code,
+			After:      map[string]any{"name": form.Name},
+			TargetName: form.Name,
+			AppID:      appID,
+			AppCode:    appCode,
+			AppName:    appName,
 		})
 	}
 	return nil
@@ -742,15 +742,15 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 			fmt.Errorf("form %s draft revision %d stale", code, req.DraftRevision))
 	}
 	if s.audit != nil {
-		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
+		appID, appCode, appName := s.appSnapshot(ctx, form.AppID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "update-draft", ResourceType: "form",
-			ResourceID:      form.Code,
-			After:           map[string]any{"draftRevision": req.DraftRevision + 1},
-			TargetName:      form.Name,
-			ApplicationID:   appID,
-			ApplicationCode: appCode,
-			ApplicationName: appName,
+			ResourceID: form.Code,
+			After:      map[string]any{"draftRevision": req.DraftRevision + 1},
+			TargetName: form.Name,
+			AppID:      appID,
+			AppCode:    appCode,
+			AppName:    appName,
 		})
 	}
 	return &model.SaveDraftResult{DraftRevision: req.DraftRevision + 1}, nil
@@ -763,11 +763,11 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 // appSnapshot 解析表单所属应用的审计快照三元组（000064 产品日志）：
 // 应用目录未注入/应用不存在时返回零值，审计照常落库（产品日志按空应用
 // 展示「—」），不因快照解析失败阻断业务
-func (s *formService) appSnapshot(ctx context.Context, applicationID uint) (id uint, code, name string) {
-	if s.apps == nil || applicationID == 0 {
+func (s *formService) appSnapshot(ctx context.Context, appID uint) (id uint, code, name string) {
+	if s.apps == nil || appID == 0 {
 		return 0, "", ""
 	}
-	app, notFound, err := s.apps.ApplicationByID(ctx, applicationID)
+	app, notFound, err := s.apps.AppByID(ctx, appID)
 	if err != nil || notFound {
 		return 0, "", ""
 	}
@@ -796,7 +796,7 @@ func newFormCode() (string, error) {
 
 func detailOf(form *model.Form) *model.FormDetail {
 	return &model.FormDetail{
-		ApplicationID:    form.ApplicationID,
+		AppID:            form.AppID,
 		Code:             form.Code,
 		Name:             form.Name,
 		FormType:         form.FormType,
@@ -811,7 +811,7 @@ func detailOf(form *model.Form) *model.FormDetail {
 
 func summaryOf(form *model.Form) model.FormSummary {
 	return model.FormSummary{
-		ApplicationID:    form.ApplicationID,
+		AppID:            form.AppID,
 		Code:             form.Code,
 		Name:             form.Name,
 		FormType:         form.FormType,

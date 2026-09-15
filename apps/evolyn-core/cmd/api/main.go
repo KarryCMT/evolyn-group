@@ -15,7 +15,7 @@ import (
 
 var (
 	printVersion = flag.Bool("v", false, "print version")
-	appConfig    = flag.String("config", "config/app.yaml", "application config path")
+	appConfig    = flag.String("config", "config/app.yaml", "app config path")
 )
 
 // @title           evolyn-core 接口文档

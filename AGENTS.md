@@ -221,13 +221,17 @@ internal/
                       SelfOpenInTx 供认证域注册编排在外层事务内组合开通
                       （不记审计，由调用方提交后补记）
     audit/            审计域：业务操作审计日志（Recorder，追加写流水）
-    application/      应用管理域（M2，小三层，docs/低代码平台/应用管理/）：
+    app/             应用管理域（M2，小三层，docs/低代码平台/应用管理/，
+                      000079 全链命名收敛 application→app：目录/路由
+                      /apps/RBAC 资源 apps/表 tn_app*/列 app_id；000080
+                      菜单域 entry→menu 收敛：MenuNode/tn_app_menu_nodes/
+                      menu_id/menu_code/menu_type/路由 /menu/nodes/:menuCode）：
                       空白应用创建/列表/详情/更新/软删 + apps 配额（M2-A）；
-                      应用菜单只读接口 GET /applications/code/:code/menu
-                      （M2-菜单-1，迁移 000016：tn_application_menu_entries
-                      节点表 + applications.menu_revision 菜单乐观并发口令，
+                      应用菜单只读接口 GET /apps/code/:code/menu
+                      （M2-菜单-1，迁移 000016：tn_app_menu_nodes
+                      节点表 + apps.menu_revision 菜单乐观并发口令，
                       读取走单条 SQL 快照保证修订号与节点同快照；分组创建
-                      POST /applications/code/:code/menu/groups 已接入事务、
+                      POST /apps/code/:code/menu/groups 已接入事务、
                       乐观锁、层级校验与审计，其余菜单写管理接口随 M2-菜单-3 落地）
     edition/          版本信息域（一期，小三层，docs/低代码平台/版本信息/）：
                       套餐目录/不可变套餐版本快照/租户订阅/特批权益覆盖
@@ -247,7 +251,7 @@ internal/
                       与基础字段值校验器（schema.go/value.go 镜像 TS 字典）；
                       权限资源 forms（管理员）/form-records（全体成员提交）、
                       forms 配额键（QuotaService 计数器注入）；M2-资产-1 最小
-                      纵切：创建/改名/删除同事务维护 tn_application_menu_entries
+                      纵切：创建/改名/删除同事务维护 tn_app_menu_nodes
                       的 form 节点并递增 menu_revision，菜单读侧经 FormDirectory
                       窄端口做存在性裁剪与 target 投影（跨域双向窄端口装配）；
                       000044 将 form_type（standard/workflow）固化为创建后不可变
@@ -381,14 +385,14 @@ internal/
   productlog/       产品日志域（一期，小三层，docs/低代码平台/产品日志/，
                       迁移 000064）：管理后台「产品日志」只读与导出编排——
                       tn_audit_logs 按产品分类白名单（audit 注册表
-                      product_events.go：application/application_menu/form/
+                      product_events.go：app/app_menu/form/
                       workflow/data/app_permission 六分类，与企业日志目录
                       category_code 互斥、企业日志查询侧排除产品分类）受控
                       投影读取 + tn_product_log_exports 导出任务表（一期同步
                       生成 CSV、24h 有效、上限 5 万行）；审计事实源仍在 audit
-                      域：Entry 扩展应用维度快照三元组（application_id/code/
+                      域：Entry 扩展应用维度快照三元组（app_id/code/
                       name_snapshot 写时固化，应用删除后历史展示不失真），
-                      application/menu/form（含权限组与记录提交）/workflow
+                      app/menu/form（含权限组与记录提交）/workflow
                       写路径已接入产品事件（资源级动词覆盖，如「创建表单」）；
                       API：GET /product-logs（分类/事件/成员/应用/关键词/
                       日期筛选，keyset 导出扫描）+ /product-logs/options
@@ -415,8 +419,8 @@ internal/
                       条件，过期消息 SQL 侧排除）+ 设置聚合/偏好覆盖/接收
                       规则/自定义提醒对象 + tn_notification_outbox_events）；
                       业务域经 EventPublisher.PublishInTx 在自身事务内写
-                      Outbox（application 域创建/删除应用已发布
-                      application.asset.changed 真实事件），Dispatcher 以
+                      Outbox（app 域创建/删除应用已发布
+                      app.asset.changed 真实事件），Dispatcher 以
                       FOR UPDATE SKIP LOCKED 小批领取、按事件目录（八个
                       稳定分类 + 首批五个 app-log 事件，模板纯文本渲染 +
                       受控动作码）解析接收人（event_actor/event_audience/

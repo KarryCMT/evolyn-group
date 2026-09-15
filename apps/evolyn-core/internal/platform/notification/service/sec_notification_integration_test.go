@@ -145,7 +145,7 @@ func TestNotificationIntegration(t *testing.T) {
 	rollbackErr := txManager.WithinTransaction(contextx.NewTenantContext(ctx, alpha.ID), func(tctx context.Context) error {
 		require.NoError(t, publisher.PublishInTx(tctx, EventInput{
 			EventID:    "it:rollback:event",
-			EventCode:  "application.asset.changed",
+			EventCode:  "app.asset.changed",
 			Parameters: map[string]string{"appName": "回滚应用", "verb": "创建了应用", "appCode": "app_rollback"},
 		}))
 		return errors.New("business rollback")
@@ -157,7 +157,7 @@ func TestNotificationIntegration(t *testing.T) {
 	require.NoError(t, txManager.WithinTransaction(contextx.NewTenantContext(ctx, alpha.ID), func(tctx context.Context) error {
 		return publisher.PublishInTx(tctx, EventInput{
 			EventID:       "it:alpha:create:1",
-			EventCode:     "application.asset.changed",
+			EventCode:     "app.asset.changed",
 			ActorMemberID: alphaMember.ID,
 			Parameters:    map[string]string{"appName": "CRM", "verb": "创建了应用", "appCode": "app_crm"},
 		})
@@ -165,7 +165,7 @@ func TestNotificationIntegration(t *testing.T) {
 	require.NoError(t, txManager.WithinTransaction(contextx.NewTenantContext(ctx, beta.ID), func(tctx context.Context) error {
 		return publisher.PublishInTx(tctx, EventInput{
 			EventID:       "it:beta:create:1",
-			EventCode:     "application.asset.changed",
+			EventCode:     "app.asset.changed",
 			ActorMemberID: betaMember.ID,
 			Parameters:    map[string]string{"appName": "Beta 应用", "verb": "创建了应用", "appCode": "app_beta"},
 		})
@@ -182,7 +182,7 @@ func TestNotificationIntegration(t *testing.T) {
 	require.NoError(t, txManager.WithinTransaction(contextx.NewTenantContext(ctx, alpha.ID), func(tctx context.Context) error {
 		return publisher.PublishInTx(tctx, EventInput{
 			EventID:       "it:alpha:create:1",
-			EventCode:     "application.asset.changed",
+			EventCode:     "app.asset.changed",
 			ActorMemberID: alphaMember.ID,
 			Parameters:    map[string]string{"appName": "CRM", "verb": "创建了应用", "appCode": "app_crm"},
 		})
@@ -202,7 +202,7 @@ func TestNotificationIntegration(t *testing.T) {
 	assert.Equal(t, "owner-notify-alpha创建了应用「CRM」", item.Content)
 	assert.Equal(t, "应用资产变更", item.EventLabel)
 	assert.False(t, item.Read)
-	assert.Equal(t, "open_application", actionTypeOf(t, item.Action))
+	assert.Equal(t, "open_app", actionTypeOf(t, item.Action))
 	assert.Equal(t, 6, alphaPage.RetentionMonths)
 
 	// ---- SEC-NOTIFICATION-LIST：租户/成员双向隔离 ----
@@ -239,7 +239,7 @@ func TestNotificationIntegration(t *testing.T) {
 	})
 	require.NoError(t, err)
 	// alpha 偏好关联 beta 联系人 → NOTIFICATION_RECIPIENT_NOT_FOUND（跨租户不可见）
-	_, err = settingSvc.PatchPreference(ctx, alpha.ID, "application.asset.changed", model.PatchPreferenceRequest{
+	_, err = settingSvc.PatchPreference(ctx, alpha.ID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 1,
 		Recipients: &[]model.RecipientInput{
 			{Kind: model.RecipientCustomRecipient, RecipientID: betaRecipient.ID},
@@ -257,7 +257,7 @@ func TestNotificationIntegration(t *testing.T) {
 		Revision: 1, Name: "甲值班", Email: "ops@lingyanyun.example",
 	})
 	require.NoError(t, err)
-	patched, err := settingSvc.PatchPreference(ctx, alpha.ID, "application.asset.changed", model.PatchPreferenceRequest{
+	patched, err := settingSvc.PatchPreference(ctx, alpha.ID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision:   2,
 		Recipients: &[]model.RecipientInput{{Kind: model.RecipientCustomRecipient, RecipientID: alphaRecipient.ID}},
 	})
@@ -268,7 +268,7 @@ func TestNotificationIntegration(t *testing.T) {
 	require.NoError(t, txManager.WithinTransaction(contextx.NewTenantContext(ctx, alpha.ID), func(tctx context.Context) error {
 		return publisher.PublishInTx(tctx, EventInput{
 			EventID:       "it:alpha:create:2",
-			EventCode:     "application.asset.changed",
+			EventCode:     "app.asset.changed",
 			ActorMemberID: alphaMember.ID,
 			Parameters:    map[string]string{"appName": "新应用", "verb": "创建了应用", "appCode": "app_new"},
 		})
@@ -286,7 +286,7 @@ func TestNotificationIntegration(t *testing.T) {
 
 	// ---- 过期消息排除（清理滞后也不可见） ----
 	expired := &model.Message{
-		EventID: "it:expired", CategoryCode: CategorySystemManagement, EventCode: "application.asset.changed",
+		EventID: "it:expired", CategoryCode: CategorySystemManagement, EventCode: "app.asset.changed",
 		Content: "过期消息", OccurredAt: time.Now().AddDate(0, -7, 0), ExpiresAt: time.Now().Add(-time.Hour),
 	}
 	expired.TenantID = alpha.ID

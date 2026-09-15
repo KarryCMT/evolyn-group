@@ -1,0 +1,254 @@
+<script setup lang="ts">
+import {
+  RiBookmark3Fill,
+  RiBriefcase4Fill,
+  RiCheckboxCircleFill,
+  RiCloseFill,
+  RiContactsBook3Fill,
+  RiPieChart2Fill,
+  RiSearch2Line,
+} from '@remixicon/vue';
+import { markRaw, type Component } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
+import { getAppIconName } from '~/types';
+import type { AdministratorApp } from './administrator.types';
+
+defineOptions({ name: 'AdministratorAppPickerDialog' });
+
+const props = defineProps<{ apps: AdministratorApp[]; selectedIds: number[] }>();
+const visible = defineModel<boolean>({ default: false });
+const emit = defineEmits<{ confirm: [payload: { ids: number[]; all: boolean }] }>();
+const keyword = shallowRef('');
+const draftIds = shallowRef<number[]>([]);
+const filteredApps = computed(() => {
+  const query = keyword.value.trim();
+  return query ? props.apps.filter((app) => app.name.includes(query)) : props.apps;
+});
+const selectedApps = computed(() => props.apps.filter((app) => draftIds.value.includes(app.id)));
+const allSelected = computed(() => draftIds.value.length === props.apps.length);
+
+// 图标键 → Remix Fill 图标（键值与后端服务端枚举一致，口径同工作台应用卡片；
+// 颜色统一主题色变量）
+const iconByKey: Record<string, Component> = {
+  bookmark: markRaw(RiBookmark3Fill),
+  briefcase: markRaw(RiBriefcase4Fill),
+  contacts: markRaw(RiContactsBook3Fill),
+  chart: markRaw(RiPieChart2Fill),
+  check: markRaw(RiCheckboxCircleFill),
+};
+
+function toggleAll(value: string | number | boolean) {
+  draftIds.value = value === true ? props.apps.map((app) => app.id) : [];
+}
+function submit() {
+  // 全选落语义全量（allApps=true）：新建应用自动纳入可编辑范围
+  emit('confirm', {
+    ids: draftIds.value,
+    all: draftIds.value.length === props.apps.length && draftIds.value.length > 0,
+  });
+  visible.value = false;
+}
+function remove(id: number) {
+  draftIds.value = draftIds.value.filter((item) => item !== id);
+}
+watch(visible, (isVisible) => {
+  if (isVisible) {
+    keyword.value = '';
+    // 初始勾选：语义全量时展开为全部应用（提交时仍会折叠回全量语义）
+    draftIds.value = [...allAppsIdsOf(props.selectedIds, props.apps)];
+  }
+});
+
+/** 详情只存清单或全量标记：全量时勾选展开为全部，否则原样回显。 */
+function allAppsIdsOf(selectedIds: number[], apps: AdministratorApp[]) {
+  return selectedIds.length === apps.length && apps.length > 0
+    ? apps.map((app) => app.id)
+    : selectedIds;
+}
+</script>
+
+<template>
+  <el-dialog
+    v-model="visible"
+    class="administrator-app-picker"
+    width="min(760px, calc(100vw - 32px))"
+    top="4vh"
+    show-close
+    append-to-body
+    title="应用列表"
+  >
+    <section class="administrator-app-picker__body">
+      <div class="administrator-app-picker__catalog">
+        <label class="administrator-app-picker__search"
+          ><RiSearch2Line /><input v-model="keyword" placeholder="搜索"
+        /></label>
+        <el-checkbox
+          :model-value="allSelected"
+          :indeterminate="draftIds.length > 0 && !allSelected"
+          @change="toggleAll"
+          >全选</el-checkbox
+        >
+        <el-scrollbar class="administrator-app-picker__list-scroll">
+          <el-checkbox-group v-model="draftIds" class="administrator-app-picker__list">
+            <el-checkbox v-for="app in filteredApps" :key="app.id" :value="app.id"
+              ><i class="administrator-app-picker__app-icon">
+                <component :is="iconByKey[getAppIconName(app.icon)] ?? iconByKey.bookmark" /> </i
+              >{{ app.name }}</el-checkbox
+            >
+          </el-checkbox-group>
+        </el-scrollbar>
+      </div>
+      <div class="administrator-app-picker__selected">
+        <span v-for="app in selectedApps" :key="app.id" class="administrator-app-picker__tag"
+          ><i class="administrator-app-picker__app-icon">
+            <component :is="iconByKey[getAppIconName(app.icon)] ?? iconByKey.bookmark" /> </i
+          >{{ app.name }}<RiCloseFill @click="remove(app.id)"
+        /></span>
+      </div>
+    </section>
+    <footer class="administrator-app-picker__footer">
+      <el-button @click="visible = false">取消</el-button
+      ><el-button type="primary" @click="submit">确定</el-button>
+    </footer>
+  </el-dialog>
+</template>
+
+<style scoped lang="scss">
+// 弹窗整体高度硬上限（append-to-body 后 .el-dialog 在 teleport 深层，需 :global）：
+// max-height + 纵向 flex 链让内容区随视口自动收缩，配合 top=4vh 与 margin-bottom:0
+// （覆盖 el-dialog 默认 15vh 上边距 + 50px 下边距），任何视口高度都不会出现
+// .el-overlay 纵向滚动条
+:global(.administrator-app-picker) {
+  display: flex;
+  flex-direction: column;
+  max-height: 92vh;
+  margin-bottom: 0;
+}
+:global(.administrator-app-picker .el-dialog__body) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.administrator-app-picker {
+  &__body {
+    display: grid;
+    // 基准高度 652px，只缩不涨：弹窗被 max-height 压缩时沿 flex 链收缩，
+    // 列表区内部滚动；大屏不超过基准值
+    flex: 0 1 652px;
+    min-height: 0;
+    grid-template-columns: 1fr 1fr;
+    margin: var(--el-space-xl) 0;
+    border: 1px solid var(--el-border-color);
+    border-radius: var(--el-border-radius-medium);
+    overflow: hidden;
+  }
+  &__catalog {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    padding: var(--el-space-xl) var(--el-space-2xl);
+    border-right: 1px solid var(--el-border-color);
+    gap: var(--el-space-lg);
+  }
+  &__search {
+    display: flex;
+    height: 42px;
+    padding: 0 var(--el-space-lg);
+    border-radius: var(--el-border-radius-medium);
+    align-items: center;
+    gap: var(--el-space-md);
+    color: #687383;
+    background: var(--el-bg-color-page);
+  }
+  &__search svg {
+    width: 20px;
+    height: 20px;
+  }
+  &__search input {
+    width: 100%;
+    border: 0;
+    outline: 0;
+    background: transparent;
+    font: inherit;
+  }
+  &__list-scroll {
+    flex: 1;
+    min-height: 0;
+  }
+  &__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--el-space-lg);
+  }
+  &__list :deep(.el-checkbox) {
+    height: 27px;
+    margin-right: 0;
+  }
+  &__list :deep(.el-checkbox__label) {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--el-space-lg);
+    color: #4c5666;
+    font-size: var(--el-font-size-medium);
+  }
+  &__app-icon {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--el-border-radius-base);
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    background: var(--el-color-primary);
+    font-size: var(--el-font-size-extra-small);
+    font-style: normal;
+
+    svg {
+      width: 16px;
+      height: 16px;
+    }
+  }
+  &__selected {
+    display: flex;
+    padding: var(--el-space-xl) var(--el-space-2xl);
+    align-content: flex-start;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: var(--el-space-md);
+  }
+  &__tag {
+    display: inline-flex;
+    height: 42px;
+    gap: var(--el-space-md);
+    padding: 0 var(--el-space-md);
+    border-radius: var(--el-border-radius-medium);
+    align-items: center;
+    color: #4d5766;
+    background: var(--el-fill-color-light);
+    font-size: var(--el-font-size-medium);
+  }
+  // 仅命中关闭按钮（标签直接子级 svg）；若写成后代选择器会连 __app-icon
+  // 内的应用图标 svg 一起命中，currentColor 变灰导致白图案消失
+  &__tag > svg {
+    margin-left: var(--el-space-xs);
+    color: #6d7785;
+    cursor: pointer;
+  }
+  &__tag > svg:hover {
+    color: var(--el-color-danger);
+  }
+  &__footer {
+    display: flex;
+    padding: 0 0;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--el-space-lg);
+  }
+  &__footer .el-button {
+    min-width: 74px;
+    height: 42px;
+    font-size: var(--el-font-size-medium);
+  }
+}
+</style>

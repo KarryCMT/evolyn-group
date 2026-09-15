@@ -63,7 +63,7 @@ func (f *fakeMessageRepo) ListInbox(
 		}
 		rows = append(rows, model.InboxRow{
 			InboxID: inbox.ID, ReadAt: inbox.ReadAt, CategoryCode: inbox.CategoryCode,
-			EventCode: "application.asset.changed", Severity: "info", Content: "c",
+			EventCode: "app.asset.changed", Severity: "info", Content: "c",
 			OccurredAt: inbox.OccurredAt, CreatedAt: inbox.OccurredAt,
 		})
 		_ = readAt

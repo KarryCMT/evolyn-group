@@ -19,13 +19,13 @@ const (
 // ExportFilters 提交时固化的筛选条件快照（与列表查询参数同构，不含分页：
 // 导出覆盖当前筛选条件下的全部授权数据）。JSON 序列化存 JSONB
 type ExportFilters struct {
-	MemberID      uint   `json:"memberId,omitempty"`
-	CategoryCode  string `json:"categoryCode,omitempty"`
-	EventCode     string `json:"eventCode,omitempty"`
-	ApplicationID uint   `json:"applicationId,omitempty"`
-	Keyword       string `json:"keyword,omitempty"`
-	StartDate     string `json:"startAt,omitempty"`
-	EndDate       string `json:"endAt,omitempty"`
+	MemberID     uint   `json:"memberId,omitempty"`
+	CategoryCode string `json:"categoryCode,omitempty"`
+	EventCode    string `json:"eventCode,omitempty"`
+	AppID        uint   `json:"appId,omitempty"`
+	Keyword      string `json:"keyword,omitempty"`
+	StartDate    string `json:"startAt,omitempty"`
+	EndDate      string `json:"endAt,omitempty"`
 }
 
 // FiltersJSON 筛选快照 JSONB 载体：空串落 NULL（与 audit.JSONText 同口径）
@@ -87,13 +87,13 @@ type ExportTaskView struct {
 // CreateExportRequest 创建导出任务请求（POST /product-logs/exports）：
 // 与列表完全相同的筛选条件；分页参数不参与（导出为全量授权数据）
 type CreateExportRequest struct {
-	MemberID      uint   `json:"memberId"`      // 可选
-	CategoryCode  string `json:"categoryCode"`  // 可选
-	EventCode     string `json:"eventCode"`     // 可选
-	ApplicationID uint   `json:"applicationId"` // 可选
-	Keyword       string `json:"keyword"`       // 可选
-	StartDate     string `json:"startAt"`       // 可选，yyyy-MM-dd
-	EndDate       string `json:"endAt"`         // 可选，yyyy-MM-dd
+	MemberID     uint   `json:"memberId"`     // 可选
+	CategoryCode string `json:"categoryCode"` // 可选
+	EventCode    string `json:"eventCode"`    // 可选
+	AppID        uint   `json:"appId"`        // 可选
+	Keyword      string `json:"keyword"`      // 可选
+	StartDate    string `json:"startAt"`      // 可选，yyyy-MM-dd
+	EndDate      string `json:"endAt"`        // 可选，yyyy-MM-dd
 }
 
 // ExportFileContent 下载内容（专用端点复核权限后返回）

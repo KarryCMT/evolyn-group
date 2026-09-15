@@ -19,7 +19,7 @@ import { isDark } from '~/composables/dark';
 defineOptions({ name: 'UsageStatisticsPage' });
 
 type UsageTab = 'resource' | 'administrator' | 'member' | 'efficiency' | 'login';
-type ResourceDimension = 'application' | 'member';
+type ResourceDimension = 'app' | 'member';
 type Granularity = 'day' | 'week' | 'month';
 type UsageRecord = Record<string, string | number>;
 
@@ -37,14 +37,14 @@ interface MetricCard {
 
 const PAGE_SIZE = 10;
 const activeTab = shallowRef<UsageTab>('resource');
-const resourceDimension = shallowRef<ResourceDimension>('application');
-const selectedApplications = shallowRef<string[]>([]);
+const resourceDimension = shallowRef<ResourceDimension>('app');
+const selectedApps = shallowRef<string[]>([]);
 const selectedMembers = shallowRef<string[]>([]);
 const granularity = shallowRef<Granularity>('day');
 const dateRange = shallowRef<string[]>(['2026-07-27', '2026-08-26']);
 const currentPage = shallowRef(1);
 
-const applications = ['项目协作', '合同管理', '客户管理', '人事服务', '采购管理'];
+const apps = ['项目协作', '合同管理', '客户管理', '人事服务', '采购管理'];
 const members = ['陈同学', '李同学', '王同学', '赵同学'];
 const tabOptions: Array<{ name: UsageTab; label: string }> = [
   { name: 'resource', label: '资源用量' },
@@ -63,7 +63,7 @@ const resourceRows: UsageRecord[] = [
   ['采购管理', '赵同学', '2026-08-14', '2026-08-21', 1421, '42.1 MB', 15, 6, 16, 3, 17, 8],
 ].map(
   ([
-    application,
+    app,
     creator,
     createdAt,
     lastAccessedAt,
@@ -76,7 +76,7 @@ const resourceRows: UsageRecord[] = [
     assistants,
     analyses,
   ]) => ({
-    application,
+    app,
     creator,
     createdAt,
     lastAccessedAt,
@@ -97,19 +97,9 @@ const memberResourceRows: UsageRecord[] = [
   ['陈同学', 1, 382, 16, 6, 16, 4, 17, 5],
   ['赵同学', 1, 1421, 15, 6, 16, 3, 17, 8],
 ].map(
-  ([
+  ([member, apps, records, forms, workflows, dashboards, integrations, assistants, analyses]) => ({
     member,
-    applications,
-    records,
-    forms,
-    workflows,
-    dashboards,
-    integrations,
-    assistants,
-    analyses,
-  ]) => ({
-    member,
-    applications,
+    apps,
     records,
     forms,
     workflows,
@@ -133,7 +123,7 @@ const memberRows: UsageRecord[] = [
 ].map(
   ([
     date,
-    application,
+    app,
     visitors,
     visits,
     creators,
@@ -146,7 +136,7 @@ const memberRows: UsageRecord[] = [
     exports,
   ]) => ({
     date,
-    application,
+    app,
     visitors,
     visits,
     creators,
@@ -224,7 +214,7 @@ const tableColumns = computed<EvolynTableColumn[]>(() => {
     if (resourceDimension.value === 'member') {
       return [
         { field: 'member', title: '创建者', width: 156 },
-        { field: 'applications', title: '应用数', width: 110, sort: true },
+        { field: 'apps', title: '应用数', width: 110, sort: true },
         { field: 'records', title: '数据总量', width: 130, sort: true },
         { field: 'forms', title: '普通表单数', width: 130, sort: true },
         { field: 'workflows', title: '流程表单数', width: 130, sort: true },
@@ -235,7 +225,7 @@ const tableColumns = computed<EvolynTableColumn[]>(() => {
       ];
     }
     return [
-      { field: 'application', title: '应用', width: 180 },
+      { field: 'app', title: '应用', width: 180 },
       { field: 'creator', title: '创建者', width: 130 },
       { field: 'createdAt', title: '创建日期', width: 130, sort: true },
       { field: 'lastAccessedAt', title: '最近一次访问时间', width: 160, sort: true },
@@ -260,7 +250,7 @@ const tableColumns = computed<EvolynTableColumn[]>(() => {
   if (activeTab.value === 'member') {
     return [
       { field: 'date', title: '时间', width: 130, sort: true },
-      { field: 'application', title: '应用', width: 160 },
+      { field: 'app', title: '应用', width: 160 },
       { field: 'visitors', title: '访问人数', width: 118, sort: true },
       { field: 'visits', title: '访问次数', width: 118, sort: true },
       { field: 'creators', title: '创建数据人数', width: 138, sort: true },
@@ -283,7 +273,7 @@ const tableColumns = computed<EvolynTableColumn[]>(() => {
 const filteredRows = computed<UsageRecord[]>(() => {
   const rows =
     activeTab.value === 'resource'
-      ? resourceDimension.value === 'application'
+      ? resourceDimension.value === 'app'
         ? resourceRows
         : memberResourceRows
       : activeTab.value === 'administrator'
@@ -291,15 +281,13 @@ const filteredRows = computed<UsageRecord[]>(() => {
         : activeTab.value === 'member'
           ? memberRows
           : loginRows;
-  const applicationFilter = selectedApplications.value;
+  const appFilter = selectedApps.value;
   const memberFilter = selectedMembers.value;
   return rows.filter((row) => {
-    const matchesApplication =
-      applicationFilter.length === 0 ||
-      !('application' in row) ||
-      applicationFilter.includes(String(row.application));
+    const matchesApp =
+      appFilter.length === 0 || !('app' in row) || appFilter.includes(String(row.app));
     const member = String(row.member ?? row.creator ?? '');
-    return matchesApplication && (memberFilter.length === 0 || memberFilter.includes(member));
+    return matchesApp && (memberFilter.length === 0 || memberFilter.includes(member));
   });
 });
 
@@ -358,13 +346,13 @@ function exportData() {
           <label class="usage-statistics-page__filter">
             <span>统计维度</span>
             <el-select v-model="resourceDimension" class="usage-statistics-page__dimension-select">
-              <el-option label="按应用查看" value="application" />
+              <el-option label="按应用查看" value="app" />
               <el-option label="按成员查看" value="member" />
             </el-select>
           </label>
           <el-select
-            v-if="resourceDimension === 'application'"
-            v-model="selectedApplications"
+            v-if="resourceDimension === 'app'"
+            v-model="selectedApps"
             class="usage-statistics-page__selector"
             filterable
             multiple
@@ -372,12 +360,7 @@ function exportData() {
             collapse-tags-tooltip
             placeholder="选择应用"
           >
-            <el-option
-              v-for="application in applications"
-              :key="application"
-              :label="application"
-              :value="application"
-            />
+            <el-option v-for="app in apps" :key="app" :label="app" :value="app" />
           </el-select>
           <el-select
             v-else
@@ -397,13 +380,13 @@ function exportData() {
           <label v-if="activeTab !== 'login'" class="usage-statistics-page__filter">
             <span>统计维度</span>
             <el-select v-model="resourceDimension" class="usage-statistics-page__dimension-select">
-              <el-option label="按应用查看" value="application" />
+              <el-option label="按应用查看" value="app" />
               <el-option label="按成员查看" value="member" />
             </el-select>
           </label>
           <el-select
             v-if="activeTab !== 'login'"
-            v-model="selectedApplications"
+            v-model="selectedApps"
             class="usage-statistics-page__selector"
             filterable
             multiple
@@ -411,12 +394,7 @@ function exportData() {
             collapse-tags-tooltip
             placeholder="选择应用"
           >
-            <el-option
-              v-for="application in applications"
-              :key="application"
-              :label="application"
-              :value="application"
-            />
+            <el-option v-for="app in apps" :key="app" :label="app" :value="app" />
           </el-select>
           <el-select
             v-else

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import CrossAppSetting from '~/components/application/cross-app/CrossAppSetting.vue';
+import CrossAppSetting from '~/components/app/cross-app/CrossAppSetting.vue';
 
-defineOptions({ name: 'CrossApplicationSettingPage' });
+defineOptions({ name: 'CrossAppSettingPage' });
 </script>
 
 <template>

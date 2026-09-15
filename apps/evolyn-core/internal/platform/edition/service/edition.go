@@ -20,7 +20,7 @@ import (
 	"gorm.io/gorm"
 )
 
-// 用量计量窄接口：与 QuotaService 同形，装配期由 iam/application/file 仓储
+// 用量计量窄接口：与 QuotaService 同形，装配期由 iam/app/file 仓储
 // 注入；未注入的键读取时按 pending 处理（单测/分域装配场景）
 type (
 	memberCounter interface {

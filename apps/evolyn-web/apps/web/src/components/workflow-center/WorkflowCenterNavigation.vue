@@ -241,7 +241,7 @@ watch(
   &__item {
     box-sizing: border-box;
     width: 100%;
-    min-height: var(--application-workspace-menu-item-height, 42px);
+    min-height: var(--app-workspace-menu-item-height, 42px);
     padding: 0 var(--el-space-md);
     gap: var(--el-space-md);
     border-radius: var(--el-border-radius-medium);
@@ -276,7 +276,7 @@ watch(
 
   &__main-action {
     min-width: 0;
-    min-height: var(--application-workspace-menu-item-height, 42px);
+    min-height: var(--app-workspace-menu-item-height, 42px);
     flex: 1;
     padding: 0 var(--el-space-md);
     gap: var(--el-space-md);
@@ -311,7 +311,7 @@ watch(
   &__expand {
     display: inline-flex;
     width: 36px;
-    min-height: var(--application-workspace-menu-item-height, 42px);
+    min-height: var(--app-workspace-menu-item-height, 42px);
     padding: 0;
     flex: 0 0 auto;
     align-items: center;
@@ -325,7 +325,7 @@ watch(
   }
 
   &__form {
-    min-height: var(--application-workspace-menu-item-height, 42px);
+    min-height: var(--app-workspace-menu-item-height, 42px);
     padding: 0 var(--el-space-xs) 0 38px;
     border-radius: var(--el-border-radius-medium);
 
@@ -342,7 +342,7 @@ watch(
 
   &__form-action {
     min-width: 0;
-    min-height: var(--application-workspace-menu-item-height, 42px);
+    min-height: var(--app-workspace-menu-item-height, 42px);
     flex: 1;
     gap: var(--el-space-sm);
     font: inherit;

@@ -42,7 +42,7 @@ func (t FormType) Valid() bool {
 // draft_revision 为草稿乐观锁口令；发布快照另存 tn_form_versions（不可变）。
 type Form struct {
 	ID               uint        `json:"id" gorm:"autoIncrement;primaryKey"`
-	ApplicationID    uint        `json:"applicationId" gorm:"not null"`                     // 所属应用（同租户，Service 层校验）
+	AppID            uint        `json:"appId" gorm:"not null"`                             // 所属应用（同租户，Service 层校验）
 	Code             string      `json:"code" gorm:"size:64;not null"`                      // form_ 前缀稳定公开编码（路由/API 使用）
 	Name             string      `json:"name" gorm:"size:128;not null"`                     // 表单名称（不进入协议 content）
 	FormType         FormType    `json:"formType" gorm:"size:16;not null;default:standard"` // 表单类型（ADR-011 起可经动作切换）
@@ -98,7 +98,7 @@ type FormRecord struct {
 	FormID              uint        `json:"formId" gorm:"not null"`
 	FormVersionID       uint        `json:"formVersionId" gorm:"not null"`
 	DataOpID            *string     `json:"dataOpId" gorm:"size:36"`  // 客户端提交幂等键；历史记录允许 NULL
-	EntryCode           *string     `json:"entryCode" gorm:"size:64"` // 提交入口菜单编码快照；预览直提允许 NULL
+	MenuCode            *string     `json:"menuCode" gorm:"size:64"`  // 提交入口菜单编码快照；预览直提允许 NULL
 	Values              JSONContent `json:"values" gorm:"type:jsonb"` // 仅存量历史记录；新记录恒 NULL
 	SubmittedByMemberID uint        `json:"submittedByMemberId" gorm:"not null"`
 	// SubmittedByName 提交人展示名快照：提交时按租户内昵称固化，成员改名/

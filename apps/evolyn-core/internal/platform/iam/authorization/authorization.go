@@ -83,13 +83,13 @@ func (a *Authorizer) Authorize(ctx context.Context, user *model.User, ri *reques
 //
 // 范围语义按组 scope 严格区分：
 //   - system 组（通讯录管理组）：Department/Role 区块授予成员/部门/角色管理；
-//   - application 组（普通管理组）：Department/Role 是应用使用权的分发范围，
-//     绝不授予部门/角色管理；Application 区块授予应用编辑与增删。
+//   - app 组（普通管理组）：Department/Role 是应用使用权的分发范围，
+//     绝不授予部门/角色管理；App 区块授予应用编辑与增删。
 //
 // admin-groups 资源永不经管理组授予（防自我扩权），未列资源同样拒绝。
 func (a *Authorizer) authorizeByAdminGroup(ctx context.Context, user *model.User, ri *request.RequestInfo) (bool, error) {
 	switch ri.Resource {
-	case model.MemberResource, "departments", model.RoleResource, "applications":
+	case model.MemberResource, "departments", model.RoleResource, "apps":
 	default:
 		return false, nil
 	}
@@ -108,8 +108,8 @@ func (a *Authorizer) authorizeByAdminGroup(ctx context.Context, user *model.User
 		deptManageAll   bool // system 组：部门范围全量 → 成员/部门管理
 		roleVisibleAll  bool // system 组：角色可见（读）
 		roleManageAll   bool // system 组：角色可管理（写）
-		appCreateDelete bool // application 组：可添加/删除应用
-		appEditAll      bool // application 组：全部应用可编辑
+		appCreateDelete bool // app 组：可添加/删除应用
+		appEditAll      bool // app 组：全部应用可编辑
 	)
 	for _, group := range groups {
 		if group.BuiltIn {
@@ -129,12 +129,12 @@ func (a *Authorizer) authorizeByAdminGroup(ctx context.Context, user *model.User
 					roleManageAll = true
 				}
 			}
-		case model.AdminGroupScopeApplication:
-			if config.Application != nil {
-				if config.Application.Manage {
+		case model.AdminGroupScopeApp:
+			if config.App != nil {
+				if config.App.Manage {
 					appCreateDelete = true
 				}
-				if config.Application.AllApplications {
+				if config.App.AllApps {
 					appEditAll = true
 				}
 			}
@@ -150,7 +150,7 @@ func (a *Authorizer) authorizeByAdminGroup(ctx context.Context, user *model.User
 			return roleVisibleAll, nil
 		}
 		return roleManageAll, nil
-	case "applications":
+	case "apps":
 		if ri.Verb == request.CreateOperation || ri.Verb == request.DeleteOperation {
 			return appCreateDelete, nil
 		}

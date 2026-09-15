@@ -34,10 +34,10 @@ type AuditLog struct {
 	Summary            string `json:"summary" gorm:"size:1000;not null;default:''"`           // 服务端生成且脱敏的操作详情
 	// 产品日志应用维度投影（000064）：应用内操作写时固化应用标识与名称快照，
 	// 应用删除/改名后历史展示不失真；非应用内操作为 NULL/空串
-	ApplicationID           *uint           `json:"applicationId" gorm:"index"`
-	ApplicationCode         string          `json:"applicationCode" gorm:"size:128;not null;default:''"`         // 应用稳定编码快照
-	ApplicationNameSnapshot string          `json:"applicationNameSnapshot" gorm:"size:256;not null;default:''"` // 应用名称快照
-	CreatedAt               kernel.JSONTime `json:"createdAt"`
+	AppID           *uint           `json:"appId" gorm:"index"`
+	AppCode         string          `json:"appCode" gorm:"size:128;not null;default:''"`         // 应用稳定编码快照
+	AppNameSnapshot string          `json:"appNameSnapshot" gorm:"size:256;not null;default:''"` // 应用名称快照
+	CreatedAt       kernel.JSONTime `json:"createdAt"`
 }
 
 func (*AuditLog) TableName() string {

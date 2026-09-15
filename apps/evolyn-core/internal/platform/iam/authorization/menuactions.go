@@ -6,7 +6,7 @@ package authorization
 
 // MenuAction 菜单节点动作码（稳定公开词汇，前端按钮与后端裁决共用）。
 // 同一动作在不同节点类型上的授权键可能不同（如 rename：分组挂
-// applications:patch，表单挂 forms:patch），以 MenuActionsForAsset 为准。
+// apps:patch，表单挂 forms:patch），以 MenuActionsForAsset 为准。
 type MenuAction string
 
 const (
@@ -42,9 +42,9 @@ type MenuActionSpec struct {
 	Landed bool
 }
 
-// 节点类型字面量与 tn_application_menu_entries.entry_type 对齐（form 节点的
+// 节点类型字面量与 tn_app_menu_nodes.menu_type 对齐（form 节点的
 // target.formType 只影响「切换类型」的展示文案，不影响授权键，注册表按
-// entry_type 建档即可）。仪表盘资产域未落地，动作先以 Landed=false 占位，
+// menu_type 建档即可）。仪表盘资产域未落地，动作先以 Landed=false 占位，
 // 避免仪表盘节点出现后投影出死按钮。
 const (
 	menuAssetTypeGroup     = "group"
@@ -57,9 +57,9 @@ const (
 // 授全体成员），favorite 能力恒随 view 出网。
 var menuActionRegistry = map[string][]MenuActionSpec{
 	menuAssetTypeGroup: {
-		{Code: MenuActionRename, Grants: []string{"applications:patch"}, Landed: true},
-		{Code: MenuActionMove, Grants: []string{"applications:patch"}, Landed: true},
-		{Code: MenuActionDelete, Grants: []string{"applications:delete"}, Landed: true},
+		{Code: MenuActionRename, Grants: []string{"apps:patch"}, Landed: true},
+		{Code: MenuActionMove, Grants: []string{"apps:patch"}, Landed: true},
+		{Code: MenuActionDelete, Grants: []string{"apps:delete"}, Landed: true},
 	},
 	menuAssetTypeForm: {
 		{Code: MenuActionEdit, Grants: []string{"forms:update"}, Landed: true},
@@ -72,9 +72,9 @@ var menuActionRegistry = map[string][]MenuActionSpec{
 		// Service 侧另核应用状态与配额
 		{Code: MenuActionCopyInApp, Grants: []string{"form-actions:copy-in-app", "forms:create"}, Landed: true},
 		{Code: MenuActionCopyCrossApp, Grants: []string{"form-actions:copy-cross-app", "forms:create"}, Landed: true},
-		{Code: MenuActionMove, Grants: []string{"applications:patch"}, Landed: true},
-		// 隐藏开关走菜单节点 PATCH（applications:patch 门），动作授权键独立控制
-		{Code: MenuActionHide, Grants: []string{"form-actions:hide", "applications:patch"}, Landed: true},
+		{Code: MenuActionMove, Grants: []string{"apps:patch"}, Landed: true},
+		// 隐藏开关走菜单节点 PATCH（apps:patch 门），动作授权键独立控制
+		{Code: MenuActionHide, Grants: []string{"form-actions:hide", "apps:patch"}, Landed: true},
 		{Code: MenuActionDelete, Grants: []string{"forms:delete"}, Landed: true},
 	},
 	menuAssetTypeDashboard: {

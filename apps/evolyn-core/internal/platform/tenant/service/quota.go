@@ -28,9 +28,9 @@ type (
 	memberCounter interface {
 		CountByTenant(ctx context.Context, tenantID uint) (int64, error)
 	}
-	// applicationCounter 计费应用数（由应用域仓储实现，装配期注入；
+	// appCounter 计费应用数（由应用域仓储实现，装配期注入；
 	// 计数口径见应用域 CountBillableByTenant：软删行除外全量计数）
-	applicationCounter interface {
+	appCounter interface {
 		CountBillableByTenant(ctx context.Context, tenantID uint) (int64, error)
 	}
 	// storageCounter 存储用量字节数（上传会话预留 + 已确认对象）；由文件域
@@ -95,7 +95,7 @@ type quotaService struct {
 	tenants tenantReader
 	locker  tenantLocker
 	members memberCounter
-	apps    applicationCounter
+	apps    appCounter
 	storage storageCounter
 	forms   FormCounter
 	guard   ExpiryGuard
@@ -122,7 +122,7 @@ type QuotaFormCounterInjector interface {
 // NewQuotaService 构造配额服务。locker/apps 为应用域落地后的扩展依赖
 // （locker 由租户仓储自身实现），未接入时传 nil：apps 键不可用、
 // CheckAndReserve 拒绝执行
-func NewQuotaService(tenants tenantReader, locker tenantLocker, members memberCounter, apps applicationCounter, storages ...storageCounter) QuotaService {
+func NewQuotaService(tenants tenantReader, locker tenantLocker, members memberCounter, apps appCounter, storages ...storageCounter) QuotaService {
 	svc := &quotaService{
 		tenants: tenants,
 		locker:  locker,

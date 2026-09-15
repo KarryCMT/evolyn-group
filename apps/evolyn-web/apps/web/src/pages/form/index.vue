@@ -176,7 +176,7 @@ watch(
   { immediate: true },
 );
 
-function returnToApplication() {
+function returnToApp() {
   void router.push({
     name: 'App',
     // 继续使用 formCode 路由参数，应用页据此恢复当前表单菜单选中态。
@@ -206,7 +206,7 @@ function notifyUnavailable(action: string) {
           class="form-workspace-shell__icon-button form-workspace-shell__utility-button"
           type="button"
           aria-label="返回应用"
-          @click="returnToApplication"
+          @click="returnToApp"
         >
           <RiArrowLeftFill />
         </button>

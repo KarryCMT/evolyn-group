@@ -133,7 +133,7 @@ const quotaCards = computed<EditionQuotaCard[]>(() => {
 // ---- 功能权益：按接口分组投影，可用性以服务端为准 ----
 
 const featureIcons: Record<string, Component> = {
-  application_management: RiApps2Fill,
+  app_management: RiApps2Fill,
   member_management: RiUser3Fill,
   department_management: RiFileList3Fill,
   group_management: RiPuzzle2Fill,

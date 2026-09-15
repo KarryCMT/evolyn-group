@@ -15,7 +15,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// TxManager 事务边界抽象（FIX-021）：与 application 域同形，具体实现在
+// TxManager 事务边界抽象（FIX-021）：与 app 域同形，具体实现在
 // infrastructure，经 server.go 装配注入。
 type TxManager interface {
 	WithinTransaction(ctx context.Context, fn func(ctx context.Context) error) error

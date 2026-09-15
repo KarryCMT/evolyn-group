@@ -88,7 +88,7 @@ const tenantRoutes: RouteRecordRaw[] = [
           {
             path: 'apps',
             name: 'tenant-app-administrators',
-            component: () => import('~/pages/tenant/ApplicationAdministratorsPage.vue'),
+            component: () => import('~/pages/tenant/AppAdministratorsPage.vue'),
             meta: { title: '灵衍云管理员' },
           },
         ],

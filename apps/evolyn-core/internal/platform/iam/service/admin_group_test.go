@@ -299,7 +299,7 @@ func TestAdminGroupCreateRejectsDuplicateName(t *testing.T) {
 
 	_, err := svc.Create(tenantCtx(t, 7), &AdminGroupCreateRequest{Scope: model.AdminGroupScopeSystem, Name: "测试"})
 	assert.NoError(t, err)
-	_, err = svc.Create(tenantCtx(t, 7), &AdminGroupCreateRequest{Scope: model.AdminGroupScopeApplication, Name: "测试"})
+	_, err = svc.Create(tenantCtx(t, 7), &AdminGroupCreateRequest{Scope: model.AdminGroupScopeApp, Name: "测试"})
 	assert.ErrorIs(t, err, ErrAdminGroupDuplicateName)
 }
 
@@ -499,7 +499,7 @@ func TestAdminGroupUpdateScopeBlocks(t *testing.T) {
 
 	// system 组提交应用区块：scope 不符
 	_, err = svc.Update(ctx, id, &AdminGroupPatchRequest{
-		ApplicationScope: &model.AdminApplicationScope{Manage: true},
+		AppScope: &model.AdminAppScope{Manage: true},
 	})
 	assert.ErrorIs(t, err, ErrAdminGroupScopeMismatch)
 
@@ -515,24 +515,24 @@ func TestAdminGroupUpdateScopeBlocks(t *testing.T) {
 	assert.ErrorIs(t, err, ErrAdminGroupConfigInvalid)
 }
 
-func TestAdminGroupApplicationScopeUpdate(t *testing.T) {
+func TestAdminGroupAppScopeUpdate(t *testing.T) {
 	groups := newAdminGroupRepoStub()
 	svc := newAdminGroupServiceForTest(groups, map[uint]*model.User{})
 	ctx := tenantCtx(t, 7)
 
-	created, err := svc.Create(ctx, &AdminGroupCreateRequest{Scope: model.AdminGroupScopeApplication, Name: "应用组"})
+	created, err := svc.Create(ctx, &AdminGroupCreateRequest{Scope: model.AdminGroupScopeApp, Name: "应用组"})
 	assert.NoError(t, err)
 
-	// 全量语义：allApplications=true 清单归空
+	// 全量语义：allApps=true 清单归空
 	detail, err := svc.Update(ctx, created.ID, &AdminGroupPatchRequest{
-		ApplicationScope: &model.AdminApplicationScope{AllApplications: true, ApplicationIDs: []uint{5}, Manage: true},
+		AppScope: &model.AdminAppScope{AllApps: true, AppIDs: []uint{5}, Manage: true},
 	})
 	assert.NoError(t, err)
-	assert.True(t, detail.AllApplications)
-	assert.True(t, detail.ApplicationManage)
-	assert.Empty(t, detail.ApplicationIDs)
+	assert.True(t, detail.AllApps)
+	assert.True(t, detail.AppManage)
+	assert.Empty(t, detail.AppIDs)
 
-	// 通讯录抽屉区块（application 组专属）
+	// 通讯录抽屉区块（app 组专属）
 	detail, err = svc.Update(ctx, created.ID, &AdminGroupPatchRequest{
 		AddressBook: &model.AdminAddressBookScope{DepartmentEnabled: true, RoleVisible: true},
 	})

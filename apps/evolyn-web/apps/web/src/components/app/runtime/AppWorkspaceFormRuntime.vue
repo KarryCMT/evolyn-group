@@ -1,0 +1,260 @@
+<script setup lang="ts">
+import type { FormRuntimeActionDefinition, FormRuntimeAdapter } from '@evolyn.do/form/runtime-web';
+import type { AppWorkspaceAsset } from '../workspace/appWorkspace.types';
+import type { FormRuntimeBootstrap } from '~/types';
+import { FormWebRuntimeSurface } from '@evolyn.do/form/runtime-web';
+import { migrateFormSchema } from '@evolyn.do/form/schema';
+import { ApiError } from '@evolyn.do/utils';
+import { ElMessage } from 'element-plus';
+import { computed, shallowRef, useTemplateRef, watch } from 'vue';
+import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
+import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
+import { useAuth } from '~/composables/auth';
+// 应用工作区按需加载最终运行时关键样式，不引入设计器样式图。
+import '@evolyn.do/form/runtime-web/style.css';
+
+defineOptions({ name: 'AppWorkspaceFormRuntime' });
+
+const props = defineProps<{
+  appCode: string;
+  asset: AppWorkspaceAsset;
+}>();
+
+type RuntimeStatus = 'loading' | 'ready' | 'not-published' | 'error';
+
+const { userInfo } = useAuth();
+
+/** 当前登录成员编号：显隐规则 includeCurrentMember 的前端求值注入源。 */
+const currentMemberId = computed(() => {
+  return userInfo.value?.member?.memberCode;
+});
+
+/** 填写模式（add）字段权限矩阵：未下发时全量放行。 */
+const fieldPermissions = computed(() => bootstrap.value?.permissions?.addFields);
+
+const status = shallowRef<RuntimeStatus>('loading');
+const bootstrap = shallowRef<FormRuntimeBootstrap | null>(null);
+const errorMessage = shallowRef('表单加载失败，请稍后重试');
+const reloadRevision = shallowRef(0);
+const unsupportedTypes = new Set<string>();
+const runtimeSurfaceRef = useTemplateRef<{ reset(): void }>('runtimeSurface');
+
+const actions: FormRuntimeActionDefinition[] = [
+  {
+    key: 'submit',
+    label: '提交',
+    behavior: 'submit',
+    intent: 'primary',
+    order: 100,
+    mobilePresentation: 'button',
+  },
+];
+
+const runtimeAdapter: FormRuntimeAdapter = {
+  async submit(payload, signal) {
+    try {
+      await submitFormRecord(
+        {
+          appCode: props.appCode,
+          menuCode: props.asset.code,
+          formCode: payload.formId,
+          publishedVersion: payload.publishedVersion,
+          schemaRevision: payload.schemaRevision,
+          values: payload.values,
+          hasResult: true,
+          dataOpId: payload.dataOpId ?? createFormDataOperationId(),
+        },
+        signal,
+      );
+      return { accepted: true };
+    } catch (error) {
+      if (isAbortError(error)) throw error;
+      if (
+        error instanceof ApiError &&
+        (error.errCode === 'FORM_RECORD_INVALID' ||
+          error.errCode === 'FORM_RECORD_VALIDATION_FAILED')
+      ) {
+        const data = error.data as
+          | {
+              fieldErrors?: Record<string, string[]>;
+              validatorErrors?: Array<{ remind?: string; fields?: string[] }>;
+            }
+          | undefined;
+        return {
+          accepted: false,
+          fieldErrors: data?.fieldErrors,
+          validatorErrors: normalizeValidatorErrors(data?.validatorErrors),
+          message: error.message,
+        };
+      }
+      return {
+        accepted: false,
+        message:
+          error instanceof ApiError && error.errCode === 'FORM_VERSION_CONFLICT'
+            ? '表单已发布新版本，请刷新后重新填写'
+            : '提交失败，请稍后重试',
+      };
+    }
+  },
+};
+
+function normalizeValidatorErrors(
+  errors: Array<{ index?: number; remind?: string; fields?: string[] }> | undefined,
+): Array<{ index: number; remind: string; fields: string[] }> {
+  return (errors ?? [])
+    .flatMap((error, index) =>
+      typeof error.remind === 'string'
+        ? [
+            {
+              index: typeof error.index === 'number' ? error.index : index,
+              remind: error.remind,
+              fields: error.fields ?? [],
+            },
+          ]
+        : [],
+    )
+    .sort((left, right) => left.index - right.index);
+}
+
+watch(
+  [() => props.appCode, () => props.asset.targetCode, reloadRevision],
+  async ([appCode, formCode], _previous, onCleanup) => {
+    const controller = new AbortController();
+    onCleanup(() => controller.abort());
+    bootstrap.value = null;
+    status.value = 'loading';
+
+    if (!formCode) {
+      status.value = 'error';
+      errorMessage.value = '当前菜单未关联有效表单';
+      return;
+    }
+
+    try {
+      const nextBootstrap = await getFormRuntime(appCode, formCode, controller.signal);
+      // 即使请求实现未遵守 AbortSignal，也禁止旧资产响应覆盖当前表单。
+      if (controller.signal.aborted) return;
+      const migrated = migrateFormSchema(nextBootstrap.content, nextBootstrap.protocolVersion);
+      if (!migrated.document) {
+        errorMessage.value = `表单配置无效：${migrated.issues[0]?.message ?? '未知错误'}`;
+        status.value = 'error';
+        return;
+      }
+      bootstrap.value = {
+        ...nextBootstrap,
+        protocolVersion: migrated.protocolVersion,
+        content: migrated.document,
+      };
+      status.value = 'ready';
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      if (error instanceof ApiError && error.errCode === 'FORM_NOT_PUBLISHED') {
+        status.value = 'not-published';
+        return;
+      }
+      errorMessage.value = '表单加载失败，请稍后重试';
+      status.value = 'error';
+    }
+  },
+  { immediate: true },
+);
+
+function reload(): void {
+  reloadRevision.value += 1;
+}
+
+function onUnsupportedField(info: { fieldKey: string; type: string }): void {
+  if (unsupportedTypes.has(info.type)) return;
+  unsupportedTypes.add(info.type);
+  ElMessage.info(`字段类型「${info.type}」的填写能力尚未上线，当前暂不可交互`);
+}
+
+function onSubmitSuccess(): void {
+  // 应用填写页按「一次提交一条记录」处理：成功后立即开启空白会话，允许连续录入。
+  runtimeSurfaceRef.value?.reset();
+  ElMessage.success('提交成功');
+}
+
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    ((error as { name?: unknown }).name === 'AbortError' ||
+      (error as { code?: unknown }).code === 'ERR_CANCELED')
+  );
+}
+</script>
+
+<template>
+  <main class="app-workspace-form-runtime" :aria-label="`${props.asset.label}填写区`">
+    <section
+      v-if="status === 'loading'"
+      v-loading="true"
+      class="app-workspace-form-runtime__state"
+      aria-label="正在加载表单"
+    />
+
+    <el-result
+      v-else-if="status === 'not-published'"
+      class="app-workspace-form-runtime__state"
+      icon="warning"
+      title="表单尚未发布"
+      sub-title="请先进入编辑页面发布表单，再返回应用填写数据。"
+    />
+
+    <el-result
+      v-else-if="status === 'error'"
+      class="app-workspace-form-runtime__state"
+      icon="error"
+      title="加载表单失败"
+      :sub-title="errorMessage"
+    >
+      <template #extra>
+        <!-- prettier-ignore -->
+        <el-button type="primary" @click="reload">
+          重新加载
+        </el-button>
+      </template>
+    </el-result>
+
+    <FormWebRuntimeSurface
+      ref="runtimeSurface"
+      v-else-if="bootstrap"
+      class="app-workspace-form-runtime__surface"
+      :schema="bootstrap.content"
+      :form-id="bootstrap.formCode"
+      :published-version="bootstrap.publishedVersion"
+      :schema-revision="bootstrap.schemaRevision"
+      :current-member-id="currentMemberId"
+      :field-permissions="fieldPermissions"
+      :adapter="runtimeAdapter"
+      :registry="getMemberFieldRegistry()"
+      :actions="actions"
+      layout="auto"
+      content-width="100%"
+      @unsupported-field="onUnsupportedField"
+      @submit-success="onSubmitSuccess"
+    />
+  </main>
+</template>
+
+<style scoped lang="scss">
+.app-workspace-form-runtime {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--el-bg-color-page);
+
+  &__state {
+    flex: 1;
+    min-height: 0;
+  }
+
+  &__surface {
+    flex: 1;
+    min-height: 0;
+  }
+}
+</style>

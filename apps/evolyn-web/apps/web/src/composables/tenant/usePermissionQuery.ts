@@ -28,9 +28,9 @@ const managementGroups = reactive<ManagementGroup[]>([
     name: '系统管理组',
     type: '系统管理组',
     members: [],
-    applicationScope: '全部应用',
+    appScope: '全部应用',
   },
-  { id: 'test', name: '测试', type: '普通管理组', members: [], applicationScope: '' },
+  { id: 'test', name: '测试', type: '普通管理组', members: [], appScope: '' },
 ]);
 
 const subjectTrees: Record<PermissionSubjectType, SubjectNode[]> = {
@@ -67,7 +67,7 @@ const subjectTrees: Record<PermissionSubjectType, SubjectNode[]> = {
       ],
     },
   ],
-  application: [
+  app: [
     {
       id: 'app-demo',
       label: '灵衍云示例应用',

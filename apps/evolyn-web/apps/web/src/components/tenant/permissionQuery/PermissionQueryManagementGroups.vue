@@ -43,7 +43,7 @@ const emit = defineEmits<{
       >
       <el-table-column
         v-if="props.workspace === 'product'"
-        prop="applicationScope"
+        prop="appScope"
         label="应用权限范围"
         min-width="230"
       />

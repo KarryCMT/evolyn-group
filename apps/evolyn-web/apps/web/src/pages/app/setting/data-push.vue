@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import DataPushSettings from '~/components/application/data-push/DataPushSettings.vue';
+import DataPushSettings from '~/components/app/data-push/DataPushSettings.vue';
 
-defineOptions({ name: 'ApplicationSettingDataPushPage' });
+defineOptions({ name: 'AppSettingDataPushPage' });
 </script>
 
 <template>

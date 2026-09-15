@@ -40,7 +40,7 @@ type WechatAccessToken struct {
 	RefreshToken string `json:"refresh_token"` //User refresh access_token
 	Openid       string `json:"openid"`        //Unique ID of authorized user
 	Scope        string `json:"scope"`         //The scope of user authorization, separated by commas. (,)
-	Unionid      string `json:"unionid"`       //This field will appear if and only if the website application has been authorized by the user's UserInfo.
+	Unionid      string `json:"unionid"`       //This field will appear if and only if the website app has been authorized by the user's UserInfo.
 }
 
 // GetToken use code get access_token (*operation of getting code ought to be done in front)
@@ -118,7 +118,7 @@ type WechatUserInfo struct {
 	Country    string   `json:"country"`    // Country, such as China is CN
 	Headimgurl string   `json:"headimgurl"` // User avatar, the last value represents the size of the square avatar (there are optional values of 0, 46, 64, 96, 132, 0 represents a 640*640 square avatar), this item is empty when the user does not have a avatar
 	Privilege  []string `json:"privilege"`  // User Privilege information, json array, such as Wechat Woka user (chinaunicom)
-	Unionid    string   `json:"unionid"`    // Unified user identification. For an application under a WeChat open platform account, the unionid of the same user is unique.
+	Unionid    string   `json:"unionid"`    // Unified user identification. For an app under a WeChat open platform account, the unionid of the same user is unique.
 }
 
 // GetUserInfo use WechatAccessToken gotten before return WechatUserInfo

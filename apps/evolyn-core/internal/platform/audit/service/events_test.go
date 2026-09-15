@@ -130,7 +130,7 @@ func TestCatalogCategoriesCoversRegisteredEvents(t *testing.T) {
 	} {
 		assert.Contains(t, byCode, code)
 	}
-	assert.NotContains(t, byCode, CategoryProductApplication, "应用管理归属产品日志目录")
+	assert.NotContains(t, byCode, CategoryProductApp, "应用管理归属产品日志目录")
 
 	member := byCode[CategoryMemberManagement]
 	found := false

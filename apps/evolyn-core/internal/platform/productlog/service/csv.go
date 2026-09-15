@@ -48,9 +48,9 @@ func csvLine(fields []string) string {
 func productCSVRows(rows []model.ProductLogRow) [][]string {
 	out := make([][]string, 0, len(rows))
 	for _, row := range rows {
-		application := row.ApplicationNameSnapshot
-		if application == "" {
-			application = "—"
+		app := row.AppNameSnapshot
+		if app == "" {
+			app = "—"
 		}
 		target := row.TargetNameSnapshot
 		if target == "" {
@@ -61,7 +61,7 @@ func productCSVRows(rows []model.ProductLogRow) [][]string {
 			kernel.JSONTime(row.CreatedAt).String(),
 			categoryDisplay(row.CategoryCode),
 			eventDisplay(row.EventCode),
-			application,
+			app,
 			target,
 			summaryDisplay(row.Summary),
 			row.IP,

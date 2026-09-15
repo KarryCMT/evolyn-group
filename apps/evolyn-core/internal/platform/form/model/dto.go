@@ -5,13 +5,13 @@ import (
 )
 
 // CreateFormRequest 创建表单（POST /forms）：formType 在创建时固化，草稿初始化为空协议文档。
-// ParentEntryCode 可选：应用菜单中目标分组的节点编码（侧栏资产 code），
+// ParentMenuCode 可选：应用菜单中目标分组的节点编码（侧栏资产 code），
 // 传入时表单菜单节点挂到该分组下，否则挂应用根级。
 type CreateFormRequest struct {
-	ApplicationID   uint     `json:"applicationId" binding:"required" example:"1"`
-	Name            string   `json:"name" binding:"required" example:"报名表"`
-	FormType        FormType `json:"formType" example:"workflow"`
-	ParentEntryCode string   `json:"parentEntryCode" example:"menu_ab12cd34ef56ab12"`
+	AppID          uint     `json:"appId" binding:"required" example:"1"`
+	Name           string   `json:"name" binding:"required" example:"报名表"`
+	FormType       FormType `json:"formType" example:"workflow"`
+	ParentMenuCode string   `json:"parentMenuCode" example:"menu_ab12cd34ef56ab12"`
 }
 
 // UpdateFormRequest 白名单更新（PATCH /forms/:code）：名称为资产事实源，
@@ -31,12 +31,12 @@ type SwitchFormTypeRequest struct {
 }
 
 // CopyFormRequest 复制表单（POST /forms/:code/copy，ADR-011）：
-// targetApplicationId 为空或等于源应用 → copy-in-app 动作；非空且不同 →
-// copy-cross-app 动作（目标应用须可创建表单）。parentEntryCode 为目标应用
+// targetAppId 为空或等于源应用 → copy-in-app 动作；非空且不同 →
+// copy-cross-app 动作（目标应用须可创建表单）。parentMenuCode 为目标应用
 // 菜单中的目标分组节点编码，为空挂目标应用根级。
 type CopyFormRequest struct {
-	TargetApplicationID *uint  `json:"targetApplicationId" example:"2"`
-	ParentEntryCode     string `json:"parentEntryCode" example:"menu_ab12cd34ef56ab12"`
+	TargetAppID    *uint  `json:"targetAppId" example:"2"`
+	ParentMenuCode string `json:"parentMenuCode" example:"menu_ab12cd34ef56ab12"`
 }
 
 // SaveDraftRequest 保存草稿（PUT /forms/:code/draft）：全量替换 + 乐观锁口令。
@@ -69,7 +69,7 @@ type PublishResult struct {
 
 // FormDetail 表单详情出网（含草稿全文与修订口令）。
 type FormDetail struct {
-	ApplicationID    uint            `json:"applicationId"`
+	AppID            uint            `json:"appId"`
 	Code             string          `json:"code"`
 	Name             string          `json:"name"`
 	FormType         FormType        `json:"formType"`
@@ -83,7 +83,7 @@ type FormDetail struct {
 
 // FormSummary 列表条目（不含草稿全文）。
 type FormSummary struct {
-	ApplicationID    uint            `json:"applicationId"`
+	AppID            uint            `json:"appId"`
 	Code             string          `json:"code"`
 	Name             string          `json:"name"`
 	FormType         FormType        `json:"formType"`
@@ -93,9 +93,9 @@ type FormSummary struct {
 
 // ListFormsQuery 应用内表单列表查询（游标按 id 倒序）。
 type ListFormsQuery struct {
-	ApplicationID uint
-	Limit         int
-	Cursor        string
+	AppID  uint
+	Limit  int
+	Cursor string
 }
 
 // FormPage 游标分页结果。
@@ -148,7 +148,7 @@ type SubmitFieldValue struct {
 // 幂等键、发布双口令及按 widgetName 包装的字段快照共同组成稳定提交协议。
 type SubmitRecordRequest struct {
 	AppCode          string                      `json:"appCode" binding:"required"`
-	EntryCode        string                      `json:"entryCode"`
+	MenuCode         string                      `json:"menuCode"`
 	FormCode         string                      `json:"formCode" binding:"required"`
 	PublishedVersion int                         `json:"publishedVersion" binding:"required"`
 	SchemaRevision   string                      `json:"schemaRevision" binding:"required"`

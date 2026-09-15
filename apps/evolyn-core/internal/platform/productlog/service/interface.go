@@ -25,9 +25,9 @@ const (
 	// memberOptionLimit 操作人筛选项单次拉取上限（产品日志筛选用途足够；
 	// 超出部分随成员选择器分页批演进）
 	memberOptionLimit = 500
-	// applicationOptionLimit 应用筛选项单次拉取上限（应用数受 apps 配额
+	// appOptionLimit 应用筛选项单次拉取上限（应用数受 apps 配额
 	// 约束，上限仅作防御）
-	applicationOptionLimit = 500
+	appOptionLimit = 500
 )
 
 // MemberDirectory 成员目录窄端口：操作人筛选的归属校验与筛选项聚合。
@@ -40,14 +40,14 @@ type MemberDirectory interface {
 	ListMembers(ctx context.Context, tenantID uint) ([]model.MemberOption, error)
 }
 
-// ApplicationDirectory 应用目录窄端口：应用筛选的归属校验与筛选项聚合。
-// 由装配层以 application 仓储适配（本域不反向依赖 application 域）
-type ApplicationDirectory interface {
-	// ValidateApplication 校验应用属于当前租户且未删除；无效时返回
-	// productlog.ErrApplicationInvalid
-	ValidateApplication(ctx context.Context, tenantID, applicationID uint) error
-	// ListApplications 当前租户有效应用清单（筛选项；已删除应用不返回）
-	ListApplications(ctx context.Context, tenantID uint) ([]model.ApplicationOption, error)
+// AppDirectory 应用目录窄端口：应用筛选的归属校验与筛选项聚合。
+// 由装配层以 app 仓储适配（本域不反向依赖 app 域）
+type AppDirectory interface {
+	// ValidateApp 校验应用属于当前租户且未删除；无效时返回
+	// productlog.ErrAppInvalid
+	ValidateApp(ctx context.Context, tenantID, appID uint) error
+	// ListApps 当前租户有效应用清单（筛选项；已删除应用不返回）
+	ListApps(ctx context.Context, tenantID uint) ([]model.AppOption, error)
 }
 
 // ProductLogService 产品日志服务（租户侧只读 + 导出）
@@ -76,7 +76,7 @@ type ProductLogService interface {
 func NewProductLogService(
 	repo repository.Repository,
 	members MemberDirectory,
-	apps ApplicationDirectory,
+	apps AppDirectory,
 	audit auditservice.Recorder,
 ) ProductLogService {
 	return &productLogService{repo: repo, members: members, apps: apps, audit: audit}

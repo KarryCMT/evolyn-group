@@ -132,29 +132,29 @@ func TestAuthorizeAdminGroupGatePartialDenied(t *testing.T) {
 	}
 }
 
-func TestAuthorizeAdminGroupGateApplicationScopes(t *testing.T) {
+func TestAuthorizeAdminGroupGateAppScopes(t *testing.T) {
 	ctx := context.Background()
 	member := &model.User{ID: 42}
 
 	t.Run("可添加删除应用但仅部分应用可编辑", func(t *testing.T) {
 		adminGroups := map[uint]*model.AdminGroup{
-			1: {ID: 1, Scope: model.AdminGroupScopeApplication, ScopeConfig: model.AdminGroupScopeConfig{
-				Application: &model.AdminApplicationScope{Manage: true, ApplicationIDs: []uint{5}},
-				// application 组的部门/角色是分发范围，不授予部门/角色管理
+			1: {ID: 1, Scope: model.AdminGroupScopeApp, ScopeConfig: model.AdminGroupScopeConfig{
+				App: &model.AdminAppScope{Manage: true, AppIDs: []uint{5}},
+				// app 组的部门/角色是分发范围，不授予部门/角色管理
 				Department: &model.AdminDepartmentScope{Enabled: true, Mode: model.AdminScopeAll},
 				Role:       &model.AdminRoleScope{Visible: true, Manage: true, Mode: model.AdminScopeAll},
 			}},
 		}
 		authorizer := newGateAuthorizer(adminGroups, map[uint][]uint{42: {1}}, member)
 
-		ok, err := authorizer.Authorize(ctx, member, gateRI("applications", request.CreateOperation))
+		ok, err := authorizer.Authorize(ctx, member, gateRI("apps", request.CreateOperation))
 		assert.NoError(t, err)
 		assert.True(t, ok)
-		ok, err = authorizer.Authorize(ctx, member, gateRI("applications", request.DeleteOperation))
+		ok, err = authorizer.Authorize(ctx, member, gateRI("apps", request.DeleteOperation))
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		// 非全量应用：编辑动词不放行（具体应用的编辑判定在应用域 evaluator）
-		ok, err = authorizer.Authorize(ctx, member, gateRI("applications", request.UpdateOperation))
+		ok, err = authorizer.Authorize(ctx, member, gateRI("apps", request.UpdateOperation))
 		assert.NoError(t, err)
 		assert.False(t, ok)
 		// 分发范围不等于通讯录管理权
@@ -168,17 +168,17 @@ func TestAuthorizeAdminGroupGateApplicationScopes(t *testing.T) {
 
 	t.Run("全部应用可编辑", func(t *testing.T) {
 		adminGroups := map[uint]*model.AdminGroup{
-			1: {ID: 1, Scope: model.AdminGroupScopeApplication, ScopeConfig: model.AdminGroupScopeConfig{
-				Application: &model.AdminApplicationScope{AllApplications: true},
+			1: {ID: 1, Scope: model.AdminGroupScopeApp, ScopeConfig: model.AdminGroupScopeConfig{
+				App: &model.AdminAppScope{AllApps: true},
 			}},
 		}
 		authorizer := newGateAuthorizer(adminGroups, map[uint][]uint{42: {1}}, member)
 
-		ok, err := authorizer.Authorize(ctx, member, gateRI("applications", request.UpdateOperation))
+		ok, err := authorizer.Authorize(ctx, member, gateRI("apps", request.UpdateOperation))
 		assert.NoError(t, err)
 		assert.True(t, ok)
 		// Manage 未开：增删拒绝
-		ok, err = authorizer.Authorize(ctx, member, gateRI("applications", request.CreateOperation))
+		ok, err = authorizer.Authorize(ctx, member, gateRI("apps", request.CreateOperation))
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})

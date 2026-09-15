@@ -48,7 +48,7 @@ type definitionService struct {
 	access   AccessEvaluator
 	audit    auditservice.Recorder
 	// apps 应用目录窄端口（000064：审计应用维度快照）；nil=跳过快照
-	apps ApplicationDirectory
+	apps AppDirectory
 	// validator 引擎严格校验器（无状态，构造一次复用）；发布前的 Expr
 	// 预编译经 enginedefinition.Compile 独立把关（双保险：校验 + 编译）
 	validator *enginedefinition.Validator
@@ -62,7 +62,7 @@ func NewDefinitionService(
 	versions repository.VersionRepository,
 	access AccessEvaluator,
 	audit auditservice.Recorder,
-	apps ...ApplicationDirectory,
+	apps ...AppDirectory,
 ) DefinitionService {
 	svc := &definitionService{
 		tx:        tx,
@@ -86,7 +86,7 @@ func (s *definitionService) appSnapshot(ctx context.Context, formCode string) (i
 	if s.apps == nil || strings.TrimSpace(formCode) == "" {
 		return 0, "", ""
 	}
-	app, notFound, err := s.apps.ApplicationByFormCode(ctx, formCode)
+	app, notFound, err := s.apps.AppByFormCode(ctx, formCode)
 	if err != nil || notFound {
 		return 0, "", ""
 	}
@@ -317,13 +317,13 @@ func (s *definitionService) Update(ctx context.Context, member *iammodel.User, c
 		appID, appCode, appName := s.appSnapshot(ctx, def.FormCode)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "workflow", Action: "update", ResourceType: "workflow",
-			ResourceID:      def.Code,
-			Before:          map[string]any{"name": def.Name, "description": def.Description},
-			After:           map[string]any{"name": name, "description": description},
-			TargetName:      name,
-			ApplicationID:   appID,
-			ApplicationCode: appCode,
-			ApplicationName: appName,
+			ResourceID: def.Code,
+			Before:     map[string]any{"name": def.Name, "description": def.Description},
+			After:      map[string]any{"name": name, "description": description},
+			TargetName: name,
+			AppID:      appID,
+			AppCode:    appCode,
+			AppName:    appName,
 		})
 	}
 	return s.Get(ctx, member, code)
@@ -365,12 +365,12 @@ func (s *definitionService) SaveDraft(ctx context.Context, member *iammodel.User
 		appID, appCode, appName := s.appSnapshot(ctx, def.FormCode)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "workflow", Action: "update-draft", ResourceType: "workflow",
-			ResourceID:      def.Code,
-			After:           map[string]any{"draftRevision": req.DraftRevision + 1},
-			TargetName:      def.Name,
-			ApplicationID:   appID,
-			ApplicationCode: appCode,
-			ApplicationName: appName,
+			ResourceID: def.Code,
+			After:      map[string]any{"draftRevision": req.DraftRevision + 1},
+			TargetName: def.Name,
+			AppID:      appID,
+			AppCode:    appCode,
+			AppName:    appName,
 		})
 	}
 	return &model.SaveDraftResult{DraftRevision: req.DraftRevision + 1}, nil

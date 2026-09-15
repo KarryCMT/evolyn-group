@@ -11,15 +11,15 @@ import (
 )
 
 // 产品日志日志范围（category_code 稳定编码）：与产品日志页筛选项文案一一
-// 对应，只增不改（改码会导致历史行筛选失效）。application 与企业日志历史
+// 对应，只增不改（改码会导致历史行筛选失效）。app 与企业日志历史
 // 分类同名——应用本体操作自 000064 起归产品日志，企业日志目录不再含该分类
 const (
-	CategoryProductApplication     = "application"      // 应用管理
-	CategoryProductApplicationMenu = "application_menu" // 菜单配置
-	CategoryProductForm            = "form"             // 表单管理
-	CategoryProductWorkflow        = "workflow"         // 流程管理
-	CategoryProductData            = "data"             // 应用数据
-	CategoryProductAppPermission   = "app_permission"   // 应用权限
+	CategoryProductApp           = "app"            // 应用管理
+	CategoryProductAppMenu       = "app_menu"       // 菜单配置
+	CategoryProductForm          = "form"           // 表单管理
+	CategoryProductWorkflow      = "workflow"       // 流程管理
+	CategoryProductData          = "data"           // 应用数据
+	CategoryProductAppPermission = "app_permission" // 应用权限
 )
 
 // 产品分类展示顺序（产品日志筛选项按此排序）与展示名
@@ -27,8 +27,8 @@ var productCategoryCatalog = []struct {
 	Code string
 	Name string
 }{
-	{CategoryProductApplication, "应用管理"},
-	{CategoryProductApplicationMenu, "菜单配置"},
+	{CategoryProductApp, "应用管理"},
+	{CategoryProductAppMenu, "菜单配置"},
 	{CategoryProductForm, "表单管理"},
 	{CategoryProductWorkflow, "流程管理"},
 	{CategoryProductData, "应用数据"},

@@ -29,9 +29,9 @@ import (
 	"evolyn/internal/engine/workflow/executor"
 	wfprovider "evolyn/internal/engine/workflow/provider"
 	engineruntime "evolyn/internal/engine/workflow/runtime"
-	applicationcontroller "evolyn/internal/platform/application/controller"
-	applicationrepository "evolyn/internal/platform/application/repository"
-	applicationservice "evolyn/internal/platform/application/service"
+	appcontroller "evolyn/internal/platform/app/controller"
+	apprepository "evolyn/internal/platform/app/repository"
+	appservice "evolyn/internal/platform/app/service"
 	auditrepository "evolyn/internal/platform/audit/repository"
 	auditservice "evolyn/internal/platform/audit/service"
 	"evolyn/internal/platform/auth"
@@ -160,8 +160,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	iamRepo := repository.NewRepositories(db, rdb)
 	// 应用域仓储先于配额服务装配：apps 计量面（CountBillableByTenant）随
 	// 应用域落地接入 QuotaService（M2-A）；菜单仓储随 M2-菜单-1 接入
-	applicationRepo := applicationrepository.NewRepository(db)
-	menuRepo := applicationrepository.NewMenuRepository(db)
+	appRepo := apprepository.NewRepository(db)
+	menuRepo := apprepository.NewMenuRepository(db)
 	fileRepo := filerepository.NewRepository(db)
 	// 版本信息域仓储（一期）：与各域仓储同批创建，dev AutoMigrate 块可用
 	editionRepo := editionrepository.NewRepository(db)
@@ -214,7 +214,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 		if err := iamRepo.Migrate(); err != nil {
 			return nil, err
 		}
-		if err := applicationRepo.Migrate(); err != nil {
+		if err := appRepo.Migrate(); err != nil {
 			return nil, err
 		}
 		if err := menuRepo.Migrate(); err != nil {
@@ -296,7 +296,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// （FIX-020/021：核心写路径经 TxManager 声明原子边界）。审计注入操作者
 	// 显示名解析端口（企业日志展示快照，000036）：iam 成员仓储适配
 	auditSvc := auditservice.NewService(auditRepo, auditActorNamer{users: iamRepo.User()})
-	quotaSvc := tenantservice.NewQuotaService(tenantRepo, tenantRepo, iamRepo.User(), applicationRepo, fileRepo)
+	quotaSvc := tenantservice.NewQuotaService(tenantRepo, tenantRepo, iamRepo.User(), appRepo, fileRepo)
 	// 表单配额键（forms）随表单域落地接入计量面（ADR-010）；注入失败属装配
 	// 错误直接返回，不允许「表面配置了配额实际不生效」
 	if injector, ok := quotaSvc.(tenantservice.QuotaFormCounterInjector); ok {
@@ -311,7 +311,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// 版本信息域服务（一期）：先于租户服务装配——开通事务要经
 	// SubscriptionSeeder 补种初始订阅；QuotaService 经守卫在到期窗口改读
 	// 统一权益解析结果（设计 4.4.1）
-	editionService := editionservice.NewEditionService(txManager, editionRepo, tenantRepo, auditSvc, iamRepo.User(), applicationRepo, fileRepo)
+	editionService := editionservice.NewEditionService(txManager, editionRepo, tenantRepo, auditSvc, iamRepo.User(), appRepo, fileRepo)
 	if injector, ok := quotaSvc.(tenantservice.QuotaGuardInjector); ok {
 		injector.UseExpiryGuard(editionService)
 	}
@@ -333,7 +333,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// iam 不能反向依赖应用域（应用域已依赖 iam 鉴权），装配层逐 ID 探测
 	adminGroupService := service.NewAdminGroupService(
 		txManager, iamRepo.AdminGroup(), iamRepo.User(), iamRepo.Department(), iamRepo.RBAC(),
-		adminGroupApplicationCatalog{applications: applicationRepo}, tenantRepo, auditSvc,
+		adminGroupAppCatalog{apps: appRepo}, tenantRepo, auditSvc,
 	)
 
 	// 产品中心域服务（一期）：版本投影经窄端口只读消费 edition 服务；
@@ -401,14 +401,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	organizationRoleService := service.NewOrganizationRoleService(txManager, iamRepo.RBAC(), iamRepo.RoleGroup(), iamRepo.User(), userService, auditSvc)
 	// 应用域服务（M2-A）：空白应用创建/查询/更新/软删 + 配额占位；
 	// 访问判定与鉴权中间件同源（按 ID 重载成员 + authenticated 系统组）
-	appAccess := applicationservice.NewRBACAccessEvaluator(iamRepo.User(), iamRepo.Group())
-	applicationService := applicationservice.NewApplicationService(txManager, applicationRepo, quotaSvc, auditSvc, appAccess)
+	appAccess := appservice.NewRBACAccessEvaluator(iamRepo.User(), iamRepo.Group())
+	appService := appservice.NewAppService(txManager, appRepo, quotaSvc, auditSvc, appAccess)
 	// 消息中心域（000039）：收件箱/设置服务 + 事务 Outbox 发布端口与扇出
 	// Dispatcher（成员目录/系统管理员解析经窄端口适配，域内不依赖 iam 具体
 	// Service）；应用域事件发布器随 Dispatcher 前装配注入
 	notificationEventPublisher := notificationservice.NewEventPublisher(notificationOutboxRepo)
-	if injector, ok := applicationService.(applicationservice.AssetNotifierInjector); ok {
-		injector.UseAssetNotifier(applicationAssetNotifier{publisher: notificationEventPublisher})
+	if injector, ok := appService.(appservice.AssetNotifierInjector); ok {
+		injector.UseAssetNotifier(appAssetNotifier{publisher: notificationEventPublisher})
 	}
 	notificationDispatcher := notificationservice.NewDispatcher(
 		txManager, notificationOutboxRepo, notificationMessageRepo, notificationSettingRepo,
@@ -435,7 +435,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	}
 	// 应用菜单服务：读取与分组创建复用应用域权限评估器；分组写入经统一
 	// 事务、menuRevision 乐观锁和提交后审计保证一致性。
-	menuService := applicationservice.NewMenuService(txManager, menuRepo, auditSvc, appAccess)
+	menuService := appservice.NewMenuService(txManager, menuRepo, auditSvc, appAccess)
 	var storageStore objectstore.Store
 	if conf.Storage.Enabled {
 		storageStore, err = objectstore.NewRustFS(conf.Storage)
@@ -501,8 +501,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	organizationRoleController := iamcontroller.NewOrganizationRoleController(organizationRoleService)
 	tenantController := tenantcontroller.NewTenantController(tenantService)
 	tenantProfileController := tenantcontroller.NewTenantProfileController(tenantService)
-	applicationController := applicationcontroller.NewApplicationController(applicationService)
-	menuController := applicationcontroller.NewMenuController(menuService)
+	appController := appcontroller.NewAppController(appService)
+	menuController := appcontroller.NewMenuController(menuService)
 	fileController := filecontroller.NewFileController(fileService)
 	editionController := editioncontroller.NewEditionController(editionService)
 	platformEditionController := editioncontroller.NewPlatformEditionController(editionService)
@@ -526,30 +526,30 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	enterpriseLogController := enterpriselogcontroller.NewEnterpriseLogController(enterpriseLogService, authorizer)
 
 	// 产品日志域（000064）：应用内操作流水只读查询 + 导出编排；成员/应用
-	// 目录与下载复核经窄端口适配（域间不直接耦合 iam/application）
+	// 目录与下载复核经窄端口适配（域间不直接耦合 iam/app）
 	productLogService := productlogservice.NewProductLogService(
 		productLogRepo,
 		productLogMemberDirectory{users: iamRepo.User()},
-		productLogApplicationDirectory{applications: applicationRepo},
+		productLogAppDirectory{apps: appRepo},
 		auditSvc,
 	)
 	productLogController := productlogcontroller.NewProductLogController(productLogService, authorizer)
 
 	// M2-资产-1：菜单读侧接入表单目录（存在性裁剪 + target 投影），
-	// 由表单仓储经装配层适配，application 域不依赖 form 域
-	if injector, ok := menuService.(applicationservice.MenuFormDirectoryInjector); ok {
+	// 由表单仓储经装配层适配，app 域不依赖 form 域
+	if injector, ok := menuService.(appservice.MenuFormDirectoryInjector); ok {
 		injector.UseFormDirectory(formMenuDirectory{forms: formRepo})
 	}
 
 	// 表单资产域（ADR-010）：草稿/发布/提交；权限集、应用只读目录与菜单
-	// 节点维护端口均经窄端口适配（域间不直接耦合 application），访问判定
+	// 节点维护端口均经窄端口适配（域间不直接耦合 app），访问判定
 	// 与鉴权中间件同源
-	formMenuMaintenance := applicationservice.NewMenuMaintenanceService(menuRepo)
+	formMenuMaintenance := appservice.NewMenuMaintenanceService(menuRepo)
 	formService := formservice.NewFormService(
 		txManager, formRepo, formVersionRepo, formRecordRepo, quotaSvc, auditSvc,
-		appAccess, formApplicationDirectory{applications: applicationRepo}, formMenuMaintenance,
+		appAccess, formAppDirectory{apps: appRepo}, formMenuMaintenance,
 	)
-	// 引用视图只读端口（ADR-011）：form 域不反向依赖 application 域，装配层
+	// 引用视图只读端口（ADR-011）：form 域不反向依赖 app 域，装配层
 	// 以菜单仓储桥接（跨应用反查引用指定表单的菜单节点）
 	if injector, ok := formService.(formservice.FormReferenceSourceInjector); ok {
 		injector.UseReferenceSource(formReferenceSource{menu: menuRepo})
@@ -591,13 +591,13 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	}
 	// 菜单读侧权限裁剪端口（S5/S8）：成员侧表单节点按入口判定（view ∨ add）
 	// 二次裁剪，装配模式同 FormDirectory
-	if injector, ok := menuService.(applicationservice.FormPermissionDirectoryInjector); ok {
+	if injector, ok := menuService.(appservice.FormPermissionDirectoryInjector); ok {
 		injector.UseFormPermissionDirectory(formPermissionDirectory{evaluator: formPermEvaluator})
 	}
 	permissionGroupService := formservice.NewPermissionGroupService(
 		txManager, formPermRepo, formRepo, formVersionRepo, auditSvc, appAccess,
 		formPermissionSubjectDirectory{users: iamRepo.User(), departments: iamRepo.Department(), rbac: iamRepo.RBAC()},
-		formApplicationDirectory{applications: applicationRepo},
+		formAppDirectory{apps: appRepo},
 	)
 	permissionGroupController := formcontroller.NewPermissionGroupController(permissionGroupService)
 	formController := formcontroller.NewFormController(formService)
@@ -606,7 +606,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// DSL 校验以引擎内核严格校验器为唯一事实源，权限集经窄端口与鉴权同源
 	workflowService := workflowservice.NewDefinitionService(
 		txManager, workflowDefinitionRepo, workflowVersionRepo, appAccess, auditSvc,
-		workflowApplicationDirectory{forms: formRepo, applications: applicationRepo},
+		workflowAppDirectory{forms: formRepo, apps: appRepo},
 	)
 	workflowController := workflowcontroller.NewWorkflowController(workflowService)
 
@@ -672,7 +672,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// 自定义工作台域（000077）控制器：成员个人配置，挂租户域链
 	workbenchController := workbenchcontroller.NewWorkbenchController(workbenchSvc)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, productLogController, formController, permissionGroupController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController, workbenchController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, appController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, productLogController, formController, permissionGroupController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController, workbenchController}
 
 	// 流程延时任务 Worker（Phase 5，000052）：超时自动动作/待办提醒，
 	// 领取走 FOR UPDATE SKIP LOCKED，claim+执行同事务（crash 自动回滚），
@@ -689,7 +689,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	formDDLExecutor := dynamicddl.NewExecutor(db)
 	formDDLWorker := formworker.NewDDLJobWorker(
 		txManager, formDDLJobRepo, formSchemaVersionRepo, formStorageRepo,
-		formVersionRepo, formRepo, formDDLExecutor, logger, appNameDirectory{repo: applicationRepo},
+		formVersionRepo, formRepo, formDDLExecutor, logger, appNameDirectory{repo: appRepo},
 	)
 
 	// 注销数据清理任务（FIX-012）：随服务生命周期启停
@@ -898,16 +898,16 @@ func (s *Server) getRoutes() []string {
 	return paths.Slice()
 }
 
-// adminGroupApplicationCatalog 管理组应用清单窄端口适配器：iam 域不能反向
+// adminGroupAppCatalog 管理组应用清单窄端口适配器：iam 域不能反向
 // 依赖应用域（应用域已依赖 iam 鉴权），装配层以逐 ID 探测桥接；选择器提交
 // 的 ID 集合有限且租户应用为配额内规模，逐个 GetByID 足够（跨租户/已删 ID
 // 经 Callback 过滤为 NotFound → false）
-type adminGroupApplicationCatalog struct {
-	applications applicationrepository.ApplicationRepository
+type adminGroupAppCatalog struct {
+	apps apprepository.AppRepository
 }
 
-func (c adminGroupApplicationCatalog) Exists(ctx context.Context, id uint) (bool, error) {
-	_, err := c.applications.GetByID(ctx, id)
+func (c adminGroupAppCatalog) Exists(ctx context.Context, id uint) (bool, error) {
+	_, err := c.apps.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return false, nil
@@ -917,20 +917,20 @@ func (c adminGroupApplicationCatalog) Exists(ctx context.Context, id uint) (bool
 	return true, nil
 }
 
-// formMenuDirectory 菜单读侧的表单目录窄端口适配：application 域不反向
+// formMenuDirectory 菜单读侧的表单目录窄端口适配：app 域不反向
 // 依赖 form 域，装配层以表单仓储桥接（批量存在性查询）
 type formMenuDirectory struct {
 	forms formrepository.FormRepository
 }
 
-func (d formMenuDirectory) ExistingFormTargets(ctx context.Context, ids []uint) (map[uint]applicationservice.FormTargetProjection, error) {
+func (d formMenuDirectory) ExistingFormTargets(ctx context.Context, ids []uint) (map[uint]appservice.FormTargetProjection, error) {
 	forms, err := d.forms.ExistingFormTargets(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	targets := make(map[uint]applicationservice.FormTargetProjection, len(forms))
+	targets := make(map[uint]appservice.FormTargetProjection, len(forms))
 	for id, form := range forms {
-		targets[id] = applicationservice.FormTargetProjection{
+		targets[id] = appservice.FormTargetProjection{
 			Code:     form.Code,
 			FormType: string(form.FormType),
 		}
@@ -939,7 +939,7 @@ func (d formMenuDirectory) ExistingFormTargets(ctx context.Context, ids []uint) 
 }
 
 // formPermissionDirectory 菜单读侧的表单权限裁剪窄端口适配（表单权限 P1，
-// S5/S8）：application 域不反向依赖 form 域，装配层以权限组判定器桥接；
+// S5/S8）：app 域不反向依赖 form 域，装配层以权限组判定器桥接；
 // 成员仅以 ID 壳传入——判定器内部经权限集窄端口/主体窄端口按 ID 重载真实
 // 身份（不信任调用方快照）
 type formPermissionDirectory struct {
@@ -1108,18 +1108,18 @@ func (d formPermissionSubjectDirectory) SubjectNames(
 	return names, nil
 }
 
-// formApplicationDirectory 表单域的应用只读目录窄端口适配：form 域不直接依赖
-// application 域，装配层以应用仓储桥接；GetByID/GetByCode 经 ctx 租户过滤，
+// formAppDirectory 表单域的应用只读目录窄端口适配：form 域不直接依赖
+// app 域，装配层以应用仓储桥接；GetByID/GetByCode 经 ctx 租户过滤，
 // 跨租户即 NotFound（与 form 域 ErrFormAppInvalid 口径一致）
-type formApplicationDirectory struct {
-	applications applicationrepository.ApplicationRepository
+type formAppDirectory struct {
+	apps apprepository.AppRepository
 }
 
-// formReferenceSource 表单引用视图只读窄端口适配（ADR-011）：application
+// formReferenceSource 表单引用视图只读窄端口适配（ADR-011）：app
 // 域不反向依赖 form 域，装配层以菜单仓储桥接；租户上下文由请求 ctx 承载，
 // 仓储查询显式携带租户条件
 type formReferenceSource struct {
-	menu applicationrepository.MenuRepository
+	menu apprepository.MenuRepository
 }
 
 // workflowFormDirectory 流程引擎的表单目录窄端口适配（ADR-012）：把
@@ -1180,36 +1180,36 @@ func (s formReferenceSource) ListFormReferences(ctx context.Context, formID uint
 	references := make([]formservice.FormReference, 0, len(rows))
 	for _, row := range rows {
 		references = append(references, formservice.FormReference{
-			ApplicationCode: row.ApplicationCode,
-			ApplicationName: row.ApplicationName,
-			EntryID:         row.EntryCode,
-			EntryName:       row.EntryName,
-			ParentEntryID:   row.ParentEntryCode,
+			AppCode:      row.AppCode,
+			AppName:      row.AppName,
+			MenuID:       row.MenuCode,
+			EntryName:    row.EntryName,
+			ParentMenuID: row.ParentMenuCode,
 		})
 	}
 	return references, nil
 }
 
-func (d formApplicationDirectory) ApplicationByID(ctx context.Context, id uint) (formservice.ApplicationView, bool, error) {
-	app, err := d.applications.GetByID(ctx, id)
+func (d formAppDirectory) AppByID(ctx context.Context, id uint) (formservice.AppView, bool, error) {
+	app, err := d.apps.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return formservice.ApplicationView{}, true, nil
+			return formservice.AppView{}, true, nil
 		}
-		return formservice.ApplicationView{}, false, err
+		return formservice.AppView{}, false, err
 	}
-	return formservice.ApplicationView{ID: app.ID, Status: app.Status, Code: app.Code, Name: app.Name}, false, nil
+	return formservice.AppView{ID: app.ID, Status: app.Status, Code: app.Code, Name: app.Name}, false, nil
 }
 
-func (d formApplicationDirectory) ApplicationByCode(ctx context.Context, code string) (formservice.ApplicationView, bool, error) {
-	app, err := d.applications.GetByCode(ctx, code)
+func (d formAppDirectory) AppByCode(ctx context.Context, code string) (formservice.AppView, bool, error) {
+	app, err := d.apps.GetByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return formservice.ApplicationView{}, true, nil
+			return formservice.AppView{}, true, nil
 		}
-		return formservice.ApplicationView{}, false, err
+		return formservice.AppView{}, false, err
 	}
-	return formservice.ApplicationView{ID: app.ID, Status: app.Status, Code: app.Code, Name: app.Name}, false, nil
+	return formservice.AppView{ID: app.ID, Status: app.Status, Code: app.Code, Name: app.Name}, false, nil
 }
 
 // auditActorNamer 审计操作者显示名解析窄端口适配（000036 企业日志）：
@@ -1280,66 +1280,66 @@ func (d productLogMemberDirectory) ListMembers(ctx context.Context, tenantID uin
 	return options, nil
 }
 
-// productLogApplicationDirectory 产品日志应用目录窄端口适配（000064）：
+// productLogAppDirectory 产品日志应用目录窄端口适配（000064）：
 // 应用筛选的归属校验与筛选项聚合。校验以租户上下文包裹后经应用仓储查询
-// （跨租户/软删应用 NotFound → ErrApplicationInvalid）；筛选项仅返回有效
+// （跨租户/软删应用 NotFound → ErrAppInvalid）；筛选项仅返回有效
 // 应用——已删除应用只在列表结果中按快照展示，不作为可选筛选项
-type productLogApplicationDirectory struct {
-	applications applicationrepository.ApplicationRepository
+type productLogAppDirectory struct {
+	apps apprepository.AppRepository
 }
 
-func (d productLogApplicationDirectory) ValidateApplication(ctx context.Context, tenantID, applicationID uint) error {
-	if _, err := d.applications.GetByID(contextx.NewTenantContext(ctx, tenantID), applicationID); err != nil {
+func (d productLogAppDirectory) ValidateApp(ctx context.Context, tenantID, appID uint) error {
+	if _, err := d.apps.GetByID(contextx.NewTenantContext(ctx, tenantID), appID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return productlogapperrors.ErrApplicationInvalid
+			return productlogapperrors.ErrAppInvalid
 		}
 		return httpx.Wrap(httpx.NewBiz(httpx.CodeInternalServer, "应用校验失败", http.StatusInternalServerError), err)
 	}
 	return nil
 }
 
-func (d productLogApplicationDirectory) ListApplications(ctx context.Context, tenantID uint) ([]productlogmodel.ApplicationOption, error) {
+func (d productLogAppDirectory) ListApps(ctx context.Context, tenantID uint) ([]productlogmodel.AppOption, error) {
 	const optionLimit = 500
-	apps, _, err := d.applications.List(
+	apps, _, err := d.apps.List(
 		contextx.NewTenantContext(ctx, tenantID),
-		applicationrepository.ListParams{Limit: optionLimit},
+		apprepository.ListParams{Limit: optionLimit},
 	)
 	if err != nil {
 		return nil, httpx.Wrap(httpx.NewBiz(httpx.CodeInternalServer, "应用清单读取失败", http.StatusInternalServerError), err)
 	}
-	options := make([]productlogmodel.ApplicationOption, 0, len(apps))
+	options := make([]productlogmodel.AppOption, 0, len(apps))
 	for _, app := range apps {
-		options = append(options, productlogmodel.ApplicationOption{
-			ApplicationID: app.ID, Code: app.Code, Name: app.Name,
+		options = append(options, productlogmodel.AppOption{
+			AppID: app.ID, Code: app.Code, Name: app.Name,
 		})
 	}
 	return options, nil
 }
 
-// workflowApplicationDirectory 流程域应用目录窄端口适配（000064）：流程
-// 定义经 form_code 绑定表单，装配层以 form+application 仓储链式解析所属
+// workflowAppDirectory 流程域应用目录窄端口适配（000064）：流程
+// 定义经 form_code 绑定表单，装配层以 form+app 仓储链式解析所属
 // 应用视图（任一环 NotFound 均按 notFound 透出，审计跳过快照不阻断）
-type workflowApplicationDirectory struct {
-	forms        formrepository.FormRepository
-	applications applicationrepository.ApplicationRepository
+type workflowAppDirectory struct {
+	forms formrepository.FormRepository
+	apps  apprepository.AppRepository
 }
 
-func (d workflowApplicationDirectory) ApplicationByFormCode(ctx context.Context, formCode string) (workflowservice.ApplicationView, bool, error) {
+func (d workflowAppDirectory) AppByFormCode(ctx context.Context, formCode string) (workflowservice.AppView, bool, error) {
 	form, err := d.forms.GetByCode(ctx, formCode)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return workflowservice.ApplicationView{}, true, nil
+			return workflowservice.AppView{}, true, nil
 		}
-		return workflowservice.ApplicationView{}, false, err
+		return workflowservice.AppView{}, false, err
 	}
-	app, err := d.applications.GetByID(ctx, form.ApplicationID)
+	app, err := d.apps.GetByID(ctx, form.AppID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return workflowservice.ApplicationView{}, true, nil
+			return workflowservice.AppView{}, true, nil
 		}
-		return workflowservice.ApplicationView{}, false, err
+		return workflowservice.AppView{}, false, err
 	}
-	return workflowservice.ApplicationView{ID: app.ID, Code: app.Code, Name: app.Name}, false, nil
+	return workflowservice.AppView{ID: app.ID, Code: app.Code, Name: app.Name}, false, nil
 }
 
 // notificationMemberDirectory 消息中心成员目录窄端口适配：扇出前的成员
@@ -1391,19 +1391,19 @@ func (r notificationAdminResolver) ResolveAdminMemberIDs(ctx context.Context, te
 	return ids, nil
 }
 
-// applicationAssetNotifier 应用资产变更事件窄端口适配：application 域不
+// appAssetNotifier 应用资产变更事件窄端口适配：app 域不
 // 直接依赖 notification 域，装配层转发到事务 Outbox 发布端口；事件码与
 // 参数 Schema 由 notification 事件注册表终审
-type applicationAssetNotifier struct {
+type appAssetNotifier struct {
 	publisher notificationservice.EventPublisher
 }
 
-func (n applicationAssetNotifier) NotifyAssetChanged(
+func (n appAssetNotifier) NotifyAssetChanged(
 	ctx context.Context, eventID, verb, appCode, appName string, actorMemberID uint,
 ) error {
 	return n.publisher.PublishInTx(ctx, notificationservice.EventInput{
 		EventID:       eventID,
-		EventCode:     "application.asset.changed",
+		EventCode:     "app.asset.changed",
 		ActorMemberID: actorMemberID,
 		Parameters: map[string]string{
 			"appName": appName,
@@ -1551,10 +1551,10 @@ func (a formProjectionPort) UpdateWorkflowProjection(ctx context.Context, record
 // appNameDirectory 应用名称窄端口适配（000070）：动态表注释快照用，查不到
 // 返回空串（注释回落表单维度），绝不阻断 DDL。
 type appNameDirectory struct {
-	repo applicationrepository.ApplicationRepository
+	repo apprepository.AppRepository
 }
 
-func (d appNameDirectory) ApplicationNameByID(ctx context.Context, appID uint) string {
+func (d appNameDirectory) AppNameByID(ctx context.Context, appID uint) string {
 	app, err := d.repo.GetByID(ctx, appID)
 	if err != nil {
 		return ""

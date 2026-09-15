@@ -9,8 +9,8 @@ import (
 // adminPerms 租户管理员权限集：URL 门全量 + form-actions 全量。
 func adminPerms() map[string]bool {
 	return map[string]bool{
-		"applications:create": true, "applications:get": true, "applications:list": true,
-		"applications:update": true, "applications:patch": true, "applications:delete": true,
+		"apps:create": true, "apps:get": true, "apps:list": true,
+		"apps:update": true, "apps:patch": true, "apps:delete": true,
 		"forms:create": true, "forms:get": true, "forms:list": true,
 		"forms:update": true, "forms:patch": true, "forms:delete": true,
 		"form-actions:switch-type": true, "form-actions:copy-in-app": true,
@@ -51,15 +51,15 @@ func TestMenuActionsOfGrantsAreAND(t *testing.T) {
 	assert.False(t, actions[MenuActionSwitchType])
 	assert.False(t, actions[MenuActionCopyInApp])
 	assert.False(t, actions[MenuActionCopyCrossApp])
-	// 隐藏还需要菜单管理门（applications:patch）
+	// 隐藏还需要菜单管理门（apps:patch）
 	perms["forms:create"] = true
-	delete(perms, "applications:patch")
+	delete(perms, "apps:patch")
 	assert.False(t, MenuActionsOf(perms, "form")[MenuActionHide])
 }
 
 func TestMenuActionsOfInsufficientMember(t *testing.T) {
 	// 普通成员（authenticated 基线）：无任何管理/动作授权，动作全 false
-	perms := map[string]bool{"applications:get": true, "form-records:create": true}
+	perms := map[string]bool{"apps:get": true, "form-records:create": true}
 	for _, assetType := range []string{"group", "form"} {
 		for code, granted := range MenuActionsOf(perms, assetType) {
 			assert.False(t, granted, "action %s on %s should be denied", code, assetType)
@@ -71,7 +71,7 @@ func TestMenuActionsOfPartialGrants(t *testing.T) {
 	// 只授予切换类型与隐藏动作（自定义角色场景）：其余动作保持拒绝
 	perms := map[string]bool{
 		"forms:create":             true,
-		"applications:patch":       true,
+		"apps:patch":               true,
 		"form-actions:switch-type": true,
 		"form-actions:hide":        true,
 	}

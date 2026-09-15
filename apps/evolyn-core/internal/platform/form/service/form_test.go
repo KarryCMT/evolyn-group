@@ -90,34 +90,34 @@ type fakeMenuPort struct {
 	}
 }
 
-func (f *fakeMenuPort) AttachFormEntry(ctx context.Context, applicationID, formID uint, name, parentEntryCode string) error {
+func (f *fakeMenuPort) AttachFormEntry(ctx context.Context, appID, formID uint, name, parentMenuCode string) error {
 	f.attached = append(f.attached, struct {
 		appID  uint
 		formID uint
 		name   string
 		parent string
-	}{applicationID, formID, name, parentEntryCode})
+	}{appID, formID, name, parentMenuCode})
 	return nil
 }
 
-func (f *fakeMenuPort) SyncFormEntryName(ctx context.Context, applicationID, formID uint, name string) error {
+func (f *fakeMenuPort) SyncFormEntryName(ctx context.Context, appID, formID uint, name string) error {
 	f.renamed = append(f.renamed, struct {
 		appID  uint
 		formID uint
 		name   string
-	}{applicationID, formID, name})
+	}{appID, formID, name})
 	return nil
 }
 
-func (f *fakeMenuPort) SyncFormEntryAppearance(ctx context.Context, applicationID, formID uint, icon, color string) error {
+func (f *fakeMenuPort) SyncFormEntryAppearance(ctx context.Context, appID, formID uint, icon, color string) error {
 	return nil
 }
 
-func (f *fakeMenuPort) DetachFormEntry(ctx context.Context, applicationID, formID uint) error {
+func (f *fakeMenuPort) DetachFormEntry(ctx context.Context, appID, formID uint) error {
 	f.detached = append(f.detached, struct {
 		appID  uint
 		formID uint
-	}{applicationID, formID})
+	}{appID, formID})
 	return nil
 }
 
@@ -126,20 +126,20 @@ type fakeApps struct {
 	codeToID map[string]uint
 }
 
-func (f fakeApps) ApplicationByID(ctx context.Context, id uint) (ApplicationView, bool, error) {
+func (f fakeApps) AppByID(ctx context.Context, id uint) (AppView, bool, error) {
 	status, ok := f.apps[id]
 	if !ok {
-		return ApplicationView{}, true, nil
+		return AppView{}, true, nil
 	}
-	return ApplicationView{ID: id, Status: status}, false, nil
+	return AppView{ID: id, Status: status}, false, nil
 }
 
-func (f fakeApps) ApplicationByCode(ctx context.Context, code string) (ApplicationView, bool, error) {
+func (f fakeApps) AppByCode(ctx context.Context, code string) (AppView, bool, error) {
 	id, ok := f.codeToID[code]
 	if !ok {
-		return ApplicationView{}, true, nil
+		return AppView{}, true, nil
 	}
-	return f.ApplicationByID(ctx, id)
+	return f.AppByID(ctx, id)
 }
 
 type fakeFormRepo struct {
@@ -421,7 +421,7 @@ func TestCreateForm(t *testing.T) {
 	svc := newTestService(quota, formRepo, newFakeVersionRepo(), &fakeRecordRepo{}, nil)
 
 	detail, err := svc.Create(tenantCtx(1), memberOfTenant(1), &model.CreateFormRequest{
-		ApplicationID: 7, Name: "报名表", FormType: model.FormTypeWorkflow,
+		AppID: 7, Name: "报名表", FormType: model.FormTypeWorkflow,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, "报名表", detail.Name)
@@ -438,39 +438,39 @@ func TestCreateForm(t *testing.T) {
 
 	// 表单类型必须由创建请求明确给出，未知值不能进入数据库。
 	_, err = svc.Create(tenantCtx(1), memberOfTenant(1), &model.CreateFormRequest{
-		ApplicationID: 7, Name: "类型错误", FormType: model.FormType("unknown"),
+		AppID: 7, Name: "类型错误", FormType: model.FormType("unknown"),
 	})
 	assert.ErrorIs(t, err, apperrors.ErrFormTypeInvalid)
 
 	// 归档应用拒绝
 	_, err = svc.Create(tenantCtx(1), memberOfTenant(1), &model.CreateFormRequest{
-		ApplicationID: 8, Name: "x", FormType: model.FormTypeStandard,
+		AppID: 8, Name: "x", FormType: model.FormTypeStandard,
 	})
 	assert.ErrorIs(t, err, apperrors.ErrFormAppInvalid)
 
 	// 配额超限
 	quota.limit = 0
 	_, err = svc.Create(tenantCtx(1), memberOfTenant(1), &model.CreateFormRequest{
-		ApplicationID: 7, Name: "x", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "x", FormType: model.FormTypeStandard,
 	})
 	assert.ErrorIs(t, err, tenantservice.ErrQuotaExceeded)
 
 	// 跨租户成员拒绝
 	_, err = svc.Create(tenantCtx(1), memberOfTenant(2), &model.CreateFormRequest{
-		ApplicationID: 7, Name: "x", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "x", FormType: model.FormTypeStandard,
 	})
 	assert.ErrorIs(t, err, apperrors.ErrForbidden)
 }
 
-// 指定分组创建：parentEntryCode 原样透传菜单维护端口（分组合法性由端口校验）
-func TestCreateFormForwardsParentEntryCode(t *testing.T) {
+// 指定分组创建：parentMenuCode 原样透传菜单维护端口（分组合法性由端口校验）
+func TestCreateFormForwardsParentMenuCode(t *testing.T) {
 	menu := &fakeMenuPort{}
 	svc := newTestService(&fakeQuota{limit: -1}, newFakeFormRepo(), newFakeVersionRepo(), &fakeRecordRepo{}, menu)
 
 	_, err := svc.Create(tenantCtx(1), memberOfTenant(1),
 		&model.CreateFormRequest{
-			ApplicationID: 7, Name: "分组表单", FormType: model.FormTypeWorkflow,
-			ParentEntryCode: " menu_group ",
+			AppID: 7, Name: "分组表单", FormType: model.FormTypeWorkflow,
+			ParentMenuCode: " menu_group ",
 		})
 	assert.NoError(t, err)
 	assert.Len(t, menu.attached, 1)
@@ -481,7 +481,7 @@ func TestSaveDraft(t *testing.T) {
 	formRepo := newFakeFormRepo()
 	svc := newTestService(&fakeQuota{limit: -1}, formRepo, newFakeVersionRepo(), &fakeRecordRepo{}, nil)
 	created, _ := svc.Create(tenantCtx(1), memberOfTenant(1), &model.CreateFormRequest{
-		ApplicationID: 7, Name: "报名表", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "报名表", FormType: model.FormTypeStandard,
 	})
 	// 历史 v1/v2 必须先经读取侧迁移，保存接口拒绝覆盖式降级。
 	_, err := svc.SaveDraft(tenantCtx(1), memberOfTenant(1), created.Code, &model.SaveDraftRequest{
@@ -528,7 +528,7 @@ func TestPublishAndRuntimeAndSubmit(t *testing.T) {
 	member := memberOfTenant(1)
 
 	created, _ := svc.Create(ctx, member, &model.CreateFormRequest{
-		ApplicationID: 7, Name: "报名表", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "报名表", FormType: model.FormTypeStandard,
 	})
 	// 白名单外控件拒绝发布并给出 issues。
 	_, err := svc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{
@@ -622,7 +622,7 @@ func TestGetFormAndDelete(t *testing.T) {
 	ctx := tenantCtx(1)
 	member := memberOfTenant(1)
 	created, _ := svc.Create(ctx, member, &model.CreateFormRequest{
-		ApplicationID: 7, Name: "报名表", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "报名表", FormType: model.FormTypeStandard,
 	})
 
 	detail, err := svc.Get(ctx, member, created.Code)
@@ -647,7 +647,7 @@ func TestFormLifecycleMaintainsMenuEntries(t *testing.T) {
 	member := memberOfTenant(1)
 
 	created, err := svc.Create(ctx, member, &model.CreateFormRequest{
-		ApplicationID: 7, Name: "报名表", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "报名表", FormType: model.FormTypeStandard,
 	})
 	assert.NoError(t, err)
 	createdModel := formRepo.formByCode(created.Code)
@@ -656,7 +656,7 @@ func TestFormLifecycleMaintainsMenuEntries(t *testing.T) {
 	assert.Equal(t, uint(7), menu.attached[0].appID)
 	assert.Equal(t, createdModel.ID, menu.attached[0].formID)
 	assert.Equal(t, "报名表", menu.attached[0].name)
-	// 未指定分组：按根级挂载（空 parentEntryCode）
+	// 未指定分组：按根级挂载（空 parentMenuCode）
 	assert.Empty(t, menu.attached[0].parent)
 
 	_, err = svc.Update(ctx, member, created.Code, &model.UpdateFormRequest{Name: strPtr("新名称")})

@@ -121,7 +121,7 @@ func (p *ProductLogController) canExport(c *gin.Context) bool {
 // @Param categoryCode query string false "日志范围码（见筛选项接口）"
 // @Param eventCode query string false "操作类型事件码"
 // @Param memberId query int false "当前租户成员 ID"
-// @Param applicationId query int false "当前租户应用 ID"
+// @Param appId query int false "当前租户应用 ID"
 // @Param keyword query string false "关键词（匹配所属应用/操作对象/操作详情）"
 // @Param startAt query string false "开始日期（yyyy-MM-dd 东八区）"
 // @Param endAt query string false "结束日期（yyyy-MM-dd 东八区）"
@@ -142,7 +142,7 @@ func (p *ProductLogController) List(c *gin.Context) {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	applicationID, err := parseUintQueryParam(c, "applicationId")
+	appID, err := parseUintQueryParam(c, "appId")
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
@@ -151,15 +151,15 @@ func (p *ProductLogController) List(c *gin.Context) {
 	pageSize, _ := strconv.Atoi(c.Query("pageSize"))
 
 	result, err := p.logService.List(c.Request.Context(), tenantID, model.ProductLogQuery{
-		CategoryCode:  c.Query("categoryCode"),
-		EventCode:     c.Query("eventCode"),
-		MemberID:      memberID,
-		ApplicationID: applicationID,
-		Keyword:       c.Query("keyword"),
-		StartDate:     c.Query("startAt"),
-		EndDate:       c.Query("endAt"),
-		Page:          page,
-		PageSize:      pageSize,
+		CategoryCode: c.Query("categoryCode"),
+		EventCode:    c.Query("eventCode"),
+		MemberID:     memberID,
+		AppID:        appID,
+		Keyword:      c.Query("keyword"),
+		StartDate:    c.Query("startAt"),
+		EndDate:      c.Query("endAt"),
+		Page:         page,
+		PageSize:     pageSize,
 	})
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)

@@ -11,10 +11,10 @@ import (
 
 // ListParams 应用内表单列表查询（游标按 id 倒序，新表单靠前）。
 type ListParams struct {
-	ApplicationID uint
-	Limit         int
-	HasCursor     bool
-	AfterID       uint // 游标行 ID（取 id 严格小于该值的下一页）
+	AppID     uint
+	Limit     int
+	HasCursor bool
+	AfterID   uint // 游标行 ID（取 id 严格小于该值的下一页）
 }
 
 // FormMenuTarget 是表单仓储供应用菜单读侧消费的最小投影。

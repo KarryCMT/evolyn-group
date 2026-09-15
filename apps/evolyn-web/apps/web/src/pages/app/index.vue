@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
-import type { ApplicationAssetType } from '~/components/application/runtime/applicationAssetCatalog';
+import type { AppAssetType } from '~/components/app/runtime/appAssetCatalog';
 import type {
-  ApplicationWorkspaceAsset,
-  ApplicationWorkspaceAssetAction,
-  ApplicationWorkspaceCreateAssetType,
-  ApplicationWorkspaceMode,
-} from '~/components/application/workspace/applicationWorkspace.types';
-import type { ApplicationPersonalNavigationCode } from '~/components/application/workspace/applicationWorkspacePreview';
+  AppWorkspaceAsset,
+  AppWorkspaceAssetAction,
+  AppWorkspaceCreateAssetType,
+  AppWorkspaceMode,
+} from '~/components/app/workspace/appWorkspace.types';
+import type { AppPersonalNavigationCode } from '~/components/app/workspace/appWorkspacePreview';
 import type { WorkflowNavigationForm } from '~/components/workflow-center/WorkflowCenterNavigation.vue';
 import type { WorkflowCenterScope } from '~/composables/useWorkflowCenter';
-import type { ApplicationIconKey, FormType, WorkflowPendingTaskSummaryDto } from '~/types';
+import type { AppIconKey, FormType, WorkflowPendingTaskSummaryDto } from '~/types';
 import { ApiError } from '@evolyn.do/utils';
 import {
   RiArrowLeftLine,
@@ -23,26 +23,26 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, markRaw, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { createApplicationMenuGroup, updateApplicationMenuEntry } from '~/api/applications';
+import { createAppMenuGroup, updateAppMenuNode } from '~/api/apps';
 import { createForm, deleteForm, updateForm } from '~/api/form';
-import ApplicationWorkspaceShell from '~/components/application/workspace/ApplicationWorkspaceShell.vue';
-import FormAppearanceDialog from '~/components/application/workspace/FormAppearanceDialog.vue';
-import MoveMenuEntryDialog from '~/components/application/workspace/MoveMenuEntryDialog.vue';
+import AppWorkspaceShell from '~/components/app/workspace/AppWorkspaceShell.vue';
+import FormAppearanceDialog from '~/components/app/workspace/FormAppearanceDialog.vue';
+import MoveMenuNodeDialog from '~/components/app/workspace/MoveMenuNodeDialog.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
-import { useApplicationHome } from '~/composables/useApplicationHome';
-import { useApplicationMenu } from '~/composables/useApplicationMenu';
-import { DEFAULT_APPLICATION_ICON, getApplicationIconName } from '~/types';
+import { useAppHome } from '~/composables/useAppHome';
+import { useAppMenu } from '~/composables/useAppMenu';
+import { DEFAULT_APPLICATION_ICON, getAppIconName } from '~/types';
 
-defineOptions({ name: 'ApplicationHomePage' });
+defineOptions({ name: 'AppHomePage' });
 
 const route = useRoute();
 const router = useRouter();
 const appCode = computed(() => String(route.params.appCode ?? ''));
-const { application, applicationName, errorMessage, reload, status } = useApplicationHome(appCode);
+const { app, appName, errorMessage, reload, status } = useAppHome(appCode);
 
 // 应用详情异步加载完成后，以业务名称覆盖路由的通用「应用」标题。
 watch(
-  [applicationName, () => route.name],
+  [appName, () => route.name],
   ([title, routeName]) => {
     if (routeName === 'App') document.title = title;
   },
@@ -56,9 +56,9 @@ const {
   status: menuStatus,
   errorMessage: menuErrorMessage,
   reload: reloadMenu,
-} = useApplicationMenu(appCode);
+} = useAppMenu(appCode);
 
-const iconByKey: Record<ApplicationIconKey, Component> = {
+const iconByKey: Record<AppIconKey, Component> = {
   bookmark: markRaw(RiBookmark3Fill),
   briefcase: markRaw(RiBriefcase4Fill),
   contacts: markRaw(RiContactsBook3Fill),
@@ -66,52 +66,48 @@ const iconByKey: Record<ApplicationIconKey, Component> = {
   check: markRaw(RiCheckboxCircleFill),
 };
 
-const applicationIcon = computed(
-  () =>
-    iconByKey[getApplicationIconName(application.value?.icon) as ApplicationIconKey] ??
-    iconByKey.bookmark,
+const appIcon = computed(
+  () => iconByKey[getAppIconName(app.value?.icon) as AppIconKey] ?? iconByKey.bookmark,
 );
 // 设计器返回时携带表单公开编码，应用菜单加载完成后据此恢复对应节点选中态。
 const requestedFormCode = computed(() => String(route.params.formCode ?? ''));
 const activeAssetCode = shallowRef('');
-const workspaceMode = shallowRef<ApplicationWorkspaceMode>('fill');
+const workspaceMode = shallowRef<AppWorkspaceMode>('fill');
 /**
  * 个人流程入口与当前应用资产互斥：入口激活时保留资产选择，回到资产后可直接恢复。
  * 顶栏标题和流程数据范围均由该单一状态派生，避免左右区域不同步。
  */
-const activePersonalCode = shallowRef<ApplicationPersonalNavigationCode | ''>('');
+const activePersonalCode = shallowRef<AppPersonalNavigationCode | ''>('');
 /** 待办二级菜单的筛选条件；仅 pending 范围读取该值。 */
 const activeWorkflowFormCode = shallowRef('');
 const pendingWorkflowSummary = shallowRef<WorkflowPendingTaskSummaryDto | null>(null);
-const workflowScopeByPersonalCode: Partial<
-  Record<ApplicationPersonalNavigationCode, WorkflowCenterScope>
-> = {
-  todo: 'pending',
-  started: 'started',
-  handled: 'completed',
-  copied: 'cc-to-me',
-};
-const personalCodeByWorkflowScope: Record<WorkflowCenterScope, ApplicationPersonalNavigationCode> =
+const workflowScopeByPersonalCode: Partial<Record<AppPersonalNavigationCode, WorkflowCenterScope>> =
   {
-    pending: 'todo',
+    todo: 'pending',
     started: 'started',
-    completed: 'handled',
-    'cc-to-me': 'copied',
+    handled: 'completed',
+    copied: 'cc-to-me',
   };
+const personalCodeByWorkflowScope: Record<WorkflowCenterScope, AppPersonalNavigationCode> = {
+  pending: 'todo',
+  started: 'started',
+  completed: 'handled',
+  'cc-to-me': 'copied',
+};
 const personalScope = computed<WorkflowCenterScope | null>(() => {
   const code = activePersonalCode.value;
   return code ? (workflowScopeByPersonalCode[code] ?? null) : null;
 });
 const DEFAULT_FORM_NAME = '未命名表单';
 /** 创建请求期间锁住所有入口，避免网络延迟下重复创建同一资产。 */
-const creatingAssetType = shallowRef<ApplicationAssetType | null>(null);
+const creatingAssetType = shallowRef<AppAssetType | null>(null);
 /** 分组创建单独加锁，避免 Prompt 关闭后的请求窗口内再次提交。 */
 const creatingGroup = shallowRef(false);
 /** 当前正修改展示信息的表单节点；仅表单节点可打开此弹窗。 */
-const formAppearanceTarget = shallowRef<ApplicationWorkspaceAsset | null>(null);
+const formAppearanceTarget = shallowRef<AppWorkspaceAsset | null>(null);
 const formAppearanceVisible = shallowRef(false);
 /** 当前准备移动的菜单节点；实际位置仅在确认后由服务端原子更新。 */
-const menuMoveTarget = shallowRef<ApplicationWorkspaceAsset | null>(null);
+const menuMoveTarget = shallowRef<AppWorkspaceAsset | null>(null);
 const menuMoveVisible = shallowRef(false);
 /** 删除请求进行中的表单公开编码，避免同一资产被重复提交删除。 */
 const deletingFormCode = shallowRef('');
@@ -145,10 +141,7 @@ function updateMenuMoveVisible(visible: boolean) {
 }
 
 /** 递归按编码定位资产节点；菜单为空或未选中时为 null（内容区渲染空态） */
-function findAsset(
-  assets: ApplicationWorkspaceAsset[],
-  code: string,
-): ApplicationWorkspaceAsset | null {
+function findAsset(assets: AppWorkspaceAsset[], code: string): AppWorkspaceAsset | null {
   for (const asset of assets) {
     if (asset.code === code) return asset;
     if (asset.children?.length) {
@@ -160,10 +153,7 @@ function findAsset(
 }
 
 /** 递归按表单公开编码定位菜单节点，分组与其他资产不会参与匹配。 */
-function findFormAsset(
-  assets: ApplicationWorkspaceAsset[],
-  formCode: string,
-): ApplicationWorkspaceAsset | null {
+function findFormAsset(assets: AppWorkspaceAsset[], formCode: string): AppWorkspaceAsset | null {
   for (const asset of assets) {
     if (asset.type === 'form' && asset.targetCode === formCode) return asset;
     if (asset.children?.length) {
@@ -175,7 +165,7 @@ function findFormAsset(
 }
 
 /** 应用资产树只提供流程表单的展示信息，不能作为「我的待办」的筛选事实源。 */
-function collectWorkflowForms(assets: ApplicationWorkspaceAsset[]): WorkflowNavigationForm[] {
+function collectWorkflowForms(assets: AppWorkspaceAsset[]): WorkflowNavigationForm[] {
   return assets.flatMap((asset) => {
     const children = collectWorkflowForms(asset.children ?? []);
     if (asset.type !== 'form' || asset.formType !== 'workflow' || !asset.targetCode) {
@@ -208,7 +198,7 @@ const personalTitle = computed<string | null>(() => {
         ?.label ?? '我的待办（全部）'
     );
   }
-  const titles: Partial<Record<ApplicationPersonalNavigationCode, string>> = {
+  const titles: Partial<Record<AppPersonalNavigationCode, string>> = {
     started: '我发起的',
     handled: '我处理的',
     copied: '抄送我的',
@@ -225,9 +215,7 @@ watch(pendingWorkflowForms, (forms) => {
 const activeWorkspaceAsset = computed(() => findAsset(menuAssets.value, activeAssetCode.value));
 
 /** 菜单首次加载或当前选中节点消失时，默认选中第一项可操作资产。 */
-function firstSelectableAsset(
-  assets: ApplicationWorkspaceAsset[],
-): ApplicationWorkspaceAsset | null {
+function firstSelectableAsset(assets: AppWorkspaceAsset[]): AppWorkspaceAsset | null {
   for (const asset of assets) {
     if (asset.type !== 'folder') return asset;
     const child = firstSelectableAsset(asset.children ?? []);
@@ -256,18 +244,19 @@ function returnToDashboard() {
 
 /**
  * 新建表单（入口即创建）：以默认名称调 POST /forms 创建资产与空草稿
- * （后端同事务在应用菜单挂 form 节点，parentEntryCode 存在时挂到指定分组下）
+ * （后端同事务在应用菜单挂 form 节点，parentMenuCode 存在时挂到指定分组下）
  * → 携稳定 formCode 跳转设计器继续编辑。表单类型随创建请求持久化，设计器
  * 后续只从详情接口读取；表单名称进入设计器后通过属性面板修改。
  */
 async function startNewForm(
-  assetType: Extract<ApplicationAssetType, 'form' | 'workflow-form'>,
-  parentEntryCode?: string,
+  assetType: Extract<AppAssetType, 'form' | 'workflow-form'>,
+  parentMenuCode?: string,
 ) {
   if (creatingAssetType.value) return;
 
-  const app = application.value;
-  if (!app) {
+  // 局部别名 currentApp：外层解构的响应式 app 与本函数局部变量避免遮蔽
+  const currentApp = app.value;
+  if (!currentApp) {
     ElMessage.error('应用信息尚未就绪，请稍后重试');
     return;
   }
@@ -277,10 +266,10 @@ async function startNewForm(
   let detail: Awaited<ReturnType<typeof createForm>>;
   try {
     detail = await createForm({
-      applicationId: app.id,
+      appId: currentApp.id,
       name: DEFAULT_FORM_NAME,
       formType,
-      parentEntryCode,
+      parentMenuCode,
     });
   } catch (error) {
     if (error instanceof ApiError && error.errCode === 'QUOTA_EXCEEDED') {
@@ -314,11 +303,11 @@ function showAssetGuide() {
 }
 
 /** 应用后台已具备基础壳，入口保留当前应用编码以维持同一应用上下文。 */
-function openApplicationManagement() {
+function openAppManagement() {
   void router.push({ name: 'app-setting-permissions', params: { appCode: appCode.value } });
 }
 
-function selectWorkspaceAsset(asset: ApplicationWorkspaceAsset) {
+function selectWorkspaceAsset(asset: AppWorkspaceAsset) {
   // 选择应用资产即退出个人流程视图，顶部模式操作恢复为该表单可用的模式。
   activePersonalCode.value = '';
   activeWorkflowFormCode.value = '';
@@ -339,7 +328,7 @@ function selectWorkspaceAsset(asset: ApplicationWorkspaceAsset) {
  */
 function selectPersonalNavigation(code: string) {
   if (code in workflowScopeByPersonalCode) {
-    activePersonalCode.value = code as ApplicationPersonalNavigationCode;
+    activePersonalCode.value = code as AppPersonalNavigationCode;
     if (code !== 'todo') activeWorkflowFormCode.value = '';
     return;
   }
@@ -365,7 +354,7 @@ function updatePendingWorkflowSummary(summary: WorkflowPendingTaskSummaryDto | n
  * 顶栏模式入口只对当前表单生效：填写留在应用运行态，编辑与数据管理
  * 携带菜单目标资产的公开 formCode 进入各自独立工作区。
  */
-function updateWorkspaceMode(mode: ApplicationWorkspaceMode) {
+function updateWorkspaceMode(mode: AppWorkspaceMode) {
   if (mode === 'fill') {
     workspaceMode.value = 'fill';
     return;
@@ -387,7 +376,7 @@ function updateWorkspaceMode(mode: ApplicationWorkspaceMode) {
  * 顶层与分组创建菜单共用同一处理链：表单复用现有设计器，分组通过
  * menuRevision 乐观锁持久化；仪表盘尚无资产接口时明确提示。
  */
-async function createMenuGroup(parent?: ApplicationWorkspaceAsset) {
+async function createMenuGroup(parent?: AppWorkspaceAsset) {
   if (creatingGroup.value) return;
   if (menuStatus.value !== 'ready' || menuRevision.value < 1) {
     ElMessage.warning('应用菜单尚未加载完成，请稍后重试');
@@ -421,9 +410,9 @@ async function createMenuGroup(parent?: ApplicationWorkspaceAsset) {
 
   creatingGroup.value = true;
   try {
-    await createApplicationMenuGroup(appCode.value, {
+    await createAppMenuGroup(appCode.value, {
       name,
-      parentEntryId: parent?.code,
+      parentMenuId: parent?.code,
       baseMenuRevision: menuRevision.value,
     });
     await reloadMenu();
@@ -453,8 +442,8 @@ async function createMenuGroup(parent?: ApplicationWorkspaceAsset) {
 }
 
 function createWorkspaceAsset(payload: {
-  parent?: ApplicationWorkspaceAsset;
-  type: ApplicationWorkspaceCreateAssetType;
+  parent?: AppWorkspaceAsset;
+  type: AppWorkspaceCreateAssetType;
 }) {
   if (payload.type === 'form') {
     void startNewForm('form', payload.parent?.code);
@@ -479,8 +468,8 @@ function createWorkspaceAsset(payload: {
  * 菜单节点的 targetCode 是表单对外稳定编码，不能使用菜单节点自身的 code。
  */
 function handleWorkspaceAssetAction(payload: {
-  asset: ApplicationWorkspaceAsset;
-  action: ApplicationWorkspaceAssetAction;
+  asset: AppWorkspaceAsset;
+  action: AppWorkspaceAssetAction;
 }) {
   if (payload.action === 'move') {
     menuMoveTarget.value = payload.asset;
@@ -512,7 +501,7 @@ function handleWorkspaceAssetAction(payload: {
     return;
   }
 
-  const actionLabels: Record<ApplicationWorkspaceAssetAction, string> = {
+  const actionLabels: Record<AppWorkspaceAssetAction, string> = {
     edit: '编辑',
     rename: '修改名称和图标',
     'switch-type': '切换表单类型',
@@ -531,7 +520,7 @@ function handleWorkspaceAssetAction(payload: {
  * 删除侧栏表单：资产删除是唯一入口，后端会原子摘除对应菜单节点。成功后重新
  * 拉取菜单快照并移除路由中的 formCode，避免已删除资产继续作为当前上下文。
  */
-async function deleteWorkspaceForm(asset: ApplicationWorkspaceAsset) {
+async function deleteWorkspaceForm(asset: AppWorkspaceAsset) {
   const formCode = asset.targetCode;
   if (!formCode) {
     ElMessage.error('表单信息不完整，暂无法删除');
@@ -583,18 +572,18 @@ async function deleteWorkspaceForm(asset: ApplicationWorkspaceAsset) {
  * 移动菜单节点：使用菜单快照的 revision 防止并发覆盖，成功后重载完整树。
  * 根目录以空字符串传给服务端；分组的自环、后代和层级规则由服务端再次复核。
  */
-async function submitMenuMove(parentEntryCode: string): Promise<boolean> {
+async function submitMenuMove(parentMenuCode: string): Promise<boolean> {
   const target = menuMoveTarget.value;
   if (!target || menuRevision.value < 1) return false;
 
   try {
-    await updateApplicationMenuEntry(appCode.value, target.code, {
-      parentEntryCode,
+    await updateAppMenuNode(appCode.value, target.code, {
+      parentMenuCode,
       baseMenuRevision: menuRevision.value,
     });
     await reloadMenu();
     ElMessage.success(
-      parentEntryCode ? `已将「${target.label}」移入目标分组` : `已将「${target.label}」移至根目录`,
+      parentMenuCode ? `已将「${target.label}」移入目标分组` : `已将「${target.label}」移至根目录`,
     );
     return true;
   } catch (error) {
@@ -656,14 +645,14 @@ function reloadWorkspace() {
 </script>
 
 <template>
-  <div class="application-home-page">
+  <div class="app-home-page">
     <!-- 应用详情就绪即进入运行时壳：空应用的创建引导由工作区内容区承载。 -->
     <template v-if="status === 'ready'">
       <!-- 应用元信息已就绪但菜单加载失败：错误态统一在页面层拦截并重试，
            侧栏/内容组件不感知后端错误码（应用菜单方案 §11）。 -->
       <el-result
         v-if="menuStatus === 'error'"
-        class="application-home-page__result"
+        class="app-home-page__result"
         icon="error"
         title="加载应用菜单失败"
         :sub-title="menuErrorMessage"
@@ -673,11 +662,11 @@ function reloadWorkspace() {
         </template>
       </el-result>
 
-      <ApplicationWorkspaceShell
+      <AppWorkspaceShell
         v-else
         :app-code="appCode"
-        :application-name="applicationName"
-        :application-icon="application?.icon ?? DEFAULT_APPLICATION_ICON"
+        :app-name="appName"
+        :app-icon="app?.icon ?? DEFAULT_APPLICATION_ICON"
         :assets="menuAssets"
         :active-asset="activeWorkspaceAsset"
         :active-personal-code="activePersonalCode"
@@ -698,7 +687,7 @@ function reloadWorkspace() {
         @update-personal-scope="updatePersonalWorkflowScope"
         @update-personal-workflow-form-code="updatePersonalWorkflowFormCode"
         @update-pending-workflow-summary="updatePendingWorkflowSummary"
-        @open-management="openApplicationManagement"
+        @open-management="openAppManagement"
         @update-mode="updateWorkspaceMode"
       />
 
@@ -712,10 +701,10 @@ function reloadWorkspace() {
         @update:model-value="updateFormAppearanceVisible"
       />
 
-      <MoveMenuEntryDialog
+      <MoveMenuNodeDialog
         v-if="menuMoveTarget"
         :model-value="menuMoveVisible"
-        :application-name="applicationName"
+        :app-name="appName"
         :assets="menuAssets"
         :source-asset="menuMoveTarget"
         :submit="submitMenuMove"
@@ -725,10 +714,10 @@ function reloadWorkspace() {
     </template>
 
     <template v-else>
-      <TopNavigation :title="applicationName" :show-default-navigation="false" surface="surface">
+      <TopNavigation :title="appName" :show-default-navigation="false" surface="surface">
         <template #leading>
           <button
-            class="application-home-page__back"
+            class="app-home-page__back"
             type="button"
             aria-label="返回工作台"
             @click="returnToDashboard"
@@ -737,20 +726,20 @@ function reloadWorkspace() {
           </button>
         </template>
         <template #title>
-          <span class="application-home-page__title">
-            <span class="application-home-page__icon" aria-hidden="true">
-              <component :is="applicationIcon" />
+          <span class="app-home-page__title">
+            <span class="app-home-page__icon" aria-hidden="true">
+              <component :is="appIcon" />
             </span>
-            <strong>{{ applicationName }}</strong>
+            <strong>{{ appName }}</strong>
           </span>
         </template>
       </TopNavigation>
 
-      <section v-if="status === 'loading'" v-loading="true" class="application-home-page__status" />
+      <section v-if="status === 'loading'" v-loading="true" class="app-home-page__status" />
 
       <el-result
         v-else-if="status === 'not-found'"
-        class="application-home-page__result"
+        class="app-home-page__result"
         icon="warning"
         title="应用不存在或已不可访问"
         sub-title="请返回工作台后重新选择应用。"
@@ -762,7 +751,7 @@ function reloadWorkspace() {
 
       <el-result
         v-else-if="status === 'error'"
-        class="application-home-page__result"
+        class="app-home-page__result"
         icon="error"
         title="加载应用失败"
         :sub-title="errorMessage"
@@ -776,7 +765,7 @@ function reloadWorkspace() {
 </template>
 
 <style scoped lang="scss">
-.application-home-page {
+.app-home-page {
   display: flex;
   height: 100vh;
   overflow: hidden;

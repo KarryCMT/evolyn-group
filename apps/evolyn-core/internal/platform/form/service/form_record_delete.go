@@ -97,12 +97,12 @@ func (s *formService) DeleteRecords(
 	}
 
 	if s.audit != nil {
-		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
+		appID, appCode, appName := s.appSnapshot(ctx, form.AppID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "delete", ResourceType: "form_record",
 			ResourceID: strconv.FormatUint(uint64(ids[0]), 10),
 			After:      map[string]any{"formCode": form.Code, "recordIds": ids, "deletedCount": deleted},
-			TargetName: form.Name, ApplicationID: appID, ApplicationCode: appCode, ApplicationName: appName,
+			TargetName: form.Name, AppID: appID, AppCode: appCode, AppName: appName,
 		})
 	}
 	return &model.DeleteFormRecordsResult{DeletedCount: int(deleted)}, nil

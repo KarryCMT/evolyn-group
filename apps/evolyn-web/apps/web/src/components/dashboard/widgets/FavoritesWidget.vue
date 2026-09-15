@@ -4,7 +4,7 @@ import { RiBarChartBoxFill } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
 import type { DashboardWidgetContent } from '~/types/dashboard';
 import FavoritesWorkspaceDialog from '../favorites/FavoritesWorkspaceDialog.vue';
-import { useFavoriteApplications } from '../favorites/useFavoriteApplications';
+import { useFavoriteApps } from '../favorites/useFavoriteApps';
 
 defineOptions({ name: 'FavoritesWidget' });
 const props = withDefaults(
@@ -15,13 +15,13 @@ const props = withDefaults(
   { editorMode: false },
 );
 const favoritesVisible = shallowRef(false);
-const { favoriteApplications } = useFavoriteApplications();
+const { favoriteApps } = useFavoriteApps();
 const isRecent = computed(
   () => props.widget.config?.variant === 'recent' || props.widget.title === '最近使用',
 );
 
 // 卡片空间有限，优先展示前四个收藏，完整列表在「我的收藏」面板内查看。
-const visibleApplications = computed(() => favoriteApplications.value.slice(0, 4));
+const visibleApps = computed(() => favoriteApps.value.slice(0, 4));
 </script>
 
 <template>
@@ -43,7 +43,7 @@ const visibleApplications = computed(() => favoriteApplications.value.slice(0, 4
     </div>
     <div v-else class="favorites-widget">
       <el-button
-        v-for="app in visibleApplications"
+        v-for="app in visibleApps"
         :key="app.id"
         text
         class="favorites-widget__item"
@@ -54,7 +54,7 @@ const visibleApplications = computed(() => favoriteApplications.value.slice(0, 4
         </span>
         {{ app.label }}
       </el-button>
-      <span v-if="!visibleApplications.length" class="favorites-widget__empty">暂无收藏</span>
+      <span v-if="!visibleApps.length" class="favorites-widget__empty">暂无收藏</span>
     </div>
   </DashboardWidgetFrame>
   <FavoritesWorkspaceDialog v-model="favoritesVisible" />

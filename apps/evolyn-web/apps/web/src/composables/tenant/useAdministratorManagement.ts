@@ -182,16 +182,12 @@ function buildPatchPayload(patch: Partial<AdministratorGroup>): AdminGroupPatchP
   if (patch.externalEnabled !== undefined) {
     return { externalOrg: { enabled: patch.externalEnabled } };
   }
-  if (
-    patch.applicationIds !== undefined ||
-    patch.allApplications !== undefined ||
-    patch.applicationManage !== undefined
-  ) {
+  if (patch.appIds !== undefined || patch.allApps !== undefined || patch.appManage !== undefined) {
     return {
-      applicationScope: {
-        allApplications: patch.allApplications ?? false,
-        applicationIds: patch.applicationIds ?? [],
-        manage: patch.applicationManage ?? false,
+      appScope: {
+        allApps: patch.allApps ?? false,
+        appIds: patch.appIds ?? [],
+        manage: patch.appManage ?? false,
       },
     };
   }

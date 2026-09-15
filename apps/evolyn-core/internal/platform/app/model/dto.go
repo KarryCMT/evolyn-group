@@ -1,0 +1,109 @@
+package model
+
+import (
+	"database/sql/driver"
+	"encoding/json"
+	"fmt"
+
+	kernel "evolyn/internal/model"
+)
+
+// AppIcon 是应用图标的 JSONB 载体。
+type AppIcon struct {
+	Type       string `json:"type"`
+	Name       string `json:"name"`
+	Background string `json:"background,omitempty"`
+}
+
+// Value/Scan 让 GORM 将图标对象直接读写为 PostgreSQL JSONB。
+func (i AppIcon) Value() (driver.Value, error) {
+	return json.Marshal(i)
+}
+
+func (i *AppIcon) Scan(value any) error {
+	if value == nil {
+		*i = AppIcon{}
+		return nil
+	}
+	var data []byte
+	switch raw := value.(type) {
+	case []byte:
+		data = raw
+	case string:
+		data = []byte(raw)
+	default:
+		return fmt.Errorf("unsupported app icon database value %T", value)
+	}
+	return json.Unmarshal(data, i)
+}
+
+// CreateBlankRequest 创建空白应用请求（POST /apps，§8.1）。
+// icon/color 可省略由服务端取默认；租户/owner/code 等
+// 服务端字段一律不由客户端传入
+type CreateBlankRequest struct {
+	Name  string   `json:"name" binding:"required" example:"测试应用"`
+	Icon  *AppIcon `json:"icon"`
+	Color string   `json:"color" example:"primary"`
+}
+
+// UpdateAppRequest 更新应用请求（PATCH /apps/:id，§8.3）：
+// 白名单字段 name/icon/color/sortOrder/status，指针区分「未传」与「传空」。
+// status 仅允许 active↔archived 互转（归档/恢复，§5.4 复用 patch 动词）
+type UpdateAppRequest struct {
+	Name      *string  `json:"name"`
+	Icon      *AppIcon `json:"icon"`
+	Color     *string  `json:"color"`
+	SortOrder *int64   `json:"sortOrder"`
+	Status    *string  `json:"status"`
+}
+
+// AppSource 来源摘要（出网子对象，§8.1）
+type AppSource struct {
+	Type    string `json:"type"`    // blank / template
+	Channel string `json:"channel"` // self / template_center / admin / api
+}
+
+// AppCapabilities 当前请求成员的运行时能力（§9.2）：读取时由
+// 角色规则 + 是否 owner + 应用状态派生，不落库；M2-A 仅 view/edit/delete
+type AppCapabilities struct {
+	View   bool `json:"view"`
+	Edit   bool `json:"edit"`
+	Delete bool `json:"delete"`
+}
+
+// AppDetail 应用出网视图（创建/详情/列表条目共用）
+type AppDetail struct {
+	ID              uint            `json:"id"`
+	Code            string          `json:"code"`
+	Name            string          `json:"name"`
+	Icon            AppIcon         `json:"icon"`
+	Color           string          `json:"color"`
+	Source          AppSource       `json:"source"`
+	Status          string          `json:"status"`
+	ProvisionStatus string          `json:"provisionStatus"`
+	HomeMode        string          `json:"homeMode"`
+	OwnerMemberID   uint            `json:"ownerMemberId"`
+	CreatorMemberID uint            `json:"creatorMemberId"`
+	SortOrder       int64           `json:"sortOrder"`
+	Capabilities    AppCapabilities `json:"capabilities"`
+	CreatedAt       kernel.JSONTime `json:"createdAt"`
+	UpdatedAt       kernel.JSONTime `json:"updatedAt"`
+}
+
+// ListAppsQuery 应用列表查询（§8.3）：keyword 按名称模糊、status
+// 过滤（active/archived），cursor 为不透明 base64url 游标（内部编码
+// sort_order+id），limit 默认 20、上限 100
+type ListAppsQuery struct {
+	Keyword string
+	Status  string
+	Limit   int
+	Cursor  string
+}
+
+// AppPage 游标分页结果：nextCursor 为空且 hasMore=false 表示到末页；
+// 客户端只原样回传 nextCursor，不解析其内容
+type AppPage struct {
+	Items      []AppDetail `json:"items"`
+	NextCursor string      `json:"nextCursor"`
+	HasMore    bool        `json:"hasMore"`
+}

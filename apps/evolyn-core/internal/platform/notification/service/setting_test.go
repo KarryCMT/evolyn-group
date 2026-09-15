@@ -215,7 +215,7 @@ func TestSettingAggregateProjection(t *testing.T) {
 
 	// 无覆盖行投影注册表默认：system 开、email/sms 关、默认接收对象
 	first := appLog.Events[0]
-	assert.Equal(t, "application.asset.changed", first.Code)
+	assert.Equal(t, "app.asset.changed", first.Code)
 	assert.True(t, first.Channels[ChannelSystem])
 	assert.False(t, first.Channels[ChannelEmail])
 	assert.Equal(t, []model.RecipientView{
@@ -244,7 +244,7 @@ func TestPatchPreferenceChannelAndRecipients(t *testing.T) {
 	recipientID := seedRecipient(t, repo, "运维值班")
 
 	// 部分更新渠道 + 全量替换接收规则（含自定义联系人）
-	result, err := svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	result, err := svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 1,
 		Channels: &model.ChannelPatch{Email: boolPtr(false)}, // 缺省键保持默认
 		Recipients: &[]model.RecipientInput{
@@ -254,19 +254,19 @@ func TestPatchPreferenceChannelAndRecipients(t *testing.T) {
 	})
 	assert.NoError(t, err)
 	assert.EqualValues(t, 2, result.Revision)
-	assert.Equal(t, "application.asset.changed", result.Event.Code)
+	assert.Equal(t, "app.asset.changed", result.Event.Code)
 	// 接收规则投影：创建者 + 自定义联系人姓名标签
 	assert.Len(t, result.Event.Recipients, 2)
 	assert.Equal(t, "运维值班", result.Event.Recipients[1].Label)
 
 	// 聚合 revision 已递增：旧 revision 再写返回 409 冲突
-	_, err = svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	_, err = svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 1, Channels: &model.ChannelPatch{Email: boolPtr(true)},
 	})
 	assert.ErrorIs(t, err, apperrors.ErrSettingsConflict)
 
 	// 显式清空接收规则（recipients_overridden 区分「默认」与「显式为空」）
-	result, err = svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	result, err = svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 2, Recipients: &[]model.RecipientInput{},
 	})
 	assert.NoError(t, err)
@@ -283,34 +283,34 @@ func TestPatchPreferenceValidations(t *testing.T) {
 	assert.ErrorIs(t, err, apperrors.ErrEventUnknown)
 
 	// 关闭必选渠道（站内信）
-	_, err = svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	_, err = svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 1, Channels: &model.ChannelPatch{System: boolPtr(false)},
 	})
 	assert.ErrorIs(t, err, apperrors.ErrChannelRequired)
 
 	// 开启能力未就绪渠道（P3 前邮件/短信恒不可用，不保存虚假开启状态）
-	_, err = svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	_, err = svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 1, Channels: &model.ChannelPatch{Email: boolPtr(true)},
 	})
 	assert.ErrorIs(t, err, apperrors.ErrChannelUnavailable)
-	_, err = svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	_, err = svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 1, Channels: &model.ChannelPatch{SMS: boolPtr(true)},
 	})
 	assert.ErrorIs(t, err, apperrors.ErrChannelUnavailable)
 
 	// 接收规则：未知类型 / 重复动态规则 / 异租户联系人
-	_, err = svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	_, err = svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 1, Recipients: &[]model.RecipientInput{{Kind: "someone_else"}},
 	})
 	assert.ErrorIs(t, err, apperrors.ErrRecipientInvalid)
-	_, err = svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	_, err = svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 1,
 		Recipients: &[]model.RecipientInput{
 			{Kind: model.RecipientEventActor}, {Kind: model.RecipientEventActor},
 		},
 	})
 	assert.ErrorIs(t, err, apperrors.ErrRecipientInvalid)
-	_, err = svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	_, err = svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 1, Recipients: &[]model.RecipientInput{{Kind: model.RecipientCustomRecipient, RecipientID: 999}},
 	})
 	assert.ErrorIs(t, err, apperrors.ErrRecipientNotFound)
@@ -354,7 +354,7 @@ func TestCustomRecipientLifecycle(t *testing.T) {
 	assert.ErrorIs(t, err, apperrors.ErrRecipientLimitExceeded)
 
 	// 删除：先被偏好引用 → 409 + usedByEventCodes；解除引用后成功
-	_, err = svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	_, err = svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision:   2,
 		Recipients: &[]model.RecipientInput{{Kind: model.RecipientCustomRecipient, RecipientID: created.ID}},
 	})
@@ -362,7 +362,7 @@ func TestCustomRecipientLifecycle(t *testing.T) {
 	err = svc.DeleteRecipient(ctx, testTenantID, created.ID, 3)
 	assert.ErrorIs(t, err, apperrors.ErrRecipientInUse)
 
-	_, err = svc.PatchPreference(ctx, testTenantID, "application.asset.changed", model.PatchPreferenceRequest{
+	_, err = svc.PatchPreference(ctx, testTenantID, "app.asset.changed", model.PatchPreferenceRequest{
 		Revision: 3, Recipients: &[]model.RecipientInput{{Kind: model.RecipientTenantAdmin}},
 	})
 	assert.NoError(t, err)

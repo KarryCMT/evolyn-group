@@ -22,8 +22,8 @@ var (
 	// ErrMemberInvalid 筛选成员不存在、已删除或不属于当前租户
 	ErrMemberInvalid = httpx.NewBiz("PRODUCT_LOG_MEMBER_INVALID", "所选成员无效", http.StatusBadRequest)
 
-	// ErrApplicationInvalid 筛选应用不存在、已删除或不属于当前租户
-	ErrApplicationInvalid = httpx.NewBiz("PRODUCT_LOG_APPLICATION_INVALID", "所选应用无效", http.StatusBadRequest)
+	// ErrAppInvalid 筛选应用不存在、已删除或不属于当前租户
+	ErrAppInvalid = httpx.NewBiz("PRODUCT_LOG_APPLICATION_INVALID", "所选应用无效", http.StatusBadRequest)
 
 	// ErrCategoryUnknown 未登记的产品日志范围码
 	ErrCategoryUnknown = httpx.NewBiz("PRODUCT_LOG_CATEGORY_UNKNOWN", "未知的日志范围", http.StatusBadRequest)

@@ -95,7 +95,7 @@ func (env *physEnv) publishPhysical(t *testing.T, items, names string, member *i
 	t.Helper()
 	ctx := tenantCtx(member.TenantID)
 	created, err := env.formSvc.Create(ctx, member, &model.CreateFormRequest{
-		ApplicationID: 7, Name: "物理链路", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "物理链路", FormType: model.FormTypeStandard,
 	})
 	require.NoError(t, err)
 	saved, err := env.formSvc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{
@@ -308,7 +308,7 @@ func TestPhysINTConcurrentPublishBusy(t *testing.T) {
 	member := memberOfTenant(1)
 	ctx := tenantCtx(1)
 	created, err := env.formSvc.Create(ctx, member, &model.CreateFormRequest{
-		ApplicationID: 7, Name: "并发发布", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "并发发布", FormType: model.FormTypeStandard,
 	})
 	require.NoError(t, err)
 	saved, err := env.formSvc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{
@@ -510,7 +510,7 @@ func TestPhysINTStorageJobLifecycle(t *testing.T) {
 	member := memberOfTenant(1)
 	ctx := tenantCtx(1)
 	created, err := env.formSvc.Create(ctx, member, &model.CreateFormRequest{
-		ApplicationID: 7, Name: "任务查询", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "任务查询", FormType: model.FormTypeStandard,
 	})
 	require.NoError(t, err)
 	saved, err := env.formSvc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{
@@ -535,7 +535,7 @@ func TestPhysINTStorageJobLifecycle(t *testing.T) {
 
 	// 归属复核：另一表单编码查询同 Job → NOT_FOUND
 	other, err := env.formSvc.Create(ctx, member, &model.CreateFormRequest{
-		ApplicationID: 7, Name: "另一表单", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "另一表单", FormType: model.FormTypeStandard,
 	})
 	require.NoError(t, err)
 	_, err = env.formSvc.GetStorageJob(ctx, member, other.Code, *published.JobID)
@@ -744,7 +744,7 @@ func TestPhysINTRecordWriteMeta(t *testing.T) {
 // stubAppNameDir 应用名称窄端口桩（表注释快照断言用）。
 type stubAppNameDir struct{}
 
-func (stubAppNameDir) ApplicationNameByID(ctx context.Context, appID uint) string {
+func (stubAppNameDir) AppNameByID(ctx context.Context, appID uint) string {
 	return "测试应用"
 }
 

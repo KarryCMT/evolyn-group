@@ -110,7 +110,7 @@ function toCroppedFile(canvas: HTMLCanvasElement) {
   return new Promise<File>((resolve, reject) => {
     canvas.toBlob((blob) => {
       if (!blob) return reject(new Error('图标裁剪失败'));
-      resolve(new File([blob], `application-icon-${Date.now()}.png`, { type: 'image/png' }));
+      resolve(new File([blob], `app-icon-${Date.now()}.png`, { type: 'image/png' }));
     }, 'image/png');
   });
 }

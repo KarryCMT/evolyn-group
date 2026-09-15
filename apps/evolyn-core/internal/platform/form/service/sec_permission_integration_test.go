@@ -16,9 +16,9 @@ import (
 
 	"evolyn/internal/contextx"
 	"evolyn/internal/infrastructure"
-	applicationmodel "evolyn/internal/platform/application/model"
-	applicationrepository "evolyn/internal/platform/application/repository"
-	applicationservice "evolyn/internal/platform/application/service"
+	appmodel "evolyn/internal/platform/app/model"
+	apprepository "evolyn/internal/platform/app/repository"
+	appservice "evolyn/internal/platform/app/service"
 	auditrepository "evolyn/internal/platform/audit/repository"
 	auditservice "evolyn/internal/platform/audit/service"
 	apperrors "evolyn/internal/platform/form"
@@ -46,8 +46,8 @@ type fpermEnv struct {
 	permRepo    repository.PermissionGroupRepository
 	auditSvc    auditservice.Recorder
 	access      AccessEvaluator
-	appSvc      applicationservice.ApplicationService
-	menuSvc     applicationservice.ApplicationMenuService
+	appSvc      appservice.AppService
+	menuSvc     appservice.AppMenuService
 	formSvc     FormService
 	permSvc     PermissionGroupService
 	evaluator   FormPermissionEvaluator
@@ -67,8 +67,8 @@ func newFpermEnv(t *testing.T) *fpermEnv {
 	tenantRepo := tenantrepository.NewRepository(db, rdb)
 	auditRepo := auditrepository.NewRepository(db)
 	auditSvc := auditservice.NewService(auditRepo)
-	appRepo := applicationrepository.NewRepository(db)
-	menuRepo := applicationrepository.NewMenuRepository(db)
+	appRepo := apprepository.NewRepository(db)
+	menuRepo := apprepository.NewMenuRepository(db)
 	formRepo := repository.NewRepository(db)
 	versionRepo := repository.NewVersionRepository(db)
 	recordRepo := repository.NewRecordRepository(db)
@@ -81,11 +81,11 @@ func newFpermEnv(t *testing.T) *fpermEnv {
 	txManager := infrastructure.NewTxManager(db)
 	tenantSvc := tenantservice.NewTenantService(txManager, tenantRepo, iamRepo, quotaSvc, auditSvc, 0)
 
-	access := applicationservice.NewRBACAccessEvaluator(iamRepo.User(), iamRepo.Group())
-	appSvc := applicationservice.NewApplicationService(txManager, appRepo, quotaSvc, auditSvc, access)
-	menuSvc := applicationservice.NewMenuService(txManager, menuRepo, auditSvc, access)
+	access := appservice.NewRBACAccessEvaluator(iamRepo.User(), iamRepo.Group())
+	appSvc := appservice.NewAppService(txManager, appRepo, quotaSvc, auditSvc, access)
+	menuSvc := appservice.NewMenuService(txManager, menuRepo, auditSvc, access)
 	// 表单生命周期菜单节点维护端口（创建表单时挂 form 资产节点）
-	menuMaintenance := applicationservice.NewMenuMaintenanceService(menuRepo)
+	menuMaintenance := appservice.NewMenuMaintenanceService(menuRepo)
 
 	formSvc := NewFormService(txManager, formRepo, versionRepo, recordRepo, quotaSvc, auditSvc,
 		access, fpermAppDirectory{apps: appRepo}, menuMaintenance)
@@ -116,10 +116,10 @@ func newFpermEnv(t *testing.T) *fpermEnv {
 	env.permSvc = NewPermissionGroupService(txManager, permRepo, formRepo, versionRepo, auditSvc, access,
 		fpermSubjectDirectory{iam: iamRepo})
 	// 菜单读侧接入表单目录与权限裁剪端口（装配同构）
-	if injector, ok := menuSvc.(applicationservice.MenuFormDirectoryInjector); ok {
+	if injector, ok := menuSvc.(appservice.MenuFormDirectoryInjector); ok {
 		injector.UseFormDirectory(fpermFormDirectory{forms: formRepo})
 	}
-	if injector, ok := menuSvc.(applicationservice.FormPermissionDirectoryInjector); ok {
+	if injector, ok := menuSvc.(appservice.FormPermissionDirectoryInjector); ok {
 		injector.UseFormPermissionDirectory(fpermMenuDirectory{evaluator: env.evaluator})
 	}
 	return env
@@ -165,14 +165,14 @@ func (e *fpermEnv) createPlainMember(t *testing.T, tenant *tenantmodel.Tenant, n
 	return member
 }
 
-func (e *fpermEnv) createAppWithForm(t *testing.T, ctx context.Context, member *iammodel.User, name string) (*applicationmodel.ApplicationDetail, *model.FormDetail) {
+func (e *fpermEnv) createAppWithForm(t *testing.T, ctx context.Context, member *iammodel.User, name string) (*appmodel.AppDetail, *model.FormDetail) {
 	t.Helper()
-	app, err := e.appSvc.CreateBlank(ctx, member, &applicationmodel.CreateBlankRequest{Name: name})
+	app, err := e.appSvc.CreateBlank(ctx, member, &appmodel.CreateBlankRequest{Name: name})
 	if err != nil {
-		t.Fatalf("create application: %v", err)
+		t.Fatalf("create app: %v", err)
 	}
 	form, err := e.formSvc.Create(ctx, member, &model.CreateFormRequest{
-		ApplicationID: app.ID, Name: name + "表单", FormType: model.FormTypeStandard,
+		AppID: app.ID, Name: name + "表单", FormType: model.FormTypeStandard,
 	})
 	if err != nil {
 		t.Fatalf("create form: %v", err)
@@ -249,29 +249,29 @@ func fpermDoc(items ...fpermField) string {
 // ---- 适配器（与 server 装配同构的最小测试适配） ----
 
 type fpermAppDirectory struct {
-	apps applicationrepository.ApplicationRepository
+	apps apprepository.AppRepository
 }
 
-func (d fpermAppDirectory) ApplicationByID(ctx context.Context, id uint) (ApplicationView, bool, error) {
+func (d fpermAppDirectory) AppByID(ctx context.Context, id uint) (AppView, bool, error) {
 	app, err := d.apps.GetByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ApplicationView{}, true, nil
+			return AppView{}, true, nil
 		}
-		return ApplicationView{}, false, err
+		return AppView{}, false, err
 	}
-	return ApplicationView{ID: app.ID, Status: app.Status}, false, nil
+	return AppView{ID: app.ID, Status: app.Status}, false, nil
 }
 
-func (d fpermAppDirectory) ApplicationByCode(ctx context.Context, code string) (ApplicationView, bool, error) {
+func (d fpermAppDirectory) AppByCode(ctx context.Context, code string) (AppView, bool, error) {
 	app, err := d.apps.GetByCode(ctx, code)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return ApplicationView{}, true, nil
+			return AppView{}, true, nil
 		}
-		return ApplicationView{}, false, err
+		return AppView{}, false, err
 	}
-	return ApplicationView{ID: app.ID, Status: app.Status}, false, nil
+	return AppView{ID: app.ID, Status: app.Status}, false, nil
 }
 
 type fpermSubjectSource struct{ iam *iamrepository.Repositories }
@@ -385,14 +385,14 @@ func (d fpermSubjectDirectory) SubjectNames(ctx context.Context, subjects []mode
 
 type fpermFormDirectory struct{ forms repository.FormRepository }
 
-func (d fpermFormDirectory) ExistingFormTargets(ctx context.Context, ids []uint) (map[uint]applicationservice.FormTargetProjection, error) {
+func (d fpermFormDirectory) ExistingFormTargets(ctx context.Context, ids []uint) (map[uint]appservice.FormTargetProjection, error) {
 	existing, err := d.forms.ExistingFormTargets(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	targets := make(map[uint]applicationservice.FormTargetProjection, len(existing))
+	targets := make(map[uint]appservice.FormTargetProjection, len(existing))
 	for id, target := range existing {
-		targets[id] = applicationservice.FormTargetProjection{Code: target.Code, FormType: string(target.FormType)}
+		targets[id] = appservice.FormTargetProjection{Code: target.Code, FormType: string(target.FormType)}
 	}
 	return targets, nil
 }
@@ -561,9 +561,9 @@ func TestSECFPERM003MenuTrimmingAndEntrance(t *testing.T) {
 }
 
 // menuHasFormTarget 判断菜单快照中是否存在指向指定表单编码的资产节点
-func menuHasFormTarget(t *testing.T, menu *applicationmodel.MenuSnapshot, formCode string) bool {
+func menuHasFormTarget(t *testing.T, menu *appmodel.MenuSnapshot, formCode string) bool {
 	t.Helper()
-	for _, detail := range menu.EntryMap {
+	for _, detail := range menu.NodeMap {
 		if detail.Target != nil && detail.Target.Code == formCode {
 			return true
 		}

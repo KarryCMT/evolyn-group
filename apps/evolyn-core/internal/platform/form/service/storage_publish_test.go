@@ -300,7 +300,7 @@ func (env *physicalTestEnv) createPhysicalForm(t *testing.T, draft model.JSONCon
 	t.Helper()
 	ctx := tenantCtx(1)
 	created, err := env.svc.Create(ctx, memberOfTenant(1), &model.CreateFormRequest{
-		ApplicationID: 7, Name: "物理表单", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "物理表单", FormType: model.FormTypeStandard,
 	})
 	require.NoError(t, err)
 	// 模拟 Create 事务内的存储绑定（newTestService 构造未走 provision 内挂载）
@@ -465,7 +465,7 @@ func TestAttachPhysicalStorageRetriesOnConflict(t *testing.T) {
 	env.storages.conflicts = 2 // 前两次表名冲突
 	ctx := tenantCtx(1)
 	created, err := env.svc.Create(ctx, memberOfTenant(1), &model.CreateFormRequest{
-		ApplicationID: 7, Name: "防重表单", FormType: model.FormTypeStandard,
+		AppID: 7, Name: "防重表单", FormType: model.FormTypeStandard,
 	})
 	require.NoError(t, err)
 	form := env.formRepo.formByCode(created.Code)

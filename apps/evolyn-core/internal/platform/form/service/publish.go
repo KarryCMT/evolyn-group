@@ -167,7 +167,7 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 	}
 
 	if s.audit != nil {
-		appID, appCode, appName := s.appSnapshot(ctx, form.ApplicationID)
+		appID, appCode, appName := s.appSnapshot(ctx, form.AppID)
 		s.audit.Record(ctx, auditservice.Entry{
 			Module: "form", Action: "publish", ResourceType: "form",
 			ResourceID: form.Code,
@@ -175,10 +175,10 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 				"publishedVersion": result.PublishedVersion,
 				"schemaRevision":   result.SchemaRevision,
 			},
-			TargetName:      form.Name,
-			ApplicationID:   appID,
-			ApplicationCode: appCode,
-			ApplicationName: appName,
+			TargetName: form.Name,
+			AppID:      appID,
+			AppCode:    appCode,
+			AppName:    appName,
 		})
 	}
 	return result, nil
@@ -242,28 +242,28 @@ func (s *formService) publishBlockedFields(ctx context.Context, form *model.Form
 // ---- 运行时 bootstrap（P2） ----
 
 // GetRuntime 运行时 bootstrap：appCode 归属复核 + 应用 active + 表单已发布；
-// 普通成员可读（路由经 applications:get，与菜单同口径），无 forms 管理权限要求。
+// 普通成员可读（路由经 apps:get，与菜单同口径），无 forms 管理权限要求。
 // 权限组判定（P1）：入口 = view ∨ add（S8，仅录入表单对仅 add 成员放行），
 // 出网追加 permissions 投影（operations + viewFields/addFields 双矩阵）。
 func (s *formService) GetRuntime(ctx context.Context, member *iammodel.User, appCode, formCode string) (*model.FormRuntime, error) {
-	app, notFound, err := s.apps.ApplicationByCode(ctx, appCode)
+	app, notFound, err := s.apps.AppByCode(ctx, appCode)
 	if err != nil {
 		return nil, err
 	}
 	if notFound {
-		return nil, httpx.Wrap(apperrors.ErrFormNotFound, fmt.Errorf("application %s not found", appCode))
+		return nil, httpx.Wrap(apperrors.ErrFormNotFound, fmt.Errorf("app %s not found", appCode))
 	}
-	if app.Status != applicationStatusActive {
-		return nil, httpx.Wrap(apperrors.ErrFormNotFound, fmt.Errorf("application %s status %s", appCode, app.Status))
+	if app.Status != appStatusActive {
+		return nil, httpx.Wrap(apperrors.ErrFormNotFound, fmt.Errorf("app %s status %s", appCode, app.Status))
 	}
 
 	form, err := s.loadByCode(ctx, formCode)
 	if err != nil {
 		return nil, err
 	}
-	if form.ApplicationID != app.ID {
+	if form.AppID != app.ID {
 		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid,
-			fmt.Errorf("form %s not in application %s", formCode, appCode))
+			fmt.Errorf("form %s not in app %s", formCode, appCode))
 	}
 	if form.LatestVersionID == nil {
 		return nil, httpx.Wrap(apperrors.ErrNotPublished, fmt.Errorf("form %s not published", formCode))
@@ -325,16 +325,16 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 	// 应用编码属于提交上下文的一部分：按编码加载并复核表单归属，禁止只凭
 	// formCode 跨应用构造请求；归档应用停止受理提交（与 bootstrap 同口径）。
 	appCode := strings.TrimSpace(req.AppCode)
-	app, notFound, err := s.apps.ApplicationByCode(ctx, appCode)
+	app, notFound, err := s.apps.AppByCode(ctx, appCode)
 	if err != nil {
 		return nil, err
 	}
-	if notFound || app.ID != form.ApplicationID || app.Status != applicationStatusActive {
+	if notFound || app.ID != form.AppID || app.Status != appStatusActive {
 		return nil, httpx.Wrap(apperrors.ErrFormAppInvalid,
-			fmt.Errorf("application %s unavailable for form %s submit", appCode, req.FormCode))
+			fmt.Errorf("app %s unavailable for form %s submit", appCode, req.FormCode))
 	}
-	entryCode := strings.TrimSpace(req.EntryCode)
-	if err := s.validateSubmitEntry(ctx, form, appCode, entryCode); err != nil {
+	menuCode := strings.TrimSpace(req.MenuCode)
+	if err := s.validateSubmitEntry(ctx, form, appCode, menuCode); err != nil {
 		return nil, err
 	}
 	if req.HasResult == nil || !*req.HasResult {
@@ -423,15 +423,15 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 		if merr != nil {
 			return merr
 		}
-		var entryCodeSnapshot *string
-		if entryCode != "" {
-			entryCodeSnapshot = &entryCode
+		var menuCodeSnapshot *string
+		if menuCode != "" {
+			menuCodeSnapshot = &menuCode
 		}
 		draft := &model.FormRecord{
 			FormID:              form.ID,
 			FormVersionID:       version.ID,
 			DataOpID:            &canonicalOperationID,
-			EntryCode:           entryCodeSnapshot,
+			MenuCode:            menuCodeSnapshot,
 			SubmittedByMemberID: member.ID,
 			// 提交人展示名快照（000067）：租户内昵称即展示口径；昵称为空的
 			// 边缘态快照空串，由列表侧兜底展示。
@@ -510,10 +510,10 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 				"formCode":         req.FormCode,
 				"publishedVersion": req.PublishedVersion,
 			},
-			TargetName:      form.Name,
-			ApplicationID:   app.ID,
-			ApplicationCode: app.Code,
-			ApplicationName: app.Name,
+			TargetName: form.Name,
+			AppID:      app.ID,
+			AppCode:    app.Code,
+			AppName:    app.Name,
 		})
 	}
 	return &model.SubmitRecordResult{RecordID: record.ID, WorkflowInstanceNo: record.WorkflowInstanceNo}, nil
@@ -531,11 +531,11 @@ func findRecordReplay(ctx context.Context, records repository.FormRecordReposito
 	return nil, false, nil
 }
 
-// validateSubmitEntry 提交入口校验：携带 entryCode 时复核该菜单节点确实
+// validateSubmitEntry 提交入口校验：携带 menuCode 时复核该菜单节点确实
 // 引用目标表单（跨应用/伪造入口直接拒绝）；references 端口未注入（单测桩）
 // 时跳过复核。
-func (s *formService) validateSubmitEntry(ctx context.Context, form *model.Form, appCode, entryCode string) error {
-	if entryCode == "" || s.references == nil {
+func (s *formService) validateSubmitEntry(ctx context.Context, form *model.Form, appCode, menuCode string) error {
+	if menuCode == "" || s.references == nil {
 		return nil
 	}
 	references, err := s.references.ListFormReferences(ctx, form.ID)
@@ -543,12 +543,12 @@ func (s *formService) validateSubmitEntry(ctx context.Context, form *model.Form,
 		return err
 	}
 	for _, reference := range references {
-		if reference.ApplicationCode == appCode && reference.EntryID == entryCode {
+		if reference.AppCode == appCode && reference.MenuID == menuCode {
 			return nil
 		}
 	}
 	return httpx.Wrap(apperrors.ErrFormAppInvalid,
-		fmt.Errorf("entry %s does not reference form %s in application %s", entryCode, form.Code, appCode))
+		fmt.Errorf("entry %s does not reference form %s in app %s", menuCode, form.Code, appCode))
 }
 
 // validateSubmitValues 提交值校验入口：权限组判定（P1，S5/S8）+ 字段终审。

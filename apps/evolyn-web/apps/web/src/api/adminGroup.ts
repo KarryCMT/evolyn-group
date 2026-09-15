@@ -2,13 +2,13 @@ import { http } from '@evolyn.do/utils';
 
 /**
  * 权限中心-管理员模块 API（管理组）：
- * 系统管理员页（scope=system）与灵衍云管理员页（scope=application）共用。
+ * 系统管理员页（scope=system）与灵衍云管理员页（scope=app）共用。
  * 交互语义为「勾选/选择确认即保存」：PATCH 每次只提交一个配置区块，
  * 区块整体替换；响应返回最新详情，调用方以响应覆盖本地状态。
  */
 
-/** 管理组类型：system=系统管理员页（通讯录管理组），application=灵衍云管理员页（普通管理组）。 */
-export type AdminGroupScope = 'system' | 'application';
+/** 管理组类型：system=系统管理员页（通讯录管理组），app=灵衍云管理员页（普通管理组）。 */
+export type AdminGroupScope = 'system' | 'app';
 
 /** 范围模式：all=全部，partial=部分（ID 清单）。 */
 export type AdminScopeMode = 'all' | 'partial';
@@ -29,7 +29,7 @@ export interface AdminGroupMemberDto {
   department: string;
 }
 
-/** 部门范围：system 组为通讯录管理范围，application 组为使用权分发范围。 */
+/** 部门范围：system 组为通讯录管理范围，app 组为使用权分发范围。 */
 export interface AdminDepartmentScopeDto {
   enabled: boolean;
   mode: AdminScopeMode;
@@ -49,14 +49,14 @@ export interface AdminExternalOrgScopeDto {
   enabled: boolean;
 }
 
-/** 应用范围（仅 application 组）：allApplications=true 为语义全量，新建应用自动纳入。 */
-export interface AdminApplicationScopeDto {
-  allApplications: boolean;
-  applicationIds: number[];
+/** 应用范围（仅 app 组）：allApps=true 为语义全量，新建应用自动纳入。 */
+export interface AdminAppScopeDto {
+  allApps: boolean;
+  appIds: number[];
   manage: boolean;
 }
 
-/** 通讯录管理子配置（仅 application 组的设置抽屉），与主行分发范围解耦。 */
+/** 通讯录管理子配置（仅 app 组的设置抽屉），与主行分发范围解耦。 */
 export interface AdminAddressBookScopeDto {
   departmentEnabled: boolean;
   roleVisible: boolean;
@@ -82,10 +82,10 @@ export interface AdminGroupDetailDto {
   roleMode: AdminScopeMode;
   roleIds: number[];
   externalEnabled: boolean;
-  /** 以下仅 application 组返回。 */
-  applicationIds?: number[];
-  allApplications: boolean;
-  applicationManage: boolean;
+  /** 以下仅 app 组返回。 */
+  appIds?: number[];
+  allApps: boolean;
+  appManage: boolean;
   addressBook?: AdminAddressBookScopeDto;
 }
 
@@ -99,7 +99,7 @@ export interface AdminGroupPatchPayload {
   departmentScope?: AdminDepartmentScopeDto;
   roleScope?: AdminRoleScopeDto;
   externalOrg?: AdminExternalOrgScopeDto;
-  applicationScope?: AdminApplicationScopeDto;
+  appScope?: AdminAppScopeDto;
   addressBook?: AdminAddressBookScopeDto;
 }
 

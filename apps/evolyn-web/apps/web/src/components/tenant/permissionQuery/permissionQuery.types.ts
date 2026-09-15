@@ -2,7 +2,7 @@ import type { Component } from 'vue';
 
 export type PermissionWorkspace = 'system' | 'product';
 export type PermissionQueryView = 'management-groups' | 'permission-groups';
-export type PermissionSubjectType = 'member' | 'department' | 'role' | 'application';
+export type PermissionSubjectType = 'member' | 'department' | 'role' | 'app';
 
 export interface PermissionMember {
   id: string;
@@ -15,7 +15,7 @@ export interface ManagementGroup {
   name: string;
   type: string;
   members: PermissionMember[];
-  applicationScope?: string;
+  appScope?: string;
 }
 
 export interface PermissionNode {

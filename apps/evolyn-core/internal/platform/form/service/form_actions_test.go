@@ -39,7 +39,7 @@ func newActionTestService(perms map[string]bool, formRepo *fakeFormRepo) FormSer
 
 func seedWorkflowForm(repo *fakeFormRepo) {
 	form := &model.Form{
-		ApplicationID: 7, Code: "form_src", Name: "请假申请", FormType: model.FormTypeWorkflow,
+		AppID: 7, Code: "form_src", Name: "请假申请", FormType: model.FormTypeWorkflow,
 		DraftContent: validDraft(), DraftRevision: 1, ProtocolVersion: model.CurrentProtocolVersion, CreatorMemberID: 11,
 	}
 	form.TenantID = 1
@@ -86,7 +86,7 @@ func TestCopyFormInApp(t *testing.T) {
 	assert.NotEqual(t, "form_src", detail.Code)
 	assert.Equal(t, "请假申请（副本）", detail.Name)
 	assert.Equal(t, model.FormTypeWorkflow, detail.FormType)
-	assert.Equal(t, uint(7), detail.ApplicationID)
+	assert.Equal(t, uint(7), detail.AppID)
 	// 草稿全文随复制携带
 	assert.JSONEq(t, string(validDraft()), string(detail.Draft))
 
@@ -103,18 +103,18 @@ func TestCopyFormCrossApp(t *testing.T) {
 
 	// 跨应用成功：copy-cross-app 动作 + 目标应用可用
 	svc := newActionTestService(actionPerms("form-actions:copy-cross-app"), repo)
-	detail, err := svc.Copy(tenantCtx(1), memberOfTenant(1), "form_src", &model.CopyFormRequest{TargetApplicationID: &cross})
+	detail, err := svc.Copy(tenantCtx(1), memberOfTenant(1), "form_src", &model.CopyFormRequest{TargetAppID: &cross})
 	assert.NoError(t, err)
-	assert.Equal(t, uint(9), detail.ApplicationID)
+	assert.Equal(t, uint(9), detail.AppID)
 
 	// 目标应用归档：FORM_APP_INVALID
 	archived := uint(8)
-	_, err = svc.Copy(tenantCtx(1), memberOfTenant(1), "form_src", &model.CopyFormRequest{TargetApplicationID: &archived})
+	_, err = svc.Copy(tenantCtx(1), memberOfTenant(1), "form_src", &model.CopyFormRequest{TargetAppID: &archived})
 	assert.ErrorIs(t, err, apperrors.ErrFormAppInvalid)
 
 	// 只授 copy-in-app 未授 copy-cross-app：跨应用拒绝
 	svc2 := newActionTestService(actionPerms("form-actions:copy-in-app"), repo)
-	_, err = svc2.Copy(tenantCtx(1), memberOfTenant(1), "form_src", &model.CopyFormRequest{TargetApplicationID: &cross})
+	_, err = svc2.Copy(tenantCtx(1), memberOfTenant(1), "form_src", &model.CopyFormRequest{TargetAppID: &cross})
 	assert.ErrorIs(t, err, apperrors.ErrForbidden)
 }
 
@@ -130,8 +130,8 @@ func TestListReferences(t *testing.T) {
 
 	// 端口注入：透传反查结果
 	stub := &fakeReferenceSource{items: []FormReference{{
-		ApplicationCode: "app_x", ApplicationName: "示例应用",
-		EntryID: "menu_a", EntryName: "请假申请",
+		AppCode: "app_x", AppName: "示例应用",
+		MenuID: "menu_a", EntryName: "请假申请",
 	}}}
 	if impl, ok := svc.(FormReferenceSourceInjector); ok {
 		impl.UseReferenceSource(stub)

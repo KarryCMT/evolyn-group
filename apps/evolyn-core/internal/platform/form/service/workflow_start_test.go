@@ -45,7 +45,7 @@ func TestSubmitWorkflowRecordStartsAtomicallyAndDoesNotReplay(t *testing.T) {
 			starter := &submissionStarter{}
 			svc.UseWorkflowStarter(starter)
 			ctx, member := tenantCtx(1), memberOfTenant(1)
-			created, err := svc.Create(ctx, member, &model.CreateFormRequest{ApplicationID: 7, Name: "流程提交回归", FormType: formType})
+			created, err := svc.Create(ctx, member, &model.CreateFormRequest{AppID: 7, Name: "流程提交回归", FormType: formType})
 			require.NoError(t, err)
 			_, err = svc.SaveDraft(ctx, member, created.Code, &model.SaveDraftRequest{DraftRevision: 1, ProtocolVersion: model.CurrentProtocolVersion, Content: validDraft()})
 			require.NoError(t, err)

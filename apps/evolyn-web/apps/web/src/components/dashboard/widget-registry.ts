@@ -24,7 +24,5 @@ export function getDashboardWidgetComponentProps(
   widget: DashboardWidgetContent,
   editorMode = false,
 ): Record<string, unknown> {
-  return ['apps', 'favorites', 'charts', 'greeting'].includes(widget.type)
-    ? { editorMode }
-    : {};
+  return ['apps', 'favorites', 'charts', 'greeting'].includes(widget.type) ? { editorMode } : {};
 }

@@ -31,10 +31,10 @@ type Entry struct {
 	Summary      string // 直接指定操作详情（覆盖模板生成，须自行保证脱敏）
 
 	// 产品日志应用维度快照（000064，全部可选）：应用内操作填写，写时固化
-	// （应用删除/改名后历史展示不失真）；ApplicationID 为 0 时三字段均不落
-	ApplicationID   uint   // 应用 ID（查询与租户归属校验维度）
-	ApplicationCode string // 应用稳定编码快照
-	ApplicationName string // 应用名称快照
+	// （应用删除/改名后历史展示不失真）；AppID 为 0 时三字段均不落
+	AppID   uint   // 应用 ID（查询与租户归属校验维度）
+	AppCode string // 应用稳定编码快照
+	AppName string // 应用名称快照
 }
 
 // ActorNamer 操作者显示名解析窄端口：装配层以 iam 成员仓储适配（audit 域

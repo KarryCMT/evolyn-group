@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineOptions({ name: 'ApplicationSettingFeaturePage' });
+defineOptions({ name: 'AppSettingFeaturePage' });
 
 const props = defineProps<{
   title: string;
@@ -9,23 +9,18 @@ const props = defineProps<{
 </script>
 
 <template>
-  <section class="application-setting-feature">
-    <header class="application-setting-feature__header">
-      <h1 class="application-setting-feature__title">{{ props.title }}</h1>
-      <p class="application-setting-feature__description">{{ props.description }}</p>
+  <section class="app-setting-feature">
+    <header class="app-setting-feature__header">
+      <h1 class="app-setting-feature__title">{{ props.title }}</h1>
+      <p class="app-setting-feature__description">{{ props.description }}</p>
     </header>
 
-    <section
-      class="application-setting-feature__card"
-      aria-labelledby="application-setting-plan-title"
-    >
-      <div class="application-setting-feature__card-heading">
-        <h2 id="application-setting-plan-title" class="application-setting-feature__card-title">
-          功能规划
-        </h2>
-        <span class="application-setting-feature__status">规划中</span>
+    <section class="app-setting-feature__card" aria-labelledby="app-setting-plan-title">
+      <div class="app-setting-feature__card-heading">
+        <h2 id="app-setting-plan-title" class="app-setting-feature__card-title">功能规划</h2>
+        <span class="app-setting-feature__status">规划中</span>
       </div>
-      <ul class="application-setting-feature__capabilities">
+      <ul class="app-setting-feature__capabilities">
         <li v-for="capability in props.capabilities" :key="capability">{{ capability }}</li>
       </ul>
     </section>
@@ -33,7 +28,7 @@ const props = defineProps<{
 </template>
 
 <style scoped lang="scss">
-.application-setting-feature {
+.app-setting-feature {
   box-sizing: border-box;
   min-height: 100%;
   padding: var(--el-space-3xl);
@@ -107,7 +102,7 @@ const props = defineProps<{
 }
 
 @media (max-width: 720px) {
-  .application-setting-feature {
+  .app-setting-feature {
     padding: var(--el-space-2xl);
 
     &__capabilities {

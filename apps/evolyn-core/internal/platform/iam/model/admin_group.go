@@ -11,10 +11,10 @@ import (
 
 // 管理组 scope（与前端 AdministratorScope 对齐）：
 // system=系统管理员页（内置系统管理组 + 通讯录管理组），
-// application=灵衍云管理员页（普通管理组，管应用 + 分发范围）
+// app=灵衍云管理员页（普通管理组，管应用 + 分发范围）
 const (
-	AdminGroupScopeSystem      = "system"
-	AdminGroupScopeApplication = "application"
+	AdminGroupScopeSystem = "system"
+	AdminGroupScopeApp    = "app"
 )
 
 // 范围模式：all=全部（无需 ID 清单），partial=部分（ID 清单）
@@ -42,7 +42,7 @@ const AdminGroupBuiltinName = "系统管理员"
 type AdminGroup struct {
 	ID   uint   `json:"id" gorm:"autoIncrement;primaryKey"`
 	Name string `json:"name" gorm:"size:30;not null"` // 租户内唯一：服务层预检 + 部分唯一索引兜底
-	// Scope 限定 system/application，决定 scope_config 各区块的语义
+	// Scope 限定 system/app，决定 scope_config 各区块的语义
 	Scope   string `json:"scope" gorm:"size:16;not null"`
 	BuiltIn bool   `json:"builtIn" gorm:"not null"` // bool 不带 gorm default tag：零值 false 必须显式写入（同 MemberFieldSetting 注释的坑）
 	// ScopeConfig 出网不直接透出：详情接口经 AdminGroupDetailView 展开
@@ -67,7 +67,7 @@ type AdminGroupMember struct {
 func (*AdminGroupMember) TableName() string { return "tn_admin_group_members" }
 
 // AdminDepartmentScope 部门范围。system 组为通讯录管理范围（Enabled 开关 +
-// 全部/部分部门）；application 组为使用权分发范围（主行无开关，Enabled 恒 true）
+// 全部/部分部门）；app 组为使用权分发范围（主行无开关，Enabled 恒 true）
 type AdminDepartmentScope struct {
 	Enabled       bool   `json:"enabled"`
 	Mode          string `json:"mode"` // all | partial
@@ -87,16 +87,16 @@ type AdminExternalOrgScope struct {
 	Enabled bool `json:"enabled"`
 }
 
-// AdminApplicationScope 应用范围（仅 application 组）：可编辑应用集合 +
-// 可添加/删除应用。AllApplications=true 为语义全量（新建应用自动纳入），
+// AdminAppScope 应用范围（仅 app 组）：可编辑应用集合 +
+// 可添加/删除应用。AllApps=true 为语义全量（新建应用自动纳入），
 // 避免存全量 ID 清单在应用增删后漂移
-type AdminApplicationScope struct {
-	AllApplications bool   `json:"allApplications"`
-	ApplicationIDs  []uint `json:"applicationIds"`
-	Manage          bool   `json:"manage"`
+type AdminAppScope struct {
+	AllApps bool   `json:"allApps"`
+	AppIDs  []uint `json:"appIds"`
+	Manage  bool   `json:"manage"`
 }
 
-// AdminAddressBookScope 通讯录管理子配置（仅 application 组的设置抽屉）：
+// AdminAddressBookScope 通讯录管理子配置（仅 app 组的设置抽屉）：
 // 应用管理员附带的一小块通讯录委托，与主行的分发范围（Department/Role）解耦
 type AdminAddressBookScope struct {
 	DepartmentEnabled bool `json:"departmentEnabled"`
@@ -107,13 +107,13 @@ type AdminAddressBookScope struct {
 
 // AdminGroupScopeConfig 管理组范围配置（scope_config JSONB 单列，先例 roles.rules）：
 // 区块指针 nil 表示不适用/未配置。system 组使用 Department/Role/ExternalOrg；
-// application 组另加 Application/AddressBook。ID 清单的悬挂引用（部门/角色被删）
+// app 组另加 App/AddressBook。ID 清单的悬挂引用（部门/角色被删）
 // 由读取侧解析时静默丢弃，不做删除钩子反向清理
 type AdminGroupScopeConfig struct {
 	Department  *AdminDepartmentScope  `json:"department,omitempty"`
 	Role        *AdminRoleScope        `json:"role,omitempty"`
 	ExternalOrg *AdminExternalOrgScope `json:"externalOrg,omitempty"`
-	Application *AdminApplicationScope `json:"application,omitempty"`
+	App         *AdminAppScope         `json:"app,omitempty"`
 	AddressBook *AdminAddressBookScope `json:"addressBook,omitempty"`
 }
 
@@ -162,11 +162,11 @@ type AdminGroupDetailView struct {
 	RoleIDs           []uint `json:"roleIds"`
 	ExternalEnabled   bool   `json:"externalEnabled"`
 
-	// 以下仅 application 组返回
-	ApplicationIDs    []uint                 `json:"applicationIds,omitempty"`
-	AllApplications   bool                   `json:"allApplications"`
-	ApplicationManage bool                   `json:"applicationManage"`
-	AddressBook       *AdminAddressBookScope `json:"addressBook,omitempty"`
+	// 以下仅 app 组返回
+	AppIDs      []uint                 `json:"appIds,omitempty"`
+	AllApps     bool                   `json:"allApps"`
+	AppManage   bool                   `json:"appManage"`
+	AddressBook *AdminAddressBookScope `json:"addressBook,omitempty"`
 }
 
 // AdminGroupSummary 管理组列表概要：内置组排最前，MemberCount 内置组为

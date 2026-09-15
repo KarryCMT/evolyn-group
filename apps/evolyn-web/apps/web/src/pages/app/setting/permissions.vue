@@ -5,7 +5,7 @@ import type {
   AssetPermissionGroup,
   PermissionFieldPermission,
   PermissionSubject,
-} from '~/components/application/permissions/permission.types';
+} from '~/components/app/permissions/permission.types';
 import { EvolynMemberDepartmentRolePicker } from '@evolyn.do/ui';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, shallowRef } from 'vue';
@@ -15,23 +15,21 @@ import {
   deleteFormPermissionGroup,
   updateFormPermissionGroup,
 } from '~/api/form';
-import PermissionAssetList from '~/components/application/permissions/PermissionAssetList.vue';
-import PermissionGroupEditorDialog from '~/components/application/permissions/PermissionGroupEditorDialog.vue';
-import PermissionGroupsPanel from '~/components/application/permissions/PermissionGroupsPanel.vue';
-import { useApplicationFormPermissions } from '~/composables/useApplicationFormPermissions';
-import { useApplicationHome } from '~/composables/useApplicationHome';
+import PermissionAssetList from '~/components/app/permissions/PermissionAssetList.vue';
+import PermissionGroupEditorDialog from '~/components/app/permissions/PermissionGroupEditorDialog.vue';
+import PermissionGroupsPanel from '~/components/app/permissions/PermissionGroupsPanel.vue';
+import { useAppFormPermissions } from '~/composables/useAppFormPermissions';
+import { useAppHome } from '~/composables/useAppHome';
 
-defineOptions({ name: 'ApplicationSettingPermissionsPage' });
+defineOptions({ name: 'AppSettingPermissionsPage' });
 
 const route = useRoute();
 const appCode = computed(() => String(route.params.appCode ?? ''));
-const { application, errorMessage, reload, status } = useApplicationHome(appCode);
-const permissionResources = useApplicationFormPermissions(appCode);
+const { app, errorMessage, reload, status } = useAppHome(appCode);
+const permissionResources = useAppFormPermissions(appCode);
 
 // 应用修改能力仅用于前端入口预检；最终授权始终由后端 form-permissions:* 校验。
-const accessDenied = computed(
-  () => status.value === 'ready' && !application.value?.capabilities.edit,
-);
+const accessDenied = computed(() => status.value === 'ready' && !app.value?.capabilities.edit);
 const keyword = shallowRef('');
 const pickerVisible = shallowRef(false);
 const targetGroupId = shallowRef<string>();
@@ -249,22 +247,18 @@ function toSubjectInput(subject: PermissionSubject) {
 }
 
 function handleMutationError(error: unknown) {
-  console.warn('[application-form-permissions] mutation failed', error);
+  console.warn('[app-form-permissions] mutation failed', error);
   ElMessage.error('保存权限组失败；若配置已被他人修改，请刷新后重试。');
 }
 </script>
 
 <template>
   <!-- 应用信息装载中：整页占位等待，避免准入判定闪烁。 -->
-  <section
-    v-if="status === 'loading'"
-    v-loading="true"
-    class="application-setting-permissions__status"
-  />
+  <section v-if="status === 'loading'" v-loading="true" class="app-setting-permissions__status" />
 
   <el-result
     v-else-if="status === 'not-found'"
-    class="application-setting-permissions__result"
+    class="app-setting-permissions__result"
     icon="warning"
     title="应用不存在或已不可访问"
     sub-title="请返回工作台后重新选择应用。"
@@ -272,7 +266,7 @@ function handleMutationError(error: unknown) {
 
   <el-result
     v-else-if="status === 'error'"
-    class="application-setting-permissions__result"
+    class="app-setting-permissions__result"
     icon="error"
     title="加载应用设置失败"
     :sub-title="errorMessage"
@@ -285,7 +279,7 @@ function handleMutationError(error: unknown) {
   <!-- 仅应用管理员可进入权限设置，普通成员呈现无权限状态。 -->
   <el-result
     v-else-if="accessDenied"
-    class="application-setting-permissions__result"
+    class="app-setting-permissions__result"
     icon="warning"
     title="无访问权限"
     sub-title="仅应用管理员可管理表单权限。"
@@ -295,12 +289,12 @@ function handleMutationError(error: unknown) {
   <section
     v-else-if="permissionResources.status.value === 'loading'"
     v-loading="true"
-    class="application-setting-permissions__status"
+    class="app-setting-permissions__status"
   />
 
   <el-result
     v-else-if="permissionResources.status.value === 'error'"
-    class="application-setting-permissions__result"
+    class="app-setting-permissions__result"
     icon="error"
     title="加载表单权限失败"
     :sub-title="permissionResources.errorMessage.value"
@@ -310,7 +304,7 @@ function handleMutationError(error: unknown) {
     </template>
   </el-result>
 
-  <section v-else class="application-setting-permissions" aria-label="表单权限">
+  <section v-else class="app-setting-permissions" aria-label="表单权限">
     <PermissionAssetList
       :assets="permissionResources.assets.value"
       :keyword="keyword"
@@ -353,7 +347,7 @@ function handleMutationError(error: unknown) {
 </template>
 
 <style scoped lang="scss">
-.application-setting-permissions {
+.app-setting-permissions {
   display: flex;
   height: 100%;
   width: 100%;
@@ -370,7 +364,7 @@ function handleMutationError(error: unknown) {
 }
 
 @media (max-width: 920px) {
-  .application-setting-permissions {
+  .app-setting-permissions {
     min-width: 760px;
   }
 }

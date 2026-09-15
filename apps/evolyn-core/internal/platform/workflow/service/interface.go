@@ -11,23 +11,23 @@ import (
 	"evolyn/internal/platform/workflow/model"
 )
 
-// AccessEvaluator 权限集窄端口（装配层由 application 域 RBAC 评估器适配）。
+// AccessEvaluator 权限集窄端口（装配层由 app 域 RBAC 评估器适配）。
 type AccessEvaluator interface {
 	Permissions(ctx context.Context, member *iammodel.User) map[string]bool
 }
 
-// ApplicationDirectory 应用目录窄端口（000064 产品日志）：流程定义经
-// form_code 绑定表单，再由表单归属应用；装配层以 form+application 仓储
-// 适配，workflow 域不直接依赖 form/application 域
-type ApplicationDirectory interface {
-	// ApplicationByFormCode 按表单编码解析所属应用视图（ctx 租户过滤：
+// AppDirectory 应用目录窄端口（000064 产品日志）：流程定义经
+// form_code 绑定表单，再由表单归属应用；装配层以 form+app 仓储
+// 适配，workflow 域不直接依赖 form/app 域
+type AppDirectory interface {
+	// AppByFormCode 按表单编码解析所属应用视图（ctx 租户过滤：
 	// 跨租户/不存在即 notFound）
-	ApplicationByFormCode(ctx context.Context, formCode string) (app ApplicationView, notFound bool, err error)
+	AppByFormCode(ctx context.Context, formCode string) (app AppView, notFound bool, err error)
 }
 
-// ApplicationView 应用只读视图（workflow 域关心的最小字段）：审计事件的
+// AppView 应用只读视图（workflow 域关心的最小字段）：审计事件的
 // 应用维度快照源
-type ApplicationView struct {
+type AppView struct {
 	ID   uint
 	Code string
 	Name string

@@ -201,20 +201,20 @@ type AdminGroupService interface {
 // AdminGroupCreateRequest 创建管理组：名称必填（≤30 字符），scope 限定枚举；
 // 不接受 built_in（内置组只经 seed 产生）
 type AdminGroupCreateRequest struct {
-	Scope string `json:"scope" binding:"required,oneof=system application"`
+	Scope string `json:"scope" binding:"required,oneof=system app"`
 	Name  string `json:"name" binding:"required"`
 }
 
 // AdminGroupPatchRequest 分区块即时保存请求：对齐前端「每次勾选即保存」交互，
 // 至多一个区块非 nil（singleBlock 校验），区块整体替换
 type AdminGroupPatchRequest struct {
-	Name             *string                      `json:"name"`
-	Members          *[]uint                      `json:"members"`
-	DepartmentScope  *model.AdminDepartmentScope  `json:"departmentScope"`
-	RoleScope        *model.AdminRoleScope        `json:"roleScope"`
-	ExternalOrg      *model.AdminExternalOrgScope `json:"externalOrg"`
-	ApplicationScope *model.AdminApplicationScope `json:"applicationScope"`
-	AddressBook      *model.AdminAddressBookScope `json:"addressBook"`
+	Name            *string                      `json:"name"`
+	Members         *[]uint                      `json:"members"`
+	DepartmentScope *model.AdminDepartmentScope  `json:"departmentScope"`
+	RoleScope       *model.AdminRoleScope        `json:"roleScope"`
+	ExternalOrg     *model.AdminExternalOrgScope `json:"externalOrg"`
+	AppScope        *model.AdminAppScope         `json:"appScope"`
+	AddressBook     *model.AdminAddressBookScope `json:"addressBook"`
 }
 
 // singleBlock 返回请求携带的唯一区块名；空或多区块均视为非法（整体替换语义
@@ -236,8 +236,8 @@ func (r *AdminGroupPatchRequest) singleBlock() string {
 	if r.ExternalOrg != nil {
 		blocks = append(blocks, "externalOrg")
 	}
-	if r.ApplicationScope != nil {
-		blocks = append(blocks, "applicationScope")
+	if r.AppScope != nil {
+		blocks = append(blocks, "appScope")
 	}
 	if r.AddressBook != nil {
 		blocks = append(blocks, "addressBook")

@@ -31,7 +31,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, ref, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getApplicationByCode } from '~/api/applications';
+import { getAppByCode } from '~/api/apps';
 import {
   createForm,
   getFormStorageJob,
@@ -105,25 +105,25 @@ watch(
  * 使用「未命名表单」和持久化 formType 调 POST /forms，拿稳定 code 后跳转设计器，
  * 再在属性面板改名）；
  * 此处仅防御直接落地的 `/form/new/design` 路由——解析应用 ID → 使用默认名称创建资产与空草稿 →
- * 以稳定 code 替换路由。query 中的 parentEntryCode（目标分组编码）随创建
+ * 以稳定 code 替换路由。query 中的 parentMenuCode（目标分组编码）随创建
  * 请求消费；旧版 type 临时标记仅清理，不再参与类型判断。
  */
 async function startNewForm(): Promise<void> {
   loading.value = true;
   try {
-    const app = await getApplicationByCode(String(route.params.appCode ?? ''));
+    const app = await getAppByCode(String(route.params.appCode ?? ''));
     // 兜底入口仅消费目标分组编码；表单类型不再从 query 推断。
-    const parentEntryCode =
-      typeof route.query.parentEntryCode === 'string' ? route.query.parentEntryCode : undefined;
+    const parentMenuCode =
+      typeof route.query.parentMenuCode === 'string' ? route.query.parentMenuCode : undefined;
     const detail = await createForm({
-      applicationId: app.id,
+      appId: app.id,
       name: '未命名表单',
       formType: 'standard',
-      parentEntryCode,
+      parentMenuCode,
     });
     workspace.setDetail(detail);
     adoptDetail(detail);
-    const { parentEntryCode: _parentEntryCode, type: _legacyType, ...restQuery } = route.query;
+    const { parentMenuCode: _parentMenuCode, type: _legacyType, ...restQuery } = route.query;
     await router.replace({
       name: 'form-design',
       params: { ...route.params, formCode: detail.code },

@@ -112,17 +112,17 @@ func (stubMembers) ListMembers(_ context.Context, _ uint) ([]model.MemberOption,
 // stubApps 应用目录桩：仅 21 号应用有效；筛选项返回两个应用
 type stubApps struct{}
 
-func (stubApps) ValidateApplication(_ context.Context, _, applicationID uint) error {
-	if applicationID == 21 {
+func (stubApps) ValidateApp(_ context.Context, _, appID uint) error {
+	if appID == 21 {
 		return nil
 	}
-	return apperrors.ErrApplicationInvalid
+	return apperrors.ErrAppInvalid
 }
 
-func (stubApps) ListApplications(_ context.Context, _ uint) ([]model.ApplicationOption, error) {
-	return []model.ApplicationOption{
-		{ApplicationID: 21, Code: "app_21", Name: "测试应用"},
-		{ApplicationID: 22, Code: "app_22", Name: "项目协作"},
+func (stubApps) ListApps(_ context.Context, _ uint) ([]model.AppOption, error) {
+	return []model.AppOption{
+		{AppID: 21, Code: "app_21", Name: "测试应用"},
+		{AppID: 22, Code: "app_22", Name: "项目协作"},
 	}, nil
 }
 
@@ -140,8 +140,8 @@ func TestListValidatesFilters(t *testing.T) {
 	assert.ErrorIs(t, err, apperrors.ErrDateInvalid)
 	_, err = svc.List(context.Background(), 1, model.ProductLogQuery{MemberID: 99})
 	assert.ErrorIs(t, err, apperrors.ErrMemberInvalid)
-	_, err = svc.List(context.Background(), 1, model.ProductLogQuery{ApplicationID: 99})
-	assert.ErrorIs(t, err, apperrors.ErrApplicationInvalid)
+	_, err = svc.List(context.Background(), 1, model.ProductLogQuery{AppID: 99})
+	assert.ErrorIs(t, err, apperrors.ErrAppInvalid)
 	// 企业日志分类不可用于产品日志（两目录互斥）
 	_, err = svc.List(context.Background(), 1, model.ProductLogQuery{CategoryCode: service.CategoryMemberManagement})
 	assert.ErrorIs(t, err, apperrors.ErrCategoryUnknown)
@@ -149,10 +149,10 @@ func TestListValidatesFilters(t *testing.T) {
 	assert.ErrorIs(t, err, apperrors.ErrEventUnknown)
 
 	_, err = svc.List(context.Background(), 1, model.ProductLogQuery{
-		CategoryCode:  service.CategoryProductForm,
-		EventCode:     "form.form.create",
-		ApplicationID: 21,
-		MemberID:      11,
+		CategoryCode: service.CategoryProductForm,
+		EventCode:    "form.form.create",
+		AppID:        21,
+		MemberID:     11,
 	})
 	assert.NoError(t, err)
 }
@@ -161,7 +161,7 @@ func TestListScopedToProductCategories(t *testing.T) {
 	// 企业治理行（成员管理/日志导出分类）不进产品日志结果；应用快照随行出网
 	repo := &fakeRepo{rows: []model.ProductLogRow{
 		{ID: 1, ActorNameSnapshot: "张三", EventCode: "form.form.delete", CategoryCode: "form",
-			TargetNameSnapshot: "采购申请", Summary: "删除表单「采购申请」", ApplicationNameSnapshot: "测试应用", IP: "1.1.1.1"},
+			TargetNameSnapshot: "采购申请", Summary: "删除表单「采购申请」", AppNameSnapshot: "测试应用", IP: "1.1.1.1"},
 		{ID: 2, ActorNameSnapshot: "李四", EventCode: "iam.member.update", CategoryCode: "member_management",
 			Summary: "更新成员「王五」"},
 		{ID: 3, ActorNameSnapshot: "", DisplayName: "王五（当前昵称）", EventCode: "", CategoryCode: "", Summary: ""},
@@ -176,7 +176,7 @@ func TestListScopedToProductCategories(t *testing.T) {
 	assert.Equal(t, "张三", item.ActorName)
 	assert.Equal(t, "表单管理", item.CategoryName)
 	assert.Equal(t, "删除表单", item.EventName)
-	assert.Equal(t, "测试应用", item.ApplicationName)
+	assert.Equal(t, "测试应用", item.AppName)
 	assert.Equal(t, "采购申请", item.TargetName)
 	assert.Equal(t, "删除表单「采购申请」", item.Summary)
 }
@@ -187,26 +187,26 @@ func TestOptionsAggregation(t *testing.T) {
 	options, err := svc.Options(context.Background(), 1)
 	require.NoError(t, err)
 	require.NotEmpty(t, options.Categories)
-	assert.Equal(t, service.CategoryProductApplication, options.Categories[0].Code)
+	assert.Equal(t, service.CategoryProductApp, options.Categories[0].Code)
 	assert.Equal(t, "应用管理", options.Categories[0].Name)
-	require.Len(t, options.Applications, 2)
-	assert.Equal(t, "测试应用", options.Applications[0].Name)
+	require.Len(t, options.Apps, 2)
+	assert.Equal(t, "测试应用", options.Apps[0].Name)
 }
 
 func TestCreateExportFlow(t *testing.T) {
 	repo := &fakeRepo{rows: []model.ProductLogRow{
 		{ID: 1, ActorNameSnapshot: "张三", EventCode: "form.form.create", CategoryCode: "form",
-			TargetNameSnapshot: "采购申请", Summary: "创建表单「采购申请」", ApplicationNameSnapshot: "测试应用", IP: "1.1.1.1", CreatedAt: time.Now()},
+			TargetNameSnapshot: "采购申请", Summary: "创建表单「采购申请」", AppNameSnapshot: "测试应用", IP: "1.1.1.1", CreatedAt: time.Now()},
 		{ID: 2, ActorNameSnapshot: "李四", EventCode: "workflow.workflow.publish", CategoryCode: "workflow",
-			TargetNameSnapshot: "请假流程", Summary: "发布流程「请假流程」", ApplicationNameSnapshot: "项目协作", IP: "2.2.2.2", CreatedAt: time.Now()},
+			TargetNameSnapshot: "请假流程", Summary: "发布流程「请假流程」", AppNameSnapshot: "项目协作", IP: "2.2.2.2", CreatedAt: time.Now()},
 	}}
 	svc := newTestService(repo)
 
 	// 无效成员 / 无效应用 / 企业日志事件码直接拒绝
 	_, err := svc.CreateExport(context.Background(), 1, model.CreateExportRequest{MemberID: 99})
 	assert.ErrorIs(t, err, apperrors.ErrMemberInvalid)
-	_, err = svc.CreateExport(context.Background(), 1, model.CreateExportRequest{ApplicationID: 99})
-	assert.ErrorIs(t, err, apperrors.ErrApplicationInvalid)
+	_, err = svc.CreateExport(context.Background(), 1, model.CreateExportRequest{AppID: 99})
+	assert.ErrorIs(t, err, apperrors.ErrAppInvalid)
 	_, err = svc.CreateExport(context.Background(), 1, model.CreateExportRequest{EventCode: "enterpriselog.export.create"})
 	assert.ErrorIs(t, err, apperrors.ErrEventUnknown)
 

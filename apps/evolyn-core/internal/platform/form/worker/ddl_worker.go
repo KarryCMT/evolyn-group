@@ -44,9 +44,9 @@ type DDExecutor interface {
 }
 
 // AppNameDirectory 应用名称窄端口（表注释快照 best-effort）：查不到返回
-// 空串即可，绝不因名称缺失阻断 DDL；装配层由 application 仓储适配。
+// 空串即可，绝不因名称缺失阻断 DDL；装配层由 app 仓储适配。
 type AppNameDirectory interface {
-	ApplicationNameByID(ctx context.Context, appID uint) string
+	AppNameByID(ctx context.Context, appID uint) string
 }
 
 // DDLJobWorker 物理表 DDL 执行 Worker。
@@ -260,7 +260,7 @@ func (w *DDLJobWorker) buildCommentContext(
 		ColumnLabels: columnLabelsOf(formVersion.Content),
 	}
 	if w.apps != nil {
-		commentCtx.AppName = w.apps.ApplicationNameByID(ctx, form.ApplicationID)
+		commentCtx.AppName = w.apps.AppNameByID(ctx, form.AppID)
 	}
 	return commentCtx
 }

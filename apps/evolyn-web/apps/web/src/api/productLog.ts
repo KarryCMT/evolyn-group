@@ -11,7 +11,7 @@ export interface ProductLogItem {
   categoryName: string;
   eventName: string;
   /** 所属应用名称快照；非应用内操作为空串（渲染「—」） */
-  applicationName: string;
+  appName: string;
   /** 操作对象（目标资源名称快照；历史行为空） */
   targetName: string;
   /** 服务端脱敏操作详情；历史行降级「历史操作记录」 */
@@ -42,8 +42,8 @@ export interface ProductMemberOption {
   name: string;
 }
 
-export interface ProductApplicationOption {
-  applicationId: number;
+export interface ProductAppOption {
+  appId: number;
   code: string;
   name: string;
 }
@@ -52,7 +52,7 @@ export interface ProductApplicationOption {
 export interface ProductLogOptions {
   categories: ProductCategoryOption[];
   members: ProductMemberOption[];
-  applications: ProductApplicationOption[];
+  apps: ProductAppOption[];
 }
 
 /** 列表与导出共用的筛选条件（日期为 yyyy-MM-dd 东八区闭区间） */
@@ -60,7 +60,7 @@ export interface ProductLogFilterQuery {
   categoryCode?: string;
   eventCode?: string;
   memberId?: number;
-  applicationId?: number;
+  appId?: number;
   /** 匹配所属应用/操作对象/操作详情（不查原始快照） */
   keyword?: string;
   startAt?: string;
@@ -91,7 +91,7 @@ export function listProductLogs(query: ProductLogListQuery = {}): Promise<Produc
     categoryCode: query.categoryCode,
     eventCode: query.eventCode,
     memberId: query.memberId,
-    applicationId: query.applicationId,
+    appId: query.appId,
     keyword: query.keyword,
     startAt: query.startAt,
     endAt: query.endAt,

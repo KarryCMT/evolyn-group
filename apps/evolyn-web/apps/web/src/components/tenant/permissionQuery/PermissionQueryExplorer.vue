@@ -17,7 +17,7 @@ const subjectTabs: { id: PermissionSubjectType; label: string; placeholder: stri
   { id: 'member', label: '成员', placeholder: '请输入成员姓名' },
   { id: 'department', label: '部门', placeholder: '请输入部门名称' },
   { id: 'role', label: '角色', placeholder: '请输入角色名称' },
-  { id: 'application', label: '应用', placeholder: '请输入名称来搜索' },
+  { id: 'app', label: '应用', placeholder: '请输入名称来搜索' },
 ];
 const activeTab = computed(
   () => subjectTabs.find((item) => item.id === props.subjectType) ?? subjectTabs[0],
