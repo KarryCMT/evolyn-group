@@ -971,7 +971,11 @@ describe('流水号 v9 规则片段', () => {
     (serial.widget as Record<string, unknown>).rules = [
       { type: 'counter', digits: 5, fixedWidth: true, resetCycle: 'daily', initialValue: 1 },
     ];
-    expect(validateFormSchema(documentWith([serial])).issues.some((issue) => issue.message.includes('匹配的提交日期'))).toBe(true);
+    expect(
+      validateFormSchema(documentWith([serial])).issues.some((issue) =>
+        issue.message.includes('匹配的提交日期'),
+      ),
+    ).toBe(true);
   });
 
   it('强制流水号保持系统生成且非必填', () => {
@@ -981,7 +985,9 @@ describe('流水号 v9 规则片段', () => {
       fieldId: 'abc123def5',
       enable: true,
       allowBlank: false,
-      rules: [{ type: 'counter', digits: 5, fixedWidth: true, resetCycle: 'none', initialValue: 1 }],
+      rules: [
+        { type: 'counter', digits: 5, fixedWidth: true, resetCycle: 'none', initialValue: 1 },
+      ],
     });
     const paths = validateFormSchema(documentWith([serial])).issues.map((issue) => issue.path);
     expect(paths).toContain('content.items[0].widget.enable');
@@ -1004,6 +1010,10 @@ describe('流水号 v9 规则片段', () => {
       { type: 'counter', digits: 5, fixedWidth: true, resetCycle: 'none', initialValue: 1 },
       { type: 'submittedAt', format: 'YYYY-MM-DD', formatType: 'custom' },
     ];
-    expect(validateFormSchema(documentWith([serial])).issues.some((issue) => issue.path.endsWith('.format'))).toBe(true);
+    expect(
+      validateFormSchema(documentWith([serial])).issues.some((issue) =>
+        issue.path.endsWith('.format'),
+      ),
+    ).toBe(true);
   });
 });

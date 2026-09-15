@@ -1,5 +1,5 @@
 -- evolyn-core 冷启动初始化（终态快照）
--- 本文件 = migrations/ 000001..000071 全链执行后的等价状态，仅作
+-- 本文件 = migrations/ 000001..000078 全链执行后的等价状态，仅作
 -- make postgres 快速起库用；Schema 唯一事实来源是 migrations/（FIX-009），
 -- 结构变更必须同时提交 Migration，并同步维护本快照。
 -- 快照库上重放迁移链应当零副作用：表/索引/约束使用与迁移一致的名字，
@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS tn_users (
     created_at timestamp with time zone,
     updated_at timestamp with time zone,
     deleted_at timestamp with time zone,
+    member_code varchar(40),
     CONSTRAINT fk_tn_users_account FOREIGN KEY (account_id) REFERENCES pf_accounts(id)
 );
 
@@ -128,6 +129,16 @@ CREATE INDEX IF NOT EXISTS idx_tn_users_tenant_status_id
 INSERT INTO tn_users (account_id, nickname, tenant_id, created_at)
     SELECT a.id, a.nickname, 1, a.created_at FROM pf_accounts AS a
     WHERE a.name IN ('admin', 'demo') ON CONFLICT DO NOTHING;
+
+-- 成员公开编号（000074）：快照种子行回填后收紧 NOT NULL，与迁移链同序，
+-- 保证全新库重放可执行
+UPDATE tn_users
+SET member_code = 'mb_' || md5(random()::text || clock_timestamp()::text || id::text || tenant_id::text)
+WHERE member_code IS NULL OR member_code = '';
+
+ALTER TABLE tn_users ALTER COLUMN member_code SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_users_member_code ON tn_users (member_code);
+COMMENT ON COLUMN tn_users.member_code IS '成员关系全局不可变公开编号：跨数据库稳定，内部关联仍使用 id';
 
 -- 成员邀请在受邀人接受前保存完整档案草稿，不创建占位 tn_users 记录。
 CREATE TABLE IF NOT EXISTS tn_member_invitations (
@@ -2750,3 +2761,52 @@ CREATE TABLE IF NOT EXISTS tn_form_storage_children (
 COMMENT ON TABLE tn_form_storage_children IS '子表单物理子表永久映射：fieldId→表名一次性分配后永不变更';
 COMMENT ON COLUMN tn_form_storage_children.parent_field_id IS '子表单字段的不可变 fieldId';
 COMMENT ON COLUMN tn_form_storage_children.table_name IS '子表名（tn_fc_ 前缀，服务端分配，全局唯一约束防重）';
+
+-- 流水号服务端计数器（000076）：计数范围固定为租户×表单×字段×周期键，
+-- 由提交事务中的 UPSERT 原子推进；不复用已发号的计数
+CREATE TABLE IF NOT EXISTS tn_form_serial_counters (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    form_id BIGINT NOT NULL,
+    field_id VARCHAR(10) NOT NULL,
+    cycle_key VARCHAR(16) NOT NULL,
+    next_value BIGINT NOT NULL CHECK (next_value > 0),
+    created_at TIMESTAMP NOT NULL DEFAULT LOCALTIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT LOCALTIMESTAMP,
+    UNIQUE (tenant_id, form_id, field_id, cycle_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tn_form_serial_counters_form ON tn_form_serial_counters (tenant_id, form_id);
+
+-- 成员个人工作台表（000077）已由 000078 换表为企业级配置，此处直接呈现
+-- 终态 tn_workbenches（企业管理员配置、全员共用）
+CREATE TABLE IF NOT EXISTS tn_workbenches (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL DEFAULT 1,
+    content JSONB NOT NULL,
+    revision BIGINT NOT NULL DEFAULT 1,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uk_tn_workbenches_tenant UNIQUE (tenant_id)
+);
+COMMENT ON TABLE tn_workbenches IS '企业自定义工作台（000078）：每租户一份 DashboardSchema 单文档 JSON，企业管理员配置、全员共用；开通事务种子默认布局';
+COMMENT ON COLUMN tn_workbenches.tenant_id IS '工作台归属租户 ID（每租户一行，读写以 tenant_id 定位）';
+COMMENT ON COLUMN tn_workbenches.content IS '工作台文档 JSON：{version, widgets[]}，结构由 workbench 域服务校验器（镜像前端 @evolyn.do/dashboard lifecycle.ts）保存时终审';
+COMMENT ON COLUMN tn_workbenches.revision IS '乐观锁版本：种子初始化为 1，此后每次保存 +1；提交 revision 不匹配返回 409 WORKBENCH_REVISION_CONFLICT';
+
+-- 默认租户工作台种子（与 000078 存量回填、Go 侧 DefaultWorkbenchDocument
+-- 及前端 defaultWorkbench.ts 逐字镜像）
+INSERT INTO tn_workbenches (tenant_id, content, revision, created_at, updated_at)
+SELECT t.id, $doc${"version":1,"widgets":[
+  {"id":"onboarding-0-0","type":"onboarding","title":"新手引导","x":0,"y":0,"w":12,"h":2,"noResize":true},
+  {"id":"greeting-0-2","type":"greeting","title":"问候语","x":0,"y":2,"w":3,"h":1,"minW":3,"minH":1,"maxH":1,"presetKey":"greeting"},
+  {"id":"favorites-3-2","type":"favorites","title":"最近使用","x":3,"y":2,"w":9,"h":2,"minW":4,"minH":2,"presetKey":"recent"},
+  {"id":"shortcut-0-4","type":"shortcut","title":"未命名快捷入口","x":0,"y":4,"w":12,"h":2,"minH":2,"presetKey":"shortcut"},
+  {"id":"todo-0-6","type":"todo","title":"流程中心","x":0,"y":6,"w":3,"h":4,"minW":3,"minH":3,"presetKey":"todo"},
+  {"id":"favorites-3-6","type":"favorites","title":"我的收藏","x":3,"y":6,"w":9,"h":2,"minW":4,"minH":2,"presetKey":"favorites"},
+  {"id":"apps-3-8","type":"apps","title":"我的应用","x":3,"y":8,"w":9,"h":3,"minW":4,"minH":3,"presetKey":"apps"},
+  {"id":"charts-3-11","type":"charts","title":"我的图表","x":3,"y":11,"w":9,"h":2,"minW":4,"minH":2,"presetKey":"my-charts"}
+]}$doc$::jsonb, 1, LOCALTIMESTAMP, LOCALTIMESTAMP
+FROM pf_tenants t
+WHERE t.purged_at IS NULL
+ON CONFLICT (tenant_id) DO NOTHING;

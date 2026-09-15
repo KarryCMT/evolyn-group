@@ -43,7 +43,9 @@ const visible = computed({
   get: () => props.modelValue,
   set: (value: boolean) => emit('update:modelValue', value),
 });
-const activeFormat = computed(() => (formatType.value === 'preset' ? selectedPreset.value : customFormat.value.trim()));
+const activeFormat = computed(() =>
+  formatType.value === 'preset' ? selectedPreset.value : customFormat.value.trim(),
+);
 const formatPreview = computed(() => previewDateFormat(activeFormat.value));
 const customFormatValid = computed(() => isDateFormat(activeFormat.value));
 
@@ -66,7 +68,10 @@ function isDateFormat(format: string): boolean {
 }
 
 function previewDateFormat(format: string): string {
-  return format.replace(/yyyy|MM|dd/g, (token) => ({ yyyy: '2015', MM: '01', dd: '01' })[token] ?? token);
+  return format.replace(
+    /yyyy|MM|dd/g,
+    (token) => ({ yyyy: '2015', MM: '01', dd: '01' })[token] ?? token,
+  );
 }
 
 function close(): void {
@@ -89,10 +94,19 @@ function confirm(): void {
       </el-radio-group>
       <el-form-item v-if="formatType === 'preset'" class="serial-date-format-dialog__control">
         <el-select v-model="selectedPreset" aria-label="预定义日期格式">
-          <el-option v-for="option in PRESET_FORMATS" :key="option.format" :label="option.preview" :value="option.format" />
+          <el-option
+            v-for="option in PRESET_FORMATS"
+            :key="option.format"
+            :label="option.preview"
+            :value="option.format"
+          />
         </el-select>
       </el-form-item>
-      <el-form-item v-else class="serial-date-format-dialog__control" :error="customFormatValid ? undefined : '仅支持 yyyy、MM、dd 与 -、/'">
+      <el-form-item
+        v-else
+        class="serial-date-format-dialog__control"
+        :error="customFormatValid ? undefined : '仅支持 yyyy、MM、dd 与 -、/'"
+      >
         <el-input v-model="customFormat" maxlength="32" aria-label="自定义日期格式" />
       </el-form-item>
       <p class="serial-date-format-dialog__preview">格式预览：{{ formatPreview || '—' }}</p>
@@ -115,9 +129,17 @@ function confirm(): void {
     gap: 18px;
   }
 
-  &__control { margin: 0 0 0 34px; }
+  &__control {
+    margin: 0 0 0 34px;
+  }
   &__control :deep(.el-select),
-  &__control :deep(.el-input) { width: 320px; }
-  &__preview { margin: -12px 0 0 34px; font-size: 14px; color: var(--el-text-color-secondary); }
+  &__control :deep(.el-input) {
+    width: 320px;
+  }
+  &__preview {
+    margin: -12px 0 0 34px;
+    font-size: 14px;
+    color: var(--el-text-color-secondary);
+  }
 }
 </style>

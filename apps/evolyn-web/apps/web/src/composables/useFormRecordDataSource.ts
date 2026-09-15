@@ -340,7 +340,9 @@ function hasDepartmentField(runtime: FormRuntimeBootstrap): boolean {
   );
 }
 
-async function loadDepartmentNames(runtime: FormRuntimeBootstrap): Promise<ReadonlyMap<string, string>> {
+async function loadDepartmentNames(
+  runtime: FormRuntimeBootstrap,
+): Promise<ReadonlyMap<string, string>> {
   if (!hasDepartmentField(runtime)) return new Map();
   try {
     return flattenDepartmentNames(await getDepartmentTree());
@@ -350,7 +352,9 @@ async function loadDepartmentNames(runtime: FormRuntimeBootstrap): Promise<Reado
   }
 }
 
-function flattenDepartmentNames(departments: readonly DepartmentDto[]): ReadonlyMap<string, string> {
+function flattenDepartmentNames(
+  departments: readonly DepartmentDto[],
+): ReadonlyMap<string, string> {
   const names = new Map<string, string>();
   const visit = (nodes: readonly DepartmentDto[]) => {
     for (const department of nodes) {

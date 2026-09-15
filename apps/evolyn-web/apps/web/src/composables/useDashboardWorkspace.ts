@@ -1,5 +1,6 @@
 import { shallowRef } from 'vue';
 import { normalizeDashboardSchema, type DashboardPersistenceAdapter } from '@evolyn.do/dashboard';
+import { getWorkbench, saveWorkbench } from '~/api/workbench';
 import { createDefaultWorkbenchSchema } from '~/dashboard/defaultWorkbench';
 import {
   isDashboardWidgetType,
@@ -7,50 +8,48 @@ import {
   type DashboardWidgetType,
 } from '~/types/dashboard';
 
-const dashboardWorkspaceStorageKey = 'evolyn.dashboard.workspace';
-
 /**
- * 工作台数据适配层。后端接口就绪后，只需替换这里的 localStorage 实现，
- * 共享 dashboard 包及设计器均不需要感知成员、租户或请求细节。
+ * 工作台数据适配层：对接后端 /workbench（000078，企业级配置 + revision
+ * 乐观锁）。工作台由企业管理员配置、全员共用：成员端首页读取渲染，设计
+ * 页（仅企业管理员可达）读写保存。revision 口令随适配器闭包流转：load 时
+ * 记录服务端版本，save 时携带并接受新值；保存冲突（409）原样抛出，由页面
+ * 决定提示方式。共享 dashboard 包及设计器均不感知成员、租户或请求细节。
  */
+let workbenchRevision = 0;
+
 export const dashboardWorkspaceAdapter: DashboardPersistenceAdapter<DashboardWidgetType> = {
   async load() {
-    return readStoredDashboardSchema();
+    const view = await getWorkbench();
+    if (!view) return null; // 行缺失：持久化层回退默认布局
+    workbenchRevision = view.revision;
+    return view.document;
   },
   async save(document) {
-    if (typeof window === 'undefined') return document;
-
-    try {
-      window.localStorage.setItem(dashboardWorkspaceStorageKey, JSON.stringify(document));
-      return document;
-    } catch {
-      // 浏览器禁用存储或空间耗尽时，让页面决定如何向成员展示保存失败。
-      throw new Error('Dashboard workspace persistence failed.');
-    }
+    const view = await saveWorkbench({ revision: workbenchRevision, document });
+    workbenchRevision = view.revision;
+    return view.document;
   },
 };
 
 /**
- * 成员端读取最近一次已保存的工作台文档；不存在或无效时回退默认布局。
+ * 成员端读取企业工作台文档：先以本地默认布局立即渲染（租户开通即种子，
+ * 读取通常命中），异步拉取成功后整档替换；行缺失或数据无效时保持默认布局。
  */
 export function useDashboardWorkspace() {
-  const schema = shallowRef<DashboardSchema>(resolveDashboardSchema(readStoredDashboardSchema()));
+  const schema = shallowRef<DashboardSchema>(createDefaultWorkbenchSchema());
+
+  // 失败静默回落默认布局，不打断首页渲染（设计页保存时会再次尝试）
+  dashboardWorkspaceAdapter
+    .load()
+    .then((input) => {
+      schema.value = resolveDashboardSchema(input);
+    })
+    .catch(() => undefined);
 
   return { schema };
 }
 
-function readStoredDashboardSchema() {
-  if (typeof window === 'undefined') return null;
-
-  try {
-    const value = window.localStorage.getItem(dashboardWorkspaceStorageKey);
-    return value ? (JSON.parse(value) as unknown) : null;
-  } catch {
-    return null;
-  }
-}
-
-/** 接口接入后将服务端 JSON 传入此处；未知类型或损坏数据统一回退默认布局。 */
+/** 服务端 JSON 或未知结构统一归一化；未知类型或损坏数据回退默认布局。 */
 function resolveDashboardSchema(input: unknown): DashboardSchema {
   return (
     normalizeDashboardSchema(input, { isWidgetType: isDashboardWidgetType }) ??

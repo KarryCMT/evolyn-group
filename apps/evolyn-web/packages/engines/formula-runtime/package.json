@@ -14,8 +14,14 @@
     },
     "./*": "./dist/*"
   },
-  "files": ["dist", "CHANGELOG.md"],
-  "publishConfig": { "access": "public", "registry": "https://registry.npmjs.org/" },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "rimraf dist && tsdown",
     "clean": "rimraf .turbo node_modules dist",

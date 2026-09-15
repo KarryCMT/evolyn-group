@@ -12,10 +12,7 @@ import { DECIMAL_TEXT_PATTERN } from './numeric';
  * v8 及更早发布快照没有该标记，历史百分比值按“填写值即存储值”读取，避免
  * `15` 被错误展示为 `1500%`。只有显式声明 ratio 的新字段才启用比例协议。
  */
-export function usesPercentRatio(widget: {
-  type?: unknown;
-  percentValueMode?: unknown;
-}): boolean {
+export function usesPercentRatio(widget: { type?: unknown; percentValueMode?: unknown }): boolean {
   return widget.type === 'percent' && widget.percentValueMode === 'ratio';
 }
 

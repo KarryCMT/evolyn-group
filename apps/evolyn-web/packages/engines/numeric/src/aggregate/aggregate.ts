@@ -1,6 +1,6 @@
-import { Numeric } from '../core/Numeric'
-import type { DecimalAdapter } from '../adapters/DecimalAdapter'
-import type { NumericInput } from '../types/NumericInput'
+import { Numeric } from '../core/Numeric';
+import type { DecimalAdapter } from '../adapters/DecimalAdapter';
+import type { NumericInput } from '../types/NumericInput';
 
 /**
  * 聚合函数（设计 §8/§51）：
@@ -10,49 +10,49 @@ import type { NumericInput } from '../types/NumericInput'
 
 /** 有效（非空）元素展开 */
 function effective(values: readonly NumericInput[], adapter: DecimalAdapter): Numeric[] {
-  return values.map((v) => new Numeric(adapter.coerce(v), adapter))
+  return values.map((v) => new Numeric(adapter.coerce(v), adapter));
 }
 
 function nonNull(values: readonly NumericInput[], adapter: DecimalAdapter): Numeric[] {
-  return effective(values, adapter).filter((n) => !n.isNull())
+  return effective(values, adapter).filter((n) => !n.isNull());
 }
 
 export function sum(values: readonly NumericInput[], adapter: DecimalAdapter): Numeric {
-  const items = nonNull(values, adapter)
+  const items = nonNull(values, adapter);
   if (items.length === 0) {
-    return new Numeric(null, adapter)
+    return new Numeric(null, adapter);
   }
-  return items.reduce((acc, cur) => acc.add(cur))
+  return items.reduce((acc, cur) => acc.add(cur));
 }
 
 export function average(values: readonly NumericInput[], adapter: DecimalAdapter): Numeric {
-  const items = nonNull(values, adapter)
+  const items = nonNull(values, adapter);
   if (items.length === 0) {
-    return new Numeric(null, adapter)
+    return new Numeric(null, adapter);
   }
-  return sum(items, adapter).divide(String(items.length))
+  return sum(items, adapter).divide(String(items.length));
 }
 
 export function min(values: readonly NumericInput[], adapter: DecimalAdapter): Numeric | null {
-  const items = nonNull(values, adapter)
+  const items = nonNull(values, adapter);
   if (items.length === 0) {
-    return null
+    return null;
   }
-  return items.reduce((acc, cur) => (cur.lt(acc) ? cur : acc))
+  return items.reduce((acc, cur) => (cur.lt(acc) ? cur : acc));
 }
 
 export function max(values: readonly NumericInput[], adapter: DecimalAdapter): Numeric | null {
-  const items = nonNull(values, adapter)
+  const items = nonNull(values, adapter);
   if (items.length === 0) {
-    return null
+    return null;
   }
-  return items.reduce((acc, cur) => (cur.gt(acc) ? cur : acc))
+  return items.reduce((acc, cur) => (cur.gt(acc) ? cur : acc));
 }
 
 export function product(values: readonly NumericInput[], adapter: DecimalAdapter): Numeric {
-  const items = nonNull(values, adapter)
+  const items = nonNull(values, adapter);
   if (items.length === 0) {
-    return new Numeric(null, adapter)
+    return new Numeric(null, adapter);
   }
-  return items.reduce((acc, cur) => acc.multiply(cur))
+  return items.reduce((acc, cur) => acc.multiply(cur));
 }

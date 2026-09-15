@@ -107,8 +107,8 @@ func (u *UserController) Update(c *gin.Context) {
 		return
 	}
 
-	ginctx.TraceStep(c, "start update member", trace.Field{"member", new.Nickname})
-	defer ginctx.TraceStep(c, "update member done", trace.Field{"member", new.Nickname})
+	ginctx.TraceStep(c, "start update member", trace.Field{Key: "member", Value: new.Nickname})
+	defer ginctx.TraceStep(c, "update member done", trace.Field{Key: "member", Value: new.Nickname})
 
 	user, err := u.userService.Update(c.Request.Context(), c.Param("id"), new.GetMember())
 	if err != nil {

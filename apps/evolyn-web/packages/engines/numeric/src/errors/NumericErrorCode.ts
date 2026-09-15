@@ -5,4 +5,4 @@ export type NumericErrorCode =
   | 'NON_FINITE_NUMBER'
   | 'PRECISION_EXCEEDED'
   | 'SCALE_EXCEEDED'
-  | 'INVALID_ARGUMENT'
+  | 'INVALID_ARGUMENT';

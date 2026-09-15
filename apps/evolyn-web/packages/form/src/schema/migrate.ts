@@ -72,7 +72,7 @@ export function migrateFormSchema(
   if (sourceVersion <= 6 && isV1Document(candidate)) {
     candidate = normalizeSubmitValidationV7(candidate);
   }
- if (sourceVersion <= 7 && isV1Document(candidate)) {
+  if (sourceVersion <= 7 && isV1Document(candidate)) {
     candidate = normalizeFieldIdentityV8(candidate);
   }
   if (sourceVersion <= 8 && isV1Document(candidate)) {
@@ -188,7 +188,15 @@ function normalizeSerialNumberV9(input: unknown): unknown {
     const digits = typeof rule.seqLength === 'number' ? rule.seqLength : 5;
     legacy.rules = [
       ...(prefix ? [{ type: 'literal', value: prefix }] : []),
-      ...(dateFmt ? [{ type: 'submittedAt', format: dateFmt, formatType: rule.formatType === 'custom' ? 'custom' : 'preset' }] : []),
+      ...(dateFmt
+        ? [
+            {
+              type: 'submittedAt',
+              format: dateFmt,
+              formatType: rule.formatType === 'custom' ? 'custom' : 'preset',
+            },
+          ]
+        : []),
       {
         type: 'counter',
         digits,

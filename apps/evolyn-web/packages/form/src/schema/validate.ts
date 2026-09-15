@@ -1823,32 +1823,62 @@ function validateSnRules(value: unknown, path: string, issues: FormSchemaIssue[]
     }
     if (part.type === 'counter') {
       counters += 1;
-      rejectUnknownKeys(part, ['type', 'digits', 'fixedWidth', 'resetCycle', 'initialValue'], partPath, issues);
-      if (!isInteger(part.digits) || part.digits < 3 || part.digits > 8) issues.push({ path: `${partPath}.digits`, message: '计数位数必须是 3–8 的整数' });
-      if (typeof part.fixedWidth !== 'boolean') issues.push({ path: `${partPath}.fixedWidth`, message: 'fixedWidth 必须是布尔值' });
-      if (!['none', 'daily', 'monthly', 'yearly'].includes(String(part.resetCycle))) issues.push({ path: `${partPath}.resetCycle`, message: 'resetCycle 必须是 none / daily / monthly / yearly' });
-      if (!isInteger(part.initialValue) || part.initialValue < 1 || part.initialValue > 99_999_999) issues.push({ path: `${partPath}.initialValue`, message: 'initialValue 必须是 1–99999999 的整数' });
+      rejectUnknownKeys(
+        part,
+        ['type', 'digits', 'fixedWidth', 'resetCycle', 'initialValue'],
+        partPath,
+        issues,
+      );
+      if (!isInteger(part.digits) || part.digits < 3 || part.digits > 8)
+        issues.push({ path: `${partPath}.digits`, message: '计数位数必须是 3–8 的整数' });
+      if (typeof part.fixedWidth !== 'boolean')
+        issues.push({ path: `${partPath}.fixedWidth`, message: 'fixedWidth 必须是布尔值' });
+      if (!['none', 'daily', 'monthly', 'yearly'].includes(String(part.resetCycle)))
+        issues.push({
+          path: `${partPath}.resetCycle`,
+          message: 'resetCycle 必须是 none / daily / monthly / yearly',
+        });
+      if (!isInteger(part.initialValue) || part.initialValue < 1 || part.initialValue > 99_999_999)
+        issues.push({
+          path: `${partPath}.initialValue`,
+          message: 'initialValue 必须是 1–99999999 的整数',
+        });
       return;
     }
     if (part.type === 'submittedAt') {
       rejectUnknownKeys(part, ['type', 'format', 'formatType'], partPath, issues);
-      if (!isValidSnDateFormat(part.format)) issues.push({ path: `${partPath}.format`, message: '日期格式仅支持 yyyy、MM、dd 与 -、/' });
-      if (part.formatType !== undefined && !['preset', 'custom'].includes(String(part.formatType))) {
-        issues.push({ path: `${partPath}.formatType`, message: 'formatType 必须是 preset / custom' });
+      if (!isValidSnDateFormat(part.format))
+        issues.push({ path: `${partPath}.format`, message: '日期格式仅支持 yyyy、MM、dd 与 -、/' });
+      if (
+        part.formatType !== undefined &&
+        !['preset', 'custom'].includes(String(part.formatType))
+      ) {
+        issues.push({
+          path: `${partPath}.formatType`,
+          message: 'formatType 必须是 preset / custom',
+        });
       }
       return;
     }
     if (part.type === 'literal') {
       rejectUnknownKeys(part, ['type', 'value'], partPath, issues);
-      if (typeof part.value !== 'string' || part.value.length > 32) issues.push({ path: `${partPath}.value`, message: '固定字符必须是不超过 32 个字符的字符串' });
+      if (typeof part.value !== 'string' || part.value.length > 32)
+        issues.push({
+          path: `${partPath}.value`,
+          message: '固定字符必须是不超过 32 个字符的字符串',
+        });
       return;
     }
     if (part.type === 'field') {
       rejectUnknownKeys(part, ['type', 'fieldId'], partPath, issues);
-      if (typeof part.fieldId !== 'string' || !FIELD_ID_PATTERN.test(part.fieldId)) issues.push({ path: `${partPath}.fieldId`, message: 'fieldId 必须是 10 位小写字母/数字' });
+      if (typeof part.fieldId !== 'string' || !FIELD_ID_PATTERN.test(part.fieldId))
+        issues.push({ path: `${partPath}.fieldId`, message: 'fieldId 必须是 10 位小写字母/数字' });
       return;
     }
-    issues.push({ path: `${partPath}.type`, message: '流水号片段 type 必须是 counter / submittedAt / literal / field' });
+    issues.push({
+      path: `${partPath}.type`,
+      message: '流水号片段 type 必须是 counter / submittedAt / literal / field',
+    });
   });
   if (counters !== 1) issues.push({ path, message: '流水号必须且只能包含一个自动计数片段' });
 }
@@ -1859,13 +1889,23 @@ function validateSerialNumberRules(items: unknown[], issues: FormSchemaIssue[]):
   items.forEach((rawItem, index) => {
     if (!isPlainObject(rawItem) || !isPlainObject(rawItem.widget)) return;
     if (typeof rawItem.widget.fieldId === 'string' && typeof rawItem.widget.type === 'string') {
-      fieldsByID.set(rawItem.widget.fieldId, { type: rawItem.widget.type, path: `content.items[${index}].widget` });
+      fieldsByID.set(rawItem.widget.fieldId, {
+        type: rawItem.widget.type,
+        path: `content.items[${index}].widget`,
+      });
     }
   });
   items.forEach((rawItem, index) => {
-    if (!isPlainObject(rawItem) || !isPlainObject(rawItem.widget) || rawItem.widget.type !== 'sn' || !Array.isArray(rawItem.widget.rules)) return;
+    if (
+      !isPlainObject(rawItem) ||
+      !isPlainObject(rawItem.widget) ||
+      rawItem.widget.type !== 'sn' ||
+      !Array.isArray(rawItem.widget.rules)
+    )
+      return;
     const dateFormats = rawItem.widget.rules.reduce<string[]>((formats, part) => {
-      if (isPlainObject(part) && part.type === 'submittedAt' && isValidSnDateFormat(part.format)) formats.push(part.format);
+      if (isPlainObject(part) && part.type === 'submittedAt' && isValidSnDateFormat(part.format))
+        formats.push(part.format);
       return formats;
     }, []);
     rawItem.widget.rules.forEach((part, partIndex) => {
@@ -1873,15 +1913,39 @@ function validateSerialNumberRules(items: unknown[], issues: FormSchemaIssue[]):
       const target = fieldsByID.get(part.fieldId as string);
       const path = `content.items[${index}].widget.rules[${partIndex}].fieldId`;
       if (!target) issues.push({ path, message: '流水号引用了不存在的表单字段' });
-      else if (!['text', 'textarea', 'number', 'decimal', 'money', 'percent', 'datetime', 'radiogroup', 'combo'].includes(target.type)) issues.push({ path, message: `字段类型「${target.type}」暂不支持拼接到流水号` });
-      else if (target.path === `content.items[${index}].widget`) issues.push({ path, message: '流水号不能引用自身' });
+      else if (
+        ![
+          'text',
+          'textarea',
+          'number',
+          'decimal',
+          'money',
+          'percent',
+          'datetime',
+          'radiogroup',
+          'combo',
+        ].includes(target.type)
+      )
+        issues.push({ path, message: `字段类型「${target.type}」暂不支持拼接到流水号` });
+      else if (target.path === `content.items[${index}].widget`)
+        issues.push({ path, message: '流水号不能引用自身' });
     });
-    const counter = rawItem.widget.rules.find((part) => isPlainObject(part) && part.type === 'counter');
+    const counter = rawItem.widget.rules.find(
+      (part) => isPlainObject(part) && part.type === 'counter',
+    );
     if (!isPlainObject(counter) || counter.resetCycle === 'none') return;
-    const compatible = (counter.resetCycle === 'daily' && dateFormats.some((format) => formatContainsDateTokens(format, 'yyyy', 'MM', 'dd')))
-      || (counter.resetCycle === 'monthly' && dateFormats.some((format) => formatContainsDateTokens(format, 'yyyy', 'MM')))
-      || (counter.resetCycle === 'yearly' && dateFormats.some((format) => formatContainsDateTokens(format, 'yyyy')));
-    if (!compatible) issues.push({ path: `content.items[${index}].widget.rules`, message: '启用周期重置时必须包含与重置周期匹配的提交日期片段，避免号码重复' });
+    const compatible =
+      (counter.resetCycle === 'daily' &&
+        dateFormats.some((format) => formatContainsDateTokens(format, 'yyyy', 'MM', 'dd'))) ||
+      (counter.resetCycle === 'monthly' &&
+        dateFormats.some((format) => formatContainsDateTokens(format, 'yyyy', 'MM'))) ||
+      (counter.resetCycle === 'yearly' &&
+        dateFormats.some((format) => formatContainsDateTokens(format, 'yyyy')));
+    if (!compatible)
+      issues.push({
+        path: `content.items[${index}].widget.rules`,
+        message: '启用周期重置时必须包含与重置周期匹配的提交日期片段，避免号码重复',
+      });
   });
 }
 

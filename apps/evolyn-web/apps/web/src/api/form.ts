@@ -240,7 +240,11 @@ export function getFormRecordMemberCard(
   memberCode: string,
   signal?: AbortSignal,
 ): Promise<FormRecordMemberCard> {
-  return http.get(`/forms/${code}/records/member-cards/${encodeURIComponent(memberCode)}`, undefined, signal);
+  return http.get(
+    `/forms/${code}/records/member-cards/${encodeURIComponent(memberCode)}`,
+    undefined,
+    signal,
+  );
 }
 
 /** 每次用户提交生成独立幂等键；同一次 HTTP 调用及其网络重放复用同一载荷。 */

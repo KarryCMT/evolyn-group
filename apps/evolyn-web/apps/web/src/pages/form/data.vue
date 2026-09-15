@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import type { DataRecord } from '@evolyn.do/data';
-import type {DataAction} from '@evolyn.do/data-workspace';
+import type { DataAction } from '@evolyn.do/data-workspace';
 import type { QueryExpression } from '@evolyn.do/query';
 import type { FormRecordMemberReference } from '~/types';
-import {  DataWorkspace, useDataWorkspace } from '@evolyn.do/data-workspace';
+import { DataWorkspace, useDataWorkspace } from '@evolyn.do/data-workspace';
 import {
   RiAddFill,
   RiCheckboxMultipleFill,
@@ -20,10 +20,7 @@ import { deleteFormRecords } from '~/api/form';
 import FormRecordCreateDialog from '~/components/form/data/FormRecordCreateDialog.vue';
 import FormRecordFilterPanel from '~/components/form/data/FormRecordFilterPanel.vue';
 import FormRecordMemberCardPopover from '~/components/form/data/FormRecordMemberCardPopover.vue';
-import {
-  memberReferencesOf,
-  useFormRecordDataSource,
-} from '~/composables/useFormRecordDataSource';
+import { memberReferencesOf, useFormRecordDataSource } from '~/composables/useFormRecordDataSource';
 
 defineOptions({ name: 'FormDataPage' });
 
@@ -31,8 +28,15 @@ const { query, updateQuery } = useDataWorkspace();
 const route = useRoute();
 const appCode = computed(() => String(route.params.appCode ?? ''));
 const formCode = computed(() => String(route.params.formCode ?? ''));
-const { columns, filterFields, tableRecords: expandedRecords, total, status, errorMessage, reload } =
-  useFormRecordDataSource({ appCode, formCode, query });
+const {
+  columns,
+  filterFields,
+  tableRecords: expandedRecords,
+  total,
+  status,
+  errorMessage,
+  reload,
+} = useFormRecordDataSource({ appCode, formCode, query });
 // 数据源对外只读；表格接收独立行副本，避免渲染层意外改写领域缓存。
 const tableRecords = computed(() => expandedRecords.value.map((record) => ({ ...record })));
 const selectedRecordIds = shallowRef<number[]>([]);
@@ -150,9 +154,7 @@ function isRecordCellClick(value: unknown): value is {
   <section class="form-data-page" aria-label="数据管理工作台">
     <p v-if="status === 'error'" class="form-data-page__error" role="alert">
       {{ errorMessage }}
-      <button type="button" @click="reload">
-        重试
-      </button>
+      <button type="button" @click="reload">重试</button>
     </p>
     <p v-else-if="status === 'loading'" class="form-data-page__loading" aria-live="polite">
       正在加载表单数据…

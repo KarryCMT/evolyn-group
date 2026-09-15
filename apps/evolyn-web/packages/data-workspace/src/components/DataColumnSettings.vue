@@ -46,7 +46,8 @@ const allVisible = computed(
 );
 const partiallyVisible = computed(
   () =>
-    filteredColumns.value.some(({ column }) => !props.hidden.has(column.field)) && !allVisible.value,
+    filteredColumns.value.some(({ column }) => !props.hidden.has(column.field)) &&
+    !allVisible.value,
 );
 
 function onToggleAll(visible: string | number | boolean) {

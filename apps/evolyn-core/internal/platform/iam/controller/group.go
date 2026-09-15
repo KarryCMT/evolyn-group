@@ -83,8 +83,8 @@ func (g *GroupController) Create(c *gin.Context) {
 	}
 
 	group := createdGroup.GetGroup(user.ID)
-	ginctx.TraceStep(c, "start create group", trace.Field{"group", group.Name})
-	defer ginctx.TraceStep(c, "create group done", trace.Field{"group", group.Name})
+	ginctx.TraceStep(c, "start create group", trace.Field{Key: "group", Value: group.Name})
+	defer ginctx.TraceStep(c, "create group done", trace.Field{Key: "group", Value: group.Name})
 
 	group, err := g.groupService.Create(c.Request.Context(), user, group)
 	if err != nil {
@@ -120,8 +120,8 @@ func (g *GroupController) Update(c *gin.Context) {
 		return
 	}
 
-	ginctx.TraceStep(c, "start update group", trace.Field{"group", new.Name})
-	defer ginctx.TraceStep(c, "update group done", trace.Field{"group", new.Name})
+	ginctx.TraceStep(c, "start update group", trace.Field{Key: "group", Value: new.Name})
+	defer ginctx.TraceStep(c, "update group done", trace.Field{Key: "group", Value: new.Name})
 
 	group, err := g.groupService.Update(c.Request.Context(), id, new.GetGroup(user.ID))
 	if err != nil {

@@ -74,7 +74,12 @@ function selectReference(reference: string) {
       role="dialog"
       aria-label="成员信息"
     >
-      <button class="member-card-popover__close" type="button" aria-label="关闭" @click="visible = false">
+      <button
+        class="member-card-popover__close"
+        type="button"
+        aria-label="关闭"
+        @click="visible = false"
+      >
         ×
       </button>
       <div v-if="references.length > 1" class="member-card-popover__members" aria-label="选择成员">
@@ -88,15 +93,17 @@ function selectReference(reference: string) {
           {{ reference.name }}
         </button>
       </div>
-      <p v-if="loading" class="member-card-popover__hint" aria-live="polite">
-        正在加载成员信息…
-      </p>
-      <p v-else-if="errorMessage" class="member-card-popover__hint member-card-popover__hint--error" role="alert">
+      <p v-if="loading" class="member-card-popover__hint" aria-live="polite">正在加载成员信息…</p>
+      <p
+        v-else-if="errorMessage"
+        class="member-card-popover__hint member-card-popover__hint--error"
+        role="alert"
+      >
         {{ errorMessage }}
       </p>
       <template v-else-if="card">
         <header class="member-card-popover__header">
-          <img v-if="card.avatar" class="member-card-popover__avatar" :src="card.avatar" alt="">
+          <img v-if="card.avatar" class="member-card-popover__avatar" :src="card.avatar" alt="" />
           <span v-else class="member-card-popover__avatar" aria-hidden="true">{{ initials }}</span>
           <div>
             <strong>{{ card.name }}</strong>
@@ -147,7 +154,9 @@ function selectReference(reference: string) {
   border-radius: 50%;
 }
 
-.member-card-popover__close:hover { background: var(--el-fill-color-light); }
+.member-card-popover__close:hover {
+  background: var(--el-fill-color-light);
+}
 
 .member-card-popover__members {
   display: flex;
@@ -165,7 +174,9 @@ function selectReference(reference: string) {
   border-radius: 4px;
 }
 
-.member-card-popover__members button.is-active { background: var(--el-color-primary-light-9); }
+.member-card-popover__members button.is-active {
+  background: var(--el-color-primary-light-9);
+}
 
 .member-card-popover__header {
   display: flex;
@@ -187,8 +198,12 @@ function selectReference(reference: string) {
 }
 
 .member-card-popover__header strong,
-.member-card-popover__header > div > span { display: block; }
-.member-card-popover__header strong { font-size: 18px; }
+.member-card-popover__header > div > span {
+  display: block;
+}
+.member-card-popover__header strong {
+  font-size: 18px;
+}
 .member-card-popover__header div span {
   width: fit-content;
   margin-top: 6px;
@@ -204,10 +219,26 @@ function selectReference(reference: string) {
   border-top: 1px solid var(--el-border-color-lighter);
 }
 
-.member-card-popover__details div { display: grid; grid-template-columns: 84px 1fr; gap: 12px; }
-.member-card-popover__details div + div { margin-top: 12px; }
-.member-card-popover__details dt { color: var(--el-text-color-secondary); }
-.member-card-popover__details dd { margin: 0; overflow-wrap: anywhere; }
-.member-card-popover__hint { margin: 28px 0 8px; color: var(--el-text-color-secondary); }
-.member-card-popover__hint--error { color: var(--el-color-danger); }
+.member-card-popover__details div {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 12px;
+}
+.member-card-popover__details div + div {
+  margin-top: 12px;
+}
+.member-card-popover__details dt {
+  color: var(--el-text-color-secondary);
+}
+.member-card-popover__details dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.member-card-popover__hint {
+  margin: 28px 0 8px;
+  color: var(--el-text-color-secondary);
+}
+.member-card-popover__hint--error {
+  color: var(--el-color-danger);
+}
 </style>

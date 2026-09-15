@@ -8,7 +8,11 @@ const props = defineProps<RuntimeFieldProps>();
 const inputId = computed(() => fieldInputId(props.item.widget.widgetName));
 const value = computed(() => (typeof props.modelValue === 'string' ? props.modelValue : ''));
 const describedBy = computed(() =>
-  fieldAriaDescribedBy(props.item.widget.widgetName, props.item.description !== '', props.errors.length > 0),
+  fieldAriaDescribedBy(
+    props.item.widget.widgetName,
+    props.item.description !== '',
+    props.errors.length > 0,
+  ),
 );
 </script>
 

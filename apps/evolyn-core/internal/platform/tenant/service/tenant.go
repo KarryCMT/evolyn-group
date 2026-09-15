@@ -88,6 +88,19 @@ type NotificationSettingSeederInjector interface {
 	UseNotificationSeeder(seeder NotificationSettingSeeder)
 }
 
+// WorkbenchSeeder 开通租户时初始化企业默认工作台的最小能力（000078）：
+// 由 workbench 服务实现，经 WorkbenchSeederInjector 注入（口径同
+// ProductConfigSeeder/NotificationSettingSeeder）——写入与前端
+// defaultWorkbench.ts 镜像的默认布局，企业管理员配置、全员共用
+type WorkbenchSeeder interface {
+	SeedDefaults(ctx context.Context, tenantID uint) error
+}
+
+// WorkbenchSeederInjector 支持事后注入工作台种子器的租户服务
+type WorkbenchSeederInjector interface {
+	UseWorkbenchSeeder(seeder WorkbenchSeeder)
+}
+
 // 租户内基线角色名（与默认租户种子、db.sql 口径一致）。
 // 名称直接面向组织角色页展示，因此使用中文；租户内权限判定只依赖角色规则，
 // 不以名称作为授权依据。
@@ -125,6 +138,7 @@ type tenantService struct {
 	fieldSeeder        MemberFieldSeeder
 	productSeeder      ProductConfigSeeder
 	notificationSeeder NotificationSettingSeeder
+	workbenchSeeder    WorkbenchSeeder
 }
 
 func NewTenantService(
@@ -170,6 +184,13 @@ func (s *tenantService) UseProductSeeder(seeder ProductConfigSeeder) {
 // 预置通知设置聚合根；未注入时读取侧 EnsureSetting 幂等兜底
 func (s *tenantService) UseNotificationSeeder(seeder NotificationSettingSeeder) {
 	s.notificationSeeder = seeder
+}
+
+// UseWorkbenchSeeder 注入工作台种子器（000078 企业级配置定版）：新租户
+// 开通事务内初始化企业默认工作台（与 owner 成员/角色种子同一事务边界）；
+// 未注入时 GET /workbench 返回 null，前端回退本地默认布局
+func (s *tenantService) UseWorkbenchSeeder(seeder WorkbenchSeeder) {
+	s.workbenchSeeder = seeder
 }
 
 // OpenTenantRequest 开通租户请求：OwnerAccountID 与 Owner 账号信息二选一
@@ -453,6 +474,14 @@ func (s *tenantService) openInTx(ctx context.Context, req *OpenTenantRequest) (*
 		}
 	}
 
+	// 企业自定义工作台（000078）：开通事务内初始化企业默认工作台（幂等）；
+	// 注入失败即整体回滚，保证新租户与 000078 存量回填租户口径一致
+	if s.workbenchSeeder != nil {
+		if err = s.workbenchSeeder.SeedDefaults(contextx.NewTenantContext(bctx, tenant.ID), tenant.ID); err != nil {
+			return nil, err
+		}
+	}
+
 	// 权限中心-管理员模块：开通事务内预置内置系统管理员组（幂等）；成员由
 	// 上方 owner 绑定的 tenant-admin 角色实时推导，不落成员表
 	if err = s.seedBuiltinAdminGroup(bctx, tenant.ID); err != nil {
@@ -527,6 +556,10 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 表单数据面旁路动作键（表单权限 P1，S3）：form-data:* 经动作资源
 			// 注册表展开产出 form-data:admin；存量租户由 000058 补授
 			{Resource: iammodel.FormDataResource, Operation: iammodel.AllOperation},
+			// 企业自定义工作台（000078）：工作台由企业管理员统一配置，
+			// update 覆盖设计页保存（读取 view 由全体成员基线覆盖）；
+			// 存量租户由 000078 按「管理员规则签名」补授，不经管理组放行
+			{Resource: iammodel.WorkbenchResource, Operation: request.UpdateOperation},
 		}},
 		{Name: AuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "users", Operation: iammodel.AllOperation},
@@ -553,6 +586,10 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 授权对象；存量租户由 000047 按 authenticated 系统分组补授
 			{Resource: iammodel.MenuFavoriteResource, Operation: request.CreateOperation},
 			{Resource: iammodel.MenuFavoriteResource, Operation: request.DeleteOperation},
+			// 企业自定义工作台（000078）：全员读取企业管理员配置的工作台
+			//（首页渲染必需；view 语义含 get/list）；保存权限 workbench:update
+			// 仅授租户管理员角色；存量租户由 000077/000078 补授
+			{Resource: iammodel.WorkbenchResource, Operation: iammodel.ViewOperation},
 		}},
 		{Name: UnAuthenticatedRole, Rules: iammodel.Rules{
 			{Resource: "auth", Operation: "create"},

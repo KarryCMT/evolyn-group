@@ -49,11 +49,18 @@ function confirm(): void {
   <el-dialog v-model="visible" title="计数设置" width="640px" append-to-body>
     <template v-if="draft">
       <el-form-item label="计数位数">
-        <el-input-number v-model="draft.digits" :min="3" :max="8" :step="1" controls-position="right" />
+        <el-input-number
+          v-model="draft.digits"
+          :min="3"
+          :max="8"
+          :step="1"
+          controls-position="right"
+        />
       </el-form-item>
       <el-form-item>
         <template #label>
-          <span class="serial-counter-dialog__label">位数固定
+          <span class="serial-counter-dialog__label"
+            >位数固定
             <el-tooltip content="开启后，会根据计数位数显示计数值" placement="top">
               <el-icon><RiQuestionFill /></el-icon>
             </el-tooltip>
@@ -70,7 +77,13 @@ function confirm(): void {
         </el-select>
       </el-form-item>
       <el-form-item label="初始值">
-        <el-input-number v-model="draft.initialValue" :min="1" :max="99999999" :step="1" controls-position="right" />
+        <el-input-number
+          v-model="draft.initialValue"
+          :min="1"
+          :max="99999999"
+          :step="1"
+          controls-position="right"
+        />
       </el-form-item>
     </template>
     <template #footer>
@@ -82,7 +95,14 @@ function confirm(): void {
 
 <style scoped lang="scss">
 .serial-counter-dialog {
-  &__label { display: inline-flex; align-items: center; gap: 4px; }
-  &__label :deep(.el-icon) { color: var(--el-text-color-secondary); cursor: help; }
+  &__label {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  &__label :deep(.el-icon) {
+    color: var(--el-text-color-secondary);
+    cursor: help;
+  }
 }
 </style>

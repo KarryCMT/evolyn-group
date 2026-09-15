@@ -96,7 +96,8 @@ export function useDataWorkspaceSelection(options: UseDataWorkspaceSelectionOpti
 
   function handleCheckboxStateChange(event: unknown) {
     const change = event as CheckboxStateChangeEvent;
-    if (change.field !== DATA_WORKSPACE_SELECTION_FIELD || typeof change.checked !== 'boolean') return;
+    if (change.field !== DATA_WORKSPACE_SELECTION_FIELD || typeof change.checked !== 'boolean')
+      return;
 
     const recordId = recordIdOf(change.originData);
     const next = new Set(selectedRecordIds.value);

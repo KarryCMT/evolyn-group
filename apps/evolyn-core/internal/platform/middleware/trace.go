@@ -15,8 +15,8 @@ func TraceMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		trace := utiltrace.New("Handler",
 			logrusr.New(logrus.StandardLogger()),
-			utiltrace.Field{"method", c.Request.Method},
-			utiltrace.Field{"path", c.Request.URL.Path},
+			utiltrace.Field{Key: "method", Value: c.Request.Method},
+			utiltrace.Field{Key: "path", Value: c.Request.URL.Path},
 		)
 
 		defer trace.LogIfLong(100 * time.Millisecond)

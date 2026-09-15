@@ -166,6 +166,12 @@ const (
 	// create 授予全体成员（收藏），delete 覆盖取消收藏，数据范围由
 	// Repository 强制 member_id 双条件兜底。
 	MenuFavoriteResource = "menu-favorites"
+	// WorkbenchResource 与 /workbench 路由保持一致，代表企业自定义工作台
+	//（000078 企业级配置定版）：view 覆盖读取（授全体成员，首页渲染必需）、
+	// update 覆盖保存（仅授企业管理员，000078 管理员规则签名补授，不经
+	// 管理组放行）。数据范围恒为「当前租户」，由 Service/Repository 显式
+	// tenantID 条件兜底。
+	WorkbenchResource = "workbench"
 )
 
 type Resource struct {

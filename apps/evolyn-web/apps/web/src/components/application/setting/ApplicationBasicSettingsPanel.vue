@@ -66,9 +66,7 @@ function updateIcon(icon: ApplicationIcon) {
 <template>
   <article class="application-basic-settings" aria-label="应用设置">
     <header class="application-basic-settings__header">
-      <h1 class="application-basic-settings__title">
-        应用设置
-      </h1>
+      <h1 class="application-basic-settings__title">应用设置</h1>
     </header>
 
     <!-- 标题独立于滚动容器，只有基础设置表格在内容超出时滚动。 -->
@@ -76,9 +74,7 @@ function updateIcon(icon: ApplicationIcon) {
       <div class="application-basic-settings__body">
         <section class="application-basic-settings__table" aria-label="应用基础信息">
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">
-              应用名称
-            </div>
+            <div class="application-basic-settings__label">应用名称</div>
             <div class="application-basic-settings__value application-basic-settings__value--name">
               <template v-if="nameEditing">
                 <el-input
@@ -120,9 +116,7 @@ function updateIcon(icon: ApplicationIcon) {
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">
-              应用图标
-            </div>
+            <div class="application-basic-settings__label">应用图标</div>
             <div class="application-basic-settings__value application-basic-settings__value--icon">
               <ApplicationIconPicker
                 :model-value="props.application.icon"
@@ -132,34 +126,26 @@ function updateIcon(icon: ApplicationIcon) {
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">
-              应用首页
-            </div>
+            <div class="application-basic-settings__label">应用首页</div>
             <div class="application-basic-settings__value">
-              <el-button plain type="primary" @click="emit('configureHome')">
-                设置
-              </el-button>
+              <el-button plain type="primary" @click="emit('configureHome')"> 设置 </el-button>
             </div>
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">
-              应用URL
-            </div>
+            <div class="application-basic-settings__label">应用URL</div>
             <div
               class="application-basic-settings__value application-basic-settings__value--inline"
             >
-              <el-button plain type="primary" @click="emit('configureUrl')">
-                设置
-              </el-button>
-              <span class="application-basic-settings__hint">自定义应用URL，可使用URL直接打开该应用</span>
+              <el-button plain type="primary" @click="emit('configureUrl')"> 设置 </el-button>
+              <span class="application-basic-settings__hint"
+                >自定义应用URL，可使用URL直接打开该应用</span
+              >
             </div>
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">
-              应用ID
-            </div>
+            <div class="application-basic-settings__label">应用ID</div>
             <div
               class="application-basic-settings__value application-basic-settings__value--inline"
             >
@@ -175,23 +161,21 @@ function updateIcon(icon: ApplicationIcon) {
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">
-              应用水印
-            </div>
+            <div class="application-basic-settings__label">应用水印</div>
             <div class="application-basic-settings__value">
               <el-switch v-model="watermarkEnabled" aria-label="应用水印" />
             </div>
           </div>
 
           <div class="application-basic-settings__row">
-            <div class="application-basic-settings__label">
-              附件管控
-            </div>
+            <div class="application-basic-settings__label">附件管控</div>
             <div
               class="application-basic-settings__value application-basic-settings__value--inline"
             >
               <el-switch v-model="attachmentRestricted" aria-label="附件管控" />
-              <span class="application-basic-settings__hint">开启后，成员在表单和仪表盘中无法下载、打印和导出附件</span>
+              <span class="application-basic-settings__hint"
+                >开启后，成员在表单和仪表盘中无法下载、打印和导出附件</span
+              >
             </div>
           </div>
         </section>

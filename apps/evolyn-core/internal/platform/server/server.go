@@ -81,6 +81,9 @@ import (
 	tenantproductcontroller "evolyn/internal/platform/tenantproduct/controller"
 	tenantproductrepository "evolyn/internal/platform/tenantproduct/repository"
 	tenantproductservice "evolyn/internal/platform/tenantproduct/service"
+	workbenchcontroller "evolyn/internal/platform/workbench/controller"
+	workbenchrepository "evolyn/internal/platform/workbench/repository"
+	workbenchservice "evolyn/internal/platform/workbench/service"
 	workflowerrors "evolyn/internal/platform/workflow"
 	workflowadapter "evolyn/internal/platform/workflow/adapter"
 	workflowcontroller "evolyn/internal/platform/workflow/controller"
@@ -196,6 +199,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	notificationMessageRepo := notificationrepository.NewMessageRepository(db)
 	notificationSettingRepo := notificationrepository.NewSettingRepository(db)
 	notificationOutboxRepo := notificationrepository.NewOutboxRepository(db)
+	// 自定义工作台域仓储（000077）：成员个人工作台配置单表
+	workbenchRepo := workbenchrepository.NewRepository(db)
 	if conf.DB.Migrate {
 		if err := auditRepo.Migrate(); err != nil {
 			return nil, err
@@ -272,6 +277,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 			return nil, err
 		}
 		if err := notificationOutboxRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := workbenchRepo.Migrate(); err != nil {
 			return nil, err
 		}
 	}
@@ -417,6 +425,13 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	)
 	if injector, ok := tenantService.(tenantservice.NotificationSettingSeederInjector); ok {
 		injector.UseNotificationSeeder(notificationSettingService)
+	}
+	// 自定义工作台域（000078 企业级配置定版）：企业管理员配置、全员共用；
+	// 租户开通事务内种子默认布局（幂等），无记录即默认布局，无审计
+	//（企业偏好非治理动作）
+	workbenchSvc := workbenchservice.NewWorkbenchService(txManager, workbenchRepo)
+	if injector, ok := tenantService.(tenantservice.WorkbenchSeederInjector); ok {
+		injector.UseWorkbenchSeeder(workbenchSvc)
 	}
 	// 应用菜单服务：读取与分组创建复用应用域权限评估器；分组写入经统一
 	// 事务、menuRevision 乐观锁和提交后审计保证一致性。
@@ -654,7 +669,10 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	notificationController := notificationcontroller.NewNotificationController(notificationInboxService)
 	notificationSettingController := notificationcontroller.NewSettingController(notificationSettingService)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, productLogController, formController, permissionGroupController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController}
+	// 自定义工作台域（000077）控制器：成员个人配置，挂租户域链
+	workbenchController := workbenchcontroller.NewWorkbenchController(workbenchSvc)
+
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, applicationController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, productLogController, formController, permissionGroupController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController, workbenchController}
 
 	// 流程延时任务 Worker（Phase 5，000052）：超时自动动作/待办提醒，
 	// 领取走 FOR UPDATE SKIP LOCKED，claim+执行同事务（crash 自动回滚），

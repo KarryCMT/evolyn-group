@@ -1,14 +1,21 @@
 <script setup lang="ts">
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { onMounted, onUnmounted, shallowRef } from 'vue';
-import { onBeforeRouteLeave } from 'vue-router';
+import { onMounted, onUnmounted, shallowRef, watch } from 'vue';
+import { onBeforeRouteLeave, useRouter } from 'vue-router';
 import { useDashboardPersistence } from '@evolyn.do/dashboard';
+import { ApiError } from '@evolyn.do/utils';
 import WorkbenchEditorShell from '~/components/dashboard/editor/WorkbenchEditorShell.vue';
 import WorkbenchEditorToolbar from '~/components/dashboard/editor/WorkbenchEditorToolbar.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { createDefaultWorkbenchSchema } from '~/dashboard/defaultWorkbench';
+import { useAdminScope } from '~/composables/useAdminScope';
 import { dashboardWorkspaceAdapter } from '~/composables/useDashboardWorkspace';
 import { isDashboardWidgetType } from '~/types/dashboard';
+
+const router = useRouter();
+// 工作台是企业级配置（000078）：仅企业管理员可进设计页；服务端
+// workbench:update 权限仍是最终边界，此处只做入口与直访的前端拦截
+const { isSystemAdmin } = useAdminScope();
 
 const device = shallowRef<'desktop' | 'mobile'>('desktop');
 const { document, isDirty, isLoading, isSaving, issues, load, save } = useDashboardPersistence({
@@ -17,8 +24,25 @@ const { document, isDirty, isLoading, isSaving, issues, load, save } = useDashbo
   isWidgetType: isDashboardWidgetType,
 });
 
+// 非管理员自查返回后直接送回工作台；null（自查中）保持加载占位
+watch(
+  isSystemAdmin,
+  (value) => {
+    if (value === false) {
+      ElMessage.warning('工作台设置仅企业管理员可访问。');
+      void router.replace('/dashboard');
+    }
+  },
+  { immediate: true },
+);
+
 onMounted(async () => {
-  await load();
+  try {
+    await load();
+  } catch {
+    // 接口不可达等加载失败：回退默认布局继续编辑，保存时会再次尝试
+    ElMessage.error('工作台配置加载失败，已展示默认布局。');
+  }
   if (issues.value.length) ElMessage.warning(issues.value[0].message);
   window.addEventListener('beforeunload', confirmBrowserLeave);
 });
@@ -27,12 +51,18 @@ onUnmounted(() => {
   window.removeEventListener('beforeunload', confirmBrowserLeave);
 });
 
-/** 保存只提交 schema 文档，成员/租户/API 细节由 Web 侧适配器承担。 */
+/** 保存只提交 schema 文档，成员/租户/请求细节由 Web 侧适配器承担。 */
 async function saveWorkspace() {
   try {
     await save();
     ElMessage.success('工作台已保存');
-  } catch {
+  } catch (error) {
+    // 优先透出服务端稳定文案（如 409 乐观锁冲突的刷新重试提示），
+    // 本地结构问题回落校验 issue 提示
+    if (error instanceof ApiError) {
+      ElMessage.error(error.message);
+      return;
+    }
     ElMessage.error(issues.value[0]?.message ?? '工作台保存失败，请稍后重试。');
   }
 }
@@ -64,14 +94,20 @@ onBeforeRouteLeave(async () => {
   <div class="custom-workbench-page">
     <TopNavigation title="自定义工作台" back-to="/dashboard" />
     <div class="custom-dashboard-setting">
-      <WorkbenchEditorToolbar
-        v-model:device="device"
-        :is-dirty="isDirty"
-        :is-saving="isSaving"
-        @save="saveWorkspace"
-      />
-      <div v-if="isLoading" class="custom-dashboard-setting__loading">正在加载工作台配置…</div>
-      <WorkbenchEditorShell v-else v-model="document" :device="device" />
+      <!-- 自查未返回前保持加载占位；非管理员由守卫送回工作台 -->
+      <div v-if="isSystemAdmin !== true" class="custom-dashboard-setting__loading">
+        正在校验访问权限…
+      </div>
+      <template v-else>
+        <WorkbenchEditorToolbar
+          v-model:device="device"
+          :is-dirty="isDirty"
+          :is-saving="isSaving"
+          @save="saveWorkspace"
+        />
+        <div v-if="isLoading" class="custom-dashboard-setting__loading">正在加载工作台配置…</div>
+        <WorkbenchEditorShell v-else v-model="document" :device="device" />
+      </template>
     </div>
   </div>
 </template>

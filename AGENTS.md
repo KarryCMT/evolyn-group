@@ -440,6 +440,26 @@ internal/
                       （目录注册 + Dispatcher 扇出，受众由 workflow 事件
                       适配器解析显式成员）；邮件/短信外部渠道与云币计费
                       为 P3
+    workbench/         自定义工作台域（000078 企业级配置定版，小三层）：
+                      企业工作台配置（tn_workbenches，每租户一行 + content
+                      JSONB 承载与前端 @evolyn.do/dashboard schema/lifecycle.ts
+                      镜像的 DashboardSchema 单文档 {version, widgets[]}，
+                      revision 乐观锁；000077 成员个人配置模型已废弃换表）。
+                      企业管理员配置、全员共用；租户开通事务内经
+                      WorkbenchSeeder 种子默认布局（DefaultWorkbenchDocument
+                      与前端 defaultWorkbench.ts/000078 回填三处逐字镜像），
+                      幂等不覆盖已保存内容。服务端校验器终审（7 种卡片类型
+                      白名单、坐标 min/max 交叉约束、卡片数 100/文档 256KB
+                      护栏、未知字段剔除），并发写入唯一冲突映射
+                      WORKBENCH_REVISION_CONFLICT；API：GET/PUT /workbench
+                     （租户上下文定位，不接受替代租户）；workbench:view 授
+                      全体成员（首页渲染必需）、workbench:update 仅企业管理员
+                      （000078 管理员规则签名补授，不经管理组放行）；前端：
+                      api/workbench.ts + composables/useDashboardWorkspace.ts
+                      （DashboardPersistenceAdapter 从 localStorage 切换为
+                      API，revision 口令随适配器闭包流转）+
+                      composables/useAdminScope.ts（经 /auth/admin-scopes 的
+                      systemAdmin 会话级缓存：设计页入口显隐与直访守卫）
 migrations/           版本化 SQL Migration（Schema 唯一事实来源，嵌入二进制；
                       命名 NNNNNN_name.(up|down).sql，版本号只增不复用。
                       000063 起业务表名统一命名空间前缀：pf_ 平台 / sys_ 系统 /

@@ -12,7 +12,13 @@ import {
   ElOption,
   ElSelect,
 } from 'element-plus';
-import type { FormItem, SnCounterRulePart, SnRulePart, SnSubmittedAtRulePart, SnWidget } from '../../schema/types';
+import type {
+  FormItem,
+  SnCounterRulePart,
+  SnRulePart,
+  SnSubmittedAtRulePart,
+  SnWidget,
+} from '../../schema/types';
 import FormSchemaPropertySection from './FormSchemaPropertySection.vue';
 import SerialNumberCounterDialog from './SerialNumberCounterDialog.vue';
 import SerialNumberDateFormatDialog from './SerialNumberDateFormatDialog.vue';
@@ -21,7 +27,9 @@ import SerialNumberDateFormatDialog from './SerialNumberDateFormatDialog.vue';
 const props = defineProps<{ widget: SnWidget; items: FormItem[] }>();
 
 const counterDialogVisible = shallowRef(false);
-const counter = computed(() => props.widget.rules.find((part): part is SnCounterRulePart => part.type === 'counter'));
+const counter = computed(() =>
+  props.widget.rules.find((part): part is SnCounterRulePart => part.type === 'counter'),
+);
 const dateDialogVisible = shallowRef(false);
 const editingDateRule = shallowRef<SnSubmittedAtRulePart | null>(null);
 const rules = computed<SnRulePart[]>({
@@ -34,10 +42,22 @@ const eligibleFields = computed(() =>
   props.items.filter(
     (item) =>
       item.widget.fieldId !== props.widget.fieldId &&
-      ['text', 'textarea', 'number', 'decimal', 'money', 'percent', 'datetime', 'radiogroup', 'combo'].includes(item.widget.type),
+      [
+        'text',
+        'textarea',
+        'number',
+        'decimal',
+        'money',
+        'percent',
+        'datetime',
+        'radiogroup',
+        'combo',
+      ].includes(item.widget.type),
   ),
 );
-const fieldLabelById = computed(() => new Map(props.items.map((item) => [item.widget.fieldId, item.label])));
+const fieldLabelById = computed(
+  () => new Map(props.items.map((item) => [item.widget.fieldId, item.label])),
+);
 const ruleKeys = new WeakMap<object, string>();
 let ruleKeySequence = 0;
 
@@ -51,7 +71,8 @@ function ruleKey(rule: SnRulePart): string {
 }
 
 function addPart(type: string): void {
-  if (type === 'submittedAt') rules.value.push({ type: 'submittedAt', format: 'yyyyMMdd', formatType: 'preset' });
+  if (type === 'submittedAt')
+    rules.value.push({ type: 'submittedAt', format: 'yyyyMMdd', formatType: 'preset' });
   if (type === 'literal') rules.value.push({ type: 'literal', value: '' });
   if (type === 'field' && eligibleFields.value[0]) {
     rules.value.push({ type: 'field', fieldId: eligibleFields.value[0].widget.fieldId! });
@@ -97,7 +118,10 @@ function ruleSummary(part: SnRulePart): string {
 }
 
 function dateFormatPreview(format: string): string {
-  return format.replace(/yyyy|MM|dd/g, (token) => ({ yyyy: '2015', MM: '01', dd: '01' })[token] ?? token);
+  return format.replace(
+    /yyyy|MM|dd/g,
+    (token) => ({ yyyy: '2015', MM: '01', dd: '01' })[token] ?? token,
+  );
 }
 </script>
 
@@ -112,7 +136,9 @@ function dateFormatPreview(format: string): string {
     >
       <template #item="{ element, index }">
         <div class="serial-number-property__rule">
-          <el-icon class="serial-number-property__drag" aria-label="拖动排序"><RiDraggable /></el-icon>
+          <el-icon class="serial-number-property__drag" aria-label="拖动排序"
+            ><RiDraggable
+          /></el-icon>
           <button
             v-if="element.type === 'counter'"
             class="serial-number-property__summary"
@@ -123,22 +149,46 @@ function dateFormatPreview(format: string): string {
           </button>
           <template v-else-if="element.type === 'submittedAt'">
             <span class="serial-number-property__type">提交日期</span>
-            <span class="serial-number-property__date-summary" :title="`格式：${dateFormatPreview(element.format)}`">{{ ruleSummary(element) }}</span>
-            <el-button class="serial-number-property__edit" text aria-label="编辑日期格式" @click="openDateSettings(element)">
+            <span
+              class="serial-number-property__date-summary"
+              :title="`格式：${dateFormatPreview(element.format)}`"
+              >{{ ruleSummary(element) }}</span
+            >
+            <el-button
+              class="serial-number-property__edit"
+              text
+              aria-label="编辑日期格式"
+              @click="openDateSettings(element)"
+            >
               <el-icon><RiEditLine /></el-icon>
             </el-button>
           </template>
           <template v-else-if="element.type === 'literal'">
             <span class="serial-number-property__type">固定字符</span>
-            <el-input v-model="element.value" class="serial-number-property__literal" :maxlength="32" aria-label="固定字符" />
+            <el-input
+              v-model="element.value"
+              class="serial-number-property__literal"
+              :maxlength="32"
+              aria-label="固定字符"
+            />
           </template>
           <template v-else>
             <span class="serial-number-property__type">表单字段</span>
             <el-select v-model="element.fieldId" aria-label="流水号引用字段">
-              <el-option v-for="field in eligibleFields" :key="field.widget.fieldId" :label="field.label" :value="field.widget.fieldId ?? ''" />
+              <el-option
+                v-for="field in eligibleFields"
+                :key="field.widget.fieldId"
+                :label="field.label"
+                :value="field.widget.fieldId ?? ''"
+              />
             </el-select>
           </template>
-          <el-button v-if="element.type !== 'counter'" text aria-label="删除规则" @click="removePart(index)">
+          <el-button
+            v-if="element.type !== 'counter'"
+            text
+            aria-label="删除规则"
+            @click="removePart(index)"
+          >
             <el-icon><RiDeleteBin6Line /></el-icon>
           </el-button>
         </div>
@@ -152,30 +202,99 @@ function dateFormatPreview(format: string): string {
         <el-dropdown-menu>
           <el-dropdown-item command="submittedAt">提交日期</el-dropdown-item>
           <el-dropdown-item command="literal">固定字符</el-dropdown-item>
-          <el-dropdown-item :disabled="eligibleFields.length === 0" command="field">表单字段</el-dropdown-item>
+          <el-dropdown-item :disabled="eligibleFields.length === 0" command="field"
+            >表单字段</el-dropdown-item
+          >
         </el-dropdown-menu>
       </template>
     </el-dropdown>
   </FormSchemaPropertySection>
 
-  <SerialNumberCounterDialog v-model="counterDialogVisible" :rule="counter ?? null" @confirm="updateCounterSettings" />
-  <SerialNumberDateFormatDialog v-model="dateDialogVisible" :rule="editingDateRule" @confirm="updateDateSettings" />
+  <SerialNumberCounterDialog
+    v-model="counterDialogVisible"
+    :rule="counter ?? null"
+    @confirm="updateCounterSettings"
+  />
+  <SerialNumberDateFormatDialog
+    v-model="dateDialogVisible"
+    :rule="editingDateRule"
+    @confirm="updateDateSettings"
+  />
 </template>
 
 <style scoped lang="scss">
 .serial-number-property {
-  &__rules { display: flex; flex-direction: column; gap: var(--el-space-sm); }
-  &__rule { display: flex; gap: var(--el-space-sm); align-items: center; min-height: 40px; padding: 0 var(--el-space-sm); border: 1px solid var(--el-border-color); border-radius: var(--el-border-radius-base); }
-  &__rule:hover { border-color: var(--el-color-primary-light-5); }
-  &__drag { flex: none; color: var(--el-text-color-secondary); cursor: grab; }
-  &__summary { flex: 1; padding: 0; overflow: hidden; color: var(--el-color-primary); text-align: left; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; background: transparent; border: 0; }
-  &__type { flex: none; color: var(--el-color-primary); white-space: nowrap; }
-  &__date-summary { flex: 1; overflow: hidden; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
-  &__edit { flex: none; opacity: 0; transition: opacity .16s ease; }
-  &__rule:hover &__edit, &__edit:focus-visible { opacity: 1; }
-  &__rule :deep(.el-select), &__rule :deep(.el-input) { flex: 1; min-width: 0; }
-  &__literal :deep(.el-input__wrapper) { padding: 0; background: transparent; box-shadow: none; }
-  &__literal :deep(.el-input__inner) { height: 28px; font-size: 14px; }
-  &__add { width: 100%; }
+  &__rules {
+    display: flex;
+    flex-direction: column;
+    gap: var(--el-space-sm);
+  }
+  &__rule {
+    display: flex;
+    gap: var(--el-space-sm);
+    align-items: center;
+    min-height: 40px;
+    padding: 0 var(--el-space-sm);
+    border: 1px solid var(--el-border-color);
+    border-radius: var(--el-border-radius-base);
+  }
+  &__rule:hover {
+    border-color: var(--el-color-primary-light-5);
+  }
+  &__drag {
+    flex: none;
+    color: var(--el-text-color-secondary);
+    cursor: grab;
+  }
+  &__summary {
+    flex: 1;
+    padding: 0;
+    overflow: hidden;
+    color: var(--el-color-primary);
+    text-align: left;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    background: transparent;
+    border: 0;
+  }
+  &__type {
+    flex: none;
+    color: var(--el-color-primary);
+    white-space: nowrap;
+  }
+  &__date-summary {
+    flex: 1;
+    overflow: hidden;
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  &__edit {
+    flex: none;
+    opacity: 0;
+    transition: opacity 0.16s ease;
+  }
+  &__rule:hover &__edit,
+  &__edit:focus-visible {
+    opacity: 1;
+  }
+  &__rule :deep(.el-select),
+  &__rule :deep(.el-input) {
+    flex: 1;
+    min-width: 0;
+  }
+  &__literal :deep(.el-input__wrapper) {
+    padding: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+  &__literal :deep(.el-input__inner) {
+    height: 28px;
+    font-size: 14px;
+  }
+  &__add {
+    width: 100%;
+  }
 }
 </style>

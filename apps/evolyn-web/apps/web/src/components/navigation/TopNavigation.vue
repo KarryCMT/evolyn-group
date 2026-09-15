@@ -13,6 +13,7 @@ import { useRouter } from 'vue-router';
 import appLogo from '~/assets/logo/logo.png';
 import MessageCenterDrawer from '~/components/dashboard/messageCenter/MessageCenterDrawer.vue';
 import UserMenu from '~/components/navigation/UserMenu.vue';
+import { useAdminScope } from '~/composables/useAdminScope';
 import { useNotificationStore } from '~/stores/notification';
 
 defineOptions({ name: 'TopNavigation' });
@@ -61,6 +62,9 @@ const messageCenterVisible = shallowRef(false);
 // 未读摘要读 Pinia notification store（与工作区顶栏共读同一事实源）
 const notificationStore = useNotificationStore();
 const unreadMessageCount = computed(() => notificationStore.unreadTotal);
+// 工作台是企业级配置：设置入口仅企业管理员可见（服务端 workbench:update
+// 权限是最终边界）；会话级自查缓存，多入口共读一次请求
+const { isSystemAdmin } = useAdminScope();
 
 function goBack() {
   if (props.backTo) {
@@ -120,15 +124,17 @@ function notifyUnavailable() {}
           class="top-navigation__quick-nav"
           aria-label="工作台导航"
         >
-          <button
-            class="top-navigation__icon-button"
-            type="button"
-            aria-label="自定义工作台"
-            @click="openWorkbenchEditor"
-          >
-            <RiHomeGearFill />
-          </button>
-          <span class="top-navigation__divider" aria-hidden="true" />
+          <template v-if="isSystemAdmin">
+            <button
+              class="top-navigation__icon-button"
+              type="button"
+              aria-label="自定义工作台"
+              @click="openWorkbenchEditor"
+            >
+              <RiHomeGearFill />
+            </button>
+            <span class="top-navigation__divider" aria-hidden="true" />
+          </template>
           <button class="top-navigation__nav-button" type="button" @click="notifyUnavailable">
             <RiLayoutGridFill />
             <span>模板中心</span>
