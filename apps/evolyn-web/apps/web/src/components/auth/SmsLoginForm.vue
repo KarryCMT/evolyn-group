@@ -4,7 +4,8 @@
 // 登录调用在父级。remember 决定令牌存储范围（持久/会话级，见 composables/auth）
 import type { FormInstance, FormRules } from 'element-plus';
 import { RiSmartphoneLine } from '@remixicon/vue';
-import { computed, nextTick, reactive, shallowRef, useTemplateRef, watch } from 'vue';
+import { reactive, useTemplateRef, watch } from 'vue';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 import { useSmsCountdown } from '~/composables/useSmsCountdown';
 
 const props = defineProps<{
@@ -45,24 +46,13 @@ const rules: FormRules = {
 
 const { countdown, start: startCountdown } = useSmsCountdown(RESEND_SECONDS);
 
-// 父级 loading 在 emit 后才会下传。这里先在本地置位，确保点击提交后的首个渲染帧
-// 就显示按钮加载态；父级接管后再由其请求生命周期负责保持和结束该状态。
-const submitting = shallowRef(false);
-const isSubmitting = computed(() => submitting.value || Boolean(props.loading));
+const { isLoading: isSubmitting, begin, handoff } = useExternalSubmitLoading(() => props.loading);
 
 // 父级异步发送成功后才启动倒计时；发送失败不改变 sentVersion，用户可立即重试。
 watch(
   () => props.sentVersion,
   (version, previous) => {
     if (version && version !== previous) startCountdown();
-  },
-);
-
-watch(
-  () => props.loading,
-  (loading, wasLoading) => {
-    // 仅在父级结束一次已接管的提交后复位，避免初始 false 覆盖本地的即时加载态。
-    if (wasLoading && !loading) submitting.value = false;
   },
 );
 
@@ -74,13 +64,9 @@ async function handleSubmit() {
   );
   if (!valid) return;
 
-  submitting.value = true;
+  if (!begin()) return;
   emit('submit', { phone: form.phone.trim(), code: form.code, remember: form.remember });
-
-  // 让父级有一个更新周期接管 loading。若父级没有启动请求（例如外部监听器提前返回），
-  // 则回退本地状态，避免按钮永久处于加载中。
-  await nextTick();
-  if (!props.loading) submitting.value = false;
+  void handoff();
 }
 
 function handleSendCode() {

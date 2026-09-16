@@ -14,7 +14,7 @@ const appCode = computed(() => String(route.params.appCode ?? ''));
 const { app, errorMessage, reload, status } = useAppHome(appCode);
 const saving = shallowRef(false);
 
-async function updateBasicInfo(payload: UpdateAppPayload) {
+async function updateBasicInfo(payload: UpdateAppPayload, onSuccess?: () => void) {
   const currentApp = app.value;
   if (!currentApp || saving.value) return;
 
@@ -23,6 +23,7 @@ async function updateBasicInfo(payload: UpdateAppPayload) {
     await updateApp(currentApp.id, payload);
     await reload();
     ElMessage.success('应用设置已保存');
+    onSuccess?.();
   } catch {
     ElMessage.error('保存应用设置失败，请稍后重试');
   } finally {
@@ -63,7 +64,9 @@ function notifyUnavailable() {
     :sub-title="errorMessage"
   >
     <template #extra>
-      <el-button type="primary" @click="reload()"> 重新加载 </el-button>
+      <el-button type="primary" @click="reload()">
+        重新加载
+      </el-button>
     </template>
   </el-result>
 

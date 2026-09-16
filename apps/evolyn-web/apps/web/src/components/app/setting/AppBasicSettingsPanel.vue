@@ -2,6 +2,7 @@
 import type { AppIcon, AppItem, UpdateAppPayload } from '~/types';
 import { shallowRef, watch } from 'vue';
 import AppIconPicker from '~/components/app/AppIconPicker.vue';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 
 defineOptions({ name: 'AppBasicSettingsPanel' });
 
@@ -11,7 +12,8 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  update: [payload: UpdateAppPayload];
+  /** 父级持久化成功后回调，名称编辑据此退出，失败时保留输入供用户修正或重试。 */
+  update: [payload: UpdateAppPayload, onSuccess?: () => void];
   copyId: [value: string];
   configureHome: [];
   configureUrl: [];
@@ -19,6 +21,7 @@ const emit = defineEmits<{
 
 const nameEditing = shallowRef(false);
 const nameDraft = shallowRef(props.app.name);
+const { isLoading: isSaving, begin, handoff } = useExternalSubmitLoading(() => props.saving);
 // 当前接口只支持名称和图标持久化；两个开关保留为可交互的界面预览状态。
 const watermarkEnabled = shallowRef(false);
 const attachmentRestricted = shallowRef(false);
@@ -41,13 +44,22 @@ function cancelNameEdit() {
 }
 
 function submitNameEdit() {
+  if (isSaving.value) return;
   const name = nameDraft.value.trim();
   if (!name || name === props.app.name) {
     cancelNameEdit();
     return;
   }
-  nameEditing.value = false;
-  emit('update', { name });
+  submitUpdate({ name }, () => {
+    nameEditing.value = false;
+  });
+}
+
+/** 名称和图标均由父级持久化；先置本地状态再上抛，确保点击立即有反馈。 */
+function submitUpdate(payload: UpdateAppPayload, onSuccess?: () => void): void {
+  if (!begin()) return;
+  emit('update', payload, onSuccess);
+  void handoff();
 }
 
 /** 图标选择器通过受控值回传；仅在图标确有变化时请求持久化。 */
@@ -59,14 +71,16 @@ function updateIcon(icon: AppIcon) {
       : current.type === 'remix' && icon.type === 'remix'
         ? current.name === icon.name && current.background === icon.background
         : false;
-  if (!unchanged) emit('update', { icon });
+  if (!unchanged) submitUpdate({ icon });
 }
 </script>
 
 <template>
   <article class="app-basic-settings" aria-label="应用设置">
     <header class="app-basic-settings__header">
-      <h1 class="app-basic-settings__title">应用设置</h1>
+      <h1 class="app-basic-settings__title">
+        应用设置
+      </h1>
     </header>
 
     <!-- 标题独立于滚动容器，只有基础设置表格在内容超出时滚动。 -->
@@ -74,7 +88,9 @@ function updateIcon(icon: AppIcon) {
       <div class="app-basic-settings__body">
         <section class="app-basic-settings__table" aria-label="应用基础信息">
           <div class="app-basic-settings__row">
-            <div class="app-basic-settings__label">应用名称</div>
+            <div class="app-basic-settings__label">
+              应用名称
+            </div>
             <div class="app-basic-settings__value app-basic-settings__value--name">
               <template v-if="nameEditing">
                 <el-input
@@ -88,7 +104,8 @@ function updateIcon(icon: AppIcon) {
                 <el-button
                   type="primary"
                   size="small"
-                  :loading="props.saving"
+                  :loading="isSaving"
+                  :disabled="isSaving"
                   @click="submitNameEdit"
                 >
                   保存
@@ -96,7 +113,7 @@ function updateIcon(icon: AppIcon) {
                 <button
                   class="app-basic-settings__text-button"
                   type="button"
-                  :disabled="props.saving"
+                  :disabled="isSaving"
                   @click="cancelNameEdit"
                 >
                   取消
@@ -116,29 +133,41 @@ function updateIcon(icon: AppIcon) {
           </div>
 
           <div class="app-basic-settings__row">
-            <div class="app-basic-settings__label">应用图标</div>
+            <div class="app-basic-settings__label">
+              应用图标
+            </div>
             <div class="app-basic-settings__value app-basic-settings__value--icon">
               <AppIconPicker :model-value="props.app.icon" @update:model-value="updateIcon" />
             </div>
           </div>
 
           <div class="app-basic-settings__row">
-            <div class="app-basic-settings__label">应用首页</div>
+            <div class="app-basic-settings__label">
+              应用首页
+            </div>
             <div class="app-basic-settings__value">
-              <el-button plain type="primary" @click="emit('configureHome')"> 设置 </el-button>
+              <el-button plain type="primary" @click="emit('configureHome')">
+                设置
+              </el-button>
             </div>
           </div>
 
           <div class="app-basic-settings__row">
-            <div class="app-basic-settings__label">应用URL</div>
+            <div class="app-basic-settings__label">
+              应用URL
+            </div>
             <div class="app-basic-settings__value app-basic-settings__value--inline">
-              <el-button plain type="primary" @click="emit('configureUrl')"> 设置 </el-button>
+              <el-button plain type="primary" @click="emit('configureUrl')">
+                设置
+              </el-button>
               <span class="app-basic-settings__hint">自定义应用URL，可使用URL直接打开该应用</span>
             </div>
           </div>
 
           <div class="app-basic-settings__row">
-            <div class="app-basic-settings__label">应用ID</div>
+            <div class="app-basic-settings__label">
+              应用ID
+            </div>
             <div class="app-basic-settings__value app-basic-settings__value--inline">
               <span class="app-basic-settings__id">{{ props.app.code }}</span>
               <button
@@ -152,19 +181,21 @@ function updateIcon(icon: AppIcon) {
           </div>
 
           <div class="app-basic-settings__row">
-            <div class="app-basic-settings__label">应用水印</div>
+            <div class="app-basic-settings__label">
+              应用水印
+            </div>
             <div class="app-basic-settings__value">
               <el-switch v-model="watermarkEnabled" aria-label="应用水印" />
             </div>
           </div>
 
           <div class="app-basic-settings__row">
-            <div class="app-basic-settings__label">附件管控</div>
+            <div class="app-basic-settings__label">
+              附件管控
+            </div>
             <div class="app-basic-settings__value app-basic-settings__value--inline">
               <el-switch v-model="attachmentRestricted" aria-label="附件管控" />
-              <span class="app-basic-settings__hint"
-                >开启后，成员在表单和仪表盘中无法下载、打印和导出附件</span
-              >
+              <span class="app-basic-settings__hint">开启后，成员在表单和仪表盘中无法下载、打印和导出附件</span>
             </div>
           </div>
         </section>

@@ -1,12 +1,11 @@
 <script setup lang="ts">
+import type { FormInstance, FormRules } from 'element-plus';
+import { RiLockPasswordFill, RiSmartphoneFill } from '@remixicon/vue';
 // 找回密码表单：只负责手机号、验证码和两次新密码的采集校验；发送短信与重设请求
 // 分别通过事件交由路由页编排，保持认证接口调用和表单展示职责分离。
 import { reactive, useTemplateRef, watch } from 'vue';
-import type { FormInstance, FormRules } from 'element-plus';
-import { RiLockPasswordFill, RiSmartphoneFill } from '@remixicon/vue';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 import { useSmsCountdown } from '~/composables/useSmsCountdown';
-
-const RESEND_SECONDS = 60;
 
 const props = defineProps<{
   loading?: boolean;
@@ -15,9 +14,11 @@ const props = defineProps<{
 }>();
 
 const emit = defineEmits<{
-  'send-code': [phone: string];
+  sendCode: [phone: string];
   submit: [payload: { phone: string; smsCode: string; newPassword: string }];
 }>();
+
+const RESEND_SECONDS = 60;
 
 const formRef = useTemplateRef<FormInstance>('formRef');
 const form = reactive({
@@ -41,7 +42,7 @@ const rules: FormRules = {
     { min: 8, max: 64, message: '密码长度为 8-64 位', trigger: 'blur' },
     {
       // 与后端口径一致（8-64 位且同时包含字母和数字，弱口令由后端黑名单拦截）
-      pattern: /^(?=.*[A-Za-z])(?=.*\d).{8,64}$/,
+      pattern: /^(?=.*[A-Z])(?=.*\d).{8,64}$/i,
       message: '密码需同时包含字母和数字',
       trigger: 'blur',
     },
@@ -58,6 +59,7 @@ const rules: FormRules = {
 };
 
 const { countdown, start: startCountdown } = useSmsCountdown(RESEND_SECONDS);
+const { isLoading: isSubmitting, begin, handoff } = useExternalSubmitLoading(() => props.loading);
 
 watch(
   () => props.sentVersion,
@@ -67,23 +69,26 @@ watch(
 );
 
 async function handleSubmit() {
+  if (isSubmitting.value) return;
   const valid = await formRef.value?.validate().then(
     () => true,
     () => false,
   );
   if (!valid) return;
 
+  if (!begin()) return;
   emit('submit', {
     phone: form.phone.trim(),
     smsCode: form.smsCode,
     newPassword: form.newPassword,
   });
+  void handoff();
 }
 
 function handleSendCode() {
   formRef.value
     ?.validateField('phone')
-    .then(() => emit('send-code', form.phone.trim()))
+    .then(() => emit('sendCode', form.phone.trim()))
     .catch(() => {});
 }
 </script>
@@ -106,7 +111,9 @@ function handleSendCode() {
         clearable
         :prefix-icon="RiSmartphoneFill"
       >
-        <template #prepend><span class="auth-phone-prefix">+86</span></template>
+        <template #prepend>
+          <span class="auth-phone-prefix">+86</span>
+        </template>
       </el-input>
     </el-form-item>
 
@@ -122,7 +129,7 @@ function handleSendCode() {
           <button
             class="reset-password-form__send"
             type="button"
-            :disabled="countdown > 0 || loading"
+            :disabled="countdown > 0 || isSubmitting"
             @click="handleSendCode"
           >
             {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
@@ -160,13 +167,16 @@ function handleSendCode() {
       class="reset-password-form__submit"
       type="primary"
       native-type="submit"
-      :loading="loading"
+      :loading="isSubmitting"
+      :disabled="isSubmitting"
     >
       重设密码
     </el-button>
 
     <div class="reset-password-form__login">
-      想起密码了？<router-link to="/auth/login">返回登录</router-link>
+      想起密码了？<router-link to="/auth/login">
+        返回登录
+      </router-link>
     </div>
   </el-form>
 </template>

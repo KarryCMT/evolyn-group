@@ -1,11 +1,17 @@
 <script setup lang="ts">
+import type { InputInstance } from 'element-plus';
 import type { DeepReadonly } from 'vue';
 import type { UserInfoResult } from '~/types';
 import { RiCheckboxCircleFill, RiUserFill } from '@remixicon/vue';
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue';
-import type { InputInstance } from 'element-plus';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 
 defineOptions({ name: 'AccountBasicInfoPanel' });
+
+const props = defineProps<{
+  userInfo: DeepReadonly<UserInfoResult> | null;
+  savingContactName?: boolean;
+}>();
 
 const emit = defineEmits<{
   bindEmail: [];
@@ -15,15 +21,13 @@ const emit = defineEmits<{
   viewLoginLog: [];
 }>();
 
-const props = defineProps<{
-  userInfo: DeepReadonly<UserInfoResult> | null;
-  savingContactName?: boolean;
-}>();
-
 const contactNameInputRef = ref<InputInstance>();
 const avatarInputRef = useTemplateRef<HTMLInputElement>('avatarInput');
 const contactNameEditing = ref(false);
 const contactName = ref('');
+const { isLoading: isSavingContactName, begin, handoff } = useExternalSubmitLoading(
+  () => props.savingContactName,
+);
 
 const displayedContactName = computed(
   () => props.userInfo?.member.nickname || props.userInfo?.account.nickname || '未设置',
@@ -58,10 +62,12 @@ function cancelContactNameEditing() {
 }
 
 function submitContactName() {
-  if (contactNameError.value || props.savingContactName) return;
+  if (contactNameError.value || isSavingContactName.value) return;
+  if (!begin()) return;
   emit('updateContactName', contactName.value.trim(), () => {
     contactNameEditing.value = false;
   });
+  void handoff();
 }
 
 // 头像编辑遵循「先选择文件，再打开裁剪弹窗」的交互，取消系统选图时不打断当前页面。
@@ -97,14 +103,16 @@ function handleAvatarChange(event: Event) {
           <el-avatar :size="36" :src="userInfo?.account.avatar">
             <el-icon><RiUserFill /></el-icon>
           </el-avatar>
-          <el-button link type="primary" @click="chooseAvatar">修改</el-button>
+          <el-button link type="primary" @click="chooseAvatar">
+            修改
+          </el-button>
           <input
             ref="avatarInput"
             class="account-basic-info__avatar-input"
             type="file"
             accept="image/jpeg,image/png,.jpg,.jpeg,.png"
             @change="handleAvatarChange"
-          />
+          >
         </dd>
       </div>
       <div class="account-basic-info__row">
@@ -131,28 +139,41 @@ function handleAvatarChange(event: Event) {
                   @keydown.enter.prevent="submitContactName"
                   @keydown.esc.prevent="cancelContactNameEditing"
                 />
-                <el-button type="primary" :loading="savingContactName" @click="submitContactName">
+                <el-button
+                  type="primary"
+                  :loading="isSavingContactName"
+                  :disabled="isSavingContactName"
+                  @click="submitContactName"
+                >
                   确定
                 </el-button>
-                <el-button :disabled="savingContactName" @click="cancelContactNameEditing"
-                  >取消</el-button
-                >
+                <el-button :disabled="isSavingContactName" @click="cancelContactNameEditing">
+                  取消
+                </el-button>
               </div>
             </div>
           </template>
           <template v-else>
             <span>{{ displayedContactName }}</span>
-            <el-button link type="primary" @click="startContactNameEditing">修改</el-button>
+            <el-button link type="primary" @click="startContactNameEditing">
+              修改
+            </el-button>
           </template>
         </dd>
       </div>
       <div class="account-basic-info__row">
         <dt>用户 ID</dt>
-        <dd class="account-basic-info__identifier">{{ userInfo?.account.id ?? '--' }}</dd>
+        <dd class="account-basic-info__identifier">
+          {{ userInfo?.account.id ?? '--' }}
+        </dd>
       </div>
       <div class="account-basic-info__row">
         <dt>登录日志</dt>
-        <dd><el-button link type="primary" @click="emit('viewLoginLog')">查看</el-button></dd>
+        <dd>
+          <el-button link type="primary" @click="emit('viewLoginLog')">
+            查看
+          </el-button>
+        </dd>
       </div>
     </dl>
 

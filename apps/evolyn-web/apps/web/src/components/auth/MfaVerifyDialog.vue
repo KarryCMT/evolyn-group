@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, shallowRef, watch } from 'vue';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 
 const props = defineProps<{
   modelValue: boolean;
@@ -21,6 +22,7 @@ const codePlaceholder = computed(() =>
   form.method === 'totp' ? '请输入 6 位动态码' : '请输入恢复码',
 );
 const formRef = shallowRef<{ validate: () => Promise<boolean> }>();
+const { isLoading: isSubmitting, begin, handoff } = useExternalSubmitLoading(() => props.loading);
 
 watch(
   () => props.modelValue,
@@ -33,9 +35,12 @@ watch(
 );
 
 async function handleSubmit() {
+  if (isSubmitting.value) return;
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
+  if (!begin()) return;
   emit('submit', { method: form.method, code: form.code.trim() });
+  void handoff();
 }
 </script>
 
@@ -46,12 +51,18 @@ async function handleSubmit() {
     width="400px"
     :close-on-click-modal="false"
   >
-    <p class="mfa-verify-dialog__hint">为保护账号安全，请完成验证后继续登录。</p>
+    <p class="mfa-verify-dialog__hint">
+      为保护账号安全，请完成验证后继续登录。
+    </p>
     <el-form ref="formRef" :model="form" label-position="top" @submit.prevent="handleSubmit">
       <el-form-item label="验证方式">
         <el-radio-group v-model="form.method">
-          <el-radio-button value="totp">验证器</el-radio-button>
-          <el-radio-button value="recovery">恢复码</el-radio-button>
+          <el-radio-button value="totp">
+            验证器
+          </el-radio-button>
+          <el-radio-button value="recovery">
+            恢复码
+          </el-radio-button>
         </el-radio-group>
       </el-form-item>
       <el-form-item
@@ -63,8 +74,12 @@ async function handleSubmit() {
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button :disabled="loading" @click="dialogVisible = false">取消</el-button>
-      <el-button type="primary" :loading="loading" @click="handleSubmit">验证并登录</el-button>
+      <el-button :disabled="isSubmitting" @click="dialogVisible = false">
+        取消
+      </el-button>
+      <el-button type="primary" :loading="isSubmitting" :disabled="isSubmitting" @click="handleSubmit">
+        验证并登录
+      </el-button>
     </template>
   </el-dialog>
 </template>

@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import type { FormInstance, FormRules } from 'element-plus';
-import { reactive, ref, watch } from 'vue';
 import type { DeepReadonly } from 'vue';
 import type { AccountInfo } from '~/types';
 import type { AccountProfileForm } from '~/types/account';
+import { reactive, ref, watch } from 'vue';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 
 defineOptions({ name: 'ProfileEditorDialog' });
 
@@ -19,6 +20,7 @@ const emit = defineEmits<{
 }>();
 
 const formRef = ref<FormInstance>();
+const { isLoading: isSaving, begin, handoff } = useExternalSubmitLoading(() => props.loading);
 const form = reactive<AccountProfileForm>({
   nickname: '',
   email: '',
@@ -45,13 +47,16 @@ watch(
 );
 
 async function submit() {
+  if (isSaving.value) return;
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
+  if (!begin()) return;
   emit('submit', {
     nickname: form.nickname.trim(),
     // 后端当前采用非空字段更新；空值不出参，避免误导为支持解绑邮箱或清空头像。
     email: form.email?.trim() || undefined,
   });
+  void handoff();
 }
 </script>
 
@@ -72,8 +77,12 @@ async function submit() {
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button :disabled="loading" @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="loading" @click="submit">保存</el-button>
+      <el-button :disabled="isSaving" @click="emit('update:modelValue', false)">
+        取消
+      </el-button>
+      <el-button type="primary" :loading="isSaving" :disabled="isSaving" @click="submit">
+        保存
+      </el-button>
     </template>
   </el-dialog>
 </template>

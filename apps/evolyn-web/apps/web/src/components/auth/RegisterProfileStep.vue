@@ -1,11 +1,12 @@
 <script setup lang="ts">
+import type { FormInstance, FormRules } from 'element-plus';
+import { RiUserFill } from '@remixicon/vue';
 // 注册向导第 3 步「完善信息」：采集称呼、角色与了解渠道后「进入产品」。
 // 角色与渠道是「人」的画像，随向导最终提交（POST /auth/register）落到
 // 账号 onboarding；昵称同步 owner 成员的租户内称呼（后端事务内完成）。
 // 注册全程不设密码：账号为免密状态，密码由用户后续在个人中心自行首设
 import { reactive, useTemplateRef } from 'vue';
-import type { FormInstance, FormRules } from 'element-plus';
-import { RiUserFill } from '@remixicon/vue';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 
 const props = defineProps<{
   /** 昵称默认值：取第 1 步注册手机号的脱敏形式，降低输入成本 */
@@ -20,6 +21,7 @@ const emit = defineEmits<{
 }>();
 
 const formRef = useTemplateRef<FormInstance>('formRef');
+const { isLoading: isSubmitting, begin, handoff } = useExternalSubmitLoading(() => props.loading);
 
 const form = reactive({
   nickname: props.defaultNickname ?? '',
@@ -60,17 +62,20 @@ const rules: FormRules = {
 };
 
 async function handleSubmit() {
+  if (isSubmitting.value) return;
   const valid = await formRef.value?.validate().then(
     () => true,
     () => false,
   );
   if (!valid) return;
 
+  if (!begin()) return;
   emit('submit', {
     nickname: form.nickname.trim(),
     role: form.role,
     channel: form.channel,
   });
+  void handoff();
 }
 </script>
 
@@ -124,7 +129,8 @@ async function handleSubmit() {
       type="primary"
       size="large"
       native-type="submit"
-      :loading="loading"
+      :loading="isSubmitting"
+      :disabled="isSubmitting"
     >
       进入产品
     </el-button>

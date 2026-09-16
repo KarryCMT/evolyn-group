@@ -5,6 +5,7 @@ import { ElMessage } from 'element-plus';
 // 公开邀请注册表单只承担收集与本地校验；发送短信和最终注册由页面编排，
 // 使接口副作用和成功后的会话跳转保持在路由层。
 import { reactive, useTemplateRef, watch } from 'vue';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 import { useSmsCountdown } from '~/composables/useSmsCountdown';
 
 const props = defineProps<{
@@ -37,6 +38,7 @@ const rules: FormRules = {
 };
 
 const { countdown, start: startCountdown } = useSmsCountdown(RESEND_SECONDS);
+const { isLoading: isSubmitting, begin, handoff } = useExternalSubmitLoading(() => props.loading);
 
 watch(
   () => props.sentVersion,
@@ -46,17 +48,20 @@ watch(
 );
 
 async function handleSubmit() {
+  if (isSubmitting.value) return;
   const valid = await formRef.value?.validate().then(
     () => true,
     () => false,
   );
   if (!valid) return;
 
+  if (!begin()) return;
   emit('submit', {
     phone: form.phone.trim(),
     smsCode: form.smsCode,
     nickname: form.nickname.trim(),
   });
+  void handoff();
 }
 
 function handleSendCode() {
@@ -103,7 +108,7 @@ function handleSendCode() {
           <button
             class="public-invitation-register-form__send"
             type="button"
-            :disabled="countdown > 0 || loading"
+            :disabled="countdown > 0 || isSubmitting"
             @click="handleSendCode"
           >
             {{ countdown > 0 ? `${countdown}s 后重发` : '获取验证码' }}
@@ -136,7 +141,8 @@ function handleSendCode() {
       class="public-invitation-register-form__submit"
       type="primary"
       native-type="submit"
-      :loading="loading"
+      :loading="isSubmitting"
+      :disabled="isSubmitting"
     >
       注册并加入
     </el-button>

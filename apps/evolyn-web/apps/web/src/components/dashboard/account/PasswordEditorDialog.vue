@@ -1,10 +1,11 @@
 <script setup lang="ts">
 import type { FormInstance, FormRules } from 'element-plus';
+import type { AccountPasswordForm } from '~/types/account';
 import { RiCloseFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, onBeforeUnmount, reactive, ref, shallowRef, watch } from 'vue';
 import { sendSmsCode } from '~/api/auth';
-import type { AccountPasswordForm } from '~/types/account';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 
 defineOptions({ name: 'PasswordEditorDialog' });
 
@@ -30,6 +31,7 @@ const setupStep = shallowRef<SetupStep>('verify');
 const sendingCode = shallowRef(false);
 const resendSeconds = shallowRef(0);
 let resendTimer: number | undefined;
+const { isLoading: isSaving, begin, handoff } = useExternalSubmitLoading(() => props.loading);
 
 const form = reactive({
   oldPassword: '',
@@ -54,7 +56,7 @@ const rules = computed<FormRules<typeof form>>(() => ({
     { min: 8, max: 64, message: '密码长度为 8-64 位', trigger: 'blur' },
     {
       // 与后端口径一致：弱口令仍由服务端黑名单统一拦截。
-      pattern: /^(?=.*[A-Za-z])(?=.*\d).{8,64}$/,
+      pattern: /^(?=.*[A-Z])(?=.*\d).{8,64}$/i,
       message: '密码需同时包含字母和数字',
       trigger: 'blur',
     },
@@ -119,13 +121,16 @@ function continueToPasswordForm() {
 }
 
 async function submit() {
+  if (isSaving.value) return;
   const valid = await formRef.value?.validate().catch(() => false);
   if (!valid) return;
+  if (!begin()) return;
   emit('submit', {
     oldPassword: props.passwordInitialized ? form.oldPassword : undefined,
     newPassword: form.newPassword,
     smsCode: props.passwordInitialized ? undefined : form.smsCode.trim(),
   });
+  void handoff();
 }
 
 watch(
@@ -156,7 +161,9 @@ onBeforeUnmount(clearResendTimer);
     <template #header>
       <div class="password-editor-dialog__header">
         <span>{{ title }}</span>
-        <button type="button" aria-label="关闭设置密码" @click="close"><RiCloseFill /></button>
+        <button type="button" aria-label="关闭设置密码" @click="close">
+          <RiCloseFill />
+        </button>
       </div>
     </template>
 
@@ -167,7 +174,9 @@ onBeforeUnmount(clearResendTimer);
       <el-form class="password-editor-dialog__form" label-position="top">
         <el-form-item label="当前手机号">
           <el-input :model-value="phone" disabled>
-            <template #prepend>+86</template>
+            <template #prepend>
+              +86
+            </template>
           </el-input>
         </el-form-item>
         <el-form-item label="验证码">
@@ -231,11 +240,15 @@ onBeforeUnmount(clearResendTimer);
     </el-form>
 
     <template #footer>
-      <el-button :disabled="loading" @click="close">取消</el-button>
+      <el-button :disabled="isSaving" @click="close">
+        取消
+      </el-button>
       <el-button v-if="isVerificationStep" type="primary" @click="continueToPasswordForm">
         下一步
       </el-button>
-      <el-button v-else type="primary" :loading="loading" @click="submit">保存</el-button>
+      <el-button v-else type="primary" :loading="isSaving" :disabled="isSaving" @click="submit">
+        保存
+      </el-button>
     </template>
   </el-dialog>
 </template>

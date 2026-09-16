@@ -1,7 +1,8 @@
 <script setup lang="ts">
+import type { MemberInvitationForm } from '~/composables/tenant/useMemberInvitation';
 import { RiAddFill } from '@remixicon/vue';
 import { ElTreeSelect } from 'element-plus';
-import type { MemberInvitationForm } from '~/composables/tenant/useMemberInvitation';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 
 interface DepartmentOption {
   value: number;
@@ -9,17 +10,27 @@ interface DepartmentOption {
   children?: DepartmentOption[];
 }
 
-defineProps<{
+const props = defineProps<{
   departments: DepartmentOption[];
   submitting: boolean;
 }>();
-
-const form = defineModel<MemberInvitationForm>('form', { required: true });
 
 const emit = defineEmits<{
   submit: [];
   clear: [];
 }>();
+
+const form = defineModel<MemberInvitationForm>('form', { required: true });
+
+const { isLoading: isSubmitting, begin, handoff } = useExternalSubmitLoading(
+  () => props.submitting,
+);
+
+function submit(): void {
+  if (!begin()) return;
+  emit('submit');
+  void handoff();
+}
 </script>
 
 <template>
@@ -32,7 +43,7 @@ const emit = defineEmits<{
     <el-form
       class="organization-invite-manual__form"
       label-position="top"
-      @submit.prevent="emit('submit')"
+      @submit.prevent="submit"
     >
       <div class="organization-invite-manual__grid">
         <el-form-item label="姓名" required>
@@ -47,7 +58,9 @@ const emit = defineEmits<{
         </el-form-item>
         <el-form-item label="手机">
           <el-input v-model="form.phone" maxlength="32" placeholder="手机和邮箱必填一项">
-            <template #prepend>+86</template>
+            <template #prepend>
+              +86
+            </template>
           </el-input>
         </el-form-item>
         <el-form-item label="邮箱">
@@ -56,7 +69,7 @@ const emit = defineEmits<{
       </div>
 
       <el-form-item label="部门" class="organization-invite-manual__department">
-        <el-tree-select
+        <ElTreeSelect
           v-model="form.departmentIds"
           class="organization-invite-manual__department-select"
           :data="departments"
@@ -71,53 +84,57 @@ const emit = defineEmits<{
           <template #default>
             <span><RiAddFill />选择部门</span>
           </template>
-        </el-tree-select>
+        </ElTreeSelect>
       </el-form-item>
 
       <div class="organization-invite-manual__grid organization-invite-manual__grid--extended">
-        <el-form-item label="别名"
-          ><el-input v-model="form.alias" maxlength="50" placeholder="选填"
-        /></el-form-item>
-        <el-form-item label="工号"
-          ><el-input v-model="form.employeeNo" maxlength="50" placeholder="选填"
-        /></el-form-item>
-        <el-form-item label="性别"
-          ><el-input v-model="form.gender" maxlength="50" placeholder="选填"
-        /></el-form-item>
-        <el-form-item label="职务"
-          ><el-input v-model="form.title" maxlength="50" placeholder="选填"
-        /></el-form-item>
-        <el-form-item label="聘用形式"
-          ><el-input v-model="form.employmentType" maxlength="50" placeholder="选填"
-        /></el-form-item>
-        <el-form-item label="入职日期"
-          ><el-date-picker
+        <el-form-item label="别名">
+          <el-input v-model="form.alias" maxlength="50" placeholder="选填" />
+        </el-form-item>
+        <el-form-item label="工号">
+          <el-input v-model="form.employeeNo" maxlength="50" placeholder="选填" />
+        </el-form-item>
+        <el-form-item label="性别">
+          <el-input v-model="form.gender" maxlength="50" placeholder="选填" />
+        </el-form-item>
+        <el-form-item label="职务">
+          <el-input v-model="form.title" maxlength="50" placeholder="选填" />
+        </el-form-item>
+        <el-form-item label="聘用形式">
+          <el-input v-model="form.employmentType" maxlength="50" placeholder="选填" />
+        </el-form-item>
+        <el-form-item label="入职日期">
+          <el-date-picker
             v-model="form.hiredAt"
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="选择日期"
-        /></el-form-item>
-        <el-form-item label="工作地点"
-          ><el-input v-model="form.workLocation" maxlength="50" placeholder="选填"
-        /></el-form-item>
-        <el-form-item label="出生日期"
-          ><el-date-picker
+          />
+        </el-form-item>
+        <el-form-item label="工作地点">
+          <el-input v-model="form.workLocation" maxlength="50" placeholder="选填" />
+        </el-form-item>
+        <el-form-item label="出生日期">
+          <el-date-picker
             v-model="form.birthday"
             type="date"
             value-format="YYYY-MM-DD"
             placeholder="选择日期"
-        /></el-form-item>
-        <el-form-item label="学历"
-          ><el-input v-model="form.education" maxlength="50" placeholder="选填"
-        /></el-form-item>
+          />
+        </el-form-item>
+        <el-form-item label="学历">
+          <el-input v-model="form.education" maxlength="50" placeholder="选填" />
+        </el-form-item>
       </div>
     </el-form>
 
     <footer class="organization-invite-manual__footer">
-      <el-button size="large" @click="emit('clear')">清空</el-button>
-      <el-button type="primary" size="large" :loading="submitting" @click="emit('submit')"
-        >邀请</el-button
-      >
+      <el-button size="large" :disabled="isSubmitting" @click="emit('clear')">
+        清空
+      </el-button>
+      <el-button type="primary" size="large" :loading="isSubmitting" :disabled="isSubmitting" @click="submit">
+        邀请
+      </el-button>
     </footer>
   </section>
 </template>

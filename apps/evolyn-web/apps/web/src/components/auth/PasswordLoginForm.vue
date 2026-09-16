@@ -1,17 +1,13 @@
 <script setup lang="ts">
+import type { FormInstance, FormRules } from 'element-plus';
+import {
+  RiLockPasswordLine,
+  RiSmartphoneLine,
+} from '@remixicon/vue';
 // 密码登录表单：手机号 + 密码，只负责收集与校验，提交结果由父级（登录页）处理；
 // 「下次自动登录」勾选时本地记住手机号并持久化令牌，取消勾选则为会话级登录
 import { reactive, useTemplateRef } from 'vue';
-import type { FormInstance, FormRules } from 'element-plus';
-import {
-  RiLockPasswordFill,
-  RiLockPasswordLine,
-  RiSmartphoneFill,
-  RiSmartphoneLine,
-} from '@remixicon/vue';
-
-/** 本地记住手机号的存储键 */
-const REMEMBER_PHONE_KEY = 'evolyn.login.phone';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 
 const props = defineProps<{
   /** 提交中：按钮显示 loading 并防重复提交 */
@@ -23,7 +19,11 @@ const emit = defineEmits<{
   submit: [payload: { phone: string; password: string; remember: boolean }];
 }>();
 
+/** 本地记住手机号的存储键 */
+const REMEMBER_PHONE_KEY = 'evolyn.login.phone';
+
 const formRef = useTemplateRef<FormInstance>('formRef');
+const { isLoading: isSubmitting, begin, handoff } = useExternalSubmitLoading(() => props.loading);
 
 // 表单字段逐项变更，用 reactive 维护
 const form = reactive({
@@ -42,7 +42,7 @@ const rules: FormRules = {
 };
 
 async function handleSubmit() {
-  if (props.loading) return;
+  if (isSubmitting.value) return;
   const valid = await formRef.value?.validate().then(
     () => true,
     () => false,
@@ -56,7 +56,9 @@ async function handleSubmit() {
     localStorage.removeItem(REMEMBER_PHONE_KEY);
   }
 
+  if (!begin()) return;
   emit('submit', { phone: form.phone.trim(), password: form.password, remember: form.remember });
+  void handoff();
 }
 </script>
 
@@ -78,7 +80,9 @@ async function handleSubmit() {
         clearable
         :prefix-icon="RiSmartphoneLine"
       >
-        <template #prepend><span class="auth-phone-prefix">+86</span></template>
+        <template #prepend>
+          <span class="auth-phone-prefix">+86</span>
+        </template>
       </el-input>
     </el-form-item>
 
@@ -96,10 +100,12 @@ async function handleSubmit() {
     </el-form-item>
 
     <div class="password-login-form__extra">
-      <el-checkbox v-model="form.remember">下次自动登录</el-checkbox>
-      <router-link class="password-login-form__forgot" to="/auth/forgot-password"
-        >忘记密码？</router-link
-      >
+      <el-checkbox v-model="form.remember">
+        下次自动登录
+      </el-checkbox>
+      <router-link class="password-login-form__forgot" to="/auth/forgot-password">
+        忘记密码？
+      </router-link>
     </div>
 
     <el-button
@@ -107,8 +113,8 @@ async function handleSubmit() {
       type="primary"
       size="large"
       native-type="submit"
-      :loading="loading"
-      :disabled="loading"
+      :loading="isSubmitting"
+      :disabled="isSubmitting"
     >
       登录
     </el-button>

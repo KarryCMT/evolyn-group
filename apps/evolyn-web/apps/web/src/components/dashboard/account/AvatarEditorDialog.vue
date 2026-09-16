@@ -1,13 +1,12 @@
 <script setup lang="ts">
+import { RiCloseFill } from '@remixicon/vue';
 import Cropper from 'cropperjs';
-import 'cropperjs/dist/cropper.css';
 import { ElMessage } from 'element-plus';
 import { onBeforeUnmount, shallowRef, useTemplateRef, watch } from 'vue';
-import { RiCloseFill } from '@remixicon/vue';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
+import 'cropperjs/dist/cropper.css';
 
 defineOptions({ name: 'AvatarEditorDialog' });
-
-const visible = defineModel<boolean>({ required: true });
 
 const props = defineProps<{
   loading?: boolean;
@@ -19,12 +18,17 @@ const emit = defineEmits<{
   submit: [avatar: File];
 }>();
 
+const visible = defineModel<boolean>({ required: true });
+
 const maxFileSize = 20 * 1024 * 1024;
 const cropper = shallowRef<Cropper>();
 const imageUrl = shallowRef('');
 const objectUrl = shallowRef('');
 const imageInputRef = useTemplateRef<HTMLInputElement>('imageInput');
 const cropImageRef = useTemplateRef<HTMLImageElement>('cropImage');
+const { isLoading: isSaving, begin, handoff, cancel } = useExternalSubmitLoading(
+  () => props.loading,
+);
 
 function clearPreview() {
   cropper.value?.destroy();
@@ -114,6 +118,7 @@ async function save() {
     ElMessage.warning('请先选择图片');
     return;
   }
+  if (!begin()) return;
 
   try {
     // 统一压缩为 512px JPEG，既保证头像清晰，也避免把 20MB 原图直接写入账号资料。
@@ -124,7 +129,9 @@ async function save() {
       imageSmoothingQuality: 'high',
     });
     emit('submit', await canvasToFile(canvas));
+    void handoff();
   } catch {
+    cancel();
     ElMessage.error('头像处理失败，请更换图片后重试');
   }
 }
@@ -149,7 +156,9 @@ onBeforeUnmount(clearPreview);
     <template #header>
       <header class="avatar-editor-dialog__header">
         <h2>修改头像</h2>
-        <button type="button" aria-label="关闭修改头像" @click="close"><RiCloseFill /></button>
+        <button type="button" aria-label="关闭修改头像" @click="close">
+          <RiCloseFill />
+        </button>
       </header>
     </template>
 
@@ -162,8 +171,10 @@ onBeforeUnmount(clearPreview);
           :src="imageUrl"
           alt="待裁剪的头像"
           @load="initializeCropper"
-        />
-        <div v-else class="avatar-editor-dialog__empty">选择图片后可拖动并裁剪头像</div>
+        >
+        <div v-else class="avatar-editor-dialog__empty">
+          选择图片后可拖动并裁剪头像
+        </div>
       </div>
       <input
         ref="imageInput"
@@ -171,13 +182,17 @@ onBeforeUnmount(clearPreview);
         type="file"
         accept="image/jpeg,image/png,.jpg,.jpeg,.png"
         @change="handleImageChange"
-      />
+      >
     </section>
 
     <template #footer>
       <div class="avatar-editor-dialog__footer">
-        <el-button :disabled="loading" @click="chooseImage">更换图片</el-button>
-        <el-button type="primary" :loading="loading" @click="save">保存头像</el-button>
+        <el-button :disabled="isSaving" @click="chooseImage">
+          更换图片
+        </el-button>
+        <el-button type="primary" :loading="isSaving" :disabled="isSaving" @click="save">
+          保存头像
+        </el-button>
       </div>
     </template>
   </el-dialog>

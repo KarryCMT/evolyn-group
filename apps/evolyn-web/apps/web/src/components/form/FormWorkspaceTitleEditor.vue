@@ -2,6 +2,7 @@
 import type { InputInstance } from 'element-plus';
 import { RiEdit2Fill } from '@remixicon/vue';
 import { nextTick, shallowRef, useTemplateRef, watch } from 'vue';
+import { useExternalSubmitLoading } from '~/composables/useExternalSubmitLoading';
 
 defineOptions({ name: 'FormWorkspaceTitleEditor' });
 
@@ -24,6 +25,7 @@ const emit = defineEmits<{
 const titleInputRef = useTemplateRef<InputInstance>('titleInput');
 const editing = shallowRef(false);
 const draft = shallowRef('');
+const { isLoading: isSaving, begin, handoff } = useExternalSubmitLoading(() => props.saving);
 
 // 外部改名完成后同步输入值；编辑期间保留用户尚未提交的内容。
 watch(
@@ -35,7 +37,7 @@ watch(
 );
 
 async function startEditing(): Promise<void> {
-  if (props.disabled || props.saving) return;
+  if (props.disabled || isSaving.value) return;
   draft.value = props.name;
   editing.value = true;
   await nextTick();
@@ -50,15 +52,17 @@ function cancelEditing(): void {
 
 /** Enter 与失焦共用提交入口，保存成功前保留编辑态，避免失败时丢失输入。 */
 function submitEditing(): void {
-  if (!editing.value || props.saving) return;
+  if (!editing.value || isSaving.value) return;
   const name = draft.value.trim();
   if (!name || name === props.name) {
     cancelEditing();
     return;
   }
+  if (!begin()) return;
   emit('submit', name, () => {
     editing.value = false;
   });
+  void handoff();
 }
 </script>
 
@@ -70,7 +74,7 @@ function submitEditing(): void {
       v-model="draft"
       class="form-workspace-title-editor__input"
       :maxlength="128"
-      :disabled="saving"
+      :disabled="isSaving"
       aria-label="表单名称"
       @blur="submitEditing"
       @keydown.enter.prevent="submitEditing"
@@ -80,7 +84,7 @@ function submitEditing(): void {
       v-else
       class="form-workspace-title-editor__trigger"
       type="button"
-      :disabled="disabled"
+      :disabled="disabled || isSaving"
       :title="name"
       :aria-label="`修改表单名称：${name}`"
       @click="startEditing"
