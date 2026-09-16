@@ -6,6 +6,7 @@ package controller
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 
 	appmodel "evolyn/internal/platform/app/model"
@@ -127,7 +128,7 @@ func (a *MenuController) UpdateNode(c *gin.Context) {
 
 // AddFavorite 收藏菜单节点
 // @Summary 收藏应用菜单节点
-// @Description 当前成员收藏指定应用的菜单节点（个人状态，凡节点可见即可收藏）；重复收藏幂等成功，不递增菜单修订号
+// @Description 当前成员收藏指定应用的可打开资产节点（个人状态）。服务端按 canFavorite 统一策略复核：仅 form/dashboard/page 资产叶子节点、应用可用（active 且非初始化中）且节点在当前成员有效可见集内（隐藏、资产软删、表单入口权限失效均拒绝）；分组节点与不可见节点返回 APP_MENU_FAVORITE_INVALID。重复收藏幂等成功，不递增菜单修订号
 // @Accept json
 // @Produce json
 // @Tags 应用管理
@@ -137,6 +138,7 @@ func (a *MenuController) UpdateNode(c *gin.Context) {
 // @Failure 400 {object} httpx.Response "errCode=APP_MENU_FAVORITE_INVALID"
 // @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
 // @Failure 404 {object} httpx.Response "errCode=APP_NOT_FOUND"
+// @Failure 409 {object} httpx.Response "errCode=APP_STATUS_INVALID/APP_PROVISIONING"
 // @Router /api/v1/menu-favorites [post]
 func (a *MenuController) AddFavorite(c *gin.Context) {
 	var req appmodel.CreateMenuFavoriteRequest
@@ -155,7 +157,7 @@ func (a *MenuController) AddFavorite(c *gin.Context) {
 
 // RemoveFavorite 取消收藏菜单节点
 // @Summary 取消收藏应用菜单节点
-// @Description 按节点编码取消当前成员的收藏；目标收藏不存在时幂等成功（返回 Favorited=false）
+// @Description 按节点编码取消当前成员的收藏；目标收藏不存在时幂等成功（返回 Favorited=false）。取消不要求目标仍可见——用户需能清除已被隐藏或已删除前留下的个人状态
 // @Produce json
 // @Tags 应用管理
 // @Security JWT
@@ -177,6 +179,31 @@ func (a *MenuController) RemoveFavorite(c *gin.Context) {
 	httpx.ResponseSuccess(c, updated)
 }
 
+// ListFavorites 我的收藏列表
+// @Summary 获取当前成员的跨应用收藏列表
+// @Description 按收藏时间倒序返回当前成员收藏的菜单入口（跨应用），游标分页（不透明 cursor，禁止用页码推断）；应用归档、节点隐藏、资产软删或表单入口权限失效的记录仅过滤不删除，恢复后自然恢复展示
+// @Produce json
+// @Tags 应用管理
+// @Security JWT
+// @Param cursor query string false "分页游标（上一页返回的 nextCursor 原样回传）"
+// @Param limit query int false "每页数量（默认 20，上限 100）" default(20)
+// @Success 200 {object} httpx.Response{data=appmodel.MenuFavoritePage}
+// @Failure 400 {object} httpx.Response "errCode=APP_CURSOR_INVALID"
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
+// @Router /api/v1/menu-favorites [get]
+func (a *MenuController) ListFavorites(c *gin.Context) {
+	limit, _ := strconv.Atoi(c.Query("limit"))
+	page, err := a.menuService.ListFavorites(c.Request.Context(), ginctx.GetUser(c), appmodel.ListMenuFavoritesQuery{
+		Cursor: c.Query("cursor"),
+		Limit:  limit,
+	})
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, page)
+}
+
 func (a *MenuController) RegisterRoute(api *gin.RouterGroup) {
 	// 与既有 /apps/code/:code 同前缀（gin radix tree 静态段优先，
 	// 不会被 /apps/:id 捕获）；URL 鉴权解析为 resource=apps
@@ -187,10 +214,12 @@ func (a *MenuController) RegisterRoute(api *gin.RouterGroup) {
 	// PATCH 映射 apps:patch；隐藏开关另经 form-actions:hide 动作复核
 	//（ADR-011：动作授权键不随菜单管理权限放大）
 	api.PATCH("/apps/code/:code/menu/nodes/:menuCode", a.UpdateNode)
-	// 个人收藏（ADR-011）：独立资源 menu-favorites（create/delete 授全体
-	// 成员），与菜单管理权限彻底分离，口径同 form-records 与 forms 的关系
+	// 个人收藏（ADR-011）：独立资源 menu-favorites（create/delete/list 授
+	// 全体成员），与菜单管理权限彻底分离，口径同 form-records 与 forms 的
+	// 关系；GET 列表映射 menu-favorites:list（跨应用「我的收藏」，P2）
 	api.POST("/menu-favorites", a.AddFavorite)
 	api.DELETE("/menu-favorites/:menuCode", a.RemoveFavorite)
+	api.GET("/menu-favorites", a.ListFavorites)
 }
 
 func (a *MenuController) Name() string {

@@ -2812,6 +2812,33 @@ FROM pf_tenants t
 WHERE t.purged_at IS NULL
 ON CONFLICT (tenant_id) DO NOTHING;
 
+
+-- ============================================================
+-- 000081: 菜单收藏列表权限补授（我的收藏 P2）
+-- ============================================================
+
+-- 菜单收藏列表（000081，我的收藏 P2）：全体成员（authenticated 系统分组
+-- 关联角色，口径同 000047）补授 menu-favorites list——跨应用「我的收藏」
+-- 读取（GET /api/v1/menu-favorites）。数据范围恒为「当前租户 × 当前成员」，
+-- 读侧可见性裁剪由服务层统一执行
+UPDATE tn_roles
+SET rules = (
+    rules::jsonb || '[{"resource": "menu-favorites", "operation": "list"}]'::jsonb
+)::json
+WHERE id IN (
+      SELECT gr.role_id
+      FROM tn_group_roles gr
+      INNER JOIN tn_groups g ON g.id = gr.group_id
+      WHERE g.name = 'system:authenticated' AND g.kind = 'system'
+  )
+  AND deleted_at IS NULL
+  AND json_typeof(COALESCE(rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(rules) AS e WHERE e::json->>'resource' = 'menu-favorites')
+  AND NOT EXISTS (
+      SELECT 1 FROM json_array_elements(rules) AS e
+      WHERE e::json->>'resource' = 'menu-favorites' AND e::json->>'operation' IN ('list', '*')
+  );
+
 -- 迁移版本登记（与 migrations/ 全链一致）：make postgres 导入快照后，
 -- 启动迁移器识别全部版本已应用，零重放（checksum 与迁移文件 sha256 一致，
 -- 文件被篡改时迁移器按既有防漂移机制拒绝启动）。种子幂等：ON CONFLICT 不覆盖。
@@ -2902,5 +2929,6 @@ INSERT INTO schema_migrations (version, name, checksum) VALUES
     (77, 'member_workbench', 'b7dbf3efc5b9b6771867f890d55757099d7fb45230f4cade5fc4d63fb00be34c'),
     (78, 'tenant_workbench', '53db18b0ab1cd8031e46d3c51ae0b9eb2e91bcf6584d66b725e8582959128f0c'),
     (79, 'rename_application_to_app', 'dc53b8d41e3c634b9f58b8958e3293ffafc5b212bbdba557ca30cfdd09a1c109'),
-    (80, 'rename_menu_entry_to_node', '284446680ed5c811353be8588b41df39f609faedc17aec9cec0f332feaf6f2ff')
+    (80, 'rename_menu_entry_to_node', '284446680ed5c811353be8588b41df39f609faedc17aec9cec0f332feaf6f2ff'),
+    (81, 'menu_favorite_list_grant', '218ac2031fb5e99a723c9cf06a9b1de4a5bc372a48c62ecb688ba3bece628ddd')
 ON CONFLICT (version) DO NOTHING;

@@ -280,6 +280,57 @@ func (r *menuRepository) FavoriteMenuIDs(ctx context.Context, tenantID, memberID
 	return set, nil
 }
 
+// ListMemberFavorites 「我的收藏」跨应用列表（P2）：先以 (tenant_id,
+// member_id) 命中成员索引，再连接未软删应用与节点（软删即不出现，节点
+// 软删链路已同事务硬删收藏行，此处连接过滤是双保险）；行值比较
+// (created_at, id) < (?, ?) 与列表序 created_at DESC, id DESC 严格互逆。
+// 应用状态与 hidden 原样出列，读侧过滤由 Service 统一执行（租户过滤
+// 显式携带，raw SQL 不经租户 Callback）。
+func (r *menuRepository) ListMemberFavorites(ctx context.Context, tenantID, memberID uint, params FavoriteListParams) ([]FavoriteRow, error) {
+	query := `
+SELECT f.id AS favorite_id,
+       f.created_at AS created_at,
+       a.code AS app_code,
+       a.name AS app_name,
+       a.status AS app_status,
+       a.provision_status AS app_provision_status,
+       e.id AS menu_id,
+       e.code AS menu_code,
+       e.menu_type AS menu_type,
+       e.name AS menu_name,
+       e.icon AS icon,
+       e.hidden AS hidden,
+       e.target_type AS target_type,
+       e.target_id AS target_id
+FROM tn_app_menu_favorites f
+INNER JOIN tn_apps a
+    ON a.id = f.app_id
+   AND a.tenant_id = f.tenant_id
+   AND a.deleted_at IS NULL
+INNER JOIN tn_app_menu_nodes e
+    ON e.id = f.menu_id
+   AND e.tenant_id = f.tenant_id
+   AND e.deleted_at IS NULL
+WHERE f.tenant_id = ?
+  AND f.member_id = ?`
+
+	args := []interface{}{tenantID, memberID}
+	if params.HasCursor {
+		query += ` AND (f.created_at, f.id) < (?, ?)`
+		args = append(args, params.BeforeAt, params.BeforeID)
+	}
+	query += `
+ORDER BY f.created_at DESC, f.id DESC
+LIMIT ?`
+	args = append(args, params.Limit)
+
+	var rows []FavoriteRow
+	if err := infrastructure.ResolveDB(ctx, r.db).Raw(query, args...).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
 // DeleteFavoritesByFormTarget 表单软删事务内硬删其菜单节点的关联收藏行
 // （个人状态无保留价值；不清理会残留指向软删节点的幽灵收藏）。
 func (r *menuRepository) DeleteFavoritesByFormTarget(ctx context.Context, appID, formID uint) error {
@@ -298,7 +349,7 @@ type FormMenuReference struct {
 	AppCode        string
 	AppName        string
 	MenuCode       string
-	NodeName      string
+	NodeName       string
 	MenuType       string
 	ParentMenuCode *string
 }

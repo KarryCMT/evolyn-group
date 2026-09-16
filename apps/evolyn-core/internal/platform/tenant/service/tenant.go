@@ -586,6 +586,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 授权对象；存量租户由 000047 按 authenticated 系统分组补授
 			{Resource: iammodel.MenuFavoriteResource, Operation: request.CreateOperation},
 			{Resource: iammodel.MenuFavoriteResource, Operation: request.DeleteOperation},
+			// 我的收藏跨应用列表（P2）：读自己的收藏（数据范围恒为本人），
+			// 存量租户由 000081 按 authenticated 系统分组补授
+			{Resource: iammodel.MenuFavoriteResource, Operation: request.ListOperation},
 			// 企业自定义工作台（000078）：全员读取企业管理员配置的工作台
 			//（首页渲染必需；view 语义含 get/list）；保存权限 workbench:update
 			// 仅授租户管理员角色；存量租户由 000077/000078 补授

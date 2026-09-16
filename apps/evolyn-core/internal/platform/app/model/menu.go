@@ -119,7 +119,7 @@ type MenuSnapshot struct {
 	AppCode      string                    `json:"appCode"`
 	MenuRevision int64                     `json:"menuRevision"`
 	RootMenuIDs  []string                  `json:"rootMenuIds"`
-	NodeMap     map[string]MenuNodeDetail `json:"nodeMap"`
+	NodeMap      map[string]MenuNodeDetail `json:"nodeMap"`
 	Features     MenuFeatures              `json:"features"`
 }
 
@@ -171,4 +171,44 @@ type CreateMenuFavoriteRequest struct {
 type MenuFavoriteMutation struct {
 	MenuID    string `json:"menuId"`
 	Favorited bool   `json:"favorited"`
+}
+
+// ListMenuFavoritesQuery 我的收藏列表查询参数（GET /menu-favorites）：
+// 游标为 (createdAt, id) 定位的不透明口令，limit 默认 20、上限 100。
+type ListMenuFavoritesQuery struct {
+	Cursor string `form:"cursor"`
+	Limit  int    `form:"limit"`
+}
+
+// MenuFavoriteAppRef 收藏条目携带的最小应用引用（code 为公开编码）。
+type MenuFavoriteAppRef struct {
+	Code string `json:"code"`
+	Name string `json:"name"`
+}
+
+// MenuFavoriteNodeRef 收藏条目携带的节点投影：与菜单快照 MenuNodeDetail
+// 同源字段（menuId/name/type/icon/target），实时读取不冗余存储；target
+// 仅在资产目录可投影时返回（仪表盘/页面资产域落地前为 null）。
+type MenuFavoriteNodeRef struct {
+	MenuID string          `json:"menuId"`
+	Name   string          `json:"name"`
+	Type   string          `json:"type"`
+	Icon   *string         `json:"icon"`
+	Target *MenuNodeTarget `json:"target"`
+}
+
+// MenuFavoriteItem 「我的收藏」单条目（P2）：应用与节点均为读取时实时
+// 投影，收藏行只承载归属关系与时间。
+type MenuFavoriteItem struct {
+	App         MenuFavoriteAppRef  `json:"app"`
+	Node        MenuFavoriteNodeRef `json:"node"`
+	FavoritedAt kernel.JSONTime     `json:"favoritedAt"`
+}
+
+// MenuFavoritePage 「我的收藏」分页结果：items 按收藏时间倒序；
+// nextCursor 为空表示没有更多数据（读侧可见性过滤可能产生短页，
+// 客户端以 nextCursor 续拉而非按页大小推断）。
+type MenuFavoritePage struct {
+	Items      []MenuFavoriteItem `json:"items"`
+	NextCursor string             `json:"nextCursor"`
 }

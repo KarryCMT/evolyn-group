@@ -46,8 +46,15 @@ type AppMenuService interface {
 	// 经 menuRevision 乐观锁串行化。
 	UpdateNode(ctx context.Context, member *iammodel.User, code, menuCode string, req *model.UpdateMenuNodeRequest) (*model.MenuNodeMutation, error)
 	// AddFavorite 收藏菜单节点（POST /menu-favorites）：个人状态动作，
-	// 凡能读取应用菜单的成员即可收藏；重复收藏幂等。
+	// 资格由服务层 canFavorite 统一策略裁决（apps:get 复核 ∧ 应用可用 ∧
+	// 仅资产叶子节点 ∧ 节点在成员有效可见集内，与 GetMenu 同源）；
+	// 重复收藏幂等。
 	AddFavorite(ctx context.Context, member *iammodel.User, appCode, menuCode string) (*model.MenuFavoriteMutation, error)
-	// RemoveFavorite 取消收藏（DELETE /menu-favorites/:menuCode）：幂等。
+	// RemoveFavorite 取消收藏（DELETE /menu-favorites/:menuCode）：幂等，
+	// 不要求目标仍可见（用户需能清除失效入口的个人状态）。
 	RemoveFavorite(ctx context.Context, member *iammodel.User, menuCode string) (*model.MenuFavoriteMutation, error)
+	// ListFavorites 当前成员的跨应用收藏列表（GET /menu-favorites，P2）：
+	// (created_at DESC, id DESC) 游标分页，读侧复用菜单同口径可见性裁剪
+	//（失效记录只过滤不删除），供工作台「我的收藏」组件消费。
+	ListFavorites(ctx context.Context, member *iammodel.User, query model.ListMenuFavoritesQuery) (*model.MenuFavoritePage, error)
 }

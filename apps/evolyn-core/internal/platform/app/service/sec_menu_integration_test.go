@@ -221,3 +221,124 @@ func TestSECMENU006SoftDeletedNodeExcluded(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Empty(t, snap.Nodes)
 }
+
+// SEC-MENU-008：收藏全链路真库回归（P1 canFavorite 策略 / P2 我的收藏列表）：
+// 唯一约束幂等、两成员互不影响、menu_revision 不变、跨应用列表排序/游标/
+// 租户隔离、软删节点读侧排除与取消幂等
+func TestSECMENU008Favorites(t *testing.T) {
+	env := newMenuEnv(t)
+	ctx := appCtx(env.alpha.ID)
+
+	appA, err := env.appSvc.CreateBlank(ctx, env.alphaMember, blankReq("收藏应用A"))
+	assert.NoError(t, err)
+	appB, err := env.appSvc.CreateBlank(ctx, env.alphaMember, blankReq("收藏应用B"))
+	assert.NoError(t, err)
+
+	// appA：分组 + 可见仪表盘节点 + 隐藏表单节点；appB：根级仪表盘节点
+	root := menuNodeFixture(0, "fav_root", nil, model.MenuTypeGroup, 1024)
+	root.AppID = appA.ID
+	env.insertMenuNode(t, ctx, &root)
+	dashA := menuNodeFixture(0, "fav_dash_a", ptrUint(root.ID), model.MenuTypeDashboard, 1024)
+	dashA.AppID = appA.ID
+	env.insertMenuNode(t, ctx, &dashA)
+	hiddenForm := menuNodeFixture(0, "fav_form_hidden", ptrUint(root.ID), model.MenuTypeForm, 2048)
+	hiddenForm.AppID = appA.ID
+	hiddenForm.Hidden = true
+	env.insertMenuNode(t, ctx, &hiddenForm)
+	dashB := menuNodeFixture(0, "fav_dash_b", nil, model.MenuTypeDashboard, 1024)
+	dashB.AppID = appB.ID
+	env.insertMenuNode(t, ctx, &dashB)
+
+	plain := env.createPlainMember(t, env.alpha, "menu-plain-fav")
+
+	t.Run("分组/隐藏/不存在节点均拒绝收藏", func(t *testing.T) {
+		_, err := env.menuSvc.AddFavorite(ctx, plain, appA.Code, "fav_root")
+		assert.True(t, errors.Is(err, apperrors.ErrMenuFavoriteInvalid))
+		_, err = env.menuSvc.AddFavorite(ctx, plain, appA.Code, "fav_form_hidden")
+		assert.True(t, errors.Is(err, apperrors.ErrMenuFavoriteInvalid))
+		_, err = env.menuSvc.AddFavorite(ctx, plain, appA.Code, "fav_missing")
+		assert.True(t, errors.Is(err, apperrors.ErrMenuFavoriteInvalid))
+	})
+
+	t.Run("跨租户应用编码统一 NotFound", func(t *testing.T) {
+		betaApp, err := env.appSvc.CreateBlank(appCtx(env.beta.ID), env.betaMember, blankReq("beta 收藏应用"))
+		assert.NoError(t, err)
+		_, err = env.menuSvc.AddFavorite(ctx, plain, betaApp.Code, "fav_dash_b")
+		assert.True(t, errors.Is(err, apperrors.ErrNotFound))
+	})
+
+	t.Run("重复收藏幂等且 menu_revision 不变", func(t *testing.T) {
+		before, err := env.menuRepo.GetSnapshot(ctx, env.alpha.ID, appA.Code)
+		assert.NoError(t, err)
+
+		out, err := env.menuSvc.AddFavorite(ctx, plain, appA.Code, "fav_dash_a")
+		assert.NoError(t, err)
+		assert.True(t, out.Favorited)
+		// 重复收藏：唯一约束 + ON CONFLICT DO NOTHING，仍成功且仅一行
+		out, err = env.menuSvc.AddFavorite(ctx, plain, appA.Code, "fav_dash_a")
+		assert.NoError(t, err)
+		assert.True(t, out.Favorited)
+		assert.EqualValues(t, 1, env.rawCount(t,
+			`SELECT COUNT(*) FROM tn_app_menu_favorites f JOIN tn_users u ON u.id = f.member_id WHERE u.account_id = (SELECT id FROM pf_accounts WHERE name = 'menu-plain-fav') AND f.menu_id = ?`, dashA.ID))
+
+		// 收藏是个人状态：菜单修订号不受影响
+		after, err := env.menuRepo.GetSnapshot(ctx, env.alpha.ID, appA.Code)
+		assert.NoError(t, err)
+		assert.Equal(t, before.MenuRevision, after.MenuRevision)
+
+		// 菜单快照投影 Favorited（普通成员侧）
+		menu, err := env.menuSvc.GetMenu(ctx, plain, appA.Code)
+		assert.NoError(t, err)
+		assert.True(t, menu.NodeMap["fav_dash_a"].Favorited)
+		assert.True(t, menu.NodeMap["fav_dash_a"].Capabilities.Favorite)
+	})
+
+	t.Run("两成员收藏同一节点互不影响", func(t *testing.T) {
+		_, err := env.menuSvc.AddFavorite(ctx, plain, appB.Code, "fav_dash_b")
+		assert.NoError(t, err)
+		_, err = env.menuSvc.AddFavorite(ctx, env.alphaMember, appB.Code, "fav_dash_b")
+		assert.NoError(t, err)
+		assert.EqualValues(t, 2, env.rawCount(t, "SELECT COUNT(*) FROM tn_app_menu_favorites WHERE menu_id = ?", dashB.ID))
+	})
+
+	t.Run("跨应用列表：排序/游标/租户隔离", func(t *testing.T) {
+		// plain 现有收藏：dash_a（先）、dash_b（后）→ 列表按时间倒序，最新在前
+		first, err := env.menuSvc.ListFavorites(ctx, plain, model.ListMenuFavoritesQuery{Limit: 1})
+		assert.NoError(t, err)
+		assert.Len(t, first.Items, 1)
+		assert.Equal(t, "fav_dash_b", first.Items[0].Node.MenuID)
+		assert.Equal(t, appB.Code, first.Items[0].App.Code)
+		assert.NotEmpty(t, first.NextCursor)
+
+		second, err := env.menuSvc.ListFavorites(ctx, plain, model.ListMenuFavoritesQuery{Limit: 1, Cursor: first.NextCursor})
+		assert.NoError(t, err)
+		assert.Len(t, second.Items, 1)
+		assert.Equal(t, "fav_dash_a", second.Items[0].Node.MenuID)
+		assert.Empty(t, second.NextCursor, "可见条目拉尽后游标收尾")
+
+		// 租户隔离：beta 成员的收藏列表不含 alpha 数据
+		betaList, err := env.menuSvc.ListFavorites(appCtx(env.beta.ID), env.betaMember, model.ListMenuFavoritesQuery{})
+		assert.NoError(t, err)
+		assert.Empty(t, betaList.Items)
+	})
+
+	t.Run("软删节点从收藏列表排除（连接过滤双保险）", func(t *testing.T) {
+		assert.NoError(t, env.db.WithContext(ctx).
+			Where("app_id = ? AND code = ?", appB.ID, "fav_dash_b").
+			Delete(&model.MenuNode{}).Error)
+		list, err := env.menuSvc.ListFavorites(ctx, plain, model.ListMenuFavoritesQuery{})
+		assert.NoError(t, err)
+		for _, item := range list.Items {
+			assert.NotEqual(t, "fav_dash_b", item.Node.MenuID)
+		}
+	})
+
+	t.Run("取消收藏幂等", func(t *testing.T) {
+		out, err := env.menuSvc.RemoveFavorite(ctx, plain, "fav_dash_a")
+		assert.NoError(t, err)
+		assert.False(t, out.Favorited)
+		out, err = env.menuSvc.RemoveFavorite(ctx, plain, "fav_dash_a")
+		assert.NoError(t, err)
+		assert.False(t, out.Favorited)
+	})
+}

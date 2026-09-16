@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	apperrors "evolyn/internal/platform/app"
 	"evolyn/internal/platform/app/model"
@@ -182,7 +184,7 @@ func TestMenuFavorites(t *testing.T) {
 	repo := &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": hiddenMenuSnapshot()}}
 	svc := newMenuTestService(repo, readOnlyPerms())
 
-	// 收藏成功（普通成员即可，个人状态动作）
+	// 收藏成功（普通成员即可，个人状态动作；dashboard 可见资产节点）
 	out, err := svc.AddFavorite(alphaCtx(), alphaMember(), "app_a", "menu_dash")
 	assert.NoError(t, err)
 	assert.Equal(t, "menu_dash", out.MenuID)
@@ -200,6 +202,207 @@ func TestMenuFavorites(t *testing.T) {
 	out, err = svc.RemoveFavorite(alphaCtx(), alphaMember(), "menu_dash")
 	assert.NoError(t, err)
 	assert.False(t, out.Favorited)
+}
+
+// TestMenuFavoriteCanFavoritePolicy P1 统一收藏策略：分组节点、隐藏节点
+// （非菜单管理成员）、无 apps:get、归档应用、表单软删与表单入口权限失效
+// 均拒绝收藏，且错误不泄露隐藏节点细节（统一 APP_MENU_FAVORITE_INVALID）
+func TestMenuFavoriteCanFavoritePolicy(t *testing.T) {
+	newRepo := func() *fakeMenuRepo {
+		return &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": hiddenMenuSnapshot()}}
+	}
+
+	t.Run("分组节点不可收藏", func(t *testing.T) {
+		svc := newMenuTestService(newRepo(), readOnlyPerms())
+		_, err := svc.AddFavorite(alphaCtx(), alphaMember(), "app_a", "menu_group")
+		assert.True(t, errors.Is(err, apperrors.ErrMenuFavoriteInvalid))
+	})
+
+	t.Run("隐藏节点对普通成员不可收藏", func(t *testing.T) {
+		svc := newMenuTestService(newRepo(), readOnlyPerms())
+		_, err := svc.AddFavorite(alphaCtx(), alphaMember(), "app_a", "menu_form")
+		assert.True(t, errors.Is(err, apperrors.ErrMenuFavoriteInvalid))
+	})
+
+	t.Run("隐藏节点对菜单管理成员可收藏（恢复显示口径同 GetMenu）", func(t *testing.T) {
+		svc := newMenuTestService(newRepo(), menuAdminPerms())
+		out, err := svc.AddFavorite(alphaCtx(), alphaMember(), "app_a", "menu_form")
+		assert.NoError(t, err)
+		assert.True(t, out.Favorited)
+	})
+
+	t.Run("无 apps:get 统一 APP_NOT_FOUND（不泄露应用存在性）", func(t *testing.T) {
+		svc := newMenuTestService(newRepo(), map[string]bool{"form-records:create": true})
+		_, err := svc.AddFavorite(alphaCtx(), alphaMember(), "app_a", "menu_dash")
+		assert.True(t, errors.Is(err, apperrors.ErrNotFound))
+	})
+
+	t.Run("归档应用不可收藏：APP_STATUS_INVALID", func(t *testing.T) {
+		repo := newRepo()
+		repo.snapshots["app_a"].Status = model.AppStatusArchived
+		svc := newMenuTestService(repo, readOnlyPerms())
+		_, err := svc.AddFavorite(alphaCtx(), alphaMember(), "app_a", "menu_dash")
+		assert.True(t, errors.Is(err, apperrors.ErrStatusInvalid))
+	})
+
+	t.Run("表单软删（目录存在集未命中）不可收藏", func(t *testing.T) {
+		repo := newRepo()
+		svc := newMenuTestService(repo, readOnlyPerms()).(*menuService)
+		svc.UseFormDirectory(fakeFormDirectory{existing: map[uint]FormTargetProjection{}})
+		_, err := svc.AddFavorite(alphaCtx(), alphaMember(), "app_a", "menu_form")
+		assert.True(t, errors.Is(err, apperrors.ErrMenuFavoriteInvalid))
+	})
+
+	t.Run("表单入口权限失效（view ∨ add 未命中）不可收藏", func(t *testing.T) {
+		repo := newRepo()
+		svc := newMenuTestService(repo, menuAdminPerms()).(*menuService)
+		svc.UseFormDirectory(fakeFormDirectory{existing: map[uint]FormTargetProjection{
+			902: {Code: "form_0123456789abcdef", FormType: "standard"},
+		}})
+		svc.UseFormPermissionDirectory(fakeFormPermissionDirectory{visible: map[uint]bool{}})
+		_, err := svc.AddFavorite(alphaCtx(), alphaMember(), "app_a", "menu_form")
+		assert.True(t, errors.Is(err, apperrors.ErrMenuFavoriteInvalid))
+	})
+}
+
+// favoriteRowFixture 构造收藏列表行（含应用/节点投影）
+func favoriteRowFixture(favoriteID uint, appCode, menuType string, hidden bool, targetID *uint, at time.Time) repository.FavoriteRow {
+	row := repository.FavoriteRow{
+		FavoriteID:         favoriteID,
+		CreatedAt:          at,
+		AppCode:            appCode,
+		AppName:            "应用" + appCode,
+		AppStatus:          model.AppStatusActive,
+		AppProvisionStatus: model.ProvisionStatusReady,
+		MenuID:             100 + favoriteID,
+		MenuCode:           fmt.Sprintf("menu_row_%d", favoriteID),
+		MenuType:           menuType,
+		MenuName:           fmt.Sprintf("节点%d", favoriteID),
+		Hidden:             hidden,
+		TargetID:           targetID,
+	}
+	if menuType != model.MenuTypeGroup {
+		tt := menuType
+		row.TargetType = &tt
+	}
+	return row
+}
+
+// listFavoritePerms 收藏列表所需最小权限集（authenticated 基线 + list）
+func listFavoritePerms(extra ...string) map[string]bool {
+	perms := map[string]bool{"apps:get": true, "menu-favorites:list": true}
+	for _, key := range extra {
+		perms[key] = true
+	}
+	return perms
+}
+
+// TestMenuListFavorites P2 我的收藏列表：读侧复用菜单同口径可见性裁剪
+// （失效记录只过滤不删除）+ 游标分页
+func TestMenuListFavorites(t *testing.T) {
+	base := time.Date(2026, 9, 15, 10, 0, 0, 0, time.Local)
+	formTarget := ptrUint(9001)
+
+	buildRows := func() []repository.FavoriteRow {
+		return []repository.FavoriteRow{
+			// 5. 归档应用：保留行但读侧过滤
+			func() repository.FavoriteRow {
+				row := favoriteRowFixture(5, "app_archived", model.MenuTypeDashboard, false, nil, base.Add(4*time.Minute))
+				row.AppStatus = model.AppStatusArchived
+				return row
+			}(),
+			// 4. 可见表单节点：目录命中 + 权限命中 → 展示（含 target 投影）
+			favoriteRowFixture(4, "app_a", model.MenuTypeForm, false, formTarget, base.Add(3*time.Minute)),
+			// 3. 隐藏节点：普通成员过滤，菜单管理成员展示
+			favoriteRowFixture(3, "app_a", model.MenuTypeDashboard, true, nil, base.Add(2*time.Minute)),
+			// 2. 表单入口权限失效：过滤
+			favoriteRowFixture(2, "app_b", model.MenuTypeForm, false, ptrUint(9002), base.Add(1*time.Minute)),
+			// 1. 正常仪表盘节点
+			favoriteRowFixture(1, "app_c", model.MenuTypeDashboard, false, nil, base),
+		}
+	}
+
+	t.Run("默认按时间倒序 + 可见性过滤", func(t *testing.T) {
+		repo := &fakeMenuRepo{favoriteRows: buildRows()}
+		svc := newMenuTestService(repo, listFavoritePerms()).(*menuService)
+		svc.UseFormDirectory(fakeFormDirectory{existing: map[uint]FormTargetProjection{
+			9001: {Code: "form_visible00001", FormType: "workflow"},
+			9002: {Code: "form_denied000001", FormType: "standard"},
+		}})
+		svc.UseFormPermissionDirectory(fakeFormPermissionDirectory{visible: map[uint]bool{9001: true}})
+
+		page, err := svc.ListFavorites(alphaCtx(), alphaMember(), model.ListMenuFavoritesQuery{})
+		assert.NoError(t, err)
+		// 归档应用/权限失效被过滤；隐藏节点对普通成员过滤
+		ids := make([]string, 0, len(page.Items))
+		for _, item := range page.Items {
+			ids = append(ids, item.Node.MenuID)
+		}
+		assert.Equal(t, []string{"menu_row_4", "menu_row_1"}, ids)
+		// 应用与节点投影 + target 出网
+		assert.Equal(t, "app_a", page.Items[0].App.Code)
+		assert.Equal(t, "应用app_a", page.Items[0].App.Name)
+		assert.Equal(t, model.MenuTypeForm, page.Items[0].Node.Type)
+		assert.Equal(t, "form_visible00001", page.Items[0].Node.Target.Code)
+		assert.Equal(t, "workflow", page.Items[0].Node.Target.FormType)
+		assert.Empty(t, page.NextCursor) // 行集耗尽（行数 < 扫描批量）
+	})
+
+	t.Run("菜单管理成员可见自己收藏的隐藏节点", func(t *testing.T) {
+		repo := &fakeMenuRepo{favoriteRows: buildRows()}
+		svc := newMenuTestService(repo, listFavoritePerms("apps:patch")).(*menuService)
+		svc.UseFormDirectory(fakeFormDirectory{existing: map[uint]FormTargetProjection{
+			9001: {Code: "form_visible00001", FormType: "workflow"},
+			9002: {Code: "form_denied000001", FormType: "standard"},
+		}})
+		svc.UseFormPermissionDirectory(fakeFormPermissionDirectory{visible: map[uint]bool{9001: true}})
+
+		page, err := svc.ListFavorites(alphaCtx(), alphaMember(), model.ListMenuFavoritesQuery{})
+		assert.NoError(t, err)
+		ids := make([]string, 0, len(page.Items))
+		for _, item := range page.Items {
+			ids = append(ids, item.Node.MenuID)
+		}
+		assert.Equal(t, []string{"menu_row_4", "menu_row_3", "menu_row_1"}, ids)
+	})
+
+	t.Run("游标分页：limit 截断 + 续拉收尾", func(t *testing.T) {
+		repo := &fakeMenuRepo{favoriteRows: buildRows()}
+		svc := newMenuTestService(repo, listFavoritePerms()).(*menuService)
+		svc.UseFormDirectory(fakeFormDirectory{existing: map[uint]FormTargetProjection{
+			9001: {Code: "form_visible00001", FormType: "workflow"},
+			9002: {Code: "form_denied000001", FormType: "standard"},
+		}})
+		svc.UseFormPermissionDirectory(fakeFormPermissionDirectory{visible: map[uint]bool{9001: true}})
+
+		// 首页：limit=1 只取最新一条，下发游标（锚定最后一条已返回条目）
+		first, err := svc.ListFavorites(alphaCtx(), alphaMember(), model.ListMenuFavoritesQuery{Limit: 1})
+		assert.NoError(t, err)
+		assert.Len(t, first.Items, 1)
+		assert.Equal(t, "menu_row_4", first.Items[0].Node.MenuID)
+		assert.NotEmpty(t, first.NextCursor)
+
+		// 续拉：游标之后剩余可见条目，无更多数据
+		second, err := svc.ListFavorites(alphaCtx(), alphaMember(), model.ListMenuFavoritesQuery{Limit: 1, Cursor: first.NextCursor})
+		assert.NoError(t, err)
+		assert.Len(t, second.Items, 1)
+		assert.Equal(t, "menu_row_1", second.Items[0].Node.MenuID)
+		assert.Empty(t, second.NextCursor)
+	})
+
+	t.Run("无 menu-favorites:list 返回 FORBIDDEN", func(t *testing.T) {
+		repo := &fakeMenuRepo{favoriteRows: buildRows()}
+		svc := newMenuTestService(repo, map[string]bool{"apps:get": true})
+		_, err := svc.ListFavorites(alphaCtx(), alphaMember(), model.ListMenuFavoritesQuery{})
+		assert.True(t, errors.Is(err, apperrors.ErrForbidden))
+	})
+
+	t.Run("非法游标返回 APP_CURSOR_INVALID", func(t *testing.T) {
+		repo := &fakeMenuRepo{favoriteRows: buildRows()}
+		svc := newMenuTestService(repo, listFavoritePerms())
+		_, err := svc.ListFavorites(alphaCtx(), alphaMember(), model.ListMenuFavoritesQuery{Cursor: "not-a-cursor"})
+		assert.True(t, errors.Is(err, apperrors.ErrCursorInvalid))
+	})
 }
 
 func strPtr(v string) *string { return &v }

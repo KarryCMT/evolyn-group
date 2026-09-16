@@ -5,6 +5,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"evolyn/internal/platform/app/model"
 )
@@ -58,6 +59,35 @@ type MenuSnapshot struct {
 	Nodes           []model.MenuNode
 }
 
+// FavoriteListParams 「我的收藏」列表查询参数（游标已由 Service 解码为
+// 排序定位值）：定位语义为「(created_at, id) 排在游标行之前」，与列表序
+// created_at DESC, id DESC 对应
+type FavoriteListParams struct {
+	Limit     int
+	HasCursor bool
+	BeforeAt  time.Time // 游标行的收藏时间
+	BeforeID  uint      // 游标行的收藏 ID
+}
+
+// FavoriteRow 「我的收藏」连接行：收藏归属 + 应用/节点实时投影。App 状态
+// 与 Hidden 由 Service 复用菜单同口径可见性裁决，仓储不做二次过滤。
+type FavoriteRow struct {
+	FavoriteID         uint
+	CreatedAt          time.Time
+	AppCode            string
+	AppName            string
+	AppStatus          string
+	AppProvisionStatus string
+	MenuID             uint
+	MenuCode           string
+	MenuType           string
+	MenuName           string
+	Icon               string
+	Hidden             bool
+	TargetType         *string
+	TargetID           *uint
+}
+
 // MenuRepository 应用菜单仓储。所有写方法都经 ResolveDB 加入调用方事务；
 // 菜单管理写入先条件推进修订号，再在同一事务内修改节点。
 type MenuRepository interface {
@@ -94,6 +124,10 @@ type MenuRepository interface {
 	DeleteFavoriteByCode(ctx context.Context, tenantID, memberID uint, menuCode string) (bool, error)
 	// FavoriteMenuIDs 当前成员在指定应用内已收藏的节点 ID 集合
 	FavoriteMenuIDs(ctx context.Context, tenantID, memberID, appID uint) (map[uint]bool, error)
+	// ListMemberFavorites 「我的收藏」跨应用列表（P2）：(tenant_id, member_id)
+	// 命中成员索引后连接未软删应用与节点，按 created_at DESC, id DESC 排序；
+	// 返回原始行（含应用状态与节点 hidden），可见性裁剪由 Service 统一执行
+	ListMemberFavorites(ctx context.Context, tenantID, memberID uint, params FavoriteListParams) ([]FavoriteRow, error)
 	// DeleteFavoritesByFormTarget 表单软删事务内硬删其菜单节点的关联收藏行
 	DeleteFavoritesByFormTarget(ctx context.Context, appID, formID uint) error
 	// ListFormMenuReferences 跨应用反查引用指定表单的未软删菜单节点

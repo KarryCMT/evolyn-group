@@ -19,10 +19,11 @@ import (
 
 // fakeMenuRepo 菜单仓储桩：按编码返回可注入快照
 type fakeMenuRepo struct {
-	snapshots map[string]*repository.MenuSnapshot
-	created   []*model.MenuNode
-	nextID    uint
-	favorites map[uint]bool // member 无关的收藏集合（读侧投影用例注入）
+	snapshots    map[string]*repository.MenuSnapshot
+	created      []*model.MenuNode
+	nextID       uint
+	favorites    map[uint]bool            // member 无关的收藏集合（读侧投影用例注入）
+	favoriteRows []repository.FavoriteRow // 收藏列表行集（ListMemberFavorites 用例注入）
 }
 
 func (f *fakeMenuRepo) GetSnapshot(ctx context.Context, tenantID uint, code string) (*repository.MenuSnapshot, error) {
@@ -97,6 +98,28 @@ func (f *fakeMenuRepo) DeleteFavoritesByFormTarget(ctx context.Context, appID, f
 }
 func (f *fakeMenuRepo) ListFormMenuReferences(ctx context.Context, tenantID, formID uint) ([]repository.FormMenuReference, error) {
 	return nil, nil
+}
+
+// ListMemberFavorites 桩：直接返回注入行集（favoriteRows，已按 created_at
+// DESC 排序），按 Limit 截断模拟分页；HasCursor 时跳到游标行之后。
+func (f *fakeMenuRepo) ListMemberFavorites(ctx context.Context, tenantID, memberID uint, params repository.FavoriteListParams) ([]repository.FavoriteRow, error) {
+	start := 0
+	if params.HasCursor {
+		for i, row := range f.favoriteRows {
+			if row.FavoriteID == params.BeforeID {
+				start = i + 1
+				break
+			}
+		}
+	}
+	end := start + params.Limit
+	if end > len(f.favoriteRows) {
+		end = len(f.favoriteRows)
+	}
+	if start >= len(f.favoriteRows) {
+		return nil, nil
+	}
+	return f.favoriteRows[start:end], nil
 }
 
 // menuNodeFixture 构造菜单节点（测试内联便捷函数）
@@ -355,35 +378,41 @@ func TestMenuCapabilities(t *testing.T) {
 		}
 	}
 	form := menuNodeFixture(2, "menu_form", nil, model.MenuTypeForm, 1024)
+	group := menuNodeFixture(3, "menu_group", nil, model.MenuTypeGroup, 2048)
 	cases := []struct {
 		name   string
 		perms  map[string]bool
 		status string
+		node   model.MenuNode
 		want   model.MenuNodeCapabilities
 	}{
-		{"全量权限 + active", menuAdminPerms(), model.AppStatusActive,
+		{"全量权限 + active", menuAdminPerms(), model.AppStatusActive, form,
 			model.MenuNodeCapabilities{View: true, Favorite: true,
 				Actions: model.MenuNodeActions{Edit: true, Rename: true, SwitchType: true, ReferenceView: true,
 					CopyInApp: true, CopyCrossApp: true, Move: true, Hide: true, Delete: true}}},
-		{"只读权限（authenticated 基线）", map[string]bool{"apps:get": true}, model.AppStatusActive,
+		{"只读权限（authenticated 基线）", map[string]bool{"apps:get": true}, model.AppStatusActive, form,
 			model.MenuNodeCapabilities{View: true, Favorite: true}},
-		// 归档态禁止一切按钮动作（可编辑是动作公共因子）；favorite 随可见
-		// 保持可收藏
-		{"全量权限 + 归档（不可管理）", menuAdminPerms(), model.AppStatusArchived,
-			model.MenuNodeCapabilities{View: true, Favorite: true}},
+		// 归档态禁止一切按钮动作（可编辑是动作公共因子）；favorite 同源
+		// 收敛为 false——canFavorite 要求应用 active（P1，与 AddFavorite 同口径）
+		{"全量权限 + 归档（不可管理/不可收藏）", menuAdminPerms(), model.AppStatusArchived, form,
+			model.MenuNodeCapabilities{View: true, Favorite: false}},
+		// 分组是树结构不是可打开入口：可见出网但 favorite 恒 false（P1）
+		{"分组节点不可收藏", menuAdminPerms(), model.AppStatusActive, group,
+			model.MenuNodeCapabilities{View: true, Favorite: false,
+				Actions: model.MenuNodeActions{Rename: true, Move: true, Delete: true}}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			snap := emptySnapshot("app_a")
 			snap.Status = tc.status
-			snap.Nodes = []model.MenuNode{form}
+			snap.Nodes = []model.MenuNode{tc.node}
 			repo := &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": snap}}
 			svc := newMenuTestService(repo, tc.perms)
 
 			menu, err := svc.GetMenu(alphaCtx(), alphaMember(), "app_a")
 			assert.NoError(t, err)
-			assert.Equal(t, tc.want, menu.NodeMap["menu_form"].Capabilities)
-			assert.False(t, menu.NodeMap["menu_form"].Favorited) // 未注入收藏集合
+			assert.Equal(t, tc.want, menu.NodeMap[tc.node.Code].Capabilities)
+			assert.False(t, menu.NodeMap[tc.node.Code].Favorited) // 未注入收藏集合
 		})
 	}
 }

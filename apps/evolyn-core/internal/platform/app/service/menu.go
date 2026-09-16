@@ -2,13 +2,18 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"evolyn/internal/contextx"
+	"evolyn/internal/metrics"
+	kernel "evolyn/internal/model"
 	apperrors "evolyn/internal/platform/app"
 	"evolyn/internal/platform/app/model"
 	"evolyn/internal/platform/app/repository"
@@ -90,35 +95,49 @@ func (s *menuService) GetMenu(ctx context.Context, member *iammodel.User, code s
 		return nil, err
 	}
 
-	// M2-资产-1：表单目标投影批量查询。existingFormTargets 以 nil 表达「目录
-	// 未接入」（旧行为：不裁剪、不投影）；目录接入且确无表单时为空 map，
-	// form 节点按不存在裁剪——两种空态语义必须区分。
-	var existingFormTargets map[uint]FormTargetProjection
-	formIDs := make([]uint, 0)
-	for i := range snap.Nodes {
-		if snap.Nodes[i].MenuType == model.MenuTypeForm && snap.Nodes[i].TargetID != nil {
-			formIDs = append(formIDs, *snap.Nodes[i].TargetID)
-		}
-	}
-	if s.formDir != nil && len(formIDs) > 0 {
-		existingFormTargets, err = s.formDir.ExistingFormTargets(ctx, formIDs)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// 表单权限 P1（S5/S8）：成员侧表单节点按权限组入口判定二次裁剪。端口
-	// 未接入（nil）时保持既有可见性行为；接入后 visibleFormIDs 仅含成员
-	// 可入口（view ∨ add）的表单，未命中（含禁用组收口）的表单节点隐藏。
-	var visibleFormIDs map[uint]bool
-	if s.formPerm != nil && len(formIDs) > 0 {
-		visibleFormIDs, err = s.formPerm.VisibleFormIDs(ctx, member.ID, formIDs)
-		if err != nil {
-			return nil, err
-		}
+	// M2-资产-1 / 表单权限 P1：表单节点的存在性裁剪与入口权限裁剪，
+	// 与收藏写入（AddFavorite）、收藏列表（ListFavorites）共用同一输入，
+	// 保证「可见即口径一致」的唯一事实源
+	existingFormTargets, visibleFormIDs, err := s.formVisibilityInputs(ctx, member.ID, formTargetIDsOf(snap.Nodes))
+	if err != nil {
+		return nil, err
 	}
 
 	return buildMenuSnapshot(perms, snap, existingFormTargets, favorites, visibleFormIDs)
+}
+
+// formTargetIDsOf 收集节点集合中的表单资产内部 ID（目录/权限端口入参）。
+func formTargetIDsOf(nodes []model.MenuNode) []uint {
+	formIDs := make([]uint, 0)
+	for i := range nodes {
+		if nodes[i].MenuType == model.MenuTypeForm && nodes[i].TargetID != nil {
+			formIDs = append(formIDs, *nodes[i].TargetID)
+		}
+	}
+	return formIDs
+}
+
+// formVisibilityInputs 表单资产可见性端口输入（读侧统一事实源，P1 收敛）：
+// existingFormTargets 为 nil 表达「目录端口未接入」（旧行为：不裁剪、
+// target 不投影），目录接入且确无表单时为空 map（form 节点按不存在裁剪）
+// ——两种空态语义必须区分；visibleFormIDs 的 nil 语义同构（权限端口
+// 未接入 = 仅按存在性放行）。
+func (s *menuService) formVisibilityInputs(ctx context.Context, memberID uint, formIDs []uint) (map[uint]FormTargetProjection, map[uint]bool, error) {
+	var existingFormTargets map[uint]FormTargetProjection
+	var visibleFormIDs map[uint]bool
+	if s.formDir != nil && len(formIDs) > 0 {
+		var err error
+		if existingFormTargets, err = s.formDir.ExistingFormTargets(ctx, formIDs); err != nil {
+			return nil, nil, err
+		}
+	}
+	if s.formPerm != nil && len(formIDs) > 0 {
+		var err error
+		if visibleFormIDs, err = s.formPerm.VisibleFormIDs(ctx, memberID, formIDs); err != nil {
+			return nil, nil, err
+		}
+	}
+	return existingFormTargets, visibleFormIDs, nil
 }
 
 // CreateGroup 创建根分组或二级子分组。条件递增修订号是事务内第一项菜单
@@ -445,9 +464,18 @@ func resolveMoveParent(nodes []model.MenuNode, node *model.MenuNode, parentCode 
 	return &parent.ID, nil
 }
 
-// AddFavorite 收藏菜单节点（个人状态动作，ADR-011）：凡能读取应用菜单的
-// 成员即可收藏（menu-favorites:create 授全体成员）；重复收藏幂等成功。
-// 不递增菜单修订号——收藏不改变共享菜单结构。
+// AddFavorite 收藏菜单节点（个人状态动作，ADR-011）。P1 起收藏资格收敛为
+// 服务层统一策略 canFavorite，与菜单读取（GetMenu）同源，不依赖路由权限或
+// 前端按钮显隐：
+//
+//	canFavorite(member, app, node)
+//	  = appCanRead(member, app)          —— apps:get 复核，缺失统一 APP_NOT_FOUND
+//	  ∧ app 可用（active 且非初始化中）  —— 归档/初始化中应用不可收藏
+//	  ∧ node ∈ {form, dashboard, page}   —— group 是树结构，不可收藏
+//	  ∧ node 在成员有效可见集内          —— 菜单 hidden、资产软删、表单入口
+//	                                       权限（view ∨ add）与 GetMenu 同口径
+//
+// 重复收藏幂等成功；不递增菜单修订号——收藏不改变共享菜单结构。
 func (s *menuService) AddFavorite(ctx context.Context, member *iammodel.User, appCode, menuCode string) (*model.MenuFavoriteMutation, error) {
 	tenantID, ok := contextx.TenantIDFromContext(ctx)
 	if !ok {
@@ -457,6 +485,13 @@ func (s *menuService) AddFavorite(ctx context.Context, member *iammodel.User, ap
 		return nil, httpx.Wrap(apperrors.ErrMemberInvalid,
 			fmt.Errorf("member %d (tenant %d) not in tenant %d", memberID(member), memberTenant(member), tenantID))
 	}
+	// 与菜单读取同口径复核 apps:get：无读取权按「应用不存在」出网，
+	// 不泄露应用存在性与节点细节（§6.1）
+	perms := s.access.Permissions(ctx, member)
+	if !perms["apps:get"] {
+		return nil, httpx.Wrap(apperrors.ErrNotFound,
+			fmt.Errorf("member %d (tenant %d) cannot read app %s", memberID(member), tenantID, appCode))
+	}
 	snap, err := s.repo.GetSnapshot(ctx, tenantID, appCode)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -464,10 +499,30 @@ func (s *menuService) AddFavorite(ctx context.Context, member *iammodel.User, ap
 		}
 		return nil, err
 	}
+	if !appUsable(snap) {
+		return nil, httpx.Wrap(apperrors.ErrStatusInvalid,
+			fmt.Errorf("app %d status %s (%s) not favoritable", snap.AppID, snap.Status, snap.ProvisionStatus))
+	}
 	node, err := menuNodeByCode(snap.Nodes, menuCode)
 	if err != nil {
 		return nil, httpx.Wrap(apperrors.ErrMenuFavoriteInvalid,
 			fmt.Errorf("node %q not found in app %s", menuCode, appCode))
+	}
+	// 分组节点是树结构不是可打开入口，不可收藏
+	if node.MenuType == model.MenuTypeGroup {
+		return nil, httpx.Wrap(apperrors.ErrMenuFavoriteInvalid,
+			fmt.Errorf("node %q is a group", menuCode))
+	}
+	existingFormTargets, visibleFormIDs, err := s.formVisibilityInputs(ctx, member.ID, formTargetIDsOf(snap.Nodes))
+	if err != nil {
+		return nil, err
+	}
+	// 有效可见性复核：与 GetMenu 的节点裁剪完全同源（资产软删/入口权限/
+	// hidden 仅菜单管理成员可见），防止「知道编码即可收藏不可见节点」
+	if !memberNodeVisible(perms, node, existingFormTargets, visibleFormIDs) {
+		metrics.MenuFavoriteVisibilityRejectedTotal.Inc()
+		return nil, httpx.Wrap(apperrors.ErrMenuFavoriteInvalid,
+			fmt.Errorf("node %q in app %s is not visible to member %d", menuCode, appCode, member.ID))
 	}
 	if err := s.repo.CreateFavorite(ctx, &model.MenuFavorite{
 		TenantID: tenantID,
@@ -477,10 +532,12 @@ func (s *menuService) AddFavorite(ctx context.Context, member *iammodel.User, ap
 	}); err != nil {
 		return nil, err
 	}
+	metrics.MenuFavoriteCreateTotal.Inc()
 	return &model.MenuFavoriteMutation{MenuID: node.Code, Favorited: true}, nil
 }
 
 // RemoveFavorite 取消收藏（幂等）：目标收藏不存在同样返回 Favorited=false。
+// 取消不要求目标仍可见——用户需要能清除已被隐藏或已删除前留下的个人状态。
 func (s *menuService) RemoveFavorite(ctx context.Context, member *iammodel.User, menuCode string) (*model.MenuFavoriteMutation, error) {
 	tenantID, ok := contextx.TenantIDFromContext(ctx)
 	if !ok {
@@ -493,7 +550,222 @@ func (s *menuService) RemoveFavorite(ctx context.Context, member *iammodel.User,
 	if _, err := s.repo.DeleteFavoriteByCode(ctx, tenantID, member.ID, menuCode); err != nil {
 		return nil, err
 	}
+	metrics.MenuFavoriteRemoveTotal.Inc()
 	return &model.MenuFavoriteMutation{MenuID: menuCode, Favorited: false}, nil
+}
+
+// ---- 「我的收藏」跨应用列表（P2） ----
+
+// 收藏列表分页参数：默认 20、上限 100（与应用列表同口径）；扫描批量固定
+// 100 行，批内经可见性过滤后再决定是否续拉（读侧过滤可能产生短页，以
+// nextCursor 续拉而非按页大小推断）
+const (
+	favoriteListDefaultLimit = 20
+	favoriteListMaxLimit     = 100
+	favoriteScanBatchSize    = 100
+)
+
+// favoriteCursor 「我的收藏」游标载荷：(createdAt 纳秒, 收藏 id)，
+// 排序 created_at DESC、id DESC；对客户端不透明（base64url），只允许原样回传
+type favoriteCursor struct {
+	CreatedAtNano int64 `json:"createdAtNano"`
+	FavoriteID    uint  `json:"favoriteId"`
+}
+
+func encodeFavoriteCursor(createdAt time.Time, favoriteID uint) string {
+	data, _ := json.Marshal(favoriteCursor{CreatedAtNano: createdAt.UnixNano(), FavoriteID: favoriteID})
+	return base64.RawURLEncoding.EncodeToString(data)
+}
+
+// decodeFavoriteCursor 解析并校验游标载荷（字段零值视为非法，防垃圾输入穿透分页）
+func decodeFavoriteCursor(raw string) (favoriteCursor, error) {
+	data, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return favoriteCursor{}, err
+	}
+	var payload favoriteCursor
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return favoriteCursor{}, err
+	}
+	if payload.FavoriteID == 0 || payload.CreatedAtNano <= 0 {
+		return favoriteCursor{}, fmt.Errorf("invalid favorite cursor")
+	}
+	return payload, nil
+}
+
+// ListFavorites 当前成员的跨应用收藏列表（GET /menu-favorites，P2）：
+// (tenant_id, member_id) 命中索引连接未软删应用与节点后，逐批复用菜单
+// 同口径可见性裁剪——失效记录（应用归档/节点隐藏/资产权限收回）只过滤
+// 不删除，恢复后收藏自然恢复展示（方案 §4.3）。
+func (s *menuService) ListFavorites(ctx context.Context, member *iammodel.User, query model.ListMenuFavoritesQuery) (*model.MenuFavoritePage, error) {
+	tenantID, ok := contextx.TenantIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("tenant context required")
+	}
+	if member == nil || member.ID == 0 || member.TenantID != tenantID {
+		return nil, httpx.Wrap(apperrors.ErrMemberInvalid,
+			fmt.Errorf("member %d (tenant %d) not in tenant %d", memberID(member), memberTenant(member), tenantID))
+	}
+	// 与路由层 GET /menu-favorites（verb=list）同口径复核；个人数据面，
+	// 无应用存在性可泄露，按 FORBIDDEN 出网
+	perms := s.access.Permissions(ctx, member)
+	if !perms["menu-favorites:list"] {
+		return nil, httpx.Wrap(apperrors.ErrForbidden,
+			fmt.Errorf("member %d cannot list menu favorites", member.ID))
+	}
+
+	limit := query.Limit
+	if limit <= 0 {
+		limit = favoriteListDefaultLimit
+	}
+	if limit > favoriteListMaxLimit {
+		limit = favoriteListMaxLimit
+	}
+	var (
+		scanBeforeAt time.Time
+		scanBeforeID uint
+		hasCursor    bool
+	)
+	if raw := strings.TrimSpace(query.Cursor); raw != "" {
+		payload, err := decodeFavoriteCursor(raw)
+		if err != nil {
+			return nil, httpx.Wrap(apperrors.ErrCursorInvalid, err)
+		}
+		scanBeforeAt = time.Unix(0, payload.CreatedAtNano)
+		scanBeforeID = payload.FavoriteID
+		hasCursor = true
+	}
+
+	// hidden 节点仅菜单管理成员可见（与 GetMenu 同口径）；权限集全局一次
+	canManageMenu := canManageMenuPerms(perms)
+	items := make([]model.MenuFavoriteItem, 0, limit)
+	var lastRow *repository.FavoriteRow
+	hasMore := false
+
+	// 扫描循环：批内过滤后不足 limit 则续拉下一批；满页后继续扫描直到
+	// 探测到下一条可见条目（hasMore=true）或行源耗尽，保证 nextCursor
+	// 精确表达「确有下一页可见条目」（读侧过滤产生短页时不用 limit+1
+	// 探测行数，而以可见条目为准）。每轮游标严格前进，循环必然终止。
+	for {
+		rows, err := s.repo.ListMemberFavorites(ctx, tenantID, member.ID, repository.FavoriteListParams{
+			Limit:     favoriteScanBatchSize,
+			HasCursor: hasCursor,
+			BeforeAt:  scanBeforeAt,
+			BeforeID:  scanBeforeID,
+		})
+		if err != nil {
+			return nil, err
+		}
+		// 批内表单可见性输入（与 GetMenu/AddFavorite 共用端口）
+		formIDs := make([]uint, 0, len(rows))
+		for i := range rows {
+			if rows[i].MenuType == model.MenuTypeForm && rows[i].TargetID != nil {
+				formIDs = append(formIDs, *rows[i].TargetID)
+			}
+		}
+		existingFormTargets, visibleFormIDs, err := s.formVisibilityInputs(ctx, member.ID, formIDs)
+		if err != nil {
+			return nil, err
+		}
+		for i := range rows {
+			row := &rows[i]
+			if !favoriteRowVisible(row, canManageMenu, existingFormTargets, visibleFormIDs) {
+				continue
+			}
+			if len(items) < limit {
+				items = append(items, favoriteItem(row, existingFormTargets))
+				lastRow = row
+				continue
+			}
+			// 满页后仍出现可见条目：确认存在下一页，停止扫描
+			hasMore = true
+			break
+		}
+		if hasMore || len(rows) < favoriteScanBatchSize {
+			break // 探测成功或行源耗尽
+		}
+		// 从本批最后一行（未过滤）之后继续扫描
+		tail := rows[len(rows)-1]
+		scanBeforeAt = tail.CreatedAt
+		scanBeforeID = tail.FavoriteID
+		hasCursor = true
+	}
+
+	page := &model.MenuFavoritePage{Items: items}
+	// 游标锚定最后一条「已返回」条目：批内被过滤的行天然落在游标之后，
+	// 续拉不会重复或跳过可见条目
+	if lastRow != nil && hasMore {
+		page.NextCursor = encodeFavoriteCursor(lastRow.CreatedAt, lastRow.FavoriteID)
+	}
+	metrics.MenuFavoriteListTotal.Inc()
+	return page, nil
+}
+
+// favoriteRowVisible 收藏行读侧可见性（P2，与 GetMenu 有效快照同口径）：
+// 应用可用（active 且非初始化中，归档应用收藏保留但不展示）∧ 非分组
+// （防御历史脏数据）∧ 资产可见（表单软删/入口权限）∧ 非隐藏或成员可
+// 管理菜单。失效记录只过滤、不在读取路径删除（方案 §5.4）。
+func favoriteRowVisible(row *repository.FavoriteRow, canManageMenu bool, existingFormTargets map[uint]FormTargetProjection, visibleFormIDs map[uint]bool) bool {
+	if row.AppStatus != model.AppStatusActive || provisionStatus(row.AppProvisionStatus) {
+		return false
+	}
+	if row.MenuType == model.MenuTypeGroup {
+		return false
+	}
+	node := &model.MenuNode{MenuType: row.MenuType, TargetID: row.TargetID}
+	if !assetVisible(node, existingFormTargets, visibleFormIDs) {
+		return false
+	}
+	return !row.Hidden || canManageMenu
+}
+
+// favoriteItem 收藏行出网投影：icon 空串投影为 null；target 与
+// menuNodeDetail 同口径（仅 form 节点且目录可投影时返回）。
+func favoriteItem(row *repository.FavoriteRow, existingFormTargets map[uint]FormTargetProjection) model.MenuFavoriteItem {
+	item := model.MenuFavoriteItem{
+		App: model.MenuFavoriteAppRef{Code: row.AppCode, Name: row.AppName},
+		Node: model.MenuFavoriteNodeRef{
+			MenuID: row.MenuCode,
+			Name:   row.MenuName,
+			Type:   row.MenuType,
+		},
+		FavoritedAt: kernel.JSONTime(row.CreatedAt),
+	}
+	if row.Icon != "" {
+		item.Node.Icon = &row.Icon
+	}
+	if row.MenuType == model.MenuTypeForm && row.TargetID != nil && existingFormTargets != nil {
+		if target, ok := existingFormTargets[*row.TargetID]; ok && target.Code != "" && target.FormType != "" {
+			item.Node.Target = &model.MenuNodeTarget{
+				Type:     model.MenuTypeForm,
+				Code:     target.Code,
+				FormType: target.FormType,
+			}
+		}
+	}
+	return item
+}
+
+// appUsable 应用处于可收藏状态（canFavorite 的应用因子，P1）：active 且
+// 非初始化中——与菜单快照的可编辑因子同源，归档/初始化中应用不可收藏
+func appUsable(snap *repository.MenuSnapshot) bool {
+	return snap.Status == model.AppStatusActive && !provisionStatus(snap.ProvisionStatus)
+}
+
+// canManageMenuPerms 成员是否可管理菜单（apps:create/patch）：hidden 节点
+// 对其保持可见（否则无法恢复显示），与 buildMenuSnapshot 同口径
+func canManageMenuPerms(perms map[string]bool) bool {
+	return perms["apps:create"] || perms["apps:patch"]
+}
+
+// memberNodeVisible 成员对资产节点的有效可见性（P1 与 buildMenuSnapshot 的
+// nodeVisible 同源）：资产可见（目录存在集 × 表单入口权限）∧ 非隐藏或
+// 成员可管理菜单
+func memberNodeVisible(perms map[string]bool, node *model.MenuNode, existingFormTargets map[uint]FormTargetProjection, visibleFormIDs map[uint]bool) bool {
+	if !assetVisible(node, existingFormTargets, visibleFormIDs) {
+		return false
+	}
+	return !node.Hidden || canManageMenuPerms(perms)
 }
 
 // assetVisible 资产节点可见性判定（M2-资产-1 起按目录端口注入的存在集
@@ -554,13 +826,10 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 	// （ADR-011，导航隐藏）——hidden 节点仅对持菜单管理权限的成员可见
 	//（否则无法恢复显示）；可管理菜单的成员还需看到刚创建的空分组才能
 	// 继续向其中添加资产，只读成员仍只看到有可见后代的分组，避免泄露
-	// 无内容的管理结构。
-	canManageMenu := perms["apps:create"] || perms["apps:patch"]
+	// 无内容的管理结构。nodeVisible 与 AddFavorite 的 memberNodeVisible 同源。
+	canManageMenu := canManageMenuPerms(perms)
 	nodeVisible := func(node *model.MenuNode) bool {
-		if !assetVisible(node, existingFormTargets, visibleFormIDs) {
-			return false
-		}
-		return !node.Hidden || canManageMenu
+		return memberNodeVisible(perms, node, existingFormTargets, visibleFormIDs)
 	}
 	visible := make(map[uint]bool, len(snap.Nodes))
 	groupMemo := make(map[uint]bool, len(snap.Nodes))
@@ -578,14 +847,16 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 		AppCode:      snap.AppCode,
 		MenuRevision: snap.MenuRevision,
 		RootMenuIDs:  make([]string, 0),
-		NodeMap:     make(map[string]model.MenuNodeDetail, len(visible)),
+		NodeMap:      make(map[string]model.MenuNodeDetail, len(visible)),
 		Features:     model.MenuFeatures{Workflow: false}, // 流程引擎未接入，能力注册表落地前恒 false
 	}
 
 	// 应用可编辑状态是全部按钮动作的公共因子（归档/初始化中应用只读）；
-	// favorite 凡可见即可收藏（个人状态动作）；按钮细节由 menuNodeActions
-	// 按动作注册表 × 权限集投影（ADR-011，actions 为唯一按钮事实源）
-	editable := snap.Status == model.AppStatusActive && !provisionStatus(snap.ProvisionStatus)
+	// favorite 与 AddFavorite 的 canFavorite 策略同源（P1）：仅资产叶子
+	// 节点且应用可用（active 且非初始化中）——分组节点与非可用应用投影
+	// false，前端据此不渲染收藏入口；按钮细节由 menuNodeActions 按动作
+	// 注册表 × 权限集投影（ADR-011，actions 为唯一按钮事实源）
+	editable := appUsable(snap)
 
 	roots := make([]*model.MenuNode, 0)
 	for i := range snap.Nodes {
@@ -595,7 +866,7 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 		}
 		caps := model.MenuNodeCapabilities{
 			View:     true,
-			Favorite: true,
+			Favorite: editable && node.MenuType != model.MenuTypeGroup,
 			Actions:  menuNodeActions(perms, node, editable),
 		}
 		detail := menuNodeDetail(node, byID, caps, existingFormTargets)
