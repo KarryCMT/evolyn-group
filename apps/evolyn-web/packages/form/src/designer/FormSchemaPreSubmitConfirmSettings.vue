@@ -295,6 +295,7 @@ function insertField(target: 'title' | 'content', widgetName: string): void {
   &__template-input {
     display: flex;
     width: 100%;
+    min-width: 0;
     min-height: 38px;
     overflow: visible;
     background: var(--el-bg-color);
@@ -307,8 +308,10 @@ function insertField(target: 'title' | 'content', widgetName: string): void {
   }
   &__template-input .submit-template-editor {
     flex: 1 1 auto;
+    min-width: 0;
   }
   &__field-add.el-button {
+    flex: 0 0 42px;
     width: 42px;
     height: 38px;
     padding: 0 8px;

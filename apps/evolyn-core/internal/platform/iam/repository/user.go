@@ -9,7 +9,6 @@ import (
 	"evolyn/internal/platform/iam/model"
 
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 	"gorm.io/gorm"
 )
 
@@ -21,14 +20,12 @@ var (
 )
 
 type userRepository struct {
-	db  *gorm.DB
-	rdb *infrastructure.RedisDB
+	db *gorm.DB
 }
 
-func newUserRepository(db *gorm.DB, rdb *infrastructure.RedisDB) UserRepository {
+func newUserRepository(db *gorm.DB) UserRepository {
 	return &userRepository{
-		db:  db,
-		rdb: rdb,
+		db: db,
 	}
 }
 
@@ -136,8 +133,6 @@ func (u *userRepository) Create(ctx context.Context, member *model.User) (*model
 		return nil, err
 	}
 
-	u.setCacheUser(member)
-
 	return member, nil
 }
 
@@ -204,8 +199,6 @@ func (u *userRepository) Update(ctx context.Context, member *model.User) (*model
 		return nil, err
 	}
 
-	u.rdb.HDel(member.CacheKey(), strconv.Itoa(int(member.ID)))
-
 	return member, nil
 }
 
@@ -215,7 +208,6 @@ func (u *userRepository) UpdateStatus(ctx context.Context, member *model.User) (
 		Select("status", "resigned_at").Updates(member).Error; err != nil {
 		return nil, err
 	}
-	u.rdb.HDel(member.CacheKey(), strconv.Itoa(int(member.ID)))
 	return member, nil
 }
 
@@ -223,25 +215,15 @@ func (u *userRepository) Delete(ctx context.Context, member *model.User) error {
 	if err := u.withContext(ctx).Delete(member).Error; err != nil {
 		return err
 	}
-	u.rdb.HDel(member.CacheKey(), strconv.Itoa(int(member.ID)))
 	return nil
 }
 
 // GetUserByID 按成员 ID 加载（认证中间件按 JWT memberId 取成员；
 // 此时请求 ctx 尚无租户上下文，随后由 TenantMiddleware 注入）
 func (u *userRepository) GetUserByID(ctx context.Context, id uint) (*model.User, error) {
-	// TODO HSet not support expire, avoid roles and groups inconsistent
-	// if user := u.getCacheUser(id); user != nil {
-	// 	return user, nil
-	// }
-
 	user := new(model.User)
 	if err := u.withContext(ctx).Preload(model.GroupAssociation).Preload("Groups.Roles").Preload("Roles").First(user, id).Error; err != nil {
 		return nil, err
-	}
-
-	if err := u.setCacheUser(user); err != nil {
-		logrus.Errorf("failed to set user: %v", err)
 	}
 
 	return user, nil
@@ -296,26 +278,4 @@ func (u *userRepository) PurgeByAccount(ctx context.Context, accountID uint) err
 
 func (u *userRepository) Migrate() error {
 	return u.db.AutoMigrate(&model.User{})
-}
-
-func (u *userRepository) setCacheUser(user *model.User) error {
-	if user == nil {
-		return nil
-	}
-
-	return u.rdb.HSet(user.CacheKey(), strconv.Itoa(int(user.ID)), user)
-}
-
-func (u *userRepository) getCacheUser(id uint) *model.User {
-	user := new(model.User)
-	key := user.CacheKey()
-	field := strconv.Itoa(int(id))
-	if err := u.rdb.HGet(key, field, user); err != nil {
-		if err != infrastructure.RedisDisableError {
-			logrus.Warnf("failed to hget field %s from key %s, %v", field, key, err)
-		}
-		return nil
-	}
-
-	return user
 }

@@ -30,7 +30,7 @@ func NewRepositories(db *gorm.DB, rdb *infrastructure.RedisDB) *Repositories {
 	return &Repositories{
 		db:            db,
 		account:       newAccountRepository(db, rdb),
-		user:          newUserRepository(db, rdb),
+		user:          newUserRepository(db),
 		group:         newGroupRepository(db, rdb),
 		rbac:          newRBACRepository(db, rdb),
 		roleGroup:     newRoleGroupRepository(db),
