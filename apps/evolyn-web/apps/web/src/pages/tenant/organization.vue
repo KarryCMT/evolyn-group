@@ -10,8 +10,11 @@ import { RiCloseFill } from '@remixicon/vue';
 import { computed, defineComponent, h, onMounted, shallowRef, watch } from 'vue';
 import { updateMyTenantProfile } from '~/api/tenant';
 import OrganizationInviteMemberDialog from '~/components/tenant/organization/OrganizationInviteMemberDialog.vue';
+import OrganizationDepartmentNameDialog from '~/components/tenant/organization/OrganizationDepartmentNameDialog.vue';
 import OrganizationMemberDrawer from '~/components/tenant/organization/OrganizationMemberDrawer.vue';
 import OrganizationMembersTable from '~/components/tenant/organization/OrganizationMembersTable.vue';
+import OrganizationRoleGroupAdjustDialog from '~/components/tenant/organization/OrganizationRoleGroupAdjustDialog.vue';
+import OrganizationRoleNameDialog from '~/components/tenant/organization/OrganizationRoleNameDialog.vue';
 import OrganizationTreeSidebar from '~/components/tenant/organization/OrganizationTreeSidebar.vue';
 import WorkHandoverDialog from '~/components/tenant/organization/WorkHandoverDialog.vue';
 import type {
@@ -587,80 +590,28 @@ watch(
       :max="1"
       @confirm="confirmHandoverRecipient"
     />
-    <el-dialog
+    <OrganizationDepartmentNameDialog
       v-model="departmentDialogVisible"
-      :title="departmentDialogMode === 'rename' ? '修改部门名称' : '添加子部门'"
-      width="480px"
-      align-center
+      v-model:name="departmentNameDraft"
+      :mode="departmentDialogMode"
+      :target="departmentTarget"
+      :submitting="departmentSubmitting"
       @closed="departmentTarget = null"
-    >
-      <p
-        v-if="departmentDialogMode === 'create-child'"
-        class="tenant-organization-page__dialog-prompt"
-      >
-        将在「{{ departmentTarget?.name }}」下创建子部门
-      </p>
-      <el-input
-        v-model="departmentNameDraft"
-        :placeholder="departmentDialogMode === 'rename' ? '请输入部门名称' : '请输入子部门名称'"
-        maxlength="30"
-        show-word-limit
-        @keyup.enter="confirmDepartmentDialog"
-      />
-      <template #footer
-        ><el-button @click="departmentDialogVisible = false">取消</el-button
-        ><el-button type="primary" :loading="departmentSubmitting" @click="confirmDepartmentDialog"
-          >确定</el-button
-        ></template
-      >
-    </el-dialog>
-    <el-dialog
+      @confirm="confirmDepartmentDialog"
+    />
+    <OrganizationRoleNameDialog
       v-model="roleDialogVisible"
-      :title="
-        roleDialogMode === 'group'
-          ? '创建角色组'
-          : roleDialogMode === 'rename' || roleDialogMode === 'group-rename'
-            ? '修改名称'
-            : '创建角色'
-      "
-      width="480px"
-      align-center
+      v-model:name="roleNameDraft"
+      :mode="roleDialogMode"
       @closed="roleGroupTarget = null"
-    >
-      <el-input
-        v-model="roleNameDraft"
-        :placeholder="
-          roleDialogMode === 'group' || roleDialogMode === 'group-rename'
-            ? '请输入角色组名称'
-            : '请输入角色名称'
-        "
-        maxlength="30"
-        show-word-limit
-      />
-      <template #footer
-        ><el-button @click="roleDialogVisible = false">取消</el-button
-        ><el-button type="primary" @click="confirmRoleDialog">确定</el-button></template
-      >
-    </el-dialog>
-    <el-dialog v-model="groupAdjustVisible" title="调整分组" width="620px" align-center>
-      <p class="tenant-organization-page__dialog-prompt">请选择目标分组</p>
-      <div class="tenant-organization-page__group-list">
-        <button
-          v-for="group in roleGroups"
-          :key="group.id"
-          :class="{ 'tenant-organization-page__group-item--active': targetGroupId === group.id }"
-          type="button"
-          @click="targetGroupId = group.id"
-        >
-          <span>{{ group.name }}</span
-          ><span v-if="targetGroupId === group.id">●</span>
-        </button>
-      </div>
-      <template #footer
-        ><el-button @click="groupAdjustVisible = false">取消</el-button
-        ><el-button type="primary" @click="confirmGroupAdjust">确定</el-button></template
-      >
-    </el-dialog>
+      @confirm="confirmRoleDialog"
+    />
+    <OrganizationRoleGroupAdjustDialog
+      v-model="groupAdjustVisible"
+      v-model:group-id="targetGroupId"
+      :groups="roleGroups"
+      @confirm="confirmGroupAdjust"
+    />
   </section>
 </template>
 
@@ -784,38 +735,6 @@ watch(
 }
 .tenant-organization-page__role-header button:hover {
   background: var(--el-color-primary-light-9);
-}
-.tenant-organization-page__dialog-prompt {
-  margin: 0 0 var(--el-space-lg);
-  color: var(--el-text-color-secondary);
-}
-.tenant-organization-page__group-list {
-  min-height: 260px;
-  border: 1px solid var(--el-border-color);
-  border-radius: var(--el-border-radius-medium);
-  overflow: hidden;
-}
-.tenant-organization-page__group-list button {
-  display: flex;
-  box-sizing: border-box;
-  width: 100%;
-  height: 46px;
-  padding: 0 var(--el-space-xl);
-  border: 0;
-  align-items: center;
-  justify-content: space-between;
-  color: var(--el-text-color-primary);
-  background: transparent;
-  cursor: pointer;
-  font: inherit;
-  text-align: left;
-}
-.tenant-organization-page__group-list button:hover {
-  background: var(--el-fill-color-light);
-}
-.tenant-organization-page__group-item--active {
-  color: var(--el-color-primary) !important;
-  background: var(--el-color-primary-light-9) !important;
 }
 
 // 接交人选择器与交接抽屉都传送到 body。抽屉遮罩由 Element Plus 分配更高层级，

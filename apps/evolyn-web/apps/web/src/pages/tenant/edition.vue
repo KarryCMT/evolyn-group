@@ -15,6 +15,7 @@ import { computed, onMounted, ref, shallowRef } from 'vue';
 import { getCurrentEdition } from '~/api/edition';
 import TenantEditionFeatureGroups from '~/components/tenant/edition/TenantEditionFeatureGroups.vue';
 import TenantEditionOverview from '~/components/tenant/edition/TenantEditionOverview.vue';
+import TenantEditionQuotaDetailDialog from '~/components/tenant/edition/TenantEditionQuotaDetailDialog.vue';
 import TenantEditionQuotaGrid from '~/components/tenant/edition/TenantEditionQuotaGrid.vue';
 import type { EditionFeatureGroup, EditionQuotaCard } from '~/components/tenant/edition/types';
 import type { CurrentEdition, EditionQuota } from '~/types';
@@ -175,13 +176,6 @@ const limitSourceLabels: Record<string, string> = {
 function handleConsult() {
   ElMessage.info('如需升级版本，请联系平台管理员');
 }
-
-/** 对话框关闭时只重置当前详情，容量数据仍以接口数据源为准。 */
-function updateQuotaDialog(visible: boolean) {
-  if (!visible) {
-    selectedQuota.value = null;
-  }
-}
 </script>
 
 <template>
@@ -198,45 +192,10 @@ function updateQuotaDialog(visible: boolean) {
     <TenantEditionQuotaGrid v-if="edition" :cards="quotaCards" @detail="selectedQuota = $event" />
     <TenantEditionFeatureGroups v-if="edition" :groups="featureGroups" />
 
-    <el-dialog
-      :model-value="selectedQuota !== null"
-      class="tenant-edition-page__dialog"
-      width="440px"
-      :title="selectedQuota ? `${selectedQuota.title}详情` : '容量详情'"
-      @update:model-value="updateQuotaDialog"
-    >
-      <template v-if="selectedQuota">
-        <dl class="tenant-edition-page__quota-detail">
-          <div>
-            <dt>当前用量</dt>
-            <dd>{{ selectedQuota.usageLabel }}</dd>
-          </div>
-          <div>
-            <dt>套餐上限</dt>
-            <dd>{{ selectedQuota.limitLabel }}</dd>
-          </div>
-          <div v-if="selectedQuota.limitSource">
-            <dt>上限来源</dt>
-            <dd>{{ limitSourceLabels[selectedQuota.limitSource] ?? selectedQuota.limitSource }}</dd>
-          </div>
-          <div v-if="selectedQuota.resetCycle">
-            <dt>重置周期</dt>
-            <dd>每自然月重置</dd>
-          </div>
-          <div v-if="selectedQuota.asOf">
-            <dt>统计时间</dt>
-            <dd>{{ selectedQuota.asOf }}</dd>
-          </div>
-          <div v-if="selectedQuota.note">
-            <dt>使用说明</dt>
-            <dd>{{ selectedQuota.note }}</dd>
-          </div>
-        </dl>
-      </template>
-      <template #footer>
-        <el-button type="primary" @click="selectedQuota = null">知道了</el-button>
-      </template>
-    </el-dialog>
+    <TenantEditionQuotaDetailDialog
+      v-model="selectedQuota"
+      :limit-source-labels="limitSourceLabels"
+    />
   </section>
 </template>
 
@@ -247,37 +206,6 @@ function updateQuotaDialog(visible: boolean) {
   min-height: 100%;
   padding: var(--el-space-3xl);
   background: var(--el-bg-color);
-
-  &__quota-detail {
-    margin: 0;
-
-    div {
-      display: grid;
-      grid-template-columns: 92px minmax(0, 1fr);
-      gap: var(--el-space-lg);
-      padding: var(--el-space-lg) 0;
-      border-bottom: 1px solid var(--el-border-color-lighter);
-
-      &:last-child {
-        border-bottom: 0;
-      }
-    }
-
-    dt,
-    dd {
-      margin: 0;
-      font-size: var(--el-font-size-base);
-      line-height: 22px;
-    }
-
-    dt {
-      color: var(--el-text-color-secondary);
-    }
-
-    dd {
-      color: var(--el-text-color-regular);
-    }
-  }
 }
 
 @media (max-width: 1080px) {

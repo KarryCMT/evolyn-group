@@ -13,7 +13,6 @@ import { computed, reactive, shallowRef, watch } from 'vue';
 import {
   ElButton,
   ElCheckbox,
-  ElDialog,
   ElForm,
   ElFormItem,
   ElIcon,
@@ -40,6 +39,8 @@ import {
   type FormulaEditorInsertion,
 } from '../formula';
 import FormulaEditor from './FormulaEditor.vue';
+import FormSchemaSubmitValidatorEditorDialog from './FormSchemaSubmitValidatorEditorDialog.vue';
+import FormSchemaSubmitValidatorFormulaDialog from './FormSchemaSubmitValidatorFormulaDialog.vue';
 import SubmitTemplateEditor from './SubmitTemplateEditor.vue';
 import {
   cloneSubmitValidatorDraft,
@@ -63,7 +64,6 @@ const emit = defineEmits<{
 
 const draft = reactive<SubmitValidatorDraft>(createSubmitValidatorDraft());
 const formulaDialogOpen = shallowRef(false);
-const formulaDialogExpanded = shallowRef(false);
 const formulaInsertion = shallowRef<FormulaEditorInsertion>();
 const formulaInsertionSequence = shallowRef(0);
 const templateInsertion = shallowRef<FormulaEditorInsertion>();
@@ -192,7 +192,6 @@ function copyFormula(): void {
 
 function closeFormulaEditor(): void {
   formulaDialogOpen.value = false;
-  formulaDialogExpanded.value = false;
 }
 
 function confirmFormulaEditor(): void {
@@ -229,14 +228,8 @@ function formulaSegments(
 </script>
 
 <template>
-  <el-dialog
+  <FormSchemaSubmitValidatorEditorDialog
     :model-value="props.modelValue"
-    append-to-body
-    destroy-on-close
-    lock-scroll
-    :show-close="false"
-    class="form-submit-validator-dialog"
-    aria-label="数据校验设置"
     @update:model-value="emit('update:model-value', $event)"
   >
     <template #header>
@@ -337,19 +330,10 @@ function formulaSegments(
         <el-button type="primary" @click="save">确定</el-button>
       </footer>
     </template>
-  </el-dialog>
+  </FormSchemaSubmitValidatorEditorDialog>
 
-  <el-dialog
-    v-model="formulaDialogOpen"
-    append-to-body
-    destroy-on-close
-    lock-scroll
-    :show-close="false"
-    class="form-submit-formula-dialog"
-    :class="{ 'is-expanded': formulaDialogExpanded }"
-    aria-label="提交校验公式编辑器"
-  >
-    <template #header>
+  <FormSchemaSubmitValidatorFormulaDialog v-model="formulaDialogOpen">
+    <template #header="{ expanded, toggleExpanded }">
       <header class="form-submit-formula-dialog__header">
         <div>
           <h2>提交校验</h2>
@@ -358,8 +342,8 @@ function formulaSegments(
         <div class="form-submit-formula-dialog__actions">
           <button
             type="button"
-            :aria-label="formulaDialogExpanded ? '还原公式编辑器尺寸' : '展开公式编辑器'"
-            @click="formulaDialogExpanded = !formulaDialogExpanded"
+            :aria-label="expanded ? '还原公式编辑器尺寸' : '展开公式编辑器'"
+            @click="toggleExpanded"
           >
             <el-icon><RiFullscreenLine /></el-icon>
           </button>
@@ -441,7 +425,7 @@ function formulaSegments(
         >
       </footer>
     </template>
-  </el-dialog>
+  </FormSchemaSubmitValidatorFormulaDialog>
 </template>
 
 <style lang="scss">

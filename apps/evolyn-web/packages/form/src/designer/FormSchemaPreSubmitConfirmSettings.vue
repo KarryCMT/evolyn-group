@@ -1,92 +1,20 @@
 <script setup lang="ts">
-import { RiAddLine, RiInformationLine, RiSearchLine, RiSettings3Line } from '@remixicon/vue';
+import { RiInformationLine, RiSettings3Line } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
-import {
-  ElButton,
-  ElDialog,
-  ElForm,
-  ElFormItem,
-  ElIcon,
-  ElInput,
-  ElPopover,
-  ElSwitch,
-  ElTooltip,
-} from 'element-plus';
+import { ElIcon, ElSwitch, ElTooltip } from 'element-plus';
 import type { FormItem } from '../schema/types';
-import { SUBMIT_VALIDATOR_SOURCE_TYPES, widgetTypeLabel } from '../schema/dictionary';
-import type { FormulaEditorInsertion } from './formula-editor';
-import SubmitTemplateEditor from './SubmitTemplateEditor.vue';
+import FormSchemaPreSubmitConfirmDialog from './FormSchemaPreSubmitConfirmDialog.vue';
 import type { PreSubmitConfirmDraft } from './submit-validation-types';
 
 const confirm = defineModel<PreSubmitConfirmDraft>({ required: true });
 const props = defineProps<{ items: FormItem[] }>();
 const dialogOpen = shallowRef(false);
-const activePicker = shallowRef<'title' | 'content'>();
-const variableKeyword = shallowRef('');
-const titleInsertion = shallowRef<FormulaEditorInsertion>();
-const contentInsertion = shallowRef<FormulaEditorInsertion>();
-const insertionSequence = shallowRef(0);
-
-const variableItems = computed(() =>
-  props.items.filter((item) => SUBMIT_VALIDATOR_SOURCE_TYPES.includes(item.widget.type)),
-);
-const templateFields = computed(() =>
-  variableItems.value.map((item) => ({
-    widgetName: item.widget.widgetName,
-    label: item.label,
-  })),
-);
-const filteredVariableItems = computed(() => {
-  const keyword = variableKeyword.value.trim().toLocaleLowerCase();
-  if (!keyword) return variableItems.value;
-  return variableItems.value.filter((item) =>
-    `${item.label} ${widgetTypeLabel(item.widget.type)}`.toLocaleLowerCase().includes(keyword),
-  );
-});
 const enabled = computed({
   get: () => confirm.value.enable,
   set: (enable: boolean) => {
     confirm.value = { ...confirm.value, enable };
   },
 });
-const title = computed({
-  get: () => confirm.value.title,
-  set: (nextTitle: string) => {
-    confirm.value = { ...confirm.value, title: nextTitle };
-  },
-});
-const content = computed({
-  get: () => confirm.value.content,
-  set: (nextContent: string) => {
-    confirm.value = { ...confirm.value, content: nextContent };
-  },
-});
-const titlePickerOpen = computed({
-  get: () => activePicker.value === 'title',
-  set: (visible: boolean) => {
-    activePicker.value = visible ? 'title' : undefined;
-    if (!visible) variableKeyword.value = '';
-  },
-});
-const contentPickerOpen = computed({
-  get: () => activePicker.value === 'content',
-  set: (visible: boolean) => {
-    activePicker.value = visible ? 'content' : undefined;
-    if (!visible) variableKeyword.value = '';
-  },
-});
-
-function insertField(target: 'title' | 'content', widgetName: string): void {
-  insertionSequence.value += 1;
-  const insertion: FormulaEditorInsertion = {
-    id: insertionSequence.value,
-    text: `\${${widgetName}}`,
-  };
-  if (target === 'title') titleInsertion.value = insertion;
-  else contentInsertion.value = insertion;
-  activePicker.value = undefined;
-  variableKeyword.value = '';
-}
 </script>
 
 <template>
@@ -113,122 +41,15 @@ function insertField(target: 'title' | 'content', widgetName: string): void {
       <el-icon><RiSettings3Line /></el-icon>
     </button>
 
-    <el-dialog
+    <FormSchemaPreSubmitConfirmDialog
       v-model="dialogOpen"
-      append-to-body
-      width="min(92vw, 640px)"
-      class="form-pre-submit-confirm__dialog"
-      title="二次确认设置"
-    >
-      <p class="form-pre-submit-confirm__intro">
-        成员点击提交按钮时进行弹窗确认
-        <span class="form-pre-submit-confirm__preview">预览效果</span>
-      </p>
-      <el-form label-position="top" @submit.prevent>
-        <el-form-item label="提示标题" required>
-          <div class="form-pre-submit-confirm__template-input">
-            <SubmitTemplateEditor
-              v-model="title"
-              :fields="templateFields"
-              :insertion="titleInsertion"
-              :max-length="100"
-              placeholder="确认继续提交吗？"
-            />
-            <el-popover
-              v-model:visible="titlePickerOpen"
-              placement="bottom-end"
-              :width="480"
-              :teleported="false"
-              trigger="click"
-            >
-              <template #reference>
-                <el-button class="form-pre-submit-confirm__field-add" aria-label="向标题插入字段">
-                  <el-icon><RiAddLine /></el-icon>
-                </el-button>
-              </template>
-              <div
-                class="form-pre-submit-confirm__field-picker"
-                role="listbox"
-                aria-label="可插入字段"
-              >
-                <el-input
-                  v-model="variableKeyword"
-                  class="form-pre-submit-confirm__field-search"
-                  placeholder="搜索"
-                  :prefix-icon="RiSearchLine"
-                />
-                <button
-                  v-for="item in filteredVariableItems"
-                  :key="item.widget.widgetName"
-                  type="button"
-                  @click="insertField('title', item.widget.widgetName)"
-                >
-                  <span>{{ item.label }}</span>
-                  <small>{{ widgetTypeLabel(item.widget.type) }}</small>
-                </button>
-                <p v-if="filteredVariableItems.length === 0">未找到可插入字段</p>
-              </div>
-            </el-popover>
-          </div>
-        </el-form-item>
-        <el-form-item label="提示文字">
-          <div class="form-pre-submit-confirm__template-input">
-            <SubmitTemplateEditor
-              v-model="content"
-              :fields="templateFields"
-              :insertion="contentInsertion"
-              :max-length="1000"
-              placeholder="请确认填写内容无误后继续提交。"
-            />
-            <el-popover
-              v-model:visible="contentPickerOpen"
-              placement="bottom-end"
-              :width="480"
-              :teleported="false"
-              trigger="click"
-            >
-              <template #reference>
-                <el-button
-                  class="form-pre-submit-confirm__field-add"
-                  aria-label="向提示文字插入字段"
-                >
-                  <el-icon><RiAddLine /></el-icon>
-                </el-button>
-              </template>
-              <div
-                class="form-pre-submit-confirm__field-picker"
-                role="listbox"
-                aria-label="可插入字段"
-              >
-                <el-input
-                  v-model="variableKeyword"
-                  class="form-pre-submit-confirm__field-search"
-                  placeholder="搜索"
-                  :prefix-icon="RiSearchLine"
-                />
-                <button
-                  v-for="item in filteredVariableItems"
-                  :key="item.widget.widgetName"
-                  type="button"
-                  @click="insertField('content', item.widget.widgetName)"
-                >
-                  <span>{{ item.label }}</span>
-                  <small>{{ widgetTypeLabel(item.widget.type) }}</small>
-                </button>
-                <p v-if="filteredVariableItems.length === 0">未找到可插入字段</p>
-              </div>
-            </el-popover>
-          </div>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialogOpen = false">完成</el-button>
-      </template>
-    </el-dialog>
+      v-model:confirm="confirm"
+      :items="props.items"
+    />
   </section>
 </template>
 
-<style scoped lang="scss">
+<style lang="scss">
 .form-pre-submit-confirm {
   display: flex;
   flex-direction: column;

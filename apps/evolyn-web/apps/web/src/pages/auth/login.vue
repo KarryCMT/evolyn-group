@@ -5,6 +5,7 @@ import { onMounted, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ElMessage } from 'element-plus';
 import MfaVerifyDialog from '~/components/auth/MfaVerifyDialog.vue';
+import TenantMembershipDialog from '~/components/auth/TenantMembershipDialog.vue';
 import { sendSmsCode } from '~/api/auth';
 import { encryptPassword } from '~/api/conf';
 import { useAuth } from '~/composables';
@@ -205,27 +206,12 @@ function goNext() {
   </AuthLayout>
 
   <!-- 多租户选择：后端登录默认取第一个成员关系，多团队时显式选择进入哪个 -->
-  <el-dialog
+  <TenantMembershipDialog
     v-model="tenantDialogVisible"
-    title="选择进入的团队"
-    width="420px"
-    :close-on-click-modal="false"
-  >
-    <div class="login-page__tenant-list">
-      <button
-        v-for="membership in memberships"
-        :key="membership.tenantId"
-        class="login-page__tenant-item"
-        type="button"
-        :disabled="switching"
-        @click="handleChooseTenant(membership)"
-      >
-        <span class="login-page__tenant-name">{{ membership.name }}</span>
-        <span class="login-page__tenant-code">{{ membership.code }}</span>
-        <el-tag v-if="membership.isOwner" size="small">所有者</el-tag>
-      </button>
-    </div>
-  </el-dialog>
+    :memberships="memberships"
+    :switching="switching"
+    @choose="handleChooseTenant"
+  />
   <MfaVerifyDialog v-model="mfaDialogVisible" :loading="loading" @submit="handleMfaVerify" />
 </template>
 
@@ -251,45 +237,5 @@ function goNext() {
 .login-page__register-tip a {
   font-weight: 500;
   color: var(--el-color-primary);
-}
-
-.login-page__tenant-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--el-space-md);
-}
-
-.login-page__tenant-item {
-  display: flex;
-  gap: var(--el-space-lg);
-  align-items: center;
-  padding: var(--el-space-lg) var(--el-space-xl);
-  text-align: left;
-  background-color: var(--el-fill-color-light);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--el-border-radius-base);
-  cursor: pointer;
-  transition: border-color 0.2s;
-
-  &:hover:not(:disabled) {
-    border-color: var(--el-color-primary);
-  }
-
-  &:disabled {
-    opacity: 0.6;
-    cursor: not-allowed;
-  }
-}
-
-.login-page__tenant-name {
-  font-size: var(--el-font-size-medium);
-  font-weight: 500;
-  color: var(--el-text-color-primary);
-}
-
-.login-page__tenant-code {
-  flex: 1;
-  font-size: var(--el-font-size-base);
-  color: var(--el-text-color-secondary);
 }
 </style>
