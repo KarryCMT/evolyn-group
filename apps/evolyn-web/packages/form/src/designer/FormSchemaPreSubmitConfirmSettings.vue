@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { RiAddLine, RiInformationLine, RiSettings3Line } from '@remixicon/vue';
+import { RiAddLine, RiInformationLine, RiSearchLine, RiSettings3Line } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
 import {
   ElButton,
@@ -9,24 +9,40 @@ import {
   ElIcon,
   ElInput,
   ElPopover,
-  ElRadio,
-  ElRadioGroup,
   ElSwitch,
   ElTooltip,
 } from 'element-plus';
 import type { FormItem } from '../schema/types';
-import { SUBMIT_VALIDATOR_SOURCE_TYPES } from '../schema/dictionary';
+import { SUBMIT_VALIDATOR_SOURCE_TYPES, widgetTypeLabel } from '../schema/dictionary';
+import type { FormulaEditorInsertion } from './formula-editor';
+import SubmitTemplateEditor from './SubmitTemplateEditor.vue';
 import type { PreSubmitConfirmDraft } from './submit-validation-types';
 
 const confirm = defineModel<PreSubmitConfirmDraft>({ required: true });
 const props = defineProps<{ items: FormItem[] }>();
 const dialogOpen = shallowRef(false);
-const pickerOpen = shallowRef(false);
-const insertionTarget = shallowRef<'title' | 'content'>('content');
+const activePicker = shallowRef<'title' | 'content'>();
+const variableKeyword = shallowRef('');
+const titleInsertion = shallowRef<FormulaEditorInsertion>();
+const contentInsertion = shallowRef<FormulaEditorInsertion>();
+const insertionSequence = shallowRef(0);
 
 const variableItems = computed(() =>
   props.items.filter((item) => SUBMIT_VALIDATOR_SOURCE_TYPES.includes(item.widget.type)),
 );
+const templateFields = computed(() =>
+  variableItems.value.map((item) => ({
+    widgetName: item.widget.widgetName,
+    label: item.label,
+  })),
+);
+const filteredVariableItems = computed(() => {
+  const keyword = variableKeyword.value.trim().toLocaleLowerCase();
+  if (!keyword) return variableItems.value;
+  return variableItems.value.filter((item) =>
+    `${item.label} ${widgetTypeLabel(item.widget.type)}`.toLocaleLowerCase().includes(keyword),
+  );
+});
 const enabled = computed({
   get: () => confirm.value.enable,
   set: (enable: boolean) => {
@@ -45,15 +61,31 @@ const content = computed({
     confirm.value = { ...confirm.value, content: nextContent };
   },
 });
+const titlePickerOpen = computed({
+  get: () => activePicker.value === 'title',
+  set: (visible: boolean) => {
+    activePicker.value = visible ? 'title' : undefined;
+    if (!visible) variableKeyword.value = '';
+  },
+});
+const contentPickerOpen = computed({
+  get: () => activePicker.value === 'content',
+  set: (visible: boolean) => {
+    activePicker.value = visible ? 'content' : undefined;
+    if (!visible) variableKeyword.value = '';
+  },
+});
 
-function insertField(widgetName: string): void {
-  const token = `\${${widgetName}}`;
-  if (insertionTarget.value === 'title') {
-    title.value += `${title.value ? ' ' : ''}${token}`;
-  } else {
-    content.value += `${content.value ? ' ' : ''}${token}`;
-  }
-  pickerOpen.value = false;
+function insertField(target: 'title' | 'content', widgetName: string): void {
+  insertionSequence.value += 1;
+  const insertion: FormulaEditorInsertion = {
+    id: insertionSequence.value,
+    text: `\${${widgetName}}`,
+  };
+  if (target === 'title') titleInsertion.value = insertion;
+  else contentInsertion.value = insertion;
+  activePicker.value = undefined;
+  variableKeyword.value = '';
 }
 </script>
 
@@ -86,51 +118,109 @@ function insertField(widgetName: string): void {
       append-to-body
       width="min(92vw, 640px)"
       class="form-pre-submit-confirm__dialog"
-      title="提交二次确认"
+      title="二次确认设置"
     >
       <p class="form-pre-submit-confirm__intro">
-        填写人确认后才会提交数据，取消时保留当前填写内容。
+        成员点击提交按钮时进行弹窗确认
+        <span class="form-pre-submit-confirm__preview">预览效果</span>
       </p>
       <el-form label-position="top" @submit.prevent>
-        <el-form-item label="提示标题">
-          <el-input v-model="title" :maxlength="100" placeholder="确认继续提交吗？" />
+        <el-form-item label="提示标题" required>
+          <div class="form-pre-submit-confirm__template-input">
+            <SubmitTemplateEditor
+              v-model="title"
+              :fields="templateFields"
+              :insertion="titleInsertion"
+              :max-length="100"
+              placeholder="确认继续提交吗？"
+            />
+            <el-popover
+              v-model:visible="titlePickerOpen"
+              placement="bottom-end"
+              :width="480"
+              :teleported="false"
+              trigger="click"
+            >
+              <template #reference>
+                <el-button class="form-pre-submit-confirm__field-add" aria-label="向标题插入字段">
+                  <el-icon><RiAddLine /></el-icon>
+                </el-button>
+              </template>
+              <div
+                class="form-pre-submit-confirm__field-picker"
+                role="listbox"
+                aria-label="可插入字段"
+              >
+                <el-input
+                  v-model="variableKeyword"
+                  class="form-pre-submit-confirm__field-search"
+                  placeholder="搜索"
+                  :prefix-icon="RiSearchLine"
+                />
+                <button
+                  v-for="item in filteredVariableItems"
+                  :key="item.widget.widgetName"
+                  type="button"
+                  @click="insertField('title', item.widget.widgetName)"
+                >
+                  <span>{{ item.label }}</span>
+                  <small>{{ widgetTypeLabel(item.widget.type) }}</small>
+                </button>
+                <p v-if="filteredVariableItems.length === 0">未找到可插入字段</p>
+              </div>
+            </el-popover>
+          </div>
         </el-form-item>
-        <el-form-item label="提示内容">
-          <el-input
-            v-model="content"
-            type="textarea"
-            :autosize="{ minRows: 4, maxRows: 8 }"
-            :maxlength="1000"
-            placeholder="请确认填写内容无误后继续提交。"
-          />
+        <el-form-item label="提示文字">
+          <div class="form-pre-submit-confirm__template-input">
+            <SubmitTemplateEditor
+              v-model="content"
+              :fields="templateFields"
+              :insertion="contentInsertion"
+              :max-length="1000"
+              placeholder="请确认填写内容无误后继续提交。"
+            />
+            <el-popover
+              v-model:visible="contentPickerOpen"
+              placement="bottom-end"
+              :width="480"
+              :teleported="false"
+              trigger="click"
+            >
+              <template #reference>
+                <el-button
+                  class="form-pre-submit-confirm__field-add"
+                  aria-label="向提示文字插入字段"
+                >
+                  <el-icon><RiAddLine /></el-icon>
+                </el-button>
+              </template>
+              <div
+                class="form-pre-submit-confirm__field-picker"
+                role="listbox"
+                aria-label="可插入字段"
+              >
+                <el-input
+                  v-model="variableKeyword"
+                  class="form-pre-submit-confirm__field-search"
+                  placeholder="搜索"
+                  :prefix-icon="RiSearchLine"
+                />
+                <button
+                  v-for="item in filteredVariableItems"
+                  :key="item.widget.widgetName"
+                  type="button"
+                  @click="insertField('content', item.widget.widgetName)"
+                >
+                  <span>{{ item.label }}</span>
+                  <small>{{ widgetTypeLabel(item.widget.type) }}</small>
+                </button>
+                <p v-if="filteredVariableItems.length === 0">未找到可插入字段</p>
+              </div>
+            </el-popover>
+          </div>
         </el-form-item>
       </el-form>
-      <el-popover
-        v-model:visible="pickerOpen"
-        placement="bottom-start"
-        :width="330"
-        trigger="click"
-      >
-        <template #reference>
-          <el-button plain type="primary" :icon="RiAddLine">插入字段变量</el-button>
-        </template>
-        <el-radio-group v-model="insertionTarget" class="form-pre-submit-confirm__insert-target">
-          <el-radio value="title">标题</el-radio>
-          <el-radio value="content">正文</el-radio>
-        </el-radio-group>
-        <div class="form-pre-submit-confirm__field-picker" role="listbox" aria-label="可插入字段">
-          <button
-            v-for="item in variableItems"
-            :key="item.widget.widgetName"
-            type="button"
-            @click="insertField(item.widget.widgetName)"
-          >
-            <span>{{ item.label }}</span>
-            <code>${{ '{' }}{{ item.widget.widgetName }}{{ '}' }}</code>
-          </button>
-          <p v-if="variableItems.length === 0">请先在画布中添加字段</p>
-        </div>
-      </el-popover>
       <template #footer>
         <el-button @click="dialogOpen = false">完成</el-button>
       </template>
@@ -196,22 +286,60 @@ function insertField(widgetName: string): void {
     font-size: 14px;
     line-height: 1.65;
   }
+  &__preview {
+    padding: 0;
+    margin-left: 8px;
+    font: inherit;
+    color: var(--el-color-primary);
+  }
+  &__template-input {
+    display: flex;
+    width: 100%;
+    min-height: 38px;
+    overflow: visible;
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color);
+    border-radius: var(--el-border-radius-base);
+    transition: border-color var(--el-transition-duration);
+  }
+  &__template-input:focus-within {
+    border-color: var(--el-color-primary);
+  }
+  &__template-input .submit-template-editor {
+    flex: 1 1 auto;
+  }
+  &__field-add.el-button {
+    width: 42px;
+    height: 38px;
+    padding: 0 8px;
+    margin: 0;
+    color: var(--el-color-primary);
+    border-top: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-left-color: var(--el-border-color);
+    border-radius: 0 var(--el-border-radius-base) var(--el-border-radius-base) 0;
+  }
 
   &__field-picker {
-    max-height: 270px;
+    max-height: 360px;
     overflow-y: auto;
   }
-  &__insert-target {
-    display: flex;
-    margin: 4px 8px 8px;
+  &__field-search {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    padding: 8px;
+    background: var(--el-bg-color);
+    border-bottom: 1px solid var(--el-border-color-lighter);
   }
   &__field-picker button {
     display: flex;
     width: 100%;
-    min-height: 38px;
+    min-height: 48px;
+    padding: 0 14px;
     align-items: center;
     justify-content: space-between;
-    padding: 0 8px;
     color: var(--el-text-color-primary);
     text-align: left;
     cursor: pointer;
@@ -222,9 +350,12 @@ function insertField(widgetName: string): void {
   &__field-picker button:hover {
     background: var(--el-fill-color-light);
   }
-  &__field-picker code {
-    font-size: 11px;
+  &__field-picker small {
+    padding: 2px 10px;
+    font-size: 12px;
     color: var(--el-color-primary);
+    background: var(--el-color-primary-light-9);
+    border-radius: 999px;
   }
   &__field-picker p {
     margin: 8px;

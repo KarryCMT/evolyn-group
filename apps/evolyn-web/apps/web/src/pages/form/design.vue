@@ -19,6 +19,7 @@ import {
   WIDGET_GROUP_META,
   WIDGET_SPECS,
 } from '@evolyn.do/form/designer';
+import type { FormEvent } from '@evolyn.do/form/designer';
 import { ApiError } from '@evolyn.do/utils';
 import {
   RiEyeFill,
@@ -70,6 +71,11 @@ const publishing = ref(false);
 const publishStatusText = ref('');
 const renaming = computed(() => workspace.renaming.value);
 const previewVisible = shallowRef(false);
+/**
+ * 前端事件先完成设计器 UI 闭环。服务端协议与执行代理尚未发布，故暂存于当前
+ * 设计会话，不混入 v9 草稿提交；后端 v10 落地时仅需改为 content.formEvents。
+ */
+const formEvents = shallowRef<FormEvent[]>([]);
 const unsupportedPreviewTypes = new Set<string>();
 
 // 外壳是详情接口的唯一请求方；设计页仅消费共享响应，避免相同详情重复调用。
@@ -566,6 +572,7 @@ function notifyUnavailable(action: string) {
         :widget-submit-rules="document.content.widget_submit_rules"
         :validators="document.content.validators"
         :pre-submit-confirm="document.content.preSubmitConfirm"
+        :form-events="formEvents"
         :numeric-type-editable="publishedVersion === 0"
         @rename-key="editor.renameItemKey"
         @update-item="onUpdateSelectedItem"
@@ -585,6 +592,7 @@ function notifyUnavailable(action: string) {
         @update-widget-submit-rules="editor.applyWidgetSubmitRules"
         @update-validators="editor.setSubmitValidators"
         @update-pre-submit-confirm="editor.setPreSubmitConfirm"
+        @update-form-events="formEvents = $event"
       />
     </div>
 

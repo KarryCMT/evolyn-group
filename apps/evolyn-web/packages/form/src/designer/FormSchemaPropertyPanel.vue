@@ -146,6 +146,11 @@
           :items="schemaDocument?.content.items ?? []"
           class="form-schema-property__submit-event"
         />
+        <FormSchemaFrontendEventSettings
+          v-model="formEvents"
+          :items="schemaDocument?.content.items ?? []"
+          class="form-schema-property__submit-event"
+        />
         <el-form-item class="form-schema-property__show-rules-form-item">
           <template #label>
             <span class="form-schema-property__show-rules-label">
@@ -341,6 +346,8 @@ import FormSchemaFieldShowRulesDrawer from './FormSchemaFieldShowRulesDrawer.vue
 import FormSchemaSubmitRuleDialog from './FormSchemaSubmitRuleDialog.vue';
 import FormSchemaPreSubmitConfirmSettings from './FormSchemaPreSubmitConfirmSettings.vue';
 import FormSchemaSubmitValidationSettings from './FormSchemaSubmitValidationSettings.vue';
+import FormSchemaFrontendEventSettings from './FormSchemaFrontendEventSettings.vue';
+import type { FormEvent } from './frontend-events';
 
 /**
  * 字段属性面板：编辑 item 公共属性与按 widget.type 分派的专属配置。
@@ -365,6 +372,11 @@ const props = withDefaults(
     validators?: SubmitValidator[];
     /** v7 二次确认配置；关闭时标题和正文仍保留。 */
     preSubmitConfirm?: PreSubmitConfirm;
+    /**
+     * 前端事件当前由设计页持有，待后端协议 v10 落地后会进入 content.formEvents；
+     * 单独受控传入，避免在服务端尚未识别该键时让普通草稿保存失败。
+     */
+    formEvents?: FormEvent[];
     /** 已发布字段的物理列及值语义不可重写；初次发布前才允许切换数值类型。 */
     numericTypeEditable?: boolean;
   }>(),
@@ -384,6 +396,7 @@ const props = withDefaults(
       title: '确认继续提交吗？',
       content: '请确认填写内容无误后继续提交。',
     }),
+    formEvents: () => [],
     numericTypeEditable: true,
   },
 );
@@ -407,6 +420,7 @@ const emit = defineEmits<{
   'update-widget-submit-rules': [rules: Record<string, SubmitRule>];
   'update-validators': [validators: SubmitValidator[]];
   'update-pre-submit-confirm': [confirm: PreSubmitConfirm];
+  'update-form-events': [events: FormEvent[]];
 }>();
 
 const showRulesDrawer = shallowRef(false);
@@ -419,6 +433,10 @@ const preSubmitConfirm = computed<PreSubmitConfirm>({
 const submitValidators = computed<SubmitValidator[]>({
   get: () => props.validators,
   set: (validators) => emit('update-validators', structuredClone(validators)),
+});
+const formEvents = computed<FormEvent[]>({
+  get: () => props.formEvents,
+  set: (events) => emit('update-form-events', structuredClone(events)),
 });
 // 特殊规则摘要卡初始收起，避免属性面板被长字段列表占满（§5.1）。
 const summaryExpanded = shallowRef(false);

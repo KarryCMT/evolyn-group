@@ -43,6 +43,27 @@ export { default as FormSchemaSubmitRuleDialog } from './FormSchemaSubmitRuleDia
 export { default as FormSchemaSubmitValidationSettings } from './FormSchemaSubmitValidationSettings.vue';
 export { default as FormSchemaSubmitValidatorDialog } from './FormSchemaSubmitValidatorDialog.vue';
 export { default as FormSchemaPreSubmitConfirmSettings } from './FormSchemaPreSubmitConfirmSettings.vue';
+export { default as FormSchemaFrontendEventSettings } from './FormSchemaFrontendEventSettings.vue';
+export { default as FormSchemaFrontendEventDrawer } from './FormSchemaFrontendEventDrawer.vue';
+export { default as FormSchemaFrontendEventDialog } from './FormSchemaFrontendEventDialog.vue';
+export { default as FormSchemaEventFieldPicker } from './FormSchemaEventFieldPicker.vue';
+export { default as FormSchemaEventTokenInput } from './FormSchemaEventTokenInput.vue';
+export {
+  createFormEvent,
+  createFormEventId,
+  formEventFieldOptions,
+  FORM_EVENT_LIMITS,
+  formEventFieldTypeLabel,
+  normalizeFormEvent,
+  referencedWidgetNames,
+} from './frontend-events';
+export type {
+  FormEvent,
+  FormEventAction,
+  FormEventFieldOption,
+  FormEventRequest,
+  FormEventRequestEntry,
+} from './frontend-events';
 export { default as FormulaEditor } from './FormulaEditor.vue';
 export { default as SubmitTemplateEditor } from './SubmitTemplateEditor.vue';
 export {
