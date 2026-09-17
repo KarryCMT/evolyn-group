@@ -1,18 +1,46 @@
 <script setup lang="ts">
-import type { FavoriteApp } from './favoriteCatalog';
 import { RiAddFill, RiCloseFill } from '@remixicon/vue';
+import { ElMessage } from 'element-plus';
+import { useRouter } from 'vue-router';
+import type { MenuFavoriteItem } from '~/types';
+import { resolveMenuIcon } from '~/components/app/menuIcon';
+import { useMenuFavorites } from '~/composables/useMenuFavorites';
+import { favoriteTargetRoute } from './favoriteTarget';
 
 defineOptions({ name: 'FavoritesDialog' });
-
-defineProps<{
-  apps: FavoriteApp[];
-}>();
 
 const emit = defineEmits<{
   add: [];
 }>();
 
 const visible = defineModel<boolean>({ default: false });
+const router = useRouter();
+const { items, status, errorMessage, nextCursor, load, loadMore, unfavorite } = useMenuFavorites({
+  ensureLoaded: true,
+});
+
+function iconOf(item: MenuFavoriteItem) {
+  return resolveMenuIcon(item.node.type, item.node.icon);
+}
+
+function openFavorite(item: MenuFavoriteItem) {
+  const target = favoriteTargetRoute(item);
+  if (target) {
+    visible.value = false;
+    void router.push(target);
+    return;
+  }
+  ElMessage.info('该资产类型的入口暂未开放，敬请期待');
+}
+
+async function removeFavorite(item: MenuFavoriteItem) {
+  try {
+    await unfavorite(item.node.menuId);
+    ElMessage.success(`已取消收藏「${item.node.name}」`);
+  } catch {
+    ElMessage.error('取消收藏失败，请稍后重试');
+  }
+}
 </script>
 
 <template>
@@ -48,21 +76,38 @@ const visible = defineModel<boolean>({ default: false });
           </el-button>
         </header>
 
-        <div v-if="apps.length" class="favorites-dialog__grid">
-          <button v-for="app in apps" :key="app.id" type="button" class="favorites-dialog__app">
-            <span
-              class="favorites-dialog__app-icon"
-              :class="`favorites-dialog__app-icon--${app.tone}`"
-              aria-hidden="true"
-            >
-              <el-icon><component :is="app.icon" /></el-icon>
-            </span>
-            <span class="favorites-dialog__app-name">{{ app.label }}</span>
-          </button>
+        <div v-if="items.length" class="favorites-dialog__grid">
+          <div v-for="item in items" :key="item.node.menuId" class="favorites-dialog__app-wrap">
+            <button type="button" class="favorites-dialog__app" @click="openFavorite(item)">
+              <span class="favorites-dialog__app-icon" aria-hidden="true">
+                <el-icon><component :is="iconOf(item)" /></el-icon>
+              </span>
+              <span class="favorites-dialog__app-text">
+                <span class="favorites-dialog__app-name">{{ item.node.name }}</span>
+                <span class="favorites-dialog__app-meta">{{ item.app.name }}</span>
+              </span>
+            </button>
+            <el-button
+              text
+              class="favorites-dialog__remove"
+              :icon="RiCloseFill"
+              :aria-label="`取消收藏${item.node.name}`"
+              @click="removeFavorite(item)"
+            />
+          </div>
         </div>
+        <div v-else-if="status === 'ready'" class="favorites-dialog__empty">
+          <span>暂未收藏入口</span>
+          <el-button type="primary" @click="emit('add')"> 添加收藏 </el-button>
+        </div>
+        <div v-else-if="status === 'loading'" class="favorites-dialog__empty">加载中…</div>
         <div v-else class="favorites-dialog__empty">
-          <span>暂未收藏应用</span>
-          <el-button type="primary" @click="emit('add')"> 添加应用 </el-button>
+          <span>{{ errorMessage || '收藏加载失败' }}</span>
+          <el-button @click="() => load(true)"> 重试 </el-button>
+        </div>
+
+        <div v-if="nextCursor && items.length" class="favorites-dialog__more">
+          <el-button text type="primary" @click="loadMore"> 加载更多 </el-button>
         </div>
       </section>
     </main>
@@ -80,11 +125,6 @@ const visible = defineModel<boolean>({ default: false });
   /* 使用页面语义色，抽屉传送至 body 后仍能跟随明暗主题切换。 */
   background: var(--el-bg-color-page);
   box-shadow: none;
-
-  /* 弹层已传送至 body，显式继承项目品牌蓝。 */
-  --el-color-primary-light-3: #5ca0ff;
-  --el-color-primary-light-7: #b9d6ff;
-  --el-color-primary-light-9: #e8f1ff;
 }
 
 .favorites-dialog .el-drawer__header {
@@ -195,6 +235,16 @@ const visible = defineModel<boolean>({ default: false });
   color: var(--el-text-color-secondary);
 }
 
+.favorites-dialog__more {
+  display: flex;
+  justify-content: center;
+}
+
+.favorites-dialog__app-wrap {
+  position: relative;
+  min-width: 0;
+}
+
 .favorites-dialog__app {
   display: flex;
   align-items: center;
@@ -221,6 +271,7 @@ const visible = defineModel<boolean>({ default: false });
   height: 40px;
   margin-right: var(--el-space-xl);
   color: var(--el-color-white);
+  background: var(--el-color-primary);
   border-radius: var(--el-border-radius-large);
 }
 
@@ -228,23 +279,10 @@ const visible = defineModel<boolean>({ default: false });
   font-size: var(--el-font-size-medium);
 }
 
-.favorites-dialog__app-icon--blue {
-  background: #4b8cf7;
-}
-.favorites-dialog__app-icon--cyan {
-  background: #1aaee2;
-}
-.favorites-dialog__app-icon--green {
-  background: #48b860;
-}
-.favorites-dialog__app-icon--orange {
-  background: #ff9d32;
-}
-.favorites-dialog__app-icon--purple {
-  background: #8367ee;
-}
-.favorites-dialog__app-icon--red {
-  background: #f36061;
+.favorites-dialog__app-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .favorites-dialog__app-name {
@@ -253,6 +291,36 @@ const visible = defineModel<boolean>({ default: false });
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.favorites-dialog__app-meta {
+  overflow: hidden;
+  font-size: var(--el-font-size-small);
+  line-height: 1.4;
+  color: var(--el-text-color-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.favorites-dialog__remove.el-button {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: none;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  color: var(--el-text-color-secondary);
+  border-radius: var(--el-border-radius-circle);
+
+  &:hover {
+    color: var(--el-color-danger);
+    background: var(--el-fill-color-light);
+  }
+}
+
+.favorites-dialog__app-wrap:hover .favorites-dialog__remove {
+  display: inline-flex;
 }
 
 @media (max-width: 960px) {
@@ -269,7 +337,8 @@ const visible = defineModel<boolean>({ default: false });
   .favorites-dialog__app-icon {
     margin-right: var(--el-space-lg);
   }
-  .favorites-dialog__app-name {
+  .favorites-dialog__app-name,
+  .favorites-dialog__app-meta {
     font-size: var(--el-font-size-large);
   }
 }

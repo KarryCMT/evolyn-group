@@ -31,6 +31,7 @@ import MoveMenuNodeDialog from '~/components/app/workspace/MoveMenuNodeDialog.vu
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { useAppHome } from '~/composables/useAppHome';
 import { useAppMenu } from '~/composables/useAppMenu';
+import { useMenuFavorites } from '~/composables/useMenuFavorites';
 import { DEFAULT_APPLICATION_ICON, getAppIconName } from '~/types';
 
 defineOptions({ name: 'AppHomePage' });
@@ -56,7 +57,12 @@ const {
   status: menuStatus,
   errorMessage: menuErrorMessage,
   reload: reloadMenu,
+  setFavorited,
 } = useAppMenu(appCode);
+
+// 菜单个人收藏（ADR-011 P2）：侧栏右键写入与工作台「我的收藏」共用全局
+// 状态；本页不预取收藏列表（纯写入方），收藏成功后由共享 composable 刷新。
+const menuFavorites = useMenuFavorites();
 
 const iconByKey: Record<AppIconKey, Component> = {
   bookmark: markRaw(RiBookmark3Fill),
@@ -467,10 +473,42 @@ function createWorkspaceAsset(payload: {
  * 侧栏表单的「编辑」复用表单设计器；其余菜单动作仍待对应写接口落地后接入。
  * 菜单节点的 targetCode 是表单对外稳定编码，不能使用菜单节点自身的 code。
  */
+/**
+ * 右键收藏/取消收藏（个人状态动作）：以菜单快照的 favorited 为基准取反，
+ * 成功后用接口返回值本地覆写（服务端事实源，不整树重载避免内容区闪烁）；
+ * 失败时提示并保持原状态（请求期间共享 composable 已锁定重复触发）。
+ */
+async function toggleWorkspaceFavorite(asset: AppWorkspaceAsset) {
+  const unfavorite = asset.favorited;
+  try {
+    const result = unfavorite
+      ? await menuFavorites.unfavorite(asset.code)
+      : await menuFavorites.favorite(appCode.value, asset.code);
+    if (result) {
+      setFavorited(asset.code, result.favorited);
+      ElMessage.success(result.favorited ? '已收藏，可在工作台「我的收藏」中打开' : '已取消收藏');
+    }
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'APP_MENU_FAVORITE_INVALID') {
+      // 服务端 canFavorite 策略拒绝（隐藏/权限失效/分组）：刷新菜单对齐事实源
+      await reloadMenu();
+      ElMessage.warning('当前不可收藏该入口，请刷新后重试');
+      return;
+    }
+    console.warn('[app-workspace] toggle favorite failed', error);
+    ElMessage.error('收藏操作失败，请稍后重试');
+  }
+}
+
 function handleWorkspaceAssetAction(payload: {
   asset: AppWorkspaceAsset;
   action: AppWorkspaceAssetAction;
 }) {
+  if (payload.action === 'favorite') {
+    void toggleWorkspaceFavorite(payload.asset);
+    return;
+  }
+
   if (payload.action === 'move') {
     menuMoveTarget.value = payload.asset;
     menuMoveVisible.value = true;

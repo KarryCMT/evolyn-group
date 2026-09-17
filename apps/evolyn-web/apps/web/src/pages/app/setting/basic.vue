@@ -64,9 +64,7 @@ function notifyUnavailable() {
     :sub-title="errorMessage"
   >
     <template #extra>
-      <el-button type="primary" @click="reload()">
-        重新加载
-      </el-button>
+      <el-button type="primary" @click="reload()"> 重新加载 </el-button>
     </template>
   </el-result>
 

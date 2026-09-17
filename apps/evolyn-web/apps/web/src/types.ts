@@ -478,6 +478,47 @@ export interface AppMenuNodeMutation {
   menuRevision: number;
 }
 
+// ---------- 菜单个人收藏 API 契约（ADR-011 P1/P2，与 evolyn-core app 域对齐） ----------
+
+/** 收藏/取消收藏结果：favorited 为操作后的状态（重复请求幂等）。 */
+export interface MenuFavoriteMutation {
+  menuId: string;
+  favorited: boolean;
+}
+
+/** 「我的收藏」条目：应用与节点均为读取时实时投影，收藏行只承载归属与时间。 */
+export interface MenuFavoriteItem {
+  app: { code: string; name: string };
+  node: {
+    menuId: string;
+    name: string;
+    type: AppMenuType;
+    icon: string | null;
+    target: AppMenuTarget | null;
+  };
+  /** 后端 JSONTime 秒级东八区 yyyy-MM-dd HH:mm:ss */
+  favoritedAt: string;
+}
+
+/** 我的收藏列表（GET /menu-favorites）：按收藏时间倒序；读侧可见性过滤
+ * 可能产生短页，客户端以 nextCursor 续拉而非按页大小推断是否末页 */
+export interface MenuFavoritePage {
+  items: MenuFavoriteItem[];
+  nextCursor: string;
+}
+
+/** 我的收藏列表查询参数：cursor 为上一页 nextCursor 原样回传 */
+export interface MenuFavoriteListQuery {
+  cursor?: string;
+  limit?: number;
+}
+
+/** 收藏菜单节点请求（POST /menu-favorites）。 */
+export interface CreateMenuFavoritePayload {
+  appCode: string;
+  menuCode: string;
+}
+
 // ---- 版本信息（管理后台「版本信息」页，一期：真实订阅与资源概览）----
 
 /** 订阅状态：active 活动 / expired 已到期（读时投影）/ legacy_pending_review 有效期待确认 */

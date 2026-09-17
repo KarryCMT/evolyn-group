@@ -25,9 +25,11 @@ const contactNameInputRef = ref<InputInstance>();
 const avatarInputRef = useTemplateRef<HTMLInputElement>('avatarInput');
 const contactNameEditing = ref(false);
 const contactName = ref('');
-const { isLoading: isSavingContactName, begin, handoff } = useExternalSubmitLoading(
-  () => props.savingContactName,
-);
+const {
+  isLoading: isSavingContactName,
+  begin,
+  handoff,
+} = useExternalSubmitLoading(() => props.savingContactName);
 
 const displayedContactName = computed(
   () => props.userInfo?.member.nickname || props.userInfo?.account.nickname || '未设置',
@@ -103,16 +105,14 @@ function handleAvatarChange(event: Event) {
           <el-avatar :size="36" :src="userInfo?.account.avatar">
             <el-icon><RiUserFill /></el-icon>
           </el-avatar>
-          <el-button link type="primary" @click="chooseAvatar">
-            修改
-          </el-button>
+          <el-button link type="primary" @click="chooseAvatar"> 修改 </el-button>
           <input
             ref="avatarInput"
             class="account-basic-info__avatar-input"
             type="file"
             accept="image/jpeg,image/png,.jpg,.jpeg,.png"
             @change="handleAvatarChange"
-          >
+          />
         </dd>
       </div>
       <div class="account-basic-info__row">
@@ -155,9 +155,7 @@ function handleAvatarChange(event: Event) {
           </template>
           <template v-else>
             <span>{{ displayedContactName }}</span>
-            <el-button link type="primary" @click="startContactNameEditing">
-              修改
-            </el-button>
+            <el-button link type="primary" @click="startContactNameEditing"> 修改 </el-button>
           </template>
         </dd>
       </div>
@@ -170,9 +168,7 @@ function handleAvatarChange(event: Event) {
       <div class="account-basic-info__row">
         <dt>登录日志</dt>
         <dd>
-          <el-button link type="primary" @click="emit('viewLoginLog')">
-            查看
-          </el-button>
+          <el-button link type="primary" @click="emit('viewLoginLog')"> 查看 </el-button>
         </dd>
       </div>
     </dl>

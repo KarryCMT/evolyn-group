@@ -22,9 +22,11 @@ const emit = defineEmits<{
 
 const form = defineModel<MemberInvitationForm>('form', { required: true });
 
-const { isLoading: isSubmitting, begin, handoff } = useExternalSubmitLoading(
-  () => props.submitting,
-);
+const {
+  isLoading: isSubmitting,
+  begin,
+  handoff,
+} = useExternalSubmitLoading(() => props.submitting);
 
 function submit(): void {
   if (!begin()) return;
@@ -40,11 +42,7 @@ function submit(): void {
       <li>按输入的联系方式发送邀请；同时输入手机和邮箱时，只发送手机邀请</li>
     </ul>
 
-    <el-form
-      class="organization-invite-manual__form"
-      label-position="top"
-      @submit.prevent="submit"
-    >
+    <el-form class="organization-invite-manual__form" label-position="top" @submit.prevent="submit">
       <div class="organization-invite-manual__grid">
         <el-form-item label="姓名" required>
           <el-input v-model="form.name" maxlength="80" placeholder="必填，最长80个字符" />
@@ -58,9 +56,7 @@ function submit(): void {
         </el-form-item>
         <el-form-item label="手机">
           <el-input v-model="form.phone" maxlength="32" placeholder="手机和邮箱必填一项">
-            <template #prepend>
-              +86
-            </template>
+            <template #prepend> +86 </template>
           </el-input>
         </el-form-item>
         <el-form-item label="邮箱">
@@ -129,10 +125,14 @@ function submit(): void {
     </el-form>
 
     <footer class="organization-invite-manual__footer">
-      <el-button size="large" :disabled="isSubmitting" @click="emit('clear')">
-        清空
-      </el-button>
-      <el-button type="primary" size="large" :loading="isSubmitting" :disabled="isSubmitting" @click="submit">
+      <el-button size="large" :disabled="isSubmitting" @click="emit('clear')"> 清空 </el-button>
+      <el-button
+        type="primary"
+        size="large"
+        :loading="isSubmitting"
+        :disabled="isSubmitting"
+        @click="submit"
+      >
         邀请
       </el-button>
     </footer>

@@ -46,6 +46,7 @@ function asset(targetCode: string): AppWorkspaceAsset {
     type: 'form',
     targetCode,
     formType: 'standard',
+    favorited: false,
     capabilities: {
       view: true,
       favorite: true,

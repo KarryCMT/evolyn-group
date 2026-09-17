@@ -20,6 +20,9 @@ export interface AppWorkspaceAsset {
   targetCode: string | null;
   /** 表单资产类型；非表单节点为空。 */
   formType: FormType | null;
+  /** 当前成员的收藏状态（ADR-011 个人状态，随菜单快照透传；右键收藏/
+   * 取消后由页面层以接口返回值本地覆写，重取菜单时回归服务端事实源） */
+  favorited: boolean;
   /** 当前成员由菜单读取接口派生的操作能力，用于控制右侧更多入口。 */
   capabilities: AppMenuCapabilities;
   children?: AppWorkspaceAsset[];

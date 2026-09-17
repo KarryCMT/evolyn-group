@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import type { FormInstance, FormRules } from 'element-plus';
-import {
-  RiLockPasswordLine,
-  RiSmartphoneLine,
-} from '@remixicon/vue';
+import { RiLockPasswordLine, RiSmartphoneLine } from '@remixicon/vue';
 // 密码登录表单：手机号 + 密码，只负责收集与校验，提交结果由父级（登录页）处理；
 // 「下次自动登录」勾选时本地记住手机号并持久化令牌，取消勾选则为会话级登录
 import { reactive, useTemplateRef } from 'vue';
@@ -100,9 +97,7 @@ async function handleSubmit() {
     </el-form-item>
 
     <div class="password-login-form__extra">
-      <el-checkbox v-model="form.remember">
-        下次自动登录
-      </el-checkbox>
+      <el-checkbox v-model="form.remember"> 下次自动登录 </el-checkbox>
       <router-link class="password-login-form__forgot" to="/auth/forgot-password">
         忘记密码？
       </router-link>

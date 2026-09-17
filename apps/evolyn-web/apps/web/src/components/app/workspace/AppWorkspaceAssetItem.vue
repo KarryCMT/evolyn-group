@@ -82,7 +82,11 @@ const actionItems = computed<ActionItem[]>(() => {
     // 仪表盘资产域未落地（actions 占位恒 false）：仅出收藏个人状态动作，
     // 其余按钮随仪表盘域端点落地由后端翻转投影。
     if (props.asset.capabilities.favorite) {
-      items.push({ action: 'favorite', label: '收藏', icon: RiStarFill });
+      items.push({
+        action: 'favorite',
+        label: props.asset.favorited ? '取消收藏' : '收藏',
+        icon: RiStarFill,
+      });
     }
     if (actions.delete) {
       items.push({ action: 'delete', label: '删除', icon: RiDeleteBin6Fill, danger: true });
@@ -117,9 +121,14 @@ const actionItems = computed<ActionItem[]>(() => {
   if (actions.move) {
     items.push({ action: 'move', label: '移动', icon: RiDragMove2Fill });
   }
-  // 收藏是个人状态动作：凡节点可见即可收藏（与权限解耦）。
+  // 收藏是个人状态动作：capabilities.favorite 为「当前可收藏」能力投影
+  //（P1 与服务端裁决同源），favorited 决定「收藏/取消收藏」文案。
   if (props.asset.capabilities.favorite) {
-    items.push({ action: 'favorite', label: '收藏', icon: RiStarFill });
+    items.push({
+      action: 'favorite',
+      label: props.asset.favorited ? '取消收藏' : '收藏',
+      icon: RiStarFill,
+    });
   }
   if (actions.hide) {
     items.push({ action: 'hide', label: '对成员隐藏', icon: RiEyeOffFill });

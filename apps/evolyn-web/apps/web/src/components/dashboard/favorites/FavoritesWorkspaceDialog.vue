@@ -2,24 +2,16 @@
 import { shallowRef } from 'vue';
 import FavoritePickerDialog from './FavoritePickerDialog.vue';
 import FavoritesDialog from './FavoritesDialog.vue';
-import { useFavoriteApps } from './useFavoriteApps';
 
 defineOptions({ name: 'FavoritesWorkspaceDialog' });
 
 const visible = defineModel<boolean>({ default: false });
 const pickerVisible = shallowRef(false);
-const { favoriteApps, selectedAppIds, replaceFavoriteApps } = useFavoriteApps();
-
-function saveFavorites(ids: string[]) {
-  replaceFavoriteApps(ids);
-}
 </script>
 
 <template>
-  <FavoritesDialog v-model="visible" :apps="favoriteApps" @add="pickerVisible = true" />
-  <FavoritePickerDialog
-    v-model="pickerVisible"
-    :selected-ids="selectedAppIds"
-    @confirm="saveFavorites"
-  />
+  <FavoritesDialog v-model="visible" @add="pickerVisible = true" />
+  <!-- 选择器内部以差量方式写回（收藏/取消逐项调用），列表状态由共享
+       composable 维护，关闭后两处入口即时一致。 -->
+  <FavoritePickerDialog v-model="pickerVisible" />
 </template>

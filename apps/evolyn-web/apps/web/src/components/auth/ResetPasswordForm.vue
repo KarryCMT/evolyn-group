@@ -174,9 +174,7 @@ function handleSendCode() {
     </el-button>
 
     <div class="reset-password-form__login">
-      想起密码了？<router-link to="/auth/login">
-        返回登录
-      </router-link>
+      想起密码了？<router-link to="/auth/login"> 返回登录 </router-link>
     </div>
   </el-form>
 </template>

@@ -77,9 +77,7 @@ async function submit() {
       </el-form-item>
     </el-form>
     <template #footer>
-      <el-button :disabled="isSaving" @click="emit('update:modelValue', false)">
-        取消
-      </el-button>
+      <el-button :disabled="isSaving" @click="emit('update:modelValue', false)"> 取消 </el-button>
       <el-button type="primary" :loading="isSaving" :disabled="isSaving" @click="submit">
         保存
       </el-button>

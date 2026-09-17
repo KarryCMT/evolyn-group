@@ -128,9 +128,7 @@ function handleSendCode() {
     </el-form-item>
 
     <el-form-item class="sms-login-form__remember">
-      <el-checkbox v-model="form.remember">
-        下次自动登录
-      </el-checkbox>
+      <el-checkbox v-model="form.remember"> 下次自动登录 </el-checkbox>
     </el-form-item>
 
     <el-button

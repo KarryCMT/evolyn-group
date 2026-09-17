@@ -174,9 +174,7 @@ onBeforeUnmount(clearResendTimer);
       <el-form class="password-editor-dialog__form" label-position="top">
         <el-form-item label="当前手机号">
           <el-input :model-value="phone" disabled>
-            <template #prepend>
-              +86
-            </template>
+            <template #prepend> +86 </template>
           </el-input>
         </el-form-item>
         <el-form-item label="验证码">
@@ -240,9 +238,7 @@ onBeforeUnmount(clearResendTimer);
     </el-form>
 
     <template #footer>
-      <el-button :disabled="isSaving" @click="close">
-        取消
-      </el-button>
+      <el-button :disabled="isSaving" @click="close"> 取消 </el-button>
       <el-button v-if="isVerificationStep" type="primary" @click="continueToPasswordForm">
         下一步
       </el-button>

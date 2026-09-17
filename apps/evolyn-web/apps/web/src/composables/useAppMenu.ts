@@ -1,63 +1,17 @@
-import type { Component, Ref } from 'vue';
+import type { Ref } from 'vue';
 import type { AppWorkspaceAsset } from '~/components/app/workspace/appWorkspace.types';
-import type { AppMenu, AppMenuNode, AppMenuType } from '~/types';
-import {
-  RiArticleFill,
-  RiBarChartBoxFill,
-  RiBookmark3Fill,
-  RiBriefcase4Fill,
-  RiCalendarCheckFill,
-  RiCheckboxCircleFill,
-  RiContactsBook3Fill,
-  RiFileList3Fill,
-  RiFolder3Fill,
-  RiShoppingCart2Fill,
-} from '@remixicon/vue';
-import { markRaw, readonly, shallowRef, watch } from 'vue';
+import type { AppMenu, AppMenuNode } from '~/types';
+import { resolveMenuIcon } from '~/components/app/menuIcon';
+import { readonly, shallowRef, watch } from 'vue';
 import { getAppMenuByCode } from '~/api/apps';
 
 export type AppMenuStatus = 'loading' | 'ready' | 'error';
 
 /**
- * 图标受控映射表：后端稳定图标键 → Remix Fill 组件。未知键回退到节点
- * 类型默认图标并记录可观测事件（console.warn），侧栏组件只消费 Component，
- * 不理解图标键语义。
- */
-const iconByKey: Record<string, Component> = {
-  folder: markRaw(RiFolder3Fill),
-  'file-list': markRaw(RiFileList3Fill),
-  chart: markRaw(RiBarChartBoxFill),
-  article: markRaw(RiArticleFill),
-  bookmark: markRaw(RiBookmark3Fill),
-  briefcase: markRaw(RiBriefcase4Fill),
-  calendar: markRaw(RiCalendarCheckFill),
-  check: markRaw(RiCheckboxCircleFill),
-  contacts: markRaw(RiContactsBook3Fill),
-  'shopping-cart': markRaw(RiShoppingCart2Fill),
-};
-
-const iconByType: Record<AppMenuType, Component> = {
-  group: markRaw(RiFolder3Fill),
-  form: markRaw(RiFileList3Fill),
-  dashboard: markRaw(RiBarChartBoxFill),
-  page: markRaw(RiArticleFill),
-};
-
-function resolveIcon(node: AppMenuNode): Component {
-  if (node.icon) {
-    const matched = iconByKey[node.icon];
-    if (matched) {
-      return matched;
-    }
-    console.warn(`[app-menu] unknown icon key: ${node.icon}`);
-  }
-  return iconByType[node.type];
-}
-
-/**
  * 后端 rootMenuIds + nodeMap → 侧栏资产树。只保留 capabilities.view 节点，
  * 同父顺序按 (sortOrder, menuId) 排序，与后端 §6.2 契约一致；
- * 分组携带 children，叶子节点 code 即 menuId（选中态定位键）。
+ * 分组携带 children，叶子节点 code 即 menuId（选中态定位键）；
+ * favorited 随菜单快照透传（个人收藏状态，ADR-011）。
  */
 function buildAssets(menu: AppMenu): AppWorkspaceAsset[] {
   const visible = Object.values(menu.nodeMap).filter((node) => node.capabilities.view);
@@ -79,13 +33,14 @@ function buildAssets(menu: AppMenu): AppWorkspaceAsset[] {
     const asset: AppWorkspaceAsset = {
       code: node.menuId,
       label: node.name,
-      icon: resolveIcon(node),
+      icon: resolveMenuIcon(node.type, node.icon),
       iconKey: node.icon,
       type,
       // 菜单 menuId 仅用于树节点定位；设计器路由必须使用资产公开编码。
       targetCode: node.target?.code ?? null,
       formType: node.target?.type === 'form' ? node.target.formType : null,
       capabilities: node.capabilities,
+      favorited: node.favorited ?? false,
     };
     if (node.type === 'group') {
       const children = (byParent.get(node.menuId) ?? []).map(toAsset);
@@ -97,6 +52,23 @@ function buildAssets(menu: AppMenu): AppWorkspaceAsset[] {
   };
 
   return (byParent.get(null) ?? []).map(toAsset);
+}
+
+/** 递归重建资产树，命中 menuId 的节点替换为新对象（浅拷贝 + 字段覆写）。 */
+function patchAsset(
+  assets: AppWorkspaceAsset[],
+  menuId: string,
+  patch: Partial<AppWorkspaceAsset>,
+): AppWorkspaceAsset[] {
+  return assets.map((asset) => {
+    if (asset.code === menuId) {
+      return { ...asset, ...patch };
+    }
+    if (asset.children?.length) {
+      return { ...asset, children: patchAsset(asset.children, menuId, patch) };
+    }
+    return asset;
+  });
 }
 
 /**
@@ -161,6 +133,15 @@ export function useAppMenu(appCode: Readonly<Ref<string>>) {
     { immediate: true },
   );
 
+  /**
+   * 本地覆写节点收藏状态（右键收藏/取消成功后以接口返回值更新，避免整树
+   * 重载造成内容区闪烁）：immutable 重建触发 shallowRef，下一次菜单重取
+   * 仍以服务端快照为准。
+   */
+  function setFavorited(menuId: string, favorited: boolean) {
+    assets.value = patchAsset(assets.value, menuId, { favorited });
+  }
+
   // assets 不包 readonly：消费方（Shell/Sidebar props）需要可变数组类型；
   // 数据源由本 composable 整体重建，外部无 mutate 场景
   return {
@@ -169,5 +150,6 @@ export function useAppMenu(appCode: Readonly<Ref<string>>) {
     status: readonly(status),
     errorMessage: readonly(errorMessage),
     reload: () => load(),
+    setFavorited,
   };
 }

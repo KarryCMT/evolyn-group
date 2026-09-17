@@ -26,9 +26,12 @@ const imageUrl = shallowRef('');
 const objectUrl = shallowRef('');
 const imageInputRef = useTemplateRef<HTMLInputElement>('imageInput');
 const cropImageRef = useTemplateRef<HTMLImageElement>('cropImage');
-const { isLoading: isSaving, begin, handoff, cancel } = useExternalSubmitLoading(
-  () => props.loading,
-);
+const {
+  isLoading: isSaving,
+  begin,
+  handoff,
+  cancel,
+} = useExternalSubmitLoading(() => props.loading);
 
 function clearPreview() {
   cropper.value?.destroy();
@@ -171,10 +174,8 @@ onBeforeUnmount(clearPreview);
           :src="imageUrl"
           alt="待裁剪的头像"
           @load="initializeCropper"
-        >
-        <div v-else class="avatar-editor-dialog__empty">
-          选择图片后可拖动并裁剪头像
-        </div>
+        />
+        <div v-else class="avatar-editor-dialog__empty">选择图片后可拖动并裁剪头像</div>
       </div>
       <input
         ref="imageInput"
@@ -182,14 +183,12 @@ onBeforeUnmount(clearPreview);
         type="file"
         accept="image/jpeg,image/png,.jpg,.jpeg,.png"
         @change="handleImageChange"
-      >
+      />
     </section>
 
     <template #footer>
       <div class="avatar-editor-dialog__footer">
-        <el-button :disabled="isSaving" @click="chooseImage">
-          更换图片
-        </el-button>
+        <el-button :disabled="isSaving" @click="chooseImage"> 更换图片 </el-button>
         <el-button type="primary" :loading="isSaving" :disabled="isSaving" @click="save">
           保存头像
         </el-button>
