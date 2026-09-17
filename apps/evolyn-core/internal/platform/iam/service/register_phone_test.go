@@ -31,6 +31,23 @@ type phonePWUpdate struct {
 	initialized bool
 }
 
+// passwordSessionRevoker 记录密码变更对设备会话的撤销请求；它模拟安全会话域
+// 暴露给 IAM 的窄端口，避免账号服务反向依赖认证域的具体实现。
+type passwordSessionRevoker struct {
+	calls []passwordSessionRevokeCall
+}
+
+type passwordSessionRevokeCall struct {
+	accountID uint
+	exceptSID string
+	reason    string
+}
+
+func (r *passwordSessionRevoker) RevokeOthers(_ context.Context, accountID uint, exceptSID, reason string) (int64, error) {
+	r.calls = append(r.calls, passwordSessionRevokeCall{accountID: accountID, exceptSID: exceptSID, reason: reason})
+	return 1, nil
+}
+
 // boolPtr 帮助构造 *bool 桩值
 func boolPtr(v bool) *bool { return &v }
 
@@ -206,7 +223,7 @@ func TestChangePasswordFirstSetSkipsOldPassword(t *testing.T) {
 	svc := newPhoneSvc(accounts, &phoneUserRepo{members: map[uint]*model.User{}})
 
 	// 免密注册账号：不传旧密码也可首次设置
-	assert.NoError(t, svc.ChangePassword(context.Background(), 10, "", "newpass123"))
+	assert.NoError(t, svc.ChangePassword(context.Background(), 10, "", "", "newpass123"))
 	update := accounts.updatedPW[10]
 	assert.True(t, update.initialized)
 	assert.NoError(t, bcrypt.CompareHashAndPassword([]byte(update.hashed), []byte("newpass123")))
@@ -220,10 +237,31 @@ func TestChangePasswordRequiresOldPasswordWhenInitialized(t *testing.T) {
 	svc := newPhoneSvc(accounts, &phoneUserRepo{members: map[uint]*model.User{}})
 
 	// 已设置过密码：错误/缺失旧密码均拒绝
-	assert.Error(t, svc.ChangePassword(context.Background(), 10, "wrong-old", "newpass123"))
-	assert.Error(t, svc.ChangePassword(context.Background(), 10, "", "newpass123"))
+	assert.Error(t, svc.ChangePassword(context.Background(), 10, "", "wrong-old", "newpass123"))
+	assert.Error(t, svc.ChangePassword(context.Background(), 10, "", "", "newpass123"))
 
 	// 正确旧密码通过
-	assert.NoError(t, svc.ChangePassword(context.Background(), 10, "right-old", "newpass123"))
+	assert.NoError(t, svc.ChangePassword(context.Background(), 10, "", "right-old", "newpass123"))
 	assert.True(t, accounts.updatedPW[10].initialized)
+}
+
+// 修改密码后保留当前设备、撤销其他设备；JWT session_version 失效与设备会话
+// 撤销共同生效，避免旧 SID 仍显示为活跃设备。
+func TestChangePasswordRevokesOtherSessions(t *testing.T) {
+	hashed, err := bcrypt.GenerateFromPassword([]byte("right-old"), bcrypt.DefaultCost)
+	require.NoError(t, err)
+	accounts := newPhoneAccountRepo(&model.Account{
+		ID: 10, Name: "pwd-user", Password: string(hashed), PasswordInitialized: boolPtr(true),
+	})
+	revoker := new(passwordSessionRevoker)
+	svc := NewAccountService(
+		passThroughTx{}, accounts, &phoneUserRepo{members: map[uint]*model.User{}},
+		&phoneTenantRepo{}, fakeQuota{}, nil, revoker,
+	)
+
+	require.NoError(t, svc.ChangePassword(context.Background(), 10, "current-session", "right-old", "newpass123"))
+	require.Len(t, revoker.calls, 1)
+	assert.Equal(t, passwordSessionRevokeCall{
+		accountID: 10, exceptSID: "current-session", reason: passwordChangedRevokeReason,
+	}, revoker.calls[0])
 }

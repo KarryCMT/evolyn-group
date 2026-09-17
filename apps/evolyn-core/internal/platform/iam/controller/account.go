@@ -321,7 +321,11 @@ func (a *AccountController) ChangePassword(c *gin.Context) {
 		return
 	}
 
-	if err := a.accountService.ChangePassword(c.Request.Context(), accountID, req.OldPassword, newPlain); err != nil {
+	currentSID := ""
+	if claims := ginctx.GetSession(c); claims != nil {
+		currentSID = claims.SID
+	}
+	if err := a.accountService.ChangePassword(c.Request.Context(), accountID, currentSID, req.OldPassword, newPlain); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}

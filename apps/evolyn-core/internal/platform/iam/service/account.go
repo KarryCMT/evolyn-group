@@ -81,10 +81,21 @@ type accountService struct {
 	userRepo    repository.UserRepository
 	tenantRepo  tenantrepository.TenantRepository
 	quota       tenantservice.QuotaService
+	// sessionRevoker 是账号凭据变更到设备会话域的窄端口。IAM 不依赖认证域
+	// 具体仓储或模型，只要求能撤销账号的其他活跃会话。
+	sessionRevoker SessionRevoker
 	// audit 业务审计记录器（换绑手机号等安全敏感操作落审计；nil 容忍，
 	// 测试/无审计场景静默跳过，对齐 user/rbac 服务先例）
 	audit auditservice.Recorder
 }
+
+// SessionRevoker 是密码变更后的设备会话失效窄端口。安全会话仓储天然满足，
+// reason 使用稳定的存储值 password_changed，避免 IAM 反向依赖认证域模型。
+type SessionRevoker interface {
+	RevokeOthers(ctx context.Context, accountID uint, exceptSID, reason string) (int64, error)
+}
+
+const passwordChangedRevokeReason = "password_changed"
 
 // NewAccountService 账号服务：登录身份校验与账号生命周期；
 // 依赖成员仓储（注册即建默认租户成员）、租户仓储（登录指定 TenantCode 时解析）、
@@ -96,8 +107,9 @@ func NewAccountService(
 	tenantRepo tenantrepository.TenantRepository,
 	quota tenantservice.QuotaService,
 	audit auditservice.Recorder,
+	sessionRevokers ...SessionRevoker,
 ) AccountService {
-	return &accountService{
+	service := &accountService{
 		tx:          tx,
 		accountRepo: accountRepo,
 		userRepo:    userRepo,
@@ -105,6 +117,10 @@ func NewAccountService(
 		quota:       quota,
 		audit:       audit,
 	}
+	if len(sessionRevokers) > 0 {
+		service.sessionRevoker = sessionRevokers[0]
+	}
+	return service
 }
 
 // Auth 账号密码校验：登录名或手机号定位账号 → bcrypt 比对 → 解析登录成员。
@@ -692,13 +708,13 @@ func (s *accountService) ResetPasswordByPhone(ctx context.Context, phone, newPas
 	if err != nil {
 		return err
 	}
-	return s.accountRepo.UpdatePassword(ctx, account.ID, string(hashed), true)
+	return s.updatePasswordAndInvalidateSessions(ctx, account.ID, "", string(hashed))
 }
 
 // ChangePassword 账号自助：校验旧密码后重置。短信免密注册的账号
 // （PasswordInitialized=false，密码为服务端随机值）首次设置免旧密码，
 // 设置成功即置位，此后恢复常规旧密码校验
-func (s *accountService) ChangePassword(ctx context.Context, accountID uint, oldPassword, newPassword string) error {
+func (s *accountService) ChangePassword(ctx context.Context, accountID uint, currentSID, oldPassword, newPassword string) error {
 	if err := validatePasswordStrength(newPassword); err != nil {
 		return err
 	}
@@ -717,7 +733,23 @@ func (s *accountService) ChangePassword(ctx context.Context, accountID uint, old
 	if err != nil {
 		return err
 	}
-	return s.accountRepo.UpdatePassword(ctx, accountID, string(hashed), true)
+	return s.updatePasswordAndInvalidateSessions(ctx, accountID, currentSID, string(hashed))
+}
+
+// updatePasswordAndInvalidateSessions 将凭据更新与设备会话撤销置于同一事务：
+// session_version 使所有旧 JWT 在认证中间件立刻失效，设备会话撤销则同步
+// 收口会话列表与 SID 校验。任一环节失败都回滚，不能留下半完成的安全状态。
+func (s *accountService) updatePasswordAndInvalidateSessions(ctx context.Context, accountID uint, currentSID, hashed string) error {
+	return s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		if err := s.accountRepo.UpdatePassword(tctx, accountID, hashed, true); err != nil {
+			return err
+		}
+		if s.sessionRevoker == nil {
+			return nil
+		}
+		_, err := s.sessionRevoker.RevokeOthers(tctx, accountID, currentSID, passwordChangedRevokeReason)
+		return err
+	})
 }
 
 // ensurePhoneAvailable 换绑前置校验：格式合法且未被其他账号占用。

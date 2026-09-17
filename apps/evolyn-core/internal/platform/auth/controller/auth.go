@@ -37,7 +37,7 @@ type AuthController struct {
 	// registrationService 注册编排：向导最终提交的单事务落库（账号+画像+租户+owner）
 	registrationService authservice.RegistrationService
 	jwtService          *auth.JWTService
-	oauthManger         *oauth.OAuthManager
+	oauthManager        OAuthProviderResolver
 	tenantService       tenantservice.TenantService
 	smsService          *sms.Service
 	// 令牌吊销器：登出时拉黑 jti（P2-8，存量无 sid 令牌兼容）
@@ -55,12 +55,19 @@ type AuthController struct {
 	loginGuard *auth.LoginGuard
 }
 
-func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager *oauth.OAuthManager, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder, revoker *auth.TokenRevoker, sessions securityservice.SessionService, mfa securityservice.MFAService, loginGuard *auth.LoginGuard) platformcontroller.Controller {
+// OAuthProviderResolver 是 OAuth 提供者的窄端口。生产环境注入 OAuthManager，
+// 测试可替换为本地提供者，确保 OAuth 登录与短信登录共用 MFA 闸门的行为
+// 可以在不访问第三方网络的情况下验证。
+type OAuthProviderResolver interface {
+	GetAuthProvider(authType string) (oauth.AuthProvider, error)
+}
+
+func NewAuthController(accountService service.AccountService, registrationService authservice.RegistrationService, jwtService *auth.JWTService, oauthManager OAuthProviderResolver, tenantService tenantservice.TenantService, smsService *sms.Service, pkiKeypair *pki.Keypair, loginLog loginlogservice.Recorder, revoker *auth.TokenRevoker, sessions securityservice.SessionService, mfa securityservice.MFAService, loginGuard *auth.LoginGuard) platformcontroller.Controller {
 	return &AuthController{
 		accountService:      accountService,
 		registrationService: registrationService,
 		jwtService:          jwtService,
-		oauthManger:         oauthManager,
+		oauthManager:        oauthManager,
 		tenantService:       tenantService,
 		smsService:          smsService,
 		pkiKeypair:          pkiKeypair,
@@ -208,7 +215,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 		method = loginlogmodel.MethodSMS
 		account, member, err = ac.accountService.AuthByPhone(c.Request.Context(), auser.Phone, auser.TenantCode)
 	case !oauth.IsEmptyAuthType(auser.AuthType) && auser.Name == "" && auser.Phone == "":
-		provider, err := ac.oauthManger.GetAuthProvider(auser.AuthType)
+		provider, err := ac.oauthManager.GetAuthProvider(auser.AuthType)
 		if err != nil {
 			httpx.ResponseFailed(c, http.StatusBadRequest, err)
 			return

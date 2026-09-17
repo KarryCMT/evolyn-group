@@ -55,6 +55,57 @@ textarea {
   font-variant-numeric: tabular-nums;
 }
 
+// // 弹窗布局边界：Element Plus 默认在遮罩层内按顶部 margin 定位，长内容会表现为
+// // 整个页面/遮罩层滚动。普通弹窗统一由遮罩层居中，收敛为纵向 flex 容器；只有
+// // body 可滚动。全屏编辑器与抽屉不适用此规则，仍保留各自的布局模型。
+// .el-overlay-dialog {
+//   --app-dialog-inset: clamp(12px, 2vw, 24px);
+//   display: flex;
+//   align-items: center;
+//   justify-content: center;
+//   box-sizing: border-box;
+//   padding: var(--app-dialog-inset);
+//   overflow: hidden;
+//   overscroll-behavior: contain;
+// }
+
+// .el-overlay-dialog > .el-dialog:not(.is-fullscreen) {
+//   display: flex;
+//   min-width: 0;
+//   max-height: 100%;
+//   // 建立独立的层叠上下文：footer 在内容滚动层上方，避免长内容的命中区域覆盖操作按钮。
+//   isolation: isolate;
+//   // 覆盖 Dialog 的默认 15vh 及历史 top/margin 定位，保证由 overlay 居中。
+//   margin: 0 !important;
+//   flex-direction: column;
+// }
+
+// .el-overlay-dialog > .el-dialog:not(.is-fullscreen) > .el-dialog__body {
+//   // 从零基准参与收缩，预留 header/footer 的固定空间；不能以内容固有高度撑开 footer。
+//   flex: 1 1 0;
+//   min-width: 0;
+//   min-height: 0;
+//   // 纵向滚动不能让 overflow-x 保持 visible（会按 CSS 规则计算为 auto），
+//   // 否则子内容出现极小宽度溢出时也会生成横向滚动条。
+//   overflow-x: hidden;
+//   overflow-y: auto;
+//   overscroll-behavior: contain;
+// }
+
+// .el-overlay-dialog > .el-dialog:not(.is-fullscreen) > .el-dialog__footer {
+//   flex: 0 0 auto;
+//   position: relative;
+//   z-index: 1;
+//   min-width: 0;
+//   pointer-events: auto;
+//   background: var(--el-bg-color);
+// }
+
+// // 全屏编辑器占满遮罩层，不继承普通弹窗的安全内边距。
+// .el-overlay-dialog:has(> .el-dialog.is-fullscreen) {
+//   padding: 0;
+// }
+
 a {
   color: var(--el-color-primary);
 }

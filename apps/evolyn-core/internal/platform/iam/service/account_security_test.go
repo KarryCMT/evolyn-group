@@ -55,9 +55,9 @@ func TestChangePasswordRejectsWeakPassword(t *testing.T) {
 	svc := newPhoneSvc(accounts, &phoneUserRepo{members: map[uint]*model.User{}})
 
 	// 6 位旧口径密码不再放行（长度下限 8）
-	assert.Error(t, svc.ChangePassword(context.Background(), 10, "", "abc123"))
+	assert.Error(t, svc.ChangePassword(context.Background(), 10, "", "", "abc123"))
 	// 纯数字同样拒绝
-	assert.Error(t, svc.ChangePassword(context.Background(), 10, "", "12345678"))
+	assert.Error(t, svc.ChangePassword(context.Background(), 10, "", "", "12345678"))
 }
 
 // ---- 换绑手机号（上线前整改 P2） ----

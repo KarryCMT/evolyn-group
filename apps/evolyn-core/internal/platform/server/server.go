@@ -158,6 +158,10 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	loginLogRepo := loginlogrepository.NewRepository(db)
 	tenantRepo := tenantrepository.NewRepository(db, rdb)
 	iamRepo := repository.NewRepositories(db, rdb)
+	// 账号服务在密码变更时需经窄端口撤销其他设备会话，因此安全会话仓储必须
+	// 先于 IAM service 构造；它不引入 IAM→认证域的具体实现依赖。
+	securitySettingsRepo := securityrepository.NewSettingsRepository(db)
+	securitySessionRepo := securityrepository.NewSessionRepository(db)
 	// 应用域仓储先于配额服务装配：apps 计量面（CountBillableByTenant）随
 	// 应用域落地接入 QuotaService（M2-A）；菜单仓储随 M2-菜单-1 接入
 	appRepo := apprepository.NewRepository(db)
@@ -348,7 +352,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 		injector.UseProductSeeder(tenantProductService)
 	}
 	// 账号服务注入审计：换绑手机号等安全敏感操作落业务审计（best-effort）
-	accountService := service.NewAccountService(txManager, iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc, auditSvc)
+	accountService := service.NewAccountService(txManager, iamRepo.Account(), iamRepo.User(), tenantRepo, quotaSvc, auditSvc, securitySessionRepo)
 	userService := service.NewUserService(txManager, iamRepo.User(), iamRepo.Account(), iamRepo.RBAC(), iamRepo.Department(), quotaSvc, auditSvc, tenantRepo)
 	memberInvitationService := service.NewMemberInvitationService(txManager, iamRepo.Invitation(), iamRepo.Department(), iamRepo.Account(), userService, iamRepo.MemberProfile(), auditSvc)
 	departmentService := service.NewDepartmentService(iamRepo.Department(), iamRepo.User(), auditSvc)
@@ -464,8 +468,6 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	platformAccountController := iamcontroller.NewPlatformAccountController(platformAccountService)
 
 	// 账号安全子域（ADR-009）：会话/因子/恢复码/开关仓储 + 服务装配
-	securitySettingsRepo := securityrepository.NewSettingsRepository(db)
-	securitySessionRepo := securityrepository.NewSessionRepository(db)
 	// 会话清理 Worker 与会话仓储同处装配，避免 Server.Run 启动空指针任务。
 	sessionCleanupWorker := securityservice.NewSessionCleanupWorker(securitySessionRepo, 0, logger)
 	sessionService := securityservice.NewSessionService(txManager, securitySettingsRepo, securitySessionRepo)

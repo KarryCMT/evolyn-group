@@ -40,7 +40,10 @@ type AccountService interface {
 	UpdateProfile(ctx context.Context, account *model.Account) (*model.Account, error)
 	// BindEmail 仅由已完成双重验证码校验的控制器调用；email 已经认证域规范化。
 	BindEmail(ctx context.Context, accountID uint, email string) (*model.Account, error)
-	ChangePassword(ctx context.Context, accountID uint, oldPassword, newPassword string) error
+	// ChangePassword 修改密码并使其他设备会话立即失效。currentSID 是当前操作者
+	// 的设备会话，保留它避免用户修改成功后被自己踢下线；找回密码没有当前
+	// 会话时传空字符串，所有会话都会撤销。
+	ChangePassword(ctx context.Context, accountID uint, currentSID, oldPassword, newPassword string) error
 	// EnsurePhoneAvailable 换绑手机号可用性预检（格式 + 未被占用）：
 	// 供控制器在消费一次性短信验证码前调用，避免号码已占用时白白耗码
 	EnsurePhoneAvailable(ctx context.Context, phone string) error

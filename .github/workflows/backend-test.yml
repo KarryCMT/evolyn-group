@@ -1,0 +1,44 @@
+name: Backend tests
+
+on:
+  pull_request:
+    paths:
+      - "apps/evolyn-core/**"
+      - ".github/workflows/backend-test.yml"
+  push:
+    branches: ["1.0.0"]
+    paths:
+      - "apps/evolyn-core/**"
+      - ".github/workflows/backend-test.yml"
+
+jobs:
+  go-test:
+    name: Go tests with PostgreSQL
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/evolyn-core
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 20
+    env:
+      TEST_PG_DSN: postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: apps/evolyn-core/go.mod
+          cache-dependency-path: apps/evolyn-core/go.sum
+      - name: Run unit and PostgreSQL integration tests
+        run: go test ./...
