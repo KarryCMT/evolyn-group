@@ -657,8 +657,8 @@ async function submitFormAppearance(payload: { name: string; icon: string }): Pr
 
   try {
     await updateForm(target.targetCode, payload);
-    // 后台同步最新 menuRevision；刷新过程保留现有资产树，不中断当前表单填写。
-    void reloadMenu();
+    // 等最新菜单快照回填后才关闭弹窗，确保保存的图标会立即按当前类型展示。
+    await reloadMenu();
     ElMessage.success('名称和图标已修改');
     return true;
   } catch (error) {
@@ -734,6 +734,8 @@ function reloadWorkspace() {
         :model-value="formAppearanceVisible"
         :initial-name="formAppearanceTarget.label"
         :initial-icon="formAppearanceTarget.iconKey"
+        :menu-type="formAppearanceTarget.type"
+        :form-type="formAppearanceTarget.formType"
         :submit="submitFormAppearance"
         @success="closeFormAppearanceDialog"
         @update:model-value="updateFormAppearanceVisible"

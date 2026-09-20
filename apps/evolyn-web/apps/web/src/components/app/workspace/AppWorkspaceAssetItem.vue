@@ -25,6 +25,7 @@ import {
   RiStarFill,
 } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
+import MenuTypeIcon from './MenuTypeIcon.vue';
 
 defineOptions({ name: 'AppWorkspaceAssetItem' });
 
@@ -184,13 +185,25 @@ function handleAction(command: string | number | object) {
         @click="activateAsset"
       >
         <span v-if="isFolder" class="app-workspace-asset-item__icon-slot" aria-hidden="true">
-          <component :is="props.asset.icon" class="app-workspace-asset-item__folder-icon" />
+          <MenuTypeIcon
+            class="app-workspace-asset-item__folder-icon"
+            menu-type="group"
+            :icon-key="props.asset.iconKey"
+            :size="19"
+          />
           <component
             :is="expanded ? RiArrowDownSFill : RiArrowRightSFill"
             class="app-workspace-asset-item__group-toggle"
           />
         </span>
-        <component :is="props.asset.icon" v-else aria-hidden="true" />
+        <MenuTypeIcon
+          v-else
+          :menu-type="props.asset.type"
+          :form-type="props.asset.formType"
+          :icon-key="props.asset.iconKey"
+          :size="19"
+          :label="`${props.asset.label}图标`"
+        />
         <span>{{ props.asset.label }}</span>
       </button>
 
