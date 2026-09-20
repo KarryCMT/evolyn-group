@@ -12,13 +12,13 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"math"
 	"regexp"
 	"sort"
 	"strconv"
 	"strings"
 
 	"evolyn/internal/platform/form/model"
+	"evolyn/internal/platform/numeric"
 )
 
 const maxSubmitValidators = 50
@@ -262,7 +262,7 @@ func submitRulesDigest(content map[string]any) string {
 }
 func submitFormulaFieldAllowed(widget string) bool {
 	switch widget {
-	case "text", "textarea", "phone", "number", "money", "datetime", "radiogroup", "combo", "checkboxgroup", "combocheck":
+	case "text", "textarea", "phone", "number", "decimal", "money", "percent", "datetime", "radiogroup", "combo", "checkboxgroup", "combocheck":
 		return true
 	}
 	return false
@@ -477,6 +477,14 @@ func submitDisplay(v any) string {
 		return strings.Join(parts, "、")
 	case string:
 		return x
+	case numeric.Numeric:
+		// 公式中间值保持 Numeric，展示时才收敛回 decimal-string；执行器已
+		// 对中间精度设护栏，序列化失败时按空展示而不是偷偷降级为 float64。
+		text, err := x.Serialize()
+		if err != nil {
+			return ""
+		}
+		return text
 	case float64:
 		return strconv.FormatFloat(x, 'f', -1, 64)
 	case bool:
@@ -494,7 +502,7 @@ func evalSubmitExpr(node ast.Expr, values map[string]any, visible map[string]boo
 			text, err := strconv.Unquote(n.Value)
 			return text, err
 		}
-		return strconv.ParseFloat(n.Value, 64)
+		return numeric.Parse(n.Value)
 	case *ast.Ident:
 		if n.Name == "true" {
 			return true, nil
@@ -515,7 +523,7 @@ func evalSubmitExpr(node ast.Expr, values map[string]any, visible map[string]boo
 			return nil, e
 		}
 		if n.Op == token.SUB {
-			return -number, nil
+			return number.Negate()
 		}
 		return number, nil
 	case *ast.BinaryExpr:
@@ -552,22 +560,48 @@ func evalSubmitExpr(node ast.Expr, values map[string]any, visible map[string]boo
 	}
 	return nil, fmt.Errorf("unsupported program")
 }
-func submitNumber(v any) (float64, error) {
+
+// submitNumber 是提交公式进入高精度数值域的唯一入口。number 控件的历史
+// JSON number 会以 float64 抵达此处；这里仅格式化其既有值，后续所有算术、
+// 比较和舍入均禁止使用 float64，金额/百分比 decimal-string 更不会丢精度。
+func submitNumber(v any) (numeric.Numeric, error) {
 	switch x := v.(type) {
-	case float64:
+	case numeric.Numeric:
 		return x, nil
+	case float64:
+		return numeric.Parse(strconv.FormatFloat(x, 'f', -1, 64))
+	case float32:
+		return numeric.Parse(strconv.FormatFloat(float64(x), 'f', -1, 32))
 	case int:
-		return float64(x), nil
+		return numeric.Parse(strconv.Itoa(x))
+	case int8:
+		return numeric.Parse(strconv.FormatInt(int64(x), 10))
+	case int16:
+		return numeric.Parse(strconv.FormatInt(int64(x), 10))
+	case int32:
+		return numeric.Parse(strconv.FormatInt(int64(x), 10))
+	case int64:
+		return numeric.Parse(strconv.FormatInt(x, 10))
+	case uint:
+		return numeric.Parse(strconv.FormatUint(uint64(x), 10))
+	case uint8:
+		return numeric.Parse(strconv.FormatUint(uint64(x), 10))
+	case uint16:
+		return numeric.Parse(strconv.FormatUint(uint64(x), 10))
+	case uint32:
+		return numeric.Parse(strconv.FormatUint(uint64(x), 10))
+	case uint64:
+		return numeric.Parse(strconv.FormatUint(x, 10))
 	case json.Number:
-		return x.Float64()
+		return numeric.Parse(string(x))
 	case string:
-		return strconv.ParseFloat(x, 64)
+		return numeric.Parse(x)
 	}
-	return 0, fmt.Errorf("not a number")
+	return numeric.Numeric{}, fmt.Errorf("not a number")
 }
 func evalSubmitBinary(op token.Token, l, r any) (any, error) {
 	switch op {
-	case token.ADD, token.SUB, token.MUL, token.QUO:
+	case token.ADD, token.SUB, token.MUL, token.QUO, token.REM:
 		a, e := submitNumber(l)
 		if e != nil {
 			return nil, e
@@ -576,47 +610,46 @@ func evalSubmitBinary(op token.Token, l, r any) (any, error) {
 		if e != nil {
 			return nil, e
 		}
-		if op == token.ADD {
-			return a + b, nil
+		switch op {
+		case token.ADD:
+			return a.Add(b)
+		case token.SUB:
+			return a.Subtract(b)
+		case token.MUL:
+			return a.Multiply(b)
+		case token.QUO:
+			return a.Divide(b)
+		default:
+			return a.Mod(b)
 		}
-		if op == token.SUB {
-			return a - b, nil
-		}
-		if op == token.MUL {
-			return a * b, nil
-		}
-		if b == 0 {
-			return nil, fmt.Errorf("division by zero")
-		}
-		return a / b, nil
 	case token.EQL:
-		return submitCompare(l, r) == 0, nil
+		order, err := submitCompare(l, r)
+		return order == 0, err
 	case token.NEQ:
-		return submitCompare(l, r) != 0, nil
+		order, err := submitCompare(l, r)
+		return order != 0, err
 	case token.GTR:
-		return submitCompare(l, r) > 0, nil
+		order, err := submitCompare(l, r)
+		return order > 0, err
 	case token.GEQ:
-		return submitCompare(l, r) >= 0, nil
+		order, err := submitCompare(l, r)
+		return order >= 0, err
 	case token.LSS:
-		return submitCompare(l, r) < 0, nil
+		order, err := submitCompare(l, r)
+		return order < 0, err
 	case token.LEQ:
-		return submitCompare(l, r) <= 0, nil
+		order, err := submitCompare(l, r)
+		return order <= 0, err
 	}
 	return nil, fmt.Errorf("operator not allowed")
 }
-func submitCompare(a, b any) int {
-	if af, e := submitNumber(a); e == nil {
-		if bf, e := submitNumber(b); e == nil {
-			if af < bf {
-				return -1
-			}
-			if af > bf {
-				return 1
-			}
-			return 0
+func submitCompare(a, b any) (int, error) {
+	if left, leftErr := submitNumber(a); leftErr == nil {
+		if right, rightErr := submitNumber(b); rightErr == nil {
+			return left.Compare(right)
 		}
 	}
-	return strings.Compare(submitDisplay(a), submitDisplay(b))
+	return strings.Compare(submitDisplay(a), submitDisplay(b)), nil
 }
 func evalSubmitFunction(name string, args []any) (any, error) {
 	switch name {
@@ -651,7 +684,7 @@ func evalSubmitFunction(name string, args []any) (any, error) {
 	case "ISBLANK", "ISEMPTY":
 		return args[0] == nil || submitDisplay(args[0]) == "", nil
 	case "LEN":
-		return float64(len([]rune(submitDisplay(args[0])))), nil
+		return numeric.Parse(strconv.Itoa(len([]rune(submitDisplay(args[0])))))
 	case "CONCATENATE":
 		var b strings.Builder
 		for _, a := range args {
@@ -666,24 +699,43 @@ func evalSubmitFunction(name string, args []any) (any, error) {
 		return strings.Join(strings.Fields(submitDisplay(args[0])), " "), nil
 	case "ABS":
 		n, e := submitNumber(args[0])
-		return math.Abs(n), e
+		if e != nil {
+			return nil, e
+		}
+		return n.Abs()
 	case "ROUND":
 		n, e := submitNumber(args[0])
 		if e != nil {
 			return nil, e
 		}
-		p := 0
+		p := int32(0)
 		if len(args) > 1 {
 			x, e := submitNumber(args[1])
 			if e != nil {
 				return nil, e
 			}
-			p = int(x)
+			p, e = submitScale(x)
+			if e != nil {
+				return nil, e
+			}
 		}
-		f := math.Pow10(p)
-		return math.Round(n*f) / f, nil
+		return n.Round(p, numeric.ModeHalfUp)
 	}
 	return nil, fmt.Errorf("function not allowed")
+}
+
+// submitScale 将 ROUND 的第二个参数限制为 Numeric 域支持的非负整数位数，
+// 避免通过 float64 截断 1.9 这类非法参数。
+func submitScale(value numeric.Numeric) (int32, error) {
+	text, err := value.Serialize()
+	if err != nil {
+		return 0, err
+	}
+	parsed, err := strconv.ParseInt(text, 10, 32)
+	if err != nil || parsed < 0 || parsed > int64(numeric.DefaultMaxScale) {
+		return 0, fmt.Errorf("ROUND scale must be an integer between 0 and %d", numeric.DefaultMaxScale)
+	}
+	return int32(parsed), nil
 }
 
 var _ = bytes.Compare // keeps bytes imported for compiler versions that elide SHA helper internals differently

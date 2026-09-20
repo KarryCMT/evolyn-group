@@ -38,8 +38,12 @@ var widgetVariableTypes = map[string]FieldMeta{
 	"textarea": {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
 	"phone":    {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
 	"number":   {ValueType: ValueTypeNumber, DisplayType: "数字", FormulaAllowed: true},
+	// decimal/money/percent 都以 decimal-string 提交；运行时由 Numeric Domain
+	// 解析，不能因为 JSON 形态是 string 就把它们降级为文本变量。
+	"decimal": {ValueType: ValueTypeNumber, DisplayType: "小数", FormulaAllowed: true},
 	// 金额能进入公式；跨币种兼容性由服务端发布编译和前端分析器共同校验。
 	"money":         {ValueType: ValueTypeNumber, DisplayType: "金额", FormulaAllowed: true},
+	"percent":       {ValueType: ValueTypeNumber, DisplayType: "百分比", FormulaAllowed: true},
 	"datetime":      {ValueType: ValueTypeDate, DisplayType: "时间戳", FormulaAllowed: true},
 	"radiogroup":    {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},
 	"combo":         {ValueType: ValueTypeText, DisplayType: "文本", FormulaAllowed: true},

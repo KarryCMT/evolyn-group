@@ -89,6 +89,27 @@ describe('projectFormulaContext', () => {
     ]);
   });
 
+  it('将 decimal 与 percent 作为高精度数值变量投影', () => {
+    const fields = projectFormulaContext([
+      item('decimal', '_widget_decimal', '折后单价'),
+      item('percent', '_widget_percent', '税率'),
+    ]);
+    expect(fields).toEqual([
+      expect.objectContaining({
+        widgetName: '_widget_decimal',
+        valueType: 'number',
+        displayType: '小数',
+        formulaAllowed: true,
+      }),
+      expect.objectContaining({
+        widgetName: '_widget_percent',
+        valueType: 'number',
+        displayType: '百分比',
+        formulaAllowed: true,
+      }),
+    ]);
+  });
+
   it('将子表单子项投影为不可插入的数组变量', () => {
     const child = item('text', '_widget_product', '商品名称');
     const subform = {

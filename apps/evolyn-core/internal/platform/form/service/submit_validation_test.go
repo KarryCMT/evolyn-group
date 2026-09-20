@@ -79,6 +79,29 @@ func TestCompileSubmitRulesRejectsCrossCurrencyMoneyCalculation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestCompiledSubmitRulesUseNumericDomainForDecimalStrings(t *testing.T) {
+	root := map[string]any{"content": map[string]any{
+		"items": []any{
+			map[string]any{"label": "单价", "widget": map[string]any{"type": "money", "widgetName": "unit_price", "currencyCode": "CNY", "visible": true}},
+			map[string]any{"label": "数量", "widget": map[string]any{"type": "decimal", "widgetName": "quantity", "visible": true}},
+		},
+		"validators": []any{
+			map[string]any{"formula": "$unit_price# * $quantity# == 0.3", "remind": "金额计算错误", "realtime": false, "failAction": 0, "remark": ""},
+			map[string]any{"formula": "ROUND($unit_price# / 3, 2) == 0.03", "remind": "舍入错误", "realtime": false, "failAction": 0, "remark": ""},
+		},
+		"preSubmitConfirm": map[string]any{"enable": false, "title": "确认", "content": "确认"},
+	}}
+	compiled, err := CompileSubmitRules(root, 7)
+	require.NoError(t, err)
+
+	failures, err := ValidateCompiledSubmitRules(compiled, root, 7, map[string]any{
+		"unit_price": "0.1",
+		"quantity":   "3",
+	})
+	require.NoError(t, err)
+	require.Empty(t, failures)
+}
+
 func TestPublishRejectsExistingAddGroupMissingSubmitRuleField(t *testing.T) {
 	content := map[string]any{"content": map[string]any{
 		"items":            []any{map[string]any{"label": "联系电话", "widget": map[string]any{"type": "text", "widgetName": "phone", "visible": true}}},
