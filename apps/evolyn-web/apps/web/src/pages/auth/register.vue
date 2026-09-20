@@ -16,7 +16,7 @@ import { useAuth } from '~/composables';
 
 const route = useRoute();
 const router = useRouter();
-const { applyJwt, loadUserInfo } = useAuth();
+const { establishSession, loadUserInfo } = useAuth();
 
 const step = shallowRef(0);
 const submitting = shallowRef(false);
@@ -91,7 +91,7 @@ function handleTenantSubmit(profile: { tenantName: string; demand?: string; indu
 /**
  * 第 3 步「进入产品」：一次性提交三步采集的全量数据——服务端单事务完成
  *  注册账号、落账号画像（昵称同步 owner 成员称呼）、开通/复用租户并绑定
- *  owner；返回的令牌直接绑定新租户，已注册手机号等价短信登录（created=false）
+ *  owner；返回后端建立的会话直接绑定新租户，已注册手机号等价短信登录（created=false）
  */
 async function handleProfileSubmit(profile: { nickname: string; role: string; channel: string }) {
   const tenant = tenantProfile.value;
@@ -112,7 +112,7 @@ async function handleProfileSubmit(profile: { nickname: string; role: string; ch
       tenantInvite:
         typeof route.query.tenantInvite === 'string' ? route.query.tenantInvite : undefined,
     });
-    applyJwt(result);
+    establishSession();
     // 注册即登录：跳首页前拉齐聚合信息（账号/成员/租户/配额），失败不阻断跳转
     await loadUserInfo();
     if (!result.created) {

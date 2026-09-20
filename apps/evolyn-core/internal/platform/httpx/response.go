@@ -14,10 +14,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// Cookie 名称（登录态）：token 为 JWT，loginUser 为前端展示用的用户信息
+// Cookie 名称（登录态）：token 为 HttpOnly JWT，sessionMode 保存非敏感的持久化偏好。
 const (
 	CookieTokenName = `token`
-	CookieLoginUser = `loginUser`
+	// CookieSessionMode 保存「下次自动登录」的非敏感偏好；认证凭据始终只在
+	// CookieTokenName 中以 HttpOnly 形式保存。切换租户时据此保持会话/持久化语义。
+	CookieSessionMode = `sessionMode`
 )
 
 // 未知服务端错误的对外兜底文案（ADR-008 脱敏原则：原始错误只进日志）
@@ -82,7 +84,7 @@ func ResponseFailed(c *gin.Context, code int, err error) {
 	if code == http.StatusUnauthorized && c.Request != nil {
 		if val, err := c.Cookie(CookieTokenName); err == nil && val != "" {
 			c.SetCookie(CookieTokenName, "", -1, "/", "", true, true)
-			c.SetCookie(CookieLoginUser, "", -1, "/", "", true, false)
+			c.SetCookie(CookieSessionMode, "", -1, "/", "", true, true)
 		}
 	}
 

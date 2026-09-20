@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -49,6 +50,31 @@ func TestLoginSessionDoesNotIssueBeforeTokenPreparation(t *testing.T) {
 	_, err := controller.loginSession(ctx, nil, &model.User{}, false, securitymodel.AuthMethodPassword, "")
 	require.Error(t, err)
 	assert.Zero(t, sessions.issueCalls)
+}
+
+func TestWriteSessionCookieUsesHttpOnlyJWTWithoutLoginUserPayload(t *testing.T) {
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/v1/auth/token", nil)
+
+	controller := &AuthController{}
+	controller.writeSessionCookie(ctx, "signed-jwt", true)
+
+	headers := recorder.Header().Values("Set-Cookie")
+	require.Len(t, headers, 2)
+	assert.Contains(t, headers[0], "token=signed-jwt")
+	assert.Contains(t, headers[0], "HttpOnly")
+	assert.Contains(t, headers[0], "Secure")
+	assert.Contains(t, headers[0], "SameSite=Lax")
+	assert.Contains(t, headers[1], "sessionMode=persistent")
+	assert.NotContains(t, strings.Join(headers, "\n"), "loginUser=", "成员资料不得落入浏览器 Cookie")
+}
+
+func TestLoginResponsesNeverSerializeJWT(t *testing.T) {
+	body, err := json.Marshal(loginResult{})
+	require.NoError(t, err)
+	assert.NotContains(t, string(body), "token")
+	assert.NotContains(t, string(body), "signed-jwt")
 }
 
 // stubSessionService 仅验证控制器构造时的依赖注入；该用例不执行会话操作。

@@ -3,7 +3,7 @@
 // 关键行为：
 // - 成功响应解包返回 data 字段（空数据规范化为 null）
 // - 失败（非 2xx / 网络 / 超时）统一抛 ApiError（status + errCode，msg 可直接展示）
-// - 令牌经 ../auth 读取，Authorization 头固定 Bearer 方案
+// - 身份凭据只由浏览器自动携带的 HttpOnly Cookie 提供，前端不读取 JWT
 // - 接口地址惰性读取 useGlobSetting（配置注入发生在应用入口，晚于本模块加载）
 
 import type { AxiosInstance, AxiosResponse } from 'axios';
@@ -16,7 +16,6 @@ import { getRequestMessage } from './message';
 import { useGlobSetting } from '../setting/globSetting';
 import { RequestEnum, ContentTypeEnum } from '../enums/httpEnum';
 import { isString } from '../is';
-import { getToken } from '../auth';
 import { setObjToUrlParams, deepMerge } from '../is';
 import { joinTimestamp, formatRequestDate } from './helper';
 import { AxiosRetry } from './axiosRetry';
@@ -102,18 +101,8 @@ const transform: AxiosTransform = {
     return config;
   },
 
-  /**
-   * @description: 请求拦截器：携带 Bearer 令牌（每次请求动态读取，登录后立即生效）
-   */
-  requestInterceptors: (config, options) => {
-    const token = getToken();
-    if (token && (config as Recordable)?.requestOptions?.withToken !== false) {
-      (config as Recordable).headers.Authorization = options.authenticationScheme
-        ? `${options.authenticationScheme} ${token}`
-        : token;
-    }
-    return config;
-  },
+  /** HttpOnly Cookie 由浏览器自动附带；禁止从 JavaScript 构造 Authorization 头。 */
+  requestInterceptors: (config) => config,
 
   /**
    * @description: 响应拦截器：透传
@@ -174,8 +163,8 @@ function createAxios(opt?: Partial<CreateAxiosOptions>) {
     deepMerge(
       {
         // See https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#authentication_schemes
-        // JWT Bearer 方案，与后端认证中间件约定一致
-        authenticationScheme: 'Bearer',
+        // 跨源部署时允许浏览器携带 HttpOnly 会话 Cookie；服务端 CORS 只接受白名单 Origin。
+        withCredentials: true,
         timeout: 1000 * 1000,
 
         headers: { 'Content-Type': ContentTypeEnum.JSON },

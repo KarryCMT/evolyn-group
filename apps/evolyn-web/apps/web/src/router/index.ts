@@ -31,14 +31,19 @@ declare module 'vue-router' {
 // 全局守卫：未登录访问受保护页面时跳转登录页并携带回跳地址；
 // 已登录再访问登录页则直接回首页，避免会话内重复登录
 router.beforeEach(async (to) => {
-  const { isAuthenticated, userInfo, loadUserInfo } = useAuth();
+  const { isAuthenticated, userInfo, loadUserInfo, restoreSession } = useAuth();
+
+  // 刷新页面后前端没有任何可读凭据，必须用 HttpOnly Cookie 请求确认会话。
+  if (!isAuthenticated.value && (await restoreSession())) {
+    // restoreSession 已更新响应式认证状态，继续执行下方的登录页重定向规则。
+  }
 
   if (!to.meta.public && !isAuthenticated.value) {
     return createLoginRedirectPath(to.fullPath);
   }
 
   // 仅在已恢复聚合信息时才让已登录用户离开登录页。后端不可用时，
-  // userInfo 拉取会失败但本地令牌仍在；若此处仅以 token 判断，会与下方
+  // userInfo 拉取会失败但 Cookie 会话仍可能有效；若此处仅以内存状态判断，会与下方
   // 「受保护页拉取失败后跳登录」形成 dashboard → login → dashboard 的请求循环。
   if (to.name === 'login' && isAuthenticated.value && userInfo.value) {
     return { path: '/' };

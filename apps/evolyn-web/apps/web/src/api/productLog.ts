@@ -1,6 +1,6 @@
 // 产品日志接口：与后端 /api/v1/product-logs 一一对应
 // （见 evolyn-core internal/platform/productlog/controller/product_log.go）
-import { getToken, http, useGlobSetting } from '@evolyn.do/utils';
+import { http, useGlobSetting } from '@evolyn.do/utils';
 
 /** 产品日志行（受控投影：不含请求 ID/用户代理/原始快照/内部资源 ID） */
 export interface ProductLogItem {
@@ -118,14 +118,13 @@ export function getProductLogExport(id: number): Promise<ProductExportTaskView> 
 }
 
 /**
- * 下载导出文件（CSV）：下载端点返回文件流而非统一响应信封，携带 Bearer
- * 令牌走原生 fetch；失败时解析信封错误文案抛出（页面统一提示）
+ * 下载导出文件（CSV）：下载端点返回文件流而非统一响应信封，认证由浏览器
+ * 自动携带的 HttpOnly Cookie 完成；失败时解析信封错误文案抛出（页面统一提示）
  */
 export async function downloadProductLogExport(id: number): Promise<Blob> {
   const { apiUrl } = useGlobSetting();
-  const token = getToken();
   const response = await fetch(`${apiUrl}/product-logs/exports/${id}/download`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: 'include',
   });
   if (!response.ok) {
     // 失败响应为统一 {code, errCode, msg} 信封：尽量透出后端文案

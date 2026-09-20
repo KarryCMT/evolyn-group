@@ -12,7 +12,7 @@ import { useAuth } from '~/composables';
 
 const route = useRoute();
 const router = useRouter();
-const { applyJwt, isAuthenticated, loadUserInfo, switchTenant } = useAuth();
+const { establishSession, isAuthenticated, loadUserInfo, switchTenant } = useAuth();
 
 const submitting = shallowRef(false);
 const smsSentVersion = shallowRef(0);
@@ -57,7 +57,7 @@ async function handleSubmit(payload: { phone: string; smsCode: string; nickname:
   submitting.value = true;
   try {
     const result = await registerPublicInvitation({ ...payload, inviteToken: inviteToken.value });
-    applyJwt(result);
+    establishSession();
     await loadUserInfo();
     ElMessage.success(result.created ? '注册完成，欢迎加入企业！' : '已加入企业，欢迎回来！');
     await router.replace('/');

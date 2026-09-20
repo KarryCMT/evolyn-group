@@ -1,11 +1,11 @@
 import type {
-  JwtToken,
   LoginPayload,
   LoginResult,
   OpenTenantPayload,
   PublicInvitationRegisterPayload,
   RegisterCompletePayload,
   RegisterResult,
+  SessionEstablished,
   Tenant,
   TenantMembership,
   UserInfoResult,
@@ -26,22 +26,22 @@ export function sendSmsCode(
   return http.post('/auth/sms/send', { phone, scene, purpose });
 }
 
-/** 密码登录（用户名/手机号 + 密码），成功返回 JWT */
+/** 密码登录（用户名/手机号 + 密码），成功由服务端写入 HttpOnly 会话 Cookie。 */
 export function login(payload: LoginPayload): Promise<LoginResult> {
   return http.post('/auth/token', payload);
 }
 
-/** 消费登录第一步返回的 MFA challenge，成功后才得到设备会话 JWT。 */
+/** 消费登录第一步返回的 MFA challenge，成功后才建立设备会话 Cookie。 */
 export function verifyMfaLogin(payload: {
   mfaChallenge: string;
   method: 'totp' | 'recovery';
   code: string;
-}): Promise<JwtToken> {
+}): Promise<SessionEstablished> {
   return http.post('/auth/mfa/verify', payload);
 }
 
-/** OAuth 登录（github/wechat 授权码换取平台会话） */
-export function oauthLogin(authType: string, authCode: string): Promise<JwtToken> {
+/** OAuth 登录（github/wechat 授权码换取 HttpOnly 平台会话） */
+export function oauthLogin(authType: string, authCode: string): Promise<SessionEstablished> {
   return http.post('/auth/token', { authType, authCode });
 }
 
@@ -53,7 +53,7 @@ export function logout(): Promise<null> {
 /**
  * 注册（注册向导最终提交「进入产品」）：三步采集的全量数据一次性上送，
  *  服务端单事务完成免密注册账号（已注册手机号等价短信登录，created=false）、
- *  落账号画像、开通租户并绑定 tenant-admin，返回绑定新租户的会话令牌。
+ *  落账号画像、开通租户并绑定 tenant-admin，并建立绑定新租户的 HttpOnly 会话。
  *  验证码随本请求一次性校验，超有效期返回 401 需回第 1 步重新获取
  */
 export function registerComplete(payload: RegisterCompletePayload): Promise<RegisterResult> {
@@ -91,8 +91,8 @@ export function listTenants(): Promise<TenantMembership[]> {
   return http.get('/auth/tenants');
 }
 
-/** 切换当前租户成员身份：后端重新签发令牌，前端原位替换 */
-export function switchTenant(tenantId: number): Promise<JwtToken> {
+/** 切换当前租户成员身份：后端更新 HttpOnly 会话 Cookie。 */
+export function switchTenant(tenantId: number): Promise<SessionEstablished> {
   return http.post('/auth/token/switch', { tenantId });
 }
 

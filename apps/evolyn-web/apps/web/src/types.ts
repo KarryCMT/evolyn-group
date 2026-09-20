@@ -7,10 +7,12 @@ export type UserModule = (app: App) => void;
 // ---------- 认证域 API 契约（与 evolyn-core internal/platform 对齐） ----------
 // 后端统一响应结构由 @evolyn.do/utils 的 Result 类型承载（请求层已统一解包）
 
-/** 登录完成后签发的 JWT。 */
-export interface JwtToken {
-  token: string;
-  describe: string;
+/**
+ * 登录完成后服务端已写入 HttpOnly 会话 Cookie。JWT 不通过 JSON 返回，前端只以
+ * 此确认响应和后续 /auth/userinfo 判断认证状态。
+ */
+export interface SessionEstablished {
+  mfaRequired?: false;
 }
 
 /** 登录第一步结果：启用 MFA 时不返回令牌，只给出五分钟一次性 challenge。 */
@@ -20,7 +22,7 @@ export interface LoginMfaChallenge {
   token?: never;
 }
 
-export type LoginResult = JwtToken | LoginMfaChallenge;
+export type LoginResult = SessionEstablished | LoginMfaChallenge;
 
 /** 登录请求（model.AuthUser）：name/phone + 密码，或 phone + smsCode（验证码登录） */
 export interface LoginPayload {
@@ -32,6 +34,8 @@ export interface LoginPayload {
   smsCode?: string;
   /** 指定登录目标租户编码；缺省取账号第一个成员关系（默认租户体验） */
   tenantCode?: string;
+  /** 仅登录流程内部传给服务端，决定会话 Cookie 是否跨浏览器重启保留。 */
+  setCookie?: boolean;
 }
 
 /**
@@ -58,9 +62,9 @@ export interface RegisterCompletePayload {
 
 /**
  * 注册结果：单事务完成注册（账号+画像+租户+owner 绑定）后直接返回绑定
- *  新租户的会话令牌；created=false 表示手机号已注册（等价短信登录）
+ *  新租户的 HttpOnly 会话；created=false 表示手机号已注册（等价短信登录）
  */
-export interface RegisterResult extends JwtToken {
+export interface RegisterResult extends SessionEstablished {
   created: boolean;
 }
 

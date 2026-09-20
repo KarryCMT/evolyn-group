@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -111,22 +110,19 @@ func (ac *AuthController) recordLogin(c *gin.Context, account *model.Account, me
 // loginSession 登录成功后的签发与 Cookie 写入：token 绑定
 // 「账号+成员+租户+设备会话（sid）」（ADR-009）。authMethod 声明第一步
 // 通过的证据类别（password/sms/oauth/register），落入会话流水
-func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, member *model.User, setCookie bool, authMethod, mfaMethod string) (string, error) {
+func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, member *model.User, remember bool, authMethod, mfaMethod string) (string, error) {
 	var (
-		cookieMember string
-		token        string
-		err          error
+		token string
+		err   error
 	)
-	if setCookie {
-		memberJSON, marshalErr := json.Marshal(member)
-		if marshalErr != nil {
-			return "", marshalErr
-		}
-		cookieMember = string(memberJSON)
-	}
 
 	if ac.sessions == nil {
-		return ac.jwtService.CreateToken(account, member, nil)
+		token, createErr := ac.jwtService.CreateToken(account, member, nil)
+		if createErr != nil {
+			return "", createErr
+		}
+		ac.writeSessionCookie(c, token, remember)
+		return token, nil
 	}
 
 	// 单会话模式会在 Issue 的事务中撤销其他会话。JWT 签名和 Cookie 序列化
@@ -158,19 +154,38 @@ func (ac *AuthController) loginSession(c *gin.Context, account *model.Account, m
 		return "", err
 	}
 
-	if setCookie {
-		c.SetCookie(httpx.CookieTokenName, token, 3600*24, "/", "", true, true)
-		c.SetCookie(httpx.CookieLoginUser, cookieMember, 3600*24, "/", "", true, false)
-	}
+	ac.writeSessionCookie(c, token, remember)
 
 	return token, nil
 }
 
-// loginResult 同时覆盖普通登录与 MFA 第一阶段；普通登录仍返回 token，兼容
-// 既有调用方，启用 MFA 时仅返回 mfaRequired/mfaChallenge，绝不提前签发 JWT。
+// writeSessionCookie 是浏览器会话凭据的唯一出口。JWT 绝不再经 JSON 返回或由
+// JavaScript 保存；remember=false 时 MaxAge=0，浏览器关闭即失效。Cookie 使用
+// SameSite=Lax 降低跨站请求携带风险，跨源调用仍受严格 CORS Origin 白名单约束。
+func (ac *AuthController) writeSessionCookie(c *gin.Context, token string, remember bool) {
+	maxAge := 0
+	if remember {
+		maxAge = 3600 * 24
+	}
+	c.SetSameSite(http.SameSiteLaxMode)
+	c.SetCookie(httpx.CookieTokenName, token, maxAge, "/", "", true, true)
+	if remember {
+		c.SetCookie(httpx.CookieSessionMode, "persistent", maxAge, "/", "", true, true)
+		return
+	}
+	c.SetCookie(httpx.CookieSessionMode, "", -1, "/", "", true, true)
+}
+
+// rememberSession 从受保护的模式 Cookie 还原持久化偏好。普通会话不携带该 Cookie，
+// 因而租户切换后的新 JWT 仍会在浏览器关闭时失效。
+func rememberSession(c *gin.Context) bool {
+	mode, err := c.Cookie(httpx.CookieSessionMode)
+	return err == nil && mode == "persistent"
+}
+
+// loginResult 同时覆盖普通登录与 MFA 第一阶段。成功响应仅确认 Cookie 会话已建立；
+// 启用 MFA 时只返回 mfaRequired/mfaChallenge，绝不提前签发 JWT。
 type loginResult struct {
-	Token        string `json:"token,omitempty"`
-	Describe     string `json:"describe,omitempty"`
 	MFARequired  bool   `json:"mfaRequired"`
 	MFAChallenge string `json:"mfaChallenge,omitempty"`
 }
@@ -183,7 +198,7 @@ type loginResult struct {
 // @Produce json
 // @Tags 认证
 // @Param user body model.AuthUser true "auth info"
-// @Success 200 {object} httpx.Response{data=model.JWTToken}
+// @Success 200 {object} httpx.Response{data=controller.loginResult}
 // @Failure 401 {object} httpx.Response "UNAUTHORIZED·凭证错误（AUTH_SMS_INVALID/AUTH_CREDENTIALS_INVALID）"
 // @Failure 429 {object} httpx.Response "AUTH_LOGIN_LOCKED·失败次数过多已临时锁定"
 // @Router /api/v1/auth/token [post]
@@ -295,7 +310,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 		}
 	}
 
-	token, err := ac.loginSession(c, account, member, auser.SetCookie, sessionMethod, "")
+	_, err = ac.loginSession(c, account, member, auser.SetCookie, sessionMethod, "")
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -303,10 +318,7 @@ func (ac *AuthController) Login(c *gin.Context) {
 
 	ac.recordLogin(c, account, member, method)
 
-	httpx.ResponseSuccess(c, loginResult{
-		Token:    token,
-		Describe: "set token in Authorization Header, [Authorization: Bearer {token}]",
-	})
+	httpx.ResponseSuccess(c, loginResult{})
 }
 
 type mfaVerifyRequest struct {
@@ -347,13 +359,13 @@ func (ac *AuthController) VerifyMFA(c *gin.Context) {
 		httpx.ResponseFailed(c, http.StatusUnauthorized, err)
 		return
 	}
-	token, err := ac.loginSession(c, account, member, challenge.SetCookie, challenge.AuthMethod, mfaMethod)
+	_, err = ac.loginSession(c, account, member, challenge.SetCookie, challenge.AuthMethod, mfaMethod)
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
 	}
 	ac.recordLogin(c, account, member, challenge.AuthMethod)
-	httpx.ResponseSuccess(c, loginResult{Token: token, Describe: "set token in Authorization Header, [Authorization: Bearer {token}]"})
+	httpx.ResponseSuccess(c, loginResult{})
 }
 
 // @Summary 退出登录
@@ -399,7 +411,7 @@ func (ac *AuthController) Logout(c *gin.Context) {
 	}
 
 	c.SetCookie(httpx.CookieTokenName, "", -1, "/", "", true, true)
-	c.SetCookie(httpx.CookieLoginUser, "", -1, "/", "", true, false)
+	c.SetCookie(httpx.CookieSessionMode, "", -1, "/", "", true, true)
 	httpx.ResponseSuccess(c, nil)
 }
 
@@ -480,12 +492,10 @@ func validateRegisterEnums(req *registerRequest) error {
 	return nil
 }
 
-// registerTokenResult 注册结果：注册完成即登录，返回绑定新租户的会话令牌；
+// registerTokenResult 注册结果：注册完成即建立绑定新租户的 HttpOnly 会话；
 // created=false 表示手机号已注册（等价短信登录，向导重试幂等）
 type registerTokenResult struct {
-	Token    string `json:"token"`
-	Describe string `json:"describe"`
-	Created  bool   `json:"created"`
+	Created bool `json:"created"`
 }
 
 // @Summary 注册（注册向导最终提交）
@@ -617,7 +627,7 @@ func (ac *AuthController) completeRegistration(c *gin.Context, req *authservice.
 	}
 
 	// 注册即登录：令牌直接绑定新租户 owner 成员（免客户端再走切换）
-	token, err := ac.loginSession(c, result.Account, result.Member, false, secmodel.AuthMethodRegister, "")
+	_, err = ac.loginSession(c, result.Account, result.Member, false, secmodel.AuthMethodRegister, "")
 	if err != nil {
 		httpx.ResponseFailed(c, http.StatusInternalServerError, err)
 		return
@@ -627,9 +637,7 @@ func (ac *AuthController) completeRegistration(c *gin.Context, req *authservice.
 	ac.recordLogin(c, result.Account, result.Member, loginlogmodel.MethodRegister)
 
 	httpx.ResponseSuccess(c, registerTokenResult{
-		Token:    token,
-		Describe: "set token in Authorization Header, [Authorization: Bearer {token}]",
-		Created:  result.Created,
+		Created: result.Created,
 	})
 }
 
@@ -937,7 +945,7 @@ type switchTenantRequest struct {
 // @Tags 认证
 // @Security JWT
 // @Param body body controller.switchTenantRequest true "tenant id"
-// @Success 200 {object} httpx.Response{data=model.JWTToken}
+// @Success 200 {object} httpx.Response{data=controller.loginResult}
 // @Failure 403 {object} httpx.Response "AUTH_NOT_MEMBER·账号不属于目标租户"
 // @Router /api/v1/auth/token/switch [post]
 func (ac *AuthController) SwitchTenant(c *gin.Context) {
@@ -975,10 +983,8 @@ func (ac *AuthController) SwitchTenant(c *gin.Context) {
 		return
 	}
 
-	httpx.ResponseSuccess(c, model.JWTToken{
-		Token:    token,
-		Describe: "tenant switched, replace your Authorization token",
-	})
+	ac.writeSessionCookie(c, token, rememberSession(c))
+	httpx.ResponseSuccess(c, loginResult{})
 }
 
 // @Summary 当前用户信息（聚合）

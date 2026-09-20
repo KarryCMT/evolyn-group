@@ -2,7 +2,6 @@
 // 业务侧（应用 api 模块）统一从这里发起请求，不必感知 AxiosRequestConfig 细节。
 import { ApiError } from './error';
 import { defHttp } from './instance';
-import { getToken } from '../auth';
 
 /** 门面层调用参数 */
 export interface HttpRequestOptions {
@@ -46,7 +45,7 @@ function cleanQuery(
 
 /**
  * 发起请求并解包统一响应，返回 data 字段（失败抛 ApiError）。
- * 会话过期（携带令牌收到 401 且非认证接口）时触发注入的处理器，
+ * 会话过期（受保护接口收到 401 且非认证接口）时触发注入的处理器，
  * 排除 /auth/token 前缀避免登录失败（401）被误判为会话过期造成循环跳转。
  */
 export async function request<T>(path: string, options: HttpRequestOptions = {}): Promise<T> {
@@ -63,7 +62,6 @@ export async function request<T>(path: string, options: HttpRequestOptions = {})
     if (
       err instanceof ApiError &&
       err.status === 401 &&
-      getToken() &&
       !path.startsWith('/auth/token') &&
       !skipUnauthorizedHandler
     ) {
