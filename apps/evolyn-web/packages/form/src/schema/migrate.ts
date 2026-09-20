@@ -7,7 +7,8 @@
  * 所有受支持版本都会把子表单归一化为整行宽度；v4 及更早版本补齐 v5 的
  * fieldShowRules 空数组；v5 及更早版本补齐 v6 的 submitRule 默认空值策略与
  * widget_submit_rules 空对象；v6 及更早版本补齐 v7 的 validators 与
- * preSubmitConfirm。禁止在旧版本校验器内隐式兼容新结构。
+ * preSubmitConfirm；v9 及更早版本补齐 v10 的 formEvents 空数组。禁止在旧版本
+ * 校验器内隐式兼容新结构。
  */
 
 import { cloneFormSchema } from './clone';
@@ -78,6 +79,9 @@ export function migrateFormSchema(
   if (sourceVersion <= 8 && isV1Document(candidate)) {
     candidate = normalizeSerialNumberV9(candidate);
   }
+  if (sourceVersion <= 9 && isV1Document(candidate)) {
+    candidate = normalizeFrontendEventsV10(candidate);
+  }
   const result = validateFormSchema(candidate);
   if (!result.valid || !result.document) {
     return { document: null, issues: result.issues, protocolVersion: FORM_PROTOCOL_VERSION };
@@ -87,6 +91,14 @@ export function migrateFormSchema(
     issues: [],
     protocolVersion: FORM_PROTOCOL_VERSION,
   };
+}
+
+/** v9 → v10：前端事件成为草稿与发布快照的一部分，旧文档保持未配置语义。 */
+function normalizeFrontendEventsV10(input: unknown): unknown {
+  const document = cloneFormSchema(input as FormSchemaDocument);
+  const content = document.content as unknown as Record<string, unknown>;
+  if (!Array.isArray(content.formEvents)) content.formEvents = [];
+  return document;
 }
 
 /** v4 补齐子表单配置，并将其容器宽度固定为整行 12 栅格。 */

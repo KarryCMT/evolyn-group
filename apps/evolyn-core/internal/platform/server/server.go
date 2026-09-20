@@ -57,6 +57,7 @@ import (
 	filecontroller "evolyn/internal/platform/file/controller"
 	filerepository "evolyn/internal/platform/file/repository"
 	fileservice "evolyn/internal/platform/file/service"
+	formadapter "evolyn/internal/platform/form/adapter"
 	formcontroller "evolyn/internal/platform/form/controller"
 	formmodel "evolyn/internal/platform/form/model"
 	formrepository "evolyn/internal/platform/form/repository"
@@ -551,6 +552,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 		txManager, formRepo, formVersionRepo, formRecordRepo, quotaSvc, auditSvc,
 		appAccess, formAppDirectory{apps: appRepo}, formMenuMaintenance,
 	)
+	// 前端事件复用工作流出站白名单配置，但使用独立适配器保证事件级日志、
+	// 10 秒超时、禁重定向、1 MiB 限长与 DNS 结果直连防重绑定。
+	if injector, ok := formService.(formservice.FrontendEventInvokerInjector); ok {
+		injector.UseFrontendEventInvoker(formadapter.NewFrontendEventInvoker(formadapter.FrontendEventInvokerConfig{
+			AllowPrivateNetwork: conf.Workflow.Service.AllowPrivateNetwork,
+			AllowedHosts:        conf.Workflow.Service.AllowedHosts,
+		}))
+	}
 	// 引用视图只读端口（ADR-011）：form 域不反向依赖 app 域，装配层
 	// 以菜单仓储桥接（跨应用反查引用指定表单的菜单节点）
 	if injector, ok := formService.(formservice.FormReferenceSourceInjector); ok {
@@ -1185,7 +1194,7 @@ func (s formReferenceSource) ListFormReferences(ctx context.Context, formID uint
 			AppCode:      row.AppCode,
 			AppName:      row.AppName,
 			MenuID:       row.MenuCode,
-			NodeName:    row.NodeName,
+			NodeName:     row.NodeName,
 			ParentMenuID: row.ParentMenuCode,
 		})
 	}

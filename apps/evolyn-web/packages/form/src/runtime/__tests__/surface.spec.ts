@@ -37,6 +37,7 @@ function schema(): FormSchemaDocument {
         title: '确认继续提交吗？',
         content: '请确认填写内容无误后继续提交。',
       },
+      formEvents: [],
     },
   };
 }
@@ -116,6 +117,7 @@ function subformSchema(): FormSchemaDocument {
         title: '确认继续提交吗？',
         content: '请确认填写内容无误后继续提交。',
       },
+      formEvents: [],
     },
   };
 }

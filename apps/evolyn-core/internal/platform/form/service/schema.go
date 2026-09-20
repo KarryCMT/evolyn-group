@@ -481,6 +481,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	if protocolVersion >= 7 {
 		contentKeys = append(contentKeys, "validators", "preSubmitConfirm")
 	}
+	if protocolVersion >= 10 {
+		contentKeys = append(contentKeys, "formEvents")
+	}
 	rejectUnknownKeys(content, contentKeys, "content", issues)
 	if content["type"] != "form" {
 		*issues = append(*issues, SchemaIssue{Path: "content.type", Message: `content.type 必须固定为 "form"`})
@@ -524,6 +527,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	}
 	if protocolVersion >= 7 {
 		validateSubmitValidationProtocol(content, issues)
+	}
+	if protocolVersion >= 10 {
+		validateFrontendEvents(content, items, issues)
 	}
 }
 

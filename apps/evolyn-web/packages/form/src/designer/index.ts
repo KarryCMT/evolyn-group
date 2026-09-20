@@ -60,6 +60,9 @@ export {
 export type {
   FormEvent,
   FormEventAction,
+  FormEventDebugExecutor,
+  FormEventDebugRequest,
+  FormEventDebugResult,
   FormEventFieldOption,
   FormEventRequest,
   FormEventRequestEntry,

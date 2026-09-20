@@ -38,9 +38,6 @@ const emit = defineEmits<{
   overflow: hidden;
   border-radius: 12px;
 }
-.form-event-dialog.el-dialog {
-  width: min(calc(100vw - 48px), 960px) !important;
-}
 .form-event-dialog__nested.el-dialog {
   width: min(calc(100vw - 48px), 720px) !important;
 }

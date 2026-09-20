@@ -52,6 +52,7 @@ function removeEntry(target: 'header' | 'body', index: number): void {
       >
         <ElInput
           :model-value="entry.key"
+          size="large"
           placeholder="名称"
           @update:model-value="updateEntry('header', index, 'key', $event)"
         /><FormSchemaEventTokenInput
@@ -74,6 +75,7 @@ function removeEntry(target: 'header' | 'body', index: number): void {
         >
           <ElInput
             :model-value="entry.key"
+            size="large"
             placeholder="字段名"
             @update:model-value="updateEntry('body', index, 'key', $event)"
           /><FormSchemaEventTokenInput

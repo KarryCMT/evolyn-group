@@ -28,6 +28,7 @@ function contentWith(overrides: Partial<Record<string, unknown>> = {}): FormCont
       title: '确认继续提交吗？',
       content: '请确认填写内容无误后继续提交。',
     },
+    formEvents: [],
   };
   Object.assign(content, overrides);
   return content as unknown as FormContent;

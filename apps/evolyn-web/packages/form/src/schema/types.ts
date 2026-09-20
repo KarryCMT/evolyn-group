@@ -11,8 +11,8 @@
 /** 协议版本常量；递增时必须同步版本迁移器（migrate.ts）与字段字典。
  * v8 起值字段必须携带内部不可变 fieldId（物理表存储 §4.1 契约冻结：
  * fieldId→物理列名 f_<fieldId> 永不变更；widgetName 同步冻结，只允许改 label）。 */
-// v9 将流水号由固定前缀/日期配置升级为可排序的规则片段；历史 v8 文档在读取时迁移。
-export const FORM_PROTOCOL_VERSION = 9 as const;
+// v10 将安全前端事件纳入 content.formEvents；历史 v9 文档读取时补空数组。
+export const FORM_PROTOCOL_VERSION = 10 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -572,6 +572,41 @@ export interface PreSubmitConfirm {
   content: string;
 }
 
+/** 前端事件请求参数项；key/value 均可包含受控字段令牌。 */
+export interface FormEventRequestEntry {
+  key: string;
+  value: string;
+}
+
+export interface FormEventRequest {
+  method: 'get' | 'post';
+  url: string;
+  header: FormEventRequestEntry[];
+  body: FormEventRequestEntry[];
+  format: 'json' | 'xml';
+}
+
+export interface FormEventAction {
+  field: string;
+  value: string;
+}
+
+/** 协议 v10 前端事件定义；字段引用统一使用稳定 widgetName。 */
+export interface FormEvent {
+  id: string;
+  enabled: boolean;
+  name: string;
+  description: string;
+  trigger: string;
+  trigger_type: 'widget';
+  request_type: 0;
+  request: FormEventRequest;
+  request_rely: string[];
+  action: FormEventAction[];
+  action_rely: string[];
+  subform_fill_rule: 'merge' | 'replace';
+}
+
 export interface FormContent {
   type: 'form';
   /** 表单默认列布局；切换时同步重置所有普通字段的 lineWidth。 */
@@ -604,6 +639,8 @@ export interface FormContent {
   validators: SubmitValidator[];
   /** 表单提交前的纯客户端二次确认配置（v7）。 */
   preSubmitConfirm: PreSubmitConfirm;
+  /** 前端事件配置（v10）；空数组表示未配置。 */
+  formEvents: FormEvent[];
 }
 
 /** 表单级默认列布局；字段仍可通过 lineWidth 单独覆盖实际宽度。 */

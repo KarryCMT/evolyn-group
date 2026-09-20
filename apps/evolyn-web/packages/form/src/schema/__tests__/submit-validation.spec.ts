@@ -61,6 +61,7 @@ function document(): FormSchemaDocument {
         title: '确认 ${_widget_name} 的提交？',
         content: '联系电话：${_widget_phone}',
       },
+      formEvents: [],
     },
   };
 }

@@ -83,6 +83,7 @@ function documentWith(items: unknown[]): unknown {
         title: '确认继续提交吗？',
         content: '请确认填写内容无误后继续提交。',
       },
+      formEvents: [],
     },
   };
 }
@@ -150,6 +151,7 @@ describe('validateFormSchema 结构校验', () => {
             title: '确认继续提交吗？',
             content: '请确认填写内容无误后继续提交。',
           },
+          formEvents: [],
           extra: 1,
         },
       }).issues[0]!.path,
@@ -418,6 +420,7 @@ describe('validateFormSchema 结构校验', () => {
           title: '确认继续提交吗？',
           content: '请确认填写内容无误后继续提交。',
         },
+        formEvents: [],
       },
     };
     ensureFieldIds(document.content.items);
@@ -792,6 +795,7 @@ describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
           title: '确认继续提交吗？',
           content: '请确认填写内容无误后继续提交。',
         },
+        formEvents: [],
         fieldShowRules: [
           {
             id: 'r1',

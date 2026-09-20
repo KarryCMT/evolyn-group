@@ -14,8 +14,9 @@ import (
 // （standard↔workflow），切换后原类型流程数据保留；切换裁决在 Service 层。
 type FormType string
 
-// CurrentProtocolVersion 当前表单保存协议版本；v9 将流水号升级为可排序规则片段。
-const CurrentProtocolVersion = 9
+// CurrentProtocolVersion 当前表单保存协议版本；v10 将安全前端事件配置纳入
+// content.formEvents，并由服务端代理执行外部请求。
+const CurrentProtocolVersion = 10
 
 // FieldIdentityProtocolVersion 字段身份协议（v8）的最低协议版本：该版本起
 // 值字段必须携带内部不可变 fieldId（10 位小写 base32），发布后 fieldId 与

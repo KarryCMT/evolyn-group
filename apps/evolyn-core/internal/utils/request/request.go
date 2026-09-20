@@ -159,6 +159,13 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 		}
 	}
 
+	// 前端事件调试是表单设计管理面的更新动作。公开接口使用 POST 承载测试值，
+	// 但权限语义必须命中 forms:update，而不是默认的 forms:create。
+	if req.Method == http.MethodPost && requestInfo.Resource == "forms" && requestInfo.Name != "" &&
+		requestInfo.Subresource == "frontend-events" && len(requestInfo.Parts) == 5 && requestInfo.Parts[4] == "debug" {
+		requestInfo.Verb = UpdateOperation
+	}
+
 	// 待办摘要采用独立 URL 避开 taskId 动态路由，但仍属于待办读取权限。
 	// 仅映射已注册的 GET current，不能为未来写接口或其他路径扩大权限。
 	if req.Method == http.MethodGet && requestInfo.Resource == "workflow-task-summaries" && requestInfo.Name == "current" && len(requestInfo.Parts) == 2 {

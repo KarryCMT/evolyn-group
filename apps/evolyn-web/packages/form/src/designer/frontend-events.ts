@@ -1,42 +1,47 @@
-import type { FormItem } from '../schema/types';
+import type {
+  FormEvent as SchemaFormEvent,
+  FormEventAction as SchemaFormEventAction,
+  FormEventRequest as SchemaFormEventRequest,
+  FormEventRequestEntry as SchemaFormEventRequestEntry,
+  FormItem,
+} from '../schema/types';
 
 /**
- * 前端事件的前端兼容模型。字段引用沿用既有 widgetName，而非展示标题；标题可以
- * 随时改名，widgetName 才是表单内稳定的配置键。后端落地后此结构将原样进入
- * content.formEvents，当前设计器先以它作为受控 UI 模型。
+ * 前端事件的设计器别名。协议事实源位于 schema/types，避免设计态与保存协议
+ * 各维护一套容易漂移的结构。
  */
-export interface FormEventRequestEntry {
-  key: string;
-  value: string;
+export type FormEventRequestEntry = SchemaFormEventRequestEntry;
+export type FormEventRequest = SchemaFormEventRequest;
+export type FormEventAction = SchemaFormEventAction;
+export type FormEvent = SchemaFormEvent;
+
+export interface FormEventDebugRequest {
+  values: Record<string, unknown>;
+  sequence: number;
 }
 
-export interface FormEventRequest {
-  method: 'get' | 'post';
-  url: string;
-  header: FormEventRequestEntry[];
-  body: FormEventRequestEntry[];
-  format: 'json' | 'xml';
+export interface FormEventDebugResult {
+  sequence: number;
+  writes: Record<string, unknown>;
+  requestSummary: {
+    method: string;
+    url: string;
+    headerNames: string[];
+    body?: string;
+  };
+  responseSummary: {
+    statusCode: number;
+    durationMs: number;
+    format: 'json' | 'xml';
+    body: string;
+  };
+  errorCode?: string;
 }
 
-export interface FormEventAction {
-  field: string;
-  value: string;
-}
-
-export interface FormEvent {
-  id: string;
-  enabled: boolean;
-  name: string;
-  description: string;
-  trigger: string;
-  trigger_type: 'widget';
-  request_type: 0;
-  request: FormEventRequest;
-  request_rely: string[];
-  action: FormEventAction[];
-  action_rely: string[];
-  subform_fill_rule: 'merge' | 'replace';
-}
+export type FormEventDebugExecutor = (
+  eventId: string,
+  request: FormEventDebugRequest,
+) => Promise<FormEventDebugResult>;
 
 export interface FormEventFieldOption {
   key: string;
@@ -147,10 +152,12 @@ function stringValue(value: unknown): string {
 
 function normalizeRequestEntries(entries: unknown): FormEventRequestEntry[] {
   if (!Array.isArray(entries)) return [];
-  return entries.map((entry) => {
-    const record = entry as Partial<FormEventRequestEntry> | null;
-    return { key: stringValue(record?.key), value: stringValue(record?.value) };
-  });
+  return entries
+    .map((entry) => {
+      const record = entry as Partial<FormEventRequestEntry> | null;
+      return { key: stringValue(record?.key), value: stringValue(record?.value) };
+    })
+    .filter((entry) => entry.key.trim() !== '' && entry.value !== '');
 }
 
 function normalizeActions(actions: unknown): FormEventAction[] {

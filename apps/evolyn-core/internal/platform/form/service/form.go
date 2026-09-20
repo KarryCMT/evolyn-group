@@ -41,26 +41,27 @@ type TxManager interface {
 
 // emptyFormDocument 空协议文档（新表单草稿初值）：v7 显式保存空校验与关闭的
 // 二次确认，禁止以缺键表示关闭。
-var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[],"layout_fields":[],"field_layout":[],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`)
+var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[],"layout_fields":[],"field_layout":[],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"},"formEvents":[]}}`)
 
 // formService 表单资产服务实现。
 type formService struct {
 	workflowStarter WorkflowStarter // 流程型表单提交的事务内发起端口
 
-	tx          TxManager
-	repo        repository.FormRepository
-	versions    repository.FormVersionRepository
-	records     repository.FormRecordRepository
-	quota       tenantservice.QuotaService
-	audit       auditservice.Recorder
-	access      AccessEvaluator
-	apps        AppDirectory
-	menu        MenuMaintenance
-	references  ReferenceSource
-	permissions FormPermissionEvaluator   // 权限组判定器（装配期注入；nil=按 S4 基线放行）
-	groups      PermissionGroupReadSource // 权限组只读查询（switch-type/发布阻塞判定）
-	memberRefs  MemberReferenceDirectory  // 成员字段展示/卡片目录（可选注入）
-	departments DepartmentDirectory       // 部门字段提交终审目录（可选注入）
+	tx             TxManager
+	repo           repository.FormRepository
+	versions       repository.FormVersionRepository
+	records        repository.FormRecordRepository
+	quota          tenantservice.QuotaService
+	audit          auditservice.Recorder
+	access         AccessEvaluator
+	apps           AppDirectory
+	menu           MenuMaintenance
+	references     ReferenceSource
+	permissions    FormPermissionEvaluator   // 权限组判定器（装配期注入；nil=按 S4 基线放行）
+	groups         PermissionGroupReadSource // 权限组只读查询（switch-type/发布阻塞判定）
+	memberRefs     MemberReferenceDirectory  // 成员字段展示/卡片目录（可选注入）
+	departments    DepartmentDirectory       // 部门字段提交终审目录（可选注入）
+	frontendEvents FrontendEventInvoker      // 前端事件安全出站适配器（生产装配必注入）
 
 	// 物理表存储（方案 §13）。装配期经 UsePhysicalStorage 注入；nil =
 	// 未装配物理链路（单测桩/存量形态），一切行为与 JSONB 时代一致。
@@ -120,6 +121,11 @@ func (s *formService) UseMemberReferenceDirectory(directory MemberReferenceDirec
 // 有效性视图，禁止直接依赖 IAM 仓储或相信浏览器提供的部门 ID。
 func (s *formService) UseDepartmentDirectory(directory DepartmentDirectory) {
 	s.departments = directory
+}
+
+// UseFrontendEventInvoker 注入安全出站实现；只在装配期调用一次。
+func (s *formService) UseFrontendEventInvoker(invoker FrontendEventInvoker) {
+	s.frontendEvents = invoker
 }
 
 // MemberReferenceDirectoryInjector 是装配期可选能力。
@@ -687,8 +693,8 @@ func (s *formService) Delete(ctx context.Context, member *iammodel.User, code st
 
 // ---- 草稿保存 ----
 
-// SaveDraft 保存草稿：先按字段字典严格校验（失败携带 JSON Path issues），再经乐观锁
-// 条件更新；0 行影响即修订口令过期。草稿原文原样落库（未编辑属性不丢失）。
+// SaveDraft 保存草稿：先重建派生索引并按字段字典严格校验（失败携带 JSON Path
+// issues），再经乐观锁条件更新；除派生索引外的草稿属性原样保留。
 func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code string, req *model.SaveDraftRequest) (*model.SaveDraftResult, error) {
 	if !s.access.Permissions(ctx, member)["forms:update"] {
 		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member cannot save form %s draft", code))
@@ -703,7 +709,12 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 	if err != nil {
 		return nil, err
 	}
-	issues := ValidateFormSchema([]byte(req.Content), req.ProtocolVersion)
+	contentToSave, err := normalizeFrontendEventDependencies(req.Content)
+	if err != nil {
+		issue := SchemaIssue{Path: "content", Message: "表单文档必须是合法 JSON"}
+		return nil, httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": []SchemaIssue{issue}}), err)
+	}
+	issues := ValidateFormSchema([]byte(contentToSave), req.ProtocolVersion)
 	if len(issues) > 0 {
 		return nil, httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": issues}),
 			fmt.Errorf("form %s draft invalid: %s", code, issues[0].Path))
@@ -712,7 +723,7 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 	// “能保存、填写时才发现公式不可执行”的漂移。
 	if req.ProtocolVersion >= 7 {
 		var root map[string]any
-		if err := json.Unmarshal(req.Content, &root); err != nil {
+		if err := json.Unmarshal(contentToSave, &root); err != nil {
 			return nil, httpx.Wrap(apperrors.ErrSchemaInvalid, err)
 		}
 		content, _ := root["content"].(map[string]any)
@@ -725,7 +736,7 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 	// 表单，已发布字段的 fieldId→widgetName 绑定不可变——字段「改名」只允许
 	// 改 label，删除字段合法（弃用），新字段必须携带新 fieldId。
 	if req.ProtocolVersion >= model.FieldIdentityProtocolVersion && form.LatestVersionID != nil {
-		if err := s.validateFieldIdentityFrozen(ctx, form, req.Content); err != nil {
+		if err := s.validateFieldIdentityFrozen(ctx, form, contentToSave); err != nil {
 			return nil, err
 		}
 	}
@@ -733,7 +744,7 @@ func (s *formService) SaveDraft(ctx context.Context, member *iammodel.User, code
 		return nil, httpx.Wrap(apperrors.ErrRevisionConflict,
 			fmt.Errorf("form %s draft revision %d != %d", code, req.DraftRevision, form.DraftRevision))
 	}
-	updated, err := s.repo.UpdateDraft(ctx, form.ID, req.DraftRevision, req.ProtocolVersion, req.Content)
+	updated, err := s.repo.UpdateDraft(ctx, form.ID, req.DraftRevision, req.ProtocolVersion, contentToSave)
 	if err != nil {
 		return nil, err
 	}

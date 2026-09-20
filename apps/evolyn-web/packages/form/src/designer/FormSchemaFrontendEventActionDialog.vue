@@ -41,6 +41,7 @@ function removeAction(index: number): void {
     >
       <ElSelect
         :model-value="action.field"
+        size="large"
         placeholder="选择表单字段"
         @update:model-value="updateAction(index, 'field', $event)"
         ><ElOption

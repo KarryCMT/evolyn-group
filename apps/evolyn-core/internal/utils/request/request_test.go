@@ -72,6 +72,17 @@ func TestRequestInfo(t *testing.T) {
 			Name:              "form_01",
 			Parts:             []string{"forms", "form_01", "records"},
 		}},
+		{"frontend event debug maps to forms update", "POST", "/api/v1/forms/form_01/frontend-events/evt_1234/debug", false, &RequestInfo{
+			IsResourceRequest: true,
+			Verb:              "update",
+			APIPrefix:         "api",
+			APIVersion:        "v1",
+			Namespace:         "root",
+			Resource:          "forms",
+			Subresource:       "frontend-events",
+			Name:              "form_01",
+			Parts:             []string{"forms", "form_01", "frontend-events", "evt_1234", "debug"},
+		}},
 	}
 
 	for _, tc := range testCases {

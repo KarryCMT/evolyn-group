@@ -10,6 +10,7 @@ import {
   ElRadioGroup,
   ElSelect,
 } from 'element-plus';
+import { shallowRef } from 'vue';
 import type { FormEvent, FormEventFieldOption } from './frontend-events';
 import { FORM_EVENT_LIMITS } from './frontend-events';
 import FormSchemaEventFieldPicker from './FormSchemaEventFieldPicker.vue';
@@ -24,11 +25,18 @@ defineProps<{
 
 const draft = defineModel<FormEvent>('draft', { required: true });
 const step = defineModel<1 | 2>('step', { required: true });
+const triggerPickerOpen = shallowRef(false);
 const emit = defineEmits<{
   selectTrigger: [field: FormEventFieldOption];
   openRequestSettings: [];
   openActionSettings: [];
 }>();
+
+function selectTrigger(field: FormEventFieldOption): void {
+  emit('selectTrigger', field);
+  // 单选字段确认后立即收起浮层，避免用户还需要额外点击空白区域关闭。
+  triggerPickerOpen.value = false;
+}
 </script>
 
 <template>
@@ -44,15 +52,15 @@ const emit = defineEmits<{
   </div>
 
   <section v-if="step === 1" class="form-event-dialog__content form-event-dialog__content--intro">
-    <ElForm label-position="top" @submit.prevent>
-      <ElFormItem label="事件名称" required :error="nameError">
+    <ElForm :model="draft" label-position="top" @submit.prevent>
+      <ElFormItem label="事件名称" prop="name" required :error="nameError">
         <ElInput
           v-model="draft.name"
           :maxlength="FORM_EVENT_LIMITS.nameMaxLength"
           placeholder="例如：自动补全员工信息"
         />
       </ElFormItem>
-      <ElFormItem label="事件说明">
+      <ElFormItem label="事件说明" prop="description">
         <ElInput
           v-model="draft.description"
           :maxlength="FORM_EVENT_LIMITS.descriptionMaxLength"
@@ -70,15 +78,17 @@ const emit = defineEmits<{
       <div class="form-event-dialog__trigger-row">
         <ElSelect model-value="widget" disabled aria-label="触发类型"
           ><ElOption label="字段触发" value="widget" /></ElSelect
-        ><ElPopover placement="bottom-start" :width="360" trigger="click"
+        ><ElPopover
+          v-model:visible="triggerPickerOpen"
+          placement="bottom-start"
+          :width="360"
+          trigger="click"
           ><template #reference
             ><button class="form-event-dialog__field-select" type="button">
               <span>{{ selectedTrigger?.label || '请选择触发字段' }}</span
               ><span aria-hidden="true">⌄</span>
             </button></template
-          ><FormSchemaEventFieldPicker
-            :fields="requestFields"
-            @select="emit('selectTrigger', $event)"
+          ><FormSchemaEventFieldPicker :fields="requestFields" @select="selectTrigger"
         /></ElPopover>
       </div>
     </div>

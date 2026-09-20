@@ -19,7 +19,7 @@ import {
   WIDGET_GROUP_META,
   WIDGET_SPECS,
 } from '@evolyn.do/form/designer';
-import type { FormEvent } from '@evolyn.do/form/designer';
+import type { FormEventDebugRequest, FormEventDebugResult } from '@evolyn.do/form/designer';
 import { ApiError } from '@evolyn.do/utils';
 import {
   RiEyeFill,
@@ -35,6 +35,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { getAppByCode } from '~/api/apps';
 import {
   createForm,
+  debugFormFrontendEvent,
   getFormStorageJob,
   publishForm,
   retryFormStorageJob,
@@ -71,11 +72,6 @@ const publishing = ref(false);
 const publishStatusText = ref('');
 const renaming = computed(() => workspace.renaming.value);
 const previewVisible = shallowRef(false);
-/**
- * 前端事件先完成设计器 UI 闭环。服务端协议与执行代理尚未发布，故暂存于当前
- * 设计会话，不混入 v9 草稿提交；后端 v10 落地时仅需改为 content.formEvents。
- */
-const formEvents = shallowRef<FormEvent[]>([]);
 const unsupportedPreviewTypes = new Set<string>();
 
 // 外壳是详情接口的唯一请求方；设计页仅消费共享响应，避免相同详情重复调用。
@@ -340,6 +336,31 @@ async function saveDraft(): Promise<void> {
   }
 }
 
+/** 调试前先保存 v10 草稿，确保后端只执行经过协议校验的服务端事件定义。 */
+async function debugFrontendEvent(
+  eventId: string,
+  request: FormEventDebugRequest,
+): Promise<FormEventDebugResult> {
+  const local = validateFormSchema(document.value);
+  if (!local.valid) {
+    showIssues(local.issues);
+    throw new Error('FORM_SCHEMA_INVALID');
+  }
+  const saved = await saveFormDraft(
+    formCode.value,
+    draftRevision.value,
+    FORM_PROTOCOL_VERSION,
+    document.value,
+  );
+  draftRevision.value = saved.draftRevision;
+  workspace.patchDetail({
+    draftRevision: saved.draftRevision,
+    protocolVersion: FORM_PROTOCOL_VERSION,
+    draft: document.value,
+  });
+  return debugFormFrontendEvent(formCode.value, eventId, request);
+}
+
 /** 结构变更轮询参数：间隔与上限（DDL 为秒级低频任务，超限转手动重试引导）。 */
 const STORAGE_JOB_POLL_INTERVAL = 2000;
 const STORAGE_JOB_POLL_TIMEOUT = 60_000;
@@ -572,7 +593,8 @@ function notifyUnavailable(action: string) {
         :widget-submit-rules="document.content.widget_submit_rules"
         :validators="document.content.validators"
         :pre-submit-confirm="document.content.preSubmitConfirm"
-        :form-events="formEvents"
+        :form-events="document.content.formEvents"
+        :debug-frontend-event="debugFrontendEvent"
         :numeric-type-editable="publishedVersion === 0"
         @rename-key="editor.renameItemKey"
         @update-item="onUpdateSelectedItem"
@@ -592,7 +614,7 @@ function notifyUnavailable(action: string) {
         @update-widget-submit-rules="editor.applyWidgetSubmitRules"
         @update-validators="editor.setSubmitValidators"
         @update-pre-submit-confirm="editor.setPreSubmitConfirm"
-        @update-form-events="formEvents = $event"
+        @update-form-events="document.content.formEvents = $event"
       />
     </div>
 

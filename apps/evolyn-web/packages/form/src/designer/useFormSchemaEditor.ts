@@ -62,6 +62,7 @@ export function createEmptyFormSchemaDocument(): FormSchemaDocument {
       widget_submit_rules: {},
       validators: [],
       preSubmitConfirm: structuredClone(DEFAULT_PRE_SUBMIT_CONFIRM),
+      formEvents: [],
     },
   };
 }

@@ -201,7 +201,7 @@ const permTestDoc = `{"content":{"type":"form","layout":"grid-2","items":[
   {"widget":{"type":"text","widgetName":"secret","visible":true,"allowBlank":true},"label":"密级"},
   {"widget":{"type":"datetime","widgetName":"created_day","visible":true,"allowBlank":true,"format":"date"},"label":"日期"},
   {"widget":{"type":"checkboxgroup","widgetName":"tags","visible":true,"allowBlank":true,"options":[{"value":"a","label":"A"},{"value":"b","label":"B"}]},"label":"标签"}
-],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"}}}`
+],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"},"formEvents":[]}}`
 
 func permTestDocMap(t *testing.T) map[string]any {
 	t.Helper()

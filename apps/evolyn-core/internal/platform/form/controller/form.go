@@ -188,6 +188,46 @@ func (f *FormController) SaveDraft(c *gin.Context) {
 	httpx.ResponseSuccess(c, result)
 }
 
+// DebugFrontendEvent 对当前草稿中的事件执行一次安全调试；事件定义只按 URL
+// eventId 从服务端草稿读取，客户端仅提交表单字段测试值和竞态序号。
+// @Summary 调试表单前端事件
+// @Description 保存后的协议 v10 草稿为唯一事件定义来源；经 HTTPS/域名白名单/SSRF 安全代理执行，不写表单记录
+// @Accept json
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "表单编码（form_ 前缀）"
+// @Param eventId path string true "前端事件编码（evt_ 前缀）"
+// @Param request body formmodel.FrontendEventExecuteRequest true "测试字段值与客户端竞态序号"
+// @Success 200 {object} httpx.Response{data=formmodel.FrontendEventExecuteResult}
+// @Failure 400 {object} httpx.Response "errCode=FORM_EVENT_INVALID/FORM_EVENT_TEMPLATE_INVALID"
+// @Failure 403 {object} httpx.Response "errCode=FORM_EVENT_REQUEST_BLOCKED/FORBIDDEN"
+// @Failure 404 {object} httpx.Response "errCode=FORM_EVENT_NOT_FOUND"
+// @Failure 502 {object} httpx.Response "errCode=FORM_EVENT_REQUEST_FAILED"
+// @Router /api/v1/forms/{code}/frontend-events/{eventId}/debug [post]
+func (f *FormController) DebugFrontendEvent(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	eventID := strings.TrimSpace(c.Param("eventId"))
+	if !strings.HasPrefix(eventID, "evt_") {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的前端事件编码"))
+		return
+	}
+	req := new(formmodel.FrontendEventExecuteRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := f.formService.DebugFrontendEvent(c.Request.Context(), ginctx.GetUser(c), code, eventID, req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
 // @Summary 删除表单
 // @Description 软删除表单（配额释放；已发布版本快照保留供历史记录追溯）
 // @Produce json
@@ -560,6 +600,7 @@ func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/forms/:code", f.Get)
 	api.PATCH("/forms/:code", f.Update)
 	api.PUT("/forms/:code/draft", f.SaveDraft)
+	api.POST("/forms/:code/frontend-events/:eventId/debug", f.DebugFrontendEvent)
 	api.DELETE("/forms/:code", f.Delete)
 	api.POST("/forms/:code/publish", f.Publish)
 	api.GET("/forms/:code/storage-jobs/:jobId", f.GetStorageJob)

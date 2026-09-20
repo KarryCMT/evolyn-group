@@ -61,8 +61,7 @@ function save(openDebug = false): void {
   <ElDialog
     v-model="visible"
     class="form-event-dialog"
-    width="960px"
-    top="7vh"
+    width="700px"
     :close-on-click-modal="false"
     :lock-scroll="true"
     :title="props.event ? '编辑前端事件' : '添加前端事件'"
@@ -93,10 +92,7 @@ function save(openDebug = false): void {
             @click="step = 2"
             >下一步</ElButton
           >
-          <ElButton
-            v-else
-            :disabled="!draft.trigger || !draft.request.url.trim()"
-            @click="save()"
+          <ElButton v-else :disabled="!draft.trigger || !draft.request.url.trim()" @click="save()"
             >保存</ElButton
           >
           <ElButton

@@ -1,12 +1,7 @@
 <script setup lang="ts">
 import { RiInformationLine } from '@remixicon/vue';
 import { computed, shallowRef } from 'vue';
-import {
-  ElIcon,
-  ElMessage,
-  ElMessageBox,
-  ElTooltip,
-} from 'element-plus';
+import { ElIcon, ElMessage, ElMessageBox, ElTooltip } from 'element-plus';
 import type { FormItem } from '../schema/types';
 import FormSchemaFrontendEventDrawer from './FormSchemaFrontendEventDrawer.vue';
 import FormSchemaFrontendEventDebugDrawer from './FormSchemaFrontendEventDebugDrawer.vue';
@@ -15,10 +10,14 @@ import {
   formEventFieldOptions,
   FORM_EVENT_LIMITS,
   type FormEvent,
+  type FormEventDebugExecutor,
 } from './frontend-events';
 
 const formEvents = defineModel<FormEvent[]>({ required: true });
-const props = defineProps<{ items: readonly FormItem[] }>();
+const props = defineProps<{
+  items: readonly FormItem[];
+  debugExecutor?: FormEventDebugExecutor;
+}>();
 const panelOpen = shallowRef(false);
 const editorOpen = shallowRef(false);
 const debugOpen = shallowRef(false);
@@ -81,7 +80,6 @@ function debugEvent(event: FormEvent): void {
   debuggingEvent.value = event;
   debugOpen.value = true;
 }
-
 </script>
 
 <template>
@@ -89,12 +87,15 @@ function debugEvent(event: FormEvent): void {
     <div class="form-frontend-events__heading">
       <span class="form-frontend-events__title">前端事件</span>
       <el-tooltip content="在填写或编辑数据时，由字段值变化触发自动操作" placement="top">
-        <el-icon class="form-frontend-events__help" aria-label="前端事件说明"><RiInformationLine /></el-icon>
+        <el-icon class="form-frontend-events__help" aria-label="前端事件说明"
+          ><RiInformationLine
+        /></el-icon>
       </el-tooltip>
     </div>
     <p class="form-frontend-events__description">让表单字段值的变化触发一系列自动操作。</p>
     <button class="form-frontend-events__entry" type="button" @click="panelOpen = true">
-      <span>{{ configuredLabel }}</span><span aria-hidden="true">›</span>
+      <span>{{ configuredLabel }}</span
+      ><span aria-hidden="true">›</span>
     </button>
 
     <FormSchemaFrontendEventDrawer
@@ -120,16 +121,56 @@ function debugEvent(event: FormEvent): void {
       v-model="debugOpen"
       :event="debuggingEvent"
       :fields="fields"
+      :execute="props.debugExecutor"
     />
   </section>
 </template>
 
 <style scoped lang="scss">
-.form-frontend-events { display: flex; flex-direction: column; gap: 10px; width: 100%; padding-top: 2px; }
-.form-frontend-events__heading { display: inline-flex; gap: 6px; align-items: center; }
-.form-frontend-events__title { color: var(--el-text-color-primary); font-size: 15px; font-weight: 600; }
-.form-frontend-events__help { color: var(--el-text-color-secondary); cursor: help; }
-.form-frontend-events__description { margin: -2px 0 0; color: var(--el-text-color-secondary); font-size: 13px; line-height: 1.6; }
-.form-frontend-events__entry { display: flex; width: 100%; min-height: 38px; align-items: center; justify-content: space-between; padding: 8px 11px; color: var(--el-text-color-regular); font: inherit; text-align: left; cursor: pointer; background: var(--el-bg-color); border: 1px solid var(--el-border-color); border-radius: var(--el-border-radius-base); }
-.form-frontend-events__entry:hover { color: var(--el-color-primary); border-color: var(--el-color-primary); }
+.form-frontend-events {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  padding-top: 2px;
+}
+.form-frontend-events__heading {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+}
+.form-frontend-events__title {
+  color: var(--el-text-color-primary);
+  font-size: 15px;
+  font-weight: 600;
+}
+.form-frontend-events__help {
+  color: var(--el-text-color-secondary);
+  cursor: help;
+}
+.form-frontend-events__description {
+  margin: -2px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.form-frontend-events__entry {
+  display: flex;
+  width: 100%;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 11px;
+  color: var(--el-text-color-regular);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-base);
+}
+.form-frontend-events__entry:hover {
+  color: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+}
 </style>

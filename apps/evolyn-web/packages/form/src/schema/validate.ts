@@ -189,6 +189,7 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
       'widget_submit_rules',
       'validators',
       'preSubmitConfirm',
+      'formEvents',
     ],
     'content',
     issues,
@@ -224,6 +225,295 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
   validateFieldShowRules(content, issues);
   validateSubmitRules(content, issues);
   validateSubmitValidation(content, issues);
+  validateFrontendEvents(content, issues);
+}
+
+// ---- 前端事件（v10）----
+
+const FRONTEND_EVENT_ID_PATTERN = /^evt_[A-Za-z0-9_-]{4,60}$/;
+const FRONTEND_EVENT_TOKEN_PATTERN = /\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g;
+const FRONTEND_EVENT_HEADER_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+const FRONTEND_EVENT_JSON_PATH_PATTERN = /^\$response(?:\.[A-Za-z_][A-Za-z0-9_]*|\[[0-9]+\])*$/;
+const FRONTEND_EVENT_XML_PATH_PATTERN =
+  /^\/(?:[A-Za-z_][A-Za-z0-9_.-]*)(?:\/[A-Za-z_][A-Za-z0-9_.-]*)*$/;
+// Authorization 是外部业务 API 的常规鉴权方式，允许表单事件按需透传。
+const FRONTEND_EVENT_RESTRICTED_HEADERS = new Set([
+  'cookie',
+  'proxy-authorization',
+  'set-cookie',
+]);
+
+/** v10 前端事件保存期校验；依赖索引仅校验形状，服务端执行时会重新提取。 */
+function validateFrontendEvents(content: Record<string, unknown>, issues: FormSchemaIssue[]): void {
+  const rawEvents = content.formEvents;
+  if (!Array.isArray(rawEvents)) {
+    issues.push({ path: 'content.formEvents', message: 'formEvents 必须是数组（v10 起必填）' });
+    return;
+  }
+  if (rawEvents.length > 50) {
+    issues.push({ path: 'content.formEvents', message: '前端事件数量不能超过 50' });
+  }
+  const fields = new Map<string, FormWidgetType>();
+  for (const item of content.items as FormItem[]) {
+    if (isPlainObject(item) && isPlainObject(item.widget)) {
+      const name = item.widget.widgetName;
+      const type = item.widget.type;
+      if (typeof name === 'string' && typeof type === 'string') {
+        fields.set(name, type as FormWidgetType);
+      }
+    }
+  }
+  const ids = new Set<string>();
+  const names = new Set<string>();
+  rawEvents.forEach((rawEvent, index) => {
+    const path = `content.formEvents[${index}]`;
+    if (!isPlainObject(rawEvent)) {
+      issues.push({ path, message: '前端事件必须是 JSON 对象' });
+      return;
+    }
+    rejectUnknownKeys(
+      rawEvent,
+      [
+        'id',
+        'enabled',
+        'name',
+        'description',
+        'trigger',
+        'trigger_type',
+        'request_type',
+        'request',
+        'request_rely',
+        'action',
+        'action_rely',
+        'subform_fill_rule',
+      ],
+      path,
+      issues,
+    );
+    validateFrontendEventIdentity(rawEvent, path, ids, names, issues);
+    const trigger = typeof rawEvent.trigger === 'string' ? rawEvent.trigger : '';
+    if (!isFrontendEventValueField(fields.get(trigger))) {
+      issues.push({ path: `${path}.trigger`, message: '触发字段必须是表单中存在的可填写字段' });
+    }
+    if (rawEvent.trigger_type !== 'widget') {
+      issues.push({ path: `${path}.trigger_type`, message: 'trigger_type 必须固定为 "widget"' });
+    }
+    if (rawEvent.request_type !== 0) {
+      issues.push({ path: `${path}.request_type`, message: 'request_type 必须固定为 0' });
+    }
+    const request = isPlainObject(rawEvent.request) ? rawEvent.request : null;
+    validateFrontendEventRequest(request, `${path}.request`, fields, issues);
+    validateFrontendEventDependencyList(
+      rawEvent.request_rely,
+      `${path}.request_rely`,
+      fields,
+      issues,
+    );
+    validateFrontendEventActions(
+      rawEvent.action,
+      `${path}.action`,
+      trigger,
+      request,
+      fields,
+      issues,
+    );
+    validateFrontendEventDependencyList(
+      rawEvent.action_rely,
+      `${path}.action_rely`,
+      fields,
+      issues,
+    );
+    if (rawEvent.subform_fill_rule !== 'merge' && rawEvent.subform_fill_rule !== 'replace') {
+      issues.push({
+        path: `${path}.subform_fill_rule`,
+        message: 'subform_fill_rule 必须是 merge / replace',
+      });
+    }
+  });
+}
+
+function validateFrontendEventIdentity(
+  event: Record<string, unknown>,
+  path: string,
+  ids: Set<string>,
+  names: Set<string>,
+  issues: FormSchemaIssue[],
+): void {
+  const id = typeof event.id === 'string' ? event.id : '';
+  if (!FRONTEND_EVENT_ID_PATTERN.test(id) || id.length > 64) {
+    issues.push({ path: `${path}.id`, message: '事件 id 必须以 evt_ 开头且长度为 8–64' });
+  } else if (ids.has(id)) {
+    issues.push({ path: `${path}.id`, message: '事件 id 不能重复' });
+  } else ids.add(id);
+  const name = typeof event.name === 'string' ? event.name.trim() : '';
+  if (!name || [...name].length > 64) {
+    issues.push({ path: `${path}.name`, message: '事件名称必须为 1–64 个字符' });
+  } else if (names.has(name)) {
+    issues.push({ path: `${path}.name`, message: '事件名称不能重复' });
+  } else names.add(name);
+  if (typeof event.description !== 'string' || [...event.description].length > 500) {
+    issues.push({
+      path: `${path}.description`,
+      message: '事件说明必须是不超过 500 个字符的字符串',
+    });
+  }
+  if (typeof event.enabled !== 'boolean') {
+    issues.push({ path: `${path}.enabled`, message: 'enabled 必须是布尔值' });
+  }
+}
+
+function validateFrontendEventRequest(
+  request: Record<string, unknown> | null,
+  path: string,
+  fields: ReadonlyMap<string, FormWidgetType>,
+  issues: FormSchemaIssue[],
+): void {
+  if (!request) {
+    issues.push({ path, message: 'request 必须是 JSON 对象' });
+    return;
+  }
+  rejectUnknownKeys(request, ['method', 'url', 'header', 'body', 'format'], path, issues);
+  if (request.method !== 'get' && request.method !== 'post') {
+    issues.push({ path: `${path}.method`, message: 'method 必须是 get / post' });
+  }
+  const url = typeof request.url === 'string' ? request.url : '';
+  let validURL = false;
+  try {
+    const parsed = new URL(url);
+    validURL =
+      parsed.protocol === 'https:' &&
+      Boolean(parsed.hostname) &&
+      !parsed.username &&
+      !parsed.password;
+  } catch {
+    validURL = false;
+  }
+  if (!validURL || url.length > 4_000) {
+    issues.push({
+      path: `${path}.url`,
+      message: 'url 必须是不超过 4000 字符且不含用户信息的 HTTPS 地址',
+    });
+  }
+  validateFrontendEventTemplate(url, `${path}.url`, fields, issues);
+  validateFrontendEventEntries(request.header, `${path}.header`, true, fields, issues);
+  validateFrontendEventEntries(request.body, `${path}.body`, false, fields, issues);
+  if (request.format !== 'json' && request.format !== 'xml') {
+    issues.push({ path: `${path}.format`, message: 'format 必须是 json / xml' });
+  }
+}
+
+function validateFrontendEventEntries(
+  raw: unknown,
+  path: string,
+  header: boolean,
+  fields: ReadonlyMap<string, FormWidgetType>,
+  issues: FormSchemaIssue[],
+): void {
+  if (!Array.isArray(raw)) {
+    issues.push({ path, message: '请求参数必须是数组' });
+    return;
+  }
+  if (raw.length > 20) issues.push({ path, message: '请求参数不能超过 20 条' });
+  raw.forEach((rawEntry, index) => {
+    const entryPath = `${path}[${index}]`;
+    if (!isPlainObject(rawEntry)) {
+      issues.push({ path: entryPath, message: '请求参数必须是 JSON 对象' });
+      return;
+    }
+    rejectUnknownKeys(rawEntry, ['key', 'value'], entryPath, issues);
+    const key = typeof rawEntry.key === 'string' ? rawEntry.key : '';
+    const value = typeof rawEntry.value === 'string' ? rawEntry.value : '';
+    if (!key.trim() || key.length > 256 || !value || value.length > 4_000) {
+      issues.push({ path: entryPath, message: '请求参数 key/value 不能为空且不能超过长度限制' });
+      return;
+    }
+    if (
+      header &&
+      (!FRONTEND_EVENT_HEADER_PATTERN.test(key.replace(FRONTEND_EVENT_TOKEN_PATTERN, 'X')) ||
+        FRONTEND_EVENT_RESTRICTED_HEADERS.has(key.trim().toLowerCase()))
+    ) {
+      issues.push({ path: `${entryPath}.key`, message: 'Header 名称无效或属于禁止的敏感 Header' });
+    }
+    validateFrontendEventTemplate(key, `${entryPath}.key`, fields, issues);
+    validateFrontendEventTemplate(value, `${entryPath}.value`, fields, issues);
+  });
+}
+
+function validateFrontendEventActions(
+  raw: unknown,
+  path: string,
+  trigger: string,
+  request: Record<string, unknown> | null,
+  fields: ReadonlyMap<string, FormWidgetType>,
+  issues: FormSchemaIssue[],
+): void {
+  if (!Array.isArray(raw)) {
+    issues.push({ path, message: 'action 必须是数组' });
+    return;
+  }
+  if (raw.length > 50) issues.push({ path, message: '返回值映射不能超过 50 条' });
+  const targets = new Set<string>();
+  raw.forEach((rawAction, index) => {
+    const actionPath = `${path}[${index}]`;
+    if (!isPlainObject(rawAction)) {
+      issues.push({ path: actionPath, message: '返回值映射必须是 JSON 对象' });
+      return;
+    }
+    rejectUnknownKeys(rawAction, ['field', 'value'], actionPath, issues);
+    const field = typeof rawAction.field === 'string' ? rawAction.field : '';
+    if (!isFrontendEventValueField(fields.get(field)) || field === trigger || targets.has(field)) {
+      issues.push({
+        path: `${actionPath}.field`,
+        message: '目标字段不存在、重复、不可写或与触发字段相同',
+      });
+    } else targets.add(field);
+    const value = typeof rawAction.value === 'string' ? rawAction.value : '';
+    const isXML = request?.format === 'xml';
+    const validPath = isXML
+      ? FRONTEND_EVENT_XML_PATH_PATTERN.test(value)
+      : FRONTEND_EVENT_JSON_PATH_PATTERN.test(value);
+    if (!value || (!validPath && !value.includes('${'))) {
+      issues.push({ path: `${actionPath}.value`, message: '返回值路径或字段模板格式无效' });
+    }
+    validateFrontendEventTemplate(value, `${actionPath}.value`, fields, issues);
+  });
+}
+
+function validateFrontendEventTemplate(
+  template: string,
+  path: string,
+  fields: ReadonlyMap<string, FormWidgetType>,
+  issues: FormSchemaIssue[],
+): void {
+  FRONTEND_EVENT_TOKEN_PATTERN.lastIndex = 0;
+  for (const match of template.matchAll(FRONTEND_EVENT_TOKEN_PATTERN)) {
+    if (!isFrontendEventValueField(fields.get(match[1] ?? ''))) {
+      issues.push({ path, message: `模板引用的字段「${match[1]}」不存在或不可读取` });
+    }
+  }
+  const stripped = template.replace(FRONTEND_EVENT_TOKEN_PATTERN, '');
+  if (stripped.includes('${')) issues.push({ path, message: '字段模板包含不完整或非法令牌' });
+}
+
+function validateFrontendEventDependencyList(
+  raw: unknown,
+  path: string,
+  fields: ReadonlyMap<string, FormWidgetType>,
+  issues: FormSchemaIssue[],
+): void {
+  if (!Array.isArray(raw)) {
+    issues.push({ path, message: '依赖索引必须是字符串数组' });
+    return;
+  }
+  raw.forEach((value, index) => {
+    if (typeof value !== 'string' || !fields.has(value)) {
+      issues.push({ path: `${path}[${index}]`, message: '依赖字段不存在' });
+    }
+  });
+}
+
+function isFrontendEventValueField(type: FormWidgetType | undefined): boolean {
+  return Boolean(type && !['separator', 'button', 'richtext'].includes(type));
 }
 
 /**

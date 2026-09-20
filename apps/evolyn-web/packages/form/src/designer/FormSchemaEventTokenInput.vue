@@ -173,7 +173,7 @@ watch(
 </script>
 
 <template>
-  <div class="event-token-input">
+  <div :class="['event-token-input', { 'event-token-input--single-line': props.rows === 1 }]">
     <div
       ref="editor"
       :class="[
@@ -219,5 +219,7 @@ watch(
 :deep(.event-token-input__token) { display: inline-flex; max-width: 100%; align-items: center; padding: 0 5px; margin: 0 2px; overflow: hidden; color: var(--el-text-color-regular); line-height: 24px; vertical-align: baseline; text-overflow: ellipsis; white-space: nowrap; background: var(--el-fill-color); border-radius: 3px; user-select: all; }
 :deep(.event-token-input__text) { white-space: pre-wrap; }
 .event-token-input__insert { position: absolute; top: 7px; right: 8px; display: inline-flex; gap: 3px; align-items: center; padding: 4px 5px; color: var(--el-color-primary); font: inherit; cursor: pointer; background: var(--el-bg-color); border: 0; border-radius: 4px; }
+/* 单行控件与 Element Plus large 输入框同为 40px，高度变化时仍保持按钮居中。 */
+.event-token-input--single-line .event-token-input__insert { top: 50%; transform: translateY(-50%); }
 .event-token-input__insert:hover { background: var(--el-color-primary-light-9); }
 </style>

@@ -1,4 +1,5 @@
 import type { QueryDocument } from '@evolyn.do/query';
+import type { FormEventDebugRequest, FormEventDebugResult } from '@evolyn.do/form/designer';
 import type {
   FormDetail,
   FormDraftSaveResult,
@@ -152,6 +153,15 @@ export function saveFormDraft(
   content: FormSchemaDocument,
 ): Promise<FormDraftSaveResult> {
   return http.put(`/forms/${code}/draft`, { draftRevision, protocolVersion, content });
+}
+
+/** 按服务端草稿中的事件定义执行调试；浏览器不上传事件配置，避免绕过安全策略。 */
+export function debugFormFrontendEvent(
+  code: string,
+  eventId: string,
+  payload: FormEventDebugRequest,
+): Promise<FormEventDebugResult> {
+  return http.post(`/forms/${code}/frontend-events/${encodeURIComponent(eventId)}/debug`, payload);
 }
 
 /**

@@ -142,6 +142,19 @@ var (
 
 	ErrWorkflowProjectionInvalid = httpx.NewBiz("FORM_WORKFLOW_PROJECTION_INVALID", "流程状态投影无效", http.StatusInternalServerError)
 
+	// ---- 前端事件（协议 v10） ----
+	ErrFrontendEventNotFound          = httpx.NewBiz("FORM_EVENT_NOT_FOUND", "前端事件不存在", http.StatusNotFound)
+	ErrFrontendEventInvalid           = httpx.NewBiz("FORM_EVENT_INVALID", "前端事件配置无效", http.StatusBadRequest)
+	ErrFrontendEventDisabled          = httpx.NewBiz("FORM_EVENT_DISABLED", "前端事件已停用", http.StatusConflict)
+	ErrFrontendEventTriggerMismatch   = httpx.NewBiz("FORM_EVENT_TRIGGER_MISMATCH", "触发字段与事件配置不一致", http.StatusBadRequest)
+	ErrFrontendEventTemplateInvalid   = httpx.NewBiz("FORM_EVENT_TEMPLATE_INVALID", "前端事件模板无效", http.StatusBadRequest)
+	ErrFrontendEventRequestBlocked    = httpx.NewBiz("FORM_EVENT_REQUEST_BLOCKED", "请求地址被安全策略拦截", http.StatusForbidden)
+	ErrFrontendEventRequestFailed     = httpx.NewBiz("FORM_EVENT_REQUEST_FAILED", "前端事件请求失败", http.StatusBadGateway)
+	ErrFrontendEventResponseInvalid   = httpx.NewBiz("FORM_EVENT_RESPONSE_INVALID", "前端事件响应格式无效", http.StatusBadGateway)
+	ErrFrontendEventMappingFailed     = httpx.NewBiz("FORM_EVENT_MAPPING_FAILED", "返回值映射失败", http.StatusBadRequest)
+	ErrFrontendEventTargetNotWritable = httpx.NewBiz("FORM_EVENT_TARGET_NOT_WRITABLE", "目标字段不可写", http.StatusForbidden)
+	ErrFrontendEventCycleDetected     = httpx.NewBiz("FORM_EVENT_CYCLE_DETECTED", "前端事件调用链存在循环", http.StatusConflict)
+
 	// ErrStorageJobNotFound DDL 发布 Job 不存在
 	ErrStorageJobNotFound = httpx.NewBiz("FORM_STORAGE_JOB_NOT_FOUND", "结构变更任务不存在", http.StatusNotFound)
 )

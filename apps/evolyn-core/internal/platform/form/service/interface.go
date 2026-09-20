@@ -5,10 +5,14 @@ package service
 
 import (
 	"context"
+	"errors"
 
 	"evolyn/internal/platform/form/model"
 	iammodel "evolyn/internal/platform/iam/model"
 )
+
+// ErrFrontendEventURLBlocked 由出站适配器在 URL/解析地址命中 SSRF 策略时返回。
+var ErrFrontendEventURLBlocked = errors.New("frontend event url blocked")
 
 // AccessEvaluator 权限集窄端口（装配层由 app 域 RBAC 评估器适配）。
 type AccessEvaluator interface {
@@ -25,6 +29,27 @@ type MemberReferenceDirectory interface {
 // 可供新记录选择的有效部门 ID；不存在、跨租户或停用部门均不得进入表单记录。
 type DepartmentDirectory interface {
 	ResolveActiveDepartmentIDs(ctx context.Context, references []string) (map[string]bool, error)
+}
+
+// FrontendEventInvoker 是前端事件出站 HTTP 的窄端口。实现层负责 SSRF、
+// 白名单、超时、重定向和响应体限长；Service 只负责编排与响应映射。
+type FrontendEventInvoker interface {
+	Invoke(ctx context.Context, request FrontendEventInvokeRequest) (*FrontendEventInvokeResponse, error)
+}
+
+type FrontendEventInvokeRequest struct {
+	TenantID uint
+	EventID  string
+	Method   string
+	URL      string
+	Headers  map[string]string
+	Body     string
+}
+
+type FrontendEventInvokeResponse struct {
+	StatusCode int
+	Body       []byte
+	DurationMS int64
 }
 
 // MenuMaintenance 表单资产菜单节点维护窄端口（M2-资产-1）：由 app
@@ -68,7 +93,7 @@ type FormReference struct {
 	AppCode      string  `json:"appCode"`
 	AppName      string  `json:"appName"`
 	MenuID       string  `json:"menuId"`
-	NodeName    string  `json:"entryName"`
+	NodeName     string  `json:"entryName"`
 	ParentMenuID *string `json:"parentMenuId"`
 }
 
@@ -122,6 +147,14 @@ type FormService interface {
 	RetryStorageJob(ctx context.Context, member *iammodel.User, code string, jobID uint) (*model.StorageJobDetail, error)
 	// RecalibrateWorkflowProjection 管理员校准流程状态投影（forms:update）
 	RecalibrateWorkflowProjection(ctx context.Context, member *iammodel.User, code string) (*model.WorkflowProjectionRecalibrateResult, error)
+	// DebugFrontendEvent 按当前草稿中的事件定义执行一次安全调试，不写表单记录。
+	DebugFrontendEvent(ctx context.Context, member *iammodel.User, code, eventID string, req *model.FrontendEventExecuteRequest) (*model.FrontendEventExecuteResult, error)
+}
+
+// FrontendEventInvokerInjector 是生产装配期注入点；未注入时调试明确失败，
+// 不允许退化为浏览器直连或无安全策略的默认客户端。
+type FrontendEventInvokerInjector interface {
+	UseFrontendEventInvoker(invoker FrontendEventInvoker)
 }
 
 // PermissionEvaluatorInjector 装配期注入能力（可选）：权限组判定器（表单权限

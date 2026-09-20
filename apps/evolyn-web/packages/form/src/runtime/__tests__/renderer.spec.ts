@@ -49,6 +49,7 @@ const schema = (items: FormItem[]): FormSchemaDocument => ({
       title: '确认继续提交吗？',
       content: '请确认填写内容无误后继续提交。',
     },
+    formEvents: [],
   },
 });
 
@@ -72,6 +73,7 @@ describe('FormRenderer 渲染', () => {
               title: '确认继续提交吗？',
               content: '请确认填写内容无误后继续提交。',
             },
+            formEvents: [],
           },
         },
       },
@@ -287,6 +289,7 @@ describe('FormRenderer 渲染', () => {
           title: '确认继续提交吗？',
           content: '请确认填写内容无误后继续提交。',
         },
+        formEvents: [],
       },
     };
     const plan = buildRenderPlan(doc);
