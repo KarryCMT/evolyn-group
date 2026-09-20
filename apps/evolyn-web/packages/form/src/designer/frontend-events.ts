@@ -108,7 +108,29 @@ export function referencedWidgetNames(template: string): string[] {
 
 /** 保存前重建依赖索引；索引不接受手工修改，防止与文本模板漂移。 */
 export function normalizeFormEvent(event: FormEvent): FormEvent {
-  const next = structuredClone(event);
+  // 编辑器传入的是 Vue reactive proxy；structuredClone 不能可靠克隆 Proxy，
+  // 某些组件更新还可能把浏览器 Event 带入值。这里显式收敛为 JSON 协议字段，
+  // 既消除 DataCloneError，也避免界面对象进入待保存配置。
+  const next: FormEvent = {
+    id: stringValue(event.id),
+    enabled: event.enabled === true,
+    name: stringValue(event.name),
+    description: stringValue(event.description),
+    trigger: stringValue(event.trigger),
+    trigger_type: 'widget',
+    request_type: 0,
+    request: {
+      method: event.request?.method === 'post' ? 'post' : 'get',
+      url: stringValue(event.request?.url),
+      header: normalizeRequestEntries(event.request?.header),
+      body: normalizeRequestEntries(event.request?.body),
+      format: event.request?.format === 'xml' ? 'xml' : 'json',
+    },
+    request_rely: [],
+    action: normalizeActions(event.action),
+    action_rely: [],
+    subform_fill_rule: event.subform_fill_rule === 'replace' ? 'replace' : 'merge',
+  };
   const requestTemplates = [
     next.request.url,
     ...next.request.header.flatMap((entry) => [entry.key, entry.value]),
@@ -117,6 +139,26 @@ export function normalizeFormEvent(event: FormEvent): FormEvent {
   next.request_rely = uniqueReferences(requestTemplates);
   next.action_rely = uniqueReferences(next.action.flatMap((action) => [action.value]));
   return next;
+}
+
+function stringValue(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+function normalizeRequestEntries(entries: unknown): FormEventRequestEntry[] {
+  if (!Array.isArray(entries)) return [];
+  return entries.map((entry) => {
+    const record = entry as Partial<FormEventRequestEntry> | null;
+    return { key: stringValue(record?.key), value: stringValue(record?.value) };
+  });
+}
+
+function normalizeActions(actions: unknown): FormEventAction[] {
+  if (!Array.isArray(actions)) return [];
+  return actions.map((action) => {
+    const record = action as Partial<FormEventAction> | null;
+    return { field: stringValue(record?.field), value: stringValue(record?.value) };
+  });
 }
 
 export function formEventFieldOptions(items: readonly FormItem[]): FormEventFieldOption[] {

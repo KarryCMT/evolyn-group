@@ -9,6 +9,7 @@ import {
 } from 'element-plus';
 import type { FormItem } from '../schema/types';
 import FormSchemaFrontendEventDrawer from './FormSchemaFrontendEventDrawer.vue';
+import FormSchemaFrontendEventDebugDrawer from './FormSchemaFrontendEventDebugDrawer.vue';
 import FormSchemaFrontendEventDialog from './FormSchemaFrontendEventDialog.vue';
 import {
   formEventFieldOptions,
@@ -20,7 +21,9 @@ const formEvents = defineModel<FormEvent[]>({ required: true });
 const props = defineProps<{ items: readonly FormItem[] }>();
 const panelOpen = shallowRef(false);
 const editorOpen = shallowRef(false);
+const debugOpen = shallowRef(false);
 const editingID = shallowRef<string | null>(null);
+const debuggingEvent = shallowRef<FormEvent | undefined>();
 const fields = computed(() => formEventFieldOptions(props.items));
 const editingEvent = computed(() => formEvents.value.find((event) => event.id === editingID.value));
 const existingNames = computed(() =>
@@ -50,6 +53,11 @@ function saveEvent(event: FormEvent): void {
   else formEvents.value = formEvents.value.map((item) => (item.id === event.id ? event : item));
 }
 
+function saveAndDebug(event: FormEvent): void {
+  saveEvent(event);
+  debugEvent(event);
+}
+
 function toggleEvent(event: FormEvent, enabled: boolean | string | number): void {
   formEvents.value = formEvents.value.map((item) =>
     item.id === event.id ? { ...item, enabled: enabled === true } : item,
@@ -70,8 +78,8 @@ async function removeEvent(event: FormEvent): Promise<void> {
 }
 
 function debugEvent(event: FormEvent): void {
-  // 后端代理执行接口尚未接入；保留真实入口和反馈，后续无需调整列表交互。
-  ElMessage.info(`“${event.name}”将在后端事件执行服务接入后支持调试`);
+  debuggingEvent.value = event;
+  debugOpen.value = true;
 }
 
 </script>
@@ -106,6 +114,12 @@ function debugEvent(event: FormEvent): void {
       :fields="fields"
       :existing-names="existingNames"
       @save="saveEvent"
+      @save-and-debug="saveAndDebug"
+    />
+    <FormSchemaFrontendEventDebugDrawer
+      v-model="debugOpen"
+      :event="debuggingEvent"
+      :fields="fields"
     />
   </section>
 </template>

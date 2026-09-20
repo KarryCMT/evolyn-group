@@ -2,8 +2,8 @@
   <el-dialog
     :model-value="modelValue"
     title="字段显隐规则"
-    width="min(94vw, 1512px)"
-    top="2vh"
+    width="min(88vw, 840px)"
+    top="10vh"
     append-to-body
     destroy-on-close
     class="form-field-show-rule-dialog"
@@ -564,27 +564,25 @@ function resetDraft(): void {
 <style lang="scss">
 .form-field-show-rule-dialog.el-dialog {
   display: flex;
-  width: min(94vw, 1512px) !important;
-  height: calc(100vh - 52px);
-  min-height: 520px;
-  max-height: none;
+  width: min(88vw, 840px) !important;
+  max-height: calc(100vh - 128px);
   flex-direction: column;
-  margin: 26px auto;
+  margin: 10vh auto;
   overflow: hidden;
-  border-radius: 16px;
+  border-radius: 12px;
 
   .el-dialog__header {
     display: flex;
     flex-shrink: 0;
     align-items: center;
-    min-height: 100px;
-    padding: 0 40px;
+    min-height: 72px;
+    padding: 0 28px;
     margin: 0;
     border-bottom: 1px solid var(--el-border-color-lighter);
   }
 
   .el-dialog__title {
-    font-size: 28px;
+    font-size: 20px;
     font-weight: 600;
     line-height: 1.35;
     color: var(--el-text-color-primary);
@@ -592,14 +590,14 @@ function resetDraft(): void {
 
   .el-dialog__headerbtn {
     top: 0;
-    right: 32px;
+    right: 16px;
     display: grid;
-    width: 48px;
-    height: 100px;
+    width: 40px;
+    height: 72px;
     place-items: center;
 
     .el-dialog__close {
-      font-size: 28px;
+      font-size: 24px;
     }
   }
 
@@ -607,7 +605,7 @@ function resetDraft(): void {
     display: flex;
     min-height: 0;
     flex: 1;
-    padding: 48px 40px;
+    padding: 24px 28px;
     overflow-y: auto;
   }
 
@@ -617,8 +615,8 @@ function resetDraft(): void {
     gap: var(--el-space-md);
     align-items: center;
     justify-content: flex-end;
-    min-height: 112px;
-    padding: 0 40px;
+    min-height: 72px;
+    padding: 0 28px;
     border-top: 1px solid var(--el-border-color-lighter);
   }
 
@@ -640,7 +638,7 @@ function resetDraft(): void {
   }
 
   .form-field-show-rule-dialog__add-condition.el-button {
-    margin: 0 0 var(--el-space-lg);
+    margin: 0 0 var(--el-space-md);
     padding-left: 0;
     font-size: var(--el-font-size-base);
   }
@@ -649,7 +647,7 @@ function resetDraft(): void {
     display: flex;
     gap: var(--el-space-sm);
     align-items: center;
-    margin-bottom: var(--el-space-md);
+    margin-bottom: var(--el-space-sm);
   }
 
   .form-field-show-rule-dialog__condition-main {
@@ -671,7 +669,7 @@ function resetDraft(): void {
   }
 
   .form-field-show-rule-dialog__targets {
-    margin-top: var(--el-space-lg);
+    margin-top: var(--el-space-md);
 
     .el-select {
       width: 100%;
@@ -686,7 +684,7 @@ function resetDraft(): void {
 
   .form-field-show-rule-dialog__preview {
     padding: var(--el-space-md);
-    margin: var(--el-space-lg) 0 0;
+    margin: var(--el-space-md) 0 0;
     font-size: var(--el-font-size-small);
     line-height: 1.6;
     color: var(--el-text-color-primary);

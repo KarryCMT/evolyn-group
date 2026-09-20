@@ -28,6 +28,7 @@ import { createForm, deleteForm, updateForm } from '~/api/form';
 import AppWorkspaceShell from '~/components/app/workspace/AppWorkspaceShell.vue';
 import FormAppearanceDialog from '~/components/app/workspace/FormAppearanceDialog.vue';
 import MoveMenuNodeDialog from '~/components/app/workspace/MoveMenuNodeDialog.vue';
+import FavoritesWorkspaceDialog from '~/components/dashboard/favorites/FavoritesWorkspaceDialog.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { useAppHome } from '~/composables/useAppHome';
 import { useAppMenu } from '~/composables/useAppMenu';
@@ -79,6 +80,8 @@ const appIcon = computed(
 const requestedFormCode = computed(() => String(route.params.formCode ?? ''));
 const activeAssetCode = shallowRef('');
 const workspaceMode = shallowRef<AppWorkspaceMode>('fill');
+/** 顶部星标是全局菜单收藏的快捷入口，收藏状态由 useMenuFavorites 统一维护。 */
+const favoritesVisible = shallowRef(false);
 /**
  * 个人流程入口与当前应用资产互斥：入口激活时保留资产选择，回到资产后可直接恢复。
  * 顶栏标题和流程数据范围均由该单一状态派生，避免左右区域不同步。
@@ -246,6 +249,11 @@ watch(
 
 function returnToDashboard() {
   void router.push({ name: 'dashboard' });
+}
+
+/** 应用切换器只负责选择；实际路由跳转留在页面层，保持工作区壳为纯组合组件。 */
+function switchWorkspaceApp(targetAppCode: string) {
+  void router.push({ name: 'App', params: { appCode: targetAppCode } });
 }
 
 /**
@@ -726,8 +734,12 @@ function reloadWorkspace() {
         @update-personal-workflow-form-code="updatePersonalWorkflowFormCode"
         @update-pending-workflow-summary="updatePendingWorkflowSummary"
         @open-management="openAppManagement"
+        @open-favorites="favoritesVisible = true"
+        @select-app="switchWorkspaceApp"
         @update-mode="updateWorkspaceMode"
       />
+
+      <FavoritesWorkspaceDialog v-model="favoritesVisible" />
 
       <FormAppearanceDialog
         v-if="formAppearanceTarget"

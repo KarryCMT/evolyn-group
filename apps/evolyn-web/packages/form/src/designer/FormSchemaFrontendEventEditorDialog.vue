@@ -16,7 +16,10 @@ const props = withDefaults(
   }>(),
   { event: undefined, existingNames: () => [] },
 );
-const emit = defineEmits<{ save: [event: FormEvent] }>();
+const emit = defineEmits<{
+  save: [event: FormEvent];
+  'save-and-debug': [event: FormEvent];
+}>();
 const visible = defineModel<boolean>({ required: true });
 const step = shallowRef<1 | 2>(1);
 const draft = ref<FormEvent>(createFormEvent());
@@ -44,10 +47,12 @@ watch(
   { immediate: true },
 );
 
-function save(): void {
+function save(openDebug = false): void {
   if (nameError.value || !draft.value.trigger || !draft.value.request.url.trim()) return;
   if (!draft.value.action.every((action) => action.field && action.value.trim())) return;
-  emit('save', normalizeFormEvent(draft.value));
+  const event = normalizeFormEvent(draft.value);
+  if (openDebug) emit('save-and-debug', event);
+  else emit('save', event);
   visible.value = false;
 }
 </script>
@@ -56,7 +61,8 @@ function save(): void {
   <ElDialog
     v-model="visible"
     class="form-event-dialog"
-    width="min(92vw, 840px)"
+    width="960px"
+    top="7vh"
     :close-on-click-modal="false"
     :lock-scroll="true"
     :title="props.event ? '编辑前端事件' : '添加前端事件'"
@@ -89,10 +95,16 @@ function save(): void {
           >
           <ElButton
             v-else
+            :disabled="!draft.trigger || !draft.request.url.trim()"
+            @click="save()"
+            >保存</ElButton
+          >
+          <ElButton
+            v-if="step === 2"
             type="primary"
             :disabled="!draft.trigger || !draft.request.url.trim()"
-            @click="save"
-            >保存</ElButton
+            @click="save(true)"
+            >保存并调试</ElButton
           >
         </div>
       </div>

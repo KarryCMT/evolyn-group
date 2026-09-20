@@ -49,7 +49,6 @@ const emit = defineEmits<{
         <ElInput
           v-model="draft.name"
           :maxlength="FORM_EVENT_LIMITS.nameMaxLength"
-          autofocus
           placeholder="例如：自动补全员工信息"
         />
       </ElFormItem>

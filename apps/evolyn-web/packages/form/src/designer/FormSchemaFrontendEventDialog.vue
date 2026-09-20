@@ -11,7 +11,10 @@ const props = withDefaults(
   }>(),
   { event: undefined, existingNames: () => [] },
 );
-const emit = defineEmits<{ save: [event: FormEvent] }>();
+const emit = defineEmits<{
+  save: [event: FormEvent];
+  'save-and-debug': [event: FormEvent];
+}>();
 </script>
 
 <template>
@@ -21,23 +24,51 @@ const emit = defineEmits<{ save: [event: FormEvent] }>();
     :fields="props.fields"
     :existing-names="props.existingNames"
     @save="emit('save', $event)"
+    @save-and-debug="emit('save-and-debug', $event)"
   />
 </template>
 
 <style lang="scss">
-.form-event-dialog,
-.form-event-dialog__nested {
+.form-event-dialog.el-dialog,
+.form-event-dialog__nested.el-dialog {
   display: flex;
-  max-height: calc(100dvh - 64px);
+  max-height: calc(100dvh - 80px);
   flex-direction: column;
-  margin: 32px auto !important;
+  margin: 7vh auto !important;
   overflow: hidden;
+  border-radius: 12px;
+}
+.form-event-dialog.el-dialog {
+  width: min(calc(100vw - 48px), 960px) !important;
+}
+.form-event-dialog__nested.el-dialog {
+  width: min(calc(100vw - 48px), 720px) !important;
+}
+.form-event-dialog .el-dialog__header,
+.form-event-dialog__nested .el-dialog__header {
+  min-height: 68px;
+  padding: 0 28px;
+  margin: 0;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+.form-event-dialog .el-dialog__title,
+.form-event-dialog__nested .el-dialog__title {
+  color: var(--el-text-color-primary);
+  font-size: 19px;
+  font-weight: 600;
+}
+.form-event-dialog .el-dialog__headerbtn,
+.form-event-dialog__nested .el-dialog__headerbtn {
+  top: 0;
+  right: 14px;
+  width: 40px;
+  height: 68px;
 }
 .form-event-dialog .el-dialog__body,
 .form-event-dialog__nested .el-dialog__body {
   flex: 1 1 auto;
   min-height: 0;
-  padding: 10px 28px 16px;
+  padding: 20px 28px 24px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
@@ -97,7 +128,7 @@ const emit = defineEmits<{ save: [event: FormEvent] }>();
   margin: 0 auto;
 }
 .form-event-dialog__section {
-  margin-bottom: 26px;
+  margin-bottom: 22px;
 }
 .form-event-dialog__section h3 {
   margin: 0 0 12px;
@@ -123,7 +154,7 @@ const emit = defineEmits<{ save: [event: FormEvent] }>();
 }
 .form-event-dialog__label {
   display: block;
-  margin: 22px 0 8px;
+  margin: 18px 0 8px;
   font-weight: 600;
 }
 .form-event-dialog__label em {

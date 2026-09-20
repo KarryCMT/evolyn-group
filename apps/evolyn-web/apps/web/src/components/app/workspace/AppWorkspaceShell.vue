@@ -14,6 +14,7 @@ import WorkflowCenter from '~/components/workflow-center/WorkflowCenter.vue';
 import AppEmptyState from '../runtime/AppEmptyState.vue';
 import AppWorkspaceFormRuntime from '../runtime/AppWorkspaceFormRuntime.vue';
 import AppContentPlaceholder from './AppContentPlaceholder.vue';
+import AppWorkspaceAppSwitcherDrawer from './AppWorkspaceAppSwitcherDrawer.vue';
 import AppWorkspaceHeader from './AppWorkspaceHeader.vue';
 import AppWorkspaceSidebar from './AppWorkspaceSidebar.vue';
 
@@ -55,11 +56,15 @@ const emit = defineEmits<{
   updatePersonalWorkflowFormCode: [formCode: string];
   updatePendingWorkflowSummary: [summary: WorkflowPendingTaskSummaryDto | null];
   openManagement: [];
+  openFavorites: [];
+  selectApp: [appCode: string];
   updateMode: [mode: AppWorkspaceMode];
 }>();
 
 // 工作区统一持有侧栏展开状态，侧栏与内容头部通过显式 props / emits 保持同步。
 const sidebarCollapsed = shallowRef(false);
+// 应用切换抽屉属于工作区壳的短生命周期 UI 状态，切换路由后自然重置。
+const appSwitcherVisible = shallowRef(false);
 // 个人流程视图与资产树是两套独立导航。保留最近资产用于返回后恢复，但在流程
 // 视图期间不向资产树投影选中态，避免「我处理的」与某个表单同时高亮。
 const visibleActiveAssetCode = computed(() =>
@@ -94,6 +99,8 @@ function toggleSidebar() {
       @update-workflow-scope="emit('updatePersonalScope', $event)"
       @update-workflow-form-code="emit('updatePersonalWorkflowFormCode', $event)"
       @open-management="emit('openManagement')"
+      @open-app-switcher="appSwitcherVisible = true"
+      @open-favorites="emit('openFavorites')"
       @toggle-sidebar="toggleSidebar"
     />
     <section class="app-workspace-shell__surface">
@@ -130,6 +137,12 @@ function toggleSidebar() {
       />
       <AppContentPlaceholder v-else :asset="props.activeAsset" :mode="props.mode" />
     </section>
+    <AppWorkspaceAppSwitcherDrawer
+      v-model="appSwitcherVisible"
+      :active-app-code="props.appCode"
+      @back="emit('back')"
+      @select-app="emit('selectApp', $event)"
+    />
   </div>
 </template>
 

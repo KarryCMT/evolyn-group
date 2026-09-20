@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { RiAddLine } from '@remixicon/vue';
-import { computed, nextTick, shallowRef, useTemplateRef } from 'vue';
+import { nextTick, onMounted, shallowRef, useTemplateRef, watch } from 'vue';
 import { ElPopover } from 'element-plus';
 import type { FormEventFieldOption } from './frontend-events';
 import FormSchemaEventFieldPicker from './FormSchemaEventFieldPicker.vue';
@@ -19,7 +19,7 @@ const props = withDefaults(
 const pickerOpen = shallowRef(false);
 const editor = useTemplateRef<HTMLElement>('editor');
 const selectionOffset = shallowRef<number | null>(null);
-const tokenSegments = computed(() => splitTemplate(model.value, props.fields));
+const renderedSignature = shallowRef('');
 
 interface TokenSegment {
   kind: 'text' | 'token';
@@ -40,6 +40,38 @@ function splitTemplate(template: string, fields: readonly FormEventFieldOption[]
   }
   if (cursor < template.length) segments.push({ kind: 'text', value: template.slice(cursor) });
   return segments;
+}
+
+/**
+ * contenteditable 内部会被浏览器在输入时直接改写。不能让 Vue 同时管理这些子节点，
+ * 否则打开字段选择浮层触发重渲染时，旧 VNode 与实际 DOM 脱节并导致 patchElement 报错。
+ */
+function renderTemplate(): void {
+  const root = editor.value;
+  if (!root) return;
+  const labels = new Map(props.fields.map((field) => [field.key, field.label || field.key]));
+  const fragment = document.createDocumentFragment();
+  for (const segment of splitTemplate(model.value, props.fields)) {
+    if (segment.kind === 'text') {
+      const text = document.createElement('span');
+      text.className = 'event-token-input__text';
+      text.textContent = segment.value;
+      fragment.append(text);
+      continue;
+    }
+    const token = document.createElement('span');
+    token.className = 'event-token-input__token';
+    token.dataset.token = segment.key;
+    token.contentEditable = 'false';
+    token.textContent = labels.get(segment.key ?? '') ?? segment.value;
+    fragment.append(token);
+  }
+  root.replaceChildren(fragment);
+  renderedSignature.value = templateSignature();
+}
+
+function templateSignature(template = model.value): string {
+  return `${template}\u0000${props.fields.map((field) => `${field.key}\u0000${field.label}`).join('\u0001')}`;
 }
 
 function serialize(node: Node): string {
@@ -110,9 +142,10 @@ function captureSelection(): void {
 
 function updateTemplate(): void {
   const nextValue = editor.value ? serialize(editor.value).replace(/\n$/, '') : '';
-  const caret = readSelectionOffset() ?? nextValue.length;
+  // model 写回父组件后，props 通常会在下一个渲染周期才回传新值。先用本次输入
+  // 的文本更新签名，避免回传时被误判为外部修改而 replaceChildren，导致光标跳到开头。
+  renderedSignature.value = templateSignature(nextValue);
   model.value = nextValue;
-  nextTick(() => restoreSelection(caret));
 }
 
 function insertField(field: FormEventFieldOption): void {
@@ -122,17 +155,31 @@ function insertField(field: FormEventFieldOption): void {
   model.value = `${model.value.slice(0, start)}${token}${model.value.slice(end)}`;
   pickerOpen.value = false;
   nextTick(() => {
+    renderTemplate();
     editor.value?.focus();
     restoreSelection(start + token.length);
   });
 }
+
+onMounted(renderTemplate);
+
+watch(
+  templateSignature,
+  (signature) => {
+    if (signature !== renderedSignature.value) renderTemplate();
+  },
+  { flush: 'post' },
+);
 </script>
 
 <template>
   <div class="event-token-input">
     <div
       ref="editor"
-      :class="['event-token-input__control', { 'event-token-input__control--textarea': props.rows > 1 }]"
+      :class="[
+        'event-token-input__control',
+        { 'event-token-input__control--textarea': props.rows > 1 },
+      ]"
       :data-placeholder="props.placeholder"
       contenteditable="true"
       role="textbox"
@@ -141,15 +188,19 @@ function insertField(field: FormEventFieldOption): void {
       @keyup="captureSelection"
       @mouseup="captureSelection"
       @focus="captureSelection"
+    ></div>
+    <el-popover
+      v-model:visible="pickerOpen"
+      placement="bottom-end"
+      :width="320"
+      trigger="click"
     >
-      <template v-for="(segment, index) in tokenSegments" :key="`${segment.kind}-${index}-${segment.key ?? segment.value}`">
-        <span v-if="segment.kind === 'token'" :data-token="segment.key" class="event-token-input__token" contenteditable="false">{{ segment.value }}</span>
-        <span v-else class="event-token-input__text">{{ segment.value }}</span>
-      </template>
-    </div>
-    <el-popover v-model:visible="pickerOpen" placement="bottom-end" :width="320" :teleported="false" trigger="click">
       <template #reference>
-        <button class="event-token-input__insert" type="button" @mousedown.prevent="captureSelection">
+        <button
+          class="event-token-input__insert"
+          type="button"
+          @mousedown.prevent="captureSelection"
+        >
           <RiAddLine aria-hidden="true" />{{ props.insertLabel }}
         </button>
       </template>
@@ -164,8 +215,9 @@ function insertField(field: FormEventFieldOption): void {
 .event-token-input__control:empty::before { color: var(--el-text-color-placeholder); pointer-events: none; content: attr(data-placeholder); }
 .event-token-input__control:focus { border-color: var(--el-color-primary); box-shadow: 0 0 0 1px var(--el-color-primary-light-7); }
 .event-token-input__control--textarea { min-height: 92px; }
-.event-token-input__token { display: inline-flex; max-width: 100%; align-items: center; padding: 0 5px; margin: 0 2px; overflow: hidden; color: var(--el-text-color-regular); line-height: 24px; vertical-align: baseline; text-overflow: ellipsis; white-space: nowrap; background: var(--el-fill-color); border-radius: 3px; user-select: all; }
-.event-token-input__text { white-space: pre-wrap; }
+/* 令牌节点由 renderTemplate 手动创建，不会带上 Vue scoped attribute，需穿透作用域。 */
+:deep(.event-token-input__token) { display: inline-flex; max-width: 100%; align-items: center; padding: 0 5px; margin: 0 2px; overflow: hidden; color: var(--el-text-color-regular); line-height: 24px; vertical-align: baseline; text-overflow: ellipsis; white-space: nowrap; background: var(--el-fill-color); border-radius: 3px; user-select: all; }
+:deep(.event-token-input__text) { white-space: pre-wrap; }
 .event-token-input__insert { position: absolute; top: 7px; right: 8px; display: inline-flex; gap: 3px; align-items: center; padding: 4px 5px; color: var(--el-color-primary); font: inherit; cursor: pointer; background: var(--el-bg-color); border: 0; border-radius: 4px; }
 .event-token-input__insert:hover { background: var(--el-color-primary-light-9); }
 </style>

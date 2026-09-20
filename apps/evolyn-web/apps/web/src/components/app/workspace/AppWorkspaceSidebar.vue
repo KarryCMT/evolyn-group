@@ -19,6 +19,7 @@ import {
   RiGitBranchFill,
   RiSearch2Line,
   RiSettings3Fill,
+  RiStarLine,
 } from '@remixicon/vue';
 import { computed } from 'vue';
 import WorkflowCenterNavigation from '~/components/workflow-center/WorkflowCenterNavigation.vue';
@@ -55,6 +56,8 @@ const emit = defineEmits<{
   updateWorkflowScope: [scope: WorkflowCenterScope];
   updateWorkflowFormCode: [formCode: string];
   openManagement: [];
+  openAppSwitcher: [];
+  openFavorites: [];
   toggleSidebar: [];
 }>();
 
@@ -92,10 +95,27 @@ function handleCreateAsset(command: string | number | object) {
           <RiArrowLeftSLine />
         </button>
         <!-- appIcon 是可持久化描述值，必须经展示组件解析，不能直接作为动态组件。 -->
-        <span class="app-workspace-sidebar__app-icon" aria-hidden="true">
-          <EvolynIconPicker :model-value="props.appIcon" display-only :size="30" />
-        </span>
-        <strong class="app-workspace-sidebar__app-name">{{ props.appName }}</strong>
+        <button
+          class="app-workspace-sidebar__app-trigger"
+          type="button"
+          :title="props.appName"
+          @click="emit('openAppSwitcher')"
+        >
+          <span class="app-workspace-sidebar__app-icon" aria-hidden="true">
+            <EvolynIconPicker :model-value="props.appIcon" display-only :size="30" />
+          </span>
+          <strong class="app-workspace-sidebar__app-name">{{ props.appName }}</strong>
+        </button>
+        <el-tooltip content="我的收藏" placement="bottom">
+          <button
+            class="app-workspace-sidebar__favorites"
+            type="button"
+            aria-label="打开我的收藏"
+            @click="emit('openFavorites')"
+          >
+            <RiStarLine aria-hidden="true" />
+          </button>
+        </el-tooltip>
         <button
           v-if="!props.collapsed"
           class="app-workspace-sidebar__collapse"
@@ -271,11 +291,20 @@ function handleCreateAsset(command: string | number | object) {
   &__header {
     min-height: 44px;
     gap: var(--el-space-md);
+
+    /* 星标属于当前应用的悬停操作，与名称卡片共用同一可发现范围。 */
+    &:hover .app-workspace-sidebar__favorites,
+    &:focus-within .app-workspace-sidebar__favorites {
+      pointer-events: auto;
+      opacity: 1;
+    }
   }
 
   &__back,
   &__create,
   &__collapse,
+  &__app-trigger,
+  &__favorites,
   &__nav-item,
   &__management {
     border: 0;
@@ -312,6 +341,31 @@ function handleCreateAsset(command: string | number | object) {
     color: var(--el-color-white);
   }
 
+  &__app-trigger {
+    display: flex;
+    min-width: 0;
+    height: 44px;
+    padding: 0 var(--el-space-sm);
+    flex: 1;
+    align-items: center;
+    gap: var(--el-space-md);
+    border: 0;
+    border-radius: var(--el-border-radius-medium);
+    color: inherit;
+    cursor: pointer;
+    background: transparent;
+    text-align: left;
+
+    &:hover {
+      background: rgb(255 255 255 / 14%);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--el-color-white);
+      outline-offset: -2px;
+    }
+  }
+
   &__app-icon {
     display: inline-flex;
     width: 30px;
@@ -325,6 +379,8 @@ function handleCreateAsset(command: string | number | object) {
 
   &__app-name {
     overflow: hidden;
+    min-width: 0;
+    flex: 1;
     font-size: var(--el-font-size-medium);
     font-weight: 650;
     line-height: 24px;
@@ -335,6 +391,36 @@ function handleCreateAsset(command: string | number | object) {
   &__collapse {
     margin-left: auto;
     font-size: var(--el-font-size-medium);
+  }
+
+  &__favorites {
+    display: inline-flex;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: var(--el-border-radius-medium);
+    color: inherit;
+    cursor: pointer;
+    pointer-events: none;
+    background: transparent;
+    font-size: var(--el-font-size-medium);
+    opacity: 0;
+    transition:
+      opacity 0.16s ease,
+      background-color 0.16s ease;
+
+    &:hover {
+      background: rgb(255 255 255 / 14%);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--el-color-white);
+      outline-offset: -2px;
+    }
   }
 
   &__personal-nav,

@@ -1,3 +1,4 @@
+import { reactive } from 'vue';
 import { describe, expect, it } from 'vitest';
 import { createFormEvent, formEventFieldTypeLabel, normalizeFormEvent, referencedWidgetNames } from '../frontend-events';
 
@@ -20,6 +21,27 @@ describe('frontend event helpers', () => {
     expect(normalizeFormEvent(event)).toMatchObject({
       request_rely: ['_widget_name', '_widget_id'],
       action_rely: ['_widget_name'],
+    });
+  });
+
+  it('converts a reactive editor draft into a serializable event payload', () => {
+    const event = reactive(createFormEvent());
+    event.name = '查询员工信息';
+    event.request.url = 'https://api.lingyanyun.test/employees/${_widget_phone}';
+    event.request.header = [{ key: 'X-Source', value: 'designer' }];
+    event.action = [{ field: '_widget_name', value: '$response.data.name' }];
+
+    expect(normalizeFormEvent(event)).toMatchObject({
+      name: '查询员工信息',
+      request: {
+        method: 'get',
+        url: 'https://api.lingyanyun.test/employees/${_widget_phone}',
+        header: [{ key: 'X-Source', value: 'designer' }],
+        body: [],
+        format: 'json',
+      },
+      request_rely: ['_widget_phone'],
+      action: [{ field: '_widget_name', value: '$response.data.name' }],
     });
   });
 
