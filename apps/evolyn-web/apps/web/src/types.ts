@@ -469,8 +469,15 @@ export interface AppMenuGroupMutation {
   menuRevision: number;
 }
 
-/** 更新应用菜单节点请求：移动时传入目标分组编码和当前菜单修订号。 */
+/**
+ * 更新应用菜单节点请求：name 仅用于分组改名，hidden 仅用于
+ * 资产节点，parentMenuCode 用于移动；所有写入都携带当前菜单修订号。
+ */
 export interface UpdateAppMenuNodePayload {
+  /** 分组的新名称；资产节点名称必须通过对应资产接口修改。 */
+  name?: string;
+  /** 是否对成员隐藏资产节点；分组不支持此字段。 */
+  hidden?: boolean;
   /** 目标分组的菜单节点编码；空字符串表示移动到应用根级。 */
   parentMenuCode?: string;
   baseMenuRevision: number;

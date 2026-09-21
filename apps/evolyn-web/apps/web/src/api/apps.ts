@@ -62,7 +62,7 @@ export function createAppMenuGroup(
   return http.post(`/apps/code/${code}/menu/groups`, payload);
 }
 
-/** 移动或更新应用菜单节点；服务端会校验目标分组、层级和菜单修订号。 */
+/** 分组改名、资产隐藏或移动菜单节点；服务端会校验节点类型、层级和菜单修订号。 */
 export function updateAppMenuNode(
   code: string,
   menuCode: string,

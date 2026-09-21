@@ -112,6 +112,8 @@ const DEFAULT_FORM_NAME = '未命名表单';
 const creatingAssetType = shallowRef<AppAssetType | null>(null);
 /** 分组创建单独加锁，避免 Prompt 关闭后的请求窗口内再次提交。 */
 const creatingGroup = shallowRef(false);
+/** 正在改名的分组节点；请求期间拦截同一操作重复提交。 */
+const renamingGroupCode = shallowRef('');
 /** 当前正修改展示信息的表单节点；仅表单节点可打开此弹窗。 */
 const formAppearanceTarget = shallowRef<AppWorkspaceAsset | null>(null);
 const formAppearanceVisible = shallowRef(false);
@@ -508,6 +510,74 @@ async function toggleWorkspaceFavorite(asset: AppWorkspaceAsset) {
   }
 }
 
+/**
+ * 分组展示信息只有名称：通过菜单节点 PATCH 提交，不复用表单的
+ * “名称和图标”弹窗，从交互和请求两端避免分组图标被修改。
+ */
+async function renameMenuGroup(asset: AppWorkspaceAsset) {
+  if (asset.type !== 'folder' || renamingGroupCode.value) return;
+  if (menuStatus.value !== 'ready' || menuRevision.value < 1) {
+    ElMessage.warning('应用菜单尚未加载完成，请稍后重试');
+    return;
+  }
+
+  let name = '';
+  try {
+    const result = await ElMessageBox.prompt('', '修改名称', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputValue: asset.label,
+      inputPlaceholder: '请输入分组名称',
+      inputValidator: (value) => {
+        const normalized = value.trim();
+        if (!normalized) return '请输入分组名称';
+        if (Array.from(normalized).length > 128) return '分组名称不能超过 128 个字符';
+        return true;
+      },
+      closeOnClickModal: false,
+      showClose: false,
+    });
+    name = result.value.trim();
+  } catch {
+    // 取消或关闭 Prompt 属于正常交互，不显示错误提示。
+    return;
+  }
+
+  // 未改变的名称不发起写请求，避免无意义地递增菜单修订号。
+  if (name === asset.label.trim()) return;
+
+  renamingGroupCode.value = asset.code;
+  try {
+    await updateAppMenuNode(appCode.value, asset.code, {
+      name,
+      baseMenuRevision: menuRevision.value,
+    });
+    await reloadMenu();
+    ElMessage.success('分组名称已修改');
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'APP_MENU_VERSION_CONFLICT') {
+      ElMessage.warning('应用菜单已更新，已为你刷新，请重新修改名称');
+      await reloadMenu();
+    } else if (error instanceof ApiError && error.errCode === 'APP_MENU_NOT_FOUND') {
+      ElMessage.error('分组不存在或已被删除，已为你刷新菜单');
+      await reloadMenu();
+    } else if (error instanceof ApiError && error.errCode === 'APP_MENU_NAME_INVALID') {
+      ElMessage.error('分组名称不能为空，且不能超过 128 个字符');
+    } else if (
+      error instanceof ApiError &&
+      (error.errCode === 'APP_STATUS_INVALID' || error.errCode === 'APP_PROVISIONING')
+    ) {
+      ElMessage.error('当前应用状态不支持修改分组名称');
+    } else if (error instanceof ApiError && error.errCode === 'FORBIDDEN') {
+      ElMessage.error('你没有修改分组名称的权限');
+    } else {
+      ElMessage.error('修改分组名称失败，请稍后重试');
+    }
+  } finally {
+    renamingGroupCode.value = '';
+  }
+}
+
 function handleWorkspaceAssetAction(payload: {
   asset: AppWorkspaceAsset;
   action: AppWorkspaceAssetAction;
@@ -520,6 +590,11 @@ function handleWorkspaceAssetAction(payload: {
   if (payload.action === 'move') {
     menuMoveTarget.value = payload.asset;
     menuMoveVisible.value = true;
+    return;
+  }
+
+  if (payload.action === 'rename' && payload.asset.type === 'folder') {
+    void renameMenuGroup(payload.asset);
     return;
   }
 
