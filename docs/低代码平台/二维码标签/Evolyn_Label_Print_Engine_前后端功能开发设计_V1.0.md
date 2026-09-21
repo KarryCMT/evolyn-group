@@ -1,0 +1,2406 @@
+# 标签 / 二维码打印引擎前后端功能开发设计 V1.0
+
+> 适用项目：`KarryCMT/evolyn-group`\
+> 适用技术栈：Vue 3 + TypeScript + Element Plus + pnpm Monorepo / Go +
+> Gin + PostgreSQL + Redis + RustFS + Asynq\
+> 文档目标：在 Evolyn
+> 企业级低代码平台中建设可复用的标签设计、二维码生成、标签渲染、批量生成、PDF/PNG
+> 导出与打印能力。\
+> 核心原则：**前端负责设计与实时预览；服务端负责可信数据解析、正式二维码、最终渲染、批量任务与文件输出。**
+
+---
+
+## 1. 背景
+
+Evolyn 当前已经按引擎化方向建设表单底层能力，包括：
+
+- Form Schema Engine
+- Field Engine
+- Form Designer Engine
+- Form Runtime
+- Validation Engine
+- Rule Engine
+- Formula / Calculation Engine
+- Data Engine
+- Physical Table Engine
+- Query Engine
+- Form Permission Engine
+
+标签能力不应直接耦合进 Form
+Designer，也不应简单实现成一个"生成二维码接口"。
+
+本设计新增独立的：
+
+**Label Engine / Print Engine（标签与打印引擎）**
+
+它消费表单 Schema、字段元数据和业务数据，但不反向侵入 Form Engine。
+
+---
+
+# 2. 建设目标
+
+V1 支持：
+
+1.  标签模板 CRUD。
+2.  可视化标签设计器。
+3.  mm / px 双单位与 DPI。
+4.  文本、字段、二维码、图片、矩形、线条。
+5.  固定值、字段值、系统值、表达式值。
+6.  表单字段绑定。
+7.  实时前端预览。
+8.  服务端正式渲染。
+9.  SVG、PNG、PDF 输出。
+10. 单条记录生成。
+11. 多条记录批量生成。
+12. 批量 PDF。
+13. 生成文件存储至 RustFS。
+14. 二维码短 Token。
+15. 扫码定位表单数据。
+16. 租户隔离和权限校验。
+17. 模板发布与版本冻结。
+18. 异步批量生成任务。
+19. 生成记录和审计追踪。
+
+V1 暂不实现：
+
+- ZPL / TSPL / CPCL 打印机语言直出。
+- 浏览器直接控制 USB 打印机。
+- RFID。
+- 复杂表格排版。
+- 富文本排版。
+- AI 自动生成标签。
+- 多页自由报表设计器。
+
+这些能力后续可以建立在 Print Engine 上继续扩展。
+
+---
+
+# 3. 总体架构
+
+```text
+┌────────────────────────────────────────────────────────────┐
+│                       Evolyn Web                           │
+│                                                            │
+│  Label Designer                                            │
+│  ├── Component Panel                                       │
+│  ├── Canvas                                                │
+│  ├── Property Panel                                        │
+│  ├── Layer Panel                                           │
+│  ├── Field Binding                                         │
+│  └── Preview                                               │
+│             │                                              │
+│             ↓                                              │
+│        LabelSchema JSON                                    │
+└─────────────┬──────────────────────────────────────────────┘
+              │ REST API
+              ↓
+┌────────────────────────────────────────────────────────────┐
+│                     evolyn-core / Gin                      │
+│                                                            │
+│  Label Application Service                                 │
+│       │                                                    │
+│       ├── Template Service                                 │
+│       ├── Data Resolver ─────────────→ Data Engine          │
+│       ├── Field Resolver ────────────→ Field Engine         │
+│       ├── Expression Resolver ───────→ Formula Engine       │
+│       ├── Permission ────────────────→ Permission Engine    │
+│       │                                                    │
+│       ↓                                                    │
+│  Label Engine                                              │
+│       ├── Schema Validator                                 │
+│       ├── Layout Engine                                    │
+│       ├── QRCode Renderer                                  │
+│       ├── SVG Renderer                                     │
+│       ├── PNG Exporter                                     │
+│       └── PDF Exporter                                     │
+│                                                            │
+│       ↓                         ↓                          │
+│   PostgreSQL                  RustFS                        │
+│                                                            │
+│   Asynq Worker ← Redis                                     │
+└────────────────────────────────────────────────────────────┘
+```
+
+---
+
+# 4. 最重要的架构边界
+
+## 4.1 前端负责
+
+- 标签设计器 UI。
+- 拖拽。
+- 缩放。
+- 对齐。
+- 属性配置。
+- 字段选择。
+- 图层管理。
+- LabelSchema 编辑。
+- SVG 实时预览。
+- 使用 Mock Data / Preview Data 预览。
+- 打印预览 UI。
+
+## 4.2 服务端负责
+
+- 模板持久化。
+- 模板发布。
+- 模板版本管理。
+- 真实业务数据读取。
+- 数据权限。
+- 字段解析。
+- 系统字段解析。
+- 表达式计算。
+- 二维码正式生成。
+- SVG 最终生成。
+- PNG/PDF 转换。
+- 批量生成。
+- RustFS。
+- Asynq。
+- 二维码 Token。
+- 扫码访问权限。
+- 审计。
+
+## 4.3 禁止的实现
+
+禁止：
+
+```text
+Vue 自己实现一套 Label Renderer
+Go 再自己实现一套完全不同的 Label Renderer
+```
+
+否则一定产生预览和打印不一致。
+
+必须建立：
+
+```text
+LabelSchema V1
+       │
+       ├── Web Preview Renderer
+       │
+       └── Server Renderer
+```
+
+并定义相同：
+
+- 坐标系
+- 单位
+- 字体
+- 字号
+- 行高
+- 对齐
+- padding
+- QR quiet zone
+- 图片 object-fit
+- 旋转规则
+
+---
+
+# 5. Evolyn 前端目录建议
+
+结合 Evolyn 当前 `apps/evolyn-web` Monorepo 和 `packages/engines`
+的规划，建议：
+
+```text
+apps/evolyn-web/
+├── apps/
+│   └── web/
+│       └── src/
+│           └── pages/
+│               └── label/
+│                   ├── LabelTemplateList.vue
+│                   ├── LabelDesignerPage.vue
+│                   ├── LabelPreviewPage.vue
+│                   └── LabelPrintTaskPage.vue
+│
+└── packages/
+    └── engines/
+        └── label/
+            ├── package.json
+            └── src/
+                ├── index.ts
+                ├── schema/
+                │   ├── label-schema.ts
+                │   ├── element-schema.ts
+                │   └── value-source.ts
+                ├── designer/
+                │   ├── designer-engine.ts
+                │   ├── command-manager.ts
+                │   ├── selection-manager.ts
+                │   ├── history-manager.ts
+                │   ├── alignment.ts
+                │   └── clipboard.ts
+                ├── renderer/
+                │   ├── svg-renderer.ts
+                │   ├── text-renderer.ts
+                │   ├── field-renderer.ts
+                │   ├── qrcode-renderer.ts
+                │   ├── image-renderer.ts
+                │   ├── rect-renderer.ts
+                │   └── line-renderer.ts
+                ├── runtime/
+                │   ├── value-resolver.ts
+                │   ├── preview-runtime.ts
+                │   └── format-runtime.ts
+                ├── coordinate/
+                │   ├── unit.ts
+                │   ├── dpi.ts
+                │   └── transform.ts
+                └── types/
+```
+
+建议包名：
+
+```text
+@evolyn/label-engine
+```
+
+不要放进：
+
+```text
+packages/form
+```
+
+原因：标签不仅服务表单，未来还可以服务资产、库存、订单、用户、流程、系统数据。
+
+---
+
+# 6. 前端设计器实现方式
+
+## 6.1 不建议第一版使用 Canvas 作为最终数据模型
+
+Canvas/Konva 可以用于交互，但不能把 Canvas 状态本身作为持久化模板。
+
+正确方式：
+
+```text
+Designer UI
+    ↓
+Designer State
+    ↓
+LabelSchema
+    ↓
+SVG Renderer
+```
+
+LabelSchema 是唯一事实来源。
+
+## 6.2 推荐技术路线
+
+V1 推荐：
+
+- Vue 3 Composition API
+- TypeScript
+- Element Plus
+- Pinia 或引擎内部 reactive store
+- SVG 作为画布渲染层
+- Pointer Events 实现拖拽
+- Resize Handle 实现缩放
+- 自研轻量 Designer Engine
+
+第一版不强制引入 Konva/Fabric.js。
+
+原因：
+
+1.  当前标签是二维轻量布局。
+2.  SVG 与最终服务端 SVG 输出天然一致。
+3.  文本、二维码、图片、矩形足够覆盖 V1。
+4.  减少大型图形库对引擎包的侵入。
+5.  后续复杂自由画布出现后再评估 Konva。
+
+---
+
+# 7. 设计器页面结构
+
+```text
+┌──────────────────────────────────────────────────────────┐
+│ 返回 | 模板名称 | 100% | 撤销 | 重做 | 预览 | 保存 | 发布 │
+├─────────────┬─────────────────────────────┬──────────────┤
+│ 元素        │                             │ 属性          │
+│             │                             │              │
+│ 文本        │          Canvas             │ 位置          │
+│ 字段        │                             │ X             │
+│ 二维码      │                             │ Y             │
+│ 图片        │                             │ W             │
+│ 矩形        │                             │ H             │
+│ 线条        │                             │              │
+│             │                             │ 数据绑定      │
+│             │                             │ 样式          │
+│             │                             │ 二维码设置    │
+├─────────────┴─────────────────────────────┴──────────────┤
+│ 图层：title / project / owner / qrcode ...               │
+└──────────────────────────────────────────────────────────┘
+```
+
+---
+
+# 8. LabelSchema V1
+
+```ts
+export interface LabelSchema {
+  schemaVersion: '1.0';
+
+  id?: string;
+  name: string;
+
+  page: {
+    width: number;
+    height: number;
+    unit: 'mm' | 'px';
+    dpi: 96 | 203 | 300 | 600;
+    background: string;
+  };
+
+  source?: {
+    type: 'form';
+    appId?: string;
+    formId?: string;
+  };
+
+  elements: LabelElement[];
+
+  settings: {
+    snapToGrid: boolean;
+    gridSize: number;
+    showGrid: boolean;
+  };
+}
+```
+
+---
+
+# 9. 元素公共模型
+
+```ts
+export interface BaseElement {
+  id: string;
+  type: string;
+
+  name?: string;
+
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+
+  rotation: number;
+  zIndex: number;
+
+  visible: boolean;
+  locked: boolean;
+
+  opacity?: number;
+}
+```
+
+支持：
+
+```ts
+export type LabelElement =
+  | TextElement
+  | FieldElement
+  | QRCodeElement
+  | ImageElement
+  | RectElement
+  | LineElement;
+```
+
+---
+
+# 10. ValueSource 统一值来源
+
+这是 Label Engine 与 Evolyn Field/Data/Formula Engine 对接的关键。
+
+```ts
+export type ValueSource =
+  | {
+      type: 'static';
+      value: string;
+    }
+  | {
+      type: 'field';
+      fieldId: string;
+    }
+  | {
+      type: 'system';
+      key:
+        | 'recordId'
+        | 'createdAt'
+        | 'updatedAt'
+        | 'createdBy'
+        | 'currentUser'
+        | 'currentDate';
+    }
+  | {
+      type: 'expression';
+      expression: string;
+    };
+```
+
+严禁保存：
+
+```text
+项目名称字段 = "field_123 当前值"
+```
+
+模板只保存绑定关系：
+
+```json
+{
+  "type": "field",
+  "fieldId": "field_project_name"
+}
+```
+
+真实值在运行时解析。
+
+---
+
+# 11. TextElement
+
+```ts
+interface TextElement extends BaseElement {
+  type: 'text';
+
+  value: ValueSource;
+
+  style: {
+    fontFamily: string;
+    fontSize: number;
+    fontWeight: number;
+    color: string;
+    lineHeight: number;
+    textAlign: 'left' | 'center' | 'right';
+    verticalAlign: 'top' | 'middle' | 'bottom';
+    overflow: 'clip' | 'ellipsis' | 'wrap';
+  };
+}
+```
+
+---
+
+# 12. FieldElement
+
+```ts
+interface FieldElement extends BaseElement {
+  type: 'field';
+
+  label?: string;
+
+  value: ValueSource;
+
+  separator?: string;
+
+  formatter?: {
+    type?: 'none' | 'date' | 'number';
+    pattern?: string;
+  };
+
+  style: TextStyle;
+}
+```
+
+截图中的：
+
+```text
+项目:客户管理系统
+负责人:张三
+创建时间:20260506
+```
+
+全部属于 FieldElement。
+
+---
+
+# 13. QRCodeElement
+
+```ts
+interface QRCodeElement extends BaseElement {
+  type: 'qrcode';
+
+  value: ValueSource;
+
+  options: {
+    errorCorrection: 'L' | 'M' | 'Q' | 'H';
+    quietZone: number;
+    foreground: string;
+    background: string;
+  };
+}
+```
+
+V1 建议只允许标准二维码样式，不允许圆点、渐变等复杂装饰。
+
+---
+
+# 14. 前端 Designer Engine
+
+Designer Engine 不负责业务数据。
+
+职责：
+
+```ts
+interface LabelDesignerEngine {
+  load(schema: LabelSchema): void;
+
+  addElement(element: LabelElement): void;
+  removeElement(id: string): void;
+  updateElement(id: string, patch: Partial<LabelElement>): void;
+
+  select(ids: string[]): void;
+  clearSelection(): void;
+
+  move(ids: string[], dx: number, dy: number): void;
+  resize(id: string, rect: Rect): void;
+
+  alignLeft(ids: string[]): void;
+  alignCenter(ids: string[]): void;
+  alignRight(ids: string[]): void;
+  distributeHorizontal(ids: string[]): void;
+
+  bringForward(id: string): void;
+  sendBackward(id: string): void;
+
+  undo(): void;
+  redo(): void;
+
+  exportSchema(): LabelSchema;
+}
+```
+
+---
+
+# 15. 前端状态设计
+
+推荐拆分：
+
+```text
+DesignerState
+├── schema
+├── selectedElementIds
+├── zoom
+├── viewport
+├── history
+├── clipboard
+└── previewData
+```
+
+不要把 `selected`、`hover`、`dragging` 等编辑器临时状态写进
+LabelSchema。
+
+---
+
+# 16. 前端字段选择器
+
+标签设计器点击"绑定字段"：
+
+```text
+Label Designer
+      ↓
+Field Selector
+      ↓
+Form Schema Engine
+      ↓
+Field Engine
+```
+
+返回：
+
+```ts
+interface FieldOption {
+  fieldId: string;
+  fieldCode: string;
+  label: string;
+  fieldType: string;
+}
+```
+
+标签引擎只依赖标准 Field Descriptor，不直接依赖具体 Vue 字段组件。
+
+---
+
+# 17. 前端预览
+
+预览分两种。
+
+## 17.1 Designer Mock Preview
+
+直接使用前端 mock 数据：
+
+```ts
+{
+  project_name: '客户管理系统',
+  owner: '张三',
+  created_at: '20260506'
+}
+```
+
+优点：拖拽无网络请求。
+
+## 17.2 Real Data Preview
+
+调用：
+
+```http
+POST /api/v1/label-templates/:id/preview
+```
+
+服务端解析真实记录，再返回 SVG。
+
+发布前必须使用 Real Data Preview 验证。
+
+---
+
+# 18. Go 后端目录建议
+
+结合 Evolyn 当前 Go + Gin 的平台模块化方向，建议：
+
+```text
+apps/evolyn-core/
+└── internal/
+    └── platform/
+        └── label/
+            ├── handler/
+            │   ├── template_handler.go
+            │   ├── render_handler.go
+            │   ├── print_task_handler.go
+            │   └── scan_handler.go
+            │
+            ├── service/
+            │   ├── template_service.go
+            │   ├── render_service.go
+            │   ├── batch_service.go
+            │   └── scan_service.go
+            │
+            ├── repository/
+            │   ├── template_repository.go
+            │   ├── version_repository.go
+            │   ├── token_repository.go
+            │   └── task_repository.go
+            │
+            ├── engine/
+            │   ├── engine.go
+            │   ├── schema.go
+            │   ├── validator.go
+            │   ├── resolver.go
+            │   ├── renderer.go
+            │   ├── svg/
+            │   ├── qrcode/
+            │   ├── png/
+            │   └── pdf/
+            │
+            ├── model/
+            ├── dto/
+            └── worker/
+```
+
+如果当前仓库已形成明确的 domain/application/infrastructure
+分层，则保持仓库既有规范，不为了 Label Engine 单独创造第二套分层。
+
+---
+
+# 19. 后端核心接口
+
+```go
+type Engine interface {
+    Render(ctx context.Context, req RenderRequest) (*RenderResult, error)
+}
+```
+
+```go
+type RenderRequest struct {
+    TenantID  string
+    Template  LabelSchema
+    Data      map[string]any
+    Format    string
+}
+```
+
+```go
+type RenderResult struct {
+    SVG      []byte
+    Content  []byte
+    MIMEType string
+    Width    int
+    Height   int
+}
+```
+
+---
+
+# 20. Data Resolver
+
+Label Engine 不直接 SQL 查询物理表。
+
+正确依赖：
+
+```text
+Label Engine
+     ↓
+Label Data Resolver Interface
+     ↓
+Data Engine / Query Engine
+```
+
+例如：
+
+```go
+type RecordResolver interface {
+    GetRecord(
+        ctx context.Context,
+        tenantID string,
+        formID string,
+        recordID string,
+    ) (map[string]any, error)
+}
+```
+
+这样 Label Engine 不需要知道：
+
+- 表单物理表名称。
+- 动态字段列。
+- PostgreSQL DDL。
+- Query Engine 实现细节。
+
+---
+
+# 21. Expression Resolver
+
+表达式不能使用 Go `eval` 或前端 JS `eval`。
+
+应通过 Evolyn Formula / Calculation Engine：
+
+```text
+Label ValueSource(expression)
+          ↓
+Formula Engine
+          ↓
+Result
+```
+
+Label Engine 只定义：
+
+```go
+type ExpressionResolver interface {
+    Evaluate(ctx context.Context, expression string, data map[string]any) (any, error)
+}
+```
+
+---
+
+# 22. 服务端渲染流程
+
+```text
+RenderRequest
+    ↓
+Load Template
+    ↓
+Validate Template Status
+    ↓
+Load Published Version
+    ↓
+Permission Check
+    ↓
+Load Record
+    ↓
+Resolve ValueSource
+    ├── static
+    ├── field
+    ├── system
+    └── expression
+    ↓
+Normalize Data
+    ↓
+Generate QR Code
+    ↓
+Build SVG
+    ↓
+SVG
+ ┌──┼────────────┐
+ ↓  ↓            ↓
+SVG PNG          PDF
+```
+
+---
+
+# 23. 为什么服务端以 SVG 为中间格式
+
+统一：
+
+```text
+LabelSchema
+    ↓
+ResolvedLabel
+    ↓
+SVG
+```
+
+SVG 可以：
+
+- 浏览器直接显示。
+- 保存。
+- 转 PNG。
+- 转 PDF。
+- 保持矢量文本和图形。
+- 更容易测试。
+- 更容易比较前后端输出。
+
+服务端不要首先 Canvas 化。
+
+---
+
+# 24. 二维码内容设计
+
+不推荐：
+
+```text
+二维码 = 整个业务 JSON
+```
+
+推荐：
+
+```text
+https://domain/q/{token}
+```
+
+例如：
+
+```text
+https://evolyn.example.com/q/F8K2AX9Q
+```
+
+Token 对应：
+
+```text
+tenant_id
+app_id
+form_id
+record_id
+template_id
+```
+
+扫码后服务端再次进行权限判断。
+
+---
+
+# 25. PostgreSQL 数据库设计
+
+以下表均建议遵守 Evolyn 现有：
+
+- tenant_id
+- created_at
+- updated_at
+- created_by
+- updated_by
+- deleted_at / 软删除规范
+- UUID / ID 生成规范
+
+如果仓库当前已有统一 BaseModel，应直接复用。
+
+---
+
+# 26. 表：label_templates
+
+模板主表。
+
+```sql
+CREATE TABLE label_templates (
+    id              UUID PRIMARY KEY,
+    tenant_id       UUID NOT NULL,
+
+    app_id          UUID,
+    form_id         UUID,
+
+    code            VARCHAR(64) NOT NULL,
+    name            VARCHAR(128) NOT NULL,
+    description     VARCHAR(500),
+
+    category        VARCHAR(64),
+
+    status          VARCHAR(20) NOT NULL DEFAULT 'draft',
+
+    current_version INTEGER NOT NULL DEFAULT 1,
+    published_version INTEGER,
+
+    width           NUMERIC(12,4) NOT NULL,
+    height          NUMERIC(12,4) NOT NULL,
+    unit            VARCHAR(10) NOT NULL DEFAULT 'mm',
+    dpi             INTEGER NOT NULL DEFAULT 300,
+
+    thumbnail_file_id UUID,
+
+    created_by      UUID NOT NULL,
+    updated_by      UUID NOT NULL,
+
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at      TIMESTAMPTZ
+);
+```
+
+约束：
+
+```sql
+UNIQUE (tenant_id, code)
+```
+
+建议 status：
+
+```text
+draft
+published
+disabled
+```
+
+索引：
+
+```sql
+CREATE INDEX idx_label_templates_tenant
+ON label_templates(tenant_id)
+WHERE deleted_at IS NULL;
+
+CREATE INDEX idx_label_templates_form
+ON label_templates(tenant_id, form_id)
+WHERE deleted_at IS NULL;
+```
+
+---
+
+# 27. 表：label_template_versions
+
+模板版本表。
+
+```sql
+CREATE TABLE label_template_versions (
+    id              UUID PRIMARY KEY,
+    tenant_id       UUID NOT NULL,
+
+    template_id     UUID NOT NULL,
+
+    version         INTEGER NOT NULL,
+
+    schema_version  VARCHAR(20) NOT NULL DEFAULT '1.0',
+
+    schema_json     JSONB NOT NULL,
+
+    status          VARCHAR(20) NOT NULL DEFAULT 'draft',
+
+    change_note     VARCHAR(500),
+
+    created_by      UUID NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    published_by    UUID,
+    published_at    TIMESTAMPTZ,
+
+    CONSTRAINT fk_label_template_version_template
+        FOREIGN KEY (template_id)
+        REFERENCES label_templates(id)
+);
+```
+
+唯一：
+
+```sql
+UNIQUE(template_id, version)
+```
+
+这里必须保存完整 Schema Snapshot。
+
+发布之后：
+
+```text
+Version 3
+```
+
+不可修改。
+
+修改必须：
+
+```text
+Version 3 Published
+        ↓
+Create Version 4 Draft
+```
+
+这是为了保证历史打印可追踪。
+
+---
+
+# 28. 表：label_qr_tokens
+
+```sql
+CREATE TABLE label_qr_tokens (
+    id              UUID PRIMARY KEY,
+    tenant_id       UUID NOT NULL,
+
+    token           VARCHAR(64) NOT NULL,
+
+    app_id          UUID,
+    form_id         UUID,
+    record_id       VARCHAR(128) NOT NULL,
+
+    template_id     UUID,
+
+    target_type     VARCHAR(32) NOT NULL DEFAULT 'form_record',
+
+    enabled         BOOLEAN NOT NULL DEFAULT TRUE,
+
+    expire_at       TIMESTAMPTZ,
+
+    created_by      UUID,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    last_scan_at    TIMESTAMPTZ,
+    scan_count      BIGINT NOT NULL DEFAULT 0
+);
+```
+
+唯一：
+
+```sql
+UNIQUE(token)
+```
+
+索引：
+
+```sql
+CREATE INDEX idx_label_qr_record
+ON label_qr_tokens(tenant_id, form_id, record_id);
+```
+
+注意：
+
+二维码 Token 不应该暴露数据库主键规律。
+
+---
+
+# 29. 表：label_render_tasks
+
+批量生成任务。
+
+```sql
+CREATE TABLE label_render_tasks (
+    id                UUID PRIMARY KEY,
+    tenant_id         UUID NOT NULL,
+
+    template_id       UUID NOT NULL,
+    template_version  INTEGER NOT NULL,
+
+    task_type         VARCHAR(32) NOT NULL,
+    output_format     VARCHAR(16) NOT NULL,
+
+    status            VARCHAR(20) NOT NULL DEFAULT 'pending',
+
+    total_count       INTEGER NOT NULL DEFAULT 0,
+    success_count     INTEGER NOT NULL DEFAULT 0,
+    failed_count      INTEGER NOT NULL DEFAULT 0,
+
+    progress          NUMERIC(5,2) NOT NULL DEFAULT 0,
+
+    file_id           UUID,
+
+    error_message     TEXT,
+
+    requested_by      UUID NOT NULL,
+
+    started_at        TIMESTAMPTZ,
+    finished_at       TIMESTAMPTZ,
+
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+status：
+
+```text
+pending
+running
+success
+partial_success
+failed
+cancelled
+```
+
+task_type：
+
+```text
+single
+batch
+```
+
+---
+
+# 30. 表：label_render_task_items
+
+```sql
+CREATE TABLE label_render_task_items (
+    id              UUID PRIMARY KEY,
+    tenant_id       UUID NOT NULL,
+
+    task_id         UUID NOT NULL,
+
+    record_id       VARCHAR(128) NOT NULL,
+
+    status          VARCHAR(20) NOT NULL DEFAULT 'pending',
+
+    sequence_no     INTEGER NOT NULL,
+
+    file_id         UUID,
+
+    error_code      VARCHAR(64),
+    error_message   TEXT,
+
+    started_at      TIMESTAMPTZ,
+    finished_at     TIMESTAMPTZ,
+
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_label_task_item_task
+        FOREIGN KEY(task_id)
+        REFERENCES label_render_tasks(id)
+);
+```
+
+索引：
+
+```sql
+CREATE INDEX idx_label_task_items_task
+ON label_render_task_items(task_id, sequence_no);
+```
+
+---
+
+# 31. 表：label_render_records
+
+建议增加正式生成记录，解决审计和追踪。
+
+```sql
+CREATE TABLE label_render_records (
+    id                UUID PRIMARY KEY,
+    tenant_id         UUID NOT NULL,
+
+    template_id       UUID NOT NULL,
+    template_version  INTEGER NOT NULL,
+
+    app_id            UUID,
+    form_id           UUID,
+    record_id         VARCHAR(128),
+
+    render_type       VARCHAR(32) NOT NULL,
+    output_format     VARCHAR(16) NOT NULL,
+
+    file_id           UUID,
+
+    data_snapshot     JSONB,
+
+    schema_snapshot   JSONB,
+
+    created_by        UUID NOT NULL,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+```
+
+是否保存 `data_snapshot` 可由平台数据合规策略决定。
+
+对于资产标签这类需要追踪"当时打印内容"的场景，建议保存。
+
+---
+
+# 32. 为什么 Schema 使用 JSONB 而元素不拆表
+
+不建议：
+
+```text
+label_element
+label_element_style
+label_element_position
+label_qrcode_config
+...
+```
+
+因为设计器 Schema：
+
+- 更新频繁。
+- 元素类型可扩展。
+- 属于文档型配置。
+- 通常整体加载。
+- 需要版本快照。
+
+因此：
+
+```text
+关系型字段
+    ↓
+模板元信息
+
+JSONB
+    ↓
+LabelSchema
+```
+
+是更适合 PostgreSQL 的组合。
+
+---
+
+# 33. RustFS 文件设计
+
+最终文件不应直接存 PostgreSQL bytea。
+
+推荐：
+
+```text
+label/
+  {tenantId}/
+    {yyyy}/
+      {MM}/
+        {taskId}/
+          result.pdf
+          record-001.png
+```
+
+数据库只保存 `file_id`。
+
+继续复用 Evolyn File 模块，不让 Label Engine 直接操作 RustFS SDK。
+
+依赖：
+
+```text
+Label Engine
+     ↓
+File Service
+     ↓
+RustFS
+```
+
+---
+
+# 34. API 设计
+
+## 模板列表
+
+```http
+GET /api/v1/label-templates
+```
+
+参数：
+
+```text
+page
+pageSize
+keyword
+status
+appId
+formId
+```
+
+---
+
+## 创建模板
+
+```http
+POST /api/v1/label-templates
+```
+
+```json
+{
+  "name": "固定资产标签",
+  "code": "asset_label",
+  "appId": "...",
+  "formId": "...",
+  "width": 80,
+  "height": 50,
+  "unit": "mm",
+  "dpi": 300
+}
+```
+
+---
+
+## 保存设计
+
+```http
+PUT /api/v1/label-templates/{id}/draft
+```
+
+```json
+{
+  "schemaVersion": "1.0",
+  "page": {},
+  "elements": []
+}
+```
+
+---
+
+## 发布
+
+```http
+POST /api/v1/label-templates/{id}/publish
+```
+
+服务端必须：
+
+1.  Schema 校验。
+2.  字段存在性校验。
+3.  表单归属校验。
+4.  表达式校验。
+5.  二维码配置校验。
+6.  创建 immutable version。
+7.  更新 published_version。
+
+---
+
+# 35. 预览接口
+
+```http
+POST /api/v1/label-templates/{id}/preview
+```
+
+```json
+{
+  "recordId": "record_xxx",
+  "format": "svg"
+}
+```
+
+响应：
+
+```text
+image/svg+xml
+```
+
+也可以提供：
+
+```text
+format=png
+```
+
+---
+
+# 36. 单标签生成
+
+```http
+POST /api/v1/labels/render
+```
+
+```json
+{
+  "templateId": "...",
+  "recordId": "...",
+  "format": "png"
+}
+```
+
+支持：
+
+```text
+svg
+png
+pdf
+```
+
+---
+
+# 37. 批量生成
+
+```http
+POST /api/v1/labels/batch-render
+```
+
+```json
+{
+  "templateId": "...",
+  "recordIds": ["...", "...", "..."],
+  "format": "pdf"
+}
+```
+
+响应：
+
+```json
+{
+  "taskId": "..."
+}
+```
+
+不要让 HTTP 请求等待 500 张标签生成完成。
+
+---
+
+# 38. Asynq 任务
+
+```text
+label:render:batch
+```
+
+Payload：
+
+```go
+type BatchRenderPayload struct {
+    TenantID  string   `json:"tenantId"`
+    TaskID    string   `json:"taskId"`
+}
+```
+
+Worker：
+
+```text
+Load Task
+   ↓
+Load Published Template Version
+   ↓
+Load Task Items
+   ↓
+Batch Query Records
+   ↓
+Render
+   ↓
+Merge PDF
+   ↓
+File Service → RustFS
+   ↓
+Update Task
+```
+
+---
+
+# 39. 批量任务必须遵守的事务边界
+
+不能：
+
+```text
+BEGIN
+
+生成 1000 张图片
+上传 RustFS
+合并 PDF
+
+COMMIT
+```
+
+数据库事务不能覆盖耗时渲染过程。
+
+正确方式：
+
+```text
+创建任务 Transaction
+      ↓ COMMIT
+
+Asynq
+      ↓
+
+逐批处理
+      ↓
+
+更新进度
+```
+
+---
+
+# 40. 二维码 Go 技术方案
+
+推荐将 QR 库包装在接口之后：
+
+```go
+type QRCodeGenerator interface {
+    GenerateSVG(content string, options QRCodeOptions) ([]byte, error)
+}
+```
+
+不要让业务 Service 直接依赖具体第三方库。
+
+例如：
+
+```text
+engine/qrcode/generator.go
+engine/qrcode/go_qrcode_adapter.go
+```
+
+这样未来更换二维码实现不会影响业务层。
+
+---
+
+# 41. SVG 安全
+
+这是必须做的。
+
+禁止用户在 LabelSchema 中直接注入任意：
+
+```html
+<script>
+foreignObject
+onclick
+javascript:
+```
+
+服务端 SVG Renderer 应自行生成允许的 XML 节点。
+
+图片 URL 也不能让服务端任意访问公网地址，否则可能产生 SSRF。
+
+图片应该使用：
+
+```text
+file_id
+```
+
+再通过 Evolyn File Service 获取。
+
+---
+
+# 42. 字体策略
+
+这是前后端"所见即所得"最容易出问题的地方。
+
+V1 建议平台只开放经过注册的字体：
+
+```text
+Arial
+Noto Sans
+Noto Sans CJK SC
+```
+
+LabelSchema 保存：
+
+```json
+{
+  "fontFamily": "Noto Sans CJK SC"
+}
+```
+
+服务端必须存在相同字体。
+
+不能允许用户随便写：
+
+```text
+微软雅黑
+宋体
+某电脑本地字体
+```
+
+否则 Linux 服务端可能不存在。
+
+---
+
+# 43. mm / DPI 坐标
+
+统一公式：
+
+```text
+px = mm / 25.4 × dpi
+```
+
+例如：
+
+```text
+80mm
+300 DPI
+```
+
+输出：
+
+```text
+80 / 25.4 × 300 ≈ 945px
+```
+
+但设计器不应该直接把 945px 当业务尺寸保存。
+
+Schema：
+
+```json
+{
+  "width": 80,
+  "height": 50,
+  "unit": "mm",
+  "dpi": 300
+}
+```
+
+---
+
+# 44. 前端缩放
+
+设计器屏幕显示比例与实际尺寸分离：
+
+```text
+Model Coordinate
+      ↓
+Viewport Transform
+      ↓
+Screen Coordinate
+```
+
+例如：
+
+```text
+80mm × 50mm
+```
+
+可以在屏幕显示成：
+
+```text
+480px × 300px
+```
+
+但 Schema 坐标仍然保存 mm。
+
+---
+
+# 45. Undo / Redo
+
+使用 Command Pattern：
+
+```text
+AddElementCommand
+MoveElementCommand
+ResizeElementCommand
+UpdateStyleCommand
+DeleteElementCommand
+```
+
+统一：
+
+```ts
+interface Command {
+  execute(): void;
+  undo(): void;
+}
+```
+
+拖动过程中不要每个 mousemove 产生一条历史记录。
+
+应：
+
+```text
+pointerdown
+   ↓
+mousemove...
+   ↓
+pointerup
+   ↓
+提交一个 Move Command
+```
+
+---
+
+# 46. 对齐能力
+
+V1：
+
+- 左对齐。
+- 水平居中。
+- 右对齐。
+- 顶部对齐。
+- 垂直居中。
+- 底部对齐。
+- 水平等距。
+- 垂直等距。
+- 网格吸附。
+- 辅助线吸附。
+
+---
+
+# 47. 键盘能力
+
+```text
+Delete          删除
+Ctrl+C          复制
+Ctrl+V          粘贴
+Ctrl+Z          撤销
+Ctrl+Shift+Z    重做
+↑↓←→            1单位移动
+Shift + Arrow   10单位移动
+Ctrl+A          全选
+```
+
+浏览器默认行为需要在 Designer Focus 范围内拦截，而不是全局粗暴拦截。
+
+---
+
+# 48. 模板发布模型
+
+```text
+Template
+   │
+   ├── V1 Published
+   ├── V2 Published
+   ├── V3 Published
+   │
+   └── V4 Draft
+```
+
+业务生成默认：
+
+```text
+published_version
+```
+
+而不是：
+
+```text
+current draft
+```
+
+这点和 Workflow Definition 版本冻结思想一致。
+
+---
+
+# 49. 与 Form Schema Engine 的边界
+
+允许：
+
+```text
+Label Engine → Form Schema Engine
+```
+
+用途：
+
+- 获取字段定义。
+- 获取字段 label。
+- 获取 field type。
+
+禁止：
+
+```text
+Form Schema Engine → Label Engine
+```
+
+表单 Schema 不应该因为标签功能而知道打印逻辑。
+
+---
+
+# 50. 与 Field Engine 的边界
+
+Label Engine 读取：
+
+```text
+Field Descriptor
+```
+
+但不直接加载 Vue Field Component。
+
+因此：
+
+```text
+@evolyn/label-engine
+```
+
+不能 import：
+
+```text
+某个 InputField.vue
+某个 DateField.vue
+```
+
+---
+
+# 51. 与 Data Engine 的边界
+
+Label Engine：
+
+```text
+我要 record XXX
+```
+
+Data Engine：
+
+```text
+返回标准 Record
+```
+
+Label Engine 不知道：
+
+```text
+physical_table_xxx
+JSONB storage
+动态列
+DDL
+```
+
+---
+
+# 52. 与 Query Engine 的边界
+
+批量生成时：
+
+```text
+Label Batch Service
+      ↓
+Query Engine
+      ↓
+records
+```
+
+不要：
+
+```text
+Label Repository
+      ↓
+直接 SELECT 动态业务表
+```
+
+---
+
+# 53. 与 Permission Engine 的边界
+
+生成标签之前：
+
+```text
+User
+ ↓
+Can Read Form?
+ ↓
+Can Read Record?
+ ↓
+Can Read Field?
+ ↓
+Render
+```
+
+字段级权限特别重要。
+
+用户没有权限看到：
+
+```text
+采购成本
+```
+
+就不能通过"打印标签"绕过数据权限。
+
+---
+
+# 54. 与 Formula Engine 的边界
+
+例如：
+
+```text
+"资产：" + asset_name
+```
+
+或者：
+
+```text
+formatDate(created_at, "yyyyMMdd")
+```
+
+必须走 Formula Engine。
+
+Label Engine 不建设第二套表达式语言。
+
+---
+
+# 55. 与 File Service 的边界
+
+图片元素：
+
+```json
+{
+  "type": "image",
+  "fileId": "..."
+}
+```
+
+运行：
+
+```text
+Label Engine
+     ↓
+File Service
+     ↓
+RustFS
+```
+
+Label Engine 不保存 RustFS bucket 密钥。
+
+---
+
+# 56. 多租户
+
+所有模板查询：
+
+```sql
+WHERE tenant_id = $tenant_id
+```
+
+Token 扫码也不能因为知道 token 就跳过 tenant 解析与访问策略。
+
+后台 Repository API 不允许调用者自行决定是否加 tenant 条件。
+
+---
+
+# 57. 缓存
+
+可缓存：
+
+```text
+Published LabelSchema
+```
+
+Key：
+
+```text
+label:template:{tenantId}:{templateId}:{version}
+```
+
+发布新版本后主动失效。
+
+不要长期缓存：
+
+```text
+Record Data
+```
+
+避免打印到旧数据。
+
+---
+
+# 58. 错误码
+
+建议：
+
+```text
+LABEL_TEMPLATE_NOT_FOUND
+LABEL_TEMPLATE_NOT_PUBLISHED
+LABEL_SCHEMA_INVALID
+LABEL_FIELD_NOT_FOUND
+LABEL_FIELD_NO_PERMISSION
+LABEL_RECORD_NOT_FOUND
+LABEL_RECORD_NO_PERMISSION
+LABEL_EXPRESSION_ERROR
+LABEL_QR_GENERATE_ERROR
+LABEL_RENDER_ERROR
+LABEL_FILE_UPLOAD_ERROR
+LABEL_BATCH_TASK_NOT_FOUND
+```
+
+---
+
+# 59. 日志
+
+每次生成至少记录：
+
+```text
+tenantId
+userId
+templateId
+templateVersion
+formId
+recordId
+taskId
+format
+duration
+success
+errorCode
+```
+
+不要在普通日志直接打印整个业务 Data Snapshot。
+
+---
+
+# 60. 测试方案
+
+## 前端 Unit Test
+
+覆盖：
+
+- Schema parser。
+- mm/px 转换。
+- Move。
+- Resize。
+- Align。
+- Undo/Redo。
+- ValueSource。
+- SVG Renderer。
+
+## 前端 Component Test
+
+覆盖：
+
+- 添加元素。
+- 删除元素。
+- 修改属性。
+- 绑定字段。
+- 图层排序。
+
+## Go Unit Test
+
+覆盖：
+
+- Schema Validation。
+- Value Resolver。
+- QRCode。
+- SVG。
+- DPI。
+- Field Format。
+- Permission failure。
+
+## Integration Test
+
+覆盖：
+
+```text
+PostgreSQL
+Redis
+RustFS
+Data Engine
+File Service
+```
+
+## Golden Test
+
+非常建议：
+
+```text
+input schema
++
+input data
+=
+expected.svg
+```
+
+保存 expected SVG 快照。
+
+这样修改 Renderer 后可以发现布局回归。
+
+---
+
+# 61. 性能目标建议
+
+V1：
+
+```text
+单 SVG           < 100ms
+单 PNG           < 500ms
+单 PDF           < 800ms
+100 张批量任务    异步
+500+             必须异步
+```
+
+具体指标以部署环境压测为准，不作为硬编码业务约束。
+
+---
+
+# 62. 开发阶段
+
+## Phase 1：Schema + Preview
+
+完成：
+
+- LabelSchema。
+- Text。
+- Field。
+- QR。
+- Rect。
+- Image。
+- SVG Renderer。
+- Designer Canvas。
+- 属性编辑。
+- Mock Preview。
+
+目标：
+
+```text
+前端可以完成截图中类似标签的设计。
+```
+
+## Phase 2：后端模板
+
+完成：
+
+- label_templates。
+- label_template_versions。
+- CRUD。
+- Draft。
+- Publish。
+- Version Freeze。
+
+## Phase 3：数据集成
+
+完成：
+
+- Form Schema。
+- Field Engine。
+- Data Engine。
+- Permission。
+- Formula。
+- Real Data Preview。
+
+## Phase 4：服务端 Renderer
+
+完成：
+
+- Go Label Engine。
+- QRCode。
+- SVG。
+- PNG。
+- PDF。
+- 字体。
+- DPI。
+
+## Phase 5：批量任务
+
+完成：
+
+- Asynq。
+- render_tasks。
+- render_task_items。
+- RustFS。
+- PDF Merge。
+- Progress。
+
+## Phase 6：扫码
+
+完成：
+
+- QR Token。
+- `/q/:token`。
+- 权限。
+- scan_count。
+- 审计。
+
+---
+
+# 63. MVP 验收标准
+
+必须完成以下场景：
+
+```text
+创建标签模板
+    ↓
+设置 80 × 50mm / 300DPI
+    ↓
+添加标题
+    ↓
+添加“项目”字段
+    ↓
+添加“负责人”字段
+    ↓
+添加“创建时间”字段
+    ↓
+添加二维码
+    ↓
+绑定表单
+    ↓
+实时预览
+    ↓
+保存
+    ↓
+发布 V1
+    ↓
+选择一条表单记录
+    ↓
+服务端生成 PNG
+    ↓
+扫码
+    ↓
+定位数据
+```
+
+第二个验收场景：
+
+```text
+选择 100 条数据
+    ↓
+创建批量任务
+    ↓
+Asynq
+    ↓
+生成 100 张标签
+    ↓
+合并 PDF
+    ↓
+上传 RustFS
+    ↓
+下载
+```
+
+---
+
+# 64. 推荐最终模块关系
+
+```text
+                   ┌─────────────────────┐
+                   │ Form Schema Engine  │
+                   └──────────┬──────────┘
+                              ↓
+                   ┌─────────────────────┐
+                   │    Field Engine     │
+                   └──────────┬──────────┘
+                              │
+          ┌───────────────────┼──────────────────┐
+          ↓                   ↓                  ↓
+   Form Runtime          Label Engine      Other Runtime
+                              │
+                ┌─────────────┼─────────────┐
+                ↓             ↓             ↓
+          Data Engine   Formula Engine Permission Engine
+                │
+                ↓
+           Query Engine
+
+Label Engine
+    │
+    ├── Designer Engine（Web）
+    ├── Preview Renderer（Web）
+    ├── Runtime Resolver（Server）
+    ├── SVG Renderer（Server）
+    ├── QR Renderer（Server）
+    ├── PNG/PDF Exporter（Server）
+    └── Batch Worker（Server）
+```
+
+---
+
+# 65. 关键设计决策总结
+
+**决策 1：标签是独立引擎，不属于 Form Engine 内部组件。**
+
+**决策 2：LabelSchema 是唯一事实来源。**
+
+**决策 3：前端设计和预览，服务端最终生成。**
+
+**决策 4：SVG 是前后端共同的核心渲染媒介。**
+
+**决策 5：正式二维码由服务端生成。**
+
+**决策 6：标签真实数据只能通过 Data/Query Engine 获取。**
+
+**决策 7：表达式复用 Formula Engine，不新建表达式体系。**
+
+**决策 8：数据权限不能因为打印而绕过。**
+
+**决策 9：模板发布后版本冻结。**
+
+**决策 10：批量任务通过 Asynq 异步执行。**
+
+**决策 11：文件通过 Evolyn File Service → RustFS。**
+
+**决策 12：数据库使用"关系字段 + JSONB Schema
+Snapshot"，不把每个画布元素拆成数据库表。**
+
+---
+
+# 66. 建议在 Evolyn 中的最终命名
+
+前端：
+
+```text
+packages/engines/label
+@evolyn/label-engine
+```
+
+后端：
+
+```text
+internal/platform/label
+```
+
+数据库：
+
+```text
+label_templates
+label_template_versions
+label_qr_tokens
+label_render_tasks
+label_render_task_items
+label_render_records
+```
+
+领域名称统一：
+
+```text
+Label Template
+Label Schema
+Label Element
+Label Designer
+Label Renderer
+Label Runtime
+Label Render Task
+```
+
+不建议把整个模块命名成：
+
+```text
+QRCode
+```
+
+因为 QRCode 只是 LabelElement 的一种。
+
+---
+
+# 67. 后续 V2 演进
+
+V2 可以增加：
+
+- BarcodeElement。
+- Code128。
+- EAN13。
+- 多二维码。
+- 表格。
+- 重复区域。
+- 条件显示。
+- 条件样式。
+- 数据集合循环。
+- 页眉页脚。
+- A4 多标签排版。
+- 打印份数。
+- 标签间距。
+- 自动分页。
+- ZPL。
+- TSPL。
+- CPCL。
+- 打印机管理。
+- 打印队列。
+- WebSocket/Agent 本地打印。
+- 自定义字体。
+- 远程组件/插件 Element。
+- Label Template Marketplace。
+
+最终可以演进成：
+
+```text
+Evolyn Print Engine
+        │
+        ├── Label Designer
+        ├── Report Designer
+        ├── QR / Barcode
+        ├── PDF
+        ├── Printer Adapter
+        └── Print Job
+```
+
+---
+
+# 68. 结论
+
+对于 Evolyn 当前架构，标签功能应采用：
+
+```text
+Vue3 Label Designer
+        ↓
+LabelSchema V1
+        ↓
+前端 SVG 实时预览
+        ↓
+Go/Gin Label Runtime
+        ↓
+Data / Field / Formula / Permission Engine
+        ↓
+服务端 SVG
+        ↓
+PNG / PDF
+        ↓
+File Service / RustFS
+        ↓
+打印 / 下载
+```
+
+这样既可以完成当前"二维码标签"的需求，也不会把实现限制在二维码功能本身。
+
+其长期定位应当是：
+
+> **Evolyn 企业级低代码平台中的通用 Label / Print Engine。**
+
+它与表单引擎保持明确边界，同时复用 Form
+Schema、Field、Data、Query、Formula、Permission、File、Asynq
+等现有平台能力，适合后续扩展到固定资产、物料、库存、商品、设备、订单和工业场景。
