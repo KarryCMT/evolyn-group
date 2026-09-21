@@ -287,12 +287,12 @@ func v8PhysicalDraft(extraWidget string) model.JSONContent {
 		fieldLayout += `,"_widget_m"`
 	}
 	items += "]"
-	return model.JSONContent(`{"content":{"type":"form","layout":"grid-2","items":` + items + `,"layout_fields":[],"field_layout":[` + fieldLayout + `],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"},"formEvents":[]}}`)
+	return model.JSONContent(`{"content":{"type":"form","layout":"grid-2","items":` + items + `,"layout_fields":[],"field_layout":[` + fieldLayout + `],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"},"formEvents":[],"linkages":[]}}`)
 }
 
 // draftWithItems 按字段项数组组装完整草稿（field_layout 与 items 同步）。
 func draftWithItems(items string, names string) model.JSONContent {
-	return model.JSONContent(`{"content":{"type":"form","layout":"grid-2","items":` + items + `,"layout_fields":[],"field_layout":[` + names + `],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"},"formEvents":[]}}`)
+	return model.JSONContent(`{"content":{"type":"form","layout":"grid-2","items":` + items + `,"layout_fields":[],"field_layout":[` + names + `],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"},"formEvents":[],"linkages":[]}}`)
 }
 
 // createPhysicalForm 建表单 + physical 绑定 + 保存草稿，返回表单编码与口令。

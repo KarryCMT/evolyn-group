@@ -28,11 +28,11 @@ const loginStyleDialogVisible = shallowRef(false);
 const reminderDialogVisible = shallowRef(false);
 const timezoneDialogVisible = shallowRef(false);
 const themePopoverVisible = shallowRef(false);
-const selectedTheme = shallowRef('#0bb6aa');
+const selectedTheme = shallowRef('#1677FF');
 const pendingTimezone = shallowRef(settings.timezone);
 
 const themeColors = [
-  '#0bb6aa',
+  '#1677FF',
   '#f45358',
   '#ff7d1a',
   '#f3a81d',
@@ -93,9 +93,7 @@ function saveTimezone() {
             description="设置全局水印的开关状态及样式，配置后将同步生效于应用和知识库水印。"
           >
             <el-switch v-model="settings.watermark" aria-label="全局水印" />
-            <el-button plain @click="showPlannedSetting('全局水印')">
-              设置
-            </el-button>
+            <el-button plain @click="showPlannedSetting('全局水印')"> 设置 </el-button>
           </EnterpriseSettingRow>
 
           <EnterpriseSettingRow label="单点登录" stacked>
@@ -117,24 +115,18 @@ function saveTimezone() {
               </div>
               <div>
                 <strong>本系统账号登录外部</strong>
-                <el-button plain @click="showPlannedSetting('外部应用登录')">
-                  前往配置
-                </el-button>
+                <el-button plain @click="showPlannedSetting('外部应用登录')"> 前往配置 </el-button>
               </div>
             </div>
             <template #description>
               <div class="enterprise-settings-panel__stacked-descriptions">
                 <p>
                   成员可用第三方账号一键登录企业账号 URL 及发布给成员的内链。
-                  <button type="button" @click="learnMore('单点登录')">
-                    了解更多
-                  </button>
+                  <button type="button" @click="learnMore('单点登录')">了解更多</button>
                 </p>
                 <p>
                   成员可用本系统账号登录产品中心已集成的外部应用。
-                  <button type="button" @click="learnMore('外部应用登录')">
-                    了解更多
-                  </button>
+                  <button type="button" @click="learnMore('外部应用登录')">了解更多</button>
                 </p>
               </div>
             </template>
@@ -148,9 +140,7 @@ function saveTimezone() {
             <el-switch v-model="settings.aiConnection" aria-label="AI 连接" />
             <template #description>
               为企业内所有成员开启 AI 连接功能，以允许 AI 工具通过个人身份调用灵衍云能力。
-              <button type="button" @click="learnMore('AI 连接')">
-                了解更多
-              </button>
+              <button type="button" @click="learnMore('AI 连接')">了解更多</button>
             </template>
           </EnterpriseSettingRow>
         </EnterpriseSettingsSection>
@@ -185,16 +175,18 @@ function saveTimezone() {
               popper-class="enterprise-theme-popover"
             >
               <template #reference>
-                <el-button v-if="settings.enterpriseStyle" plain>
-                  设置
-                </el-button>
+                <el-button v-if="settings.enterpriseStyle" plain> 设置 </el-button>
               </template>
               <div class="enterprise-settings-panel__theme-picker">
                 <div class="enterprise-settings-panel__theme-heading">
                   <strong>企业主题色</strong>
                   <span>对企业内所有功能模块的电脑端和移动端同时生效</span>
                 </div>
-                <div class="enterprise-settings-panel__theme-colors" role="radiogroup" aria-label="企业主题色">
+                <div
+                  class="enterprise-settings-panel__theme-colors"
+                  role="radiogroup"
+                  aria-label="企业主题色"
+                >
                   <button
                     v-for="color in themeColors"
                     :key="color"
@@ -209,48 +201,39 @@ function saveTimezone() {
                   </button>
                 </div>
                 <div class="enterprise-settings-panel__theme-actions">
-                  <el-button @click="themePopoverVisible = false">
-                    取消
-                  </el-button>
-                  <el-button type="primary" @click="saveTheme">
-                    确定
-                  </el-button>
+                  <el-button @click="themePopoverVisible = false"> 取消 </el-button>
+                  <el-button type="primary" @click="saveTheme"> 确定 </el-button>
                 </div>
               </div>
             </el-popover>
             <template #description>
               自定义企业风格。
-              <button type="button" @click="learnMore('企业风格')">
-                了解更多
-              </button>
+              <button type="button" @click="learnMore('企业风格')">了解更多</button>
             </template>
           </EnterpriseSettingRow>
         </EnterpriseSettingsSection>
 
         <EnterpriseSettingsSection title="企业协作" labelled-by="enterprise-collaboration-title">
           <EnterpriseSettingRow label="提醒屏蔽">
-            <el-button plain @click="reminderDialogVisible = true">
-              设置
-            </el-button>
+            <el-button plain @click="reminderDialogVisible = true"> 设置 </el-button>
             <template #description>
               可以设置成员是否接收应用内相关提醒。
-              <button type="button" @click="learnMore('提醒屏蔽')">
-                了解更多
-              </button>
+              <button type="button" @click="learnMore('提醒屏蔽')">了解更多</button>
             </template>
           </EnterpriseSettingRow>
 
           <EnterpriseSettingRow label="系统语言">
-            <el-select v-model="settings.language" class="enterprise-settings-panel__language-select">
+            <el-select
+              v-model="settings.language"
+              class="enterprise-settings-panel__language-select"
+            >
               <el-option label="简体中文" value="zh-CN" />
               <el-option label="繁體中文" value="zh-TW" />
               <el-option label="English" value="en-US" />
             </el-select>
             <template #description>
               设置系统内的默认显示语言。
-              <button type="button" @click="learnMore('系统语言')">
-                了解更多
-              </button>
+              <button type="button" @click="learnMore('系统语言')">了解更多</button>
             </template>
           </EnterpriseSettingRow>
 
@@ -265,22 +248,16 @@ function saveTimezone() {
             </button>
             <template #description>
               系统内所有的时间都基于系统时区显示并存储。
-              <button type="button" @click="learnMore('系统时区')">
-                了解更多
-              </button>
+              <button type="button" @click="learnMore('系统时区')">了解更多</button>
             </template>
           </EnterpriseSettingRow>
 
           <EnterpriseSettingRow label="AI 能力">
             <el-switch v-model="settings.aiCapability" aria-label="AI 能力" />
-            <el-button plain @click="showPlannedSetting('AI 能力')">
-              设置
-            </el-button>
+            <el-button plain @click="showPlannedSetting('AI 能力')"> 设置 </el-button>
             <template #description>
               探索 AI 前沿，做智能时代先行者。
-              <button type="button" @click="learnMore('AI 能力')">
-                了解更多
-              </button>
+              <button type="button" @click="learnMore('AI 能力')">了解更多</button>
             </template>
           </EnterpriseSettingRow>
 
@@ -288,9 +265,7 @@ function saveTimezone() {
             <el-switch v-model="settings.wechatIntegration" aria-label="微信服务号集成" />
             <template #description>
               将系统嵌入企业微信服务号供成员使用。
-              <button type="button" @click="learnMore('微信服务号集成')">
-                了解更多
-              </button>
+              <button type="button" @click="learnMore('微信服务号集成')">了解更多</button>
             </template>
           </EnterpriseSettingRow>
         </EnterpriseSettingsSection>
@@ -311,12 +286,8 @@ function saveTimezone() {
         <el-option label="(GMT+9:00) Asia/Tokyo" value="(GMT+9:00) Asia/Tokyo" />
       </el-select>
       <template #footer>
-        <el-button @click="timezoneDialogVisible = false">
-          取消
-        </el-button>
-        <el-button type="primary" @click="saveTimezone">
-          确定
-        </el-button>
+        <el-button @click="timezoneDialogVisible = false"> 取消 </el-button>
+        <el-button type="primary" @click="saveTimezone"> 确定 </el-button>
       </template>
     </el-dialog>
   </div>
@@ -324,11 +295,11 @@ function saveTimezone() {
 
 <style scoped lang="scss">
 .enterprise-settings-panel {
-  --enterprise-accent: #0bb6aa;
+  --enterprise-accent: var(--el-color-primary);
   --el-color-primary: var(--enterprise-accent);
   height: 100%;
   min-height: 0;
-  color: #202939;
+  color: var(--el-text-color-primary);
 
   &__scrollbar {
     height: 100%;
@@ -353,7 +324,7 @@ function saveTimezone() {
 
     strong {
       width: 180px;
-      color: #3e4758;
+      color: var(--el-text-color-primary);
       font-size: 14px;
       font-weight: 600;
     }
@@ -370,7 +341,7 @@ function saveTimezone() {
   }
 
   &__timezone {
-    color: #344054;
+    color: var(--el-text-color-primary);
     font-size: 14px;
   }
 
@@ -405,12 +376,12 @@ function saveTimezone() {
     gap: 14px;
 
     strong {
-      color: #202939;
+      color: var(--el-text-color-primary);
       font-size: 17px;
     }
 
     span {
-      color: #7a8495;
+      color: var(--el-text-color-secondary);
       font-size: 13px;
     }
   }
@@ -429,11 +400,11 @@ function saveTimezone() {
       border-radius: 50%;
       align-items: center;
       justify-content: center;
-      color: #fff;
+      color: var(--el-text-color-primary);
       cursor: pointer;
 
       &[aria-checked='true'] {
-        border-color: #fff;
+        border-color: var(--el-text-color-primary);
         box-shadow: 0 0 0 2px currentColor;
       }
 
@@ -464,7 +435,7 @@ function saveTimezone() {
   :deep(.el-button.is-plain) {
     border-color: var(--enterprise-accent);
     color: var(--enterprise-accent);
-    background: #fff;
+    background: var(--el-color-white);
   }
 
   :deep(.el-input__wrapper),
@@ -475,7 +446,6 @@ function saveTimezone() {
 }
 
 :global(.enterprise-theme-popover.el-popper) {
-  --el-color-primary: #0bb6aa;
   padding: 20px;
   border: 0;
   border-radius: 10px;
@@ -483,7 +453,6 @@ function saveTimezone() {
 }
 
 :global(.enterprise-timezone-dialog) {
-  --el-color-primary: #0bb6aa;
   border-radius: 12px;
 }
 

@@ -81,7 +81,7 @@ func newPhysEnv(t *testing.T) *physEnv {
 // physDoc v8 发布草稿（text + number + date 三标量字段）。
 func physDoc(items string, names string) model.JSONContent {
 	return model.JSONContent(fmt.Sprintf(
-		`{"content":{"type":"form","layout":"grid-2","items":%s,"layout_fields":[],"field_layout":[%s],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"},"formEvents":[]}}`,
+		`{"content":{"type":"form","layout":"grid-2","items":%s,"layout_fields":[],"field_layout":[%s],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"},"formEvents":[],"linkages":[]}}`,
 		items, names))
 }
 

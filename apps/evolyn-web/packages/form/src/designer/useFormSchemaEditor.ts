@@ -1,10 +1,10 @@
-import { computed, ref, type Ref } from 'vue';
+import { type Ref, computed, ref } from 'vue';
 import {
+  DEFAULT_PRE_SUBMIT_CONFIRM,
+  FORM_LAYOUT_LINE_WIDTH,
   copyWidgetItem,
   createFieldShowRule,
   createWidgetItem,
-  DEFAULT_PRE_SUBMIT_CONFIRM,
-  FORM_LAYOUT_LINE_WIDTH,
   generateFieldShowRuleId,
   generateLayoutName,
   generateTabName,
@@ -14,19 +14,19 @@ import {
   isSubmitRuleEligibleType,
   normalizeWidgetSubmitRules,
 } from '../schema/invisible-value-policy';
-import type {
-  FieldShowRule,
-  FormItem,
-  FormLayoutMode,
-  FormMultitabLayout,
-  PreSubmitConfirm,
-  FormSchemaDocument,
-  FormWidgetType,
-  SubmitRule,
-  SubmitValidator,
-  SubformWidget,
+import {
+  type FieldShowRule,
+  type FormItem,
+  type FormLayoutMode,
+  type FormMultitabLayout,
+  type FormSchemaDocument,
+  type FormWidgetType,
+  type PreSubmitConfirm,
+  SUBFORM_ALLOWED_WIDGET_TYPES,
+  type SubformWidget,
+  type SubmitRule,
+  type SubmitValidator,
 } from '../schema/types';
-import { SUBFORM_ALLOWED_WIDGET_TYPES } from '../schema/types';
 import type { FormSchemaPaletteDrag } from './palette';
 
 export type FormLayoutTarget =
@@ -63,6 +63,7 @@ export function createEmptyFormSchemaDocument(): FormSchemaDocument {
       validators: [],
       preSubmitConfirm: structuredClone(DEFAULT_PRE_SUBMIT_CONFIRM),
       formEvents: [],
+      linkages: [],
     },
   };
 }
@@ -769,6 +770,7 @@ function normalizeContentKeys(content: FormSchemaDocument['content']): void {
   if (!isPreSubmitConfirm(content.preSubmitConfirm)) {
     content.preSubmitConfirm = structuredClone(DEFAULT_PRE_SUBMIT_CONFIRM);
   }
+  if (!Array.isArray(content.linkages)) content.linkages = [];
 }
 
 function isPreSubmitConfirm(value: unknown): value is PreSubmitConfirm {

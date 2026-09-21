@@ -5,6 +5,7 @@
  * 前端校验与后端 Go 校验器（internal/platform/form）对同一 JSON 的结论必须一致。
  */
 export * from './types';
+export * from './linkage';
 export * from './dictionary';
 export * from './numeric';
 export * from './money';

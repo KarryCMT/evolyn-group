@@ -7,7 +7,12 @@ import { migrateFormSchema } from '@evolyn.do/form/schema';
 import { ApiError } from '@evolyn.do/utils';
 import { ElMessage } from 'element-plus';
 import { computed, shallowRef, useTemplateRef, watch } from 'vue';
-import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
+import {
+  createFormDataOperationId,
+  executeFormLinkage,
+  getFormRuntime,
+  submitFormRecord,
+} from '~/api/form';
 import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
 import { useAuth } from '~/composables/auth';
 // 应用工作区按需加载最终运行时关键样式，不引入设计器样式图。
@@ -23,6 +28,7 @@ const props = defineProps<{
 type RuntimeStatus = 'loading' | 'ready' | 'not-published' | 'error';
 
 const { userInfo } = useAuth();
+const bootstrap = shallowRef<FormRuntimeBootstrap | null>(null);
 
 /** 当前登录成员编号：显隐规则 includeCurrentMember 的前端求值注入源。 */
 const currentMemberId = computed(() => {
@@ -33,11 +39,10 @@ const currentMemberId = computed(() => {
 const fieldPermissions = computed(() => bootstrap.value?.permissions?.addFields);
 
 const status = shallowRef<RuntimeStatus>('loading');
-const bootstrap = shallowRef<FormRuntimeBootstrap | null>(null);
 const errorMessage = shallowRef('表单加载失败，请稍后重试');
 const reloadRevision = shallowRef(0);
 const unsupportedTypes = new Set<string>();
-const runtimeSurfaceRef = useTemplateRef<{ reset(): void }>('runtimeSurface');
+const runtimeSurfaceRef = useTemplateRef<{ reset: () => void }>('runtimeSurface');
 
 const actions: FormRuntimeActionDefinition[] = [
   {
@@ -51,6 +56,18 @@ const actions: FormRuntimeActionDefinition[] = [
 ];
 
 const runtimeAdapter: FormRuntimeAdapter = {
+  executeLinkage(input, signal) {
+    return executeFormLinkage(
+      input.formId,
+      input.ruleId,
+      {
+        schemaVersion: input.schemaVersion,
+        values: input.values,
+        requestVersion: input.requestVersion,
+      },
+      signal,
+    );
+  },
   async submit(payload, signal) {
     try {
       await submitFormRecord(
@@ -218,8 +235,8 @@ function isAbortError(error: unknown): boolean {
     </el-result>
 
     <FormWebRuntimeSurface
-      ref="runtimeSurface"
       v-else-if="bootstrap"
+      ref="runtimeSurface"
       class="app-workspace-form-runtime__surface"
       :schema="bootstrap.content"
       :form-id="bootstrap.formCode"

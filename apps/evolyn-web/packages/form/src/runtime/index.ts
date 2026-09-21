@@ -27,8 +27,11 @@ export type {
   Page,
   RelatedDataQuery,
   RelatedValue,
+  LinkageExecuteRequest,
+  LinkageExecuteResult,
   UploadInput,
 } from './adapters/types';
+export { DataLinkageRuntime } from './linkage/DataLinkageRuntime';
 export { createFormRuntime } from './store/createFormRuntime';
 export type {
   FormDraftOutcome,

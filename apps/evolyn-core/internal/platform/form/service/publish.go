@@ -53,6 +53,12 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 	if member == nil || member.ID == 0 {
 		return nil, httpx.Wrap(apperrors.ErrForbidden, fmt.Errorf("member required"))
 	}
+	// v11 数据联动跨表引用必须在冻结快照前终审；设计器即时校验不构成安全边界。
+	if form.ProtocolVersion >= 11 {
+		if err := s.validatePublishedLinkageReferences(ctx, form); err != nil {
+			return nil, err
+		}
+	}
 
 	var result *model.PublishResult
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {

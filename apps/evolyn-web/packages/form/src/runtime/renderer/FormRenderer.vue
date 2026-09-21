@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, shallowRef, watch, type Component } from 'vue';
+import { type Component, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue';
 import { type FormSchemaIssue, validateFormSchema } from '../../schema/validate';
 import type { FormSchemaDocument } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
@@ -113,6 +113,7 @@ watch(
     // Schema/资产切换时终止旧会话请求，避免旧响应回写新表单。
     operationController.value?.abort();
     operationController.value = null;
+    runtimeRef.value?.dispose();
     const result = validateFormSchema(schema);
     if (result.valid) {
       schemaIssues.value = [];
@@ -137,7 +138,10 @@ watch(
   { immediate: true },
 );
 
-onBeforeUnmount(() => operationController.value?.abort());
+onBeforeUnmount(() => {
+  operationController.value?.abort();
+  runtimeRef.value?.dispose();
+});
 // immediate watch 可能发生在父组件事件监听完成前，挂载后补发当前会话供 Surface 建立只读投影。
 onMounted(() => emit('runtime-change', runtimeRef.value));
 

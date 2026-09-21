@@ -12,7 +12,7 @@
  * v8 起值字段必须携带内部不可变 fieldId（物理表存储 §4.1 契约冻结：
  * fieldId→物理列名 f_<fieldId> 永不变更；widgetName 同步冻结，只允许改 label）。 */
 // v10 将安全前端事件纳入 content.formEvents；历史 v9 文档读取时补空数组。
-export const FORM_PROTOCOL_VERSION = 10 as const;
+export const FORM_PROTOCOL_VERSION = 11 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -607,6 +607,68 @@ export interface FormEvent {
   subform_fill_rule: 'merge' | 'replace';
 }
 
+// ---- 数据联动（v11）----
+
+/** 数据联动只引用逻辑表单与字段标识；物理表名和列名永不进入浏览器协议。 */
+export interface DataLinkageSource {
+  type: 'form';
+  appId: number;
+  sourceId: string;
+}
+
+export type DataLinkageOperator =
+  | 'eq'
+  | 'neq'
+  | 'gt'
+  | 'gte'
+  | 'lt'
+  | 'lte'
+  | 'contains'
+  | 'notContains'
+  | 'in'
+  | 'not_in'
+  | 'empty'
+  | 'not_empty';
+
+export type DataLinkageValueSource =
+  | { type: 'field'; fieldId: string }
+  | { type: 'constant'; value: FormJsonValue; valueType?: string };
+
+export interface DataLinkageCondition {
+  id: string;
+  sourceFieldId: string;
+  operator: DataLinkageOperator;
+  value?: DataLinkageValueSource;
+}
+
+export interface DataLinkageMapping {
+  sourceFieldId: string;
+  targetFieldId: string;
+}
+
+export interface DataLinkageDefinition {
+  id: string;
+  version: number;
+  enabled: boolean;
+  source: DataLinkageSource;
+  filter: {
+    logic: 'and' | 'or';
+    conditions: DataLinkageCondition[];
+  };
+  mappings: DataLinkageMapping[];
+  result: {
+    mode: 'first';
+    orderBy?: Array<{ fieldId: string; direction: 'asc' | 'desc' }>;
+  };
+  runtime: {
+    trigger: 'dependency_change';
+    runOnInit: boolean;
+    debounceMs: number;
+    emptyStrategy: 'clear' | 'keep';
+    errorStrategy: 'keep' | 'clear';
+  };
+}
+
 export interface FormContent {
   type: 'form';
   /** 表单默认列布局；切换时同步重置所有普通字段的 lineWidth。 */
@@ -641,6 +703,8 @@ export interface FormContent {
   preSubmitConfirm: PreSubmitConfirm;
   /** 前端事件配置（v10）；空数组表示未配置。 */
   formEvents: FormEvent[];
+  /** 数据联动规则（v11）；发布快照是运行时可信规则的唯一事实源。 */
+  linkages: DataLinkageDefinition[];
 }
 
 /** 表单级默认列布局；字段仍可通过 lineWidth 单独覆盖实际宽度。 */

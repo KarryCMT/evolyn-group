@@ -137,6 +137,28 @@ type FormRuntime struct {
 	Permissions      *FormRuntimePermissions `json:"permissions,omitempty"`
 }
 
+// LinkageSourceField 是设计器可见的已发布逻辑字段；Operators 由服务端字段能力
+// 注册表投影，浏览器不得自行扩大操作符集合。
+type LinkageSourceField struct {
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	Type      string   `json:"type"`
+	Operators []string `json:"operators"`
+}
+
+type ExecuteLinkageRequest struct {
+	SchemaVersion  int            `json:"schemaVersion" binding:"required"`
+	Values         map[string]any `json:"values" binding:"required"`
+	RequestVersion int            `json:"requestVersion" binding:"required"`
+}
+
+type ExecuteLinkageResult struct {
+	RuleID         string         `json:"ruleId"`
+	RequestVersion int            `json:"requestVersion"`
+	Matched        bool           `json:"matched"`
+	Values         map[string]any `json:"values"`
+}
+
 // SubmitFieldValue 单字段提交快照：Data 缺省与显式 null 均表示空值；Visible
 // 必须显式携带，由服务端与发布快照复核，避免客户端伪造隐藏状态绕过必填校验。
 type SubmitFieldValue struct {

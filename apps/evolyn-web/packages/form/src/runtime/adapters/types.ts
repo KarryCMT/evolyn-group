@@ -67,11 +67,27 @@ export interface RelatedValue {
   [key: string]: FormValue;
 }
 
+export interface LinkageExecuteRequest {
+  formId: string;
+  schemaVersion: number;
+  ruleId: string;
+  requestVersion: number;
+  values: Record<string, FormValue>;
+}
+
+export interface LinkageExecuteResult {
+  ruleId: string;
+  requestVersion: number;
+  matched: boolean;
+  values: Record<string, FormValue>;
+}
+
 export interface FormRuntimeAdapter {
   queryMembers?(input: MemberQuery, signal: AbortSignal): Promise<Page<MemberValue>>;
   queryDepartments?(input: DepartmentQuery, signal: AbortSignal): Promise<Page<DepartmentValue>>;
   uploadFile?(input: UploadInput, signal: AbortSignal): Promise<FileValue>;
   queryRelatedData?(input: RelatedDataQuery, signal: AbortSignal): Promise<Page<RelatedValue>>;
+  executeLinkage?(input: LinkageExecuteRequest, signal: AbortSignal): Promise<LinkageExecuteResult>;
   submit?(payload: FormSubmitPayload, signal: AbortSignal): Promise<FormSubmitResult>;
   saveDraft?(payload: FormDraftPayload, signal: AbortSignal): Promise<void>;
 }

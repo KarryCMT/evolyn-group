@@ -62,6 +62,7 @@ function document(): FormSchemaDocument {
         content: '联系电话：${_widget_phone}',
       },
       formEvents: [],
+      linkages: [],
     },
   };
 }

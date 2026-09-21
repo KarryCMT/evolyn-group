@@ -37,6 +37,7 @@ export type { FormSchemaPaletteGroup } from './FormSchemaPalette.vue';
 export { default as FormSchemaCanvas } from './FormSchemaLayoutCanvas.vue';
 export { default as FormSchemaItemPreview } from './FormSchemaItemPreview.vue';
 export { default as FormSchemaPropertyPanel } from './FormSchemaPropertyPanel.vue';
+export { default as DataLinkageSettingDialog } from './linkage/DataLinkageSettingDialog.vue';
 export { default as FormSchemaFieldShowRulesDrawer } from './FormSchemaFieldShowRulesDrawer.vue';
 export { default as FormSchemaFieldShowRuleDialog } from './FormSchemaFieldShowRuleDialog.vue';
 export { default as FormSchemaSubmitRuleDialog } from './FormSchemaSubmitRuleDialog.vue';

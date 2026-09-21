@@ -6,7 +6,7 @@ import { ApiError } from '@evolyn.do/utils';
 import { RiCloseFill, RiFullscreenExitLine, RiFullscreenLine } from '@remixicon/vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, shallowRef, useTemplateRef, watch } from 'vue';
-import { createFormDataOperationId, submitFormRecord } from '~/api/form';
+import { createFormDataOperationId, executeFormLinkage, submitFormRecord } from '~/api/form';
 import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
 import { useAuth } from '~/composables/auth';
 import { useFormRecordCreate } from '~/composables/useFormRecordCreate';
@@ -52,6 +52,18 @@ const actions: FormRuntimeActionDefinition[] = [
 
 /** 表单运行时只负责构造受控提交快照；应用 API、幂等键和成功后的列表协作留在宿主层。 */
 const runtimeAdapter: FormRuntimeAdapter = {
+  executeLinkage(input, signal) {
+    return executeFormLinkage(
+      input.formId,
+      input.ruleId,
+      {
+        schemaVersion: input.schemaVersion,
+        values: input.values,
+        requestVersion: input.requestVersion,
+      },
+      signal,
+    );
+  },
   async submit(payload, signal) {
     try {
       const result = await submitFormRecord(
@@ -217,7 +229,9 @@ function onSubmitSuccess(): void {
       aria-live="polite"
     >
       <span class="form-record-create-dialog__loading-mark" aria-hidden="true" />
-      <p class="form-record-create-dialog__loading-text">正在加载表单…</p>
+      <p class="form-record-create-dialog__loading-text">
+        正在加载表单…
+      </p>
     </section>
 
     <el-result
@@ -236,7 +250,9 @@ function onSubmitSuccess(): void {
       :sub-title="errorMessage"
     >
       <template #extra>
-        <el-button type="primary" @click="load"> 重新加载 </el-button>
+        <el-button type="primary" @click="load">
+          重新加载
+        </el-button>
       </template>
     </el-result>
 

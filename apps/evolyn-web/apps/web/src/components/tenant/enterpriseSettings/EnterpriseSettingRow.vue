@@ -45,7 +45,7 @@ withDefaults(
     display: flex;
     align-items: center;
     gap: 8px;
-    color: #3e4758;
+    color: var(--el-text-color-primary);
     font-size: 15px;
     font-weight: 600;
     line-height: 22px;

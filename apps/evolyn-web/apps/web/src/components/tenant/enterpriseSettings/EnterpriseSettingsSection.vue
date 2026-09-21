@@ -33,7 +33,7 @@ defineProps<{
     margin: 0 0 24px;
     align-items: center;
     gap: 10px;
-    color: #202939;
+    color: var(--el-text-color-primary);
     font-size: 18px;
     font-weight: 650;
     line-height: 26px;

@@ -9,26 +9,27 @@ import {
   validateWidgetValue,
 } from '../../schema/codec';
 import {
+  type CompiledFieldShowRules,
   compileFieldShowRules,
   downstreamTargets,
   evaluateFieldShowRules,
   matchFieldShowRule,
-  type CompiledFieldShowRules,
 } from '../../schema/rules';
 import {
+  type InvisibleValuePolicyView,
   readInvisibleValuePolicy,
   resolveSubmitStrategy,
-  type InvisibleValuePolicyView,
 } from '../../schema/invisible-value-policy';
 import {
+  type SubmitValidatorFailure,
   compileSubmitValidators,
   evaluateCompiledSubmitValidators,
   renderSubmitTemplate,
-  type SubmitValidatorFailure,
 } from '../../schema/submit-validation';
 import { formatMoneyValue } from '../../schema/money';
 import type { FormItem, FormSchemaDocument, SubmitRule } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
+import { DataLinkageRuntime } from '../linkage/DataLinkageRuntime';
 import type {
   FieldRuntimeState,
   FormDraftPayload,
@@ -38,8 +39,8 @@ import type {
   FormRuntimeOperation,
   FormRuntimeState,
   FormServerValidatorError,
-  FormSubmittedFieldValue,
   FormSubmitPayload,
+  FormSubmittedFieldValue,
   FormValue,
   FormValueSource,
 } from '../types';
@@ -133,6 +134,8 @@ export interface FormRuntime {
   submit(signal?: AbortSignal): Promise<FormSubmitOutcome>;
   saveDraft(signal?: AbortSignal): Promise<FormDraftOutcome>;
   reset(): void;
+  /** 终止联动防抖与在途请求；Surface 替换 Schema 或卸载时必须调用。 */
+  dispose(): void;
   isDirty(): boolean;
 }
 
@@ -193,8 +196,26 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     >('initializing'),
   ) as FormRuntimeState;
 
+  const linkageRuntime = new DataLinkageRuntime({
+    rules: schema.content.linkages ?? [],
+    formId: options.formId ?? '',
+    schemaVersion: options.publishedVersion ?? 0,
+    adapter: options.adapter,
+    valueOf: (fieldId) => state.values[fieldId],
+    applyValues: (values) => {
+      for (const [fieldId, value] of Object.entries(values)) setValue(fieldId, value, 'linkage');
+    },
+    clearTargets: (rule) => {
+      for (const mapping of rule.mappings) {
+        const item = itemMap.get(mapping.targetFieldId);
+        if (item) setValue(mapping.targetFieldId, emptyWidgetValue(item.widget.type), 'linkage');
+      }
+    },
+  });
+
   initializeValues();
   state.lifecycle = 'ready';
+  queueMicrotask(() => linkageRuntime.initialize());
 
   function initializeValues(): void {
     state.values = {};
@@ -236,6 +257,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     // 显隐规则：仅重算变更字段的下游闭包（拓扑序），不做全量规则扫描。
     const visibilityAffected = recomputeDownstreamVisibility(key);
     if (source === 'user') scheduleRealtimeValidation([key, ...visibilityAffected]);
+    if (source === 'user' || source === 'linkage') linkageRuntime.notifyFieldChange(key);
   }
 
   // ---- 显隐规则引擎（v5 设计方案 §4.2/§6.1） ----
@@ -637,10 +659,17 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     realtimeFailuresByIndex.clear();
     validatorMessagesByField.clear();
     templateValueLabels.clear();
+    linkageRuntime.dispose();
     submitOperationID = undefined;
     initializeValues();
     state.lifecycle = 'ready';
     state.activeOperation = null;
+    queueMicrotask(() => linkageRuntime.initialize());
+  }
+
+  function dispose(): void {
+    if (realtimeValidationTimer) clearTimeout(realtimeValidationTimer);
+    linkageRuntime.dispose();
   }
 
   function isDirty(): boolean {
@@ -676,6 +705,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     submit,
     saveDraft,
     reset,
+    dispose,
     isDirty,
   };
 }

@@ -39,7 +39,14 @@
           @rename-key="$emit('rename-key', $event)"
         />
         <el-form v-else-if="draftItem" label-position="top" size="default" @submit.prevent>
-          <TextPropertyPanel v-if="widget.type === 'text'" v-model="draftItem" />
+          <TextPropertyPanel
+            v-if="widget.type === 'text'"
+            v-model="draftItem"
+            :schema-document="schemaDocument"
+            :app-id="appId"
+            :linkage-adapter="linkageAdapter"
+            @update-linkages="emit('update-linkages', $event)"
+          />
 
           <template v-else>
             <FormSchemaCommonPropertyPanel
@@ -73,7 +80,14 @@
 
               <template #after-prompt>
                 <!-- 控件专属配置统一置于公共提示文字之后、校验之前。 -->
-                <TextareaPropertyPanel v-if="widget.type === 'textarea'" :widget="widget" />
+                <TextareaPropertyPanel
+                  v-if="widget.type === 'textarea'"
+                  v-model="draftItem"
+                  :schema-document="schemaDocument"
+                  :app-id="appId"
+                  :linkage-adapter="linkageAdapter"
+                  @update-linkages="emit('update-linkages', $event)"
+                />
                 <NumberPropertyPanel v-else-if="widget.type === 'number'" :widget="widget" />
                 <DecimalPropertyPanel
                   v-else-if="isNumericWidgetType(widget.type)"
@@ -311,23 +325,25 @@ import {
   ElTooltip,
 } from 'element-plus';
 import type {
+  CheckboxGroupWidget,
+  ComboCheckWidget,
+  ComboWidget,
+  DataLinkageDefinition,
+  DecimalFamilyWidget,
   FieldShowRule,
   FormItem,
   FormLayoutMode,
   FormMultitabLayout,
   FormSchemaDocument,
   FormTabStyle,
-  SubformWidget,
-  CheckboxGroupWidget,
-  ComboCheckWidget,
-  ComboWidget,
-  RadioGroupWidget,
+  FormWidgetType,
   PreSubmitConfirm,
+  RadioGroupWidget,
+  SubformWidget,
   SubmitRule,
   SubmitValidator,
-  DecimalFamilyWidget,
-  FormWidgetType,
 } from '../schema/types';
+import type { LinkageDesignerAdapter } from '../schema/linkage';
 import { createWidgetItem, widgetTypeLabel } from '../schema/dictionary';
 import { isNumericWidgetType } from '../schema/numeric';
 import { submitRuleLabel } from '../schema/invisible-value-policy';
@@ -379,6 +395,9 @@ const props = withDefaults(
     debugFrontendEvent?: FormEventDebugExecutor;
     /** 已发布字段的物理列及值语义不可重写；初次发布前才允许切换数值类型。 */
     numericTypeEditable?: boolean;
+    /** 当前表单所属应用与设计器 API 注入，用于配置跨表数据联动。 */
+    appId?: number;
+    linkageAdapter?: LinkageDesignerAdapter;
   }>(),
   {
     item: undefined,
@@ -399,6 +418,8 @@ const props = withDefaults(
     formEvents: () => [],
     debugFrontendEvent: undefined,
     numericTypeEditable: true,
+    appId: 0,
+    linkageAdapter: undefined,
   },
 );
 
@@ -422,6 +443,7 @@ const emit = defineEmits<{
   'update-validators': [validators: SubmitValidator[]];
   'update-pre-submit-confirm': [confirm: PreSubmitConfirm];
   'update-form-events': [events: FormEvent[]];
+  'update-linkages': [rules: DataLinkageDefinition[]];
 }>();
 
 const showRulesDrawer = shallowRef(false);

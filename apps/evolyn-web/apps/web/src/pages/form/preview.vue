@@ -9,9 +9,14 @@ import { RiArrowGoBackFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, shallowRef } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useAuth } from '~/composables/auth';
-import { createFormDataOperationId, getFormRuntime, submitFormRecord } from '~/api/form';
+import {
+  createFormDataOperationId,
+  executeFormLinkage,
+  getFormRuntime,
+  submitFormRecord,
+} from '~/api/form';
 import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
+import { useAuth } from '~/composables/auth';
 import { loadFormPreviewDocument } from './preview-storage';
 // 运行时样式独立于设计器 style.css，最终用户填写页只加载关键 CSS。
 import '@evolyn.do/form/runtime-web/style.css';
@@ -98,6 +103,18 @@ const unsupportedTypes = new Set<string>();
 
 /** 已发布走真实提交（服务端终审 + 字段错误回填）；草稿回放本地通过。 */
 const runtimeAdapter: FormRuntimeAdapter = {
+  executeLinkage(input, signal) {
+    return executeFormLinkage(
+      input.formId,
+      input.ruleId,
+      {
+        schemaVersion: input.schemaVersion,
+        values: input.values,
+        requestVersion: input.requestVersion,
+      },
+      signal,
+    );
+  },
   async submit(payload) {
     if (!runtimeInfo.value) {
       return { accepted: true };

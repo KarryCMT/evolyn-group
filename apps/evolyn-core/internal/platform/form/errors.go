@@ -155,6 +155,20 @@ var (
 	ErrFrontendEventTargetNotWritable = httpx.NewBiz("FORM_EVENT_TARGET_NOT_WRITABLE", "目标字段不可写", http.StatusForbidden)
 	ErrFrontendEventCycleDetected     = httpx.NewBiz("FORM_EVENT_CYCLE_DETECTED", "前端事件调用链存在循环", http.StatusConflict)
 
+	// ---- 数据联动（协议 v11） ----
+	ErrLinkageRuleNotFound        = httpx.NewBiz("LINKAGE_RULE_NOT_FOUND", "数据联动规则不存在", http.StatusNotFound)
+	ErrLinkageRuleDisabled        = httpx.NewBiz("LINKAGE_RULE_DISABLED", "数据联动规则已停用", http.StatusConflict)
+	ErrLinkageVersionMismatch     = httpx.NewBiz("LINKAGE_SCHEMA_VERSION_MISMATCH", "表单已发布新版本，请刷新后重试", http.StatusConflict)
+	ErrLinkageSourceNotFound      = httpx.NewBiz("LINKAGE_SOURCE_NOT_FOUND", "联动数据源不存在或尚未发布", http.StatusNotFound)
+	ErrLinkageFieldNotFound       = httpx.NewBiz("LINKAGE_FIELD_NOT_FOUND", "数据联动字段不存在", http.StatusBadRequest)
+	ErrLinkageFieldTypeMismatch   = httpx.NewBiz("LINKAGE_FIELD_TYPE_MISMATCH", "数据联动字段类型不兼容", http.StatusBadRequest)
+	ErrLinkageOperatorUnsupported = httpx.NewBiz("LINKAGE_OPERATOR_NOT_SUPPORTED", "数据联动操作符不受支持", http.StatusBadRequest)
+	ErrLinkageCircularDependency  = httpx.NewBiz("LINKAGE_CIRCULAR_DEPENDENCY", "数据联动存在循环依赖", http.StatusBadRequest)
+	ErrLinkagePermissionDenied    = httpx.NewBiz("LINKAGE_PERMISSION_DENIED", "没有读取联动数据的权限", http.StatusForbidden)
+	ErrLinkageQueryTimeout        = httpx.NewBiz("LINKAGE_QUERY_TIMEOUT", "数据联动查询超时", http.StatusGatewayTimeout)
+	ErrLinkageMultipleResults     = httpx.NewBiz("LINKAGE_MULTIPLE_RESULTS", "数据联动查询命中多条记录", http.StatusConflict)
+	ErrLinkageQueryFailed         = httpx.NewBiz("LINKAGE_QUERY_FAILED", "数据联动查询失败", http.StatusBadGateway)
+
 	// ErrStorageJobNotFound DDL 发布 Job 不存在
 	ErrStorageJobNotFound = httpx.NewBiz("FORM_STORAGE_JOB_NOT_FOUND", "结构变更任务不存在", http.StatusNotFound)
 )

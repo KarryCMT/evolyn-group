@@ -149,6 +149,10 @@ type FormService interface {
 	RecalibrateWorkflowProjection(ctx context.Context, member *iammodel.User, code string) (*model.WorkflowProjectionRecalibrateResult, error)
 	// DebugFrontendEvent 按当前草稿中的事件定义执行一次安全调试，不写表单记录。
 	DebugFrontendEvent(ctx context.Context, member *iammodel.User, code, eventID string, req *model.FrontendEventExecuteRequest) (*model.FrontendEventExecuteResult, error)
+	// ListLinkageFields 返回已发布数据源中当前成员可读的逻辑字段。
+	ListLinkageFields(ctx context.Context, member *iammodel.User, sourceCode string) ([]model.LinkageSourceField, error)
+	// ExecuteLinkage 按当前表单发布快照中的可信规则执行受控跨表查询。
+	ExecuteLinkage(ctx context.Context, member *iammodel.User, code, ruleID string, req *model.ExecuteLinkageRequest) (*model.ExecuteLinkageResult, error)
 }
 
 // FrontendEventInvokerInjector 是生产装配期注入点；未注入时调试明确失败，

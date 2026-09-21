@@ -36,6 +36,27 @@ const field: FormItem = {
   lineWidth: 12,
 };
 
+const fieldSchemaDocument: FormSchemaDocument = {
+  content: {
+    type: 'form',
+    layout: 'normal',
+    items: [field],
+    layout_fields: [],
+    field_layout: ['_widget_name'],
+    fieldShowRules: [],
+    submitRule: 2,
+    widget_submit_rules: {},
+    validators: [],
+    preSubmitConfirm: {
+      enable: false,
+      title: '确认继续提交吗？',
+      content: '请确认填写内容无误后继续提交。',
+    },
+    formEvents: [],
+    linkages: [],
+  },
+};
+
 describe('FormSchemaPropertyPanel', () => {
   it('选中标签页布局后在右侧展示并上抛标签配置动作', async () => {
     const wrapper = mount(FormSchemaPropertyPanel, { props: { layout } });
@@ -109,6 +130,23 @@ describe('FormSchemaPropertyPanel', () => {
     expect(document.body.textContent).toContain('自定义');
     expect(document.body.textContent).toContain('数据联动');
     expect(document.body.textContent).toContain('公式编辑');
+  });
+
+  it('未保存联动规则时仍保留数据联动模式并展示设置入口', async () => {
+    const wrapper = mount(FormSchemaPropertyPanel, {
+      props: { item: field, schemaDocument: fieldSchemaDocument, appId: 1 },
+    });
+    const modeSelect = wrapper.findComponent({ name: 'DefaultValueModeSelect' });
+
+    modeSelect.vm.$emit('update:modelValue', 'data-linkage');
+    await nextTick();
+
+    expect(modeSelect.props('modelValue')).toBe('data-linkage');
+    expect(wrapper.find('.text-property__linkage-button').text()).toBe('数据联动设置');
+
+    wrapper.findComponent({ name: 'DataLinkageSettingDialog' }).vm.$emit('update:modelValue', false);
+    await nextTick();
+    expect(wrapper.find('.text-property__linkage-button').text()).toBe('数据联动设置');
   });
 
   it('默认值来源下拉复用于所有支持默认值的控件，分割线和标签页不展示', () => {
@@ -303,6 +341,7 @@ describe('FormSchemaPropertyPanel 不可见字段赋值（v6）', () => {
         content: '请确认填写内容无误后继续提交。',
       },
       formEvents: [],
+      linkages: [],
     },
   };
 

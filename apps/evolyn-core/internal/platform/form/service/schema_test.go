@@ -91,9 +91,41 @@ func doc(items ...any) []byte {
 		"type": "form", "layout": "normal", "items": items, "layout_fields": []any{}, "field_layout": fieldLayout,
 		"fieldShowRules": []any{}, "submitRule": 2, "widget_submit_rules": map[string]any{},
 		"validators": []any{}, "preSubmitConfirm": map[string]any{"enable": false, "title": "请确认提交", "content": "确认提交当前内容？"},
-		"formEvents": []any{},
+		"formEvents": []any{}, "linkages": []any{},
 	}})
 	return raw
+}
+
+func TestValidateDataLinkagesRejectsCurrentFormCycle(t *testing.T) {
+	fieldA := validTextItem()
+	fieldB := validTextItem()
+	fieldB["widget"].(map[string]any)["widgetName"] = "_widget_b1"
+	var document map[string]any
+	assert.NoError(t, json.Unmarshal(doc(fieldA, fieldB), &document))
+	content := document["content"].(map[string]any)
+	makeRule := func(id, dependency, target string) map[string]any {
+		return map[string]any{
+			"id": id, "version": 1, "enabled": true,
+			"source": map[string]any{"type": "form", "appId": 1, "sourceId": "form_products"},
+			"filter": map[string]any{"logic": "and", "conditions": []any{map[string]any{
+				"id": "cond_" + id, "sourceFieldId": "_widget_source", "operator": "eq",
+				"value": map[string]any{"type": "field", "fieldId": dependency},
+			}}},
+			"mappings": []any{map[string]any{"sourceFieldId": "_widget_result", "targetFieldId": target}},
+			"result":   map[string]any{"mode": "first"},
+			"runtime": map[string]any{
+				"trigger": "dependency_change", "runOnInit": true, "debounceMs": 250,
+				"emptyStrategy": "clear", "errorStrategy": "keep",
+			},
+		}
+	}
+	content["linkages"] = []any{
+		makeRule("linkage_alpha", "_widget_a1", "_widget_b1"),
+		makeRule("linkage_beta", "_widget_b1", "_widget_a1"),
+	}
+	raw, err := json.Marshal(document)
+	assert.NoError(t, err)
+	assert.True(t, containsPath(ValidateFormSchema(raw), "content.linkages"))
 }
 
 func TestValidateFormSchemaMultitabWithSubformReference(t *testing.T) {
@@ -120,6 +152,7 @@ func TestValidateFormSchemaMultitabWithSubformReference(t *testing.T) {
 		"validators":          []any{},
 		"preSubmitConfirm":    map[string]any{"enable": false, "title": "请确认提交", "content": "确认提交当前内容？"},
 		"formEvents":          []any{},
+		"linkages":            []any{},
 	}}
 	raw, _ := json.Marshal(document)
 	assert.Empty(t, ValidateFormSchema(raw))

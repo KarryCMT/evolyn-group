@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import type {
+  FormEventDebugRequest,
+  FormEventDebugResult,
   FormItem,
   FormSchemaIssue,
   FormSchemaPaletteGroup,
@@ -7,6 +9,7 @@ import type {
   FormWidgetType,
 } from '@evolyn.do/form/designer';
 import type { FormRuntimeAdapter } from '@evolyn.do/form/runtime-core';
+import type { LinkageDesignerAdapter } from '@evolyn.do/form/schema';
 import {
   FORM_PROTOCOL_VERSION,
   FormSchemaCanvas,
@@ -19,7 +22,6 @@ import {
   WIDGET_GROUP_META,
   WIDGET_SPECS,
 } from '@evolyn.do/form/designer';
-import type { FormEventDebugRequest, FormEventDebugResult } from '@evolyn.do/form/designer';
 import { ApiError } from '@evolyn.do/utils';
 import {
   RiEyeFill,
@@ -36,7 +38,9 @@ import { getAppByCode } from '~/api/apps';
 import {
   createForm,
   debugFormFrontendEvent,
+  getFormLinkageFields,
   getFormStorageJob,
+  listForms,
   publishForm,
   retryFormStorageJob,
   saveFormDraft,
@@ -291,6 +295,19 @@ const previewAdapter: FormRuntimeAdapter = {
   async saveDraft() {
     // 仅验证填写草稿交互，不调用设计结构草稿接口，也不持久化用户填写值。
   },
+};
+
+/** 数据联动设计器只消费宿主注入的逻辑数据源目录，不接触物理表或列。 */
+const linkageDesignerAdapter: LinkageDesignerAdapter = {
+  async listSources(signal) {
+    const appId = workspace.detail.value?.appId;
+    if (!appId) return [];
+    const page = await listForms({ appId, limit: 100 }, signal);
+    return page.items
+      .filter((form) => form.publishedVersion > 0 && form.code !== formCode.value)
+      .map((form) => ({ sourceId: form.code, appId: form.appId, name: form.name }));
+  },
+  listSourceFields: getFormLinkageFields,
 };
 
 function onUnsupportedPreviewField(info: { fieldKey: string; type: string }): void {
@@ -556,7 +573,9 @@ function notifyUnavailable(action: string) {
       </div>
     </div>
 
-    <div v-if="loading" class="form-design-page__state" role="status">正在加载表单…</div>
+    <div v-if="loading" class="form-design-page__state" role="status">
+      正在加载表单…
+    </div>
     <div
       v-else-if="loadFailed"
       class="form-design-page__state form-design-page__state--error"
@@ -596,6 +615,8 @@ function notifyUnavailable(action: string) {
         :form-events="document.content.formEvents"
         :debug-frontend-event="debugFrontendEvent"
         :numeric-type-editable="publishedVersion === 0"
+        :app-id="workspace.detail.value?.appId ?? 0"
+        :linkage-adapter="linkageDesignerAdapter"
         @rename-key="editor.renameItemKey"
         @update-item="onUpdateSelectedItem"
         @update-form-name="onUpdateFormName"
@@ -615,6 +636,7 @@ function notifyUnavailable(action: string) {
         @update-validators="editor.setSubmitValidators"
         @update-pre-submit-confirm="editor.setPreSubmitConfirm"
         @update-form-events="document.content.formEvents = $event"
+        @update-linkages="document.content.linkages = $event"
       />
     </div>
 

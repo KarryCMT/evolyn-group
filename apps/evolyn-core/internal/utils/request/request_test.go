@@ -72,6 +72,16 @@ func TestRequestInfo(t *testing.T) {
 			Name:              "form_01",
 			Parts:             []string{"forms", "form_01", "records"},
 		}},
+		{"data linkage execution maps to form-records get", "POST", "/api/v1/forms/form_01/linkages/linkage_product/execute", false, &RequestInfo{
+			IsResourceRequest: true,
+			Verb:              "get",
+			APIPrefix:         "api",
+			APIVersion:        "v1",
+			Namespace:         "root",
+			Resource:          "form-records",
+			Name:              "form_01",
+			Parts:             []string{"forms", "form_01", "linkages", "linkage_product", "execute"},
+		}},
 		{"frontend event debug maps to forms update", "POST", "/api/v1/forms/form_01/frontend-events/evt_1234/debug", false, &RequestInfo{
 			IsResourceRequest: true,
 			Verb:              "update",

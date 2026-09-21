@@ -594,6 +594,69 @@ func (f *FormController) ListReferences(c *gin.Context) {
 	httpx.ResponseSuccess(c, references)
 }
 
+// ListLinkageFields 返回联动数据源的已发布逻辑字段与可用操作符。
+// @Summary 获取数据联动源字段
+// @Description 读取普通表单最新发布快照，并按当前成员字段可见权限裁剪逻辑字段与操作符
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "联动源表单编码"
+// @Success 200 {object} httpx.Response{data=[]formmodel.LinkageSourceField}
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN/LINKAGE_PERMISSION_DENIED"
+// @Failure 404 {object} httpx.Response "errCode=LINKAGE_SOURCE_NOT_FOUND"
+// @Router /api/v1/forms/{code}/linkage-fields [get]
+func (f *FormController) ListLinkageFields(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	fields, err := f.formService.ListLinkageFields(c.Request.Context(), ginctx.GetUser(c), code)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, fields)
+}
+
+// ExecuteLinkage 只接收当前值与请求版本；source/operator/mapping 从发布快照读取。
+// @Summary 执行数据联动
+// @Description 按目标表单已发布快照中的可信规则查询源表记录并返回字段映射；客户端不能提交数据源、操作符或映射
+// @Accept json
+// @Produce json
+// @Tags 表单数据
+// @Security JWT
+// @Param code path string true "当前表单编码"
+// @Param ruleId path string true "数据联动规则编码"
+// @Param request body formmodel.ExecuteLinkageRequest true "当前依赖值、发布版本与竞态序号"
+// @Success 200 {object} httpx.Response{data=formmodel.ExecuteLinkageResult}
+// @Failure 400 {object} httpx.Response "errCode=LINKAGE_FIELD_NOT_FOUND/LINKAGE_OPERATOR_NOT_SUPPORTED/LINKAGE_QUERY_FAILED"
+// @Failure 403 {object} httpx.Response "errCode=LINKAGE_PERMISSION_DENIED"
+// @Failure 404 {object} httpx.Response "errCode=LINKAGE_RULE_NOT_FOUND/LINKAGE_SOURCE_NOT_FOUND"
+// @Failure 409 {object} httpx.Response "errCode=LINKAGE_RULE_DISABLED/LINKAGE_SCHEMA_VERSION_MISMATCH"
+// @Router /api/v1/forms/{code}/linkages/{ruleId}/execute [post]
+func (f *FormController) ExecuteLinkage(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	ruleID := strings.TrimSpace(c.Param("ruleId"))
+	if !strings.HasPrefix(ruleID, "linkage_") {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的数据联动规则编码"))
+		return
+	}
+	req := new(formmodel.ExecuteLinkageRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := f.formService.ExecuteLinkage(c.Request.Context(), ginctx.GetUser(c), code, ruleID, req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
 func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/forms", f.Create)
 	api.GET("/forms", f.List)
@@ -611,6 +674,8 @@ func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/forms/:code/switch-type", f.SwitchType)
 	api.POST("/forms/:code/copy", f.Copy)
 	api.GET("/forms/:code/references", f.ListReferences)
+	api.GET("/forms/:code/linkage-fields", f.ListLinkageFields)
+	api.POST("/forms/:code/linkages/:ruleId/execute", f.ExecuteLinkage)
 	// 记录查询以 POST body 承载完整 Query DSL（复杂筛选会超出 URL 长度
 	// 上限）；POST 的 URL 门动词由 request.go 特判归一化为 get → form-records:view。
 	// DELETE 仍是 form-records:delete，服务层继续按逐条数据范围复核。

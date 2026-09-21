@@ -159,6 +159,15 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 		}
 	}
 
+	// 数据联动执行本质是记录只读查询，归入 form-records:get；规则读取与字段
+	// 投影均由服务端发布快照和权限评估器裁决，不能落入 forms:create 管理门。
+	if req.Method == http.MethodPost && requestInfo.Resource == "forms" && requestInfo.Name != "" &&
+		requestInfo.Subresource == "linkages" && len(requestInfo.Parts) == 5 && requestInfo.Parts[4] == "execute" {
+		requestInfo.Resource = "form-records"
+		requestInfo.Subresource = ""
+		requestInfo.Verb = GetOperation
+	}
+
 	// 前端事件调试是表单设计管理面的更新动作。公开接口使用 POST 承载测试值，
 	// 但权限语义必须命中 forms:update，而不是默认的 forms:create。
 	if req.Method == http.MethodPost && requestInfo.Resource == "forms" && requestInfo.Name != "" &&

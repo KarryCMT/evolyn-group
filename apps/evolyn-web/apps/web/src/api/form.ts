@@ -1,5 +1,6 @@
-import type { QueryDocument } from '@evolyn.do/query';
 import type { FormEventDebugRequest, FormEventDebugResult } from '@evolyn.do/form/designer';
+import type { DataLinkageOperator, FormJsonValue, FormWidgetType } from '@evolyn.do/form/schema';
+import type { QueryDocument } from '@evolyn.do/query';
 import type {
   FormDetail,
   FormDraftSaveResult,
@@ -104,12 +105,15 @@ export function createForm(payload: {
 }
 
 /** 应用内表单列表（游标分页，id 倒序） */
-export function listForms(query: {
-  appId: number;
-  limit?: number;
-  cursor?: string;
-}): Promise<FormPage> {
-  return http.get('/forms', query);
+export function listForms(
+  query: {
+    appId: number;
+    limit?: number;
+    cursor?: string;
+  },
+  signal?: AbortSignal,
+): Promise<FormPage> {
+  return http.get('/forms', query, signal);
 }
 
 /** 表单详情（含草稿全文与 draftRevision 口令） */
@@ -198,6 +202,42 @@ export function getFormRuntime(
   signal?: AbortSignal,
 ): Promise<FormRuntimeBootstrap> {
   return http.get(`/apps/code/${appCode}/forms/${formCode}/runtime`, undefined, signal);
+}
+
+export interface FormLinkageField {
+  id: string;
+  name: string;
+  type: FormWidgetType;
+  operators: DataLinkageOperator[];
+}
+
+/** 读取已发布联动数据源字段；后端按当前成员字段可见权限裁剪。 */
+export function getFormLinkageFields(
+  sourceId: string,
+  signal?: AbortSignal,
+): Promise<FormLinkageField[]> {
+  return http.get(`/forms/${sourceId}/linkage-fields`, undefined, signal);
+}
+
+/** 执行已发布数据联动规则；完整可信规则始终由后端按双口令读取。 */
+export function executeFormLinkage(
+  formCode: string,
+  ruleId: string,
+  payload: {
+    schemaVersion: number;
+    values: Record<string, unknown>;
+    requestVersion: number;
+  },
+  signal?: AbortSignal,
+): Promise<{
+  ruleId: string;
+  requestVersion: number;
+  matched: boolean;
+  values: Record<string, FormJsonValue>;
+}> {
+  return http.post(`/forms/${formCode}/linkages/${encodeURIComponent(ruleId)}/execute`, payload, {
+    signal,
+  });
 }
 
 /**

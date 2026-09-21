@@ -84,6 +84,7 @@ function documentWith(items: unknown[]): unknown {
         content: '请确认填写内容无误后继续提交。',
       },
       formEvents: [],
+      linkages: [],
     },
   };
 }
@@ -152,6 +153,7 @@ describe('validateFormSchema 结构校验', () => {
             content: '请确认填写内容无误后继续提交。',
           },
           formEvents: [],
+          linkages: [],
           extra: 1,
         },
       }).issues[0]!.path,
@@ -421,6 +423,7 @@ describe('validateFormSchema 结构校验', () => {
           content: '请确认填写内容无误后继续提交。',
         },
         formEvents: [],
+        linkages: [],
       },
     };
     ensureFieldIds(document.content.items);
@@ -796,6 +799,7 @@ describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
           content: '请确认填写内容无误后继续提交。',
         },
         formEvents: [],
+        linkages: [],
         fieldShowRules: [
           {
             id: 'r1',

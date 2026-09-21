@@ -71,6 +71,7 @@ function eventDocument(): FormSchemaDocument {
           subform_fill_rule: 'merge',
         },
       ],
+      linkages: [],
     },
   };
 }

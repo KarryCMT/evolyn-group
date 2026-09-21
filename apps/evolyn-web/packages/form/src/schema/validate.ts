@@ -12,37 +12,37 @@ import {
   FIELD_SHOW_EMPTY_METHODS,
   FIELD_SHOW_RULE_LIMITS,
   FORM_PROTOCOL_LIMITS,
-  SUBMIT_VALIDATION_LIMITS,
-  SUBMIT_VALIDATOR_FUNCTIONS,
-  SUBMIT_VALIDATOR_SOURCE_TYPES,
   SUBMIT_RULE_ELIGIBLE_WIDGET_TYPES,
   SUBMIT_RULE_LIMITS,
   SUBMIT_RULE_RECOMPUTE_SUPPORTED,
+  SUBMIT_VALIDATION_LIMITS,
+  SUBMIT_VALIDATOR_FUNCTIONS,
+  SUBMIT_VALIDATOR_SOURCE_TYPES,
   WIDGET_OPTION_LIMITS,
   WIDGET_SPECS,
   type WidgetPropSpec,
 } from './dictionary';
 import { isCanonicalDateTime } from './codec';
 import {
-  compareDecimalText,
   DECIMAL_TEXT_PATTERN,
+  type NumericWidgetType,
+  compareDecimalText,
   decimalDigitIssue,
   effectiveNumericPrecision,
   effectiveNumericScale,
   isNumericWidgetType,
-  type NumericWidgetType,
 } from './numeric';
 import {
-  type FormSchemaDocument,
   type FormItem,
+  type FormSchemaDocument,
   type FormWidgetType,
   PUBLISHABLE_WIDGET_TYPES,
   SUBFORM_ALLOWED_WIDGET_TYPES,
   SUBFORM_PUBLISHABLE_WIDGET_TYPES,
 } from './types';
 import { cloneFormSchema } from './clone';
-import { createValidationResult, type ValidationDiagnostic } from '@evolyn.do/validator';
-import { FORMULA_FUNCTION_BY_NAME, parseFormula, type FormulaNode } from '@evolyn.do/formula';
+import { type ValidationDiagnostic, createValidationResult } from '@evolyn.do/validator';
+import { FORMULA_FUNCTION_BY_NAME, type FormulaNode, parseFormula } from '@evolyn.do/formula';
 
 /** 单条校验问题：path 为 JSON Path（如 content.items[2].widget.options[0].value）。 */
 export type FormSchemaIssue = ValidationDiagnostic;
@@ -190,6 +190,7 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
       'validators',
       'preSubmitConfirm',
       'formEvents',
+      'linkages',
     ],
     'content',
     issues,
@@ -226,6 +227,210 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
   validateSubmitRules(content, issues);
   validateSubmitValidation(content, issues);
   validateFrontendEvents(content, issues);
+  validateDataLinkages(content, issues);
+}
+
+// ---- 数据联动（v11）----
+
+const LINKAGE_ID_PATTERN = /^linkage_[A-Za-z0-9_-]{4,56}$/;
+const LINKAGE_VALUELESS_OPERATORS = new Set(['empty', 'not_empty']);
+const LINKAGE_OPERATORS = new Set([
+  'eq',
+  'neq',
+  'gt',
+  'gte',
+  'lt',
+  'lte',
+  'contains',
+  'notContains',
+  'in',
+  'not_in',
+  'empty',
+  'not_empty',
+]);
+
+/**
+ * v11 保存/发布共用结构校验。跨表字段存在性与权限由后端发布服务继续终审；
+ * 此处负责浏览器可即时确定的形状、当前字段引用和循环依赖。
+ */
+function validateDataLinkages(content: Record<string, unknown>, issues: FormSchemaIssue[]): void {
+  const rawRules = content.linkages;
+  if (!Array.isArray(rawRules)) {
+    issues.push({ path: 'content.linkages', message: 'linkages 必须是数组（v11 起必填）' });
+    return;
+  }
+  if (rawRules.length > 50) {
+    issues.push({ path: 'content.linkages', message: '数据联动规则数量不能超过 50' });
+  }
+  const fields = new Map<string, FormWidgetType>();
+  for (const rawItem of Array.isArray(content.items) ? content.items : []) {
+    if (!isPlainObject(rawItem) || !isPlainObject(rawItem.widget)) continue;
+    const widgetName = rawItem.widget.widgetName;
+    const widgetType = rawItem.widget.type;
+    if (typeof widgetName === 'string' && typeof widgetType === 'string') {
+      fields.set(widgetName, widgetType as FormWidgetType);
+    }
+  }
+  const ids = new Set<string>();
+  const graph = new Map<string, Set<string>>();
+
+  rawRules.forEach((rawRule, ruleIndex) => {
+    const path = `content.linkages[${ruleIndex}]`;
+    if (!isPlainObject(rawRule)) {
+      issues.push({ path, message: '数据联动规则必须是 JSON 对象' });
+      return;
+    }
+    rejectUnknownKeys(
+      rawRule,
+      ['id', 'version', 'enabled', 'source', 'filter', 'mappings', 'result', 'runtime'],
+      path,
+      issues,
+    );
+    const id = typeof rawRule.id === 'string' ? rawRule.id : '';
+    if (!LINKAGE_ID_PATTERN.test(id) || ids.has(id)) {
+      issues.push({ path: `${path}.id`, message: '数据联动 id 无效或重复' });
+    } else ids.add(id);
+    if (rawRule.version !== 1)
+      issues.push({ path: `${path}.version`, message: 'version 必须固定为 1' });
+    if (typeof rawRule.enabled !== 'boolean')
+      issues.push({ path: `${path}.enabled`, message: 'enabled 必须是布尔值' });
+
+    const source = isPlainObject(rawRule.source) ? rawRule.source : null;
+    if (!source) issues.push({ path: `${path}.source`, message: 'source 必须是 JSON 对象' });
+    else {
+      rejectUnknownKeys(source, ['type', 'appId', 'sourceId'], `${path}.source`, issues);
+      if (
+        source.type !== 'form' ||
+        !Number.isInteger(source.appId) ||
+        Number(source.appId) <= 0 ||
+        typeof source.sourceId !== 'string' ||
+        !source.sourceId.startsWith('form_')
+      ) {
+        issues.push({ path: `${path}.source`, message: '联动数据源必须是有效的普通表单' });
+      }
+    }
+
+    const filter = isPlainObject(rawRule.filter) ? rawRule.filter : null;
+    const dependencies = new Set<string>();
+    if (
+      !filter ||
+      (filter.logic !== 'and' && filter.logic !== 'or') ||
+      !Array.isArray(filter.conditions) ||
+      filter.conditions.length < 1 ||
+      filter.conditions.length > 20
+    ) {
+      issues.push({
+        path: `${path}.filter`,
+        message: '过滤条件必须包含 1–20 条且 logic 为 and / or',
+      });
+    } else {
+      rejectUnknownKeys(filter, ['logic', 'conditions'], `${path}.filter`, issues);
+      filter.conditions.forEach((rawCondition, conditionIndex) => {
+        const conditionPath = `${path}.filter.conditions[${conditionIndex}]`;
+        if (!isPlainObject(rawCondition)) {
+          issues.push({ path: conditionPath, message: '过滤条件必须是 JSON 对象' });
+          return;
+        }
+        rejectUnknownKeys(
+          rawCondition,
+          ['id', 'sourceFieldId', 'operator', 'value'],
+          conditionPath,
+          issues,
+        );
+        if (
+          typeof rawCondition.id !== 'string' ||
+          rawCondition.id.length < 4 ||
+          rawCondition.id.length > 64
+        )
+          issues.push({ path: `${conditionPath}.id`, message: '条件 id 必须为 4–64 个字符' });
+        if (typeof rawCondition.sourceFieldId !== 'string' || rawCondition.sourceFieldId === '')
+          issues.push({ path: `${conditionPath}.sourceFieldId`, message: '请选择联动表单字段' });
+        const operator = String(rawCondition.operator ?? '');
+        if (!LINKAGE_OPERATORS.has(operator))
+          issues.push({ path: `${conditionPath}.operator`, message: '操作符不受支持' });
+        if (!LINKAGE_VALUELESS_OPERATORS.has(operator)) {
+          const value = isPlainObject(rawCondition.value) ? rawCondition.value : null;
+          if (!value || (value.type !== 'field' && value.type !== 'constant')) {
+            issues.push({
+              path: `${conditionPath}.value`,
+              message: '请选择当前表单字段或填写自定义值',
+            });
+          } else if (value.type === 'field') {
+            if (typeof value.fieldId !== 'string' || !fields.has(value.fieldId))
+              issues.push({
+                path: `${conditionPath}.value.fieldId`,
+                message: '当前表单依赖字段不存在',
+              });
+            else dependencies.add(value.fieldId);
+          } else if (!('value' in value)) {
+            issues.push({ path: `${conditionPath}.value.value`, message: '请填写自定义值' });
+          }
+        }
+      });
+    }
+
+    const mappings = Array.isArray(rawRule.mappings) ? rawRule.mappings : [];
+    if (mappings.length < 1 || mappings.length > 20)
+      issues.push({ path: `${path}.mappings`, message: '联动映射必须包含 1–20 条' });
+    const targets = new Set<string>();
+    mappings.forEach((rawMapping, mappingIndex) => {
+      const mappingPath = `${path}.mappings[${mappingIndex}]`;
+      if (!isPlainObject(rawMapping)) {
+        issues.push({ path: mappingPath, message: '联动映射必须是 JSON 对象' });
+        return;
+      }
+      rejectUnknownKeys(rawMapping, ['sourceFieldId', 'targetFieldId'], mappingPath, issues);
+      if (typeof rawMapping.sourceFieldId !== 'string' || rawMapping.sourceFieldId === '')
+        issues.push({ path: `${mappingPath}.sourceFieldId`, message: '请选择联动表单字段' });
+      const target = typeof rawMapping.targetFieldId === 'string' ? rawMapping.targetFieldId : '';
+      if (!fields.has(target) || targets.has(target))
+        issues.push({ path: `${mappingPath}.targetFieldId`, message: '目标字段不存在或重复' });
+      else targets.add(target);
+    });
+    for (const dependency of dependencies) {
+      const edges = graph.get(dependency) ?? new Set<string>();
+      for (const target of targets) edges.add(target);
+      graph.set(dependency, edges);
+    }
+
+    const result = isPlainObject(rawRule.result) ? rawRule.result : null;
+    if (!result || result.mode !== 'first')
+      issues.push({ path: `${path}.result.mode`, message: '结果策略 mode 必须固定为 first' });
+    const runtime = isPlainObject(rawRule.runtime) ? rawRule.runtime : null;
+    if (
+      !runtime ||
+      runtime.trigger !== 'dependency_change' ||
+      typeof runtime.runOnInit !== 'boolean' ||
+      !Number.isInteger(runtime.debounceMs) ||
+      Number(runtime.debounceMs) < 0 ||
+      Number(runtime.debounceMs) > 2000 ||
+      !['clear', 'keep'].includes(String(runtime.emptyStrategy)) ||
+      !['clear', 'keep'].includes(String(runtime.errorStrategy))
+    ) {
+      issues.push({ path: `${path}.runtime`, message: '数据联动运行参数不符合要求' });
+    }
+  });
+
+  const visiting = new Set<string>();
+  const visited = new Set<string>();
+  const visit = (field: string): boolean => {
+    if (visiting.has(field)) return true;
+    if (visited.has(field)) return false;
+    visiting.add(field);
+    for (const target of graph.get(field) ?? []) if (visit(target)) return true;
+    visiting.delete(field);
+    visited.add(field);
+    return false;
+  };
+  for (const field of graph.keys()) {
+    if (visit(field)) {
+      issues.push({
+        path: 'content.linkages',
+        message: '数据联动字段形成循环依赖，请调整联动关系',
+      });
+      break;
+    }
+  }
 }
 
 // ---- 前端事件（v10）----
@@ -237,11 +442,7 @@ const FRONTEND_EVENT_JSON_PATH_PATTERN = /^\$response(?:\.[A-Za-z_][A-Za-z0-9_]*
 const FRONTEND_EVENT_XML_PATH_PATTERN =
   /^\/(?:[A-Za-z_][A-Za-z0-9_.-]*)(?:\/[A-Za-z_][A-Za-z0-9_.-]*)*$/;
 // Authorization 是外部业务 API 的常规鉴权方式，允许表单事件按需透传。
-const FRONTEND_EVENT_RESTRICTED_HEADERS = new Set([
-  'cookie',
-  'proxy-authorization',
-  'set-cookie',
-]);
+const FRONTEND_EVENT_RESTRICTED_HEADERS = new Set(['cookie', 'proxy-authorization', 'set-cookie']);
 
 /** v10 前端事件保存期校验；依赖索引仅校验形状，服务端执行时会重新提取。 */
 function validateFrontendEvents(content: Record<string, unknown>, issues: FormSchemaIssue[]): void {
@@ -386,7 +587,7 @@ function validateFrontendEventRequest(
       !parsed.username &&
       !parsed.password;
   } catch {
-    validURL = false;
+    // 非法 URL 保持 false，由下方统一生成路径级诊断。
   }
   if (!validURL || url.length > 4_000) {
     issues.push({

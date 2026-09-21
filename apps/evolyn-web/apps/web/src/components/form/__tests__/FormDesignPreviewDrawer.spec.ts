@@ -45,6 +45,7 @@ const schema: FormSchemaDocument = {
       content: '请确认填写内容无误后继续提交。',
     },
     formEvents: [],
+    linkages: [],
   },
 };
 const adapter: FormRuntimeAdapter = { submit: async () => ({ accepted: true }) };
@@ -88,6 +89,7 @@ describe('formDesignPreviewDrawer', () => {
           content: '请确认填写内容无误后继续提交。',
         },
         formEvents: [],
+        linkages: [],
       },
     }) as FormSchemaDocument;
     const wrapper = mount(FormDesignPreviewDrawer, {
