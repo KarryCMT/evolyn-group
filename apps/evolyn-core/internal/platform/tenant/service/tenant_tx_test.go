@@ -10,6 +10,7 @@ import (
 	iamrepository "evolyn/internal/platform/iam/repository"
 	tenantmodel "evolyn/internal/platform/tenant/model"
 	tenantrepository "evolyn/internal/platform/tenant/repository"
+	"evolyn/internal/utils/request"
 
 	"github.com/stretchr/testify/assert"
 	"gorm.io/gorm"
@@ -503,6 +504,23 @@ func TestTXTenant005HappyPathBaselineComplete(t *testing.T) {
 	assert.Equal(t, tenant.ID, boundRole.TenantID, "owner 不得绑定其他租户的角色")
 	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.MemberResource, Operation: iammodel.AllOperation}, "创建者必须拥有成员管理权限")
 	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.AdminGroupResource, Operation: iammodel.AllOperation}, "创建者必须拥有管理组权限")
+	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowResource, Operation: iammodel.AllOperation}, "创建者必须拥有流程定义管理权限")
+	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowInstanceResource, Operation: iammodel.AllOperation}, "创建者必须拥有流程实例管理权限")
+	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowTaskResource, Operation: iammodel.AllOperation}, "创建者必须拥有流程任务管理权限")
+
+	var authenticatedRole *iammodel.Role
+	for _, role := range store.roles {
+		if role.Name == AuthenticatedRole {
+			authenticatedRole = role
+			break
+		}
+	}
+	if assert.NotNil(t, authenticatedRole, "必须创建已认证用户基线角色") {
+		assert.Contains(t, authenticatedRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowInstanceResource, Operation: request.CreateOperation})
+		assert.Contains(t, authenticatedRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowInstanceResource, Operation: iammodel.ViewOperation})
+		assert.Contains(t, authenticatedRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowTaskResource, Operation: request.CreateOperation})
+		assert.Contains(t, authenticatedRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowTaskResource, Operation: iammodel.ViewOperation})
+	}
 
 	for _, role := range store.roles {
 		assert.Equal(t, tenant.ID, role.TenantID)

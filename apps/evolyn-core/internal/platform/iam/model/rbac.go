@@ -134,6 +134,11 @@ const (
 	// authenticated 基线只授 create/view；delete 仅由租户管理员或明确授权的
 	// 自定义角色获得，逐表单的记录与字段范围仍由 form 域复核。
 	FormRecordResource = "form-records"
+	// WorkflowResource 是流程定义的设计态管理资源；流程实例与待办任务
+	// 分别使用独立资源，避免将设计权限与业务参与权限绑定。
+	WorkflowResource         = "workflows"
+	WorkflowInstanceResource = "workflow-instances"
+	WorkflowTaskResource     = "workflow-tasks"
 	// NotificationResource 与 /notifications 路由保持一致，代表成员收件箱
 	//（view 覆盖摘要/列表、update 覆盖已读，授予全体成员）；数据范围只能
 	// 是「当前租户 × 当前成员」，由 Repository 双条件兜底。

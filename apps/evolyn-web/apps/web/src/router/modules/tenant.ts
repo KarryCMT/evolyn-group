@@ -102,11 +102,8 @@ const tenantRoutes: RouteRecordRaw[] = [
       {
         path: 'enterprise-settings',
         name: 'tenant-enterprise-settings',
-        ...featurePage({
-          title: '企业设置',
-          description: '配置企业安全、协作策略和基础运行参数。',
-          capabilities: ['企业安全与单点登录', '企业文化与品牌展示', '协作与 AI 能力开关'],
-        }),
+        component: () => import('~/pages/tenant/enterprise-settings.vue'),
+        meta: { title: '企业设置' },
       },
       {
         path: 'product-settings',

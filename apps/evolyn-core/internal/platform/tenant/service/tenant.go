@@ -556,6 +556,11 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 表单数据面旁路动作键（表单权限 P1，S3）：form-data:* 经动作资源
 			// 注册表展开产出 form-data:admin；存量租户由 000058 补授
 			{Resource: iammodel.FormDataResource, Operation: iammodel.AllOperation},
+			// 流程定义是租户级设计资产，租户管理员拥有全量管理权；
+			// 存量及历史新建租户由 000082 修复迁移补授。
+			{Resource: iammodel.WorkflowResource, Operation: iammodel.AllOperation},
+			{Resource: iammodel.WorkflowInstanceResource, Operation: iammodel.AllOperation},
+			{Resource: iammodel.WorkflowTaskResource, Operation: iammodel.AllOperation},
 			// 企业自定义工作台（000078）：工作台由企业管理员统一配置，
 			// update 覆盖设计页保存（读取 view 由全体成员基线覆盖）；
 			// 存量租户由 000078 按「管理员规则签名」补授，不经管理组放行
@@ -589,6 +594,12 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 我的收藏跨应用列表（P2）：读自己的收藏（数据范围恒为本人），
 			// 存量租户由 000081 按 authenticated 系统分组补授
 			{Resource: iammodel.MenuFavoriteResource, Operation: request.ListOperation},
+			// 全体成员可发起/查看自己参与的流程实例并处理待办；
+			// 具体实例与任务仍由 Runtime 的发起人/TaskActor 校验收窄。
+			{Resource: iammodel.WorkflowInstanceResource, Operation: request.CreateOperation},
+			{Resource: iammodel.WorkflowInstanceResource, Operation: iammodel.ViewOperation},
+			{Resource: iammodel.WorkflowTaskResource, Operation: request.CreateOperation},
+			{Resource: iammodel.WorkflowTaskResource, Operation: iammodel.ViewOperation},
 			// 企业自定义工作台（000078）：全员读取企业管理员配置的工作台
 			//（首页渲染必需；view 语义含 get/list）；保存权限 workbench:update
 			// 仅授租户管理员角色；存量租户由 000077/000078 补授

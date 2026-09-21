@@ -5,6 +5,7 @@ coverage.txt
 vendor/
 node_modules/
 dist/
+artifacts
 .DS_Store
 .pnpm-store
 .zcode

@@ -2839,6 +2839,91 @@ WHERE id IN (
       WHERE e::json->>'resource' = 'menu-favorites' AND e::json->>'operation' IN ('list', '*')
   );
 
+-- ============================================================
+-- 000082: 修复流程权限基线漂移
+-- ============================================================
+
+-- 000048/000049 后新建租户的 Go 侧角色种子曾漏掉流程规则；
+-- 快照以当前正确资源名重放补授，与 000082 迁移等价。
+UPDATE tn_roles AS r
+SET rules = (
+    r.rules::jsonb || COALESCE((
+        SELECT jsonb_agg(candidate.rule)
+        FROM jsonb_array_elements('[
+          {"resource": "workflows", "operation": "*"},
+          {"resource": "workflow-instances", "operation": "*"},
+          {"resource": "workflow-tasks", "operation": "*"}
+        ]'::jsonb) AS candidate(rule)
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(r.rules::jsonb) AS existing(rule)
+            WHERE existing.rule->>'resource' = candidate.rule->>'resource'
+              AND existing.rule->>'operation' = '*'
+        )
+    ), '[]'::jsonb)
+)::json
+WHERE r.deleted_at IS NULL
+  AND json_typeof(COALESCE(r.rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(r.rules) AS rule WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(r.rules) AS rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(r.rules) AS rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*')
+  AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements('[
+        {"resource": "workflows", "operation": "*"},
+        {"resource": "workflow-instances", "operation": "*"},
+        {"resource": "workflow-tasks", "operation": "*"}
+      ]'::jsonb) AS candidate(rule)
+      WHERE NOT EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(r.rules::jsonb) AS existing(rule)
+          WHERE existing.rule->>'resource' = candidate.rule->>'resource'
+            AND existing.rule->>'operation' = '*'
+      )
+  );
+
+UPDATE tn_roles AS r
+SET rules = (
+    r.rules::jsonb || COALESCE((
+        SELECT jsonb_agg(candidate.rule)
+        FROM jsonb_array_elements('[
+          {"resource": "workflow-instances", "operation": "create"},
+          {"resource": "workflow-instances", "operation": "view"},
+          {"resource": "workflow-tasks", "operation": "create"},
+          {"resource": "workflow-tasks", "operation": "view"}
+        ]'::jsonb) AS candidate(rule)
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(r.rules::jsonb) AS existing(rule)
+            WHERE existing.rule->>'resource' = candidate.rule->>'resource'
+              AND existing.rule->>'operation' IN (candidate.rule->>'operation', '*')
+        )
+    ), '[]'::jsonb)
+)::json
+WHERE r.id IN (
+      SELECT gr.role_id
+      FROM tn_group_roles gr
+      INNER JOIN tn_groups g ON g.id = gr.group_id
+      WHERE g.name = 'system:authenticated' AND g.kind = 'system'
+  )
+  AND r.deleted_at IS NULL
+  AND json_typeof(COALESCE(r.rules, '[]'::json)) = 'array'
+  AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements('[
+        {"resource": "workflow-instances", "operation": "create"},
+        {"resource": "workflow-instances", "operation": "view"},
+        {"resource": "workflow-tasks", "operation": "create"},
+        {"resource": "workflow-tasks", "operation": "view"}
+      ]'::jsonb) AS candidate(rule)
+      WHERE NOT EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(r.rules::jsonb) AS existing(rule)
+          WHERE existing.rule->>'resource' = candidate.rule->>'resource'
+            AND existing.rule->>'operation' IN (candidate.rule->>'operation', '*')
+      )
+  );
+
 -- 迁移版本登记（与 migrations/ 全链一致）：make postgres 导入快照后，
 -- 启动迁移器识别全部版本已应用，零重放（checksum 与迁移文件 sha256 一致，
 -- 文件被篡改时迁移器按既有防漂移机制拒绝启动）。种子幂等：ON CONFLICT 不覆盖。
@@ -2930,5 +3015,6 @@ INSERT INTO schema_migrations (version, name, checksum) VALUES
     (78, 'tenant_workbench', '53db18b0ab1cd8031e46d3c51ae0b9eb2e91bcf6584d66b725e8582959128f0c'),
     (79, 'rename_application_to_app', 'dc53b8d41e3c634b9f58b8958e3293ffafc5b212bbdba557ca30cfdd09a1c109'),
     (80, 'rename_menu_entry_to_node', '284446680ed5c811353be8588b41df39f609faedc17aec9cec0f332feaf6f2ff'),
-    (81, 'menu_favorite_list_grant', '218ac2031fb5e99a723c9cf06a9b1de4a5bc372a48c62ecb688ba3bece628ddd')
+    (81, 'menu_favorite_list_grant', '218ac2031fb5e99a723c9cf06a9b1de4a5bc372a48c62ecb688ba3bece628ddd'),
+    (82, 'repair_workflow_baseline_rules', 'ab3db75795a82285ea254054f10be647023a57b7e95e10f103cd50fd53ebf469')
 ON CONFLICT (version) DO NOTHING;
