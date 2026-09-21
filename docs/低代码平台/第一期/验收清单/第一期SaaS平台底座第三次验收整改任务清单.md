@@ -1,26 +1,33 @@
 # 第一期 SaaS 平台底座第三次验收整改任务清单
 
-**验收基线：** `ec01adacfd8d2335fa6af9573b110a1364cfb439`  
+**初始验收基线：** `ec01adacfd8d2335fa6af9573b110a1364cfb439`
 **适用范围：** 第一期 SaaS 平台底座后端，不包含应用、表单、表单设计、表单数据及 Data Engine 等低代码业务内核能力。
+
+> **状态同步（2026-09-21）**：本清单记录第三次验收发现的问题及整改要求；
+> FIX-020 至 FIX-023 与本地质量门禁均已完成。第 3–7 节的“当前”问题描述和
+> 建议顺序均为验收时的历史记录，不表示现状；最终结论以第 8 节为准。
 
 ## 1. 整改结论
 
-基于第三次代码级验收，当前 SaaS 平台底座核心能力已经基本成型，`ec01adac` 对跨租户安全测试、Tenant 状态测试和 Migration Parser 等进行了实质性补强。但二次验收清单中的 P0 收口项尚未全部满足，当前不建议将第一期状态标记为“正式验收完成”。
+第三次代码级验收曾发现 P0 收口项未完成。后续整改已补齐 Tenant Provisioning 和
+AddMember 原子事务、跨租户真实 PostgreSQL 攻击测试，以及 Migration Parser /
+集成测试闭环。
 
-**本轮必须优先完成：FIX-020、FIX-021；随后完成 FIX-022、FIX-023 的工程验收闭环。**
+**结论：第一期 SaaS 平台底座已通过本清单定义的第四次验收标准。**
 
 ## 2. 本轮整改项总览
 
 | 整改项 | 问题 | 当前状态 | 优先级 | 完成标准 |
 |---|---|---|---|---|
-| FIX-020 | Tenant Provisioning 非原子事务 | ❌ 未通过 | P0 | `Open` 全流程同一事务 + 回滚测试 |
-| FIX-021 | AddMember 非原子事务 | ❌ 未通过 | P0 | 成员/部门/角色绑定同一事务 + 回滚测试 |
-| FIX-022 | 跨租户攻击测试矩阵不完整 | 🟡 部分通过 | P0 | 真实 Repository/PostgreSQL 集成攻击测试闭环 |
-| FIX-023 | Migration 工程验收不完整 | 🟡 部分通过 | P0 | `$tag$` + PostgreSQL 集成测试 + CI Gate |
+| FIX-020 | Tenant Provisioning 非原子事务 | ✅ 已通过 | P0 | `Open` 全流程同一事务 + 回滚测试 |
+| FIX-021 | AddMember 非原子事务 | ✅ 已通过 | P0 | 成员/部门/角色绑定同一事务 + 回滚测试 |
+| FIX-022 | 跨租户攻击测试矩阵不完整 | ✅ 已通过 | P0 | 真实 Repository/PostgreSQL 集成攻击测试闭环 |
+| FIX-023 | Migration 工程验收不完整 | ✅ 已通过 | P0 | `$tag$` + PostgreSQL 集成测试 + 本地质量门禁 |
 
 ## 3. FIX-020：Tenant Provisioning 全事务整改
 
-`TenantService.Open` 当前包含 Account、Tenant、Owner Member、默认 Role/Group/Binding 等多步写操作，但这些写操作没有形成统一事务边界。后续步骤失败时，前序数据可能已经提交，造成半初始化租户。
+验收时，`TenantService.Open` 的 Account、Tenant、Owner Member、默认
+Role/Group/Binding 等多步写操作未形成统一事务边界，存在半初始化租户风险。
 
 ### 3.1 整改目标
 
@@ -56,7 +63,8 @@ COMMIT
 
 ## 4. FIX-021：AddMember 全事务整改
 
-`UserService.AddMember` 当前流程为创建 Member 后再依次绑定 Department、Role。当部门或角色绑定失败时，已创建的 Member 或部分关系可能保留，导致成员处于不完整状态。
+验收时，`UserService.AddMember` 在创建 Member 后依次绑定 Department、Role；
+当部门或角色绑定失败时，可能残留 Member 或部分关系。
 
 ### 4.1 整改目标
 
@@ -91,7 +99,9 @@ COMMIT
 
 ## 5. FIX-022：跨租户攻击测试闭环
 
-`ec01adac` 已增加 Member→Role、Member→Group、Group→Role 等跨租户限制测试，并补充 Department/TenantStatus 相关测试。这些改动有效，但当前更多属于 Service + Fake Repository 单元测试，尚不足以证明真实 GORM Tenant Scope、Repository 和 PostgreSQL 链路不会发生越权。
+初始基线已增加 Member→Role、Member→Group、Group→Role 等跨租户限制测试，
+但当时主要是 Service + Fake Repository 单元测试，尚不能证明真实 GORM Tenant
+Scope、Repository 和 PostgreSQL 链路不会越权。该缺口现已由真实集成攻击测试补齐。
 
 ### 5.1 必须补齐的攻击维度
 
@@ -126,7 +136,7 @@ PostgreSQL
 
 ### 6.1 Parser 必须整改
 
-当前不能只识别 `$$...$$`，应支持 PostgreSQL 通用 Dollar Quote，例如：
+初始 Parser 不能只识别 `$$...$$`，整改要求为支持 PostgreSQL 通用 Dollar Quote，例如：
 
 ```sql
 $func$ ... $func$
@@ -156,9 +166,9 @@ go test ./...
 # Cross-Tenant Integration Tests
 ```
 
-任何 P0 测试失败均不得进入第一期正式验收完成状态。
+任何 P0 测试失败均不得进入第一期正式验收完成状态；本轮对应测试已通过。
 
-## 7. 建议实施顺序
+## 7. 原整改实施顺序（已完成）
 
 | 顺序 | 任务 | 说明 |
 |---|---|---|
@@ -193,4 +203,4 @@ go test ./...
 1. 核心写流程具备事务原子性；
 2. 多租户边界在真实数据访问链路中不可绕过；
 3. Migration 可以在真实 PostgreSQL 环境稳定执行；
-4. CI 能持续阻止上述能力发生回归。
+4. 本地 `make test/vet/fmt` 与真库集成测试持续阻止上述能力发生回归。
