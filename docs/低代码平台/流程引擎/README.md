@@ -124,7 +124,11 @@ apps/evolyn-core/
   失真）：Runtime 拒绝 WORKFLOW_ACTION_NOT_ALLOWED，任务详情允许动作
   投影剔除 return-to-starter 同口径；无新增迁移（000049 已预留
   parent_execution_id）。
-- **Phase 9+**（LogicFlow 设计器 / 可观测性）为后续里程碑。
+- **Phase 9**：LogicFlow 流程设计器已落地——前端 `@evolyn.do/workflow` 包
+  提供 DSL ↔ 画布适配、六类节点与属性面板；流程型表单工作区通过
+  `/workflows` 读取、懒建、保存草稿、发布、版本历史和只读预览。迁移 000060
+  将 `wf_definition.form_code` 绑定到表单，`settings.designer` 持久化画布坐标。
+- **Phase 10**（可观测性、性能与加固）仍为后续里程碑。
 - 前端错误码：workflow 域 errCode 已在
   `apps/evolyn-web/packages/utils/src/request/errorCodes.ts` 预留分段。
 

@@ -6,9 +6,9 @@
 
 | 目录 | 说明 |
 | --- | --- |
-| `apps/evolyn-core/` | Go 1.25 + Gin 后端（认证、组织、RBAC；低代码引擎按里程碑演进） |
-| `apps/evolyn-web/` | Vue 3 + Element Plus 前端（设计器与运行态，TypeScript 渐进迁移中） |
-| `services/` | 规划中的独立服务（Java + Flowable 工作流，M4 落地） |
+| `apps/evolyn-core/` | Go 1.25 + Gin 后端（认证、组织、RBAC、应用/表单与 Go 原生流程引擎） |
+| `apps/evolyn-web/` | Vue 3 + TypeScript + Element Plus 前端（应用工作区、表单设计/运行时与流程设计器） |
+| `services/` | 预留的独立服务目录；当前不承载工作流，流程引擎已落地在 `evolyn-core` |
 | `packages/` | 规划中的共享契约（OpenAPI 唯一事实源） |
 | `deploy/` | 本地/部署编排（docker-compose 起 PostgreSQL/Redis/MinIO） |
 | `docs/` | 设计文档与架构基线 |
@@ -30,9 +30,14 @@ npm run dev:web
 
 ## 架构与路线图
 
-整体设计见 [docs/低代码平台/企业级低代码平台技术架构设计.md](docs/低代码平台/企业级低代码平台技术架构设计.md)：
-七大核心引擎（Schema / Query / Permission / Relation / Formula / Dashboard / DDL）+ 多租户 + 应用模板，
-按 M0–M7 里程碑演进，当前处于 M0（工程重构）阶段。
+平台按 M0–M7 里程碑演进，当前处于 **M1 后段**：账号×成员拆分、租户体系、
+应用菜单、表单资产/运行时与 Go 原生流程引擎（含流程设计器）均已落地。
+
+现行实现索引见 [低代码平台文档导航](docs/低代码平台/README.md) 与
+[流程引擎文档](docs/低代码平台/流程引擎/README.md)。
+历史架构草案保留在
+[企业级低代码平台技术架构设计.md](docs/低代码平台/企业级低代码平台技术架构设计.md)，
+其中早期 Java/Flowable 方案已由 ADR-012 取代，不应作为现行实现依据。
 
 ## 开发约定
 
