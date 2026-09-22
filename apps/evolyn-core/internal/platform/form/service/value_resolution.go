@@ -32,15 +32,43 @@ func ResolveSubmittedValues(
 	previous map[string]any,
 	currentMemberID string,
 ) (map[string]any, RecordFieldErrors) {
+	return resolveSubmittedValues(content, submitted, permissions, previous, currentMemberID, nil)
+}
+
+// ResolveSubmittedValuesWithDerived 在基础信封之外注入服务端公式预览值，保证
+// 依赖派生字段的显隐规则与浏览器即时计算同口径。
+func ResolveSubmittedValuesWithDerived(
+	content map[string]any,
+	submitted map[string]model.SubmitFieldValue,
+	permissions map[string]FieldPermission,
+	previous map[string]any,
+	currentMemberID string,
+	derived map[string]any,
+) (map[string]any, RecordFieldErrors) {
+	return resolveSubmittedValues(content, submitted, permissions, previous, currentMemberID, derived)
+}
+
+func resolveSubmittedValues(
+	content map[string]any,
+	submitted map[string]model.SubmitFieldValue,
+	permissions map[string]FieldPermission,
+	previous map[string]any,
+	currentMemberID string,
+	derived map[string]any,
+) (map[string]any, RecordFieldErrors) {
 	fields, err := buildSnapshotFields(content)
 	if err != nil {
 		return nil, RecordFieldErrors{"": {"表单快照异常，请刷新后重试"}}
 	}
 	policy := parseInvisibleValuePolicy(content)
+	formulaTargets := activeFieldFormulaTargets(content)
 	permissionVisible, permissionEditable := permissionLookups(permissions)
 
 	// 有效可见性 = 静态 ∧ 权限 ∧ 显隐规则；条件值只读客户端提交的可写 data。
 	visibility := effectiveFieldVisibility(fields, content, permissionVisible, func(name string) any {
+		if value, ok := derived[name]; ok {
+			return value
+		}
 		wrapped, ok := submitted[name]
 		if !ok || len(wrapped.Data) == 0 {
 			return nil
@@ -71,6 +99,18 @@ func ResolveSubmittedValues(
 			continue
 		}
 		carriesData := len(wrapped.Data) > 0 && !isNullJSON(json.RawMessage(wrapped.Data))
+		if formulaTargets[name] {
+			if carriesData {
+				fieldErrors[name] = []string{"公式字段不能提交客户端值"}
+				continue
+			}
+			// 权威值在基础字段终审后由已发布公式产物写入；先以空值占位并
+			// 临时豁免必填，最终结果仍会按目标文本类型落库。
+			field.allowBlank = true
+			fields[name] = field
+			rawValues[name] = json.RawMessage(`null`)
+			continue
+		}
 		if !effective {
 			// 有效不可见字段一律不得携带 data——伪造隐藏值直接拒绝。
 			if carriesData {
@@ -124,12 +164,35 @@ func ResolveMergedRecordValues(
 	merged map[string]any,
 	baseline map[string]any,
 ) (map[string]any, RecordFieldErrors) {
+	return resolveMergedRecordValues(content, merged, baseline, nil)
+}
+
+// ResolveMergedRecordValuesWithDerived 是流程写回的派生值感知入口。
+func ResolveMergedRecordValuesWithDerived(
+	content map[string]any,
+	merged map[string]any,
+	baseline map[string]any,
+	derived map[string]any,
+) (map[string]any, RecordFieldErrors) {
+	return resolveMergedRecordValues(content, merged, baseline, derived)
+}
+
+func resolveMergedRecordValues(
+	content map[string]any,
+	merged map[string]any,
+	baseline map[string]any,
+	derived map[string]any,
+) (map[string]any, RecordFieldErrors) {
 	fields, err := buildSnapshotFields(content)
 	if err != nil {
 		return nil, RecordFieldErrors{"": {"表单快照异常，请刷新后重试"}}
 	}
 	policy := parseInvisibleValuePolicy(content)
+	formulaTargets := activeFieldFormulaTargets(content)
 	visibility := effectiveFieldVisibility(fields, content, nil, func(name string) any {
+		if value, ok := derived[name]; ok {
+			return value
+		}
 		return merged[name]
 	}, "")
 
@@ -138,6 +201,12 @@ func ResolveMergedRecordValues(
 	for name, field := range fields {
 		if field.widgetType == "separator" || field.widgetType == "button" {
 			// 布局项无值：合并值中的残留静默丢弃，不进入落库值。
+			continue
+		}
+		if formulaTargets[name] {
+			field.allowBlank = true
+			fields[name] = field
+			rawValues[name] = json.RawMessage(`null`)
 			continue
 		}
 		if !visibility[name] {
@@ -157,6 +226,26 @@ func ResolveMergedRecordValues(
 		rawValues[name] = raw
 	}
 	return finalizeResolvedValues(fields, visibility, rawValues, fieldErrors)
+}
+
+// activeFieldFormulaTargets 只识别协议中启用的派生目标；结构与依赖合法性已在
+// 保存/发布期终审，这里仅为值决议器提供只读字段集合。
+func activeFieldFormulaTargets(content map[string]any) map[string]bool {
+	inner := content
+	if value, ok := content["content"].(map[string]any); ok {
+		inner = value
+	}
+	targets := map[string]bool{}
+	rules, _ := inner["fieldFormulas"].([]any)
+	for _, rawRule := range rules {
+		rule, _ := rawRule.(map[string]any)
+		enabled, _ := rule["enabled"].(bool)
+		target, _ := rule["targetFieldId"].(string)
+		if enabled && target != "" {
+			targets[target] = true
+		}
+	}
+	return targets
 }
 
 // resolveInvisibleField 对有效不可见字段按策略决议值（§4.1）：

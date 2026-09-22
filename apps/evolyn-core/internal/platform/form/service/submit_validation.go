@@ -392,7 +392,7 @@ func validateFormulaAST(node ast.Expr) error {
 		if !ok {
 			return fmt.Errorf("unsupported call")
 		}
-		allowed := map[string]bool{"FIELD": true, "AND": true, "OR": true, "NOT": true, "IF": true, "ISBLANK": true, "ISEMPTY": true, "LEN": true, "CONCATENATE": true, "LOWER": true, "UPPER": true, "TRIM": true, "ABS": true, "ROUND": true}
+		allowed := map[string]bool{"FIELD": true, "AND": true, "OR": true, "NOT": true, "IF": true, "TRUE": true, "FALSE": true, "ISBLANK": true, "ISEMPTY": true, "LEN": true, "CONCATENATE": true, "LOWER": true, "UPPER": true, "TRIM": true, "ABS": true, "ROUND": true, "SUM": true, "AVERAGE": true, "MIN": true, "MAX": true}
 		if !allowed[name.Name] {
 			return fmt.Errorf("function %s is not allowed", name.Name)
 		}
@@ -653,6 +653,10 @@ func submitCompare(a, b any) (int, error) {
 }
 func evalSubmitFunction(name string, args []any) (any, error) {
 	switch name {
+	case "TRUE":
+		return true, nil
+	case "FALSE":
+		return false, nil
 	case "AND":
 		for _, a := range args {
 			if b, ok := a.(bool); !ok || !b {
@@ -720,6 +724,25 @@ func evalSubmitFunction(name string, args []any) (any, error) {
 			}
 		}
 		return n.Round(p, numeric.ModeHalfUp)
+	case "SUM", "AVERAGE", "MIN", "MAX":
+		values := make([]numeric.Numeric, 0, len(args))
+		for _, arg := range args {
+			value, err := submitNumber(arg)
+			if err != nil {
+				return nil, err
+			}
+			values = append(values, value)
+		}
+		switch name {
+		case "SUM":
+			return numeric.Sum(values)
+		case "AVERAGE":
+			return numeric.Average(values)
+		case "MIN":
+			return numeric.Min(values)
+		default:
+			return numeric.Max(values)
+		}
 	}
 	return nil, fmt.Errorf("function not allowed")
 }

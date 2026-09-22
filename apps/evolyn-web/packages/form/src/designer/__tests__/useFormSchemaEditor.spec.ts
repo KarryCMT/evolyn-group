@@ -59,7 +59,8 @@ describe('useFormSchemaEditor', () => {
           content: '请确认填写内容无误后继续提交。',
         },
         formEvents: [],
-        linkages: [],
+    linkages: [],
+    fieldFormulas: [],
       },
     };
     editor.replaceDocument(next);

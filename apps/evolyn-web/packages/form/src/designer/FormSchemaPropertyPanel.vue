@@ -46,6 +46,7 @@
             :app-id="appId"
             :linkage-adapter="linkageAdapter"
             @update-linkages="emit('update-linkages', $event)"
+            @update-field-formulas="emit('update-field-formulas', $event)"
           />
 
           <template v-else>
@@ -87,6 +88,7 @@
                   :app-id="appId"
                   :linkage-adapter="linkageAdapter"
                   @update-linkages="emit('update-linkages', $event)"
+                  @update-field-formulas="emit('update-field-formulas', $event)"
                 />
                 <NumberPropertyPanel v-else-if="widget.type === 'number'" :widget="widget" />
                 <DecimalPropertyPanel
@@ -330,6 +332,7 @@ import type {
   ComboWidget,
   DataLinkageDefinition,
   DecimalFamilyWidget,
+  FieldFormulaDefinition,
   FieldShowRule,
   FormItem,
   FormLayoutMode,
@@ -444,6 +447,7 @@ const emit = defineEmits<{
   'update-pre-submit-confirm': [confirm: PreSubmitConfirm];
   'update-form-events': [events: FormEvent[]];
   'update-linkages': [rules: DataLinkageDefinition[]];
+  'update-field-formulas': [rules: FieldFormulaDefinition[]];
 }>();
 
 const showRulesDrawer = shallowRef(false);

@@ -41,6 +41,7 @@ function documentOf(items: FormItem[]): FormSchemaDocument {
       },
       formEvents: [],
       linkages: [],
+      fieldFormulas: [],
     },
   };
 }
@@ -62,7 +63,7 @@ describe('createFormRuntime 初始化', () => {
     expect(runtime.state.fieldStates['_widget_sep']).toBeUndefined();
   });
 
-  it('初始化优先级：已保存值 → 上下文默认值 → 类型化空值（Schema defaultValue 随 P5 执行）', () => {
+  it('初始化优先级：已保存值 → 上下文默认值 → Schema 默认值 → 类型化空值', () => {
     const schema = documentOf([
       item({ type: 'text', widgetName: '_widget_t', defaultValue: 'schema' }),
     ]);
@@ -77,7 +78,32 @@ describe('createFormRuntime 初始化', () => {
     expect(runtime2.state.values._widget_t).toBe('context');
 
     const runtime3 = createFormRuntime({ schema });
-    expect(runtime3.state.values._widget_t).toBeNull();
+    expect(runtime3.state.values._widget_t).toBe('schema');
+  });
+
+  it('字段公式初始化并随依赖字段变化重算，提交时不信任派生值', () => {
+    const schema = documentOf([
+      item({ type: 'text', widgetName: '_widget_code', defaultValue: 'P100' }),
+      item({ type: 'text', widgetName: '_widget_model', defaultValue: 'blue' }),
+      item({ type: 'text', widgetName: '_widget_name', allowBlank: false }),
+    ]);
+    schema.content.fieldFormulas = [{
+      id: 'formula_product_name',
+      version: 1,
+      enabled: true,
+      targetFieldId: '_widget_name',
+      formula: 'CONCATENATE($_widget_code#, "-", UPPER($_widget_model#))',
+      remark: '',
+    }];
+
+    const runtime = createFormRuntime({ schema });
+    expect(runtime.state.fieldStates._widget_name?.errors).toEqual([]);
+    expect(runtime.state.values._widget_name).toBe('P100-BLUE');
+    expect(runtime.state.fieldStates._widget_name).toMatchObject({ disabled: true, readonly: true });
+
+    runtime.setValue('_widget_model', 'red');
+    expect(runtime.state.values._widget_name).toBe('P100-RED');
+    expect(runtime.buildSubmitPayload().values._widget_name).toEqual({ visible: true });
   });
 
   it('enable=false 映射禁用；visible=false 不渲染不收集', () => {
@@ -355,7 +381,8 @@ function rulesDocumentOf(
         content: '请确认填写内容无误后继续提交。',
       },
       formEvents: [],
-      linkages: [],
+    linkages: [],
+    fieldFormulas: [],
     },
   };
 }

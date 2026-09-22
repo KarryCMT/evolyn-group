@@ -1,9 +1,7 @@
-import { Numeric } from '@evolyn.do/numeric';
-import type { NumericInput, NumericRuntime } from '@evolyn.do/numeric';
+import { Numeric, type NumericInput, type NumericRuntime, numeric } from '@evolyn.do/numeric';
 
 import { FormulaError } from './errors';
-import { numericElements, tryAsNumeric } from './values';
-import type { RuntimeValue } from './values';
+import { type RuntimeValue, numericElements, tryAsNumeric } from './values';
 
 /**
  * 函数注册表（设计 §21）：数值函数全部以 @evolyn.do/numeric 为底层实现，
@@ -206,7 +204,46 @@ export const FORMULA_RUNTIME_FUNCTIONS: Readonly<Record<string, FormulaFunctionI
   },
   TRUE: () => true,
   FALSE: () => false,
+
+  // ---- 文本函数（字段公式 V1） ----
+  CONCATENATE: (args) => {
+    assertArity(args, 1, Number.MAX_SAFE_INTEGER, 'CONCATENATE');
+    return args.map(runtimeText).join('');
+  },
+  LEN: (args) => {
+    assertArity(args, 1, 1, 'LEN');
+    return numeric.of(String(runtimeText(args[0])).length);
+  },
+  LOWER: (args) => {
+    assertArity(args, 1, 1, 'LOWER');
+    return runtimeText(args[0]).toLocaleLowerCase();
+  },
+  UPPER: (args) => {
+    assertArity(args, 1, 1, 'UPPER');
+    return runtimeText(args[0]).toLocaleUpperCase();
+  },
+  TRIM: (args) => {
+    assertArity(args, 1, 1, 'TRIM');
+    return runtimeText(args[0]).trim().replace(/\s+/g, ' ');
+  },
+  ISBLANK: (args) => {
+    assertArity(args, 1, 1, 'ISBLANK');
+    const value = args[0];
+    return value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+  },
+  ISEMPTY: (args) => {
+    assertArity(args, 1, 1, 'ISEMPTY');
+    const value = args[0];
+    return value === undefined || value === null || value === '' || (Array.isArray(value) && value.length === 0);
+  },
 };
+
+function runtimeText(value: RuntimeValue | undefined): string {
+  if (value === undefined || value === null) return '';
+  if (value instanceof Numeric) return value.serialize() ?? '';
+  if (Array.isArray(value)) return value.map(runtimeText).join('、');
+  return String(value);
+}
 
 function truthy(value: RuntimeValue | undefined): boolean {
   if (value === undefined) {

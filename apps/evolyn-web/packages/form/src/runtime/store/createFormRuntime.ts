@@ -30,6 +30,7 @@ import { formatMoneyValue } from '../../schema/money';
 import type { FormItem, FormSchemaDocument, SubmitRule } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
 import { DataLinkageRuntime } from '../linkage/DataLinkageRuntime';
+import { FieldFormulaRuntime } from '../formula/FieldFormulaRuntime';
 import type {
   FieldRuntimeState,
   FormDraftPayload,
@@ -170,6 +171,11 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     resolveFieldPermission(permissions, key, 'allow').visible;
   const permissionEditable = (key: string): boolean =>
     resolveFieldPermission(permissions, key, 'allow').editable;
+  const formulaTargets = new Set(
+    (schema.content.fieldFormulas ?? [])
+      .filter((formula) => formula.enabled)
+      .map((formula) => formula.targetFieldId),
+  );
 
   /** 字段静态状态按保存值执行：visible 决定收集，enable 取反映射禁用；
    * v6 有效可见性 = 静态 ∧ 权限 ∧ 规则（渲染与信封同口径）。 */
@@ -177,8 +183,8 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     const key = item.widget.widgetName;
     return {
       visible: item.widget.visible && permissionVisible(key),
-      disabled: !item.widget.enable || !permissionEditable(key),
-      readonly: false,
+      disabled: !item.widget.enable || !permissionEditable(key) || formulaTargets.has(key),
+      readonly: formulaTargets.has(key),
       touched: false,
       validating: false,
       errors: [],
@@ -213,7 +219,24 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     },
   });
 
+  const formulaRuntime = new FieldFormulaRuntime({
+    formulas: schema.content.fieldFormulas ?? [],
+    valueOf: (fieldId) => state.values[fieldId],
+    applyValue: (fieldId, value) => setValue(fieldId, value, 'formula'),
+    onSuccess: (fieldId) => {
+      const fieldState = state.fieldStates[fieldId];
+      if (fieldState?.errors.some((message) => message.startsWith('公式计算失败：'))) {
+        fieldState.errors = [];
+      }
+    },
+    onError: (fieldId, message) => {
+      const fieldState = state.fieldStates[fieldId];
+      if (fieldState) fieldState.errors = [`公式计算失败：${message}`];
+    },
+  });
+
   initializeValues();
+  formulaRuntime.initialize();
   state.lifecycle = 'ready';
   queueMicrotask(() => linkageRuntime.initialize());
 
@@ -229,13 +252,17 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     applyFieldShowRules();
   }
 
-  /** 初始化优先级：已保存值 → 记录上下文默认值 → 类型化空值（Schema 静态 defaultValue 随 P5 规则执行）。 */
+  /** 初始化优先级：已保存值 → 记录上下文默认值 → Schema 静态默认值 → 类型化空值。 */
   function pickInitialValue(item: FormItem): FormValue {
     const key = item.widget.widgetName;
     const saved = readOwn(options.initialValues, key);
     if (saved !== undefined) return normalizeWidgetValue(item.widget, saved);
     const contextual = readOwn(options.contextDefaults, key);
     if (contextual !== undefined) return normalizeWidgetValue(item.widget, contextual);
+    const configured = (item.widget as unknown as { defaultValue?: unknown }).defaultValue;
+    if (configured !== undefined && configured !== null) {
+      return normalizeWidgetValue(item.widget, configured);
+    }
     return emptyWidgetValue(item.widget.type);
   }
 
@@ -257,7 +284,10 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     // 显隐规则：仅重算变更字段的下游闭包（拓扑序），不做全量规则扫描。
     const visibilityAffected = recomputeDownstreamVisibility(key);
     if (source === 'user') scheduleRealtimeValidation([key, ...visibilityAffected]);
-    if (source === 'user' || source === 'linkage') linkageRuntime.notifyFieldChange(key);
+    if (source === 'user' || source === 'linkage') formulaRuntime.notifyFieldChange(key);
+    if (source === 'user' || source === 'linkage' || source === 'formula') {
+      linkageRuntime.notifyFieldChange(key);
+    }
   }
 
   // ---- 显隐规则引擎（v5 设计方案 §4.2/§6.1） ----
@@ -539,7 +569,8 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
       const visible = fieldState?.visible ?? item.widget.visible;
       const submitted: FormSubmittedFieldValue = { visible };
       values[key] = submitted;
-      if (!visible || !permissionEditable(key)) continue;
+      // 派生字段由服务端按已发布公式权威重算，客户端仅提交可见性信封。
+      if (!visible || !permissionEditable(key) || formulaTargets.has(key)) continue;
       const value = state.values[key];
       if (value === undefined || value === null || value === '') continue;
       submitted.data = JSON.parse(JSON.stringify(value)) as FormValue;
@@ -662,6 +693,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     linkageRuntime.dispose();
     submitOperationID = undefined;
     initializeValues();
+    formulaRuntime.initialize();
     state.lifecycle = 'ready';
     state.activeOperation = null;
     queueMicrotask(() => linkageRuntime.initialize());

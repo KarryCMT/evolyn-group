@@ -3,6 +3,7 @@ import { ElButton, ElCheckbox, ElInput, ElOption, ElSelect } from 'element-plus'
 import { computed, shallowRef, watch } from 'vue';
 import type {
   DataLinkageDefinition,
+  FieldFormulaDefinition,
   FormItem,
   FormSchemaDocument,
   TextWidget,
@@ -15,6 +16,8 @@ import {
 import FormSchemaCommonPropertyPanel from '../FormSchemaCommonPropertyPanel.vue';
 import DefaultValueModeSelect from './DefaultValueModeSelect.vue';
 import DataLinkageSettingDialog from '../linkage/DataLinkageSettingDialog.vue';
+import FieldFormulaSettingDialog from '../formula/FieldFormulaSettingDialog.vue';
+import { fieldFormulaForTarget } from '../../schema/field-formula';
 
 /**
  * 单行文本专属属性面板只承载格式与默认值；标题、描述、提示文字、校验、权限和
@@ -31,21 +34,31 @@ const props = withDefaults(
   { schemaDocument: undefined, appId: 0, linkageAdapter: undefined },
 );
 
-const emit = defineEmits<{ 'update-linkages': [rules: DataLinkageDefinition[]] }>();
+const emit = defineEmits<{
+  'update-linkages': [rules: DataLinkageDefinition[]];
+  'update-field-formulas': [rules: FieldFormulaDefinition[]];
+}>();
 
 const widget = computed(() => model.value.widget as TextWidget);
 const linkageDialogVisible = shallowRef(false);
+const formulaDialogVisible = shallowRef(false);
 const linkageRule = computed(() =>
   linkageRuleForTarget(props.schemaDocument?.content.linkages ?? [], model.value.widget.widgetName),
+);
+const fieldFormula = computed(() =>
+  fieldFormulaForTarget(
+    props.schemaDocument?.content.fieldFormulas ?? [],
+    model.value.widget.widgetName,
+  ),
 );
 const defaultValueMode = shallowRef<'custom' | 'data-linkage' | 'formula'>('custom');
 
 // 已保存规则决定初始模式；未保存时仍保留用户刚选择的“数据联动”状态，
 // 使“数据联动设置”入口在关闭空白配置弹窗后继续可见。
 watch(
-  [() => model.value.widget.widgetName, () => linkageRule.value?.id],
-  ([, ruleId]) => {
-    defaultValueMode.value = ruleId ? 'data-linkage' : 'custom';
+  [() => model.value.widget.widgetName, () => linkageRule.value?.id, () => fieldFormula.value?.id],
+  ([, linkageRuleId, formulaId]) => {
+    defaultValueMode.value = formulaId ? 'formula' : linkageRuleId ? 'data-linkage' : 'custom';
   },
   { immediate: true },
 );
@@ -53,10 +66,21 @@ watch(
 function changeDefaultValueMode(mode: 'custom' | 'data-linkage' | 'formula'): void {
   defaultValueMode.value = mode;
   if (mode === 'data-linkage') {
+    removeFieldFormula();
     linkageDialogVisible.value = true;
     return;
   }
-  if (mode !== 'custom' || !linkageRule.value || !props.schemaDocument) return;
+  if (mode === 'formula') {
+    removeLinkageMapping();
+    formulaDialogVisible.value = true;
+    return;
+  }
+  removeFieldFormula();
+  removeLinkageMapping();
+}
+
+function removeLinkageMapping(): void {
+  if (!linkageRule.value || !props.schemaDocument) return;
   const rules = cloneDataLinkageDefinitions(props.schemaDocument.content.linkages);
   const index = rules.findIndex((rule) => rule.id === linkageRule.value?.id);
   if (index < 0) return;
@@ -65,6 +89,23 @@ function changeDefaultValueMode(mode: 'custom' | 'data-linkage' | 'formula'): vo
   );
   if (rules[index]!.mappings.length === 0) rules.splice(index, 1);
   emit('update-linkages', rules);
+}
+
+function removeFieldFormula(): void {
+  if (!fieldFormula.value || !props.schemaDocument) return;
+  emit(
+    'update-field-formulas',
+    props.schemaDocument.content.fieldFormulas.filter((rule) => rule.id !== fieldFormula.value?.id),
+  );
+}
+
+function saveFieldFormula(formula: FieldFormulaDefinition): void {
+  const formulas = (props.schemaDocument?.content.fieldFormulas ?? []).map((entry) => ({ ...entry }));
+  const index = formulas.findIndex((entry) => entry.targetFieldId === formula.targetFieldId);
+  if (index >= 0) formulas[index] = formula;
+  else formulas.push(formula);
+  widget.value.defaultValue = null;
+  emit('update-field-formulas', formulas);
 }
 
 function saveLinkage(rule: DataLinkageDefinition): void {
@@ -114,6 +155,14 @@ function saveLinkage(rule: DataLinkageDefinition): void {
         >
           {{ linkageRule ? '已设置数据联动' : '数据联动设置' }}
         </el-button>
+        <el-button
+          v-else
+          class="text-property__formula-button"
+          @click="formulaDialogVisible = true"
+        >
+          <span>{{ fieldFormula ? '已设置公式' : 'ƒx 编辑公式' }}</span>
+          <span aria-hidden="true">↗</span>
+        </el-button>
       </section>
     </template>
 
@@ -135,6 +184,14 @@ function saveLinkage(rule: DataLinkageDefinition): void {
     :items="schemaDocument.content.items"
     :adapter="linkageAdapter"
     @confirm="saveLinkage"
+  />
+  <FieldFormulaSettingDialog
+    v-if="schemaDocument"
+    v-model="formulaDialogVisible"
+    :target="model"
+    :items="schemaDocument.content.items"
+    :formula="fieldFormula"
+    @confirm="saveFieldFormula"
   />
 </template>
 
@@ -170,6 +227,15 @@ function saveLinkage(rule: DataLinkageDefinition): void {
     color: var(--el-color-primary);
     background: var(--el-bg-color);
     border-color: var(--el-color-primary);
+  }
+
+  &__formula-button {
+    display: flex;
+    width: 100%;
+    justify-content: space-between;
+    color: var(--el-text-color-primary);
+    background: var(--el-bg-color);
+    border-color: var(--el-border-color);
   }
 }
 </style>

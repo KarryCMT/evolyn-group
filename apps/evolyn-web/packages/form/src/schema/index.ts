@@ -6,6 +6,7 @@
  */
 export * from './types';
 export * from './linkage';
+export * from './field-formula';
 export * from './dictionary';
 export * from './numeric';
 export * from './money';

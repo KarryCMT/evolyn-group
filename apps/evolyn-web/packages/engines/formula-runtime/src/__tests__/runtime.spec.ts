@@ -123,6 +123,13 @@ describe('函数执行', () => {
     expect(run('NOT(1 > 2)')).toBe(true);
   });
 
+  it('字段公式文本函数保持空值与 Unicode 语义', () => {
+    expect(run('CONCATENATE($code#, "-", UPPER($model#))', { code: 'P100', model: 'blue' })).toBe('P100-BLUE');
+    expectNumeric(run('LEN("灵衍云")'), '3');
+    expect(run('TRIM("  A   B  ")')).toBe('A B');
+    expect(run('ISBLANK($missing#)')).toBe(true);
+  });
+
   it('未实现函数 → FUNCTION_NOT_IMPLEMENTED', () => {
     try {
       run('CONCAT("a", "b")');

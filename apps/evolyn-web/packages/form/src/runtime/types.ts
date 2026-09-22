@@ -9,7 +9,7 @@ import type { RuntimeSessionState } from '@evolyn.do/runtime';
 export type FormValue = FormJsonValue;
 
 /** 值写入来源：仅用户输入计入脏状态，初始化与规则回写不污染草稿语义。 */
-export type FormValueSource = 'user' | 'init' | 'linkage';
+export type FormValueSource = 'user' | 'init' | 'linkage' | 'formula';
 
 /** 表单会话生命周期；请求进行态单独由 activeOperation 表达。 */
 export type FormRuntimeLifecycle = 'initializing' | 'ready' | 'submitted';

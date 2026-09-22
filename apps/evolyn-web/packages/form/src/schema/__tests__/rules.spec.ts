@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  type FieldShowEvaluationContext,
   compileFieldShowRules,
   downstreamTargets,
   evaluateFieldShowRules,
   matchFieldShowCondition,
-  type FieldShowEvaluationContext,
 } from '../rules';
 import type { FieldShowCondition, FieldShowRule, FormContent } from '../types';
 
@@ -41,6 +41,7 @@ function contentWith(rules: FieldShowRule[]): FormContent {
     },
     formEvents: [],
     linkages: [],
+    fieldFormulas: [],
   };
 }
 

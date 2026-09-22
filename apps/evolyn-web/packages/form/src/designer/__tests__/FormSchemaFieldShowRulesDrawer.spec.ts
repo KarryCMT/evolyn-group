@@ -22,6 +22,7 @@ const schemaDocument: FormSchemaDocument = {
     },
     formEvents: [],
     linkages: [],
+    fieldFormulas: [],
   },
 };
 

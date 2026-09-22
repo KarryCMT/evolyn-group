@@ -85,6 +85,7 @@ function documentWith(items: unknown[]): unknown {
       },
       formEvents: [],
       linkages: [],
+      fieldFormulas: [],
     },
   };
 }
@@ -116,6 +117,37 @@ describe('validateFormSchema 结构校验', () => {
     // 深拷贝：修改结果不影响入参。
     result.document!.content.items[0]!.label = '改名';
     expect((input as FormSchemaDocument).content.items[0]!.label).toBe('单行文本');
+  });
+
+  it('校验字段公式的目标、函数与依赖环', () => {
+    const document = documentWith([
+      textItem({ widgetName: '_widget_code' }),
+      textItem({ widgetName: '_widget_model' }),
+      textItem({ widgetName: '_widget_name' }),
+    ]) as FormSchemaDocument;
+    document.content.fieldFormulas = [{
+      id: 'formula_product_name',
+      version: 1,
+      enabled: true,
+      targetFieldId: '_widget_name',
+      formula: 'CONCATENATE($_widget_code#, "-", UPPER($_widget_model#))',
+      remark: '',
+    }];
+    expect(validateFormSchema(document).issues).toEqual([]);
+
+    document.content.fieldFormulas.push({
+      id: 'formula_cycle_back',
+      version: 1,
+      enabled: true,
+      targetFieldId: '_widget_code',
+      formula: '$_widget_name#',
+      remark: '',
+    });
+    expect(
+      validateFormSchema(document).issues.some((issue) =>
+        issue.message.includes('循环依赖'),
+      ),
+    ).toBe(true);
   });
 
   it('接受空表单', () => {
@@ -153,7 +185,8 @@ describe('validateFormSchema 结构校验', () => {
             content: '请确认填写内容无误后继续提交。',
           },
           formEvents: [],
-          linkages: [],
+    linkages: [],
+    fieldFormulas: [],
           extra: 1,
         },
       }).issues[0]!.path,
@@ -423,7 +456,8 @@ describe('validateFormSchema 结构校验', () => {
           content: '请确认填写内容无误后继续提交。',
         },
         formEvents: [],
-        linkages: [],
+    linkages: [],
+    fieldFormulas: [],
       },
     };
     ensureFieldIds(document.content.items);
@@ -799,7 +833,8 @@ describe('validatePublishableFormSchema 显隐规则发布白名单', () => {
           content: '请确认填写内容无误后继续提交。',
         },
         formEvents: [],
-        linkages: [],
+    linkages: [],
+    fieldFormulas: [],
         fieldShowRules: [
           {
             id: 'r1',

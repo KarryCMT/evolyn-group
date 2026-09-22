@@ -90,6 +90,7 @@ function bootstrap(formCode: string): FormRuntimeBootstrap {
         },
         formEvents: [],
         linkages: [],
+        fieldFormulas: [],
       },
     },
   };

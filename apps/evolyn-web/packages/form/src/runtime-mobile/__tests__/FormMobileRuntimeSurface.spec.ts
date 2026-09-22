@@ -37,6 +37,7 @@ const schema = (): FormSchemaDocument => ({
     },
     formEvents: [],
     linkages: [],
+    fieldFormulas: [],
   },
 });
 

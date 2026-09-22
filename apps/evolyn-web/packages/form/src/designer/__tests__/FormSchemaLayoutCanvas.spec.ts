@@ -75,7 +75,8 @@ describe('FormSchemaLayoutCanvas', () => {
           content: '请确认填写内容无误后继续提交。',
         },
         formEvents: [],
-        linkages: [],
+    linkages: [],
+    fieldFormulas: [],
       },
     };
 
@@ -118,7 +119,8 @@ describe('FormSchemaLayoutCanvas', () => {
           content: '请确认填写内容无误后继续提交。',
         },
         formEvents: [],
-        linkages: [],
+    linkages: [],
+    fieldFormulas: [],
       },
     };
 
@@ -163,7 +165,8 @@ describe('FormSchemaLayoutCanvas', () => {
           content: '请确认填写内容无误后继续提交。',
         },
         formEvents: [],
-        linkages: [],
+    linkages: [],
+    fieldFormulas: [],
       },
     };
 
@@ -198,7 +201,8 @@ describe('FormSchemaLayoutCanvas', () => {
           content: '请确认填写内容无误后继续提交。',
         },
         formEvents: [],
-        linkages: [],
+    linkages: [],
+    fieldFormulas: [],
       },
     };
     const wrapper = mount(FormSchemaLayoutCanvas, {

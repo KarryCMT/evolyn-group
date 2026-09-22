@@ -169,7 +169,7 @@ func TestNumericFamilySchemaValidation(t *testing.T) {
 		"type": "form", "layout": "normal", "items": items, "layout_fields": []any{moneyName},
 		"fieldShowRules": []any{rule}, "submitRule": 2, "widget_submit_rules": map[string]any{},
 		"validators": []any{}, "preSubmitConfirm": map[string]any{"enable": false, "title": "请确认提交", "content": "确认提交当前内容？"},
-		"formEvents": []any{}, "linkages": []any{},
+		"formEvents": []any{}, "linkages": []any{}, "fieldFormulas": []any{},
 	}}
 	encoded, err := json.Marshal(raw)
 	assert.NoError(t, err)

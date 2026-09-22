@@ -43,6 +43,13 @@ import {
 import { cloneFormSchema } from './clone';
 import { type ValidationDiagnostic, createValidationResult } from '@evolyn.do/validator';
 import { FORMULA_FUNCTION_BY_NAME, type FormulaNode, parseFormula } from '@evolyn.do/formula';
+import {
+  FIELD_FORMULA_LIMITS,
+  formulaDependencies,
+  formulaFunctionNames,
+  isFieldFormulaFunctionSupported,
+  sortFieldFormulas,
+} from './field-formula';
 
 /** 单条校验问题：path 为 JSON Path（如 content.items[2].widget.options[0].value）。 */
 export type FormSchemaIssue = ValidationDiagnostic;
@@ -191,6 +198,7 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
       'preSubmitConfirm',
       'formEvents',
       'linkages',
+      'fieldFormulas',
     ],
     'content',
     issues,
@@ -228,6 +236,125 @@ function validateRoot(input: unknown, issues: FormSchemaIssue[]): void {
   validateSubmitValidation(content, issues);
   validateFrontendEvents(content, issues);
   validateDataLinkages(content, issues);
+  validateFieldFormulas(content, issues);
+}
+
+// ---- 字段公式（v12）----
+
+const FIELD_FORMULA_ID_PATTERN = /^formula_[A-Za-z0-9_-]{4,56}$/;
+const FIELD_FORMULA_TARGET_TYPES = new Set(['text', 'textarea']);
+
+function validateFieldFormulas(
+  content: Record<string, unknown>,
+  issues: FormSchemaIssue[],
+): void {
+  const raw = content.fieldFormulas;
+  if (!Array.isArray(raw)) {
+    issues.push({ path: 'content.fieldFormulas', message: 'fieldFormulas 必须是数组（v12 起必填）' });
+    return;
+  }
+  if (raw.length > FIELD_FORMULA_LIMITS.maxRules) {
+    issues.push({
+      path: 'content.fieldFormulas',
+      message: `字段公式数量不能超过 ${FIELD_FORMULA_LIMITS.maxRules}`,
+    });
+  }
+  const fields = new Map<string, FormWidgetType>();
+  for (const rawItem of content.items as unknown[]) {
+    if (!isPlainObject(rawItem) || !isPlainObject(rawItem.widget)) continue;
+    if (typeof rawItem.widget.widgetName !== 'string' || typeof rawItem.widget.type !== 'string') continue;
+    fields.set(rawItem.widget.widgetName, rawItem.widget.type as FormWidgetType);
+  }
+  const seenIDs = new Set<string>();
+  const seenTargets = new Set<string>();
+  const linkageTargets = new Set<string>();
+  if (Array.isArray(content.linkages)) {
+    for (const rawRule of content.linkages) {
+      if (!isPlainObject(rawRule) || !Array.isArray(rawRule.mappings)) continue;
+      for (const rawMapping of rawRule.mappings) {
+        if (isPlainObject(rawMapping) && typeof rawMapping.targetFieldId === 'string') {
+          linkageTargets.add(rawMapping.targetFieldId);
+        }
+      }
+    }
+  }
+  const normalized = [] as import('./types').FieldFormulaDefinition[];
+  raw.forEach((entry, index) => {
+    const path = `content.fieldFormulas[${index}]`;
+    if (!isPlainObject(entry)) {
+      issues.push({ path, message: '字段公式必须是 JSON 对象' });
+      return;
+    }
+    rejectUnknownKeys(
+      entry,
+      ['id', 'version', 'enabled', 'targetFieldId', 'formula', 'remark'],
+      path,
+      issues,
+    );
+    const id = entry.id;
+    if (typeof id !== 'string' || !FIELD_FORMULA_ID_PATTERN.test(id)) {
+      issues.push({ path: `${path}.id`, message: '字段公式 id 必须使用 formula_ 前缀且格式合法' });
+    } else if (seenIDs.has(id)) {
+      issues.push({ path: `${path}.id`, message: `字段公式 id「${id}」重复` });
+    } else seenIDs.add(id);
+    if (entry.version !== 1) {
+      issues.push({ path: `${path}.version`, message: '字段公式 version 必须固定为 1' });
+    }
+    if (typeof entry.enabled !== 'boolean') {
+      issues.push({ path: `${path}.enabled`, message: 'enabled 必须是布尔值' });
+    }
+    const target = entry.targetFieldId;
+    const targetType = typeof target === 'string' ? fields.get(target) : undefined;
+    if (typeof target !== 'string' || !targetType) {
+      issues.push({ path: `${path}.targetFieldId`, message: '目标字段不存在' });
+    } else if (!FIELD_FORMULA_TARGET_TYPES.has(targetType)) {
+      issues.push({ path: `${path}.targetFieldId`, message: 'V1 字段公式仅支持单行文本和多行文本目标' });
+    } else if (linkageTargets.has(target)) {
+      issues.push({ path: `${path}.targetFieldId`, message: '同一字段不能同时配置数据联动和字段公式' });
+    } else if (seenTargets.has(target)) {
+      issues.push({ path: `${path}.targetFieldId`, message: `目标字段「${target}」只能配置一条公式` });
+    } else seenTargets.add(target);
+    const formula = entry.formula;
+    if (typeof formula !== 'string' || formula.trim() === '') {
+      issues.push({ path: `${path}.formula`, message: 'formula 必须是非空字符串' });
+    } else if (formula.length > FIELD_FORMULA_LIMITS.formulaMaxLength) {
+      issues.push({ path: `${path}.formula`, message: `formula 不能超过 ${FIELD_FORMULA_LIMITS.formulaMaxLength} 个字符` });
+    } else {
+      const parsed = parseFormula(formula);
+      for (const diagnostic of parsed.diagnostics) {
+        issues.push({ path: `${path}.formula`, message: diagnostic.message });
+      }
+      for (const dependency of formulaDependencies(formula)) {
+        if (!fields.has(dependency)) {
+          issues.push({ path: `${path}.formula`, message: `formula 引用了不存在的字段「${dependency}」` });
+        }
+        if (dependency === target) {
+          issues.push({ path: `${path}.formula`, message: '字段公式不能引用自身' });
+        }
+      }
+      for (const name of formulaFunctionNames(formula)) {
+        if (!isFieldFormulaFunctionSupported(name)) {
+          issues.push({ path: `${path}.formula`, message: `字段公式使用了未开放函数「${name}」` });
+        }
+      }
+    }
+    if (typeof entry.remark !== 'string' || entry.remark.length > FIELD_FORMULA_LIMITS.remarkMaxLength) {
+      issues.push({ path: `${path}.remark`, message: `remark 必须是不超过 ${FIELD_FORMULA_LIMITS.remarkMaxLength} 字符的字符串` });
+    }
+    if (
+      typeof id === 'string' &&
+      typeof target === 'string' &&
+      typeof formula === 'string' &&
+      typeof entry.remark === 'string' &&
+      typeof entry.enabled === 'boolean'
+    ) {
+      normalized.push({ id, version: 1, enabled: entry.enabled, targetFieldId: target, formula, remark: entry.remark });
+    }
+  });
+  const { cycle } = sortFieldFormulas(normalized);
+  if (cycle.length > 0) {
+    issues.push({ path: 'content.fieldFormulas', message: `字段公式存在循环依赖：${cycle.join('、')}` });
+  }
 }
 
 // ---- 数据联动（v11）----

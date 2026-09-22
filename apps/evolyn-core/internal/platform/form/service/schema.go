@@ -487,6 +487,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	if protocolVersion >= 11 {
 		contentKeys = append(contentKeys, "linkages")
 	}
+	if protocolVersion >= 12 {
+		contentKeys = append(contentKeys, "fieldFormulas")
+	}
 	rejectUnknownKeys(content, contentKeys, "content", issues)
 	if content["type"] != "form" {
 		*issues = append(*issues, SchemaIssue{Path: "content.type", Message: `content.type 必须固定为 "form"`})
@@ -536,6 +539,9 @@ func validateRoot(root any, protocolVersion int, issues *[]SchemaIssue) {
 	}
 	if protocolVersion >= 11 {
 		validateDataLinkages(content, items, issues)
+	}
+	if protocolVersion >= 12 {
+		validateFieldFormulaProtocol(content, items, issues)
 	}
 }
 

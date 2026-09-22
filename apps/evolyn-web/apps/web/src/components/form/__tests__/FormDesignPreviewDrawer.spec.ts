@@ -46,6 +46,7 @@ const schema: FormSchemaDocument = {
     },
     formEvents: [],
     linkages: [],
+    fieldFormulas: [],
   },
 };
 const adapter: FormRuntimeAdapter = { submit: async () => ({ accepted: true }) };
@@ -90,6 +91,7 @@ describe('formDesignPreviewDrawer', () => {
         },
         formEvents: [],
         linkages: [],
+        fieldFormulas: [],
       },
     }) as FormSchemaDocument;
     const wrapper = mount(FormDesignPreviewDrawer, {

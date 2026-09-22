@@ -41,7 +41,7 @@ type TxManager interface {
 
 // emptyFormDocument 空协议文档（新表单草稿初值）：v7 显式保存空校验与关闭的
 // 二次确认，禁止以缺键表示关闭。
-var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[],"layout_fields":[],"field_layout":[],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"},"formEvents":[],"linkages":[]}}`)
+var emptyFormDocument = model.JSONContent(`{"content":{"type":"form","layout":"normal","items":[],"layout_fields":[],"field_layout":[],"fieldShowRules":[],"submitRule":2,"widget_submit_rules":{},"validators":[],"preSubmitConfirm":{"enable":false,"title":"请确认提交","content":"确认提交当前内容？"},"formEvents":[],"linkages":[],"fieldFormulas":[]}}`)
 
 // formService 表单资产服务实现。
 type formService struct {

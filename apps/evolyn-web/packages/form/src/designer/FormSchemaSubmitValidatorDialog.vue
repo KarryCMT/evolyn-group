@@ -2,12 +2,8 @@
 import {
   RiAddLine,
   RiCloseLine,
-  RiErrorWarningLine,
-  RiFileCopyLine,
-  RiFullscreenLine,
   RiFunctionLine,
   RiInformationLine,
-  RiSearchLine,
 } from '@remixicon/vue';
 import { computed, reactive, shallowRef, watch } from 'vue';
 import {
@@ -30,22 +26,19 @@ import {
 } from '../schema/dictionary';
 import {
   FORMULA_FUNCTIONS,
+  type FormulaEditorField,
+  type FormulaEditorInsertion,
   collectFormulaDiagnostics,
-  FormulaFunctionLibrary,
   projectFormulaContext,
   projectSubformFormulaContext,
-  type FormulaEditorField,
-  type FormulaEditorFunction,
-  type FormulaEditorInsertion,
 } from '../formula';
-import FormulaEditor from './FormulaEditor.vue';
+import FormFormulaEditorDialog from './formula/FormFormulaEditorDialog.vue';
 import FormSchemaSubmitValidatorEditorDialog from './FormSchemaSubmitValidatorEditorDialog.vue';
-import FormSchemaSubmitValidatorFormulaDialog from './FormSchemaSubmitValidatorFormulaDialog.vue';
 import SubmitTemplateEditor from './SubmitTemplateEditor.vue';
 import {
+  type SubmitValidatorDraft,
   cloneSubmitValidatorDraft,
   createSubmitValidatorDraft,
-  type SubmitValidatorDraft,
 } from './submit-validation-types';
 
 const props = withDefaults(
@@ -64,8 +57,6 @@ const emit = defineEmits<{
 
 const draft = reactive<SubmitValidatorDraft>(createSubmitValidatorDraft());
 const formulaDialogOpen = shallowRef(false);
-const formulaInsertion = shallowRef<FormulaEditorInsertion>();
-const formulaInsertionSequence = shallowRef(0);
 const templateInsertion = shallowRef<FormulaEditorInsertion>();
 const templateInsertionSequence = shallowRef(0);
 const fieldPickerOpen = shallowRef(false);
@@ -95,10 +86,15 @@ const formulaVariableFields = computed(() => [
   ...formulaFields.value.map((field) => ({
     ...field,
     listKey: `top-level:${field.widgetName}`,
+    disabled: false,
   })),
   ...projectSubformFormulaContext(props.items).map((field) => ({
     ...field,
     listKey: `subform:${field.parentWidgetName}:${field.widgetName}`,
+    disabled: !field.formulaAllowed,
+    disabledReason: field.formulaAllowed
+      ? undefined
+      : '子表单字段当前仅支持查看，暂不支持参与公式计算',
   })),
 ]);
 const formulaFieldLabelByName = computed(
@@ -165,29 +161,8 @@ function appendTemplateField(widgetName: string): void {
   fieldPickerOpen.value = false;
 }
 
-function appendFormulaField(widgetName: string): void {
-  requestFormulaInsertion(`$${widgetName}#`);
-}
-
-function appendFunction(functionSpec: FormulaEditorFunction): void {
-  requestFormulaInsertion(`${functionSpec.name}()`, -1);
-}
-
-function requestFormulaInsertion(text: string, cursorOffset = 0): void {
-  formulaInsertionSequence.value += 1;
-  formulaInsertion.value = {
-    id: formulaInsertionSequence.value,
-    text,
-    cursorOffset,
-  };
-}
-
 function setFailAction(value: string | number | boolean | undefined): void {
   draft.failAction = Number(value) === 1 ? 1 : 0;
-}
-
-function copyFormula(): void {
-  void navigator.clipboard?.writeText(draft.formula);
 }
 
 function closeFormulaEditor(): void {
@@ -259,8 +234,7 @@ function formulaSegments(
               v-for="(segment, index) in formulaPreviewSegments"
               :key="`${segment.text}-${index}`"
               :class="segment.className"
-              >{{ segment.text }}</span
-            >
+            >{{ segment.text }}</span>
           </code>
         </button>
         <p v-if="formulaIssue" class="form-submit-validator-dialog__error">{{ formulaIssue }}</p>
@@ -332,100 +306,22 @@ function formulaSegments(
     </template>
   </FormSchemaSubmitValidatorEditorDialog>
 
-  <FormSchemaSubmitValidatorFormulaDialog v-model="formulaDialogOpen">
-    <template #header="{ expanded, toggleExpanded }">
-      <header class="form-submit-formula-dialog__header">
-        <div>
-          <h2>提交校验</h2>
-          <span>使用数学运算符编辑公式</span>
-        </div>
-        <div class="form-submit-formula-dialog__actions">
-          <button
-            type="button"
-            :aria-label="expanded ? '还原公式编辑器尺寸' : '展开公式编辑器'"
-            @click="toggleExpanded"
-          >
-            <el-icon><RiFullscreenLine /></el-icon>
-          </button>
-          <button type="button" aria-label="关闭公式编辑器" @click="closeFormulaEditor">
-            <el-icon><RiCloseLine /></el-icon>
-          </button>
-        </div>
-      </header>
-    </template>
-
-    <div class="form-submit-formula-dialog__body">
-      <section class="form-submit-formula-dialog__editor">
-        <header>
-          <span>公式&nbsp;=</span>
-          <div>
-            <button type="button" @click="copyFormula">
-              <el-icon><RiFileCopyLine /></el-icon>复制
-            </button>
-            <button type="button">
-              <el-icon><RiInformationLine /></el-icon>备注
-            </button>
-          </div>
-        </header>
-        <FormulaEditor
-          v-model="draft.formula"
-          :fields="formulaFields"
-          :functions="formulaFunctions"
-          :insertion="formulaInsertion"
-        />
-      </section>
-
-      <p
-        v-if="formulaSyntaxIssue"
-        class="form-submit-formula-dialog__syntax-error"
-        role="alert"
-        aria-live="polite"
-      >
-        <el-icon><RiErrorWarningLine /></el-icon>
-        <strong>{{ formulaSyntaxErrorLabel }}</strong>
-        <span class="form-submit-formula-dialog__syntax-error-detail">
-          {{ formulaSyntaxIssue }}
-        </span>
-      </p>
-
-      <section class="form-submit-formula-dialog__library">
-        <div class="form-submit-formula-dialog__fields">
-          <div class="form-submit-formula-dialog__search">
-            <el-icon><RiSearchLine /></el-icon>搜索变量
-          </div>
-          <button
-            v-for="field in formulaVariableFields"
-            :key="field.listKey"
-            type="button"
-            :disabled="!field.formulaAllowed"
-            :title="
-              field.formulaAllowed ? undefined : '子表单字段当前仅支持查看，暂不支持参与公式计算'
-            "
-            @click="appendFormulaField(field.widgetName)"
-          >
-            <span>{{ field.label }}</span>
-            <small>{{ field.displayType }}</small>
-          </button>
-        </div>
-        <FormulaFunctionLibrary
-          class="form-submit-formula-dialog__function-library"
-          :functions="formulaFunctions"
-          @insert="appendFunction"
-        />
-      </section>
-    </div>
-    <template #footer>
-      <footer class="form-submit-formula-dialog__footer">
-        <el-button @click="closeFormulaEditor">取消</el-button>
-        <el-button
-          type="primary"
-          :disabled="Boolean(formulaSyntaxIssue)"
-          @click="confirmFormulaEditor"
-          >确定</el-button
-        >
-      </footer>
-    </template>
-  </FormSchemaSubmitValidatorFormulaDialog>
+  <FormFormulaEditorDialog
+    v-model="formulaDialogOpen"
+    v-model:formula="draft.formula"
+    title="提交校验"
+    subtitle="使用数学运算符编辑公式"
+    editor-label="公式"
+    :fields="formulaFields"
+    :variable-fields="formulaVariableFields"
+    :functions="formulaFunctions"
+    :error="formulaSyntaxIssue"
+    :error-label="formulaSyntaxErrorLabel"
+    :confirm-disabled="Boolean(formulaSyntaxIssue)"
+    aria-label="提交校验公式编辑器"
+    @cancel="closeFormulaEditor"
+    @confirm="confirmFormulaEditor"
+  />
 </template>
 
 <style lang="scss">
@@ -470,8 +366,7 @@ function formulaSegments(
     font-size: 16px;
     letter-spacing: -0.3px;
   }
-  &__header button,
-  .form-submit-formula-dialog__header button {
+  &__header button {
     display: inline-grid;
     width: 30px;
     height: 30px;
@@ -645,8 +540,7 @@ function formulaSegments(
     margin-right: 0;
     font-size: 14px;
   }
-  &__footer,
-  .form-submit-formula-dialog__footer {
+  &__footer {
     display: flex;
     gap: 10px;
     justify-content: flex-end;
@@ -664,234 +558,9 @@ function formulaSegments(
   }
 }
 
-.form-submit-formula-dialog {
-  // 弹窗本身始终落在视口内；长列表仅在各自分栏内滚动，不能撑出页面滚动条。
-  width: min(920px, calc(100vw - 40px)) !important;
-  height: min(560px, calc(100dvh - 24px));
-  max-height: calc(100dvh - 24px);
-  margin: 12px auto !important;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  border-radius: 12px;
-
-  &.is-expanded {
-    width: min(1280px, calc(100vw - 48px)) !important;
-    height: min(760px, calc(100dvh - 24px));
-  }
-
-  .el-dialog__header {
-    padding: 0;
-    margin: 0;
-    border-bottom: 1px solid var(--el-border-color);
-  }
-  .el-dialog__body {
-    padding: 0;
-    flex: 1 1 auto;
-    min-height: 0;
-    overflow: hidden;
-  }
-  .el-dialog__footer {
-    padding: 0;
-    border-top: 1px solid var(--el-border-color);
-  }
-  &__header {
-    display: flex;
-    height: 56px;
-    padding: 0 20px;
-    align-items: center;
-    justify-content: space-between;
-  }
-  &__header div {
-    display: flex;
-    gap: 14px;
-    align-items: baseline;
-  }
-  &__header h2 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 700;
-  }
-  &__header span {
-    font-size: 13px;
-    color: var(--el-text-color-secondary);
-  }
-  &__actions {
-    display: inline-flex;
-    gap: 4px;
-    align-items: center;
-  }
-  &__actions button {
-    display: inline-grid;
-    width: 28px;
-    height: 28px;
-    padding: 0;
-    place-items: center;
-    font-size: 18px;
-    color: var(--el-text-color-regular);
-    cursor: pointer;
-    background: transparent;
-    border: 0;
-    border-radius: 6px;
-  }
-  &__actions button:hover,
-  &__actions button:focus-visible {
-    color: var(--el-color-primary);
-    background: var(--el-fill-color-light);
-    outline: none;
-  }
-  &__body {
-    flex: 1 1 auto;
-    min-height: 0;
-    padding: 16px 20px;
-    box-sizing: border-box;
-    overflow-x: hidden;
-    overflow-y: auto;
-  }
-  &__editor {
-    overflow: hidden;
-    border: 1px solid var(--el-border-color);
-    border-radius: 10px;
-  }
-  &__editor > header {
-    display: flex;
-    height: 44px;
-    padding: 0 14px;
-    align-items: center;
-    justify-content: space-between;
-    background: var(--el-fill-color-light);
-    border-bottom: 1px solid var(--el-border-color-lighter);
-  }
-  &__editor > header > span {
-    font-size: 15px;
-  }
-  &__editor > header div {
-    display: flex;
-    gap: 12px;
-  }
-  &__editor > header button {
-    display: inline-flex;
-    gap: 5px;
-    align-items: center;
-    padding: 0;
-    font: inherit;
-    font-size: 13px;
-    color: var(--el-text-color-regular);
-    cursor: pointer;
-    background: transparent;
-    border: 0;
-  }
-  &__editor > header button:hover {
-    color: var(--el-color-primary);
-  }
-  &__editor .el-textarea__inner {
-    min-height: 112px !important;
-    padding: 12px 14px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-    font-size: 14px;
-    line-height: 1.65;
-    border: 0;
-    box-shadow: none;
-    resize: none;
-  }
-  &__library {
-    display: grid;
-    grid-template-columns: 1.15fr 2.2fr;
-    height: 216px;
-    min-height: 0;
-    margin-top: 10px;
-    overflow: hidden;
-    border: 1px solid var(--el-border-color);
-    border-radius: 10px;
-  }
-  &__syntax-error {
-    display: flex;
-    min-height: 34px;
-    gap: 7px;
-    padding: 0 12px;
-    margin: 8px 0 0;
-    align-items: center;
-    box-sizing: border-box;
-    font-size: 13px;
-    color: var(--el-color-danger);
-    background: var(--el-color-danger-light-9);
-    border: 1px solid var(--el-color-danger-light-7);
-    border-radius: 7px;
-  }
-  &__syntax-error .el-icon {
-    flex: 0 0 auto;
-    font-size: 16px;
-  }
-  &__syntax-error strong {
-    flex: 0 0 auto;
-    font-weight: 600;
-  }
-  &__syntax-error-detail {
-    color: var(--el-text-color-secondary);
-  }
-  // 标准尺寸在出现横幅后收缩函数库高度，始终由内部区域消化内容高度。
-  &:not(.is-expanded) &__syntax-error + &__library {
-    height: 202px;
-  }
-  &__fields {
-    overflow: hidden auto;
-    max-height: 216px;
-    border-right: 1px solid var(--el-border-color);
-  }
-  &__search {
-    position: sticky;
-    top: 0;
-    z-index: 2;
-    display: flex;
-    gap: 8px;
-    height: 42px;
-    padding: 0 14px;
-    align-items: center;
-    font-size: 13px;
-    color: var(--el-text-color-placeholder);
-    background: var(--el-bg-color);
-    border-bottom: 1px solid var(--el-border-color-lighter);
-  }
-  &__fields button {
-    display: grid;
-    width: 100%;
-    min-height: 40px;
-    gap: 2px;
-    padding: 5px 14px;
-    color: var(--el-text-color-primary);
-    text-align: left;
-    cursor: pointer;
-    background: transparent;
-    border: 0;
-  }
-  &__fields button:hover {
-    background: var(--el-fill-color-light);
-  }
-  &__fields small {
-    justify-self: start;
-    padding: 1px 7px;
-    font-size: 11px;
-    color: var(--el-color-primary);
-    background: var(--el-color-primary-light-9);
-    border-radius: 99px;
-  }
-  &__function-library {
-    min-width: 0;
-  }
-  &__footer {
-    padding: 10px 20px;
-  }
-  &__footer .el-button {
-    min-width: 72px;
-    height: 34px;
-    font-size: 14px;
-  }
-}
-
 // Element Plus 的 overlay 容器默认可滚动。两个弹窗的长内容都在内部区域处理，
 // 因此显式收口外层滚动，避免滚轮带动被遮罩的设计器页面。
-.el-overlay-dialog:has(.form-submit-validator-dialog),
-.el-overlay-dialog:has(.form-submit-formula-dialog) {
+.el-overlay-dialog:has(.form-submit-validator-dialog) {
   overflow: hidden;
 }
 
@@ -900,26 +569,6 @@ function formulaSegments(
   .form-submit-validator-dialog__body {
     padding-right: 20px;
     padding-left: 20px;
-  }
-  .form-submit-formula-dialog__header {
-    height: auto;
-    min-height: 54px;
-    padding: 10px 14px;
-  }
-  .form-submit-formula-dialog__header div {
-    display: grid;
-    gap: 3px;
-  }
-  .form-submit-formula-dialog__body {
-    padding: 18px;
-  }
-  .form-submit-formula-dialog__library {
-    grid-template-columns: 1fr;
-  }
-  .form-submit-formula-dialog__fields {
-    max-height: 180px;
-    border-right: 0;
-    border-bottom: 1px solid var(--el-border-color);
   }
 }
 </style>

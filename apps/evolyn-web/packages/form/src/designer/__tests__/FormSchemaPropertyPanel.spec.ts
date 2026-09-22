@@ -54,6 +54,7 @@ const fieldSchemaDocument: FormSchemaDocument = {
     },
     formEvents: [],
     linkages: [],
+    fieldFormulas: [],
   },
 };
 
@@ -147,6 +148,29 @@ describe('FormSchemaPropertyPanel', () => {
     wrapper.findComponent({ name: 'DataLinkageSettingDialog' }).vm.$emit('update:modelValue', false);
     await nextTick();
     expect(wrapper.find('.text-property__linkage-button').text()).toBe('数据联动设置');
+  });
+
+  it('公式编辑确认后上抛字段公式并展示已设置状态', async () => {
+    const schemaDocument = structuredClone(fieldSchemaDocument);
+    const wrapper = mount(FormSchemaPropertyPanel, {
+      props: { item: field, schemaDocument, appId: 1 },
+    });
+    wrapper.findComponent({ name: 'DefaultValueModeSelect' }).vm.$emit('update:modelValue', 'formula');
+    await nextTick();
+
+    const formula = {
+      id: 'formula_product_name',
+      version: 1 as const,
+      enabled: true,
+      targetFieldId: '_widget_name',
+      formula: 'CONCATENATE("灵衍", "云")',
+      remark: '',
+    };
+    wrapper.findComponent({ name: 'FieldFormulaSettingDialog' }).vm.$emit('confirm', formula);
+    await nextTick();
+
+    const updates = wrapper.emitted('update-field-formulas') ?? [];
+    expect(updates[updates.length - 1]?.[0]).toEqual([formula]);
   });
 
   it('默认值来源下拉复用于所有支持默认值的控件，分割线和标签页不展示', () => {
@@ -342,6 +366,7 @@ describe('FormSchemaPropertyPanel 不可见字段赋值（v6）', () => {
       },
       formEvents: [],
       linkages: [],
+      fieldFormulas: [],
     },
   };
 

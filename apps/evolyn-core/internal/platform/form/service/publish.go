@@ -109,6 +109,10 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 		if err != nil {
 			return httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": []SchemaIssue{{Path: "content.validators", Message: err.Error()}}}), err)
 		}
+		compiledFieldFormulas, err := CompileFieldFormulas(content, form.ProtocolVersion)
+		if err != nil {
+			return httpx.Wrap(apperrors.ErrSchemaInvalid.WithData(map[string]any{"issues": []SchemaIssue{{Path: "content.fieldFormulas", Message: err.Error()}}}), err)
+		}
 		if source, ok := s.groups.(submitValidationGroupSource); ok {
 			groups, err := source.ListSubmitValidationGroups(tctx, form.ID)
 			if err != nil {
@@ -120,15 +124,16 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 		}
 
 		version := &model.FormVersion{
-			FormID:              form.ID,
-			VersionNo:           nextNo,
-			Content:             form.DraftContent,
-			FieldKeys:           model.JSONContent(fieldKeys),
-			FieldMappings:       model.JSONContent(fieldMappings),
-			CompiledSubmitRules: compiledSubmitRules,
-			ProtocolVersion:     form.ProtocolVersion,
-			PublishedByMemberID: member.ID,
-			PublishedAt:         kernel.JSONTime(time.Now()),
+			FormID:                form.ID,
+			VersionNo:             nextNo,
+			Content:               form.DraftContent,
+			FieldKeys:             model.JSONContent(fieldKeys),
+			FieldMappings:         model.JSONContent(fieldMappings),
+			CompiledSubmitRules:   compiledSubmitRules,
+			CompiledFieldFormulas: compiledFieldFormulas,
+			ProtocolVersion:       form.ProtocolVersion,
+			PublishedByMemberID:   member.ID,
+			PublishedAt:           kernel.JSONTime(time.Now()),
 		}
 		version.TenantID = tenantID
 		created, err := s.versions.Create(tctx, version)
@@ -372,6 +377,15 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 	if err != nil {
 		return nil, err
 	}
+	if err := ApplyCompiledFieldFormulas(version.CompiledFieldFormulas, content, version.ProtocolVersion, cleaned); err != nil {
+		var formulaError *FieldFormulaEvaluationError
+		if errors.As(err, &formulaError) {
+			return nil, httpx.Wrap(apperrors.ErrRecordInvalid.WithData(map[string]any{
+				"fieldErrors": RecordFieldErrors{formulaError.Target: {formulaError.Cause.Error()}},
+			}), err)
+		}
+		return nil, fmt.Errorf("apply field formulas: %w", err)
+	}
 	// 流水号是服务端衍生值；幂等重放比较必须忽略它，否则首次提交已生成的值会与
 	// 浏览器重放时携带的空占位不同，错误判为另一次提交。
 	replayValues := valuesWithoutSerialNumbers(content, cleaned)
@@ -591,8 +605,11 @@ func (s *formService) validateSubmitValues(
 		if resolved != nil {
 			permissions = resolved.FieldsForNew(model.PermissionOpAdd)
 		}
-		cleaned, fieldErrors = ResolveSubmittedValues(
-			content, submitted, permissions, nil, currentMemberID)
+		previewValues := submittedValuesForFormulaPreview(submitted)
+		// 预计算失败不抢占基础字段的类型错误；完整终审后权威执行会返回稳定错误。
+		_ = PreviewCompiledFieldFormulas(version.CompiledFieldFormulas, content, version.ProtocolVersion, previewValues)
+		cleaned, fieldErrors = ResolveSubmittedValuesWithDerived(
+			content, submitted, permissions, nil, currentMemberID, previewValues)
 	case resolved != nil:
 		cleaned, fieldErrors = ValidateSubmittedRecordValuesWithPermission(
 			content, submitted, resolved.FieldsForNew(model.PermissionOpAdd), nil, currentMemberID)
@@ -612,6 +629,18 @@ func (s *formService) validateSubmitValues(
 			fmt.Errorf("form %s record has %d invalid department reference(s)", form.Code, len(departmentErrors)))
 	}
 	return cleaned, nil
+}
+
+func submittedValuesForFormulaPreview(submitted map[string]model.SubmitFieldValue) map[string]any {
+	values := make(map[string]any, len(submitted))
+	for key, wrapped := range submitted {
+		if len(wrapped.Data) == 0 || isNullJSON(json.RawMessage(wrapped.Data)) {
+			values[key] = nil
+			continue
+		}
+		values[key] = decodeShowValue(json.RawMessage(wrapped.Data))
+	}
+	return values
 }
 
 // sameJSON 以解码后的 JSON 值比较幂等重放内容，避免 PostgreSQL jsonb 规范化

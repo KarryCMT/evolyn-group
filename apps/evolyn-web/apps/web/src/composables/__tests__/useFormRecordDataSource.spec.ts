@@ -51,6 +51,7 @@ function bootstrap(): FormRuntimeBootstrap {
         },
         formEvents: [],
         linkages: [],
+        fieldFormulas: [],
       },
     },
   };

@@ -637,6 +637,7 @@ function notifyUnavailable(action: string) {
         @update-pre-submit-confirm="editor.setPreSubmitConfirm"
         @update-form-events="document.content.formEvents = $event"
         @update-linkages="document.content.linkages = $event"
+        @update-field-formulas="document.content.fieldFormulas = $event"
       />
     </div>
 

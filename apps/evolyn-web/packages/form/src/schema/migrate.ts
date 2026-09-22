@@ -8,7 +8,7 @@
  * fieldShowRules 空数组；v5 及更早版本补齐 v6 的 submitRule 默认空值策略与
  * widget_submit_rules 空对象；v6 及更早版本补齐 v7 的 validators 与
  * preSubmitConfirm；v9 及更早版本补齐 v10 的 formEvents 空数组；v10 补齐
- * v11 的 linkages 空数组。禁止在旧版本
+ * v11 的 linkages 空数组；v11 补齐 v12 的 fieldFormulas 空数组。禁止在旧版本
  * 校验器内隐式兼容新结构。
  */
 
@@ -86,6 +86,9 @@ export function migrateFormSchema(
   if (sourceVersion <= 10 && isV1Document(candidate)) {
     candidate = normalizeDataLinkagesV11(candidate);
   }
+  if (sourceVersion <= 11 && isV1Document(candidate)) {
+    candidate = normalizeFieldFormulasV12(candidate);
+  }
   const result = validateFormSchema(candidate);
   if (!result.valid || !result.document) {
     return { document: null, issues: result.issues, protocolVersion: FORM_PROTOCOL_VERSION };
@@ -95,6 +98,14 @@ export function migrateFormSchema(
     issues: [],
     protocolVersion: FORM_PROTOCOL_VERSION,
   };
+}
+
+/** v11 → v12：旧表单没有字段公式，保持既有默认值语义。 */
+function normalizeFieldFormulasV12(input: unknown): unknown {
+  const document = cloneFormSchema(input as FormSchemaDocument);
+  const content = document.content as unknown as Record<string, unknown>;
+  if (!Array.isArray(content.fieldFormulas)) content.fieldFormulas = [];
+  return document;
 }
 
 /** v10 → v11：旧表单保持未配置数据联动的语义。 */

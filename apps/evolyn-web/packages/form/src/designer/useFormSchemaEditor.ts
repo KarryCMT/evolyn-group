@@ -10,6 +10,7 @@ import {
   generateTabName,
 } from '../schema/dictionary';
 import { isLayoutWidgetType } from '../schema/codec';
+import { formulaDependencies } from '../schema/field-formula';
 import {
   isSubmitRuleEligibleType,
   normalizeWidgetSubmitRules,
@@ -64,6 +65,7 @@ export function createEmptyFormSchemaDocument(): FormSchemaDocument {
       preSubmitConfirm: structuredClone(DEFAULT_PRE_SUBMIT_CONFIRM),
       formEvents: [],
       linkages: [],
+      fieldFormulas: [],
     },
   };
 }
@@ -212,6 +214,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     if (widgetSubmitRulesOf(key) !== undefined) return false;
     if (submitValidatorsReferencing(key).length > 0 || preSubmitConfirmReferences(key))
       return false;
+    if (fieldFormulasReferencing(key).length > 0) return false;
     const index = items.value.findIndex((item) => widgetOf(item)?.widgetName === key);
     if (index === -1) return false;
     items.value.splice(index, 1);
@@ -254,6 +257,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     // 特殊字段赋值规则同样以 widgetName 为键：改名原子同步（v6 §3.2）。
     replaceWidgetSubmitRuleReferences(previousKey, nextKey);
     replaceSubmitValidationReferences(previousKey, nextKey);
+    replaceFieldFormulaReferences(previousKey, nextKey);
     selectedKey.value = nextKey;
   }
 
@@ -287,7 +291,8 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     if (
       (typeChanged || hiddenTurn) &&
       (submitValidatorsReferencing(previousKey).length > 0 ||
-        preSubmitConfirmReferences(previousKey))
+        preSubmitConfirmReferences(previousKey) ||
+        fieldFormulasReferencing(previousKey).length > 0)
     ) {
       return false;
     }
@@ -307,6 +312,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
       replaceFieldShowRuleReferences(previousKey, next.widget.widgetName);
       replaceWidgetSubmitRuleReferences(previousKey, next.widget.widgetName);
       replaceSubmitValidationReferences(previousKey, next.widget.widgetName);
+      replaceFieldFormulaReferences(previousKey, next.widget.widgetName);
       selectedKey.value = next.widget.widgetName;
     }
     return true;
@@ -380,6 +386,23 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     const confirm = document.value.content.preSubmitConfirm;
     confirm.title = confirm.title.split(templateToken).join(nextTemplateToken);
     confirm.content = confirm.content.split(templateToken).join(nextTemplateToken);
+  }
+
+  /** 字段公式的目标与变量 token 都以 widgetName 关联，改名必须原子同步。 */
+  function replaceFieldFormulaReferences(previousKey: string, nextKey: string): void {
+    const previousToken = `$${previousKey}#`;
+    const nextToken = `$${nextKey}#`;
+    for (const formula of document.value.content.fieldFormulas) {
+      if (formula.targetFieldId === previousKey) formula.targetFieldId = nextKey;
+      formula.formula = formula.formula.split(previousToken).join(nextToken);
+    }
+  }
+
+  function fieldFormulasReferencing(key: string) {
+    return document.value.content.fieldFormulas.filter(
+      (formula) =>
+        formula.targetFieldId === key || formulaDependencies(formula.formula).includes(key),
+    );
   }
 
   /** 删除标签页只解散容器：其中字段移动到整个标签页组之后，绝不删除字段定义。 */
@@ -761,7 +784,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
   };
 }
 
-/** 防御性补齐 v5–v7 表单级键（正规读取路径经迁移器补齐，这里兜底直载旧文档）。 */
+/** 防御性补齐表单级键（正规读取路径经迁移器补齐，这里兜底直载旧文档）。 */
 function normalizeContentKeys(content: FormSchemaDocument['content']): void {
   if (!Array.isArray(content.fieldShowRules)) content.fieldShowRules = [];
   if (!isSubmitRuleValue(content.submitRule)) content.submitRule = 2;
@@ -771,6 +794,7 @@ function normalizeContentKeys(content: FormSchemaDocument['content']): void {
     content.preSubmitConfirm = structuredClone(DEFAULT_PRE_SUBMIT_CONFIRM);
   }
   if (!Array.isArray(content.linkages)) content.linkages = [];
+  if (!Array.isArray(content.fieldFormulas)) content.fieldFormulas = [];
 }
 
 function isPreSubmitConfirm(value: unknown): value is PreSubmitConfirm {

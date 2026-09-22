@@ -30,6 +30,7 @@ function contentWith(overrides: Partial<Record<string, unknown>> = {}): FormCont
     },
     formEvents: [],
     linkages: [],
+    fieldFormulas: [],
   };
   Object.assign(content, overrides);
   return content as unknown as FormContent;

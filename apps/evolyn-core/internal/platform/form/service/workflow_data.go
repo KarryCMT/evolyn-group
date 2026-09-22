@@ -11,6 +11,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -152,10 +153,23 @@ func (s *formService) UpdateRecordValues(ctx context.Context, recordID uint, pat
 	// 策略（§6.2：两条路径共用同一值决议器）；v6 前快照保持旧静态可见语义。
 	var cleaned map[string]any
 	if version.ProtocolVersion >= model.InvisibleValuePolicyVersion {
-		cleaned, fieldErrors := ResolveMergedRecordValues(content, merged, baseline)
+		previewValues := make(map[string]any, len(merged))
+		for key, value := range merged {
+			previewValues[key] = value
+		}
+		_ = PreviewCompiledFieldFormulas(version.CompiledFieldFormulas, content, version.ProtocolVersion, previewValues)
+		cleaned, fieldErrors := ResolveMergedRecordValuesWithDerived(content, merged, baseline, previewValues)
 		if len(fieldErrors) > 0 {
 			return fmt.Errorf("record %d merge: %w", recordID,
 				apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": fieldErrors}))
+		}
+		if err := ApplyCompiledFieldFormulas(version.CompiledFieldFormulas, content, version.ProtocolVersion, cleaned); err != nil {
+			var formulaError *FieldFormulaEvaluationError
+			if errors.As(err, &formulaError) {
+				return fmt.Errorf("record %d formula: %w", recordID,
+					apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": RecordFieldErrors{formulaError.Target: {formulaError.Cause.Error()}}}))
+			}
+			return fmt.Errorf("record %d apply field formulas: %w", recordID, err)
 		}
 		return s.persistResolvedValues(ctx, physical, recordID, cleaned)
 	}
@@ -172,6 +186,14 @@ func (s *formService) UpdateRecordValues(ctx context.Context, recordID uint, pat
 		// 与提交记录同一套稳定码与回填协议：FORM_RECORD_INVALID + fieldErrors
 		return fmt.Errorf("record %d merge: %w", recordID,
 			apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": fieldErrors}))
+	}
+	if err := ApplyCompiledFieldFormulas(version.CompiledFieldFormulas, content, version.ProtocolVersion, cleaned); err != nil {
+		var formulaError *FieldFormulaEvaluationError
+		if errors.As(err, &formulaError) {
+			return fmt.Errorf("record %d formula: %w", recordID,
+				apperrors.ErrRecordInvalid.WithData(map[string]any{"fieldErrors": RecordFieldErrors{formulaError.Target: {formulaError.Cause.Error()}}}))
+		}
+		return fmt.Errorf("record %d apply field formulas: %w", recordID, err)
 	}
 	return s.persistResolvedValues(ctx, physical, recordID, cleaned)
 }

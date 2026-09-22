@@ -14,9 +14,9 @@ import (
 // （standard↔workflow），切换后原类型流程数据保留；切换裁决在 Service 层。
 type FormType string
 
-// CurrentProtocolVersion 当前表单保存协议版本；v11 将数据联动规则纳入
-// content.linkages，发布快照成为运行时可信查询规则的唯一事实源。
-const CurrentProtocolVersion = 11
+// CurrentProtocolVersion 当前表单保存协议版本；v12 将字段默认值公式纳入
+// content.fieldFormulas，并在发布版本冻结服务端可执行产物。
+const CurrentProtocolVersion = 12
 
 // FieldIdentityProtocolVersion 字段身份协议（v8）的最低协议版本：该版本起
 // 值字段必须携带内部不可变 fieldId（10 位小写 base32），发布后 fieldId 与
@@ -71,10 +71,12 @@ type FormVersion struct {
 	// FieldMappings 为发布时冻结的逻辑字段→JSONB/物理列映射；查询编译器只能消费此快照。
 	FieldMappings JSONContent `json:"fieldMappings" gorm:"type:jsonb;not null"`
 	// CompiledSubmitRules 与发布版本同事务冻结；提交绝不读取草稿重新解释规则。
-	CompiledSubmitRules JSONContent     `json:"-" gorm:"type:jsonb;not null;default:'{}'"`
-	ProtocolVersion     int             `json:"protocolVersion" gorm:"not null;default:7"`
-	PublishedByMemberID uint            `json:"publishedByMemberId" gorm:"not null"`
-	PublishedAt         kernel.JSONTime `json:"publishedAt"`
+	CompiledSubmitRules JSONContent `json:"-" gorm:"type:jsonb;not null;default:'{}'"`
+	// CompiledFieldFormulas 是字段派生值的权威执行产物；客户端计算仅用于即时预览。
+	CompiledFieldFormulas JSONContent     `json:"-" gorm:"type:jsonb;not null;default:'{}'"`
+	ProtocolVersion       int             `json:"protocolVersion" gorm:"not null;default:7"`
+	PublishedByMemberID   uint            `json:"publishedByMemberId" gorm:"not null"`
+	PublishedAt           kernel.JSONTime `json:"publishedAt"`
 
 	TenantID  uint            `json:"tenantId" gorm:"index;not null;default:1"`
 	CreatedAt kernel.JSONTime `json:"createdAt"`

@@ -12,7 +12,7 @@
  * v8 起值字段必须携带内部不可变 fieldId（物理表存储 §4.1 契约冻结：
  * fieldId→物理列名 f_<fieldId> 永不变更；widgetName 同步冻结，只允许改 label）。 */
 // v10 将安全前端事件纳入 content.formEvents；历史 v9 文档读取时补空数组。
-export const FORM_PROTOCOL_VERSION = 11 as const;
+export const FORM_PROTOCOL_VERSION = 12 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -705,6 +705,21 @@ export interface FormContent {
   formEvents: FormEvent[];
   /** 数据联动规则（v11）；发布快照是运行时可信规则的唯一事实源。 */
   linkages: DataLinkageDefinition[];
+  /**
+   * 字段公式（v12）：目标字段由公式派生，浏览器负责即时预览，服务端负责
+   * 权威重算。依赖字段由发布编译器从 formula AST 提取，不在协议内重复保存。
+   */
+  fieldFormulas: FieldFormulaDefinition[];
+}
+
+/** 字段公式唯一事实源；V1 固定为依赖变化即重算，不开放一次性初始化语义。 */
+export interface FieldFormulaDefinition {
+  id: string;
+  version: 1;
+  enabled: boolean;
+  targetFieldId: string;
+  formula: string;
+  remark: string;
 }
 
 /** 表单级默认列布局；字段仍可通过 lineWidth 单独覆盖实际宽度。 */

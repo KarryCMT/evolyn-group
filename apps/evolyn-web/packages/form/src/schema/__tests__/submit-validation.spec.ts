@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  type FormSchemaDocument,
   compileSubmitValidators,
   evaluateCompiledSubmitValidators,
   evaluateSubmitValidators,
   migrateFormSchema,
   renderSubmitTemplate,
   validateFormSchema,
-  type FormSchemaDocument,
 } from '..';
 
 function document(): FormSchemaDocument {
@@ -62,7 +62,8 @@ function document(): FormSchemaDocument {
         content: '联系电话：${_widget_phone}',
       },
       formEvents: [],
-      linkages: [],
+    linkages: [],
+    fieldFormulas: [],
     },
   };
 }

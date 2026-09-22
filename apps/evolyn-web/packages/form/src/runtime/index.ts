@@ -32,6 +32,7 @@ export type {
   UploadInput,
 } from './adapters/types';
 export { DataLinkageRuntime } from './linkage/DataLinkageRuntime';
+export { FieldFormulaRuntime } from './formula/FieldFormulaRuntime';
 export { createFormRuntime } from './store/createFormRuntime';
 export type {
   FormDraftOutcome,

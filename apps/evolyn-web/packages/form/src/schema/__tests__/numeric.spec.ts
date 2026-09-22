@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  compareDecimalText,
   DECIMAL_TEXT_PATTERN,
+  compareDecimalText,
   decimalDigitIssue,
   decimalFractionDigits,
   decimalIntegerDigits,
@@ -69,7 +69,8 @@ function documentWith(items: unknown[]): unknown {
         content: '请确认填写内容无误后继续提交。',
       },
       formEvents: [],
-      linkages: [],
+    linkages: [],
+    fieldFormulas: [],
     },
   };
 }
