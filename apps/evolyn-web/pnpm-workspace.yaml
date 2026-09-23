@@ -14,6 +14,11 @@ allowBuilds:
   esbuild: true
   vue-demi: true
 
+peerDependencyRules:
+  ignoreMissing:
+    - '@algolia/client-search'
+    - 'search-insights'
+
 catalogs:
   build:
     '@emnapi/core': ^1.10.0
