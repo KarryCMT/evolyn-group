@@ -169,15 +169,31 @@ func TestMigrateINT007LabelTemplateDownUpSymmetry(t *testing.T) {
 	db := testsupport.NewPostgresRaw(t)
 	assert.NoError(t, infrastructure.NewMigrator(db).Up())
 
-	assertLabelMigrationState(t, db, true)
-
 	downSQL, err := migrations.FS.ReadFile("000084_label_templates.down.sql")
 	assert.NoError(t, err)
 	execMigrationSQL(t, db, string(downSQL))
 	assert.NoError(t, db.Exec("DELETE FROM schema_migrations WHERE version = 84").Error)
+
+	// 空迁移库没有租户管理员业务种子。显式创建一个满足基线管理员识别
+	// 条件的角色，用于验证 000084 的授权和回滚对称性。
+	assert.NoError(t, db.Exec(`
+		INSERT INTO tn_roles (tenant_id, name, scope, rules, created_at, updated_at)
+		VALUES (1, 'label-migration-admin', 'cluster', ?::json, NOW(), NOW())
+	`, `[
+		{"resource":"members","operation":"*"},
+		{"resource":"roles","operation":"*"},
+		{"resource":"departments","operation":"*"}
+	]`).Error)
 	assertLabelMigrationState(t, db, false)
 
 	// 重新交给生产迁移器执行 up，连同 checksum 登记一起验证。
+	assert.NoError(t, infrastructure.NewMigrator(db).Up())
+	assertLabelMigrationState(t, db, true)
+
+	// 再次回滚，确认新增权限与表结构均被完整移除；随后恢复终态。
+	execMigrationSQL(t, db, string(downSQL))
+	assert.NoError(t, db.Exec("DELETE FROM schema_migrations WHERE version = 84").Error)
+	assertLabelMigrationState(t, db, false)
 	assert.NoError(t, infrastructure.NewMigrator(db).Up())
 	assertLabelMigrationState(t, db, true)
 

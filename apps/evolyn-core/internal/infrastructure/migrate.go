@@ -143,7 +143,10 @@ func loadMigrations(fsys fs.FS) ([]*migrationFile, error) {
 			version = version*10 + int64(c-'0')
 		}
 
-		sum := sha256.Sum256(data)
+		// Git 在 Windows 工作区可能把 SQL 检出为 CRLF。迁移校验和以 LF
+		// 规范文本计算，确保同一提交在 Windows/Linux 上产生相同结果。
+		canonicalData := []byte(strings.ReplaceAll(string(data), "\r\n", "\n"))
+		sum := sha256.Sum256(canonicalData)
 		files = append(files, &migrationFile{
 			version:   version,
 			name:      match[2],

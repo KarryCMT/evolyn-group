@@ -130,3 +130,22 @@ func TestLoadMigrationsMissingDown(t *testing.T) {
 	_, err := loadMigrations(fsys)
 	assert.ErrorContains(t, err, "exactly one up and one down")
 }
+
+// 迁移校验和必须与 Git 工作区的换行策略无关，避免 Windows CRLF 检出
+// 被误判为已应用迁移遭篡改。
+func TestLoadMigrationsChecksumNormalizesLineEndings(t *testing.T) {
+	load := func(lineEnding string) []*migrationFile {
+		fsys := fstest.MapFS{
+			"000001_init.up.sql":   &fstest.MapFile{Data: []byte("SELECT 1;" + lineEnding + "SELECT 2;" + lineEnding)},
+			"000001_init.down.sql": &fstest.MapFile{Data: []byte("SELECT 3;" + lineEnding)},
+		}
+		files, err := loadMigrations(fsys)
+		assert.NoError(t, err)
+		return files
+	}
+
+	lf := load("\n")
+	crlf := load("\r\n")
+	assert.Equal(t, lf[0].checksum, crlf[0].checksum)
+	assert.Equal(t, lf[1].checksum, crlf[1].checksum)
+}

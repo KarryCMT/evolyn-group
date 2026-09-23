@@ -3172,7 +3172,7 @@ INSERT INTO schema_migrations (version, name, checksum) VALUES
     (80, 'rename_menu_entry_to_node', '284446680ed5c811353be8588b41df39f609faedc17aec9cec0f332feaf6f2ff'),
     (81, 'menu_favorite_list_grant', '218ac2031fb5e99a723c9cf06a9b1de4a5bc372a48c62ecb688ba3bece628ddd'),
     (82, 'repair_workflow_baseline_rules', 'ab3db75795a82285ea254054f10be647023a57b7e95e10f103cd50fd53ebf469'),
-    (83, 'form_field_formulas', '2ed833fdc3385bebe2519a7d14b055188502177e850e1f8e983b2c653b7dd58b'),
+    (83, 'form_field_formulas', '9a5e5d3af1f6459687541e16919eda066154968d81acc8ec5151d39b75a63ad0'),
     (84, 'label_templates', '4db1c0bd24cdeb3df0a52818f3ce80a18be633b1c7aa9151028ef10de5e69172'),
     (85, 'workflow_version_workspace', '8f069fed181f9e34ef0eaf7ba3d65b7e97b33367b3f8cf3faa0b4d753c44f360')
 ON CONFLICT (version) DO NOTHING;

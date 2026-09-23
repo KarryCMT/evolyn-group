@@ -118,15 +118,16 @@ describe('useFormRecordDataSource', () => {
     );
     expect(wrapper.vm.total).toBe(41);
     // 系统字段以 sys.* 键与表单字段值同层进入行记录
-    expect(wrapper.vm.records).toEqual([
-      {
-        id: 7,
-        name: '灵衍云',
-        [SYSTEM_RECORD_FIELDS.submittedBy]: '张三',
-        [SYSTEM_RECORD_FIELDS.submittedAt]: '2026-09-04 10:00:00',
-        [SYSTEM_RECORD_FIELDS.updatedAt]: '2026-09-04 11:00:00',
-      },
-    ]);
+    expect(wrapper.vm.records).toHaveLength(1);
+    // 记录还会携带成员引用展示所需的内部元数据；此处只断言调用方可见字段，
+    // 避免新增内部投影时破坏分页与系统字段行为测试。
+    expect(wrapper.vm.records[0]).toMatchObject({
+      id: 7,
+      name: '灵衍云',
+      [SYSTEM_RECORD_FIELDS.submittedBy]: '张三',
+      [SYSTEM_RECORD_FIELDS.submittedAt]: '2026-09-04 10:00:00',
+      [SYSTEM_RECORD_FIELDS.updatedAt]: '2026-09-04 11:00:00',
+    });
 
     api.listFormRecords.mockResolvedValue({ items: [], total: 41, page: 3, pageSize: 50 });
     query.value = { ...query.value, page: 3 };
