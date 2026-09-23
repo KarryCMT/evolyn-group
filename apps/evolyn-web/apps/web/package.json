@@ -24,6 +24,7 @@
     "@evolyn.do/form": "workspace:*",
     "@evolyn.do/hooks": "workspace:*",
     "@evolyn.do/label": "workspace:*",
+    "@evolyn.do/query": "workspace:*",
     "@evolyn.do/ui": "workspace:*",
     "@evolyn.do/utils": "workspace:*",
     "@evolyn.do/workflow": "workspace:*",

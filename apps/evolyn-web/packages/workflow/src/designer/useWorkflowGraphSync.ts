@@ -27,12 +27,15 @@ export function useWorkflowGraphSync(options: WorkflowGraphSyncOptions) {
   const stablePositions = new Map<string, WorkflowPosition>();
 
   function graphState() {
+    const readonly = options.readonly();
     return {
-      selectedNodeKey: options.selectedNodeKey(),
-      selectedEdgeKey: options.selectedEdgeKey(),
+      // 历史快照不保留编辑态选区，否则自定义节点会继续展示编辑入口。
+      selectedNodeKey: readonly ? null : options.selectedNodeKey(),
+      selectedEdgeKey: readonly ? null : options.selectedEdgeKey(),
       errorNodeKeys: options.errorNodeKeys(),
       errorEdgeKeys: options.errorEdgeKeys(),
       viewMode: options.viewMode(),
+      readonly,
     };
   }
 
@@ -87,17 +90,19 @@ export function useWorkflowGraphSync(options: WorkflowGraphSyncOptions) {
 
   function syncSelection() {
     if (!instance) return;
+    const readonly = options.readonly();
     const nodeKey = options.selectedNodeKey();
     const edgeKey = options.selectedEdgeKey();
 
     for (const node of instance.graphModel.nodes) {
-      instance.setProperties(node.id, { selected: node.id === nodeKey });
+      instance.setProperties(node.id, { selected: !readonly && node.id === nodeKey });
     }
     for (const edge of instance.graphModel.edges) {
-      instance.setProperties(edge.id, { selected: edge.id === edgeKey });
+      instance.setProperties(edge.id, { selected: !readonly && edge.id === edgeKey });
     }
 
     instance.clearSelectElements();
+    if (readonly) return;
     const selectedKey = nodeKey ?? edgeKey;
     if (selectedKey && instance.getModelById(selectedKey)) {
       // 业务只支持单选，且选择不应改变节点层级。
@@ -179,6 +184,9 @@ export function useWorkflowGraphSync(options: WorkflowGraphSyncOptions) {
       adjustNodePosition: !readonly,
       hideAnchors: readonly,
     });
+    // readonly 同时属于节点视觉状态；切换版本时增量清理选中与新增入口。
+    syncElementProperties(false);
+    syncSelection();
   }
 
   function initialize(nextInstance: LogicFlow) {
@@ -211,4 +219,3 @@ export function useWorkflowGraphSync(options: WorkflowGraphSyncOptions) {
     syncVisualState,
   };
 }
-

@@ -36,6 +36,8 @@ export interface WorkflowGraphState {
   errorNodeKeys?: ReadonlySet<string>;
   errorEdgeKeys?: ReadonlySet<string>;
   viewMode?: 'compact' | 'detailed';
+  /** 只读快照不投影编辑入口，避免历史版本出现可新增节点的误导状态。 */
+  readonly?: boolean;
 }
 
 /**
@@ -154,6 +156,7 @@ export function toGraphData(
         label: node.name,
         subtitle: detailed ? nodeSubtitle(node) : '',
         detailed,
+        readonly: state.readonly === true,
         selected: node.key === state.selectedNodeKey,
         error: state.errorNodeKeys?.has(node.key) ?? false,
       },

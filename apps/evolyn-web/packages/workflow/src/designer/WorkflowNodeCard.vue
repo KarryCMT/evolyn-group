@@ -21,6 +21,7 @@ interface LogicFlowNodeProperties {
   error?: boolean;
   detailed?: boolean;
   subtitle?: string;
+  readonly?: boolean;
 }
 
 interface LogicFlowVueNode {
@@ -89,7 +90,9 @@ function requestAdd(direction: 'top' | 'right' | 'bottom' | 'left', event: Mouse
 
 <template>
   <div :class="nodeClasses">
-    <template v-if="node.properties?.selected && !['end'].includes(nodeType)">
+    <template
+      v-if="node.properties?.selected && !node.properties?.readonly && !['end'].includes(nodeType)"
+    >
       <button
         v-for="direction in (['top', 'right', 'bottom', 'left'] as const)"
         :key="direction"

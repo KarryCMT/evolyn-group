@@ -137,6 +137,11 @@ describe('workflow graph synchronization', () => {
     await nextTick();
     expect(fake.renderCount).toBe(1);
     expect(fake.editConfig).toMatchObject({ adjustNodePosition: false, hideAnchors: true });
+    expect(fake.selectedKey).toBeNull();
+    expect(fake.getNodeModelById('start')?.properties).toMatchObject({
+      readonly: true,
+      selected: false,
+    });
 
     document.value = addNode(document.value, 'approval', { x: 650, y: 320 }).document;
     await nextTick();

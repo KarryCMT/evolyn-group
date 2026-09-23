@@ -50,7 +50,9 @@ const emit = defineEmits<{
   updateDocument: [document: WorkflowDocument];
 }>();
 
-const selectedNodeKey = shallowRef<string | null>(props.document.nodes[0]?.key ?? null);
+const selectedNodeKey = shallowRef<string | null>(
+  props.readonly ? null : (props.document.nodes[0]?.key ?? null),
+);
 const selectedEdgeKey = shallowRef<string | null>(null);
 const undoStack = shallowRef<WorkflowDocument[]>([]);
 const redoStack = shallowRef<WorkflowDocument[]>([]);

@@ -53,6 +53,8 @@ defineOptions({ name: 'FormWorkflowPage' });
 const { detail } = useFormWorkspaceContext();
 
 const draftDocument = shallowRef<WorkflowDocument>(createWorkflowDocument());
+/** 最近一次服务端确认的 DSL 快照，用于识别撤销后已经回到保存基线的场景。 */
+const savedDocumentFingerprint = shallowRef(JSON.stringify(draftDocument.value));
 const definition = shallowRef<WorkflowDetailDto | null>(null);
 const dirty = shallowRef(false);
 const saving = shallowRef(false);
@@ -142,11 +144,18 @@ async function loadDefinition(formCode = detail.value?.code): Promise<WorkflowDe
 }
 
 function applyDefinition(loaded: WorkflowDetailDto) {
+  const document = normalizeWorkflowDocument(loaded.draft) ?? createWorkflowDocument();
   definition.value = loaded;
-  draftDocument.value = normalizeWorkflowDocument(loaded.draft) ?? createWorkflowDocument();
+  replaceWorkingDocument(document, true);
   currentVersionNo.value = loaded.hasDraft ? loaded.draftVersionNo : loaded.publishedVersion || 1;
-  dirty.value = false;
   publishIssues.value = [];
+}
+
+/** 切换服务端版本时同步重置保存基线；普通编辑只替换工作文档。 */
+function replaceWorkingDocument(document: WorkflowDocument, saved = false) {
+  draftDocument.value = document;
+  if (saved) savedDocumentFingerprint.value = JSON.stringify(document);
+  dirty.value = JSON.stringify(document) !== savedDocumentFingerprint.value;
 }
 
 /** 审批人可选对象：成员/角色/部门一次性装载（角色名即 roleCode 语义） */
@@ -182,8 +191,7 @@ function mapDepartments(
 }
 
 function updateDocument(next: WorkflowDocument) {
-  draftDocument.value = next;
-  dirty.value = true;
+  replaceWorkingDocument(next);
   publishIssues.value = [];
 }
 
@@ -202,7 +210,7 @@ async function saveDraft(): Promise<boolean> {
           formCode: detail.value?.code,
         });
         applyDefinition(created);
-        draftDocument.value = pendingDocument;
+        replaceWorkingDocument(pendingDocument);
         target = created;
       } catch (error) {
         // 多窗口首次保存可能并发创建同一表单的绑定定义；读取胜出的定义后
@@ -212,8 +220,7 @@ async function saveDraft(): Promise<boolean> {
         }
         target = await loadDefinition();
         if (!target) throw error;
-        draftDocument.value = pendingDocument;
-        dirty.value = true;
+        replaceWorkingDocument(pendingDocument);
       }
     }
     if (!target.hasDraft) {
@@ -229,6 +236,7 @@ async function saveDraft(): Promise<boolean> {
       draftRevision: result.draftRevision,
       draft: draftDocument.value,
     };
+    savedDocumentFingerprint.value = JSON.stringify(draftDocument.value);
     dirty.value = false;
     ElMessage.success('流程草稿已保存');
     return true;
@@ -355,11 +363,17 @@ async function switchVersion(versionNo: number) {
   const target = definition.value;
   if (!target) return;
   if (target.hasDraft && versionNo === target.draftVersionNo) {
-    draftDocument.value = normalizeWorkflowDocument(target.draft) ?? createWorkflowDocument();
+    replaceWorkingDocument(
+      normalizeWorkflowDocument(target.draft) ?? createWorkflowDocument(),
+      true,
+    );
   } else {
     try {
       const snapshot = await getWorkflowVersion(target.code, versionNo);
-      draftDocument.value = normalizeWorkflowDocument(snapshot.dsl) ?? createWorkflowDocument();
+      replaceWorkingDocument(
+        normalizeWorkflowDocument(snapshot.dsl) ?? createWorkflowDocument(),
+        true,
+      );
     } catch {
       ElMessage.error('版本快照加载失败');
       return;

@@ -4,7 +4,12 @@ import {
   createWorkflowDocument,
   setNodePositions,
 } from '../../schema';
-import { computeAutoLayout, ensureDesignerLayout, resolveNodePositions } from '../graph';
+import {
+  computeAutoLayout,
+  ensureDesignerLayout,
+  resolveNodePositions,
+  toGraphData,
+} from '../graph';
 
 function documentWithCycle(): WorkflowDocument {
   return {
@@ -62,5 +67,16 @@ describe('workflow graph layout', () => {
     expect(document.settings.designer).toBeUndefined();
     expect(next.settings.designer?.layout).toEqual({ start: { x: 25, y: 35 } });
     expect(resolveNodePositions(next).start).toEqual({ x: 25, y: 35 });
+  });
+
+  it('projects readonly state into every node without preserving selection', () => {
+    const graph = toGraphData(createWorkflowDocument(), {
+      readonly: true,
+      selectedNodeKey: null,
+    });
+
+    expect(graph.nodes).toHaveLength(2);
+    expect(graph.nodes?.every((node) => node.properties?.readonly === true)).toBe(true);
+    expect(graph.nodes?.every((node) => node.properties?.selected === false)).toBe(true);
   });
 });

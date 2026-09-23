@@ -225,14 +225,27 @@ onMounted(() => {
     );
   }
 
-  instance.on('node:click', ({ data }) => emit('selectNode', String(data.id)));
+  instance.on('node:click', ({ data }) => {
+    if (props.readonly) {
+      instance.clearSelectElements();
+      return;
+    }
+    emit('selectNode', String(data.id));
+  });
   instance.on('node:dragstart', ({ data }) => {
+    if (props.readonly) return;
     const nodeKey = String(data.id);
     graphSync.beginNodeDrag(nodeKey);
     nodePicker.value = null;
     emit('selectNode', nodeKey);
   });
-  instance.on('edge:click', ({ data }) => emit('selectEdge', String(data.id)));
+  instance.on('edge:click', ({ data }) => {
+    if (props.readonly) {
+      instance.clearSelectElements();
+      return;
+    }
+    emit('selectEdge', String(data.id));
+  });
   instance.on('blank:click', () => {
     nodePicker.value = null;
     instance.clearSelectElements();
