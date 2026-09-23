@@ -641,6 +641,9 @@ func validateSingleOptionValue(field snapshotField, value any) []string {
 	if !ok {
 		return []string{fmt.Sprintf("%s的值类型不正确", field.label)}
 	}
+	if relatedOptionField(field.widget) {
+		return nil
+	}
 	if !optionValues(field.widget).Contains(text) {
 		return []string{fmt.Sprintf("%s的值不在选项范围内", field.label)}
 	}
@@ -656,7 +659,7 @@ func validateMultiOptionValue(field snapshotField, value any) []string {
 	seen := map[string]bool{}
 	for _, entry := range arr {
 		text, isString := entry.(string)
-		if !isString || !values.Contains(text) {
+		if !isString || (!relatedOptionField(field.widget) && !values.Contains(text)) {
 			return []string{fmt.Sprintf("%s的值不在选项范围内", field.label)}
 		}
 		if seen[text] {
@@ -665,6 +668,13 @@ func validateMultiOptionValue(field snapshotField, value any) []string {
 		seen[text] = true
 	}
 	return nil
+}
+
+// relatedOptionField 判断下拉字段是否由受控跨表查询提供选项。关联选项保存
+// 展示值而非源记录外键，因此源表后续变化不会使历史记录失效。
+func relatedOptionField(widget map[string]any) bool {
+	config, _ := widget["optionSource"].(map[string]any)
+	return config["mode"] == "related"
 }
 
 type stringSet map[string]struct{}

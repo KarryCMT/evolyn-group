@@ -68,6 +68,14 @@ export function saveWorkflowDraft(
   return http.put(`/workflows/${code}/draft`, payload);
 }
 
+/** 从当前启用版本或指定历史版本创建下一设计版本。 */
+export function createWorkflowDraftVersion(
+  code: string,
+  payload: { baseVersionNo?: number } = {},
+): Promise<WorkflowDetailDto> {
+  return http.post(`/workflows/${code}/draft-versions`, payload);
+}
+
 /**
  * 发布流程定义（POST /workflows/:code/publish）：按草稿当前口令发布，
  * 经 DSL 严格校验与 Expr 预编译；失败返回 WORKFLOW_DEFINITION_INVALID

@@ -12,7 +12,7 @@ import {
   ElSelect,
   ElTimePicker,
 } from 'element-plus';
-import { computed, shallowRef } from 'vue';
+import { computed, inject, onBeforeUnmount, ref, shallowRef, watch } from 'vue';
 import type {
   CheckboxGroupWidget,
   ComboCheckWidget,
@@ -29,6 +29,7 @@ import { readWidgetOptions } from '../../schema/codec';
 import { formatPercentRatio, parsePercentInput, usesPercentRatio } from '../../schema/percent';
 import { formatMoneyInputValue, moneyCurrencySymbol, parseMoneyInput } from '../../schema/money';
 import { fieldAriaDescribedBy, fieldInputId } from '../../runtime/field-dom';
+import { FormRendererContextKey } from '../../runtime/store/injection';
 import type { RuntimeFieldEmits, RuntimeFieldProps } from '../../runtime/types';
 
 /**
@@ -37,6 +38,9 @@ import type { RuntimeFieldEmits, RuntimeFieldProps } from '../../runtime/types';
  */
 const props = defineProps<RuntimeFieldProps>();
 const emit = defineEmits<RuntimeFieldEmits>();
+// WebBasicField 也会被样式故事和控件单测独立挂载；正式运行时始终由
+// FormRenderer 注入上下文，关联选项只在该可信会话存在时启用远程查询。
+const rendererContext = inject(FormRendererContextKey, null);
 
 const type = computed(() => props.item.widget.type);
 const inputId = computed(() => fieldInputId(props.item.widget.widgetName));
@@ -65,7 +69,16 @@ const checkboxWidget = computed(() => props.item.widget as CheckboxGroupWidget);
 const comboWidget = computed(() => props.item.widget as ComboWidget);
 const comboCheckWidget = computed(() => props.item.widget as ComboCheckWidget);
 const separatorWidget = computed(() => props.item.widget as SeparatorWidget);
-const options = computed(() => readWidgetOptions(props.item.widget));
+const isRelatedOptions = computed(
+  () =>
+    (type.value === 'combo' || type.value === 'combocheck') &&
+    (comboWidget.value.optionSource?.mode === 'related' ||
+      comboCheckWidget.value.optionSource?.mode === 'related'),
+);
+const relatedOptions = ref<Array<{ label: string; value: string }>>([]);
+const relatedOptionsLoading = shallowRef(false);
+let relatedOptionsController: AbortController | undefined;
+
 const inputValue = computed({
   get: () => (typeof props.modelValue === 'string' ? props.modelValue : ''),
   set: (value: string) => emit('update:modelValue', value),
@@ -124,6 +137,62 @@ const multiChoicesValue = computed<string[]>({
   get: () => (Array.isArray(props.modelValue) ? props.modelValue.filter(isString) : []),
   set: (value) => emit('update:modelValue', value),
 });
+
+/**
+ * 关联模式绝不能回退到 widget.options：这些仅是切换来源前保留的自定义选项。
+ * 已选历史值即使源记录被删除也继续显示，避免编辑旧记录时出现空白标签。
+ */
+const options = computed(() => {
+  const result = isRelatedOptions.value
+    ? relatedOptions.value
+    : readWidgetOptions(props.item.widget);
+  const selected = type.value === 'combocheck' ? multiChoicesValue.value : [choicesValue.value];
+  const known = new Set(result.map((option) => option.value));
+  const historical = selected
+    .filter((value) => value !== '' && !known.has(value))
+    .map((value) => ({ label: value, value }));
+  return [...historical, ...result];
+});
+
+/** 当前表单字段作为过滤值时，仅监听这些依赖，避免任意输入都重复请求。 */
+const relatedDependencyValues = computed(() => {
+  const runtime = rendererContext?.runtime.value;
+  const conditions = comboWidget.value.optionSource?.related?.filter.conditions ?? [];
+  return conditions.flatMap((condition) =>
+    condition.value?.type === 'field'
+      ? [runtime?.state.values[condition.value.fieldId]]
+      : [],
+  );
+});
+
+/** 从 Runtime Adapter 读取权限裁剪后的关联记录选项。 */
+async function loadRelatedOptions(): Promise<void> {
+  if (!isRelatedOptions.value || !rendererContext?.runtime.value) return;
+  relatedOptionsController?.abort();
+  const controller = new AbortController();
+  relatedOptionsController = controller;
+  relatedOptionsLoading.value = true;
+  try {
+    relatedOptions.value = await rendererContext.runtime.value.queryRelatedOptions(
+      props.item.widget.widgetName,
+      controller.signal,
+    );
+  } catch {
+    // 请求失败时保留上一次成功结果；宿主统一处理接口错误和鉴权提示。
+  } finally {
+    if (relatedOptionsController === controller) {
+      relatedOptionsLoading.value = false;
+      relatedOptionsController = undefined;
+    }
+  }
+}
+
+watch(
+  [isRelatedOptions, relatedDependencyValues, () => rendererContext?.runtime.value],
+  () => void loadRelatedOptions(),
+  { immediate: true, deep: true },
+);
+onBeforeUnmount(() => relatedOptionsController?.abort());
 // time 无日期语义，走独立的 el-time-picker；其余格式映射 el-date-picker 类型。
 const isTimeFormat = computed(() => (dateWidget.value.format ?? 'datetime') === 'time');
 const dateType = computed<'date' | 'datetime' | 'month'>(() => {
@@ -293,11 +362,13 @@ function isString(value: unknown): value is string {
     class="evf-web-basic-field__select"
     :placeholder="comboWidget.placeholder || '请选择'"
     :filterable="comboWidget.filterable"
+    :loading="relatedOptionsLoading"
     :disabled="readOnlyDisabled"
     :aria-required="!item.widget.allowBlank || undefined"
     :aria-invalid="errors.length > 0 || undefined"
     :aria-describedby="describedBy"
     @change="emit('blur')"
+    @visible-change="(visible: boolean) => visible && loadRelatedOptions()"
   >
     <el-option
       v-for="option in options"
@@ -312,12 +383,14 @@ function isString(value: unknown): value is string {
     class="evf-web-basic-field__select"
     multiple
     collapse-tags
+    :loading="relatedOptionsLoading"
     :placeholder="comboCheckWidget.placeholder || '请选择'"
     :disabled="readOnlyDisabled"
     :aria-required="!item.widget.allowBlank || undefined"
     :aria-invalid="errors.length > 0 || undefined"
     :aria-describedby="describedBy"
     @change="emit('blur')"
+    @visible-change="(visible: boolean) => visible && loadRelatedOptions()"
   >
     <el-option
       v-for="option in options"

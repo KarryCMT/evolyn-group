@@ -19,6 +19,8 @@ const NODE_SIZES: Record<string, { width: number; height: number }> = {
   approval: { width: 210, height: 58 },
   condition: { width: 196, height: 52 },
   cc: { width: 196, height: 52 },
+  subflow: { width: 196, height: 52 },
+  plugin: { width: 196, height: 52 },
   service: { width: 196, height: 52 },
   parallel: { width: 168, height: 52 },
 };
@@ -33,6 +35,7 @@ export interface WorkflowGraphState {
   selectedEdgeKey?: string | null;
   errorNodeKeys?: ReadonlySet<string>;
   errorEdgeKeys?: ReadonlySet<string>;
+  viewMode?: 'compact' | 'detailed';
 }
 
 /**
@@ -115,6 +118,7 @@ export function toGraphData(
   const positions = resolveNodePositions(document);
   const nodes: LogicFlow.NodeConfig[] = document.nodes.map((node) => {
     const size = nodeSize(node.type);
+    const detailed = state.viewMode === 'detailed' && !['start', 'end'].includes(node.type);
     return {
       id: node.key,
       type: `workflow-${node.type}`,
@@ -126,9 +130,12 @@ export function toGraphData(
       draggable: true,
       properties: {
         width: size.width,
-        height: size.height,
+        height: detailed ? 76 : size.height,
         workflowType: node.type,
+        nodeKey: node.key,
         label: node.name,
+        subtitle: detailed ? nodeSubtitle(node) : '',
+        detailed,
         selected: node.key === state.selectedNodeKey,
         error: state.errorNodeKeys?.has(node.key) ?? false,
       },
@@ -145,7 +152,7 @@ export function toGraphData(
         : '默认';
     return {
       id: edge.key,
-      type: 'polyline',
+      type: 'workflow-edge',
       sourceNodeId: edge.source,
       targetNodeId: edge.target,
       text: label,
@@ -158,6 +165,41 @@ export function toGraphData(
   });
 
   return { nodes, edges };
+}
+
+/** 详细视图只投影人类可读摘要，不泄露运行协议内部字段。 */
+function nodeSubtitle(node: WorkflowDocument['nodes'][number]): string {
+  if (node.type === 'approval') return `负责人：${assigneeLabel(node.config.assignee)}`;
+  if (node.type === 'cc') return `抄送人：${assigneeLabel(node.config.recipients)}`;
+  if (node.type === 'subflow') {
+    return `目标流程：${node.config.subflow?.definitionCode || '未选择'}`;
+  }
+  if (node.type === 'plugin') {
+    const plugin = node.config.plugin;
+    return plugin?.pluginCode
+      ? `${plugin.pluginCode} · ${plugin.actionCode || '未选择动作'}`
+      : '未选择插件';
+  }
+  if (node.type === 'service') {
+    const method = node.config.service?.method || 'POST';
+    return `${method} · ${node.config.service?.url || '未配置调用地址'}`;
+  }
+  if (node.type === 'condition') return '按条件选择后续分支';
+  if (node.type === 'parallel') return '并行分流 / 汇聚';
+  return '';
+}
+
+function assigneeLabel(assignee: WorkflowDocument['nodes'][number]['config']['assignee']): string {
+  if (!assignee) return '未设置';
+  if (assignee.type === 'user') return assignee.userIds?.length ? `${assignee.userIds.length} 位成员` : '未设置';
+  const labels: Record<string, string> = {
+    role: assignee.roleCode || '角色',
+    form_field: assignee.formField || '表单成员字段',
+    department: '指定部门',
+    department_manager: '部门负责人',
+    starter_manager: '发起人直属主管',
+  };
+  return labels[assignee.type] || '未设置';
 }
 
 /** 从 LogicFlow 图数据回收画布坐标 → settings.designer.layout（写回 DSL 文档） */

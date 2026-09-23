@@ -240,6 +240,44 @@ export function executeFormLinkage(
   });
 }
 
+/** 查询下拉字段的关联选项；源表、字段、过滤与排序均由服务端发布快照裁决。 */
+export function queryFormRelatedOptions(
+  formCode: string,
+  fieldId: string,
+  payload: {
+    schemaVersion: number;
+    values: Record<string, unknown>;
+    keyword?: string;
+    pageSize?: number;
+  },
+  signal?: AbortSignal,
+): Promise<{ items: Array<{ label: string; value: string }>; total: number }> {
+  return http.post(
+    `/forms/${formCode}/option-fields/${encodeURIComponent(fieldId)}/query`,
+    payload,
+    { signal },
+  );
+}
+
+/** 设计器关联选项预览：配置从服务端已保存草稿读取，浏览器只传草稿口令。 */
+export function previewFormRelatedOptions(
+  formCode: string,
+  fieldId: string,
+  payload: {
+    draftRevision: number;
+    values: Record<string, unknown>;
+    keyword?: string;
+    pageSize?: number;
+  },
+  signal?: AbortSignal,
+): Promise<{ items: Array<{ label: string; value: string }>; total: number }> {
+  return http.post(
+    `/forms/${formCode}/option-fields/${encodeURIComponent(fieldId)}/preview-query`,
+    payload,
+    { signal },
+  );
+}
+
 /**
  * 提交记录（POST /form-records）：服务端按发布快照终审。
  * 字段校验失败抛 errCode=FORM_RECORD_INVALID；表单级提交校验失败抛

@@ -12,7 +12,7 @@
  * v8 起值字段必须携带内部不可变 fieldId（物理表存储 §4.1 契约冻结：
  * fieldId→物理列名 f_<fieldId> 永不变更；widgetName 同步冻结，只允许改 label）。 */
 // v10 将安全前端事件纳入 content.formEvents；历史 v9 文档读取时补空数组。
-export const FORM_PROTOCOL_VERSION = 12 as const;
+export const FORM_PROTOCOL_VERSION = 13 as const;
 export type FormProtocolVersion = typeof FORM_PROTOCOL_VERSION;
 
 /** Schema 可以安全持久化的 JSON 值；不允许组件、函数或循环引用进入文档。 */
@@ -107,6 +107,30 @@ export const SUBFORM_PUBLISHABLE_WIDGET_TYPES: readonly FormWidgetType[] = [
 export interface FormWidgetOption {
   label: string;
   value: string;
+}
+
+/** 下拉字段的选项来源。缺省/自定义时消费 widget.options；related 时由运行时受控查询。 */
+export interface FormOptionSource {
+  mode: 'custom' | 'related';
+  related?: FormRelatedOptionSource;
+}
+
+/** 关联其他表单数据配置（v13）：字段标识均为发布快照中的逻辑 widgetName。 */
+export interface FormRelatedOptionSource {
+  source: {
+    type: 'form';
+    appId: number;
+    sourceId: string;
+    fieldId: string;
+  };
+  sort: {
+    fieldId: string;
+    direction: 'asc' | 'desc';
+  };
+  filter: {
+    logic: 'and' | 'or';
+    conditions: DataLinkageCondition[];
+  };
 }
 
 /** 附件/图片值元素（P3 执行；服务端文件 ID 引用，未完成上传的本地条目不得提交）。 */
@@ -231,6 +255,7 @@ export interface ComboWidget extends FormWidgetCommon {
   options: FormWidgetOption[];
   placeholder?: string;
   filterable?: boolean;
+  optionSource?: FormOptionSource;
   defaultValue?: string | null;
 }
 
@@ -238,6 +263,7 @@ export interface ComboCheckWidget extends FormWidgetCommon {
   type: 'combocheck';
   options: FormWidgetOption[];
   placeholder?: string;
+  optionSource?: FormOptionSource;
   defaultValue?: string[] | null;
 }
 

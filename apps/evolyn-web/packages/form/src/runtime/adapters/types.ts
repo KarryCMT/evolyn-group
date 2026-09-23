@@ -82,12 +82,27 @@ export interface LinkageExecuteResult {
   values: Record<string, FormValue>;
 }
 
+export interface RelatedOptionsRequest {
+  formId: string;
+  schemaVersion: number;
+  fieldId: string;
+  values: Record<string, FormValue>;
+  keyword?: string;
+  pageSize?: number;
+}
+
+export interface RelatedOptionValue {
+  label: string;
+  value: string;
+}
+
 export interface FormRuntimeAdapter {
   queryMembers?(input: MemberQuery, signal: AbortSignal): Promise<Page<MemberValue>>;
   queryDepartments?(input: DepartmentQuery, signal: AbortSignal): Promise<Page<DepartmentValue>>;
   uploadFile?(input: UploadInput, signal: AbortSignal): Promise<FileValue>;
   queryRelatedData?(input: RelatedDataQuery, signal: AbortSignal): Promise<Page<RelatedValue>>;
   executeLinkage?(input: LinkageExecuteRequest, signal: AbortSignal): Promise<LinkageExecuteResult>;
+  queryRelatedOptions?(input: RelatedOptionsRequest, signal: AbortSignal): Promise<Page<RelatedOptionValue>>;
   submit?(payload: FormSubmitPayload, signal: AbortSignal): Promise<FormSubmitResult>;
   saveDraft?(payload: FormDraftPayload, signal: AbortSignal): Promise<void>;
 }

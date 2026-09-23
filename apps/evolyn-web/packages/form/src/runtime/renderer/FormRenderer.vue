@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { type Component, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue';
+import { normalizeRelatedOptionDefaults } from '../../schema/migrate';
 import { type FormSchemaIssue, validateFormSchema } from '../../schema/validate';
 import type { FormSchemaDocument } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
@@ -114,7 +115,9 @@ watch(
     operationController.value?.abort();
     operationController.value = null;
     runtimeRef.value?.dispose();
-    const result = validateFormSchema(schema);
+    // 设计器预览会直接传入尚未经过持久层迁移器的画布文档；运行时读取边界
+    // 同样修复 v13 初版产生的关联下拉空默认值，且不修改父组件持有的 Schema。
+    const result = validateFormSchema(normalizeRelatedOptionDefaults(schema));
     if (result.valid) {
       schemaIssues.value = [];
       runtimeRef.value = createFormRuntime({

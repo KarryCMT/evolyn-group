@@ -248,7 +248,7 @@ func linkageValueEmpty(value any) bool {
 
 func linkageOperatorsForType(widgetType string) []string {
 	switch widgetType {
-	case "text", "textarea":
+	case "text", "textarea", "sn":
 		return []string{"eq", "neq", "contains", "notContains", "empty", "not_empty"}
 	case "number", "decimal", "money", "percent", "datetime":
 		return []string{"eq", "neq", "gt", "gte", "lt", "lte", "empty", "not_empty"}

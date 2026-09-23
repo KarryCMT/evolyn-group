@@ -367,6 +367,32 @@ func TestValidateFormSchemaOptions(t *testing.T) {
 	}))))
 }
 
+func TestValidateFormSchemaRelatedOptionSourceOnlyForDropdowns(t *testing.T) {
+	optionSource := map[string]any{
+		"mode": "related",
+		"related": map[string]any{
+			"source": map[string]any{"type": "form", "appId": 7, "sourceId": "form_source", "fieldId": "_widget_name"},
+			"sort":   map[string]any{"fieldId": "__value__", "direction": "asc"},
+			"filter": map[string]any{"logic": "and", "conditions": []any{}},
+		},
+	}
+	combo := validTextItem()
+	comboWidget := combo["widget"].(map[string]any)
+	comboWidget["type"] = "combo"
+	comboWidget["options"] = []any{map[string]any{"label": "A", "value": "a"}}
+	comboWidget["optionSource"] = optionSource
+	assert.Empty(t, ValidateFormSchema(doc(combo)))
+
+	radio := validTextItem()
+	radioWidget := radio["widget"].(map[string]any)
+	radioWidget["type"] = "radiogroup"
+	delete(radioWidget, "placeholder")
+	radioWidget["options"] = []any{map[string]any{"label": "A", "value": "a"}}
+	radioWidget["optionSource"] = optionSource
+	issues := ValidateFormSchema(doc(radio))
+	assert.True(t, containsPath(issues, "content.items[0].widget.optionSource"))
+}
+
 func TestValidateFormSchemaCrossRules(t *testing.T) {
 	item := validTextItem()
 	w := item["widget"].(map[string]any)

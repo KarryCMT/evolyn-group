@@ -14,9 +14,9 @@ import (
 // （standard↔workflow），切换后原类型流程数据保留；切换裁决在 Service 层。
 type FormType string
 
-// CurrentProtocolVersion 当前表单保存协议版本；v12 将字段默认值公式纳入
-// content.fieldFormulas，并在发布版本冻结服务端可执行产物。
-const CurrentProtocolVersion = 12
+// CurrentProtocolVersion 当前表单保存协议版本；v13 为下拉框/下拉复选框新增
+// 字段级 optionSource，用发布快照冻结「关联其他表单数据」配置。
+const CurrentProtocolVersion = 13
 
 // FieldIdentityProtocolVersion 字段身份协议（v8）的最低协议版本：该版本起
 // 值字段必须携带内部不可变 fieldId（10 位小写 base32），发布后 fieldId 与

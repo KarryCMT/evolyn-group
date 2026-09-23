@@ -87,6 +87,31 @@ describe('FormRenderer 渲染', () => {
     expect((wrapper.vm as { runtime: unknown }).runtime).toBeNull();
   });
 
+  it('运行时兼容关联下拉旧快照中的 null 默认值', () => {
+    const doc = schema([
+      item({
+        type: 'combo',
+        widgetName: '_widget_related',
+        options: [{ label: '选项1', value: '选项1' }],
+        defaultValue: null,
+        optionSource: {
+          mode: 'related',
+          related: {
+            source: { type: 'form', appId: 7, sourceId: 'form_source', fieldId: '_widget_name' },
+            sort: { fieldId: '__value__', direction: 'asc' },
+            filter: { logic: 'and', conditions: [] },
+          },
+        },
+      }),
+    ]);
+    const wrapper = mount(FormRenderer, { props: { schema: doc } });
+
+    expect(wrapper.find('.evf-form__invalid').exists()).toBe(false);
+    expect(wrapper.find('select#evf-field-_widget_related').exists()).toBe(true);
+    // 兼容修复基于副本，运行时不能篡改宿主持有的发布快照。
+    expect((doc.content.items[0]!.widget as { defaultValue?: unknown }).defaultValue).toBeNull();
+  });
+
   it('按 widget.type 分派组件并建立 aria 关联（label/describedby/error）', () => {
     const doc = schema([
       item(

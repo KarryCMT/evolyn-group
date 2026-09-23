@@ -393,6 +393,8 @@ function validateSingleOptionValue(
   value: unknown,
 ): string[] {
   if (typeof value !== 'string') return [`${label}的值类型不正确`];
+  // 关联选项由运行时接口从发布快照查询，不在 Schema 中重复固化。
+  if (widget.type === 'combo' && widget.optionSource?.mode === 'related') return [];
   return readWidgetOptions(widget).some((option) => option.value === value)
     ? []
     : [`${label}的值不在选项范围内`];
@@ -404,6 +406,10 @@ function validateMultiOptionValue(
   value: unknown,
 ): string[] {
   if (!Array.isArray(value)) return [`${label}的值类型不正确`];
+  if (widget.type === 'combocheck' && widget.optionSource?.mode === 'related') {
+    if (value.some((entry) => typeof entry !== 'string')) return [`${label}的值类型不正确`];
+    return new Set(value).size === value.length ? [] : [`${label}的值存在重复选项`];
+  }
   const optionValues = new Set(readWidgetOptions(widget).map((option) => option.value));
   if (value.some((entry) => typeof entry !== 'string' || !optionValues.has(entry))) {
     return [`${label}的值不在选项范围内`];

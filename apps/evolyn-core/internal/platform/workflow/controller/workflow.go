@@ -182,6 +182,36 @@ func (f *WorkflowController) SaveDraft(c *gin.Context) {
 	httpx.ResponseSuccess(c, result)
 }
 
+// @Summary 添加流程设计版本
+// @Description 从当前启用版本或指定历史版本复制快照，创建唯一的下一设计版本；已有设计版本时返回冲突
+// @Accept json
+// @Produce json
+// @Tags 流程管理
+// @Security JWT
+// @Param code path string true "流程编码（wf_ 前缀）"
+// @Param version body model.CreateDraftVersionRequest true "设计基线；baseVersionNo=0 表示当前启用版本"
+// @Success 201 {object} httpx.Response{data=model.WorkflowDetail}
+// @Failure 404 {object} httpx.Response "errCode=WORKFLOW_VERSION_NOT_FOUND"
+// @Failure 409 {object} httpx.Response "errCode=WORKFLOW_DRAFT_ALREADY_EXISTS/WORKFLOW_REVISION_CONFLICT"
+// @Router /api/v1/workflows/{code}/draft-versions [post]
+func (f *WorkflowController) CreateDraftVersion(c *gin.Context) {
+	code, ok := workflowCodeFromParam(c)
+	if !ok {
+		return
+	}
+	req := new(model.CreateDraftVersionRequest)
+	if err := c.ShouldBindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	detail, err := f.definitionService.CreateDraftVersion(c.Request.Context(), ginctx.GetUser(c), code, req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.NewResponse(c, http.StatusCreated, detail, "版本已创建")
+}
+
 // @Summary 删除流程定义
 // @Description 软删除流程定义（仅允许无运行中实例；发布版本快照与运行态历史保留供追溯）
 // @Produce json
@@ -290,6 +320,7 @@ func (f *WorkflowController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/workflows/:code", f.Get)
 	api.PATCH("/workflows/:code", f.Update)
 	api.PUT("/workflows/:code/draft", f.SaveDraft)
+	api.POST("/workflows/:code/draft-versions", f.CreateDraftVersion)
 	api.DELETE("/workflows/:code", f.Delete)
 	api.POST("/workflows/:code/publish", f.Publish)
 	api.GET("/workflows/:code/versions", f.ListVersions)

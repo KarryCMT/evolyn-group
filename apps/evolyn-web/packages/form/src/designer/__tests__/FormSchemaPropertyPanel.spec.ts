@@ -1,6 +1,7 @@
 import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { nextTick } from 'vue';
+import { ElSelect } from 'element-plus';
 import { EvolynRichTextEditor } from '@evolyn.do/ui';
 import type {
   FormItem,
@@ -9,6 +10,7 @@ import type {
   SubmitRule,
 } from '../../schema/types';
 import { createWidgetItem } from '../../schema/dictionary';
+import { validateFormSchema } from '../../schema/validate';
 import FormSchemaCommonPropertyPanel from '../FormSchemaCommonPropertyPanel.vue';
 import FormSchemaPropertyPanel from '../FormSchemaPropertyPanel.vue';
 
@@ -197,6 +199,76 @@ describe('FormSchemaPropertyPanel', () => {
         .find('[aria-label="默认值类型"]')
         .exists(),
     ).toBe(false);
+  });
+
+  it('仅下拉框和下拉复选框展示关联其他表单数据入口', () => {
+    for (const type of ['combo', 'combocheck'] as const) {
+      const wrapper = mount(FormSchemaPropertyPanel, { props: { item: createWidgetItem(type) } });
+      expect(wrapper.find('[aria-label="选项来源"]').exists()).toBe(true);
+    }
+    for (const type of ['radiogroup', 'checkboxgroup'] as const) {
+      const wrapper = mount(FormSchemaPropertyPanel, { props: { item: createWidgetItem(type) } });
+      expect(wrapper.find('[aria-label="选项来源"]').exists()).toBe(false);
+    }
+  });
+
+  it('切换为关联选项时移除静态默认值，生成的 Schema 可直接预览', async () => {
+    for (const type of ['combo', 'combocheck'] as const) {
+      const item = createWidgetItem(type);
+      if (item.widget.type !== type) throw new Error('测试样本类型错误');
+      item.widget.defaultValue = type === 'combo' ? '选项1' : ['选项1'];
+      const wrapper = mount(FormSchemaPropertyPanel, { props: { item } });
+      const sourceSelect = wrapper
+        .findAllComponents(ElSelect)
+        .find((select) => select.find('[aria-label="选项来源"]').exists());
+      expect(sourceSelect).toBeDefined();
+
+      sourceSelect!.vm.$emit('update:modelValue', 'related');
+      await nextTick();
+
+      const updates = wrapper.emitted('update-item') ?? [];
+      const updated = updates[updates.length - 1]?.[0] as FormItem;
+      expect('defaultValue' in updated.widget).toBe(false);
+      const result = validateFormSchema({
+        content: {
+          type: 'form',
+          layout: 'normal',
+          items: [updated],
+          layout_fields: [],
+          field_layout: [updated.widget.widgetName],
+          fieldShowRules: [],
+          submitRule: 2,
+          widget_submit_rules: {},
+          validators: [],
+          preSubmitConfirm: { enable: false, title: '确认继续提交吗？', content: '请确认填写内容无误后继续提交。' },
+          formEvents: [],
+          linkages: [],
+          fieldFormulas: [],
+        },
+      });
+      // 此时关联源尚未选完，允许报告 source 错误，但不能再因 null 默认值阻断预览。
+      expect(result.issues.some((issue) => issue.path.endsWith('.defaultValue'))).toBe(false);
+    }
+  });
+
+  it('加载关联下拉字段时自动修复旧属性面板写入的 null 默认值', async () => {
+    const item = createWidgetItem('combo');
+    if (item.widget.type !== 'combo') throw new Error('测试样本类型错误');
+    item.widget.defaultValue = null;
+    item.widget.optionSource = {
+      mode: 'related',
+      related: {
+        source: { type: 'form', appId: 7, sourceId: 'form_source', fieldId: '_widget_name' },
+        sort: { fieldId: '__value__', direction: 'asc' },
+        filter: { logic: 'and', conditions: [] },
+      },
+    };
+    const wrapper = mount(FormSchemaPropertyPanel, { props: { item } });
+    await nextTick();
+
+    const updates = wrapper.emitted('update-item') ?? [];
+    const updated = updates[updates.length - 1]?.[0] as FormItem;
+    expect('defaultValue' in updated.widget).toBe(false);
   });
 
   it('其他字段复用单行文本的公共分区，并在提示文字与校验之间放置专属配置', () => {

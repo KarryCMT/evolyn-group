@@ -14,12 +14,28 @@ export type WorkflowNodeType =
   | 'approval'
   | 'condition'
   | 'cc'
+  | 'subflow'
+  | 'plugin'
   | 'service'
   | 'parallel'
   | 'end';
 
 /** 审批模式（后端 ApprovalMode）：单人 / 或签 / 会签 */
 export type WorkflowApprovalMode = 'single' | 'or-sign' | 'countersign';
+
+/** 审批人生成策略：常规审批或按组织层级逐级审批。 */
+export type WorkflowApprovalStrategy = 'regular' | 'progressive';
+
+/** 逐级审批的审批终点锚点。 */
+export type WorkflowProgressiveEndpoint =
+  | 'starter_direct_manager'
+  | 'organization_top_manager';
+
+export interface WorkflowProgressiveApprovalConfig {
+  endpoint: WorkflowProgressiveEndpoint;
+  /** 0=最高级部门主管，1=向下一级；仅 organization_top_manager 生效。 */
+  downwardLevels?: number;
+}
 
 /** 驳回策略（V1 仅 terminate：终止型驳回） */
 export type WorkflowRejectStrategy = 'terminate';
@@ -104,8 +120,36 @@ export interface WorkflowParallelConfig {
   role: WorkflowParallelRole;
 }
 
+/** 子流程节点配置：运行时按稳定公开编码定位目标流程。 */
+export interface WorkflowSubflowConfig {
+  definitionCode: string;
+}
+
+/** 插件节点配置：插件和动作使用稳定编码，参数由插件动作协议解释。 */
+export interface WorkflowPluginConfig {
+  pluginCode: string;
+  actionCode: string;
+  inputs?: Record<string, unknown>;
+}
+
+/** 审批页操作入口；运行时还会与任务 allowedActions 取交集。 */
+export interface WorkflowNodeOperations {
+  submit: boolean;
+  saveDraft: boolean;
+  temporarySave: boolean;
+  submitAndPrint: boolean;
+  endProcess: boolean;
+}
+
+/** 节点提交审批动作前的表单校验策略。 */
+export type WorkflowSubmitCondition = 'all' | 'valid';
+
 /** 节点配置：扁平承载各类型配置项，运行时按节点类型裁剪（后端 NodeConfig） */
 export interface WorkflowNodeConfig {
+  /** 审批人生成策略（缺省 regular，兼容历史快照）。 */
+  approvalStrategy?: WorkflowApprovalStrategy;
+  /** 逐级审批规则（approvalStrategy=progressive 时必填）。 */
+  progressiveApproval?: WorkflowProgressiveApprovalConfig;
   /** 审批模式（approval 必填） */
   approvalMode?: WorkflowApprovalMode;
   /** 审批人规格（approval 必填） */
@@ -116,12 +160,22 @@ export interface WorkflowNodeConfig {
   passRatio?: number;
   /** 字段权限：widgetName → 权限（approval 可选；未配置字段走运行时默认） */
   formPermissions?: Record<string, WorkflowFieldPermission>;
+  /** 节点简报中展示的字段 widgetName 集合。 */
+  summaryFields?: string[];
+  /** 表单运行时在本节点展示的操作。 */
+  operations?: WorkflowNodeOperations;
+  /** 当前节点提交审批动作前的表单校验策略。 */
+  submitCondition?: WorkflowSubmitCondition;
   /** 超时配置（可选） */
   timeout?: WorkflowTimeoutConfig;
   /** 提醒配置（可选） */
   reminder?: WorkflowReminderConfig;
   /** 抄送对象（cc 必填） */
   recipients?: WorkflowAssigneeSpec;
+  /** 子流程调用配置（subflow 必填） */
+  subflow?: WorkflowSubflowConfig;
+  /** 平台插件动作配置（plugin 必填） */
+  plugin?: WorkflowPluginConfig;
   /** 服务节点配置（service 必填） */
   service?: WorkflowServiceConfig;
   /** 并行网关配置（parallel 必填） */

@@ -6,7 +6,7 @@ import { ApiError } from '@evolyn.do/utils';
 import { RiCloseFill, RiFullscreenExitLine, RiFullscreenLine } from '@remixicon/vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, shallowRef, useTemplateRef, watch } from 'vue';
-import { createFormDataOperationId, executeFormLinkage, submitFormRecord } from '~/api/form';
+import { createFormDataOperationId, executeFormLinkage, queryFormRelatedOptions, submitFormRecord } from '~/api/form';
 import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
 import { useAuth } from '~/composables/auth';
 import { useFormRecordCreate } from '~/composables/useFormRecordCreate';
@@ -52,6 +52,14 @@ const actions: FormRuntimeActionDefinition[] = [
 
 /** 表单运行时只负责构造受控提交快照；应用 API、幂等键和成功后的列表协作留在宿主层。 */
 const runtimeAdapter: FormRuntimeAdapter = {
+  queryRelatedOptions(input, signal) {
+    return queryFormRelatedOptions(input.formId, input.fieldId, {
+      schemaVersion: input.schemaVersion,
+      values: input.values,
+      keyword: input.keyword,
+      pageSize: input.pageSize,
+    }, signal);
+  },
   executeLinkage(input, signal) {
     return executeFormLinkage(
       input.formId,

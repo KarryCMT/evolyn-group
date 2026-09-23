@@ -76,6 +76,10 @@ func (f *fakeDefinitionRepo) GetByCode(ctx context.Context, code string) (*model
 	return nil, gorm.ErrRecordNotFound
 }
 
+func (f *fakeDefinitionRepo) GetByCodeForUpdate(ctx context.Context, code string) (*model.WfDefinition, error) {
+	return f.GetByCode(ctx, code)
+}
+
 func (f *fakeDefinitionRepo) List(ctx context.Context, params repository.ListParams) ([]model.WfDefinition, bool, error) {
 	rows := make([]model.WfDefinition, 0)
 	for _, def := range f.defs {
@@ -92,7 +96,7 @@ func (f *fakeDefinitionRepo) UpdateMeta(ctx context.Context, id uint, name, desc
 
 func (f *fakeDefinitionRepo) SaveDraft(ctx context.Context, id uint, fromRevision int64, content model.DSLContent) (bool, error) {
 	def := f.defs[id]
-	if def.DraftRevision != fromRevision {
+	if def.DraftRevision != fromRevision || !def.HasDraft {
 		return false, nil
 	}
 	def.DraftContent = content
@@ -100,10 +104,28 @@ func (f *fakeDefinitionRepo) SaveDraft(ctx context.Context, id uint, fromRevisio
 	return true, nil
 }
 
-func (f *fakeDefinitionRepo) MarkPublished(ctx context.Context, id uint, versionID uint, versionNo int) error {
-	f.defs[id].LatestVersionID = &versionID
-	f.defs[id].PublishedVersion = versionNo
-	return nil
+func (f *fakeDefinitionRepo) OpenDraftVersion(ctx context.Context, id uint, fromRevision int64, versionNo int, content model.DSLContent) (bool, error) {
+	def := f.defs[id]
+	if def.DraftRevision != fromRevision || def.HasDraft {
+		return false, nil
+	}
+	def.DraftContent = content
+	def.DraftRevision++
+	def.DraftVersionNo = versionNo
+	def.HasDraft = true
+	return true, nil
+}
+
+func (f *fakeDefinitionRepo) MarkPublished(ctx context.Context, id uint, fromRevision int64, versionID uint, versionNo int) (bool, error) {
+	def := f.defs[id]
+	if def.DraftRevision != fromRevision || !def.HasDraft || def.DraftVersionNo != versionNo {
+		return false, nil
+	}
+	def.LatestVersionID = &versionID
+	def.PublishedVersion = versionNo
+	def.DraftVersionNo = versionNo
+	def.HasDraft = false
+	return true, nil
 }
 
 func (f *fakeDefinitionRepo) SoftDelete(ctx context.Context, def *model.WfDefinition) error {
@@ -205,6 +227,8 @@ func TestCreateWorkflow(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, strings.HasPrefix(detail.Code, "wf_"), "code 必须为 wf_ 前缀")
 	assert.Equal(t, int64(1), detail.DraftRevision)
+	assert.Equal(t, 1, detail.DraftVersionNo)
+	assert.True(t, detail.HasDraft)
 	assert.Equal(t, 0, detail.PublishedVersion)
 
 	// 草稿初值必须是最小合法 DSL（可直接发布）
@@ -265,10 +289,24 @@ func TestSaveDraftAndPublish(t *testing.T) {
 	publish, err := svc.Publish(ctx, member, detail.Code, &model.PublishRequest{DraftRevision: result.DraftRevision})
 	require.NoError(t, err)
 	assert.Equal(t, 1, publish.VersionNo)
+	afterPublish, err := svc.Get(ctx, member, detail.Code)
+	require.NoError(t, err)
+	assert.False(t, afterPublish.HasDraft)
+
+	// 启用版本只读；显式添加新版本后才能再次编辑并启用。
+	_, err = svc.SaveDraft(ctx, member, detail.Code, &model.SaveDraftRequest{
+		DraftRevision: result.DraftRevision, Draft: json.RawMessage(validDraftDoc()),
+	})
+	assert.Equal(t, "WORKFLOW_DRAFT_NOT_OPEN", errCode(t, err))
+
+	draftV2, err := svc.CreateDraftVersion(ctx, member, detail.Code, &model.CreateDraftVersionRequest{})
+	require.NoError(t, err)
+	assert.True(t, draftV2.HasDraft)
+	assert.Equal(t, 2, draftV2.DraftVersionNo)
 
 	// 再次修改发布：版本号 2
 	result2, err := svc.SaveDraft(ctx, member, detail.Code, &model.SaveDraftRequest{
-		DraftRevision: result.DraftRevision, Draft: json.RawMessage(validDraftDoc()),
+		DraftRevision: draftV2.DraftRevision, Draft: json.RawMessage(validDraftDoc()),
 	})
 	require.NoError(t, err)
 	publish2, err := svc.Publish(ctx, member, detail.Code, &model.PublishRequest{DraftRevision: result2.DraftRevision})
@@ -288,6 +326,8 @@ func TestSaveDraftAndPublish(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, versionsList, 2)
 	assert.Equal(t, 2, versionsList[0].VersionNo)
+	assert.Equal(t, "active", versionsList[0].Status)
+	assert.Equal(t, "historical", versionsList[1].Status)
 }
 
 func TestSaveDraftRevisionConflict(t *testing.T) {
@@ -310,7 +350,7 @@ func TestSaveDraftRevisionConflict(t *testing.T) {
 	assert.Equal(t, "WORKFLOW_REVISION_CONFLICT", errCode(t, err))
 }
 
-func TestSaveDraftInvalidDSL(t *testing.T) {
+func TestSaveDraftValidatesStructureButAllowsIncompleteDesign(t *testing.T) {
 	repo, versions := newFakeDefinitionRepo(), newFakeVersionRepo()
 	svc := newTestService(repo, versions, adminPerms)
 	ctx := contextx.NewTenantContext(context.Background(), 1)
@@ -319,7 +359,7 @@ func TestSaveDraftInvalidDSL(t *testing.T) {
 	detail, err := svc.Create(ctx, member, &model.CreateWorkflowRequest{Name: "报销审批"})
 	require.NoError(t, err)
 
-	// 非法 DSL：重复节点 key + start 存在入边
+	// 结构损坏：重复节点 key 必须拒绝，避免草稿无法重新打开。
 	invalid := `{"schemaVersion":"1.0","nodes":[
 		{"key":"start","type":"start","name":"发起"},
 		{"key":"end","type":"end","name":"结束"},
@@ -339,7 +379,7 @@ func TestSaveDraftInvalidDSL(t *testing.T) {
 	assert.NotEmpty(t, issues)
 	assert.NotEmpty(t, issues[0]["path"])
 
-	// 非法表达式：白名单外变量
+	// 编辑期问题（表达式未完成）允许保存，启用流程时仍由严格校验拦截。
 	badExpr := `{"schemaVersion":"1.0","nodes":[
 		{"key":"start","type":"start","name":"发起"},
 		{"key":"cond","type":"condition","name":"条件"},
@@ -348,16 +388,23 @@ func TestSaveDraftInvalidDSL(t *testing.T) {
 			{"key":"e2","source":"cond","target":"end","condition":{"expression":"secret > 1"}},
 			{"key":"e3","source":"cond","target":"end"}],
 		"settings":{}}`
-	_, err = svc.SaveDraft(ctx, member, detail.Code, &model.SaveDraftRequest{
+	saved, err := svc.SaveDraft(ctx, member, detail.Code, &model.SaveDraftRequest{
 		DraftRevision: detail.DraftRevision, Draft: json.RawMessage(badExpr),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, detail.DraftRevision+1, saved.DraftRevision)
+
+	_, err = svc.Publish(ctx, member, detail.Code, &model.PublishRequest{
+		DraftRevision: saved.DraftRevision,
 	})
 	require.ErrorAs(t, err, &biz)
 	assert.Equal(t, "WORKFLOW_DEFINITION_INVALID", biz.Code)
 
-	// 草稿未被污染（校验失败不落库）
+	// 保存成功后草稿口令推进，但启用失败不创建版本快照。
 	after, err := svc.Get(ctx, member, detail.Code)
 	require.NoError(t, err)
-	assert.Equal(t, detail.DraftRevision, after.DraftRevision)
+	assert.Equal(t, saved.DraftRevision, after.DraftRevision)
+	assert.Zero(t, after.PublishedVersion)
 }
 
 func TestDeleteWorkflow(t *testing.T) {

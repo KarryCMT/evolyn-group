@@ -5,11 +5,13 @@
  * 即时反馈。后端校验始终是发布口径的最终事实源；本层不做的表达式预编译、
  * 图可达性精细分析等由发布时后端兜底并回传 issues。
  */
-import type { WorkflowAssigneeSpec, WorkflowDocument, WorkflowNode } from './types';
 import {
   WORKFLOW_MAX_JOB_SECONDS,
   WORKFLOW_SERVICE_MAX_RETRIES,
   WORKFLOW_SERVICE_MAX_TIMEOUT_SECONDS,
+  type WorkflowAssigneeSpec,
+  type WorkflowDocument,
+  type WorkflowNode,
 } from './types';
 
 /** 校验问题：与后端 ValidationErrors 出网负载（issues[{path,code,message}]）同形 */
@@ -183,9 +185,104 @@ export function collectWorkflowIssues(document: WorkflowDocument): WorkflowIssue
           );
         }
       }
-      collectAssigneeIssues(node.config.assignee, `${base}.assignee`, '审批人', issues);
+      const strategy = node.config.approvalStrategy ?? 'regular';
+      if (strategy === 'regular') {
+        collectAssigneeIssues(node.config.assignee, `${base}.assignee`, '审批人', issues);
+      } else if (strategy === 'progressive') {
+        const progressive = node.config.progressiveApproval;
+        if (!progressive) {
+          issues.push(
+            issue(
+              `${base}.progressiveApproval`,
+              WORKFLOW_ISSUE_CODES.NodeConfig,
+              '逐级审批必须设置审批终点',
+            ),
+          );
+        } else if (
+          progressive.endpoint === 'organization_top_manager' &&
+          ((progressive.downwardLevels ?? 0) < 0 || (progressive.downwardLevels ?? 0) > 10)
+        ) {
+          issues.push(
+            issue(
+              `${base}.progressiveApproval.downwardLevels`,
+              WORKFLOW_ISSUE_CODES.NodeConfig,
+              '组织最高级部门主管向下层级必须在 0~10 之间',
+            ),
+          );
+        }
+        issues.push(
+          issue(
+            `${base}.approvalStrategy`,
+            WORKFLOW_ISSUE_CODES.NodeConfig,
+            '逐级审批运行能力尚未启用，当前仅可保存设计草稿',
+          ),
+        );
+      } else {
+        issues.push(
+          issue(
+            `${base}.approvalStrategy`,
+            WORKFLOW_ISSUE_CODES.NodeConfig,
+            '审批策略必须为 regular 或 progressive',
+          ),
+        );
+      }
+      if (
+        node.config.submitCondition &&
+        !['all', 'valid'].includes(node.config.submitCondition)
+      ) {
+        issues.push(
+          issue(
+            `${base}.submitCondition`,
+            WORKFLOW_ISSUE_CODES.NodeConfig,
+            '节点提交条件必须为 all 或 valid',
+          ),
+        );
+      }
     } else if (node.type === 'cc') {
       collectAssigneeIssues(node.config.recipients, `${base}.recipients`, '抄送对象', issues);
+    } else if (node.type === 'subflow') {
+      if (!node.config.subflow?.definitionCode.trim()) {
+        issues.push(
+          issue(
+            `${base}.subflow.definitionCode`,
+            WORKFLOW_ISSUE_CODES.NodeConfig,
+            '子流程节点必须选择目标流程',
+          ),
+        );
+      }
+      issues.push(
+        issue(
+          `${base}.subflow`,
+          WORKFLOW_ISSUE_CODES.NodeConfig,
+          '子流程运行能力尚未启用，当前仅可保存设计草稿',
+        ),
+      );
+    } else if (node.type === 'plugin') {
+      if (!node.config.plugin?.pluginCode.trim()) {
+        issues.push(
+          issue(
+            `${base}.plugin.pluginCode`,
+            WORKFLOW_ISSUE_CODES.NodeConfig,
+            '插件节点必须选择插件',
+          ),
+        );
+      }
+      if (!node.config.plugin?.actionCode.trim()) {
+        issues.push(
+          issue(
+            `${base}.plugin.actionCode`,
+            WORKFLOW_ISSUE_CODES.NodeConfig,
+            '插件节点必须选择插件动作',
+          ),
+        );
+      }
+      issues.push(
+        issue(
+          `${base}.plugin`,
+          WORKFLOW_ISSUE_CODES.NodeConfig,
+          '插件节点运行能力尚未启用，当前仅可保存设计草稿',
+        ),
+      );
     } else if (node.type === 'service') {
       const service = node.config.service;
       if (!service || !/^https?:\/\//.test(service.url.trim())) {

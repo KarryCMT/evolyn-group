@@ -44,6 +44,26 @@ func TestValidateValidDoc(t *testing.T) {
 	assert.Empty(t, v.Validate(validDoc()))
 }
 
+func TestValidateDraftAllowsIncompleteTopologyAndConfig(t *testing.T) {
+	doc := validDoc()
+	// 新拖入画布的审批节点尚未连线、审批人尚未配置，属于可保存的设计态。
+	doc.Nodes = append(doc.Nodes, model.Node{
+		Key: "approval_2", Type: model.NodeTypeApproval, Name: "流程节点",
+	})
+	assert.Empty(t, NewValidator(nil).ValidateDraft(doc))
+	assert.NotEmpty(t, NewValidator(nil).Validate(doc), "启用时仍须执行严格校验")
+}
+
+func TestValidateDraftRejectsBrokenReferences(t *testing.T) {
+	doc := validDoc()
+	doc.Edges[0].Target = "ghost"
+	assert.Contains(t, codesOf(NewValidator(nil).ValidateDraft(doc)), ErrCodeRefMissing)
+
+	doc = validDoc()
+	doc.Nodes = append(doc.Nodes, model.Node{Key: "approval", Type: model.NodeTypeApproval})
+	assert.Contains(t, codesOf(NewValidator(nil).ValidateDraft(doc)), ErrCodeKeyDuplicate)
+}
+
 func TestValidateSchemaVersion(t *testing.T) {
 	doc := validDoc()
 	doc.SchemaVersion = "2.0"
@@ -102,6 +122,64 @@ func TestValidateApprovalConfig(t *testing.T) {
 	doc = validDoc()
 	doc.Nodes[1].Config.FormPermissions = map[string]model.FieldPermission{"amount": "write"}
 	assert.Contains(t, codesOf(NewValidator(nil).Validate(doc)), ErrCodeFieldPermission)
+}
+
+func TestValidateProgressiveApprovalDesignProtocol(t *testing.T) {
+	doc := validDoc()
+	doc.Nodes[1].Config.ApprovalStrategy = model.ApprovalStrategyProgressive
+	doc.Nodes[1].Config.Assignee = nil
+	doc.Nodes[1].Config.ProgressiveApproval = &model.ProgressiveApprovalConfig{
+		Endpoint:       model.ProgressiveEndpointOrganizationTop,
+		DownwardLevels: 2,
+	}
+
+	assert.Empty(t, NewValidator(nil).ValidateDraft(doc), "逐级审批配置允许保存为设计草稿")
+	errs := NewValidator(nil).Validate(doc)
+	assert.Contains(t, codesOf(errs), ErrCodeConfigInvalid, "运行能力未开放前必须阻断发布")
+	assert.Contains(t, errs.Error(), "逐级审批运行能力尚未启用")
+}
+
+func TestValidateSubflowAndPluginDesignProtocol(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		typeID model.NodeType
+		config model.NodeConfig
+		text   string
+	}{
+		{
+			name: "subflow", typeID: model.NodeTypeSubflow,
+			config: model.NodeConfig{Subflow: &model.SubflowConfig{DefinitionCode: "expense"}},
+			text:   "子流程运行能力尚未启用",
+		},
+		{
+			name: "plugin", typeID: model.NodeTypePlugin,
+			config: model.NodeConfig{Plugin: &model.PluginConfig{PluginCode: "crm", ActionCode: "sync"}},
+			text:   "插件节点运行能力尚未启用",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := validDoc()
+			doc.Nodes[1].Type = tc.typeID
+			doc.Nodes[1].Config = tc.config
+			assert.Empty(t, NewValidator(nil).ValidateDraft(doc))
+			errs := NewValidator(nil).Validate(doc)
+			assert.Contains(t, errs.Error(), tc.text)
+		})
+	}
+}
+
+func TestValidateApprovalPresentationConfig(t *testing.T) {
+	doc := validDoc()
+	doc.Nodes[1].Config.SubmitCondition = model.SubmitConditionValid
+	doc.Nodes[1].Config.SummaryFields = []string{"amount", "customer_name"}
+	doc.Nodes[1].Config.Operations = &model.NodeOperations{Submit: true, SaveDraft: true}
+	assert.Empty(t, NewValidator(nil).Validate(doc))
+
+	doc.Nodes[1].Config.SubmitCondition = "unknown"
+	doc.Nodes[1].Config.SummaryFields = []string{"amount", "amount", "bad-field"}
+	errs := NewValidator(nil).Validate(doc)
+	assert.GreaterOrEqual(t, len(errs), 3)
+	assert.Contains(t, codesOf(errs), ErrCodeConfigInvalid)
 }
 
 func TestValidateTimeoutAndReminderConfig(t *testing.T) {

@@ -21,6 +21,8 @@ const (
 	NodeTypeApproval  NodeType = "approval"
 	NodeTypeCondition NodeType = "condition"
 	NodeTypeCC        NodeType = "cc"
+	NodeTypeSubflow   NodeType = "subflow"  // 子流程（设计器 Phase 6 协议，运行能力分步开放）
+	NodeTypePlugin    NodeType = "plugin"   // 平台插件动作（设计器 Phase 6 协议，运行能力分步开放）
 	NodeTypeService   NodeType = "service"  // 数据模型先定义，执行能力 Phase 7 开放
 	NodeTypeParallel  NodeType = "parallel" // 并行网关（Phase 8）：role=split/join
 	NodeTypeEnd       NodeType = "end"
@@ -32,6 +34,8 @@ var V1NodeTypes = map[NodeType]bool{
 	NodeTypeApproval:  true,
 	NodeTypeCondition: true,
 	NodeTypeCC:        true,
+	NodeTypeSubflow:   true,
+	NodeTypePlugin:    true,
 	NodeTypeService:   true,
 	NodeTypeParallel:  true,
 	NodeTypeEnd:       true,
@@ -86,6 +90,31 @@ var V1ApprovalModes = map[ApprovalMode]bool{
 	ApprovalModeSingle:      true,
 	ApprovalModeOrSign:      true,
 	ApprovalModeCountersign: true,
+}
+
+// ApprovalStrategy 审批人生成策略。regular 使用静态 AssigneeSpec；
+// progressive 按组织层级逐级生成审批任务。逐级运行能力尚未开放前，草稿可
+// 保存该配置，但发布校验会明确阻断，避免进入运行必失败的快照。
+type ApprovalStrategy string
+
+const (
+	ApprovalStrategyRegular     ApprovalStrategy = "regular"
+	ApprovalStrategyProgressive ApprovalStrategy = "progressive"
+)
+
+// ProgressiveEndpoint 逐级审批的审批终点锚点。
+type ProgressiveEndpoint string
+
+const (
+	ProgressiveEndpointStarterDirectManager ProgressiveEndpoint = "starter_direct_manager"
+	ProgressiveEndpointOrganizationTop      ProgressiveEndpoint = "organization_top_manager"
+)
+
+// ProgressiveApprovalConfig 逐级审批设计配置。DownwardLevels 仅在组织最高级
+// 主管锚点下生效：0=最高级部门主管，1=向下一级，依此类推。
+type ProgressiveApprovalConfig struct {
+	Endpoint       ProgressiveEndpoint `json:"endpoint"`
+	DownwardLevels int                 `json:"downwardLevels,omitempty"`
 }
 
 // RejectStrategy 驳回策略。V1 仅支持 terminate（终止型驳回，第 10.2 章），
@@ -245,9 +274,51 @@ type ServiceConfig struct {
 	ResponseMapping []ServiceResponseMapping `json:"responseMapping,omitempty"`
 }
 
+// SubflowConfig 子流程节点配置。DefinitionCode 使用稳定公开编码定位目标流程；
+// V1 固定跟随目标流程的启用版本，实例启动时再冻结实际版本。
+type SubflowConfig struct {
+	DefinitionCode string `json:"definitionCode"`
+}
+
+// PluginConfig 插件节点配置。插件与动作均以稳定编码定位；Inputs 由插件动作
+// 自身协议解释，工作流只负责保存设计态参数并在运行适配器开放后透传。
+type PluginConfig struct {
+	PluginCode string         `json:"pluginCode"`
+	ActionCode string         `json:"actionCode"`
+	Inputs     map[string]any `json:"inputs,omitempty"`
+}
+
+// NodeOperations 审批页可见操作。该配置随不可变版本快照投影给表单运行时，
+// 不改变流程状态机允许动作；运行时仍须同时满足任务级 allowedActions。
+type NodeOperations struct {
+	Submit         bool `json:"submit"`
+	SaveDraft      bool `json:"saveDraft"`
+	TemporarySave  bool `json:"temporarySave"`
+	SubmitAndPrint bool `json:"submitAndPrint"`
+	EndProcess     bool `json:"endProcess"`
+}
+
+// SubmitCondition 节点提交条件：all 表示不额外校验表单必填项，valid 表示
+// 仅在当前表单数据通过字段校验后允许提交审批动作。
+type SubmitCondition string
+
+const (
+	SubmitConditionAll   SubmitCondition = "all"
+	SubmitConditionValid SubmitCondition = "valid"
+)
+
+var V1SubmitConditions = map[SubmitCondition]bool{
+	SubmitConditionAll:   true,
+	SubmitConditionValid: true,
+}
+
 // NodeConfig 节点配置：字段扁平承载各类型节点的配置项，校验器按
 // NodeType 裁剪必填/非法字段，未声明字段的缺省语义由 Runtime 解释。
 type NodeConfig struct {
+	// ApprovalStrategy 审批人生成策略（缺省 regular，兼容既有快照）。
+	ApprovalStrategy ApprovalStrategy `json:"approvalStrategy,omitempty"`
+	// ProgressiveApproval 逐级审批规则（approvalStrategy=progressive 时必填）。
+	ProgressiveApproval *ProgressiveApprovalConfig `json:"progressiveApproval,omitempty"`
 	// ApprovalMode 审批模式（approval 节点必填）
 	ApprovalMode ApprovalMode `json:"approvalMode,omitempty"`
 	// Assignee 审批人规格（approval 节点必填）
@@ -259,12 +330,22 @@ type NodeConfig struct {
 	PassRatio float64 `json:"passRatio,omitempty"`
 	// FormPermissions 审批节点字段权限：widgetName → 权限（approval 节点可选）
 	FormPermissions map[string]FieldPermission `json:"formPermissions,omitempty"`
+	// SummaryFields 节点简报展示字段；与字段可见/可编辑权限相互独立。
+	SummaryFields []string `json:"summaryFields,omitempty"`
+	// Operations 表单运行时在当前审批节点展示的操作入口。
+	Operations *NodeOperations `json:"operations,omitempty"`
+	// SubmitCondition 当前节点提交审批动作前的表单校验策略。
+	SubmitCondition SubmitCondition `json:"submitCondition,omitempty"`
 	// Timeout 审批节点超时配置（Phase 5，可选；到期自动 approve/reject）
 	Timeout *TimeoutConfig `json:"timeout,omitempty"`
 	// Reminder 审批节点提醒配置（Phase 5，可选；单次提醒流水）
 	Reminder *ReminderConfig `json:"reminder,omitempty"`
 	// Recipients 抄送对象（cc 节点必填）
 	Recipients *AssigneeSpec `json:"recipients,omitempty"`
+	// Subflow 子流程调用配置（subflow 节点必填）。
+	Subflow *SubflowConfig `json:"subflow,omitempty"`
+	// Plugin 平台插件动作配置（plugin 节点必填）。
+	Plugin *PluginConfig `json:"plugin,omitempty"`
 	// Service 服务节点配置（Phase 7 执行）
 	Service *ServiceConfig `json:"service,omitempty"`
 	// Parallel 并行网关配置（Phase 8：role=split/join）

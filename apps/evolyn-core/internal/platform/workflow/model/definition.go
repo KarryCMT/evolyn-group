@@ -21,8 +21,10 @@ type WfDefinition struct {
 	Description      string     `json:"description" gorm:"size:512;not null;default:''"`
 	FormCode         string     `json:"formCode" gorm:"size:64;not null;default:''"` // 绑定表单公开编码（000060）：流程型表单的流程设计页定位口令；空串=独立定义
 	DraftContent     DSLContent `json:"draft" gorm:"type:jsonb;not null"`
-	DraftRevision    int64      `json:"draftRevision" gorm:"not null;default:1"` // 草稿乐观锁：保存条件递增
-	LatestVersionID  *uint      `json:"latestVersionId"`                         // 最新发布版本；NULL=从未发布
+	DraftRevision    int64      `json:"draftRevision" gorm:"not null;default:1"`  // 草稿乐观锁：保存条件递增
+	DraftVersionNo   int        `json:"draftVersionNo" gorm:"not null;default:1"` // 工作区版本号：设计中为下一版本，启用后等于当前启用版本
+	HasDraft         bool       `json:"hasDraft" gorm:"not null;default:true"`    // false 时工作区只读，添加新版本后方可继续编辑
+	LatestVersionID  *uint      `json:"latestVersionId"`                          // 最新发布版本；NULL=从未发布
 	PublishedVersion int        `json:"publishedVersion" gorm:"not null;default:0"`
 	CreatorMemberID  uint       `json:"creatorMemberId" gorm:"not null"`
 

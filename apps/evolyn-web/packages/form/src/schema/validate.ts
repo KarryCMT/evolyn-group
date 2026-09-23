@@ -2203,6 +2203,9 @@ function validateWidgetProp(
     case 'options':
       validateOptions(value, path, issues);
       return;
+    case 'optionSource':
+      validateOptionSource(value, path, issues);
+      return;
     case 'widgetItems':
       validateSubformItems(value, path, issues, fieldIDScope);
       return;
@@ -2228,6 +2231,134 @@ function validateWidgetProp(
       validateButtonAction(value, path, issues);
       return;
   }
+}
+
+/** v13 关联选项结构校验；源字段存在性、权限与类型由发布服务读取源快照终审。 */
+function validateOptionSource(value: unknown, path: string, issues: FormSchemaIssue[]): void {
+  if (!isPlainObject(value)) {
+    issues.push({ path, message: 'optionSource 必须是对象' });
+    return;
+  }
+  rejectUnknownKeys(value, ['mode', 'related'], path, issues);
+  if (value.mode !== 'custom' && value.mode !== 'related') {
+    issues.push({ path: `${path}.mode`, message: 'mode 必须是 custom / related' });
+    return;
+  }
+  if (value.mode === 'custom') {
+    if ('related' in value) {
+      issues.push({ path: `${path}.related`, message: '自定义选项不能携带关联配置' });
+    }
+    return;
+  }
+  const related = value.related;
+  if (!isPlainObject(related)) {
+    issues.push({ path: `${path}.related`, message: '请选择关联表单与字段' });
+    return;
+  }
+  rejectUnknownKeys(related, ['source', 'sort', 'filter'], `${path}.related`, issues);
+  const source = related.source;
+  if (!isPlainObject(source)) {
+    issues.push({ path: `${path}.related.source`, message: '请选择关联表单与字段' });
+  } else {
+    rejectUnknownKeys(
+      source,
+      ['type', 'appId', 'sourceId', 'fieldId'],
+      `${path}.related.source`,
+      issues,
+    );
+    if (
+      source.type !== 'form' ||
+      !isInteger(source.appId) ||
+      source.appId <= 0 ||
+      typeof source.sourceId !== 'string' ||
+      !source.sourceId.startsWith('form_') ||
+      typeof source.fieldId !== 'string' ||
+      source.fieldId.length === 0
+    ) {
+      issues.push({
+        path: `${path}.related.source`,
+        message: '关联数据源必须是有效的已发布表单字段',
+      });
+    }
+  }
+  const sort = related.sort;
+  if (!isPlainObject(sort)) {
+    issues.push({ path: `${path}.related.sort`, message: '请选择选项排序' });
+  } else {
+    rejectUnknownKeys(sort, ['fieldId', 'direction'], `${path}.related.sort`, issues);
+    if (typeof sort.fieldId !== 'string' || sort.fieldId.length === 0) {
+      issues.push({ path: `${path}.related.sort.fieldId`, message: '请选择排序字段' });
+    }
+    if (sort.direction !== 'asc' && sort.direction !== 'desc') {
+      issues.push({
+        path: `${path}.related.sort.direction`,
+        message: 'direction 必须是 asc / desc',
+      });
+    }
+  }
+  const filter = related.filter;
+  if (!isPlainObject(filter)) {
+    issues.push({ path: `${path}.related.filter`, message: 'filter 必须是对象' });
+    return;
+  }
+  rejectUnknownKeys(filter, ['logic', 'conditions'], `${path}.related.filter`, issues);
+  if (filter.logic !== 'and' && filter.logic !== 'or') {
+    issues.push({ path: `${path}.related.filter.logic`, message: 'logic 必须是 and / or' });
+  }
+  if (!Array.isArray(filter.conditions) || filter.conditions.length > 20) {
+    issues.push({
+      path: `${path}.related.filter.conditions`,
+      message: '过滤条件不能超过 20 条',
+    });
+    return;
+  }
+  filter.conditions.forEach((condition, index) => {
+    const conditionPath = `${path}.related.filter.conditions[${index}]`;
+    if (!isPlainObject(condition)) {
+      issues.push({ path: conditionPath, message: '过滤条件必须是对象' });
+      return;
+    }
+    rejectUnknownKeys(
+      condition,
+      ['id', 'sourceFieldId', 'operator', 'value'],
+      conditionPath,
+      issues,
+    );
+    if (typeof condition.id !== 'string' || condition.id.length < 4 || condition.id.length > 64) {
+      issues.push({ path: `${conditionPath}.id`, message: '条件 id 必须为 4–64 个字符' });
+    }
+    if (typeof condition.sourceFieldId !== 'string' || !condition.sourceFieldId) {
+      issues.push({ path: `${conditionPath}.sourceFieldId`, message: '请选择关联表单字段' });
+    }
+    if (
+      typeof condition.operator !== 'string' ||
+      ![
+        'eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains', 'notContains',
+        'in', 'not_in', 'empty', 'not_empty',
+      ].includes(condition.operator)
+    ) {
+      issues.push({ path: `${conditionPath}.operator`, message: '操作符不受支持' });
+    }
+    if (!['empty', 'not_empty'].includes(String(condition.operator))) {
+      const conditionValue = condition.value;
+      if (
+        !isPlainObject(conditionValue) ||
+        !['field', 'constant'].includes(String(conditionValue.type))
+      ) {
+        issues.push({
+          path: `${conditionPath}.value`,
+          message: '请选择当前表单字段或填写自定义值',
+        });
+      } else if (
+        conditionValue.type === 'field' &&
+        (typeof conditionValue.fieldId !== 'string' || !conditionValue.fieldId)
+      ) {
+        issues.push({ path: `${conditionPath}.value.fieldId`, message: '请选择当前表单字段' });
+      } else if (conditionValue.type === 'constant' && !('value' in conditionValue)) {
+        issues.push({ path: `${conditionPath}.value.value`, message: '请填写自定义值' });
+      }
+    }
+  });
 }
 
 function validateStickyColumn(value: unknown, path: string, issues: FormSchemaIssue[]): void {
@@ -2651,6 +2782,16 @@ function validateWidgetCrossRules(
       break;
     default:
       break;
+  }
+  // 关联选项不在 Schema 内固化候选值，因此不能预先选定默认值。
+  if ((type === 'combo' || type === 'combocheck') && isPlainObject(widget.optionSource) && widget.optionSource.mode === 'related') {
+    const defaultValue = widget.defaultValue;
+    const hasDefault = type === 'combocheck'
+      ? Array.isArray(defaultValue) && defaultValue.length > 0
+      : defaultValue !== undefined && defaultValue !== null && defaultValue !== '';
+    if (hasDefault) {
+      issues.push({ path: `${path}.defaultValue`, message: '关联选项不支持默认值' });
+    }
   }
   // 选项类控件的 defaultValue 必须命中选项 value（字符串或字符串数组两形态）。
   if (

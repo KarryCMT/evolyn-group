@@ -24,6 +24,7 @@ const SurfaceStub = defineComponent({
   props: {
     layout: String,
     actions: Array,
+    publishedVersion: Number,
   },
   template: '<div class="surface-stub" :data-layout="layout" />',
 });
@@ -54,7 +55,7 @@ const adapter: FormRuntimeAdapter = { submit: async () => ({ accepted: true }) }
 describe('formDesignPreviewDrawer', () => {
   it('设备切换只更新 Surface 布局，不重建填写会话', async () => {
     const wrapper = mount(FormDesignPreviewDrawer, {
-      props: { modelValue: true, schema, formId: 'form_a', adapter },
+      props: { modelValue: true, schema, formId: 'form_a', schemaVersion: 3, adapter },
       global: {
         // 组件 setup 读取 auth store（当前成员注入），挂载需提供 Pinia。
         plugins: [createPinia()],
@@ -65,6 +66,7 @@ describe('formDesignPreviewDrawer', () => {
     const initialUid = surface.vm.$.uid;
     expect(surface.props('layout')).toBe('desktop');
     expect(surface.props('actions')).toHaveLength(2);
+    expect(surface.props('publishedVersion')).toBe(3);
 
     await wrapper.findAll('.form-design-preview__viewport-button')[1].trigger('click');
 
@@ -95,7 +97,7 @@ describe('formDesignPreviewDrawer', () => {
       },
     }) as FormSchemaDocument;
     const wrapper = mount(FormDesignPreviewDrawer, {
-      props: { modelValue: true, schema: liveSchema, formId: 'form_a', adapter },
+      props: { modelValue: true, schema: liveSchema, formId: 'form_a', schemaVersion: 3, adapter },
       global: {
         // 组件 setup 读取 auth store（当前成员注入），挂载需提供 Pinia。
         plugins: [createPinia()],
@@ -112,7 +114,7 @@ describe('formDesignPreviewDrawer', () => {
 
   it('标准 Drawer header 关闭能力回传 v-model', async () => {
     const wrapper = mount(FormDesignPreviewDrawer, {
-      props: { modelValue: true, schema, formId: 'form_a', adapter },
+      props: { modelValue: true, schema, formId: 'form_a', schemaVersion: 3, adapter },
       global: {
         // 组件 setup 读取 auth store（当前成员注入），挂载需提供 Pinia。
         plugins: [createPinia()],

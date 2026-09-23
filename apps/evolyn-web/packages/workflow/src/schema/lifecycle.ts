@@ -19,6 +19,8 @@ export const WORKFLOW_NODE_TYPES: readonly WorkflowNodeType[] = [
   'approval',
   'condition',
   'cc',
+  'subflow',
+  'plugin',
   'service',
   'parallel',
   'end',
@@ -30,6 +32,8 @@ const DEFAULT_NODE_NAMES: Record<WorkflowNodeType, string> = {
   approval: '审批',
   condition: '条件分支',
   cc: '抄送',
+  subflow: '子流程',
+  plugin: '插件节点',
   service: '服务调用',
   parallel: '并行网关',
   end: '结束',
@@ -277,9 +281,13 @@ function removeLayout(document: WorkflowDocument, nodeKey: string) {
 function createDefaultConfig(type: WorkflowNodeType): WorkflowNode['config'] {
   switch (type) {
     case 'approval':
-      return { approvalMode: 'single' };
+      return { approvalMode: 'single', approvalStrategy: 'regular' };
     case 'cc':
       return {};
+    case 'subflow':
+      return { subflow: { definitionCode: '' } };
+    case 'plugin':
+      return { plugin: { pluginCode: '', actionCode: '' } };
     case 'service':
       return { service: { action: 'http', method: 'POST', url: '' } };
     case 'parallel':

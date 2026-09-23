@@ -17,7 +17,7 @@ import {
   type WorkflowNode,
 } from '../../schema';
 import WorkflowAssigneeEditor from './WorkflowAssigneeEditor.vue';
-import WorkflowFieldPermissions from './WorkflowFieldPermissions.vue';
+import WorkflowApprovalStrategyEditor from './WorkflowApprovalStrategyEditor.vue';
 
 /**
  * 审批节点配置面板：审批模式（单人/或签/会签）、审批人、超时自动动作、
@@ -58,6 +58,11 @@ function toggleReminder(enabled: string | number | boolean) {
 
 <template>
   <div class="workflow-approval-panel">
+    <WorkflowApprovalStrategyEditor
+      :config="config"
+      @update-config="(value) => emit('updateConfig', value)"
+    />
+
     <ElForm label-position="top" size="default" @submit.prevent>
       <ElFormItem label="审批方式">
         <ElRadioGroup
@@ -90,6 +95,7 @@ function toggleReminder(enabled: string | number | boolean) {
     </ElForm>
 
     <WorkflowAssigneeEditor
+      v-if="(config.approvalStrategy ?? 'regular') === 'regular'"
       :spec="config.assignee"
       :actor-options="actorOptions"
       :fields="fields"
@@ -150,14 +156,6 @@ function toggleReminder(enabled: string | number | boolean) {
             />
           </ElFormItem>
         </ElForm>
-      </ElCollapseItem>
-
-      <ElCollapseItem title="字段权限" name="permissions">
-        <WorkflowFieldPermissions
-          :fields="fields"
-          :form-permissions="config.formPermissions"
-          @update="(permissions) => patchConfig({ formPermissions: permissions })"
-        />
       </ElCollapseItem>
     </ElCollapse>
   </div>

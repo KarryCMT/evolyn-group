@@ -22,3 +22,17 @@ func TestWorkflowSaveDraftRouteUsesDedicatedDraftPath(t *testing.T) {
 	// 路由命中后会先因空请求体被 BindJSON 拒绝；404 说明草稿路径未注册。
 	assert.Equal(t, http.StatusBadRequest, response.Code)
 }
+
+func TestWorkflowCreateDraftVersionRouteUsesDedicatedPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(gin.Recovery())
+	(&WorkflowController{}).RegisterRoute(router.Group(""))
+
+	request := httptest.NewRequest(http.MethodPost, "/workflows/wf_3454e9914ed99498/draft-versions", nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	// 路由命中后会先因空请求体被 ShouldBindJSON 拒绝；404 说明路径未注册。
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+}

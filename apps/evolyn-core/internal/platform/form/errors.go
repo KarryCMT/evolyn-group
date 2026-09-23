@@ -169,6 +169,12 @@ var (
 	ErrLinkageMultipleResults     = httpx.NewBiz("LINKAGE_MULTIPLE_RESULTS", "数据联动查询命中多条记录", http.StatusConflict)
 	ErrLinkageQueryFailed         = httpx.NewBiz("LINKAGE_QUERY_FAILED", "数据联动查询失败", http.StatusBadGateway)
 
+	// ---- 关联其他表单数据（协议 v13） ----
+	ErrOptionSourceNotFound        = httpx.NewBiz("FORM_OPTION_SOURCE_NOT_FOUND", "关联选项数据源不存在或尚未发布", http.StatusNotFound)
+	ErrOptionSourceInvalid         = httpx.NewBiz("FORM_OPTION_SOURCE_INVALID", "关联选项配置无效", http.StatusBadRequest)
+	ErrOptionSourcePermission      = httpx.NewBiz("FORM_OPTION_SOURCE_PERMISSION_DENIED", "没有读取关联选项数据的权限", http.StatusForbidden)
+	ErrOptionSourceVersionConflict = httpx.NewBiz("FORM_OPTION_SOURCE_VERSION_CONFLICT", "表单已发布新版本，请刷新后重试", http.StatusConflict)
+
 	// ErrStorageJobNotFound DDL 发布 Job 不存在
 	ErrStorageJobNotFound = httpx.NewBiz("FORM_STORAGE_JOB_NOT_FOUND", "结构变更任务不存在", http.StatusNotFound)
 )

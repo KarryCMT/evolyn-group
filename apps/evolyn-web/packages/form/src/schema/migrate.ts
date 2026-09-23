@@ -8,7 +8,8 @@
  * fieldShowRules 空数组；v5 及更早版本补齐 v6 的 submitRule 默认空值策略与
  * widget_submit_rules 空对象；v6 及更早版本补齐 v7 的 validators 与
  * preSubmitConfirm；v9 及更早版本补齐 v10 的 formEvents 空数组；v10 补齐
- * v11 的 linkages 空数组；v11 补齐 v12 的 fieldFormulas 空数组。禁止在旧版本
+ * v11 的 linkages 空数组；v11 补齐 v12 的 fieldFormulas 空数组；v13 新增
+ * 可选的字段级 optionSource，旧文档缺省即自定义选项。禁止在旧版本
  * 校验器内隐式兼容新结构。
  */
 
@@ -89,6 +90,9 @@ export function migrateFormSchema(
   if (sourceVersion <= 11 && isV1Document(candidate)) {
     candidate = normalizeFieldFormulasV12(candidate);
   }
+  // v13 初版属性面板曾在切换关联选项时写入 null/空数组；它们都表达“无默认值”，
+  // 读取边界统一收敛为缺省键。非空默认值仍保留并由严格校验器拒绝。
+  candidate = normalizeRelatedOptionDefaults(candidate);
   const result = validateFormSchema(candidate);
   if (!result.valid || !result.document) {
     return { document: null, issues: result.issues, protocolVersion: FORM_PROTOCOL_VERSION };
@@ -98,6 +102,30 @@ export function migrateFormSchema(
     issues: [],
     protocolVersion: FORM_PROTOCOL_VERSION,
   };
+}
+
+/**
+ * 运行时读取兼容：只修复关联下拉的无语义空默认值，不吞掉其他协议错误。
+ * 返回深拷贝，调用方可以安全地用于预览/运行时校验而不修改设计器原对象。
+ */
+export function normalizeRelatedOptionDefaults(input: unknown): unknown {
+  if (!isV1Document(input)) return input;
+  const document = cloneFormSchema(input as FormSchemaDocument);
+  const walk = (items: unknown[]): void => {
+    for (const rawItem of items) {
+      if (!isPlainRecord(rawItem) || !isPlainRecord(rawItem.widget)) continue;
+      const widget = rawItem.widget;
+      if (widget.type === 'subform' && Array.isArray(widget.items)) walk(widget.items);
+      if (widget.type !== 'combo' && widget.type !== 'combocheck') continue;
+      if (!isPlainRecord(widget.optionSource) || widget.optionSource.mode !== 'related') continue;
+      const defaultValue = widget.defaultValue;
+      if (defaultValue === null || (Array.isArray(defaultValue) && defaultValue.length === 0)) {
+        delete widget.defaultValue;
+      }
+    }
+  };
+  walk(document.content.items);
+  return document;
 }
 
 /** v11 → v12：旧表单没有字段公式，保持既有默认值语义。 */

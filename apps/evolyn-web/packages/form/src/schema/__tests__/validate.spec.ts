@@ -8,7 +8,7 @@ import {
 } from '../dictionary';
 import { cloneFormSchema } from '../clone';
 import { migrateFormSchema } from '../migrate';
-import { FORM_PROTOCOL_VERSION, type FormSchemaDocument } from '../types';
+import { FORM_PROTOCOL_VERSION, type FormOptionSource, type FormSchemaDocument } from '../types';
 import { validateFormSchema, validatePublishableFormSchema } from '../validate';
 
 function subformConfig() {
@@ -332,6 +332,28 @@ describe('validateFormSchema 结构校验', () => {
     ).toBe(false);
   });
 
+  it('关联其他表单数据仅允许下拉单选和下拉多选', () => {
+    const optionSource: FormOptionSource = {
+      mode: 'related',
+      related: {
+        source: { type: 'form', appId: 7, sourceId: 'form_source', fieldId: '_widget_name' },
+        sort: { fieldId: '__value__', direction: 'asc' },
+        filter: { logic: 'and', conditions: [] },
+      },
+    };
+    const combo = createWidgetItem('combo');
+    if (combo.widget.type !== 'combo') throw new Error('测试样本类型错误');
+    combo.widget.optionSource = optionSource;
+    expect(validateFormSchema(documentWith([combo])).valid).toBe(true);
+
+    const radio = createWidgetItem('radiogroup') as unknown as Record<string, unknown>;
+    (radio.widget as Record<string, unknown>).optionSource = optionSource;
+    expect(validateFormSchema(documentWith([radio])).issues).toContainEqual({
+      path: 'content.items[0].widget.optionSource',
+      message: '未知属性「optionSource」',
+    });
+  });
+
   it('数值交叉约束：min ≤ max / minLength ≤ maxLength / defaultValue 命中选项', () => {
     expect(
       validateFormSchema(
@@ -540,6 +562,29 @@ describe('validatePublishableFormSchema 发布白名单', () => {
 });
 
 describe('migrateFormSchema / cloneFormSchema', () => {
+  it('读取关联下拉旧快照时移除 null 默认值，但不吞掉非空默认值错误', () => {
+    const combo = createWidgetItem('combo');
+    if (combo.widget.type !== 'combo') throw new Error('测试样本类型错误');
+    combo.widget.defaultValue = null;
+    combo.widget.optionSource = {
+      mode: 'related',
+      related: {
+        source: { type: 'form', appId: 7, sourceId: 'form_source', fieldId: '_widget_name' },
+        sort: { fieldId: '__value__', direction: 'asc' },
+        filter: { logic: 'and', conditions: [] },
+      },
+    };
+    const migrated = migrateFormSchema(documentWith([combo]));
+    expect(migrated.issues).toEqual([]);
+    expect('defaultValue' in migrated.document!.content.items[0]!.widget).toBe(false);
+
+    combo.widget.defaultValue = '选项1';
+    expect(migrateFormSchema(documentWith([combo])).issues).toContainEqual({
+      path: 'content.items[0].widget.defaultValue',
+      message: '关联选项不支持默认值',
+    });
+  });
+
   it('v3 文档原样校验通过', () => {
     const input = documentWith([textItem()]);
     const result = migrateFormSchema(input, 3);

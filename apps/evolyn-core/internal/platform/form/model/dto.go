@@ -159,6 +159,34 @@ type ExecuteLinkageResult struct {
 	Values         map[string]any `json:"values"`
 }
 
+// QueryRelatedOptionsRequest 只携带运行态当前值与分页提示；可信的数据源、字段、
+// 排序和过滤规则始终从当前表单发布快照读取。
+type QueryRelatedOptionsRequest struct {
+	SchemaVersion int            `json:"schemaVersion" binding:"required"`
+	Values        map[string]any `json:"values"`
+	Keyword       string         `json:"keyword" binding:"max=100"`
+	PageSize      int            `json:"pageSize" binding:"gte=0,lte=100"`
+}
+
+// PreviewRelatedOptionsRequest 使用已保存草稿口令定位设计器当前配置。预览接口
+// 不接受浏览器上传数据源定义，避免通过篡改请求越权读取任意表单字段。
+type PreviewRelatedOptionsRequest struct {
+	DraftRevision int64          `json:"draftRevision" binding:"required"`
+	Values        map[string]any `json:"values"`
+	Keyword       string         `json:"keyword" binding:"max=100"`
+	PageSize      int            `json:"pageSize" binding:"gte=0,lte=100"`
+}
+
+type RelatedOptionItem struct {
+	Label string `json:"label"`
+	Value string `json:"value"`
+}
+
+type RelatedOptionPage struct {
+	Items []RelatedOptionItem `json:"items"`
+	Total int                 `json:"total"`
+}
+
 // SubmitFieldValue 单字段提交快照：Data 缺省与显式 null 均表示空值；Visible
 // 必须显式携带，由服务端与发布快照复核，避免客户端伪造隐藏状态绕过必填校验。
 type SubmitFieldValue struct {

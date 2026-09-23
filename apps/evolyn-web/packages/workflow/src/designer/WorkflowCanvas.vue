@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import LogicFlow, { PolylineEdge, PolylineEdgeModel } from '@logicflow/core';
+import { RiGitBranchFill, RiPuzzle2Fill, RiSendPlaneFill, RiUser3Fill } from '@remixicon/vue';
 import { register } from '@logicflow/vue-node-registry';
 import {
   type ShallowRef,
@@ -13,6 +14,7 @@ import { toGraphData } from '../adapters/graph';
 import type { WorkflowDocument, WorkflowNodeType, WorkflowPosition } from '../schema';
 import WorkflowCanvasControls from './WorkflowCanvasControls.vue';
 import WorkflowNodeCard from './WorkflowNodeCard.vue';
+import WorkflowViewModeToggle from './WorkflowViewModeToggle.vue';
 import { WorkflowVueNodeView } from './WorkflowVueNodeView';
 
 defineOptions({ name: 'WorkflowCanvas' });
@@ -32,11 +34,23 @@ const emit = defineEmits<{
   selectEdge: [edgeKey: string];
   updateNodePosition: [nodeKey: string, position: WorkflowPosition];
   connectEdge: [source: string, target: string];
+  dropNode: [type: WorkflowNodeType, position: WorkflowPosition];
+  addFromNode: [nodeKey: string, type: WorkflowNodeType, direction: AddDirection];
 }>();
 
+type AddDirection = 'top' | 'right' | 'bottom' | 'left';
+
+const rootRef = useTemplateRef<HTMLElement>('rootRef');
 const canvasRef = useTemplateRef<HTMLElement>('canvasRef');
 const logicFlow: ShallowRef<LogicFlow | null> = shallowRef(null);
 const zoomPercent = shallowRef(100);
+const viewMode = shallowRef<'compact' | 'detailed'>('compact');
+const nodePicker = shallowRef<{
+  nodeKey: string;
+  direction: AddDirection;
+  left: number;
+  top: number;
+} | null>(null);
 let resizeObserver: ResizeObserver | null = null;
 // 节点拖拽后 LogicFlow 已持有最新坐标。等待父级把该坐标写回 DSL 的期间，
 // 不可用旧 props 全量 render，否则会把节点拉回拖拽前的位置。
@@ -48,6 +62,8 @@ const NODE_TYPES: WorkflowNodeType[] = [
   'approval',
   'condition',
   'cc',
+  'subflow',
+  'plugin',
   'service',
   'parallel',
   'end',
@@ -77,6 +93,7 @@ function renderGraph() {
       selectedEdgeKey: props.selectedEdgeKey,
       errorNodeKeys: props.errorNodeKeys,
       errorEdgeKeys: props.errorEdgeKeys,
+      viewMode: viewMode.value,
     }),
   );
 }
@@ -121,6 +138,56 @@ function fitView() {
   syncZoom();
 }
 
+function setViewMode(mode: 'compact' | 'detailed') {
+  if (viewMode.value === mode) return;
+  viewMode.value = mode;
+  renderGraph();
+}
+
+function allowNodeDrop(event: DragEvent) {
+  if (props.readonly) return;
+  event.preventDefault();
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+}
+
+function dropNode(event: DragEvent) {
+  if (props.readonly) return;
+  event.preventDefault();
+  const raw =
+    event.dataTransfer?.getData('application/x-workflow-node-type') ||
+    event.dataTransfer?.getData('text/plain');
+  if (!NODE_TYPES.includes(raw as WorkflowNodeType) || ['start', 'end'].includes(raw)) return;
+  const point = logicFlow.value?.getPointByClient({ x: event.clientX, y: event.clientY });
+  if (!point) return;
+  emit('dropNode', raw as WorkflowNodeType, point.canvasOverlayPosition);
+}
+
+function openNodePicker(event: Event) {
+  if (props.readonly) return;
+  const custom = event as CustomEvent<{
+    nodeKey: string;
+    direction: AddDirection;
+    clientX: number;
+    clientY: number;
+  }>;
+  const root = rootRef.value;
+  if (!root || !custom.detail) return;
+  const bounds = root.getBoundingClientRect();
+  nodePicker.value = {
+    nodeKey: custom.detail.nodeKey,
+    direction: custom.detail.direction,
+    left: Math.min(Math.max(custom.detail.clientX - bounds.left + 12, 12), bounds.width - 230),
+    top: Math.min(Math.max(custom.detail.clientY - bounds.top + 12, 12), bounds.height - 270),
+  };
+}
+
+function chooseNode(type: WorkflowNodeType) {
+  const picker = nodePicker.value;
+  if (!picker) return;
+  emit('addFromNode', picker.nodeKey, type, picker.direction);
+  nodePicker.value = null;
+}
+
 onMounted(() => {
   const element = canvasRef.value;
   if (!element) return;
@@ -160,6 +227,7 @@ onMounted(() => {
     },
   });
   logicFlow.value = instance;
+  element.addEventListener('workflow-node-add', openNodePicker);
 
   instance.register({
     type: 'workflow-edge',
@@ -176,6 +244,7 @@ onMounted(() => {
   instance.on('node:click', ({ data }) => emit('selectNode', String(data.id)));
   instance.on('edge:click', ({ data }) => emit('selectEdge', String(data.id)));
   instance.on('blank:click', () => {
+    nodePicker.value = null;
     if (!pendingNodePosition) renderGraph();
   });
   instance.on('node:drop', ({ data }) => {
@@ -214,6 +283,7 @@ watch(
 );
 
 onBeforeUnmount(() => {
+  canvasRef.value?.removeEventListener('workflow-node-add', openNodePicker);
   resizeObserver?.disconnect();
   resizeObserver = null;
   logicFlow.value?.destroy();
@@ -222,8 +292,35 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="workflow-canvas" aria-label="流程画布">
+  <div
+    ref="rootRef"
+    class="workflow-canvas"
+    aria-label="流程画布"
+    @dragover="allowNodeDrop"
+    @drop="dropNode"
+  >
     <div ref="canvasRef" class="workflow-canvas__graph" />
+    <WorkflowViewModeToggle :mode="viewMode" @update-mode="setViewMode" />
+    <div
+      v-if="nodePicker"
+      class="workflow-canvas__node-picker"
+      :style="{ left: `${nodePicker.left}px`, top: `${nodePicker.top}px` }"
+      role="menu"
+      aria-label="选择节点类型"
+    >
+      <button type="button" role="menuitem" @click="chooseNode('approval')">
+        <RiUser3Fill />流程节点
+      </button>
+      <button type="button" role="menuitem" @click="chooseNode('cc')">
+        <RiSendPlaneFill />抄送节点
+      </button>
+      <button type="button" role="menuitem" @click="chooseNode('subflow')">
+        <RiGitBranchFill />子流程
+      </button>
+      <button type="button" role="menuitem" @click="chooseNode('plugin')">
+        <RiPuzzle2Fill />插件节点
+      </button>
+    </div>
     <WorkflowCanvasControls
       :zoom-percent="zoomPercent"
       @fit-view="fitView"
@@ -256,6 +353,10 @@ onBeforeUnmount(() => {
       height: 100%;
     }
 
+    :deep(.lf-node foreignObject) {
+      overflow: visible;
+    }
+
     // LogicFlow 会在节点点击后聚焦 SVG 容器；浏览器焦点框和引擎 outline
     // 都是矩形，会与起止节点的胶囊轮廓形成双层边框。
     :deep(.lf-node:focus),
@@ -282,6 +383,46 @@ onBeforeUnmount(() => {
     :deep(.lf-anchor) {
       fill: var(--el-color-primary);
       stroke: var(--el-bg-color);
+    }
+  }
+
+  &__node-picker {
+    position: absolute;
+    z-index: 10;
+    display: flex;
+    width: 224px;
+    padding: 10px;
+    flex-direction: column;
+    gap: 8px;
+    background: var(--el-bg-color);
+    border: 1px solid var(--el-border-color-lighter);
+    border-radius: 10px;
+    box-shadow: var(--el-box-shadow);
+
+    button {
+      display: flex;
+      height: 42px;
+      padding: 0 14px;
+      align-items: center;
+      gap: 9px;
+      color: var(--el-text-color-primary);
+      background: var(--el-bg-color);
+      border: 1px solid var(--el-border-color);
+      border-radius: 7px;
+      cursor: pointer;
+      font: inherit;
+      text-align: left;
+
+      &:hover {
+        color: var(--el-color-primary);
+        border-color: var(--el-color-primary);
+      }
+
+      svg { width: 20px; height: 20px; }
+      &:nth-child(1) svg { color: var(--el-color-primary); }
+      &:nth-child(2) svg { color: var(--el-color-success); }
+      &:nth-child(3) svg { color: var(--el-color-warning); }
+      &:nth-child(4) svg { color: #7c5ce7; }
     }
   }
 }

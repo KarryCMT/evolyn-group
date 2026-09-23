@@ -751,6 +751,10 @@ export interface WorkflowSummaryDto {
   formCode: string;
   publishedVersion: number;
   draftRevision: number;
+  /** 当前工作区版本号；设计中版本启用后会与 publishedVersion 相等 */
+  draftVersionNo: number;
+  /** 是否存在可编辑设计版本；false 时展示启用版本的只读快照 */
+  hasDraft: boolean;
   creatorMemberId: number;
   createdAt: string;
   updatedAt: string;
@@ -780,6 +784,7 @@ export interface WorkflowPublishResult {
 /** 发布版本条目（快照全文不出网，详情接口携带） */
 export interface WorkflowVersionDto {
   versionNo: number;
+  status: 'active' | 'historical';
   publishedByMemberId: number;
   publishedAt: string;
 }

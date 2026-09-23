@@ -13,6 +13,7 @@ import {
   createFormDataOperationId,
   executeFormLinkage,
   getFormRuntime,
+  queryFormRelatedOptions,
   submitFormRecord,
 } from '~/api/form';
 import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
@@ -103,6 +104,14 @@ const unsupportedTypes = new Set<string>();
 
 /** 已发布走真实提交（服务端终审 + 字段错误回填）；草稿回放本地通过。 */
 const runtimeAdapter: FormRuntimeAdapter = {
+  queryRelatedOptions(input, signal) {
+    return queryFormRelatedOptions(input.formId, input.fieldId, {
+      schemaVersion: input.schemaVersion,
+      values: input.values,
+      keyword: input.keyword,
+      pageSize: input.pageSize,
+    }, signal);
+  },
   executeLinkage(input, signal) {
     return executeFormLinkage(
       input.formId,

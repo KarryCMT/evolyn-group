@@ -221,6 +221,8 @@ func (s *definitionService) Create(ctx context.Context, member *iammodel.User, r
 		FormCode:        formCode,
 		DraftContent:    minimalDraft(),
 		DraftRevision:   1,
+		DraftVersionNo:  1,
+		HasDraft:        true,
 		CreatorMemberID: member.ID,
 	}
 	def.TenantID = tenantID
@@ -329,8 +331,8 @@ func (s *definitionService) Update(ctx context.Context, member *iammodel.User, c
 	return s.Get(ctx, member, code)
 }
 
-// SaveDraft 保存草稿：严格校验（失败携带 issues）→ 乐观锁条件更新。
-// DSL 以引擎严格校验器为唯一事实源，校验通过与表单域「保存前校验」同口径。
+// SaveDraft 保存草稿：协议结构校验（失败携带 issues）→ 乐观锁条件更新。
+// 设计中的断开节点和未完成配置允许保存；启用流程时再执行严格发布校验。
 func (s *definitionService) SaveDraft(ctx context.Context, member *iammodel.User, code string, req *model.SaveDraftRequest) (*model.SaveDraftResult, error) {
 	if !s.permissions(ctx, member)["workflows:update"] {
 		return nil, httpx.Wrap(wfapp.ErrForbidden, fmt.Errorf("member cannot save workflow %s draft", code))
@@ -343,9 +345,17 @@ func (s *definitionService) SaveDraft(ctx context.Context, member *iammodel.User
 		return nil, httpx.Wrap(wfapp.ErrRevisionConflict,
 			fmt.Errorf("workflow %s draft revision %d != %d", code, req.DraftRevision, def.DraftRevision))
 	}
-	issues, _, err := s.validateDSL(req.Draft)
-	if err != nil {
-		return nil, err
+	if !def.HasDraft {
+		return nil, httpx.Wrap(wfapp.ErrDraftNotOpen,
+			fmt.Errorf("workflow %s active version %d is read-only", code, def.PublishedVersion))
+	}
+	doc := new(enginemodel.Document)
+	if err := json.Unmarshal(req.Draft, doc); err != nil {
+		return nil, fmt.Errorf("DSL 文档不是合法 JSON: %w", err)
+	}
+	issues := make([]map[string]string, 0)
+	for _, e := range s.validator.ValidateDraft(doc) {
+		issues = append(issues, map[string]string{"path": e.Path, "code": e.Code, "message": e.Message})
 	}
 	if len(issues) > 0 {
 		return nil, httpx.Wrap(wfapp.ErrDefinitionInvalid.WithData(map[string]any{"issues": issues}),
@@ -374,6 +384,78 @@ func (s *definitionService) SaveDraft(ctx context.Context, member *iammodel.User
 		})
 	}
 	return &model.SaveDraftResult{DraftRevision: req.DraftRevision + 1}, nil
+}
+
+// CreateDraftVersion 从已启用快照创建唯一的下一设计版本。版本创建与定义行
+// 状态切换在同一事务、同一行锁内完成，双击或多窗口并发只允许一个成功。
+func (s *definitionService) CreateDraftVersion(ctx context.Context, member *iammodel.User, code string, req *model.CreateDraftVersionRequest) (*model.WorkflowDetail, error) {
+	if !s.permissions(ctx, member)["workflows:create"] {
+		return nil, httpx.Wrap(wfapp.ErrForbidden, fmt.Errorf("member cannot create workflow %s version", code))
+	}
+	if _, err := s.loadByCode(ctx, code); err != nil {
+		return nil, err
+	}
+
+	var opened *model.WfDefinition
+	baseUsed := req.BaseVersionNo
+	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		locked, err := s.repo.GetByCodeForUpdate(tctx, code)
+		if err != nil {
+			return err
+		}
+		if locked.HasDraft {
+			return httpx.Wrap(wfapp.ErrDraftAlreadyExists,
+				fmt.Errorf("workflow %s already has draft V%d", code, locked.DraftVersionNo))
+		}
+		baseVersionNo := req.BaseVersionNo
+		if baseVersionNo == 0 {
+			baseVersionNo = locked.PublishedVersion
+		}
+		baseUsed = baseVersionNo
+		if baseVersionNo <= 0 || baseVersionNo > locked.PublishedVersion {
+			return httpx.Wrap(wfapp.ErrVersionNotFound,
+				fmt.Errorf("workflow %s base version %d invalid", code, baseVersionNo))
+		}
+		base, err := s.versions.GetByDefinitionAndVersionNo(tctx, locked.ID, baseVersionNo)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return httpx.Wrap(wfapp.ErrVersionNotFound, err)
+			}
+			return err
+		}
+		nextNo, err := s.versions.MaxVersionNo(tctx, locked.ID)
+		if err != nil {
+			return err
+		}
+		nextNo++
+		updated, err := s.repo.OpenDraftVersion(tctx, locked.ID, locked.DraftRevision, nextNo, base.DSLSnapshot)
+		if err != nil {
+			return err
+		}
+		if !updated {
+			return httpx.Wrap(wfapp.ErrRevisionConflict, fmt.Errorf("workflow %s changed while opening draft", code))
+		}
+		locked.DraftContent = base.DSLSnapshot
+		locked.DraftRevision++
+		locked.DraftVersionNo = nextNo
+		locked.HasDraft = true
+		opened = locked
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "workflow", Action: "create-version", ResourceType: "workflow",
+			ResourceID: code,
+			After: map[string]any{
+				"versionNo":     opened.DraftVersionNo,
+				"baseVersionNo": baseUsed,
+			},
+		})
+	}
+	return toDetail(opened), nil
 }
 
 // Delete 软删定义：发布版本行保留（运行态历史不随设计态删除，V1.1 §8.1）。
@@ -416,6 +498,10 @@ func (s *definitionService) Publish(ctx context.Context, member *iammodel.User, 
 		return nil, httpx.Wrap(wfapp.ErrRevisionConflict,
 			fmt.Errorf("workflow %s draft revision %d != %d on publish", code, req.DraftRevision, def.DraftRevision))
 	}
+	if !def.HasDraft {
+		return nil, httpx.Wrap(wfapp.ErrDraftNotOpen,
+			fmt.Errorf("workflow %s active version %d is read-only", code, def.PublishedVersion))
+	}
 	issues, doc, err := s.validateDSL([]byte(def.DraftContent))
 	if err != nil {
 		return nil, err
@@ -440,16 +526,21 @@ func (s *definitionService) Publish(ctx context.Context, member *iammodel.User, 
 
 	var result *model.PublishResult
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
-		// 发布号在事务内取 max+1；(definition_id, version_no) 唯一约束兜底并发发布
-		nextNo, err := s.versions.MaxVersionNo(tctx, def.ID)
+		locked, err := s.repo.GetByCodeForUpdate(tctx, code)
 		if err != nil {
 			return err
 		}
-		nextNo++
+		if !locked.HasDraft {
+			return httpx.Wrap(wfapp.ErrDraftNotOpen, fmt.Errorf("workflow %s draft already activated", code))
+		}
+		if locked.DraftRevision != req.DraftRevision || locked.DraftVersionNo != def.DraftVersionNo {
+			return httpx.Wrap(wfapp.ErrRevisionConflict, fmt.Errorf("workflow %s changed before activation", code))
+		}
+		nextNo := locked.DraftVersionNo
 		version := &model.WfDefinitionVersion{
-			DefinitionID:        def.ID,
+			DefinitionID:        locked.ID,
 			VersionNo:           nextNo,
-			DSLSnapshot:         def.DraftContent,
+			DSLSnapshot:         locked.DraftContent,
 			PublishedByMemberID: member.ID,
 			PublishedAt:         kernel.JSONTime(time.Now()),
 		}
@@ -459,8 +550,12 @@ func (s *definitionService) Publish(ctx context.Context, member *iammodel.User, 
 			return err
 		}
 		// 回写定义行最新发布指针（草稿不被覆盖）
-		if err := s.repo.MarkPublished(tctx, def.ID, created.ID, nextNo); err != nil {
+		published, err := s.repo.MarkPublished(tctx, locked.ID, locked.DraftRevision, created.ID, nextNo)
+		if err != nil {
 			return err
+		}
+		if !published {
+			return httpx.Wrap(wfapp.ErrRevisionConflict, fmt.Errorf("workflow %s changed during activation", code))
 		}
 		result = &model.PublishResult{VersionNo: nextNo}
 		return nil
@@ -494,11 +589,19 @@ func (s *definitionService) ListVersions(ctx context.Context, member *iammodel.U
 	for i := range rows {
 		summaries = append(summaries, model.VersionSummary{
 			VersionNo:           rows[i].VersionNo,
+			Status:              versionStatus(rows[i].VersionNo, def.PublishedVersion),
 			PublishedByMemberID: rows[i].PublishedByMemberID,
 			PublishedAt:         rows[i].PublishedAt,
 		})
 	}
 	return summaries, nil
+}
+
+func versionStatus(versionNo, activeVersionNo int) string {
+	if versionNo == activeVersionNo {
+		return "active"
+	}
+	return "historical"
 }
 
 // GetVersion 指定版本详情：快照全文出网（LogicFlow 只读预览的协议来源）。
@@ -520,6 +623,7 @@ func (s *definitionService) GetVersion(ctx context.Context, member *iammodel.Use
 	return &model.VersionDetail{
 		VersionSummary: model.VersionSummary{
 			VersionNo:           version.VersionNo,
+			Status:              versionStatus(version.VersionNo, def.PublishedVersion),
 			PublishedByMemberID: version.PublishedByMemberID,
 			PublishedAt:         version.PublishedAt,
 		},
@@ -537,6 +641,8 @@ func toSummary(def *model.WfDefinition) model.WorkflowSummary {
 		FormCode:         def.FormCode,
 		PublishedVersion: def.PublishedVersion,
 		DraftRevision:    def.DraftRevision,
+		DraftVersionNo:   def.DraftVersionNo,
+		HasDraft:         def.HasDraft,
 		CreatorMemberID:  def.CreatorMemberID,
 		CreatedAt:        def.CreatedAt,
 		UpdatedAt:        def.UpdatedAt,

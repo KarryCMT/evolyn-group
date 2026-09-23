@@ -59,6 +59,12 @@ func (s *formService) Publish(ctx context.Context, member *iammodel.User, code s
 			return nil, err
 		}
 	}
+	// v13 关联选项同样必须在冻结快照前终审，运行时只解释已验证配置。
+	if form.ProtocolVersion >= 13 {
+		if err := s.validatePublishedOptionSources(ctx, form); err != nil {
+			return nil, err
+		}
+	}
 
 	var result *model.PublishResult
 	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
@@ -429,6 +435,14 @@ func (s *formService) SubmitRecord(ctx context.Context, member *iammodel.User, r
 			}
 			record, created = existing, false
 			return nil
+		}
+		// v13 关联选项必须在行级/字段权限裁剪后再终审，禁止
+		// 客户端跳过选项查询直接伪造提交值。幂等重放已在上方短路，
+		// 不会因源数据后续变化破坏已成功请求的重放语义。
+		if version.ProtocolVersion >= 13 {
+			if verr := s.validateSubmittedRelatedOptions(tctx, member, version.Content, cleaned); verr != nil {
+				return verr
+			}
 		}
 		if failures, verr := ValidateCompiledSubmitRules(version.CompiledSubmitRules, content, version.ProtocolVersion, cleaned); verr != nil {
 			return verr

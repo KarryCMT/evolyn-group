@@ -96,6 +96,73 @@ func (v *Validator) Validate(doc *model.Document) ValidationErrors {
 	return errs
 }
 
+// ValidateDraft 对设计中的草稿执行“可安全持久化”校验。草稿允许节点暂时
+// 未连接、配置尚未填写、条件表达式尚未完成；但协议版本、节点/连线标识、
+// 类型和值引用必须保持完整，避免无法重新打开的损坏文档进入事实源。
+// 启用流程仍必须调用 Validate，执行发布口径的全量严格校验。
+func (v *Validator) ValidateDraft(doc *model.Document) ValidationErrors {
+	var errs ValidationErrors
+	if doc == nil {
+		return append(errs, &ValidationError{Path: "$", Code: ErrCodeSchemaVersion, Message: "DSL 文档为空"})
+	}
+	errs = v.validateSchemaVersion(errs, doc)
+	errs = v.validateDraftNodes(errs, doc)
+	errs = v.validateDraftEdges(errs, doc)
+	return errs
+}
+
+// validateDraftNodes 只校验设计器重新载入所需的不变量；节点业务配置允许
+// 在草稿阶段不完整，由启用前严格校验统一给出可定位的问题列表。
+func (v *Validator) validateDraftNodes(errs ValidationErrors, doc *model.Document) ValidationErrors {
+	keys := make(map[string]bool, len(doc.Nodes))
+	for i := range doc.Nodes {
+		n := &doc.Nodes[i]
+		path := fmt.Sprintf("$.nodes[%d]", i)
+		if !KeyPattern.MatchString(n.Key) {
+			errs = append(errs, &ValidationError{Path: path + ".key", Code: ErrCodeKeyInvalid,
+				Message: "节点 key 必须以字母开头，仅含字母/数字/下划线，长度 1~64"})
+		}
+		if keys[n.Key] {
+			errs = append(errs, &ValidationError{Path: path + ".key", Code: ErrCodeKeyDuplicate,
+				Message: fmt.Sprintf("节点 key %q 重复", n.Key)})
+		}
+		keys[n.Key] = true
+		if !model.V1NodeTypes[n.Type] {
+			errs = append(errs, &ValidationError{Path: path + ".type", Code: ErrCodeNodeUnknown,
+				Message: fmt.Sprintf("不支持的节点类型 %q", n.Type)})
+		}
+	}
+	return errs
+}
+
+// validateDraftEdges 保证边本身可被设计器识别且端点存在。草稿中的自环、
+// 错误方向、条件归属和表达式均允许暂存，启用时由 Validate 严格拦截。
+func (v *Validator) validateDraftEdges(errs ValidationErrors, doc *model.Document) ValidationErrors {
+	edgeKeys := make(map[string]bool, len(doc.Edges))
+	for i := range doc.Edges {
+		e := &doc.Edges[i]
+		path := fmt.Sprintf("$.edges[%d]", i)
+		if !KeyPattern.MatchString(e.Key) {
+			errs = append(errs, &ValidationError{Path: path + ".key", Code: ErrCodeKeyInvalid,
+				Message: "连线 key 必须以字母开头，仅含字母/数字/下划线，长度 1~64"})
+		}
+		if edgeKeys[e.Key] {
+			errs = append(errs, &ValidationError{Path: path + ".key", Code: ErrCodeKeyDuplicate,
+				Message: fmt.Sprintf("连线 key %q 重复", e.Key)})
+		}
+		edgeKeys[e.Key] = true
+		if _, ok := doc.NodeOf(e.Source); !ok {
+			errs = append(errs, &ValidationError{Path: path + ".source", Code: ErrCodeRefMissing,
+				Message: fmt.Sprintf("source 节点 %q 不存在", e.Source)})
+		}
+		if _, ok := doc.NodeOf(e.Target); !ok {
+			errs = append(errs, &ValidationError{Path: path + ".target", Code: ErrCodeRefMissing,
+				Message: fmt.Sprintf("target 节点 %q 不存在", e.Target)})
+		}
+	}
+	return errs
+}
+
 // validateSchemaVersion 规则 1：schemaVersion 必须精确等于 DSLSchemaVersion。
 func (v *Validator) validateSchemaVersion(errs ValidationErrors, doc *model.Document) ValidationErrors {
 	if doc.SchemaVersion != model.DSLSchemaVersion {
@@ -141,7 +208,22 @@ func (v *Validator) validateNodeConfig(errs ValidationErrors, n *model.Node, pat
 			errs = append(errs, &ValidationError{Path: path + ".approvalMode", Code: ErrCodeConfigInvalid,
 				Message: fmt.Sprintf("审批节点 approvalMode 必须为 single/or-sign/countersign，当前为 %q", n.Config.ApprovalMode)})
 		}
-		errs = v.validateAssigneeSpec(errs, n.Config.Assignee, path+".assignee")
+		strategy := n.Config.ApprovalStrategy
+		if strategy == "" {
+			strategy = model.ApprovalStrategyRegular
+		}
+		switch strategy {
+		case model.ApprovalStrategyRegular:
+			errs = v.validateAssigneeSpec(errs, n.Config.Assignee, path+".assignee")
+		case model.ApprovalStrategyProgressive:
+			errs = v.validateProgressiveApproval(errs, n.Config.ProgressiveApproval, path+".progressiveApproval")
+			// 设计协议先行开放，运行时需新增顺序任务游标后才能保证逐级语义。
+			errs = append(errs, &ValidationError{Path: path + ".approvalStrategy", Code: ErrCodeConfigInvalid,
+				Message: "逐级审批运行能力尚未启用，当前仅可保存设计草稿"})
+		default:
+			errs = append(errs, &ValidationError{Path: path + ".approvalStrategy", Code: ErrCodeConfigInvalid,
+				Message: fmt.Sprintf("审批策略必须为 regular/progressive，当前为 %q", strategy)})
+		}
 		// V1 仅支持终止型驳回（第 10.2 章）
 		if n.Config.RejectStrategy != "" && n.Config.RejectStrategy != model.RejectStrategyTerminate {
 			errs = append(errs, &ValidationError{Path: path + ".rejectStrategy", Code: ErrCodeConfigInvalid,
@@ -159,6 +241,23 @@ func (v *Validator) validateNodeConfig(errs ValidationErrors, n *model.Node, pat
 					Message: fmt.Sprintf("字段权限值必须为 hidden/readonly/editable/required，当前为 %q", perm)})
 			}
 		}
+		if n.Config.SubmitCondition != "" && !model.V1SubmitConditions[n.Config.SubmitCondition] {
+			errs = append(errs, &ValidationError{Path: path + ".submitCondition", Code: ErrCodeConfigInvalid,
+				Message: fmt.Sprintf("节点提交条件必须为 all/valid，当前为 %q", n.Config.SubmitCondition)})
+		}
+		seenSummaryFields := make(map[string]bool, len(n.Config.SummaryFields))
+		for i, field := range n.Config.SummaryFields {
+			fieldPath := fmt.Sprintf("%s.summaryFields[%d]", path, i)
+			if !KeyPattern.MatchString(field) {
+				errs = append(errs, &ValidationError{Path: fieldPath, Code: ErrCodeConfigInvalid,
+					Message: "简报字段必须是合法 widgetName"})
+			}
+			if seenSummaryFields[field] {
+				errs = append(errs, &ValidationError{Path: fieldPath, Code: ErrCodeConfigInvalid,
+					Message: fmt.Sprintf("简报字段 %q 重复", field)})
+			}
+			seenSummaryFields[field] = true
+		}
 		errs = v.validateTimeoutConfig(errs, n.Config.Timeout, path+".timeout")
 		errs = v.validateReminderConfig(errs, n.Config.Reminder, path+".reminder")
 	case model.NodeTypeCC:
@@ -168,10 +267,53 @@ func (v *Validator) validateNodeConfig(errs ValidationErrors, n *model.Node, pat
 			break
 		}
 		errs = v.validateAssigneeSpec(errs, n.Config.Recipients, path+".recipients")
+	case model.NodeTypeSubflow:
+		if n.Config.Subflow == nil || strings.TrimSpace(n.Config.Subflow.DefinitionCode) == "" {
+			errs = append(errs, &ValidationError{Path: path + ".subflow.definitionCode", Code: ErrCodeConfigInvalid,
+				Message: "子流程节点必须选择目标流程"})
+		}
+		errs = append(errs, &ValidationError{Path: path + ".subflow", Code: ErrCodeConfigInvalid,
+			Message: "子流程运行能力尚未启用，当前仅可保存设计草稿"})
+	case model.NodeTypePlugin:
+		if n.Config.Plugin == nil || strings.TrimSpace(n.Config.Plugin.PluginCode) == "" {
+			errs = append(errs, &ValidationError{Path: path + ".plugin.pluginCode", Code: ErrCodeConfigInvalid,
+				Message: "插件节点必须选择插件"})
+		}
+		if n.Config.Plugin == nil || strings.TrimSpace(n.Config.Plugin.ActionCode) == "" {
+			errs = append(errs, &ValidationError{Path: path + ".plugin.actionCode", Code: ErrCodeConfigInvalid,
+				Message: "插件节点必须选择插件动作"})
+		}
+		errs = append(errs, &ValidationError{Path: path + ".plugin", Code: ErrCodeConfigInvalid,
+			Message: "插件节点运行能力尚未启用，当前仅可保存设计草稿"})
 	case model.NodeTypeService:
 		errs = v.validateServiceConfig(errs, n.Config.Service, path+".service")
 	case model.NodeTypeParallel:
 		errs = v.validateParallelConfig(errs, n.Config.Parallel, path+".parallel")
+	}
+	return errs
+}
+
+// validateProgressiveApproval 校验逐级审批的设计协议。运行能力门由调用方
+// 单独追加，使配置错误与能力未开放可以同时、精确地反馈到属性面板。
+func (v *Validator) validateProgressiveApproval(errs ValidationErrors, cfg *model.ProgressiveApprovalConfig, path string) ValidationErrors {
+	if cfg == nil {
+		return append(errs, &ValidationError{Path: path, Code: ErrCodeConfigInvalid,
+			Message: "逐级审批必须设置审批终点"})
+	}
+	switch cfg.Endpoint {
+	case model.ProgressiveEndpointStarterDirectManager:
+		if cfg.DownwardLevels != 0 {
+			errs = append(errs, &ValidationError{Path: path + ".downwardLevels", Code: ErrCodeConfigInvalid,
+				Message: "发起人直接部门主管终点不允许设置向下层级"})
+		}
+	case model.ProgressiveEndpointOrganizationTop:
+		if cfg.DownwardLevels < 0 || cfg.DownwardLevels > 10 {
+			errs = append(errs, &ValidationError{Path: path + ".downwardLevels", Code: ErrCodeConfigInvalid,
+				Message: "组织最高级部门主管向下层级必须在 0~10 之间"})
+		}
+	default:
+		errs = append(errs, &ValidationError{Path: path + ".endpoint", Code: ErrCodeConfigInvalid,
+			Message: fmt.Sprintf("不支持的逐级审批终点 %q", cfg.Endpoint)})
 	}
 	return errs
 }

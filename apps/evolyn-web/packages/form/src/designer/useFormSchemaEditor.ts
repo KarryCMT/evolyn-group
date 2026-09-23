@@ -215,6 +215,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     if (submitValidatorsReferencing(key).length > 0 || preSubmitConfirmReferences(key))
       return false;
     if (fieldFormulasReferencing(key).length > 0) return false;
+    if (relatedOptionSourcesReferencing(key).length > 0) return false;
     const index = items.value.findIndex((item) => widgetOf(item)?.widgetName === key);
     if (index === -1) return false;
     items.value.splice(index, 1);
@@ -258,6 +259,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
     replaceWidgetSubmitRuleReferences(previousKey, nextKey);
     replaceSubmitValidationReferences(previousKey, nextKey);
     replaceFieldFormulaReferences(previousKey, nextKey);
+    replaceRelatedOptionSourceReferences(previousKey, nextKey);
     selectedKey.value = nextKey;
   }
 
@@ -292,7 +294,8 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
       (typeChanged || hiddenTurn) &&
       (submitValidatorsReferencing(previousKey).length > 0 ||
         preSubmitConfirmReferences(previousKey) ||
-        fieldFormulasReferencing(previousKey).length > 0)
+        fieldFormulasReferencing(previousKey).length > 0 ||
+        relatedOptionSourcesReferencing(previousKey).length > 0)
     ) {
       return false;
     }
@@ -313,6 +316,7 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
       replaceWidgetSubmitRuleReferences(previousKey, next.widget.widgetName);
       replaceSubmitValidationReferences(previousKey, next.widget.widgetName);
       replaceFieldFormulaReferences(previousKey, next.widget.widgetName);
+      replaceRelatedOptionSourceReferences(previousKey, next.widget.widgetName);
       selectedKey.value = next.widget.widgetName;
     }
     return true;
@@ -403,6 +407,27 @@ export function useFormSchemaEditor(initial?: FormSchemaDocument) {
       (formula) =>
         formula.targetFieldId === key || formulaDependencies(formula.formula).includes(key),
     );
+  }
+
+  /** 关联选项过滤可引用当前表单字段；字段生命周期与数据联动保持同一保护口径。 */
+  function relatedOptionSourcesReferencing(key: string): FormItem[] {
+    return items.value.filter((item) => {
+      if (item.widget.type !== 'combo' && item.widget.type !== 'combocheck') return false;
+      return item.widget.optionSource?.related?.filter.conditions.some(
+        (condition) => condition.value?.type === 'field' && condition.value.fieldId === key,
+      );
+    });
+  }
+
+  function replaceRelatedOptionSourceReferences(previousKey: string, nextKey: string): void {
+    for (const item of items.value) {
+      if (item.widget.type !== 'combo' && item.widget.type !== 'combocheck') continue;
+      for (const condition of item.widget.optionSource?.related?.filter.conditions ?? []) {
+        if (condition.value?.type === 'field' && condition.value.fieldId === previousKey) {
+          condition.value.fieldId = nextKey;
+        }
+      }
+    }
   }
 
   /** 删除标签页只解散容器：其中字段移动到整个标签页组之后，绝不删除字段定义。 */

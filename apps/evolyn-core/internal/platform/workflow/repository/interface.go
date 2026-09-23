@@ -27,6 +27,8 @@ type DefinitionRepository interface {
 	Create(ctx context.Context, def *model.WfDefinition) (*model.WfDefinition, error)
 	// GetByCode 按公开编码加载（未软删行）
 	GetByCode(ctx context.Context, code string) (*model.WfDefinition, error)
+	// GetByCodeForUpdate 在调用方事务中锁定定义行，串行化添加/启用版本。
+	GetByCodeForUpdate(ctx context.Context, code string) (*model.WfDefinition, error)
 	// List 租户内游标分页；返回当页数据与是否还有下一页（limit+1 探测）
 	List(ctx context.Context, params ListParams) ([]model.WfDefinition, bool, error)
 	// UpdateMeta 白名单更新名称/描述
@@ -34,9 +36,10 @@ type DefinitionRepository interface {
 	// SaveDraft 草稿乐观锁保存：draft_revision 匹配才写入并条件递增；
 	// 0 行影响即口令过期（Service 转 WORKFLOW_REVISION_CONFLICT）
 	SaveDraft(ctx context.Context, id uint, fromRevision int64, content model.DSLContent) (bool, error)
-	// MarkPublished 发布事务内回写最新发布指针（latest_version_id +
-	// published_version）；只追加指针，不触碰草稿与历史快照
-	MarkPublished(ctx context.Context, id uint, versionID uint, versionNo int) error
+	// OpenDraftVersion 以冻结快照打开下一设计版本，并递增草稿口令。
+	OpenDraftVersion(ctx context.Context, id uint, fromRevision int64, versionNo int, content model.DSLContent) (bool, error)
+	// MarkPublished 发布事务内回写最新发布指针并关闭设计工作区；历史快照只追加。
+	MarkPublished(ctx context.Context, id uint, fromRevision int64, versionID uint, versionNo int) (bool, error)
 	// SoftDelete 软删（发布版本行保留；运行中实例守卫自 Phase 2 接入）
 	SoftDelete(ctx context.Context, def *model.WfDefinition) error
 	// Migrate 开发/测试 AutoMigrate 路径（FIX-009：生产只走 SQL 迁移）

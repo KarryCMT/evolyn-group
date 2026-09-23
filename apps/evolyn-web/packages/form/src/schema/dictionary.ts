@@ -61,6 +61,7 @@ export type WidgetPropKind =
   | 'stickyColumn'
   | 'expression'
   | 'snRules'
+  | 'optionSource'
   | 'linkFilters'
   | 'linkSorts'
   | 'linkMappings'
@@ -430,6 +431,7 @@ export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
       options: { kind: 'options', required: true },
       placeholder: { kind: 'string', maxLen: FORM_PROTOCOL_LIMITS.placeholderMaxLength },
       filterable: { kind: 'boolean' },
+      optionSource: { kind: 'optionSource' },
       defaultValue: { kind: 'string', maxLen: WIDGET_OPTION_LIMITS.textMaxLength },
     },
   },
@@ -440,6 +442,7 @@ export const WIDGET_SPECS: Readonly<Record<FormWidgetType, WidgetSpec>> = {
     props: {
       options: { kind: 'options', required: true },
       placeholder: { kind: 'string', maxLen: FORM_PROTOCOL_LIMITS.placeholderMaxLength },
+      optionSource: { kind: 'optionSource' },
       defaultValue: { kind: 'stringArray', maxItems: WIDGET_OPTION_LIMITS.maxItems },
     },
   },

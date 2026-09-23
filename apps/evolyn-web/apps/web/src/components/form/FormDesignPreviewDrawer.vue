@@ -4,8 +4,8 @@ import type { FormSchemaDocument } from '@evolyn.do/form/schema';
 import { FormWebRuntimeSurface } from '@evolyn.do/form/runtime-web';
 import { RiCloseFill, RiComputerFill, RiSmartphoneFill } from '@remixicon/vue';
 import { computed, ref, shallowRef, watch } from 'vue';
-import { getMemberFieldRegistry } from './memberFieldRegistry';
 import { useAuth } from '~/composables/auth';
+import { getMemberFieldRegistry } from './memberFieldRegistry';
 // 预览组件独立加载运行时样式，避免宿主页面依赖设计器样式副作用。
 import '@evolyn.do/form/runtime-web/style.css';
 
@@ -14,6 +14,8 @@ defineOptions({ name: 'FormDesignPreviewDrawer' });
 const props = defineProps<{
   schema: FormSchemaDocument;
   formId: string;
+  /** 设计器以草稿修订号标识当前预览会话；动态选项适配器另行提交该口令。 */
+  schemaVersion: number;
   adapter: FormRuntimeAdapter;
 }>();
 
@@ -129,6 +131,7 @@ function setViewport(value: 'desktop' | 'mobile'): void {
           class="form-design-preview__runtime"
           :schema="schema"
           :form-id="formId"
+          :published-version="schemaVersion"
           :current-member-id="currentMemberId"
           :adapter="adapter"
           :registry="getMemberFieldRegistry()"

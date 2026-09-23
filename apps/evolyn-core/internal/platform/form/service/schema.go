@@ -43,6 +43,7 @@ const (
 	kindLinkMaps     propKind = "linkMappings"
 	kindExpression   propKind = "expression"
 	kindSnRules      propKind = "snRules"
+	kindOptionSource propKind = "optionSource"
 	kindButtonAct    propKind = "buttonAction"
 )
 
@@ -234,11 +235,13 @@ var widgetSpecs = map[string]widgetSpec{
 		"options":      {kind: kindOptions, required: true},
 		"placeholder":  {kind: kindString, maxLen: protoPlaceholderMax},
 		"filterable":   {kind: kindBoolean},
+		"optionSource": {kind: kindOptionSource},
 		"defaultValue": {kind: kindString, maxLen: protoOptionTextMax},
 	}},
 	"combocheck": {label: "下拉多选框", props: map[string]propSpec{
 		"options":      {kind: kindOptions, required: true},
 		"placeholder":  {kind: kindString, maxLen: protoPlaceholderMax},
+		"optionSource": {kind: kindOptionSource},
 		"defaultValue": {kind: kindStringArray, maxItems: protoOptionMax},
 	}},
 	"separator": {label: "分割线", labelOptional: true, props: map[string]propSpec{
@@ -984,8 +987,114 @@ func validateWidgetProp(value any, spec propSpec, path, key string, protocolVers
 		validateAggregationExpression(value, path, issues)
 	case kindSnRules:
 		validateSnRules(value, path, issues)
+	case kindOptionSource:
+		validateOptionSource(value, path, issues)
 	case kindButtonAct:
 		validateButtonAction(value, path, issues)
+	}
+}
+
+// validateOptionSource 镜像前端 v13 结构校验。源字段存在性、类型与权限在发布
+// 服务读取不可变源快照后终审，保存期只接受封闭且有界的 JSON 结构。
+func validateOptionSource(value any, path string, issues *[]SchemaIssue) { //nolint:gocyclo // 协议对象逐层给出精确路径
+	config, ok := value.(map[string]any)
+	if !ok {
+		*issues = append(*issues, SchemaIssue{Path: path, Message: "optionSource 必须是对象"})
+		return
+	}
+	rejectUnknownKeys(config, []string{"mode", "related"}, path, issues)
+	mode, _ := config["mode"].(string)
+	if mode != "custom" && mode != "related" {
+		*issues = append(*issues, SchemaIssue{Path: path + ".mode", Message: "mode 必须是 custom / related"})
+		return
+	}
+	if mode == "custom" {
+		if _, exists := config["related"]; exists {
+			*issues = append(*issues, SchemaIssue{Path: path + ".related", Message: "自定义选项不能携带关联配置"})
+		}
+		return
+	}
+	related, ok := config["related"].(map[string]any)
+	if !ok {
+		*issues = append(*issues, SchemaIssue{Path: path + ".related", Message: "请选择关联表单与字段"})
+		return
+	}
+	rejectUnknownKeys(related, []string{"source", "sort", "filter"}, path+".related", issues)
+	source, sourceOK := related["source"].(map[string]any)
+	if !sourceOK {
+		*issues = append(*issues, SchemaIssue{Path: path + ".related.source", Message: "请选择关联表单与字段"})
+	} else {
+		rejectUnknownKeys(source, []string{"type", "appId", "sourceId", "fieldId"}, path+".related.source", issues)
+		appID, appOK := asInteger(source["appId"])
+		sourceID, sourceIDOK := source["sourceId"].(string)
+		fieldID, fieldIDOK := source["fieldId"].(string)
+		if source["type"] != "form" || !appOK || appID <= 0 || !sourceIDOK || !strings.HasPrefix(sourceID, "form_") || !fieldIDOK || fieldID == "" {
+			*issues = append(*issues, SchemaIssue{Path: path + ".related.source", Message: "关联数据源必须是有效的已发布表单字段"})
+		}
+	}
+	sortConfig, sortOK := related["sort"].(map[string]any)
+	if !sortOK {
+		*issues = append(*issues, SchemaIssue{Path: path + ".related.sort", Message: "请选择选项排序"})
+	} else {
+		rejectUnknownKeys(sortConfig, []string{"fieldId", "direction"}, path+".related.sort", issues)
+		if fieldID, ok := sortConfig["fieldId"].(string); !ok || fieldID == "" {
+			*issues = append(*issues, SchemaIssue{Path: path + ".related.sort.fieldId", Message: "请选择排序字段"})
+		}
+		direction, _ := sortConfig["direction"].(string)
+		if direction != "asc" && direction != "desc" {
+			*issues = append(*issues, SchemaIssue{Path: path + ".related.sort.direction", Message: "direction 必须是 asc / desc"})
+		}
+	}
+	filter, filterOK := related["filter"].(map[string]any)
+	if !filterOK {
+		*issues = append(*issues, SchemaIssue{Path: path + ".related.filter", Message: "filter 必须是对象"})
+		return
+	}
+	rejectUnknownKeys(filter, []string{"logic", "conditions"}, path+".related.filter", issues)
+	logic, _ := filter["logic"].(string)
+	if logic != "and" && logic != "or" {
+		*issues = append(*issues, SchemaIssue{Path: path + ".related.filter.logic", Message: "logic 必须是 and / or"})
+	}
+	conditions, ok := filter["conditions"].([]any)
+	if !ok || len(conditions) > maxLinkageConditions {
+		*issues = append(*issues, SchemaIssue{Path: path + ".related.filter.conditions", Message: "过滤条件不能超过 20 条"})
+		return
+	}
+	for index, rawCondition := range conditions {
+		conditionPath := fmt.Sprintf("%s.related.filter.conditions[%d]", path, index)
+		condition, ok := rawCondition.(map[string]any)
+		if !ok {
+			*issues = append(*issues, SchemaIssue{Path: conditionPath, Message: "过滤条件必须是对象"})
+			continue
+		}
+		rejectUnknownKeys(condition, []string{"id", "sourceFieldId", "operator", "value"}, conditionPath, issues)
+		id, _ := condition["id"].(string)
+		if len(id) < 4 || len(id) > 64 {
+			*issues = append(*issues, SchemaIssue{Path: conditionPath + ".id", Message: "条件 id 必须为 4–64 个字符"})
+		}
+		if field, _ := condition["sourceFieldId"].(string); field == "" {
+			*issues = append(*issues, SchemaIssue{Path: conditionPath + ".sourceFieldId", Message: "请选择关联表单字段"})
+		}
+		operator, _ := condition["operator"].(string)
+		if !linkageOperators[operator] {
+			*issues = append(*issues, SchemaIssue{Path: conditionPath + ".operator", Message: "操作符不受支持"})
+			continue
+		}
+		if operator == "empty" || operator == "not_empty" {
+			continue
+		}
+		conditionValue, ok := condition["value"].(map[string]any)
+		if !ok || (conditionValue["type"] != "field" && conditionValue["type"] != "constant") {
+			*issues = append(*issues, SchemaIssue{Path: conditionPath + ".value", Message: "请选择当前表单字段或填写自定义值"})
+			continue
+		}
+		if conditionValue["type"] == "field" {
+			if fieldID, _ := conditionValue["fieldId"].(string); fieldID == "" {
+				*issues = append(*issues, SchemaIssue{Path: conditionPath + ".value.fieldId", Message: "请选择当前表单字段"})
+			}
+		} else if _, exists := conditionValue["value"]; !exists {
+			*issues = append(*issues, SchemaIssue{Path: conditionPath + ".value.value", Message: "请填写自定义值"})
+		}
 	}
 }
 
@@ -1450,6 +1559,20 @@ func validateWidgetCrossRules(widget map[string]any, widgetType, path string, is
 		}
 	case "subform":
 		minMaxOf("minRowCount", "maxRowCount")
+	}
+
+	// 关联选项只在运行时从受权数据源加载，不允许在 Schema 固化默认值。
+	if widgetType == "combo" || widgetType == "combocheck" {
+		if optionSource, ok := widget["optionSource"].(map[string]any); ok && optionSource["mode"] == "related" {
+			def := widget["defaultValue"]
+			hasDefault := def != nil && def != ""
+			if values, ok := def.([]any); ok {
+				hasDefault = len(values) > 0
+			}
+			if hasDefault {
+				*issues = append(*issues, SchemaIssue{Path: path + ".defaultValue", Message: "关联选项不支持默认值"})
+			}
+		}
 	}
 
 	if optionWidgetTypes[widgetType] {

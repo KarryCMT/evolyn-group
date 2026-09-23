@@ -103,7 +103,13 @@
                   :items="schemaDocument?.content.items ?? []"
                 />
                 <SeparatorPropertyPanel v-else-if="widget.type === 'separator'" :widget="widget" />
-                <OptionsPropertyPanel v-else-if="optionsWidget" :widget="optionsWidget" />
+                <OptionsPropertyPanel
+                  v-else-if="optionsWidget"
+                  :widget="optionsWidget"
+                  :app-id="appId"
+                  :items="schemaDocument?.content.items ?? []"
+                  :adapter="linkageAdapter"
+                />
                 <FormSchemaPropertySection
                   v-else-if="widget.type === 'dept' || widget.type === 'deptgroup'"
                   :title="widget.type === 'deptgroup' ? '部门多选' : '部门选择'"

@@ -37,6 +37,12 @@ type SaveDraftResult struct {
 	DraftRevision int64 `json:"draftRevision"`
 }
 
+// CreateDraftVersionRequest 从指定已启用版本创建下一设计版本。BaseVersionNo
+// 为空或 0 时默认使用当前启用版本；历史版本也可作为新版本的设计基线。
+type CreateDraftVersionRequest struct {
+	BaseVersionNo int `json:"baseVersionNo"`
+}
+
 // PublishRequest 发布：按草稿当前口令发布（口令不符即并发冲突）。
 type PublishRequest struct {
 	DraftRevision int64 `json:"draftRevision"`
@@ -55,6 +61,8 @@ type WorkflowSummary struct {
 	FormCode         string          `json:"formCode"`
 	PublishedVersion int             `json:"publishedVersion"`
 	DraftRevision    int64           `json:"draftRevision"`
+	DraftVersionNo   int             `json:"draftVersionNo"`
+	HasDraft         bool            `json:"hasDraft"`
 	CreatorMemberID  uint            `json:"creatorMemberId"`
 	CreatedAt        kernel.JSONTime `json:"createdAt"`
 	UpdatedAt        kernel.JSONTime `json:"updatedAt"`
@@ -83,6 +91,7 @@ type ListWorkflowsQuery struct {
 // VersionSummary 发布版本条目（快照全文不出网，详情接口携带）。
 type VersionSummary struct {
 	VersionNo           int             `json:"versionNo"`
+	Status              string          `json:"status"`
 	PublishedByMemberID uint            `json:"publishedByMemberId"`
 	PublishedAt         kernel.JSONTime `json:"publishedAt"`
 }

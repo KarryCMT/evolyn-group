@@ -43,8 +43,10 @@ type DefinitionService interface {
 	Get(ctx context.Context, member *iammodel.User, code string) (*model.WorkflowDetail, error)
 	// Update 白名单更新名称/描述
 	Update(ctx context.Context, member *iammodel.User, code string, req *model.UpdateWorkflowRequest) (*model.WorkflowDetail, error)
-	// SaveDraft 保存草稿：严格校验 + draft_revision 乐观锁条件更新
+	// SaveDraft 保存草稿：可持久化结构校验 + draft_revision 乐观锁条件更新
 	SaveDraft(ctx context.Context, member *iammodel.User, code string, req *model.SaveDraftRequest) (*model.SaveDraftResult, error)
+	// CreateDraftVersion 从当前或指定历史启用快照创建唯一的下一设计版本。
+	CreateDraftVersion(ctx context.Context, member *iammodel.User, code string, req *model.CreateDraftVersionRequest) (*model.WorkflowDetail, error)
 	// Delete 软删定义（发布版本保留；运行中实例守卫自 Phase 2 接入）
 	Delete(ctx context.Context, member *iammodel.User, code string) error
 	// Publish 发布：口令复核 → DSL 严格校验 → Expr 预编译 → 事务内冻结快照

@@ -657,6 +657,83 @@ func (f *FormController) ExecuteLinkage(c *gin.Context) {
 	httpx.ResponseSuccess(c, result)
 }
 
+// QueryRelatedOptions 按目标字段发布配置查询「关联其他表单数据」选项。
+// 客户端只能提交当前表单值与搜索词，不能覆盖数据源、过滤或排序配置。
+// @Summary 查询关联表单选项
+// @Description 从目标表单已发布快照读取可信源表/字段/过滤/排序，并按当前成员数据范围与字段权限裁剪
+// @Accept json
+// @Produce json
+// @Tags 表单数据
+// @Security JWT
+// @Param code path string true "当前表单编码"
+// @Param fieldId path string true "下拉字段 widgetName"
+// @Param request body formmodel.QueryRelatedOptionsRequest true "当前表单值、发布版本与搜索提示"
+// @Success 200 {object} httpx.Response{data=formmodel.RelatedOptionPage}
+// @Failure 400 {object} httpx.Response "errCode=FORM_OPTION_SOURCE_INVALID"
+// @Failure 403 {object} httpx.Response "errCode=FORM_OPTION_SOURCE_PERMISSION_DENIED"
+// @Failure 404 {object} httpx.Response "errCode=FORM_OPTION_SOURCE_NOT_FOUND"
+// @Failure 409 {object} httpx.Response "errCode=FORM_OPTION_SOURCE_VERSION_CONFLICT"
+// @Router /api/v1/forms/{code}/option-fields/{fieldId}/query [post]
+func (f *FormController) QueryRelatedOptions(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	fieldID := strings.TrimSpace(c.Param("fieldId"))
+	if fieldID == "" {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的字段编码"))
+		return
+	}
+	req := new(formmodel.QueryRelatedOptionsRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := f.formService.QueryRelatedOptions(c.Request.Context(), ginctx.GetUser(c), code, fieldID, req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
+// PreviewRelatedOptions 按当前已保存草稿查询设计器预览选项。
+// @Summary 预览关联表单选项
+// @Description 设计器保存草稿后按 draftRevision 读取可信关联配置；仅 forms:update 成员可用
+// @Accept json
+// @Produce json
+// @Tags 表单管理
+// @Security JWT
+// @Param code path string true "当前表单编码"
+// @Param fieldId path string true "下拉字段 widgetName"
+// @Param request body formmodel.PreviewRelatedOptionsRequest true "草稿口令、当前值与搜索提示"
+// @Success 200 {object} httpx.Response{data=formmodel.RelatedOptionPage}
+// @Failure 403 {object} httpx.Response "errCode=FORM_OPTION_SOURCE_PERMISSION_DENIED"
+// @Failure 409 {object} httpx.Response "errCode=FORM_OPTION_SOURCE_VERSION_CONFLICT"
+// @Router /api/v1/forms/{code}/option-fields/{fieldId}/preview-query [post]
+func (f *FormController) PreviewRelatedOptions(c *gin.Context) {
+	code, ok := formCodeFromParam(c, "code")
+	if !ok {
+		return
+	}
+	fieldID := strings.TrimSpace(c.Param("fieldId"))
+	if fieldID == "" {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的字段编码"))
+		return
+	}
+	req := new(formmodel.PreviewRelatedOptionsRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := f.formService.PreviewRelatedOptions(c.Request.Context(), ginctx.GetUser(c), code, fieldID, req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
 func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/forms", f.Create)
 	api.GET("/forms", f.List)
@@ -676,6 +753,8 @@ func (f *FormController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/forms/:code/references", f.ListReferences)
 	api.GET("/forms/:code/linkage-fields", f.ListLinkageFields)
 	api.POST("/forms/:code/linkages/:ruleId/execute", f.ExecuteLinkage)
+	api.POST("/forms/:code/option-fields/:fieldId/query", f.QueryRelatedOptions)
+	api.POST("/forms/:code/option-fields/:fieldId/preview-query", f.PreviewRelatedOptions)
 	// 记录查询以 POST body 承载完整 Query DSL（复杂筛选会超出 URL 长度
 	// 上限）；POST 的 URL 门动词由 request.go 特判归一化为 get → form-records:view。
 	// DELETE 仍是 form-records:delete，服务层继续按逐条数据范围复核。

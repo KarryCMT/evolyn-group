@@ -41,6 +41,7 @@ import {
   getFormLinkageFields,
   getFormStorageJob,
   listForms,
+  previewFormRelatedOptions,
   publishForm,
   retryFormStorageJob,
   saveFormDraft,
@@ -278,17 +279,29 @@ async function onUpdateFormName(name: string): Promise<void> {
   await workspace.rename(name);
 }
 
-/** 预览直接在当前工作台底部抽屉中打开，始终使用画布中的最新草稿。 */
-function openPreview(): void {
+/**
+ * 预览前先保存当前草稿：关联选项预览由服务端按草稿口令读取可信配置，既展示
+ * 尚未发布的最新设计，也避免浏览器上传可篡改的数据源定义。
+ */
+async function openPreview(): Promise<void> {
   if (!items.value.length) {
     ElMessage.info('请先添加字段再预览');
     return;
   }
+  if (!(await persistDraft(false))) return;
   previewVisible.value = true;
 }
 
 /** 设计器预览不写入记录，仅模拟完成提交，方便即时验证字段交互。 */
 const previewAdapter: FormRuntimeAdapter = {
+  queryRelatedOptions(input, signal) {
+    return previewFormRelatedOptions(input.formId, input.fieldId, {
+      draftRevision: draftRevision.value,
+      values: input.values,
+      keyword: input.keyword,
+      pageSize: input.pageSize,
+    }, signal);
+  },
   async submit() {
     return { accepted: true };
   },
@@ -326,10 +339,15 @@ function onPreviewDraftSuccess(): void {
 
 /** 保存草稿：本地校验先行（前后端一致），服务端口令递增。 */
 async function saveDraft(): Promise<void> {
+  await persistDraft(true);
+}
+
+/** 保存草稿共用事务；预览自动保存时不重复弹成功提示。 */
+async function persistDraft(showSuccess: boolean): Promise<boolean> {
   const local = validateFormSchema(document.value);
   if (!local.valid) {
     showIssues(local.issues);
-    return;
+    return false;
   }
   saving.value = true;
   try {
@@ -345,9 +363,11 @@ async function saveDraft(): Promise<void> {
       protocolVersion: FORM_PROTOCOL_VERSION,
       draft: document.value,
     });
-    ElMessage.success('保存成功');
+    if (showSuccess) ElMessage.success('保存成功');
+    return true;
   } catch (error) {
     handleSaveError(error);
+    return false;
   } finally {
     saving.value = false;
   }
@@ -645,6 +665,7 @@ function notifyUnavailable(action: string) {
       v-model="previewVisible"
       :schema="document"
       :form-id="formCode"
+      :schema-version="draftRevision"
       :adapter="previewAdapter"
       @unsupported-field="onUnsupportedPreviewField"
       @submit-success="onPreviewSubmitSuccess"

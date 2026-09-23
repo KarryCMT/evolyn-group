@@ -11,6 +11,7 @@ import {
   createFormDataOperationId,
   executeFormLinkage,
   getFormRuntime,
+  queryFormRelatedOptions,
   submitFormRecord,
 } from '~/api/form';
 import { getMemberFieldRegistry } from '~/components/form/memberFieldRegistry';
@@ -56,6 +57,14 @@ const actions: FormRuntimeActionDefinition[] = [
 ];
 
 const runtimeAdapter: FormRuntimeAdapter = {
+  queryRelatedOptions(input, signal) {
+    return queryFormRelatedOptions(input.formId, input.fieldId, {
+      schemaVersion: input.schemaVersion,
+      values: input.values,
+      keyword: input.keyword,
+      pageSize: input.pageSize,
+    }, signal);
+  },
   executeLinkage(input, signal) {
     return executeFormLinkage(
       input.formId,

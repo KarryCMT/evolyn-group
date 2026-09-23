@@ -1,7 +1,13 @@
 <script setup lang="ts">
-import { computed, shallowRef, watch } from 'vue';
-import { resolveNodePositions } from '../adapters/graph';
+import { computed, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue';
+import { computeAutoLayout, resolveNodePositions } from '../adapters/graph';
 import {
+  type WorkflowActorOptions,
+  type WorkflowDocument,
+  type WorkflowField,
+  type WorkflowIssue,
+  type WorkflowNodeType,
+  type WorkflowPosition,
   addEdge,
   addNode,
   collectWorkflowIssues,
@@ -12,12 +18,6 @@ import {
   setNodePosition,
   updateEdge,
   updateNode,
-  type WorkflowActorOptions,
-  type WorkflowDocument,
-  type WorkflowField,
-  type WorkflowIssue,
-  type WorkflowNodeType,
-  type WorkflowPosition,
 } from '../schema';
 import WorkflowCanvas from './WorkflowCanvas.vue';
 import WorkflowInspector from './WorkflowInspector.vue';
@@ -47,6 +47,9 @@ const emit = defineEmits<{
 
 const selectedNodeKey = shallowRef<string | null>(props.document.nodes[0]?.key ?? null);
 const selectedEdgeKey = shallowRef<string | null>(null);
+const undoStack = shallowRef<WorkflowDocument[]>([]);
+const redoStack = shallowRef<WorkflowDocument[]>([]);
+let expectedDocument: WorkflowDocument | null = null;
 
 const selectedNode = computed(
   () => props.document.nodes.find((node) => node.key === selectedNodeKey.value) ?? null,
@@ -65,6 +68,13 @@ const issueTarget = computed(() => resolveIssueTargets(props.document, allIssues
 watch(
   () => props.document,
   (document) => {
+    if (expectedDocument === document) {
+      expectedDocument = null;
+    } else {
+      // 版本切换/服务端重载属于新的编辑会话，不允许撤销回另一个版本。
+      undoStack.value = [];
+      redoStack.value = [];
+    }
     if (
       selectedNodeKey.value &&
       !document.nodes.some((node) => node.key === selectedNodeKey.value)
@@ -79,6 +89,33 @@ watch(
     }
   },
 );
+
+function commitDocument(document: WorkflowDocument) {
+  undoStack.value = [...undoStack.value.slice(-49), props.document];
+  redoStack.value = [];
+  expectedDocument = document;
+  emit('updateDocument', document);
+}
+
+function undo() {
+  if (props.readonly || undoStack.value.length === 0) return;
+  const previous = undoStack.value.at(-1);
+  if (!previous) return;
+  undoStack.value = undoStack.value.slice(0, -1);
+  redoStack.value = [...redoStack.value, props.document];
+  expectedDocument = previous;
+  emit('updateDocument', previous);
+}
+
+function redo() {
+  if (props.readonly || redoStack.value.length === 0) return;
+  const next = redoStack.value.at(-1);
+  if (!next) return;
+  redoStack.value = redoStack.value.slice(0, -1);
+  undoStack.value = [...undoStack.value, props.document];
+  expectedDocument = next;
+  emit('updateDocument', next);
+}
 
 function selectNode(nodeKey: string) {
   selectedNodeKey.value = nodeKey;
@@ -119,30 +156,65 @@ function handleAddNode(type: WorkflowNodeType) {
       ? insertNodeOnEdge(props.document, type, positionForNewNode(), outgoing[0].key)
       : addNode(props.document, type, positionForNewNode());
   const { document, node } = result;
-  emit('updateDocument', document);
+  commitDocument(document);
   selectNode(node.key);
+}
+
+/** 从工具栏拖到画布时按落点创建独立节点，由用户通过锚点决定连接关系。 */
+function handleDropNode(type: WorkflowNodeType, position: WorkflowPosition) {
+  if (props.readonly) return;
+  const { document, node } = addNode(props.document, type, position);
+  commitDocument(document);
+  selectNode(node.key);
+}
+
+function handleAddFromNode(
+  nodeKey: string,
+  type: WorkflowNodeType,
+  direction: 'top' | 'right' | 'bottom' | 'left',
+) {
+  if (props.readonly) return;
+  const positions = resolveNodePositions(props.document);
+  const anchor = positions[nodeKey] ?? { x: 420, y: 240 };
+  const offsets = {
+    top: { x: 0, y: -150 },
+    right: { x: 250, y: 0 },
+    bottom: { x: 0, y: 150 },
+    left: { x: -250, y: 0 },
+  } as const;
+  const offset = offsets[direction];
+  const added = addNode(props.document, type, {
+    x: anchor.x + offset.x,
+    y: anchor.y + offset.y,
+  });
+  // 上/左方向表示新节点接入当前节点之前；下/右方向表示接在之后。
+  const document = ['top', 'left'].includes(direction)
+    ? addEdge(added.document, added.node.key, nodeKey)
+    : addEdge(added.document, nodeKey, added.node.key);
+  commitDocument(document);
+  selectNode(added.node.key);
 }
 
 function handleMoveNode(nodeKey: string, position: WorkflowPosition) {
   if (props.readonly) return;
-  emit('updateDocument', setNodePosition(props.document, nodeKey, position));
+  commitDocument(setNodePosition(props.document, nodeKey, position));
 }
 
 /** 锚点连线：重复边静默忽略（自环已在画布层拦截） */
 function handleConnectEdge(source: string, target: string) {
   if (props.readonly) return;
   if (props.document.edges.some((edge) => edge.source === source && edge.target === target)) return;
-  emit('updateDocument', addEdge(props.document, source, target));
+  commitDocument(addEdge(props.document, source, target));
 }
 
 function handleUpdateName(nodeKey: string, name: string) {
   if (props.readonly) return;
-  emit('updateDocument', updateNode(props.document, nodeKey, { name }));
+  commitDocument(updateNode(props.document, nodeKey, { name }));
 }
 
 function handleUpdateConfig(nodeKey: string, config: WorkflowDocument['nodes'][number]['config']) {
   if (props.readonly) return;
-  emit('updateDocument', updateNode(props.document, nodeKey, { config }));
+  commitDocument(updateNode(props.document, nodeKey, { config }));
 }
 
 /**
@@ -151,8 +223,7 @@ function handleUpdateConfig(nodeKey: string, config: WorkflowDocument['nodes'][n
  */
 function handleUpdateEdgeCondition(edgeKey: string, expression: string | null) {
   if (props.readonly) return;
-  emit(
-    'updateDocument',
+  commitDocument(
     updateEdge(props.document, edgeKey, {
       condition: expression === null ? undefined : { expression },
     }),
@@ -161,13 +232,60 @@ function handleUpdateEdgeCondition(edgeKey: string, expression: string | null) {
 
 function handleRemoveNode(nodeKey: string) {
   if (props.readonly) return;
-  emit('updateDocument', removeNode(props.document, nodeKey));
+  commitDocument(removeNode(props.document, nodeKey));
 }
 
 function handleRemoveEdge(edgeKey: string) {
   if (props.readonly) return;
-  emit('updateDocument', removeEdge(props.document, edgeKey));
+  commitDocument(removeEdge(props.document, edgeKey));
 }
+
+function deleteSelected() {
+  if (selectedEdgeKey.value) {
+    handleRemoveEdge(selectedEdgeKey.value);
+    selectedEdgeKey.value = null;
+    return;
+  }
+  if (selectedNode.value && !['start', 'end'].includes(selectedNode.value.type)) {
+    handleRemoveNode(selectedNode.value.key);
+    selectedNodeKey.value = null;
+  }
+}
+
+/** 对齐/排列统一回到协议图的分层布局，避免 LogicFlow 自持坐标形成第二事实源。 */
+function arrangeNodes() {
+  if (props.readonly) return;
+  const layout = computeAutoLayout(props.document);
+  const arranged = props.document.nodes.reduce((document, node) => {
+    const position = layout[node.key];
+    return position ? setNodePosition(document, node.key, position) : document;
+  }, props.document);
+  commitDocument(arranged);
+}
+
+function handleKeyboard(event: KeyboardEvent) {
+  if (props.readonly) return;
+  const target = event.target as HTMLElement | null;
+  if (target?.closest('input, textarea, [contenteditable="true"]')) return;
+  const command = event.metaKey || event.ctrlKey;
+  if (command && event.key.toLowerCase() === 'z') {
+    event.preventDefault();
+    event.shiftKey ? redo() : undo();
+    return;
+  }
+  if (command && event.key.toLowerCase() === 'y') {
+    event.preventDefault();
+    redo();
+    return;
+  }
+  if (event.key === 'Delete' || event.key === 'Backspace') {
+    event.preventDefault();
+    deleteSelected();
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', handleKeyboard));
+onBeforeUnmount(() => window.removeEventListener('keydown', handleKeyboard));
 </script>
 
 <template>
@@ -176,7 +294,19 @@ function handleRemoveEdge(edgeKey: string) {
     :class="{ 'workflow-designer--readonly': readonly }"
     aria-label="流程设计器"
   >
-    <WorkflowPalette v-if="!readonly" @add-node="handleAddNode" />
+    <WorkflowPalette
+      v-if="!readonly"
+      class="workflow-designer__toolbar"
+      :can-undo="undoStack.length > 0"
+      :can-redo="redoStack.length > 0"
+      :can-delete="Boolean(selectedEdge || (selectedNode && !['start', 'end'].includes(selectedNode.type)))"
+      @add-node="handleAddNode"
+      @undo="undo"
+      @redo="redo"
+      @align="arrangeNodes"
+      @distribute="arrangeNodes"
+      @delete-selected="deleteSelected"
+    />
     <WorkflowCanvas
       class="workflow-designer__canvas"
       :document="document"
@@ -189,6 +319,8 @@ function handleRemoveEdge(edgeKey: string) {
       @select-edge="selectEdge"
       @update-node-position="handleMoveNode"
       @connect-edge="handleConnectEdge"
+      @drop-node="handleDropNode"
+      @add-from-node="handleAddFromNode"
     />
     <WorkflowInspector
       v-if="!readonly"
@@ -212,10 +344,14 @@ function handleRemoveEdge(edgeKey: string) {
   display: grid;
   min-height: 0;
   flex: 1;
-  grid-template-columns: auto minmax(0, 1fr) 360px;
+  grid-template: auto minmax(0, 1fr) / minmax(0, 1fr) 360px;
 
   &--readonly {
-    grid-template-columns: minmax(0, 1fr);
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
+  }
+
+  &__toolbar {
+    grid-column: 1 / -1;
   }
 
   &__canvas,
@@ -226,13 +362,13 @@ function handleRemoveEdge(edgeKey: string) {
 
 @media (max-width: 900px) {
   .workflow-designer {
-    grid-template-columns: auto minmax(0, 1fr) 300px;
+    grid-template-columns: minmax(0, 1fr) 300px;
   }
 }
 
 @media (max-width: 700px) {
   .workflow-designer {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
 
     &__inspector {
       display: none;

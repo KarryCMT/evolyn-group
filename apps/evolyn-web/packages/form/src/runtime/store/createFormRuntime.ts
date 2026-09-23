@@ -27,7 +27,7 @@ import {
   renderSubmitTemplate,
 } from '../../schema/submit-validation';
 import { formatMoneyValue } from '../../schema/money';
-import type { FormItem, FormSchemaDocument, SubmitRule } from '../../schema/types';
+import type { FormItem, FormSchemaDocument, FormWidgetOption, SubmitRule } from '../../schema/types';
 import type { FormRuntimeAdapter } from '../adapters/types';
 import { DataLinkageRuntime } from '../linkage/DataLinkageRuntime';
 import { FieldFormulaRuntime } from '../formula/FieldFormulaRuntime';
@@ -119,6 +119,8 @@ export interface FormRuntime {
   markTouched(key: string): void;
   validateField(key: string): readonly string[];
   validateVisibleFields(): boolean;
+  /** 按发布快照中的可信配置查询关联选项；无适配器时安全返回空集。 */
+  queryRelatedOptions(fieldId: string, signal: AbortSignal): Promise<FormWidgetOption[]>;
   /**
    * 字段的不可见赋值策略（v6 §5.2 客户端预演）：供预览调试与宿主展示
    * 「将保留原值 / 将清空」提示；权威决议在服务端。
@@ -708,6 +710,23 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     return state.dirtyKeys.size > 0;
   }
 
+  async function queryRelatedOptions(fieldId: string, signal: AbortSignal): Promise<FormWidgetOption[]> {
+    const item = itemMap.get(fieldId);
+    if (!item || (item.widget.type !== 'combo' && item.widget.type !== 'combocheck')) return [];
+    if (item.widget.optionSource?.mode !== 'related') {
+      return item.widget.options;
+    }
+    if (!options.adapter?.queryRelatedOptions) return [];
+    const result = await options.adapter.queryRelatedOptions({
+      formId: options.formId ?? '',
+      schemaVersion: options.publishedVersion ?? 0,
+      fieldId,
+      values: Object.fromEntries(Object.entries(state.values).map(([key, value]) => [key, cloneFormValue(value)])),
+      pageSize: 100,
+    }, signal);
+    return result.items;
+  }
+
   function createSubmitOperationID(): string {
     // 现代浏览器均支持 randomUUID；降级分支仅服务于受限 WebView，仍保证一次会话内稳定。
     if (typeof globalThis.crypto?.randomUUID === 'function') return globalThis.crypto.randomUUID();
@@ -727,6 +746,7 @@ export function createFormRuntime(options: FormRuntimeOptions): FormRuntime {
     markTouched,
     validateField,
     validateVisibleFields,
+    queryRelatedOptions,
     submitStrategyOf,
     applyServerFieldErrors,
     setTemplateValueLabels,

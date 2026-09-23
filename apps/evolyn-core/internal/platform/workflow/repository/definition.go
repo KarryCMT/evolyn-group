@@ -9,6 +9,7 @@ import (
 	"evolyn/internal/platform/workflow/model"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // definitionRepository 流程定义 GORM 仓储。
@@ -34,6 +35,15 @@ func (r *definitionRepository) GetByCode(ctx context.Context, code string) (*mod
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
+	return &def, err
+}
+
+func (r *definitionRepository) GetByCodeForUpdate(ctx context.Context, code string) (*model.WfDefinition, error) {
+	var def model.WfDefinition
+	err := infrastructure.ResolveDB(ctx, r.base).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("code = ?", code).
+		First(&def).Error
 	return &def, err
 }
 
@@ -67,7 +77,7 @@ func (r *definitionRepository) UpdateMeta(ctx context.Context, id uint, name, de
 // 0 行影响返回 false（口令过期），由 Service 转稳定错误。
 func (r *definitionRepository) SaveDraft(ctx context.Context, id uint, fromRevision int64, content model.DSLContent) (bool, error) {
 	result := infrastructure.ResolveDB(ctx, r.base).Model(&model.WfDefinition{}).
-		Where("id = ? AND draft_revision = ?", id, fromRevision).
+		Where("id = ? AND draft_revision = ? AND has_draft = TRUE", id, fromRevision).
 		Updates(map[string]any{"draft_content": content, "draft_revision": fromRevision + 1})
 	if result.Error != nil {
 		return false, result.Error
@@ -75,10 +85,24 @@ func (r *definitionRepository) SaveDraft(ctx context.Context, id uint, fromRevis
 	return result.RowsAffected > 0, nil
 }
 
-func (r *definitionRepository) MarkPublished(ctx context.Context, id uint, versionID uint, versionNo int) error {
-	return infrastructure.ResolveDB(ctx, r.base).Model(&model.WfDefinition{}).
-		Where("id = ?", id).
-		Updates(map[string]any{"latest_version_id": versionID, "published_version": versionNo}).Error
+func (r *definitionRepository) OpenDraftVersion(ctx context.Context, id uint, fromRevision int64, versionNo int, content model.DSLContent) (bool, error) {
+	result := infrastructure.ResolveDB(ctx, r.base).Model(&model.WfDefinition{}).
+		Where("id = ? AND draft_revision = ? AND has_draft = FALSE", id, fromRevision).
+		Updates(map[string]any{
+			"draft_content": content, "draft_revision": fromRevision + 1,
+			"draft_version_no": versionNo, "has_draft": true,
+		})
+	return result.RowsAffected > 0, result.Error
+}
+
+func (r *definitionRepository) MarkPublished(ctx context.Context, id uint, fromRevision int64, versionID uint, versionNo int) (bool, error) {
+	result := infrastructure.ResolveDB(ctx, r.base).Model(&model.WfDefinition{}).
+		Where("id = ? AND draft_revision = ? AND has_draft = TRUE AND draft_version_no = ?", id, fromRevision, versionNo).
+		Updates(map[string]any{
+			"latest_version_id": versionID, "published_version": versionNo,
+			"draft_version_no": versionNo, "has_draft": false,
+		})
+	return result.RowsAffected > 0, result.Error
 }
 
 func (r *definitionRepository) SoftDelete(ctx context.Context, def *model.WfDefinition) error {

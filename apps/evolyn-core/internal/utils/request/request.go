@@ -168,6 +168,23 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 		requestInfo.Verb = GetOperation
 	}
 
+	// 关联选项查询与数据联动相同，属于表单记录的只读数据面。表单、字段与
+	// 排序均从已发布快照读取，URL 中的 fieldId 只定位配置，不能落入
+	// forms:create 管理门，否则普通填表成员无法加载下拉选项。
+	if req.Method == http.MethodPost && requestInfo.Resource == "forms" && requestInfo.Name != "" &&
+		requestInfo.Subresource == "option-fields" && len(requestInfo.Parts) == 5 && requestInfo.Parts[4] == "query" {
+		requestInfo.Resource = "form-records"
+		requestInfo.Subresource = ""
+		requestInfo.Verb = GetOperation
+	}
+
+	// 设计器关联选项预览读取已保存草稿，属于 forms:update 管理面；与正式运行时
+	// query 的 form-records:get 权限严格分离，普通填表成员不能探测草稿配置。
+	if req.Method == http.MethodPost && requestInfo.Resource == "forms" && requestInfo.Name != "" &&
+		requestInfo.Subresource == "option-fields" && len(requestInfo.Parts) == 5 && requestInfo.Parts[4] == "preview-query" {
+		requestInfo.Verb = UpdateOperation
+	}
+
 	// 前端事件调试是表单设计管理面的更新动作。公开接口使用 POST 承载测试值，
 	// 但权限语义必须命中 forms:update，而不是默认的 forms:create。
 	if req.Method == http.MethodPost && requestInfo.Resource == "forms" && requestInfo.Name != "" &&

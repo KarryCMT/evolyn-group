@@ -29,6 +29,12 @@ var (
 	// ErrRevisionConflict 草稿修订号过期（他人已保存），客户端刷新后重试
 	ErrRevisionConflict = httpx.NewBiz("WORKFLOW_REVISION_CONFLICT", "流程已被他人更新，请刷新后重试", http.StatusConflict)
 
+	// ErrDraftNotOpen 当前工作区是只读启用版本，必须先显式添加新版本。
+	ErrDraftNotOpen = httpx.NewBiz("WORKFLOW_DRAFT_NOT_OPEN", "当前版本已启用，请先添加新版本", http.StatusConflict)
+
+	// ErrDraftAlreadyExists 同一流程同一时刻只允许一个设计中版本。
+	ErrDraftAlreadyExists = httpx.NewBiz("WORKFLOW_DRAFT_ALREADY_EXISTS", "已存在设计中的流程版本", http.StatusConflict)
+
 	// ErrDefinitionInvalid DSL 严格校验失败；data 携带 issues:[{path,code,message}]
 	//（path 为 DSL 文档内定位，code 为校验器稳定错误码，message 为中文说明）
 	ErrDefinitionInvalid = httpx.NewBiz("WORKFLOW_DEFINITION_INVALID", "流程定义不符合 DSL v1 协议", http.StatusBadRequest)

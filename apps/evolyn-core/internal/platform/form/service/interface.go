@@ -153,6 +153,10 @@ type FormService interface {
 	ListLinkageFields(ctx context.Context, member *iammodel.User, sourceCode string) ([]model.LinkageSourceField, error)
 	// ExecuteLinkage 按当前表单发布快照中的可信规则执行受控跨表查询。
 	ExecuteLinkage(ctx context.Context, member *iammodel.User, code, ruleID string, req *model.ExecuteLinkageRequest) (*model.ExecuteLinkageResult, error)
+	// QueryRelatedOptions 按发布快照中的字段级 optionSource 查询去重选项。
+	QueryRelatedOptions(ctx context.Context, member *iammodel.User, code, fieldID string, req *model.QueryRelatedOptionsRequest) (*model.RelatedOptionPage, error)
+	// PreviewRelatedOptions 按已保存草稿口令查询设计器预览选项，仅表单设计者可用。
+	PreviewRelatedOptions(ctx context.Context, member *iammodel.User, code, fieldID string, req *model.PreviewRelatedOptionsRequest) (*model.RelatedOptionPage, error)
 }
 
 // FrontendEventInvokerInjector 是生产装配期注入点；未注入时调试明确失败，
