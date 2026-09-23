@@ -69,6 +69,9 @@ import (
 	iammodel "evolyn/internal/platform/iam/model"
 	"evolyn/internal/platform/iam/repository"
 	"evolyn/internal/platform/iam/service"
+	labelcontroller "evolyn/internal/platform/label/controller"
+	labelrepository "evolyn/internal/platform/label/repository"
+	labelservice "evolyn/internal/platform/label/service"
 	"evolyn/internal/platform/middleware"
 	notificationcontroller "evolyn/internal/platform/notification/controller"
 	notificationrepository "evolyn/internal/platform/notification/repository"
@@ -190,6 +193,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	formDDLJobRepo := formrepository.NewDDLJobRepository(db)
 	formPhysicalValueRepo := formrepository.NewPhysicalValueRepository(db)
 	formStorageChildRepo := formrepository.NewStorageChildRepository(db)
+	// 标签模板域（000084）：LabelSchema 草稿与不可变发布快照。
+	labelTemplateRepo := labelrepository.NewTemplateRepository(db)
+	labelVersionRepo := labelrepository.NewVersionRepository(db)
 	// 流程引擎仓储（000048/000049，ADR-012）：定义+草稿、不可变发布快照、
 	// 运行态六表（实例/执行路径/节点实例/任务/参与人/操作流水）
 	workflowDefinitionRepo := workflowrepository.NewDefinitionRepository(db)
@@ -267,6 +273,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 			return nil, err
 		}
 		if err := formStorageChildRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := labelTemplateRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := labelVersionRepo.Migrate(); err != nil {
 			return nil, err
 		}
 		if err := workflowDefinitionRepo.Migrate(); err != nil {
@@ -613,6 +625,19 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	permissionGroupController := formcontroller.NewPermissionGroupController(permissionGroupService)
 	formController := formcontroller.NewFormController(formService)
 
+	// 二维码标签域：表单目录与真实记录均经窄端口桥接，正式渲染读取
+	// 不可变发布快照；记录范围和字段矩阵由 form 域先行裁剪。
+	labelRecordSource, ok := formService.(formservice.LabelRecordSource)
+	if !ok {
+		return nil, fmt.Errorf("label record source not configured")
+	}
+	labelService := labelservice.NewTemplateService(
+		txManager, labelTemplateRepo, labelVersionRepo,
+		labelFormDirectory{forms: formRepo, versions: formVersionRepo},
+		labelRecordResolver{source: labelRecordSource}, appAccess, auditSvc,
+	)
+	labelController := labelcontroller.NewLabelController(labelService)
+
 	// 流程引擎域（000048，ADR-012）Definition Engine：定义 CRUD/草稿/发布；
 	// DSL 校验以引擎内核严格校验器为唯一事实源，权限集经窄端口与鉴权同源
 	workflowService := workflowservice.NewDefinitionService(
@@ -683,7 +708,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// 自定义工作台域（000077）控制器：成员个人配置，挂租户域链
 	workbenchController := workbenchcontroller.NewWorkbenchController(workbenchSvc)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, appController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, productLogController, formController, permissionGroupController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController, workbenchController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, appController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, productLogController, formController, permissionGroupController, labelController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController, workbenchController}
 
 	// 流程延时任务 Worker（Phase 5，000052）：超时自动动作/待办提醒，
 	// 领取走 FOR UPDATE SKIP LOCKED，claim+执行同事务（crash 自动回滚），

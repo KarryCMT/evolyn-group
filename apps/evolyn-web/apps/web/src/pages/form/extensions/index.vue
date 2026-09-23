@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { Component } from 'vue';
 import {
   RiAiGenerate2,
   RiCheckboxCircleFill,
@@ -7,10 +8,11 @@ import {
   RiNotification3Fill,
   RiPrinterFill,
   RiPushpin2Fill,
+  RiQrCodeFill,
   RiSettings3Fill,
   RiWallet3Fill,
 } from '@remixicon/vue';
-import { computed, markRaw, type Component } from 'vue';
+import { computed, markRaw } from 'vue';
 import { useRoute } from 'vue-router';
 
 defineOptions({ name: 'FormExtensionsLayout' });
@@ -38,6 +40,7 @@ const extensionNavigationItems: ExtensionNavigationItem[] = [
   { name: 'form-extension-payment', label: '在线支付', icon: markRaw(RiWallet3Fill) },
   { name: 'form-extension-actions', label: '自定义按钮', icon: markRaw(RiPushpin2Fill) },
   { name: 'form-extension-push', label: '数据推送', icon: markRaw(RiFileList2Fill) },
+  { name: 'form-extension-qrcode', label: '二维码标签', icon: markRaw(RiQrCodeFill) },
 ];
 
 const routeParams = computed(() => ({

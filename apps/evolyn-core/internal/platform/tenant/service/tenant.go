@@ -561,6 +561,10 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			{Resource: iammodel.WorkflowResource, Operation: iammodel.AllOperation},
 			{Resource: iammodel.WorkflowInstanceResource, Operation: iammodel.AllOperation},
 			{Resource: iammodel.WorkflowTaskResource, Operation: iammodel.AllOperation},
+			// 二维码标签模板设计与正式生成：管理员拥有 URL 资源门权限，
+			// 正式渲染仍由表单域复核记录范围和字段矩阵；存量租户由 000084 补授。
+			{Resource: iammodel.LabelTemplateResource, Operation: iammodel.AllOperation},
+			{Resource: iammodel.LabelResource, Operation: iammodel.AllOperation},
 			// 企业自定义工作台（000078）：工作台由企业管理员统一配置，
 			// update 覆盖设计页保存（读取 view 由全体成员基线覆盖）；
 			// 存量租户由 000078 按「管理员规则签名」补授，不经管理组放行

@@ -1,0 +1,43 @@
+{
+  "name": "@evolyn.do/label",
+  "description": "灵衍云标签 Schema、值解析与 SVG 渲染引擎",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.mjs",
+  "types": "dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.mjs",
+      "require": "./dist/cjs/index.js"
+    },
+    "./*": "./dist/*"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "scripts": {
+    "build": "rimraf dist && tsdown",
+    "clean": "rimraf .turbo node_modules dist",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "qrcode": "catalog:frontend"
+  },
+  "devDependencies": {
+    "@evolyn.do/typescript-config": "workspace:*",
+    "@types/node": "catalog:types",
+    "@types/qrcode": "^1.5.6",
+    "rimraf": "catalog:dev",
+    "tsdown": "catalog:build",
+    "typescript": "catalog:types",
+    "vitest": "catalog:test"
+  }
+}

@@ -139,6 +139,10 @@ const (
 	WorkflowResource         = "workflows"
 	WorkflowInstanceResource = "workflow-instances"
 	WorkflowTaskResource     = "workflow-tasks"
+	// LabelTemplateResource 是标签设计态模板管理面；LabelResource 是正式
+	// 渲染入口。二者均只授予租户管理员，记录与字段仍由表单域二次裁剪。
+	LabelTemplateResource = "label-templates"
+	LabelResource         = "labels"
 	// NotificationResource 与 /notifications 路由保持一致，代表成员收件箱
 	//（view 覆盖摘要/列表、update 覆盖已读，授予全体成员）；数据范围只能
 	// 是「当前租户 × 当前成员」，由 Repository 双条件兜底。

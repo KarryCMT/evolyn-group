@@ -237,6 +237,16 @@ func (r *Repositories) Init() error {
 			Name:  model.FormDataResource,
 			Scope: model.ClusterScope,
 		},
+		// 二维码标签：设计态模板管理与正式渲染拆分为两个资源。URL 门只
+		// 负责资源权限，记录范围与字段矩阵仍由表单域在服务层二次裁剪。
+		{
+			Name:  model.LabelTemplateResource,
+			Scope: model.ClusterScope,
+		},
+		{
+			Name:  model.LabelResource,
+			Scope: model.ClusterScope,
+		},
 		// 菜单节点个人收藏：凡节点可见即可收藏（create 收藏、delete 取消），
 		// 授予全体成员（authenticated 基线），数据范围由 Repository 的
 		// member_id 双条件兜底

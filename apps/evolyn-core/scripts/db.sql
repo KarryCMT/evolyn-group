@@ -2924,6 +2924,110 @@ WHERE r.id IN (
       )
   );
 
+-- ============================================================
+-- 000083: 表单字段公式编译产物
+-- ============================================================
+
+ALTER TABLE tn_form_versions
+    ADD COLUMN IF NOT EXISTS compiled_field_formulas JSONB NOT NULL DEFAULT '{}'::jsonb;
+
+-- ============================================================
+-- 000084: 二维码标签模板生命周期
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tn_label_templates (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    code VARCHAR(64) NOT NULL,
+    name VARCHAR(128) NOT NULL,
+    description VARCHAR(500) NOT NULL DEFAULT '',
+    app_id BIGINT NOT NULL,
+    form_id BIGINT NOT NULL REFERENCES tn_forms(id),
+    form_code VARCHAR(64) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'draft',
+    draft_schema JSONB NOT NULL,
+    draft_revision BIGINT NOT NULL DEFAULT 1,
+    previewed_draft_revision BIGINT NOT NULL DEFAULT 0,
+    latest_version_id BIGINT,
+    published_version INTEGER NOT NULL DEFAULT 0,
+    published_draft_revision BIGINT NOT NULL DEFAULT 0,
+    width NUMERIC(12,4) NOT NULL,
+    height NUMERIC(12,4) NOT NULL,
+    unit VARCHAR(10) NOT NULL DEFAULT 'mm',
+    dpi INTEGER NOT NULL DEFAULT 300,
+    creator_member_id BIGINT NOT NULL,
+    creator_id BIGINT,
+    updater_id BIGINT,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT ck_tn_label_templates_status CHECK (status IN ('draft', 'published', 'disabled')),
+    CONSTRAINT ck_tn_label_templates_unit CHECK (unit IN ('mm', 'px')),
+    CONSTRAINT ck_tn_label_templates_schema CHECK (jsonb_typeof(draft_schema) = 'object')
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_label_templates_tenant_code
+    ON tn_label_templates (tenant_id, code) WHERE deleted_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_label_templates_form
+    ON tn_label_templates (tenant_id, form_id) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_tn_label_templates_tenant
+    ON tn_label_templates (tenant_id, id DESC) WHERE deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS tn_label_template_versions (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    template_id BIGINT NOT NULL REFERENCES tn_label_templates(id),
+    version_no INTEGER NOT NULL,
+    schema_version VARCHAR(20) NOT NULL DEFAULT '1.0',
+    schema_snapshot JSONB NOT NULL,
+    published_by_member_id BIGINT NOT NULL,
+    published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ,
+    CONSTRAINT ck_tn_label_template_versions_schema CHECK (jsonb_typeof(schema_snapshot) = 'object'),
+    CONSTRAINT uk_tn_label_template_versions_no UNIQUE (template_id, version_no)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tn_label_template_versions_tenant
+    ON tn_label_template_versions (tenant_id, template_id, version_no DESC);
+
+UPDATE tn_roles AS r
+SET rules = (
+    r.rules::jsonb || COALESCE((
+        SELECT jsonb_agg(candidate.rule)
+        FROM jsonb_array_elements('[
+          {"resource": "label-templates", "operation": "*"},
+          {"resource": "labels", "operation": "*"}
+        ]'::jsonb) AS candidate(rule)
+        WHERE NOT EXISTS (
+            SELECT 1
+            FROM jsonb_array_elements(r.rules::jsonb) AS existing(rule)
+            WHERE existing.rule->>'resource' = candidate.rule->>'resource'
+              AND existing.rule->>'operation' = '*'
+        )
+    ), '[]'::jsonb)
+)::json
+WHERE r.deleted_at IS NULL
+  AND json_typeof(COALESCE(r.rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(r.rules) rule WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(r.rules) rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(r.rules) rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*')
+  AND EXISTS (
+      SELECT 1
+      FROM jsonb_array_elements('[
+        {"resource": "label-templates", "operation": "*"},
+        {"resource": "labels", "operation": "*"}
+      ]'::jsonb) AS candidate(rule)
+      WHERE NOT EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(r.rules::jsonb) AS existing(rule)
+          WHERE existing.rule->>'resource' = candidate.rule->>'resource'
+            AND existing.rule->>'operation' = '*'
+      )
+  );
+
+COMMENT ON TABLE tn_label_templates IS '二维码标签模板：draft_schema 为 LabelSchema V1 唯一设计事实源，draft_revision 为乐观锁口令；每个有效表单至多绑定一个模板';
+COMMENT ON TABLE tn_label_template_versions IS '标签模板不可变发布快照：正式渲染固定读取 published_version 指向的 schema_snapshot';
+
 -- 迁移版本登记（与 migrations/ 全链一致）：make postgres 导入快照后，
 -- 启动迁移器识别全部版本已应用，零重放（checksum 与迁移文件 sha256 一致，
 -- 文件被篡改时迁移器按既有防漂移机制拒绝启动）。种子幂等：ON CONFLICT 不覆盖。
@@ -3016,5 +3120,7 @@ INSERT INTO schema_migrations (version, name, checksum) VALUES
     (79, 'rename_application_to_app', 'dc53b8d41e3c634b9f58b8958e3293ffafc5b212bbdba557ca30cfdd09a1c109'),
     (80, 'rename_menu_entry_to_node', '284446680ed5c811353be8588b41df39f609faedc17aec9cec0f332feaf6f2ff'),
     (81, 'menu_favorite_list_grant', '218ac2031fb5e99a723c9cf06a9b1de4a5bc372a48c62ecb688ba3bece628ddd'),
-    (82, 'repair_workflow_baseline_rules', 'ab3db75795a82285ea254054f10be647023a57b7e95e10f103cd50fd53ebf469')
+    (82, 'repair_workflow_baseline_rules', 'ab3db75795a82285ea254054f10be647023a57b7e95e10f103cd50fd53ebf469'),
+    (83, 'form_field_formulas', '2ed833fdc3385bebe2519a7d14b055188502177e850e1f8e983b2c653b7dd58b'),
+    (84, 'label_templates', '4db1c0bd24cdeb3df0a52818f3ce80a18be633b1c7aa9151028ef10de5e69172')
 ON CONFLICT (version) DO NOTHING;

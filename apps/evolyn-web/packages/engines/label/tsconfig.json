@@ -1,0 +1,11 @@
+{
+  "extends": "@evolyn.do/typescript-config/vite.json",
+  "compilerOptions": {
+    "declarationMap": false,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*.ts"]
+}

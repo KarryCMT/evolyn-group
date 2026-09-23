@@ -5,15 +5,6 @@ interface FormFeatureProps {
   description: string;
 }
 
-/** 非设计器类一级工作区使用独立视图，避免继续渲染字段面板和属性面板。 */
-function workspaceFeature(props: FormFeatureProps) {
-  return {
-    component: () => import('~/pages/form/workspace-placeholder.vue'),
-    props,
-    meta: { title: props.title },
-  };
-}
-
 function extensionFeature(props: FormFeatureProps) {
   return {
     component: () => import('~/pages/form/extensions/feature-placeholder.vue'),
@@ -137,6 +128,12 @@ const formRoutes: RouteRecordRaw[] = [
               title: '数据推送',
               description: '按规则将表单数据推送至外部服务。',
             }),
+          },
+          {
+            path: 'qrcode',
+            name: 'form-extension-qrcode',
+            component: () => import('~/pages/form/extensions/qrcode.vue'),
+            meta: { title: '二维码标签' },
           },
         ],
       },

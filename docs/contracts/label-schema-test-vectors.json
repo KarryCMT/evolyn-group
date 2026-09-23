@@ -1,0 +1,148 @@
+{
+  "vectors": [
+    {
+      "name": "valid-minimal-text-label",
+      "schema": {
+        "schemaVersion": "1.0",
+        "name": "资产标签",
+        "page": {
+          "width": 80,
+          "height": 50,
+          "unit": "mm",
+          "dpi": 300,
+          "background": "#ffffff"
+        },
+        "source": {
+          "type": "form",
+          "formId": "form_assets"
+        },
+        "elements": [
+          {
+            "id": "title",
+            "type": "text",
+            "x": 4,
+            "y": 3,
+            "width": 72,
+            "height": 8,
+            "rotation": 0,
+            "zIndex": 1,
+            "visible": true,
+            "locked": false,
+            "value": {
+              "type": "static",
+              "value": "资产标签"
+            },
+            "style": {
+              "fontFamily": "Noto Sans CJK SC",
+              "fontSize": 5,
+              "fontWeight": 700,
+              "color": "#1b2129",
+              "lineHeight": 1.2,
+              "textAlign": "left",
+              "verticalAlign": "top",
+              "overflow": "ellipsis"
+            }
+          }
+        ],
+        "settings": {
+          "snapToGrid": true,
+          "gridSize": 1,
+          "showGrid": false
+        }
+      },
+      "expectedIssues": []
+    },
+    {
+      "name": "invalid-page-and-settings",
+      "schema": {
+        "schemaVersion": "2.0",
+        "name": "",
+        "page": {
+          "width": 0,
+          "height": -1,
+          "unit": "cm",
+          "dpi": 72,
+          "background": "white"
+        },
+        "elements": [],
+        "settings": {
+          "snapToGrid": false,
+          "gridSize": 0,
+          "showGrid": false
+        }
+      },
+      "expectedIssues": [
+        { "path": "$.schemaVersion", "code": "VERSION_UNSUPPORTED", "message": "仅支持 LabelSchema 1.0" },
+        { "path": "$.name", "code": "NAME_REQUIRED", "message": "标签名称不能为空" },
+        { "path": "$.page", "code": "PAGE_SIZE_INVALID", "message": "标签宽高必须为正数" },
+        { "path": "$.page.unit", "code": "PAGE_UNIT_INVALID", "message": "标签单位仅支持 mm 或 px" },
+        { "path": "$.page.dpi", "code": "PAGE_DPI_INVALID", "message": "DPI 仅支持 96、203、300、600" },
+        { "path": "$.page.background", "code": "COLOR_INVALID", "message": "页面背景色必须为十六进制颜色" },
+        { "path": "$.settings.gridSize", "code": "GRID_SIZE_INVALID", "message": "网格尺寸必须为正数" }
+      ]
+    },
+    {
+      "name": "invalid-field-and-duplicate-element",
+      "schema": {
+        "schemaVersion": "1.0",
+        "name": "字段标签",
+        "page": {
+          "width": 80,
+          "height": 50,
+          "unit": "px",
+          "dpi": 96,
+          "background": "#ffffff"
+        },
+        "elements": [
+          {
+            "id": "field",
+            "type": "field",
+            "x": 1,
+            "y": 1,
+            "width": 20,
+            "height": 5,
+            "rotation": 0,
+            "zIndex": 1,
+            "visible": true,
+            "locked": false,
+            "value": { "type": "field", "fieldId": "" },
+            "style": {
+              "fontFamily": "sans-serif",
+              "fontSize": 4,
+              "fontWeight": 400,
+              "color": "#111111",
+              "lineHeight": 1.2,
+              "textAlign": "left",
+              "verticalAlign": "top",
+              "overflow": "clip"
+            }
+          },
+          {
+            "id": "field",
+            "type": "line",
+            "x": 1,
+            "y": 10,
+            "width": 20,
+            "height": 1,
+            "rotation": 0,
+            "zIndex": 2,
+            "visible": true,
+            "locked": false,
+            "color": "black",
+            "strokeWidth": 0
+          }
+        ],
+        "settings": {
+          "snapToGrid": true,
+          "gridSize": 1,
+          "showGrid": true
+        }
+      },
+      "expectedIssues": [
+        { "path": "$.elements[0].value.fieldId", "code": "FIELD_ID_REQUIRED", "message": "字段绑定不能为空" },
+        { "path": "$.elements[1].id", "code": "ELEMENT_ID_DUPLICATED", "message": "元素 ID 不能重复" },
+        { "path": "$.elements[1]", "code": "LINE_STYLE_INVALID", "message": "线条颜色或宽度无效" }
+      ]
+    }
+  ]
+}
