@@ -2,7 +2,7 @@
   "name": "@evolyn.do/framework",
   "description": "This is a modern component library template based on Turborepo + Vue 3.5 + TypeScript.",
   "version": "2.0.0",
-  "packageManager": "pnpm@10.20.0",
+  "packageManager": "pnpm@12.4.2",
   "author": "karrylee <18223673150@163.com>",
   "license": "MIT",
   "homepage": "https://github.com/KarryCMT/evolyn-group.git",

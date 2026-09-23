@@ -8,6 +8,12 @@ packages:
   - playground
   - build
 
+allowBuilds:
+  '@logicflow/core': true
+  '@parcel/watcher': true
+  esbuild: true
+  vue-demi: true
+
 catalogs:
   build:
     '@emnapi/core': ^1.10.0
@@ -101,9 +107,6 @@ catalogs:
     lodash-es: ^4.18.1
     'decimal.js': ^10.4.3
     qs: ^6.15.3
-
-onlyBuiltDependencies:
-  - esbuild
 
 overrides:
   '@vue/devtools-api': ^8.1.5
