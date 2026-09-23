@@ -200,6 +200,66 @@ func (f *LabelController) Render(c *gin.Context) {
 	c.Data(http.StatusOK, result.MIMEType, result.Content)
 }
 
+// BatchRender 创建固定发布快照的异步多页 PDF 任务。
+// @Summary 创建批量标签渲染任务
+// @Tags 二维码标签
+// @Security JWT
+// @Accept json
+// @Produce json
+// @Param body body model.BatchRenderRequest true "批量渲染参数"
+// @Success 202 {object} httpx.Response{data=model.BatchRenderCreated}
+// @Router /api/v1/labels/batch-render [post]
+func (f *LabelController) BatchRender(c *gin.Context) {
+	req := new(model.BatchRenderRequest)
+	if err := c.ShouldBindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := f.service.BatchRender(c.Request.Context(), ginctx.GetUser(c), req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.NewResponse(c, http.StatusAccepted, result, "任务已创建")
+}
+
+func (f *LabelController) GetRenderTask(c *gin.Context) {
+	result, err := f.service.GetRenderTask(c.Request.Context(), ginctx.GetUser(c), strings.TrimSpace(c.Param("taskCode")))
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
+func (f *LabelController) DownloadRenderTask(c *gin.Context) {
+	result, err := f.service.DownloadRenderTask(c.Request.Context(), ginctx.GetUser(c), strings.TrimSpace(c.Param("taskCode")))
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
+// ResolveQRToken 在认证和租户中间件之后解析扫码目标。服务层会再次执行
+// 表单记录权限校验，并只返回前端定位所需的稳定公开编码。
+// @Summary 解析二维码定位目标
+// @Tags 二维码标签
+// @Security JWT
+// @Produce json
+// @Param token path string true "二维码短 Token"
+// @Success 200 {object} httpx.Response{data=model.QRTokenTarget}
+// @Failure 404 {object} httpx.Response
+// @Router /api/v1/labels/qr-tokens/{token} [get]
+func (f *LabelController) ResolveQRToken(c *gin.Context) {
+	result, err := f.service.ResolveQRToken(c.Request.Context(), ginctx.GetUser(c), strings.TrimSpace(c.Param("token")))
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
 func (f *LabelController) Delete(c *gin.Context) {
 	code, ok := templateCode(c)
 	if !ok {
@@ -221,6 +281,10 @@ func (f *LabelController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/label-templates/:code/preview", f.Preview)
 	api.DELETE("/label-templates/:code", f.Delete)
 	api.POST("/labels/render", f.Render)
+	api.POST("/labels/batch-render", f.BatchRender)
+	api.GET("/labels/render-tasks/:taskCode", f.GetRenderTask)
+	api.GET("/labels/render-tasks/:taskCode/download", f.DownloadRenderTask)
+	api.GET("/labels/qr-tokens/:token", f.ResolveQRToken)
 }
 
 func (f *LabelController) Name() string { return "Label" }

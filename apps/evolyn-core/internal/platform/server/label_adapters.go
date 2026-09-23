@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 
+	apprepository "evolyn/internal/platform/app/repository"
+	fileservice "evolyn/internal/platform/file/service"
 	formrepository "evolyn/internal/platform/form/repository"
 	formservice "evolyn/internal/platform/form/service"
 	iammodel "evolyn/internal/platform/iam/model"
+	iamrepository "evolyn/internal/platform/iam/repository"
 	labelservice "evolyn/internal/platform/label/service"
 
 	"gorm.io/gorm"
@@ -17,6 +20,49 @@ import (
 type labelFormDirectory struct {
 	forms    formrepository.FormRepository
 	versions formrepository.FormVersionRepository
+}
+
+type labelMemberDirectory struct{ users iamrepository.UserRepository }
+
+func (d labelMemberDirectory) MemberByID(ctx context.Context, memberID uint) (*iammodel.User, error) {
+	return d.users.GetUserByID(ctx, memberID)
+}
+
+type labelAppDirectory struct{ apps apprepository.AppRepository }
+
+func (d labelAppDirectory) AppCodeByID(ctx context.Context, appID uint) (string, error) {
+	app, err := d.apps.GetByID(ctx, appID)
+	if err != nil {
+		return "", err
+	}
+	return app.Code, nil
+}
+
+type labelArtifactStore struct {
+	files   fileservice.FileService
+	enabled bool
+}
+
+func (s labelArtifactStore) Available() bool { return s.enabled && s.files != nil }
+
+func (s labelArtifactStore) StorePDF(ctx context.Context, member *iammodel.User, filename, relativePath string, content []byte) (string, error) {
+	file, err := s.files.StoreGenerated(ctx, member, fileservice.GeneratedFileInput{
+		Filename: filename, ContentType: "application/pdf", Content: content, RelativePath: relativePath,
+	})
+	if err != nil {
+		return "", err
+	}
+	return file.Code, nil
+}
+
+func (s labelArtifactStore) Download(ctx context.Context, member *iammodel.User, fileCode string) (*labelservice.ArtifactDownload, error) {
+	result, err := s.files.DownloadURL(ctx, member, fileCode)
+	if err != nil {
+		return nil, err
+	}
+	return &labelservice.ArtifactDownload{
+		Method: result.Method, URL: result.URL, Headers: result.Headers, ExpiresAt: result.ExpiresAt,
+	}, nil
 }
 
 func (d labelFormDirectory) FormByCode(ctx context.Context, code string) (labelservice.FormView, bool, error) {

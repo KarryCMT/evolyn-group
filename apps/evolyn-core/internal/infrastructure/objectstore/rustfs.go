@@ -3,6 +3,7 @@ package objectstore
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -105,6 +106,16 @@ func (r *RustFS) PresignGet(ctx context.Context, bucket, key string, expires tim
 		return nil, err
 	}
 	return &PresignedRequest{Method: "GET", URL: u.String(), Headers: map[string]string{}}, nil
+}
+
+// Put 供服务端 Worker 写入受信生成文件；对象键仍由文件域生成，调用方
+// 不接触 RustFS 凭据，也不通过 HTTP 回环上传。
+func (r *RustFS) Put(ctx context.Context, bucket, key string, content io.Reader, size int64, contentType string) (*ObjectInfo, error) {
+	info, err := r.client.PutObject(ctx, bucket, key, content, size, minio.PutObjectOptions{ContentType: contentType})
+	if err != nil {
+		return nil, err
+	}
+	return &ObjectInfo{Size: info.Size, ContentType: contentType}, nil
 }
 
 func (r *RustFS) Stat(ctx context.Context, bucket, key string) (*ObjectInfo, error) {

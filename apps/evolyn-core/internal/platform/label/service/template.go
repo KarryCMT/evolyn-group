@@ -37,14 +37,21 @@ func bizWithData(base *httpx.BizError, data any) *httpx.BizError {
 }
 
 type templateService struct {
-	tx        TxManager
-	templates repository.TemplateRepository
-	versions  repository.VersionRepository
-	forms     FormDirectory
-	records   RecordResolver
-	access    AccessEvaluator
-	audit     auditservice.Recorder
-	renderer  *enginelabel.Renderer
+	tx            TxManager
+	templates     repository.TemplateRepository
+	versions      repository.VersionRepository
+	forms         FormDirectory
+	records       RecordResolver
+	access        AccessEvaluator
+	audit         auditservice.Recorder
+	renderer      *enginelabel.Renderer
+	tasks         repository.RenderTaskRepository
+	queue         BatchQueue
+	artifacts     ArtifactStore
+	members       MemberDirectory
+	tokens        repository.QRTokenRepository
+	apps          AppDirectory
+	publicBaseURL string
 }
 
 func NewTemplateService(
@@ -465,6 +472,11 @@ func (s *templateService) render(ctx context.Context, member *iammodel.User, tem
 				bizWithData(labelapp.ErrFieldNoPermission, map[string]any{"fieldId": fieldID}),
 				fmt.Errorf("member cannot read label field %s", fieldID),
 			)
+		}
+	}
+	if usesScanToken(schema) {
+		if err := s.attachQRURL(ctx, member, template.AppID, template.FormID, template.ID, uint(parsedID), record.System); err != nil {
+			return nil, err
 		}
 	}
 	result, err := s.renderer.Render(ctx, enginelabel.RenderRequest{

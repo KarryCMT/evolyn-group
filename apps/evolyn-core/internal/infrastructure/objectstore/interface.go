@@ -4,6 +4,7 @@ package objectstore
 
 import (
 	"context"
+	"io"
 	"time"
 )
 
@@ -26,6 +27,7 @@ type ObjectInfo struct {
 type Store interface {
 	PresignPut(ctx context.Context, bucket, key string, expires time.Duration, headers map[string]string) (*PresignedRequest, error)
 	PresignGet(ctx context.Context, bucket, key string, expires time.Duration) (*PresignedRequest, error)
+	Put(ctx context.Context, bucket, key string, content io.Reader, size int64, contentType string) (*ObjectInfo, error)
 	Stat(ctx context.Context, bucket, key string) (*ObjectInfo, error)
 	Remove(ctx context.Context, bucket, key string) error
 }

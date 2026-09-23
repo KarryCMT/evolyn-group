@@ -7,6 +7,7 @@ server:
   env: 'debug' # 运行环境；示例：debug（本地）或 release（生产）。
   address: '127.0.0.1' # HTTP 监听地址；示例：127.0.0.1（仅本机）或 0.0.0.0（容器部署）。
   port: 8080 # HTTP 监听端口；示例：8080。
+  publicBaseUrl: 'https://app.lingyanyun.com' # 二维码扫码后访问的前端公开站点根地址；release 必填。
   gracefulShutdownPeriod: 30 # 优雅停机等待秒数；示例：30。
   rateLimits: # 请求限流规则列表；示例中同时配置全局与单 IP 两个维度。
     - limitType: 'server' # 限流维度；示例：server（全局）或 ip（按客户端 IP）。

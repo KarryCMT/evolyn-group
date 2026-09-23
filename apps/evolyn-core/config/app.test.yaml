@@ -4,6 +4,7 @@ server:
   env: 'test'
   address: '127.0.0.1'
   port: 8081
+  publicBaseUrl: 'http://127.0.0.1:11007'
   gracefulShutdownPeriod: 5
   rateLimits:
     - limitType: 'server'

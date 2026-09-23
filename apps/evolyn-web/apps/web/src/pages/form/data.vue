@@ -20,12 +20,30 @@ import { deleteFormRecords } from '~/api/form';
 import FormRecordCreateDialog from '~/components/form/data/FormRecordCreateDialog.vue';
 import FormRecordFilterPanel from '~/components/form/data/FormRecordFilterPanel.vue';
 import FormRecordMemberCardPopover from '~/components/form/data/FormRecordMemberCardPopover.vue';
-import { memberReferencesOf, useFormRecordDataSource } from '~/composables/useFormRecordDataSource';
+import {
+  memberReferencesOf,
+  SYSTEM_RECORD_FIELDS,
+  useFormRecordDataSource,
+} from '~/composables/useFormRecordDataSource';
 
 defineOptions({ name: 'FormDataPage' });
 
-const { query, updateQuery } = useDataWorkspace();
 const route = useRoute();
+const scannedRecordId = positiveRouteID(route.query.recordId);
+// 扫码解析已经在服务端完成一次记录权限校验；数据页仍通过标准列表查询
+// 再次执行同一权限管线，并以系统主键条件精确定位目标记录。
+const { query, updateQuery } = useDataWorkspace({
+  initialQuery: scannedRecordId
+    ? {
+        filter: {
+          type: 'condition',
+          field: SYSTEM_RECORD_FIELDS.recordId,
+          operator: 'eq',
+          value: scannedRecordId,
+        },
+      }
+    : undefined,
+});
 const appCode = computed(() => String(route.params.appCode ?? ''));
 const formCode = computed(() => String(route.params.formCode ?? ''));
 const {
@@ -45,6 +63,13 @@ const memberCardVisible = shallowRef(false);
 const memberCardReferences = shallowRef<FormRecordMemberReference[]>([]);
 const memberCardPosition = shallowRef<{ x: number; y: number } | null>(null);
 const createDialogVisible = shallowRef(false);
+
+function positiveRouteID(value: unknown): number | undefined {
+  const raw = Array.isArray(value) ? value[0] : value;
+  if (typeof raw !== 'string' || !/^\d+$/.test(raw)) return undefined;
+  const id = Number(raw);
+  return Number.isSafeInteger(id) && id > 0 ? id : undefined;
+}
 // 「筛选」为工具栏工具型入口（搜索框旁的弹层面板），不在业务动作区
 const defaultActions: DataAction[] = [
   { key: 'create', label: '添加', icon: markRaw(RiAddFill), tone: 'primary' },
@@ -154,7 +179,9 @@ function isRecordCellClick(value: unknown): value is {
   <section class="form-data-page" aria-label="数据管理工作台">
     <p v-if="status === 'error'" class="form-data-page__error" role="alert">
       {{ errorMessage }}
-      <button type="button" @click="reload">重试</button>
+      <button type="button" @click="reload">
+        重试
+      </button>
     </p>
     <p v-else-if="status === 'loading'" class="form-data-page__loading" aria-live="polite">
       正在加载表单数据…

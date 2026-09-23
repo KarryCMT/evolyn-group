@@ -32,6 +32,59 @@ export interface LabelTemplatePageDto {
   nextCursor: string;
 }
 
+export type LabelRenderTaskStatus =
+  | 'pending'
+  | 'running'
+  | 'success'
+  | 'partial_success'
+  | 'failed'
+  | 'cancelled';
+
+export interface LabelRenderTaskItemDto {
+  recordId: string;
+  sequence: number;
+  status: 'pending' | 'running' | 'success' | 'failed';
+  errorCode?: string;
+  errorMessage?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface LabelRenderTaskDto {
+  taskId: string;
+  templateVersion: number;
+  format: 'pdf';
+  status: LabelRenderTaskStatus;
+  totalCount: number;
+  successCount: number;
+  failedCount: number;
+  progress: number;
+  fileId?: string;
+  errorCode?: string;
+  errorMessage?: string;
+  startedAt?: string;
+  finishedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  items: LabelRenderTaskItemDto[];
+}
+
+interface LabelArtifactDownloadDto {
+  method: string;
+  url: string;
+  headers: Record<string, string>;
+  expiresAt: string;
+}
+
+export interface LabelQRTokenTargetDto {
+  targetType: 'form_record';
+  appCode: string;
+  formCode: string;
+  recordId: string;
+}
+
 export function listLabelTemplates(query: {
   formCode?: string;
   keyword?: string;
@@ -118,4 +171,35 @@ export async function renderPublishedLabel(payload: {
   format: LabelRenderFormat;
 }): Promise<Blob> {
   return requestLabelFile('/labels/render', payload);
+}
+
+/** 创建异步批量 PDF；recordIds 保持字符串，避免未来后端 64 位 ID 精度丢失。 */
+export function createLabelBatchRender(payload: {
+  templateCode: string;
+  recordIds: string[];
+  format?: 'pdf';
+}): Promise<{ taskId: string; status: LabelRenderTaskStatus }> {
+  return http.post('/labels/batch-render', { ...payload, format: payload.format ?? 'pdf' });
+}
+
+export function getLabelRenderTask(taskId: string): Promise<LabelRenderTaskDto> {
+  return http.get(`/labels/render-tasks/${taskId}`);
+}
+
+/** 成功或部分成功任务均可下载；真实文件地址为 RustFS 短期签名 URL。 */
+export async function downloadLabelRenderTask(taskId: string): Promise<Blob> {
+  const artifact = await http.get<LabelArtifactDownloadDto>(
+    `/labels/render-tasks/${taskId}/download`,
+  );
+  const response = await fetch(artifact.url, {
+    method: artifact.method,
+    headers: artifact.headers,
+  });
+  if (!response.ok) throw new Error('批量标签文件下载失败');
+  return response.blob();
+}
+
+/** 在当前登录成员与租户上下文中解析扫码目标，后端会重新校验记录权限。 */
+export function resolveLabelQRToken(token: string): Promise<LabelQRTokenTargetDto> {
+  return http.get(`/labels/qr-tokens/${encodeURIComponent(token)}`);
 }

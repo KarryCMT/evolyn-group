@@ -62,6 +62,34 @@ func (r *Renderer) Render(ctx context.Context, request RenderRequest) (*RenderRe
 	return result, nil
 }
 
+// RenderBatch 将同一发布快照与多条可信数据渲染为一个多页 PDF。每一页
+// 都复用单标签的 resolve 绘制指令，确保批量与单张输出没有两套解释语义。
+func (r *Renderer) RenderBatch(ctx context.Context, schema Schema, data []RenderData) (*RenderResult, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("batch label data is empty")
+	}
+	if issues := Validate(&schema); len(issues) > 0 {
+		return nil, fmt.Errorf("invalid label schema at %s: %s", issues[0].Path, issues[0].Message)
+	}
+	documents := make([]*ResolvedDocument, 0, len(data))
+	for index := range data {
+		document, err := r.resolve(ctx, &schema, data[index])
+		if err != nil {
+			return nil, fmt.Errorf("resolve label page %d: %w", index+1, err)
+		}
+		documents = append(documents, document)
+	}
+	content, pixelWidth, pixelHeight, err := renderPDFDocuments(documents)
+	if err != nil {
+		return nil, err
+	}
+	return &RenderResult{
+		Content: content, MIMEType: "application/pdf",
+		Width: schema.Page.Width, Height: schema.Page.Height, DPI: schema.Page.DPI,
+		PixelWidth: pixelWidth, PixelHeight: pixelHeight,
+	}, nil
+}
+
 func (r *Renderer) resolveValue(ctx context.Context, source *ValueSource, data RenderData) (string, error) {
 	if source == nil {
 		return "", nil

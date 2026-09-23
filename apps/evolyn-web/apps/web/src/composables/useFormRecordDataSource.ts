@@ -2,12 +2,13 @@ import type { DataContext, DataQuery, DataRecord, DataSource } from '@evolyn.do/
 import type { DataColumn } from '@evolyn.do/data-workspace';
 import type { QueryDocument, QueryFieldType } from '@evolyn.do/query';
 import type { Component, ComputedRef, ShallowRef } from 'vue';
+import type { DepartmentDto } from '~/api/department';
 import type { FormRecordMemberReference, FormRuntimeBootstrap } from '~/types';
 import { normalizeQuery, validateQuery } from '@evolyn.do/query';
-import { RiFileList2Fill, RiFileChartFill, RiTimeFill, RiUser3Fill } from '@remixicon/vue';
+import { RiFileChartFill, RiFileList2Fill, RiHashtag, RiTimeFill, RiUser3Fill } from '@remixicon/vue';
 import { computed, markRaw, readonly, shallowRef, watch } from 'vue';
+import { getDepartmentTree } from '~/api/department';
 import { getFormRuntime, listFormRecords } from '~/api/form';
-import { getDepartmentTree, type DepartmentDto } from '~/api/department';
 import { widgetIconOfType } from '~/components/form/widgetIcons';
 
 export type FormRecordDataStatus = 'loading' | 'ready' | 'error';
@@ -19,6 +20,7 @@ export type FormRecordDataStatus = 'loading' | 'ready' | 'error';
  * （提交人为展示名快照）与 Query DSL 筛选（提交人为成员 ID）。
  */
 export const SYSTEM_RECORD_FIELDS = {
+  recordId: 'sys.recordId',
   workflowInstanceNo: 'sys.workflowInstanceNo',
   workflowStatus: 'sys.workflowStatus',
   workflowUpdatedAt: 'sys.workflowUpdatedAt',
@@ -546,20 +548,6 @@ function formatMoneyRecordValues(
  * Web 应用通过已发布包的类型声明消费 Schema，不能依赖未构建的包内运行时代码。
  * 此处仅消费已终审的 canonical decimal string 做展示，保留原始记录在数据源缓存中。
  */
-function formatRecordMoney(value: string, widget: MoneyDisplayWidget): string {
-  if (!/^-?\d+(\.\d+)?$/.test(value)) return value;
-  const currency = typeof widget.currencyCode === 'string' ? widget.currencyCode : 'CNY';
-  const symbol = RECORD_MONEY_SYMBOLS[currency] ?? '¥';
-  const scale =
-    typeof widget.scale === 'number' && widget.scale >= 0 && widget.scale <= 18 ? widget.scale : 2;
-  const negative = value.startsWith('-');
-  const [integer = '0', fraction = ''] = (negative ? value.slice(1) : value).split('.');
-  // 值在提交时已按字段 scale 终审；展示只补齐尾零，不执行二次舍入或汇率转换。
-  const fixedFraction = scale === 0 ? '' : `${fraction}${'0'.repeat(scale)}`.slice(0, scale);
-  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${negative ? '-' : ''}${symbol}${grouped}${scale === 0 ? '' : `.${fixedFraction}`}`;
-}
-
 const RECORD_MONEY_SYMBOLS: Readonly<Record<string, string>> = {
   CNY: '¥',
   USD: '$',
@@ -574,6 +562,20 @@ const RECORD_MONEY_SYMBOLS: Readonly<Record<string, string>> = {
   CHF: 'CHF',
   AED: 'AED',
 };
+
+function formatRecordMoney(value: string, widget: MoneyDisplayWidget): string {
+  if (!/^-?\d+(?:\.\d+)?$/.test(value)) return value;
+  const currency = typeof widget.currencyCode === 'string' ? widget.currencyCode : 'CNY';
+  const symbol = RECORD_MONEY_SYMBOLS[currency] ?? '¥';
+  const scale =
+    typeof widget.scale === 'number' && widget.scale >= 0 && widget.scale <= 18 ? widget.scale : 2;
+  const negative = value.startsWith('-');
+  const [integer = '0', fraction = ''] = (negative ? value.slice(1) : value).split('.');
+  // 值在提交时已按字段 scale 终审；展示只补齐尾零，不执行二次舍入或汇率转换。
+  const fixedFraction = scale === 0 ? '' : `${fraction}${'0'.repeat(scale)}`.slice(0, scale);
+  const grouped = integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return `${negative ? '-' : ''}${symbol}${grouped}${scale === 0 ? '' : `.${fixedFraction}`}`;
+}
 
 /**
  * 多个子表单以同一个父记录为行组按索引并排展开，行数取可见子表单明细的最大
@@ -633,7 +635,7 @@ function mergeExpandedRecordRows(
   context: {
     source: { col: number; row: number };
     target: { col: number; row: number };
-    table: { getRecordByCell(col: number, row: number): unknown };
+    table: { getRecordByCell: (col: number, row: number) => unknown };
   },
 ): boolean {
   const source = context.table.getRecordByCell(context.source.col, context.source.row);
@@ -666,6 +668,13 @@ function filterFieldsFromRuntime(runtime: FormRuntimeBootstrap | null): FormReco
   //（提交人=enum，值=成员 ID；时间=datetime，秒级或日期值）。
   return [
     ...formFields,
+    {
+      field: SYSTEM_RECORD_FIELDS.recordId,
+      label: '记录 ID',
+      type: 'number',
+      group: 'system',
+      icon: markRaw(RiHashtag),
+    },
     {
       field: SYSTEM_RECORD_FIELDS.workflowInstanceNo,
       label: '流程单号',
@@ -747,10 +756,10 @@ function queryFieldTypeOf(widgetType: string): QueryFieldType | null {
     case 'text':
     case 'textarea':
       return 'text';
-    case 'number':
     // 数值字段族（decimal/money/percent）与 number 共用数值筛选语义：
     // 条件值暂按 number 协议出网（后端 ::numeric 比较），decimal-string
     // 查询值协议随数值运行时 Phase 7 落地。
+    case 'number':
     case 'decimal':
     case 'money':
     case 'percent':

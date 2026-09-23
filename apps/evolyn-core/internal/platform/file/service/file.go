@@ -1,11 +1,14 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
@@ -25,6 +28,8 @@ import (
 	"gorm.io/gorm"
 )
 
+var generatedPathSegment = regexp.MustCompile(`^[a-zA-Z0-9._-]+$`)
+
 type fileService struct {
 	tx      *infrastructure.TxManager
 	repo    repository.FileRepository
@@ -43,6 +48,88 @@ func (s *fileService) Get(ctx context.Context, member *iammodel.User, code strin
 
 func NewFileService(tx *infrastructure.TxManager, repo repository.FileRepository, quota tenantservice.StorageQuotaService, audit service.Recorder, store objectstore.Store, storage config.StorageConfig) FileService {
 	return &fileService{tx: tx, repo: repo, quota: quota, audit: audit, store: store, storage: storage}
+}
+
+// StoreGenerated 保存由受信服务端任务生成的文件。数据库预留与远程对象
+// 写入刻意分成两个阶段，避免 RustFS I/O 占用数据库事务和租户配额锁。
+func (s *fileService) StoreGenerated(ctx context.Context, member *iammodel.User, input GeneratedFileInput) (*filemodel.File, error) {
+	if !s.storage.Enabled || s.store == nil {
+		return nil, filedomain.ErrStorageDisabled
+	}
+	tenantID, err := validateMember(ctx, member)
+	if err != nil {
+		return nil, err
+	}
+	filename := strings.TrimSpace(input.Filename)
+	contentType := strings.TrimSpace(input.ContentType)
+	relativePath, err := validateGeneratedPath(input.RelativePath)
+	if err != nil || filename == "" || len([]rune(filename)) > 255 || contentType == "" || len(contentType) > 255 || len(input.Content) == 0 {
+		return nil, filedomain.ErrRequestInvalid
+	}
+	size := int64(len(input.Content))
+	if size > s.storage.MaxUploadBytes {
+		return nil, filedomain.ErrTooLarge
+	}
+	code, err := newCode()
+	if err != nil {
+		return nil, err
+	}
+	hash := sha256.Sum256(input.Content)
+	expiresAt := kernelTime(time.Now().Add(s.storage.PresignTTL()))
+	file := &filemodel.File{
+		Code:            code,
+		Bucket:          s.storage.Bucket,
+		ObjectKey:       strings.Trim(s.storage.Prefix+"/tenant/"+fmt.Sprint(tenantID)+"/"+relativePath, "/"),
+		OriginalName:    filename,
+		ContentType:     contentType,
+		DeclaredSize:    size,
+		SHA256:          hex.EncodeToString(hash[:]),
+		State:           filemodel.FileStateUploading,
+		ExpiresAt:       &expiresAt,
+		CreatorMemberID: member.ID,
+	}
+	if err := s.tx.WithinTransaction(ctx, func(txCtx context.Context) error {
+		return s.quota.CheckAndReserveStorage(txCtx, tenantID, size, func(reserveCtx context.Context) error {
+			return s.repo.Create(reserveCtx, file)
+		})
+	}); err != nil {
+		return nil, err
+	}
+
+	info, err := s.store.Put(ctx, file.Bucket, file.ObjectKey, bytes.NewReader(input.Content), size, contentType)
+	if err != nil {
+		return nil, httpx.Wrap(filedomain.ErrStorageDisabled, err)
+	}
+	if info == nil || info.Size != size {
+		return nil, httpx.Wrap(filedomain.ErrObjectInvalid, fmt.Errorf("generated file %s size expected=%d actual=%v", code, size, info))
+	}
+	storedContentType := strings.TrimSpace(info.ContentType)
+	if storedContentType == "" {
+		storedContentType = contentType
+	}
+	updated, err := s.repo.MarkReady(ctx, code, size, storedContentType)
+	if err != nil {
+		return nil, err
+	}
+	if !updated {
+		return nil, filedomain.ErrStateInvalid
+	}
+	file.State, file.ActualSize, file.ContentType, file.ExpiresAt = filemodel.FileStateReady, size, storedContentType, nil
+	s.audit.Record(ctx, service.Entry{Module: "file", Action: "generated_store", ResourceType: "file", ResourceID: code, After: map[string]interface{}{"size": size, "contentType": storedContentType}})
+	return file, nil
+}
+
+func validateGeneratedPath(value string) (string, error) {
+	value = strings.Trim(strings.ReplaceAll(strings.TrimSpace(value), "\\", "/"), "/")
+	if value == "" || len(value) > 640 {
+		return "", filedomain.ErrRequestInvalid
+	}
+	for _, segment := range strings.Split(value, "/") {
+		if segment == "" || segment == "." || segment == ".." || !generatedPathSegment.MatchString(segment) {
+			return "", filedomain.ErrRequestInvalid
+		}
+	}
+	return value, nil
 }
 
 func (s *fileService) CreateUpload(ctx context.Context, member *iammodel.User, req *filemodel.CreateUploadRequest) (*filemodel.UploadDetail, error) {

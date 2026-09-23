@@ -422,7 +422,7 @@ func (f *FormController) SubmitRecord(c *gin.Context) {
 }
 
 // @Summary 查询表单记录
-// @Description 仅接收受控 Query DSL JSON（请求体承载完整文档，避免复杂筛选条件超出 URL 长度上限）；筛选字段必须来自当前发布快照 fieldMappings，或系统字段命名空间 sys.submittedBy（提交人成员 ID，eq/neq/in/notIn）/sys.submittedAt、sys.updatedAt（秒级时间，比较与 between）；排序仅开放系统字段（sorts 最多 3 个，asc/desc）。行级 view 范围与字段矩阵仍由服务端合并裁决，禁止 JSONB 路径、物理列名或 SQL 输入。出网含系统字段 submittedByName（提交时固化的展示名快照）与 updatedAt。URL 门的鉴权动词经 request.go 特判归一化为 get（form-records:view），不落入 POST→create 的提交门
+// @Description 仅接收受控 Query DSL JSON（请求体承载完整文档，避免复杂筛选条件超出 URL 长度上限）；筛选字段必须来自当前发布快照 fieldMappings，或系统字段命名空间 sys.recordId（记录正整数 ID，eq/neq/in/notIn）、sys.submittedBy（提交人成员 ID，eq/neq/in/notIn）、sys.submittedAt/sys.updatedAt（秒级时间，比较与 between）及流程投影字段；排序仅开放系统字段（sorts 最多 3 个，asc/desc）。行级 view 范围与字段矩阵仍由服务端合并裁决，禁止 JSONB 路径、物理列名或 SQL 输入。出网含系统字段 submittedByName（提交时固化的展示名快照）与 updatedAt。URL 门的鉴权动词经 request.go 特判归一化为 get（form-records:view），不落入 POST→create 的提交门
 // @Accept json
 // @Produce json
 // @Tags 表单管理

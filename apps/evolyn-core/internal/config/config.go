@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -163,6 +164,8 @@ type ServerConfig struct {
 	GracefulShutdownPeriod int                     `yaml:"gracefulShutdownPeriod"`
 	LimitConfigs           []ratelimit.LimitConfig `yaml:"rateLimits"`
 	JWTSecret              string                  `yaml:"jwtSecret"`
+	// PublicBaseURL 是二维码写入的前端公开站点根地址，不得包含查询或片段。
+	PublicBaseURL string `yaml:"publicBaseUrl"`
 	// AllowedOrigins CORS 允许携带凭证的来源白名单（精确匹配，含协议与端口）。
 	// release 环境空白名单拒绝启动（fail-fast）；debug 空白名单回落放行
 	// localhost/127.0.0.1 任意端口（本地联调）
@@ -344,6 +347,18 @@ func normalizeOrigins(origins []string) []string {
 	return normalized
 }
 
+func normalizePublicBaseURL(value string) (string, error) {
+	value = strings.TrimRight(strings.TrimSpace(value), "/")
+	if value == "" {
+		return "", nil
+	}
+	parsed, err := url.Parse(value)
+	if err != nil || parsed.Host == "" || parsed.Scheme != "http" && parsed.Scheme != "https" || parsed.RawQuery != "" || parsed.Fragment != "" || parsed.User != nil {
+		return "", fmt.Errorf("server.publicBaseUrl 必须是无凭据、查询和片段的 http(s) 站点地址")
+	}
+	return value, nil
+}
+
 func Parse(appConfig string) (*Config, error) {
 	config := &Config{}
 
@@ -361,6 +376,16 @@ func Parse(appConfig string) (*Config, error) {
 	// CORS 白名单归一化：去首尾空白、丢弃空串项（形如 ["", " "] 的配置等价
 	// 于未配置，release 的空白名单 fail-fast 才不会被空项绕过）
 	config.Server.AllowedOrigins = normalizeOrigins(config.Server.AllowedOrigins)
+	config.Server.PublicBaseURL, err = normalizePublicBaseURL(config.Server.PublicBaseURL)
+	if err != nil {
+		return nil, err
+	}
+	if config.Server.PublicBaseURL == "" {
+		if strings.EqualFold(config.Server.ENV, "release") {
+			return nil, fmt.Errorf("release 环境必须配置 server.publicBaseUrl")
+		}
+		config.Server.PublicBaseURL = "http://127.0.0.1:11007"
+	}
 	if err := config.Storage.normalize(); err != nil {
 		return nil, err
 	}

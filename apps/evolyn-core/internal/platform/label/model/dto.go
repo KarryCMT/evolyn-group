@@ -44,6 +44,41 @@ type RenderRequest struct {
 	Format       string `json:"format"`
 }
 
+type BatchRenderRequest struct {
+	TemplateCode string   `json:"templateCode"`
+	RecordIDs    []string `json:"recordIds"`
+	Format       string   `json:"format"`
+}
+
+type BatchRenderCreated struct {
+	TaskID string `json:"taskId"`
+	Status string `json:"status"`
+}
+
+type RenderTaskDetail struct {
+	RenderTask
+	Items []RenderTaskItemDetail `json:"items"`
+}
+
+type RenderTaskItemDetail struct {
+	RecordID     string           `json:"recordId"`
+	SequenceNo   int              `json:"sequence"`
+	Status       string           `json:"status"`
+	ErrorCode    string           `json:"errorCode,omitempty"`
+	ErrorMessage string           `json:"errorMessage,omitempty"`
+	StartedAt    *kernel.JSONTime `json:"startedAt,omitempty"`
+	FinishedAt   *kernel.JSONTime `json:"finishedAt,omitempty"`
+	CreatedAt    kernel.JSONTime  `json:"createdAt"`
+	UpdatedAt    kernel.JSONTime  `json:"updatedAt"`
+}
+
+type QRTokenTarget struct {
+	TargetType string `json:"targetType"`
+	AppCode    string `json:"appCode"`
+	FormCode   string `json:"formCode"`
+	RecordID   string `json:"recordId"`
+}
+
 type TemplateSummary struct {
 	Code                   string          `json:"code"`
 	Name                   string          `json:"name"`

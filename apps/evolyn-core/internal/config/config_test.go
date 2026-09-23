@@ -111,6 +111,34 @@ func TestParseNormalizesAllowedOrigins(t *testing.T) {
 	assert.Empty(t, conf.Server.AllowedOrigins)
 }
 
+func TestParseNormalizesPublicBaseURL(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "app.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("server:\n  publicBaseUrl: ' https://app.lingyanyun.com/ '\n"), 0o600))
+
+	conf, err := Parse(configPath)
+	require.NoError(t, err)
+	assert.Equal(t, "https://app.lingyanyun.com", conf.Server.PublicBaseURL)
+}
+
+func TestParseRejectsUnsafePublicBaseURL(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "app.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("server:\n  publicBaseUrl: 'https://user:secret@app.lingyanyun.com/q?token=1'\n"), 0o600))
+
+	_, err := Parse(configPath)
+	require.ErrorContains(t, err, "server.publicBaseUrl")
+}
+
+func TestParseRequiresPublicBaseURLInRelease(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "app.yaml")
+	require.NoError(t, os.WriteFile(configPath, []byte("server:\n  env: release\n  allowedOrigins: ['https://app.lingyanyun.com']\n"), 0o600))
+
+	_, err := Parse(configPath)
+	require.ErrorContains(t, err, "server.publicBaseUrl")
+}
+
 // TestParseTreatsPlaceholderSecretAsUnconfigured 占位密钥视为未配置：
 // 示例模板的 CHANGE_ME 被原样复制到生产时，若按「已配置」处理会绕过
 // release 未配置告警，而 HMAC 密钥实际公开可预测（复查加固项）

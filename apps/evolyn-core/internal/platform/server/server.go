@@ -72,6 +72,7 @@ import (
 	labelcontroller "evolyn/internal/platform/label/controller"
 	labelrepository "evolyn/internal/platform/label/repository"
 	labelservice "evolyn/internal/platform/label/service"
+	labelworker "evolyn/internal/platform/label/worker"
 	"evolyn/internal/platform/middleware"
 	notificationcontroller "evolyn/internal/platform/notification/controller"
 	notificationrepository "evolyn/internal/platform/notification/repository"
@@ -196,6 +197,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// 标签模板域（000084）：LabelSchema 草稿与不可变发布快照。
 	labelTemplateRepo := labelrepository.NewTemplateRepository(db)
 	labelVersionRepo := labelrepository.NewVersionRepository(db)
+	labelTaskRepo := labelrepository.NewRenderTaskRepository(db)
+	labelTokenRepo := labelrepository.NewQRTokenRepository(db)
 	// 流程引擎仓储（000048/000049，ADR-012）：定义+草稿、不可变发布快照、
 	// 运行态六表（实例/执行路径/节点实例/任务/参与人/操作流水）
 	workflowDefinitionRepo := workflowrepository.NewDefinitionRepository(db)
@@ -279,6 +282,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 			return nil, err
 		}
 		if err := labelVersionRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := labelTaskRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := labelTokenRepo.Migrate(); err != nil {
 			return nil, err
 		}
 		if err := workflowDefinitionRepo.Migrate(); err != nil {
@@ -636,6 +645,12 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 		labelFormDirectory{forms: formRepo, versions: formVersionRepo},
 		labelRecordResolver{source: labelRecordSource}, appAccess, auditSvc,
 	)
+	labelQueue := labelworker.NewRuntime(conf.Redis, labelService, logger)
+	labelservice.ConfigureBatch(
+		labelService, labelTaskRepo, labelQueue,
+		labelArtifactStore{files: fileService, enabled: conf.Storage.Enabled}, labelMemberDirectory{users: iamRepo.User()},
+	)
+	labelservice.ConfigureQR(labelService, labelTokenRepo, labelAppDirectory{apps: appRepo}, conf.Server.PublicBaseURL)
 	labelController := labelcontroller.NewLabelController(labelService)
 
 	// 流程引擎域（000048，ADR-012）Definition Engine：定义 CRUD/草稿/发布；
@@ -785,6 +800,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 		notificationRetWorker:    notificationRetentionWorker,
 		workflowJobWorker:        workflowJobWorker,
 		formDDLWorker:            formDDLWorker,
+		labelQueue:               labelQueue,
 		authorizer:               authorizer,
 		tenantRepo:               tenantRepo,
 		pkiKeypair:               keypair,
@@ -814,8 +830,11 @@ type Server struct {
 	workflowJobWorker *workflowworker.JobWorker
 	// formDDLWorker 表单物理 DDL Job Worker（000070）
 	formDDLWorker *formworker.DDLJobWorker
-	authorizer    *authorization.Authorizer
-	tenantRepo    tenantrepository.TenantRepository
+	// labelQueue 同时持有 Asynq Client 与 Worker Server；Redis 未启用时为空，
+	// 批量创建接口返回稳定的队列不可用错误，单张渲染不受影响。
+	labelQueue *labelworker.Runtime
+	authorizer *authorization.Authorizer
+	tenantRepo tenantrepository.TenantRepository
 	// 登录口令加密密钥对：登录/改密解密与 /app/conf 公钥下发共用
 	pkiKeypair *pki.Keypair
 }
@@ -837,6 +856,9 @@ func (s *Server) Run() error {
 	go s.notificationRetWorker.Run(workerCtx)
 	go s.workflowJobWorker.Run(workerCtx)
 	go s.formDDLWorker.Run(workerCtx)
+	if s.labelQueue != nil {
+		go s.labelQueue.Run(workerCtx)
+	}
 
 	addr := fmt.Sprintf("%s:%d", s.config.Server.Address, s.config.Server.Port)
 	s.logger.Infof("Start server on: %s", addr)
@@ -865,6 +887,11 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) Close() {
+	if s.labelQueue != nil {
+		if err := s.labelQueue.Close(); err != nil {
+			s.logger.Warnf("failed to close label queue, %v", err)
+		}
+	}
 	if err := infrastructure.Close(s.db, s.rdb); err != nil {
 		s.logger.Warnf("failed to close db/redis, %v", err)
 	}

@@ -198,6 +198,15 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 		requestInfo.Resource = "workflow-tasks"
 	}
 
+	// 二维码解析只是表单记录的另一种定位入口。URL 门复用全体成员已有的
+	// form-records:get 基线，真正的数据范围与字段权限仍由表单域二次裁决；
+	// 不能要求 labels:get，否则普通业务成员即使有记录权限也无法扫码。
+	if req.Method == http.MethodGet && requestInfo.Resource == "labels" && requestInfo.Name == "qr-tokens" && len(requestInfo.Parts) == 3 {
+		requestInfo.Resource = "form-records"
+		requestInfo.Name = requestInfo.Parts[2]
+		requestInfo.Subresource = ""
+	}
+
 	// if there's no name on the request and we thought it was a get before, then the actual verb is a list or a watch
 	if len(requestInfo.Name) == 0 && requestInfo.Verb == GetOperation {
 		requestInfo.Verb = ListOperation

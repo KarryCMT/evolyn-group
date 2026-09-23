@@ -23,6 +23,18 @@ func TestCompileSystemRecordConditionFiltersBySubmitter(t *testing.T) {
 	assert.Equal(t, []any{int64(1), int64(2)}, compiled.Args)
 }
 
+func TestCompileSystemRecordConditionFiltersByRecordID(t *testing.T) {
+	compiled, err := compileSystemRecordCondition(SysFieldRecordID, "eq", float64(42), "r.")
+	require.NoError(t, err)
+	assert.Equal(t, "r.id = ?", compiled.Where)
+	assert.Equal(t, []any{int64(42)}, compiled.Args)
+
+	_, err = compileSystemRecordCondition(SysFieldRecordID, "eq", float64(0), "r.")
+	assert.Error(t, err)
+	_, err = compileSystemRecordCondition(SysFieldRecordID, "contains", "42", "r.")
+	assert.Error(t, err)
+}
+
 func TestCompileSystemRecordConditionFiltersByTimestamp(t *testing.T) {
 	compiled, err := compileSystemRecordCondition(SysFieldUpdatedAt, "gte", "2026-09-01 00:00:00", "")
 	require.NoError(t, err)
@@ -94,6 +106,11 @@ func TestCompileSystemFieldPhysicalPrefixDispatch(t *testing.T) {
 	compiled, err = CompileRecordListQuery(document, nil, nil, opts)
 	require.NoError(t, err)
 	assert.Equal(t, "r.submitted_at >= ?", compiled.Where)
+
+	document.Filter = &model.RecordQueryExpression{Type: "condition", Field: SysFieldRecordID, Operator: "eq", Value: float64(42)}
+	compiled, err = CompileRecordListQuery(document, nil, nil, opts)
+	require.NoError(t, err)
+	assert.Equal(t, "r.id = ?", compiled.Where)
 
 	order, err := CompileRecordListSorts([]model.RecordQuerySort{
 		{Field: SysFieldWorkflowUpdatedAt, Direction: "desc"},

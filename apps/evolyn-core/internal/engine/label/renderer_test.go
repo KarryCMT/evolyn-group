@@ -83,6 +83,28 @@ func TestRendererOutputsPhysicalPNGAndPDF(t *testing.T) {
 	require.True(t, bytes.HasSuffix(pdfResult.Content, []byte("%%EOF\n")))
 }
 
+func TestRendererBuildsMultiPageBatchPDF(t *testing.T) {
+	schema := Schema{
+		SchemaVersion: "1.0", Name: "批量标签",
+		Page:     Page{Width: 40, Height: 20, Unit: "mm", DPI: 203, Background: "#ffffff"},
+		Settings: Settings{GridSize: 1},
+		Elements: []Element{{
+			ID: "code", Type: "field", X: 2, Y: 2, Width: 36, Height: 8, Visible: true,
+			Value: &ValueSource{Type: "field", FieldID: "code"},
+			Style: &TextStyle{FontFamily: "sans-serif", FontSize: 4, FontWeight: 400, Color: "#111111", LineHeight: 1.2, TextAlign: "left", VerticalAlign: "top", Overflow: "clip"},
+		}},
+	}
+	result, err := NewRenderer(nil).RenderBatch(context.Background(), schema, []RenderData{
+		{Fields: map[string]any{"code": "A-001"}},
+		{Fields: map[string]any{"code": "A-002"}},
+		{Fields: map[string]any{"code": "A-003"}},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "application/pdf", result.MIMEType)
+	require.Equal(t, 3, bytes.Count(result.Content, []byte("/Type /Page ")))
+	require.Contains(t, string(result.Content), "/Count 3")
+}
+
 func TestRendererSVGGolden(t *testing.T) {
 	schema := Schema{
 		SchemaVersion: "1.0", Name: "设备标签",

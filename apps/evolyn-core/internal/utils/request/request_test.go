@@ -114,6 +114,16 @@ func TestRequestInfo(t *testing.T) {
 			Name:              "form_01",
 			Parts:             []string{"forms", "form_01", "frontend-events", "evt_1234", "debug"},
 		}},
+		{"label QR scan inherits form-records get permission", "GET", "/api/v1/labels/qr-tokens/abc123", false, &RequestInfo{
+			IsResourceRequest: true,
+			Verb:              "get",
+			APIPrefix:         "api",
+			APIVersion:        "v1",
+			Namespace:         "root",
+			Resource:          "form-records",
+			Name:              "abc123",
+			Parts:             []string{"labels", "qr-tokens", "abc123"},
+		}},
 	}
 
 	for _, tc := range testCases {
