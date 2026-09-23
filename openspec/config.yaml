@@ -1,32 +1,78 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  本仓库是企业级低代码平台单仓工程，详细架构与工程约束以根目录
+  AGENTS.md 和 docs/低代码平台/企业级低代码平台技术架构设计.md 为准。
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+  技术栈与目录：
+  - 后端位于 apps/evolyn-core，使用 Go 1.25、Gin、GORM、PostgreSQL、Redis；
+    业务代码放在 internal/，引擎纯内核放在 internal/engine/，平台适配层放在
+    internal/platform/。引擎纯内核不得依赖 Gin、GORM、Redis 或 HTTP。
+  - 前端位于 apps/evolyn-web，是 pnpm + Turborepo 工作区，使用 Vue 3.5、
+    TypeScript 和 Element Plus；主应用位于 apps/web，共享能力位于 packages/。
+  - 数据库结构变更使用 apps/evolyn-core/migrations 下的版本化 SQL 迁移；不得
+    手改生成物或提交构建产物。
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+  稳定工程约束：
+  - 平台是多租户系统。涉及业务数据的需求必须明确租户隔离、操作者身份、权限、
+    数据范围和跨租户拒绝行为；不得绕过现有租户中间件、事务管理与鉴权体系。
+  - API 使用 /api/v1 路由体系和统一业务错误码；API 字段、路由或权限模型变化时，
+    必须同步评估后端接口文档、前端路由、页面、API 客户端和 errorCodes.ts。
+  - 跨域调用优先使用窄端口；事务通过既有 TxManager/ResolveDB 与 context 传播，
+    不得在领域之间直接耦合仓储实现。
+  - 当前处于开发阶段，应选择长期可维护的一致方案，并在变更范围内清理被取代的
+    旧代码、配置和调用方；不得以临时兼容层替代正确设计。
+  - 不得写入真实密钥、令牌或生产连接串。品牌展示、示例名称和域名统一使用
+    “灵衍云”及对应 lingyanyun 域名。
+  - 工作区可能包含用户尚未提交的改动。只处理当前 change 涉及的文件，不回滚、
+    覆盖或格式化无关改动。
+
+  OpenSpec 约定：
+  - 所有 OpenSpec 叙述性产物使用简体中文；代码标识符、路径、API、错误码和
+    change/capability 名称保留英文。change 名称使用小写 kebab-case。
+  - docs/ 保留架构、ADR、调研、协议字典和长期设计；它们是 OpenSpec 的来源与
+    引用资料，不应被整篇复制或迁移。openspec/specs 只记录当前有效、可观察、
+    可验证的行为，openspec/changes 只记录本次变更。
+  - 采用存量项目的增量方式：不补写整个系统，只为当前实际要修改的能力建立
+    delta spec。一个 change 应围绕一个可独立评审、验证和交付的意图。
+
+rules:
+  proposal:
+    - 用简体中文说明现状问题、变更目标、范围、非目标和受影响能力；避免复述整份历史设计文档。
+    - 明确本次 change 的独立交付边界；若多个部分可独立验收或上线，应拆成多个 change。
+    - 列出受影响的后端域、前端应用或共享包、数据库迁移、API/权限资源和相关文档。
+    - 对既有能力变更说明兼容性、迁移或清理影响；不得默认保留不合理的历史设计。
+  specs:
+    - 每项 Requirement 只描述一个外部可观察行为，并使用 SHALL、MUST、SHOULD 或 MAY 表达约束强度。
+    - 每项 Requirement 至少包含一个可验证的 GIVEN/WHEN/THEN Scenario；同时覆盖关键成功、拒绝、边界和幂等场景。
+    - 需求写“系统必须表现为什么”，不得包含表名、类名、函数名、框架选择或逐步实现方案。
+    - 涉及租户数据时必须覆盖同租户成功、跨租户拒绝、无权限拒绝和数据范围裁剪场景。
+    - 涉及 API 时明确认证要求、输入输出语义、稳定错误行为、并发或幂等语义；避免把暂定实现细节固化为行为契约。
+    - 对照现有 main spec 正确使用 ADDED、MODIFIED、REMOVED；MODIFIED 必须给出保留场景在内的完整新需求块。
+  design:
+    - 说明关键技术决策、备选方案及取舍，并引用相关 docs 或 ADR，避免大段复制已有文档。
+    - 按实际影响覆盖模块边界、依赖方向、数据模型、迁移与回滚、事务、并发、幂等、权限和租户隔离。
+    - 涉及 API 或跨端协议时说明后端、前端、共享类型、错误码和文档如何保持一致。
+    - 涉及异步任务、外部调用或对象存储时说明失败恢复、重试、超时、安全限制、可观测性和数据清理。
+    - 给出验证策略，区分单元测试、集成测试、端到端测试以及需要人工确认的界面行为。
+  tasks:
+    - 按依赖顺序拆分为可独立完成和验证的编号任务，任务必须具体到交付物与验证结果，但不要预设未经设计确认的文件名。
+    - 仅纳入本次 change 尚未完成的工作；历史已完成事项和提交记录不得伪装成待办任务。
+    - 按实际范围包含协议或类型、后端、迁移、前端、权限、测试、文档与清理任务；不适用的部分无需机械添加。
+    - 每个实施阶段都应配套相应测试或检查，最后包含整体回归、OpenSpec 严格验证和规格一致性复核。
+    - 任务完成后使用复选框记录真实状态；不得在实现或验证尚未完成时提前勾选。
+
+operations:
+  apply:
+    guidance:
+      - 实施前读取 change 的 proposal、specs、design、tasks 以及相关 AGENTS.md，只修改 change 范围内的文件。
+      - 开始每项任务前核对工作区已有改动并保留用户改动；发现重叠时先确认差异，禁止回滚无关内容。
+      - 后端命令在 apps/evolyn-core 内执行，前端命令在 apps/evolyn-web 内执行；前端依赖统一使用 pnpm。
+      - 按风险执行格式化、静态检查、单元测试、集成测试或构建，并记录未执行检查及其原因。
+      - API、权限、数据模型或跨端协议有变化时，同步更新所有调用方、错误码、迁移和相关文档后再勾选任务。
+  archive:
+    guidance:
+      - 归档前确认实现与所有 Requirement/Scenario 一致，任务状态真实，必要测试与迁移验证已有结果。
+      - 默认将适用的 delta specs 同步到 main specs；若不同步，必须说明原因及后续处理方式。
+      - 检查归档后的 main specs 只表达当前有效行为，不残留已经删除、暂缓或仅属于实现细节的内容。
+      - 简要记录已交付范围、验证结果、遗留事项以及被拆分到后续 change 的工作。
