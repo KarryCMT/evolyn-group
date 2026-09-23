@@ -8,6 +8,7 @@ export interface LabelValidationIssue {
 
 const colorPattern = /^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$/;
 const supportedDpi = new Set([96, 203, 300, 600]);
+const supportedFonts = new Set(['Arial', 'Noto Sans', 'Noto Sans CJK SC', 'sans-serif']);
 const systemKeys = new Set([
   'recordId',
   'createdAt',
@@ -65,10 +66,11 @@ function validateTextStyle(
     return;
   }
   if (
-    !style.fontFamily ||
+    !supportedFonts.has(style.fontFamily) ||
     !positiveFinite(style.fontSize) ||
     style.fontWeight < 100 ||
-    style.fontWeight > 900
+    style.fontWeight > 900 ||
+    !positiveFinite(style.lineHeight)
   ) {
     add(path, 'TEXT_STYLE_INVALID', '字体、字号或字重无效');
   }

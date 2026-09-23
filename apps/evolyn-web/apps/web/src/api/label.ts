@@ -1,6 +1,8 @@
 import type { LabelSchema } from '@evolyn.do/label';
 import { ApiError, http, useGlobSetting } from '@evolyn.do/utils';
 
+export type LabelRenderFormat = 'svg' | 'png' | 'pdf';
+
 export interface LabelTemplateSummaryDto {
   code: string;
   name: string;
@@ -104,7 +106,7 @@ async function requestLabelFile(path: string, payload: Record<string, unknown>):
 /** 使用当前草稿与一条真实记录预览，服务端仍执行记录和字段权限校验。 */
 export function previewLabelTemplate(
   code: string,
-  payload: { recordId: string; format: 'svg' },
+  payload: { recordId: string; format: LabelRenderFormat },
 ): Promise<Blob> {
   return requestLabelFile(`/label-templates/${code}/preview`, payload);
 }
@@ -113,7 +115,7 @@ export function previewLabelTemplate(
 export async function renderPublishedLabel(payload: {
   templateCode: string;
   recordId: string;
-  format: 'svg';
+  format: LabelRenderFormat;
 }): Promise<Blob> {
   return requestLabelFile('/labels/render', payload);
 }

@@ -105,10 +105,13 @@ type RenderRequest struct {
 }
 
 type RenderResult struct {
-	Content  []byte
-	MIMEType string
-	Width    float64
-	Height   float64
+	Content     []byte
+	MIMEType    string
+	Width       float64
+	Height      float64
+	PixelWidth  int
+	PixelHeight int
+	DPI         int
 }
 
 // Issue 使用稳定路径和代码返回协议问题，供前端定位到具体元素。

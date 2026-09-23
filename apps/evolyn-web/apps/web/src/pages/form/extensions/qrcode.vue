@@ -22,13 +22,13 @@ import {
   renderPublishedLabel,
   saveLabelTemplateDraft,
 } from '~/api/label';
+import { useFormWorkspaceContext } from '../workspace-context';
 import {
   labelLifecycleFeedback,
   withPreviewedLabelDraft,
   withPublishedLabelDraft,
   withSavedLabelDraft,
 } from './label-lifecycle';
-import { useFormWorkspaceContext } from '../workspace-context';
 
 defineOptions({ name: 'FormQrCodeSettingsPage' });
 
@@ -706,11 +706,11 @@ async function downloadLabel(): Promise<void> {
     const blob = await renderPublishedLabel({
       templateCode: target.code,
       recordId: value,
-      format: 'svg',
+      format: 'pdf',
     });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.download = `${detail.value?.name ?? '表单'}-${value}-二维码标签.svg`;
+    link.download = `${detail.value?.name ?? '表单'}-${value}-二维码标签.pdf`;
     link.href = url;
     link.click();
     URL.revokeObjectURL(url);

@@ -429,7 +429,8 @@ func (s *templateService) render(ctx context.Context, member *iammodel.User, tem
 	if format == "" {
 		format = "svg"
 	}
-	if format != "svg" {
+	format = strings.ToLower(strings.TrimSpace(format))
+	if format != "svg" && format != "png" && format != "pdf" {
 		return nil, labelapp.ErrFormatUnsupported
 	}
 	parsedID, err := strconv.ParseUint(strings.TrimSpace(recordID), 10, 64)

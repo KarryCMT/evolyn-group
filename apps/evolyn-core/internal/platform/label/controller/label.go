@@ -153,7 +153,7 @@ func (f *LabelController) Publish(c *gin.Context) {
 // @Tags 二维码标签
 // @Security JWT
 // @Accept json
-// @Produce image/svg+xml
+// @Produce image/svg+xml image/png application/pdf
 // @Router /api/v1/label-templates/{code}/preview [post]
 func (f *LabelController) Preview(c *gin.Context) {
 	code, ok := templateCode(c)
@@ -177,7 +177,7 @@ func (f *LabelController) Preview(c *gin.Context) {
 // @Tags 二维码标签
 // @Security JWT
 // @Accept json
-// @Produce image/svg+xml
+// @Produce image/svg+xml image/png application/pdf
 // @Router /api/v1/labels/render [post]
 func (f *LabelController) Render(c *gin.Context) {
 	req := new(model.RenderRequest)
@@ -190,7 +190,13 @@ func (f *LabelController) Render(c *gin.Context) {
 		responseError(c, err)
 		return
 	}
-	c.Header("Content-Disposition", "inline; filename=label.svg")
+	extension := "svg"
+	if result.MIMEType == "image/png" {
+		extension = "png"
+	} else if result.MIMEType == "application/pdf" {
+		extension = "pdf"
+	}
+	c.Header("Content-Disposition", "attachment; filename=label."+extension)
 	c.Data(http.StatusOK, result.MIMEType, result.Content)
 }
 

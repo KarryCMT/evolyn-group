@@ -15,6 +15,12 @@ var systemKeys = map[string]bool{
 	"createdBy": true, "currentUser": true, "currentDate": true,
 }
 
+var supportedFonts = map[string]bool{
+	"Arial": true, "Noto Sans": true, "Noto Sans CJK SC": true,
+	// 兼容既有模板；服务端统一回退到嵌入的 Noto Sans SC 字形。
+	"sans-serif": true,
+}
+
 // Validate 对 LabelSchema V1 做与渲染器同源的封闭校验。
 func Validate(schema *Schema) []Issue {
 	issues := make([]Issue, 0)
@@ -140,7 +146,7 @@ func validateTextStyle(style *TextStyle, path string, add func(string, string, s
 		add(path, "TEXT_STYLE_REQUIRED", "文本样式不能为空")
 		return
 	}
-	if style.FontFamily == "" || !positiveFinite(style.FontSize) || style.FontWeight < 100 || style.FontWeight > 900 {
+	if !supportedFonts[style.FontFamily] || !positiveFinite(style.FontSize) || style.FontWeight < 100 || style.FontWeight > 900 || !positiveFinite(style.LineHeight) {
 		add(path, "TEXT_STYLE_INVALID", "字体、字号或字重无效")
 	}
 	if !validColor(style.Color) {
