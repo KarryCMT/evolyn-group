@@ -61,6 +61,7 @@ catalogs:
     monaco-editor: ^0.34.1
     vue-router: ^4.6.3
     cropperjs: 1.5.13
+    '@tiptap/core': ^3.30.5
     '@tiptap/extension-color': ^3.30.5
     '@tiptap/extension-image': ^3.30.5
     '@tiptap/extension-link': ^3.30.5

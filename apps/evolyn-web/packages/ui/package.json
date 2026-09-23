@@ -56,6 +56,7 @@
   "dependencies": {
     "@remixicon/vue": "catalog:ui",
     "@tanstack/vue-virtual": "catalog:ui",
+    "@tiptap/core": "catalog:frontend",
     "@tiptap/extension-color": "catalog:frontend",
     "@tiptap/extension-image": "catalog:frontend",
     "@tiptap/extension-link": "catalog:frontend",
