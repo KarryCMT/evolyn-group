@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
 import {
   computeAutoLayout,
   ensureDesignerLayout,
@@ -295,8 +295,6 @@ function handleKeyboard(event: KeyboardEvent) {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', handleKeyboard));
-onBeforeUnmount(() => window.removeEventListener('keydown', handleKeyboard));
 </script>
 
 <template>
@@ -304,6 +302,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeyboard));
     class="workflow-designer"
     :class="{ 'workflow-designer--readonly': readonly }"
     aria-label="流程设计器"
+    @keydown="handleKeyboard"
   >
     <WorkflowPalette
       v-if="!readonly"

@@ -172,6 +172,14 @@ function chooseNode(type: WorkflowNodeType) {
   nodePicker.value = null;
 }
 
+/**
+ * LogicFlow 的 SVG 连线本身不会接管浏览器焦点。选中节点或连线后将焦点归还
+ * 画布，保证 Delete / Backspace 由设计器接收，同时退出右侧属性输入框的编辑态。
+ */
+function focusCanvas() {
+  rootRef.value?.focus({ preventScroll: true });
+}
+
 onMounted(() => {
   const element = canvasRef.value;
   if (!element) return;
@@ -230,6 +238,7 @@ onMounted(() => {
       instance.clearSelectElements();
       return;
     }
+    focusCanvas();
     emit('selectNode', String(data.id));
   });
   instance.on('node:dragstart', ({ data }) => {
@@ -244,9 +253,11 @@ onMounted(() => {
       instance.clearSelectElements();
       return;
     }
+    focusCanvas();
     emit('selectEdge', String(data.id));
   });
   instance.on('blank:click', () => {
+    focusCanvas();
     nodePicker.value = null;
     instance.clearSelectElements();
     emit('clearSelection');
@@ -300,6 +311,7 @@ onBeforeUnmount(() => {
     ref="rootRef"
     class="workflow-canvas"
     aria-label="流程画布"
+    tabindex="-1"
     @dragover="allowNodeDrop"
     @drop="dropNode"
   >
