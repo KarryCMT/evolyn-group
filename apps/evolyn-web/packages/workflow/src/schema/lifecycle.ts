@@ -267,6 +267,25 @@ export function setNodePosition(
   return next;
 }
 
+/**
+ * 批量写入画布坐标。自动排列和历史草稿坐标补全必须一次完成，避免逐节点
+ * 深拷贝文档造成性能浪费，也保证一次布局操作只生成一条撤销记录。
+ */
+export function setNodePositions(
+  document: WorkflowDocument,
+  positions: Readonly<Record<string, WorkflowPosition>>,
+): WorkflowDocument {
+  const next = cloneWorkflowDocument(document);
+  const nodeKeys = new Set(next.nodes.map((node) => node.key));
+  for (const [nodeKey, position] of Object.entries(positions)) {
+    if (!nodeKeys.has(nodeKey) || !Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+      continue;
+    }
+    setLayout(next, nodeKey, position);
+  }
+  return next;
+}
+
 function setLayout(document: WorkflowDocument, nodeKey: string, position: WorkflowPosition) {
   document.settings.designer ??= {};
   document.settings.designer.layout ??= {};

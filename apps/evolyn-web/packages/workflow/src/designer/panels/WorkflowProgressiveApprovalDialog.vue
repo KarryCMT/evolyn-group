@@ -38,7 +38,9 @@ watch(
   { immediate: true },
 );
 
-function chooseEndpoint(endpoint: WorkflowProgressiveEndpoint) {
+function chooseEndpoint(value: string | number | boolean | undefined) {
+  if (value !== 'starter_direct_manager' && value !== 'organization_top_manager') return;
+  const endpoint: WorkflowProgressiveEndpoint = value;
   draft.endpoint = endpoint;
   if (endpoint === 'starter_direct_manager') draft.downwardLevels = 0;
 }

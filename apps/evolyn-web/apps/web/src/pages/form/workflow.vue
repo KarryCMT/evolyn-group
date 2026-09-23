@@ -78,6 +78,11 @@ const isEditingDraft = computed(
 const designerReadonly = computed(
   () => isWorkflowForm.value === false || (definition.value !== null && !isEditingDraft.value),
 );
+/** 版本/编辑模式切换即开启新的画布会话，杜绝跨版本复用选区与临时坐标。 */
+const designerSessionKey = computed(
+  () =>
+    `${definition.value?.code ?? 'new'}:${currentVersionNo.value}:${designerReadonly.value ? 'readonly' : 'editing'}`,
+);
 // immediate watcher 会在 setup 内同步执行，递增令牌必须先完成初始化。
 let definitionLoadVersion = 0;
 
@@ -581,6 +586,7 @@ async function toggleFullscreen() {
 
     <WorkflowDesigner
       v-if="loading === false && loadFailed === false"
+      :key="designerSessionKey"
       class="form-workflow-page__workspace"
       :document="draftDocument"
       :fields="workflowFields"

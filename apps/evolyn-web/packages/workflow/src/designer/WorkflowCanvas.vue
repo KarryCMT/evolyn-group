@@ -8,14 +8,13 @@ import {
   onMounted,
   shallowRef,
   useTemplateRef,
-  watch,
 } from 'vue';
-import { toGraphData } from '../adapters/graph';
 import type { WorkflowDocument, WorkflowNodeType, WorkflowPosition } from '../schema';
 import WorkflowCanvasControls from './WorkflowCanvasControls.vue';
 import WorkflowNodeCard from './WorkflowNodeCard.vue';
 import WorkflowViewModeToggle from './WorkflowViewModeToggle.vue';
 import { WorkflowVueNodeView } from './WorkflowVueNodeView';
+import { useWorkflowGraphSync } from './useWorkflowGraphSync';
 
 defineOptions({ name: 'WorkflowCanvas' });
 
@@ -32,6 +31,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   selectNode: [nodeKey: string];
   selectEdge: [edgeKey: string];
+  clearSelection: [];
   updateNodePosition: [nodeKey: string, position: WorkflowPosition];
   connectEdge: [source: string, target: string];
   dropNode: [type: WorkflowNodeType, position: WorkflowPosition];
@@ -52,9 +52,16 @@ const nodePicker = shallowRef<{
   top: number;
 } | null>(null);
 let resizeObserver: ResizeObserver | null = null;
-// 节点拖拽后 LogicFlow 已持有最新坐标。等待父级把该坐标写回 DSL 的期间，
-// 不可用旧 props 全量 render，否则会把节点拉回拖拽前的位置。
-let pendingNodePosition: { nodeKey: string; position: WorkflowPosition } | null = null;
+
+const graphSync = useWorkflowGraphSync({
+  document: () => props.document,
+  selectedNodeKey: () => props.selectedNodeKey,
+  selectedEdgeKey: () => props.selectedEdgeKey,
+  errorNodeKeys: () => props.errorNodeKeys,
+  errorEdgeKeys: () => props.errorEdgeKeys,
+  viewMode: () => viewMode.value,
+  readonly: () => props.readonly === true,
+});
 
 /** 全部协议节点类型注册为 Vue 卡片节点（parallel 协议层支持，一并注册） */
 const NODE_TYPES: WorkflowNodeType[] = [
@@ -84,30 +91,6 @@ class WorkflowEdgeModel extends PolylineEdgeModel {
     style.strokeWidth = 2;
     return style;
   }
-}
-
-function renderGraph() {
-  logicFlow.value?.render(
-    toGraphData(props.document, {
-      selectedNodeKey: props.selectedNodeKey,
-      selectedEdgeKey: props.selectedEdgeKey,
-      errorNodeKeys: props.errorNodeKeys,
-      errorEdgeKeys: props.errorEdgeKeys,
-      viewMode: viewMode.value,
-    }),
-  );
-}
-
-/** 消费当前拖拽写回：坐标抵达 DSL 后无需再次 render，LogicFlow 当前图即正确状态。 */
-function consumePendingNodePosition(): boolean {
-  const pending = pendingNodePosition;
-  if (!pending) return false;
-  const applied = props.document.settings.designer?.layout?.[pending.nodeKey];
-  if (applied?.x === pending.position.x && applied.y === pending.position.y) {
-    pendingNodePosition = null;
-  }
-  // 只要仍处于拖拽写回链路，都避免以旧文档覆写画布的即时位置。
-  return true;
 }
 
 function resizeCanvas() {
@@ -141,7 +124,7 @@ function fitView() {
 function setViewMode(mode: 'compact' | 'detailed') {
   if (viewMode.value === mode) return;
   viewMode.value = mode;
-  renderGraph();
+  graphSync.syncVisualState();
 }
 
 function allowNodeDrop(event: DragEvent) {
@@ -155,7 +138,8 @@ function dropNode(event: DragEvent) {
   event.preventDefault();
   const raw =
     event.dataTransfer?.getData('application/x-workflow-node-type') ||
-    event.dataTransfer?.getData('text/plain');
+    event.dataTransfer?.getData('text/plain') ||
+    '';
   if (!NODE_TYPES.includes(raw as WorkflowNodeType) || ['start', 'end'].includes(raw)) return;
   const point = logicFlow.value?.getPointByClient({ x: event.clientX, y: event.clientY });
   if (!point) return;
@@ -244,57 +228,55 @@ onMounted(() => {
   instance.on('node:click', ({ data }) => emit('selectNode', String(data.id)));
   instance.on('node:dragstart', ({ data }) => {
     const nodeKey = String(data.id);
-    // LogicFlow 会将已多选节点作为一个拖拽组移动。产品侧只允许单节点拖动，
-    // 因此在首个拖拽位移发生前收敛引擎内部选区，避免其他节点被联动移动。
-    instance.clearSelectElements();
-    instance.selectElementById(nodeKey, false);
+    graphSync.beginNodeDrag(nodeKey);
     nodePicker.value = null;
     emit('selectNode', nodeKey);
   });
   instance.on('edge:click', ({ data }) => emit('selectEdge', String(data.id)));
   instance.on('blank:click', () => {
     nodePicker.value = null;
-    if (!pendingNodePosition) renderGraph();
+    instance.clearSelectElements();
+    emit('clearSelection');
   });
   instance.on('node:drop', ({ data }) => {
+    if (props.readonly) return;
     const nodeKey = String(data.id);
     const position = { x: data.x, y: data.y };
-    pendingNodePosition = { nodeKey, position };
+    graphSync.finishNodeDrag(nodeKey, position);
     emit('updateNodePosition', nodeKey, position);
   });
-  // 锚点连线完成：以 DSL 结构层接管（生成协议边 key），临时边由重渲染替换
-  instance.on('edge:connect', ({ data }) => {
-    if (props.readonly) return;
-    const source = String(data.sourceNodeId);
-    const target = String(data.targetNodeId);
-    if (source && target && source !== target) emit('connectEdge', source, target);
+  // LogicFlow 2.x 手动拖拽锚点成功后触发 anchor:drop；edge:connect 并不存在。
+  // 业务边仍由父层生成稳定 key 写入 DSL，随后结构同步会替换引擎临时边。
+  instance.on('anchor:drop', ({ edgeModel }) => {
+    const data = edgeModel?.getData();
+    if (!data) return;
+    const source = data.sourceNodeId;
+    const target = data.targetNodeId;
+    const accepted =
+      props.readonly !== true &&
+      Boolean(source) &&
+      Boolean(target) &&
+      source !== target &&
+      !props.document.edges.some((edge) => edge.source === source && edge.target === target);
+    if (!accepted) {
+      // LogicFlow 已先插入临时边；业务拒绝时必须同步移除，避免出现“看似已连接”。
+      instance.deleteEdge(data.id);
+      return;
+    }
+    emit('connectEdge', source, target);
   });
   instance.on('graph:transform', syncZoom);
-  renderGraph();
+  graphSync.initialize(instance);
 
   resizeObserver = new ResizeObserver(resizeCanvas);
   resizeObserver.observe(element);
 });
 
-watch(
-  () => [
-    props.document,
-    props.selectedNodeKey,
-    props.selectedEdgeKey,
-    props.errorNodeKeys,
-    props.errorEdgeKeys,
-  ],
-  () => {
-    if (consumePendingNodePosition()) return;
-    renderGraph();
-  },
-  { deep: false },
-);
-
 onBeforeUnmount(() => {
   canvasRef.value?.removeEventListener('workflow-node-add', openNodePicker);
   resizeObserver?.disconnect();
   resizeObserver = null;
+  graphSync.destroy();
   logicFlow.value?.destroy();
   logicFlow.value = null;
 });

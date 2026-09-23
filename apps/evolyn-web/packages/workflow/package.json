@@ -26,7 +26,8 @@
   "scripts": {
     "build": "rimraf dist && tsdown",
     "clean": "rimraf .turbo node_modules dist",
-    "publish": "pnpm publish"
+    "publish": "pnpm publish",
+    "test": "vitest run"
   },
   "dependencies": {
     "@logicflow/core": "catalog:frontend",
@@ -50,6 +51,8 @@
     "typescript": "catalog:types",
     "unplugin-vue": "catalog:build",
     "vue": "catalog:frontend",
-    "vue-tsc": "catalog:build"
+    "vue-tsc": "catalog:build",
+    "vite": "catalog:build",
+    "vitest": "catalog:test"
   }
 }

@@ -27,6 +27,13 @@ interface LogicFlowVueNode {
   properties?: LogicFlowNodeProperties;
 }
 
+const ADD_DIRECTION_LABELS = {
+  top: '上方',
+  right: '右侧',
+  bottom: '下方',
+  left: '左侧',
+} as const;
+
 const props = defineProps<{
   node: LogicFlowVueNode;
 }>();
@@ -89,7 +96,7 @@ function requestAdd(direction: 'top' | 'right' | 'bottom' | 'left', event: Mouse
         type="button"
         class="workflow-node-card__add"
         :class="`workflow-node-card__add--${direction}`"
-        aria-label="从当前节点添加后续节点"
+        :aria-label="`在${label}${ADD_DIRECTION_LABELS[direction]}添加节点`"
         @mousedown.stop
         @click.stop="requestAdd(direction, $event)"
       >
@@ -147,6 +154,13 @@ function requestAdd(direction: 'top' | 'right' | 'bottom' | 'left', event: Mouse
   &--error:hover {
     border-color: var(--el-color-danger);
     background: var(--el-color-danger-light-9);
+  }
+
+  // 错误与选中可以同时存在：红色表示问题，蓝色外环表示当前操作目标。
+  &--selected.workflow-node-card--error,
+  &--selected.workflow-node-card--error:hover {
+    border-color: var(--el-color-danger);
+    box-shadow: 0 0 0 3px var(--el-color-primary-light-5);
   }
 
   &--start,
@@ -230,8 +244,8 @@ function requestAdd(direction: 'top' | 'right' | 'bottom' | 'left', event: Mouse
     position: absolute;
     z-index: 2;
     display: flex;
-    width: 18px;
-    height: 18px;
+    width: 24px;
+    height: 24px;
     padding: 0;
     align-items: center;
     justify-content: center;
@@ -243,10 +257,10 @@ function requestAdd(direction: 'top' | 'right' | 'bottom' | 'left', event: Mouse
     font-size: 13px;
     line-height: 1;
 
-    &--top { top: -11px; left: 50%; transform: translateX(-50%); }
-    &--right { top: 50%; right: -11px; transform: translateY(-50%); }
-    &--bottom { bottom: -11px; left: 50%; transform: translateX(-50%); }
-    &--left { top: 50%; left: -11px; transform: translateY(-50%); }
+    &--top { top: -14px; left: 50%; transform: translateX(-50%); }
+    &--right { top: 50%; right: -14px; transform: translateY(-50%); }
+    &--bottom { bottom: -14px; left: 50%; transform: translateX(-50%); }
+    &--left { top: 50%; left: -14px; transform: translateY(-50%); }
   }
 }
 </style>

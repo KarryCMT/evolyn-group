@@ -5,7 +5,7 @@
  * 缺失坐标的节点由分层自动布局兜底。
  */
 import type LogicFlow from '@logicflow/core';
-import type { WorkflowDocument, WorkflowPosition } from '../schema';
+import { type WorkflowDocument, type WorkflowPosition, setNodePositions } from '../schema';
 
 /** 画布常量：层间距/同层间距与各类型节点尺寸（与节点卡片样式同口径） */
 const LAYER_GAP = 150;
@@ -57,32 +57,50 @@ export function resolveNodePositions(document: WorkflowDocument): Record<string,
 }
 
 /**
- * 分层自动布局：从 start 沿边计算节点层级（最长路径），同层节点水平居中
- * 排开；并行/条件分支天然获得独立纵列。环与不可达节点做纵深防御
- * （层级封顶），布局永不抛错。
+ * 将历史草稿中缺失的坐标一次性固化到设计器私有布局。此函数只在文档发生
+ * 实际编辑时写回，避免普通选择或画布重绘再次运行自动布局而造成节点跳动。
+ */
+export function ensureDesignerLayout(document: WorkflowDocument): WorkflowDocument {
+  const saved = document.settings.designer?.layout ?? {};
+  const incomplete = document.nodes.some((node) => {
+    const position = saved[node.key];
+    return !position || !Number.isFinite(position.x) || !Number.isFinite(position.y);
+  });
+  return incomplete ? setNodePositions(document, resolveNodePositions(document)) : document;
+}
+
+/**
+ * 分层自动布局：合法 DAG 使用拓扑顺序计算从 start 出发的最长层级，同层节点
+ * 水平居中排开。环与不可达节点不会参与层级传播，而是进入固定兜底区域，
+ * 从根本上避免编辑期非法环路把节点推到画布极远位置。
  */
 export function computeAutoLayout(document: WorkflowDocument): Record<string, WorkflowPosition> {
   const outgoing = new Map<string, string[]>();
+  const indegree = new Map(document.nodes.map((node) => [node.key, 0]));
   for (const edge of document.edges) {
+    if (!indegree.has(edge.source) || !indegree.has(edge.target)) continue;
     outgoing.set(edge.source, [...(outgoing.get(edge.source) ?? []), edge.target]);
+    indegree.set(edge.target, (indegree.get(edge.target) ?? 0) + 1);
   }
 
-  // 层级 = 从 start 出发的最长路径（并行分支各占一层深的独立链路）
+  // 合法 DAG 中按拓扑顺序传播最长层级；未被处理的节点属于环路。
   const layers = new Map<string, number>();
-  const roots = document.nodes.filter((node) => node.type === 'start').map((node) => node.key);
-  const queue: Array<{ key: string; layer: number }> = roots.map((key) => ({ key, layer: 0 }));
-  const inQueue = new Set(roots);
-  let guard = document.nodes.length * document.edges.length + document.nodes.length + 16;
-  while (queue.length && guard-- > 0) {
-    const { key, layer } = queue.shift()!;
-    inQueue.delete(key);
-    // 取更长路径（>= 保证已有层不被短路径回退）
-    if ((layers.get(key) ?? -1) >= layer) continue;
-    layers.set(key, layer);
+  for (const node of document.nodes) {
+    if (node.type === 'start') layers.set(node.key, 0);
+  }
+  const queue = document.nodes
+    .filter((node) => (indegree.get(node.key) ?? 0) === 0)
+    .map((node) => node.key);
+  while (queue.length > 0) {
+    const key = queue.shift()!;
+    const layer = layers.get(key);
     for (const target of outgoing.get(key) ?? []) {
-      if (inQueue.has(target)) continue;
-      inQueue.add(target);
-      queue.push({ key: target, layer: layer + 1 });
+      if (layer !== undefined) {
+        layers.set(target, Math.max(layers.get(target) ?? -1, layer + 1));
+      }
+      const nextIndegree = (indegree.get(target) ?? 1) - 1;
+      indegree.set(target, nextIndegree);
+      if (nextIndegree === 0) queue.push(target);
     }
   }
 

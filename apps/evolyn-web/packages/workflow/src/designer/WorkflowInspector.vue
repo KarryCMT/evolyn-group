@@ -208,7 +208,11 @@ function applyCondition(edgeKey: string, expression: string | null) {
           :key="selectedNode.key"
           :node="selectedNode"
           :fields="fields"
-          @update-config="(config) => emit('updateNodeConfig', selectedNode.key, config)"
+          @update-config="
+            (config) => {
+              if (selectedNode) emit('updateNodeConfig', selectedNode.key, config);
+            }
+          "
         />
         <p
           v-if="['start', 'parallel', 'end'].includes(selectedNode.type)"

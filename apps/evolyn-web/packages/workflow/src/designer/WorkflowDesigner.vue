@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, shallowRef, watch } from 'vue';
-import { computeAutoLayout, resolveNodePositions } from '../adapters/graph';
+import {
+  computeAutoLayout,
+  ensureDesignerLayout,
+  resolveNodePositions,
+} from '../adapters/graph';
 import {
   type WorkflowActorOptions,
   type WorkflowDocument,
@@ -16,6 +20,7 @@ import {
   removeNode,
   resolveIssueTargets,
   setNodePosition,
+  setNodePositions,
   updateEdge,
   updateNode,
 } from '../schema';
@@ -91,15 +96,16 @@ watch(
 );
 
 function commitDocument(document: WorkflowDocument) {
+  const completeDocument = ensureDesignerLayout(document);
   undoStack.value = [...undoStack.value.slice(-49), props.document];
   redoStack.value = [];
-  expectedDocument = document;
-  emit('updateDocument', document);
+  expectedDocument = completeDocument;
+  emit('updateDocument', completeDocument);
 }
 
 function undo() {
   if (props.readonly || undoStack.value.length === 0) return;
-  const previous = undoStack.value.at(-1);
+  const previous = undoStack.value[undoStack.value.length - 1];
   if (!previous) return;
   undoStack.value = undoStack.value.slice(0, -1);
   redoStack.value = [...redoStack.value, props.document];
@@ -109,7 +115,7 @@ function undo() {
 
 function redo() {
   if (props.readonly || redoStack.value.length === 0) return;
-  const next = redoStack.value.at(-1);
+  const next = redoStack.value[redoStack.value.length - 1];
   if (!next) return;
   redoStack.value = redoStack.value.slice(0, -1);
   undoStack.value = [...undoStack.value, props.document];
@@ -125,6 +131,11 @@ function selectNode(nodeKey: string) {
 function selectEdge(edgeKey: string) {
   selectedEdgeKey.value = edgeKey;
   selectedNodeKey.value = null;
+}
+
+function clearSelection() {
+  selectedNodeKey.value = null;
+  selectedEdgeKey.value = null;
 }
 
 /** 新增节点落点：选中的节点下方；无选中时取自动布局的兜底坐标区域 */
@@ -153,7 +164,7 @@ function handleAddNode(type: WorkflowNodeType) {
   // 结束」与新节点彼此断开的默认画布。多分支/结束节点保持手工连线，避免猜测语义。
   const result =
     type !== 'end' && selectedNode?.type !== 'end' && outgoing.length === 1
-      ? insertNodeOnEdge(props.document, type, positionForNewNode(), outgoing[0].key)
+      ? insertNodeOnEdge(props.document, type, positionForNewNode(), outgoing[0]!.key)
       : addNode(props.document, type, positionForNewNode());
   const { document, node } = result;
   commitDocument(document);
@@ -197,6 +208,8 @@ function handleAddFromNode(
 
 function handleMoveNode(nodeKey: string, position: WorkflowPosition) {
   if (props.readonly) return;
+  const current = props.document.settings.designer?.layout?.[nodeKey];
+  if (current?.x === position.x && current.y === position.y) return;
   commitDocument(setNodePosition(props.document, nodeKey, position));
 }
 
@@ -256,11 +269,7 @@ function deleteSelected() {
 function arrangeNodes() {
   if (props.readonly) return;
   const layout = computeAutoLayout(props.document);
-  const arranged = props.document.nodes.reduce((document, node) => {
-    const position = layout[node.key];
-    return position ? setNodePosition(document, node.key, position) : document;
-  }, props.document);
-  commitDocument(arranged);
+  commitDocument(setNodePositions(props.document, layout));
 }
 
 function handleKeyboard(event: KeyboardEvent) {
@@ -317,6 +326,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', handleKeyboard));
       :readonly="readonly"
       @select-node="selectNode"
       @select-edge="selectEdge"
+      @clear-selection="clearSelection"
       @update-node-position="handleMoveNode"
       @connect-edge="handleConnectEdge"
       @drop-node="handleDropNode"
