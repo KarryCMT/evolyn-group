@@ -242,6 +242,15 @@ onMounted(() => {
   }
 
   instance.on('node:click', ({ data }) => emit('selectNode', String(data.id)));
+  instance.on('node:dragstart', ({ data }) => {
+    const nodeKey = String(data.id);
+    // LogicFlow 会将已多选节点作为一个拖拽组移动。产品侧只允许单节点拖动，
+    // 因此在首个拖拽位移发生前收敛引擎内部选区，避免其他节点被联动移动。
+    instance.clearSelectElements();
+    instance.selectElementById(nodeKey, false);
+    nodePicker.value = null;
+    emit('selectNode', nodeKey);
+  });
   instance.on('edge:click', ({ data }) => emit('selectEdge', String(data.id)));
   instance.on('blank:click', () => {
     nodePicker.value = null;
