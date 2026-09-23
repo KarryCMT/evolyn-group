@@ -3028,6 +3028,57 @@ WHERE r.deleted_at IS NULL
 COMMENT ON TABLE tn_label_templates IS '二维码标签模板：draft_schema 为 LabelSchema V1 唯一设计事实源，draft_revision 为乐观锁口令；每个有效表单至多绑定一个模板';
 COMMENT ON TABLE tn_label_template_versions IS '标签模板不可变发布快照：正式渲染固定读取 published_version 指向的 schema_snapshot';
 
+-- ============================================================
+-- 000085: 流程设计器版本工作区
+-- ============================================================
+
+ALTER TABLE wf_definition
+    ADD COLUMN IF NOT EXISTS draft_version_no INTEGER NOT NULL DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS has_draft BOOLEAN NOT NULL DEFAULT TRUE;
+
+-- 存量定义若草稿与当前启用快照一致，则收口为只读启用版本；若内容不同，
+-- 保留为下一设计版本，避免迁移吞掉尚未发布的编辑结果。
+UPDATE wf_definition AS d
+SET has_draft = CASE
+        WHEN d.published_version = 0 THEN TRUE
+        WHEN v.id IS NULL THEN TRUE
+        ELSE d.draft_content IS DISTINCT FROM v.dsl_snapshot
+    END,
+    draft_version_no = CASE
+        WHEN d.published_version = 0 THEN 1
+        WHEN v.id IS NOT NULL AND d.draft_content IS NOT DISTINCT FROM v.dsl_snapshot
+            THEN d.published_version
+        ELSE d.published_version + 1
+    END
+FROM (SELECT id, dsl_snapshot FROM wf_definition_version) AS v
+WHERE d.latest_version_id = v.id;
+
+-- latest_version_id 为空或历史脏数据缺少对应快照时，保守保留为设计版本。
+UPDATE wf_definition
+SET has_draft = TRUE,
+    draft_version_no = GREATEST(published_version + 1, 1)
+WHERE latest_version_id IS NULL
+   OR NOT EXISTS (
+        SELECT 1
+        FROM wf_definition_version AS v
+        WHERE v.id = wf_definition.latest_version_id
+   )
+   OR draft_version_no < 1;
+
+ALTER TABLE wf_definition
+    ADD CONSTRAINT chk_wf_definition_version_workspace
+    CHECK (
+        draft_version_no >= 1
+        AND (
+            (has_draft AND draft_version_no > published_version)
+            OR
+            (NOT has_draft AND published_version > 0 AND draft_version_no = published_version)
+        )
+    );
+
+COMMENT ON COLUMN wf_definition.draft_version_no IS '当前工作区版本号：has_draft=true 时为待启用设计版本；false 时等于当前启用版本';
+COMMENT ON COLUMN wf_definition.has_draft IS '是否存在可编辑设计版本；启用成功后置 false，必须显式添加新版本后才能继续编辑';
+
 -- 迁移版本登记（与 migrations/ 全链一致）：make postgres 导入快照后，
 -- 启动迁移器识别全部版本已应用，零重放（checksum 与迁移文件 sha256 一致，
 -- 文件被篡改时迁移器按既有防漂移机制拒绝启动）。种子幂等：ON CONFLICT 不覆盖。
@@ -3122,5 +3173,6 @@ INSERT INTO schema_migrations (version, name, checksum) VALUES
     (81, 'menu_favorite_list_grant', '218ac2031fb5e99a723c9cf06a9b1de4a5bc372a48c62ecb688ba3bece628ddd'),
     (82, 'repair_workflow_baseline_rules', 'ab3db75795a82285ea254054f10be647023a57b7e95e10f103cd50fd53ebf469'),
     (83, 'form_field_formulas', '2ed833fdc3385bebe2519a7d14b055188502177e850e1f8e983b2c653b7dd58b'),
-    (84, 'label_templates', '4db1c0bd24cdeb3df0a52818f3ce80a18be633b1c7aa9151028ef10de5e69172')
+    (84, 'label_templates', '4db1c0bd24cdeb3df0a52818f3ce80a18be633b1c7aa9151028ef10de5e69172'),
+    (85, 'workflow_version_workspace', '8f069fed181f9e34ef0eaf7ba3d65b7e97b33367b3f8cf3faa0b4d753c44f360')
 ON CONFLICT (version) DO NOTHING;
