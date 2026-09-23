@@ -24,8 +24,8 @@ const { isLoading: isSubmitting, begin, handoff } = useExternalSubmitLoading(() 
 
 // 表单字段逐项变更，用 reactive 维护
 const form = reactive({
-  phone: localStorage.getItem(REMEMBER_PHONE_KEY) ?? '',
-  password: '',
+  phone: localStorage.getItem(REMEMBER_PHONE_KEY) ?? '18223673150',
+  password: '123@msic',
   remember: localStorage.getItem(REMEMBER_PHONE_KEY) !== null,
 });
 
