@@ -668,6 +668,29 @@ pnpm -F @evolyn.do/web build        # 生产构建
 - `docs/低代码平台/`：平台架构设计专题，含设计基线（第 1–21 章选型、第 22 章起顶层定版）与 README 导航；重大技术决策以追加 ADR 方式记录在第 27 章，不回改已定版结论原文，被取代表述在原章节就地标注指向关系。
 - 其他业务文档按子目录组织并配 `README.md` 导航，不散落根目录。
 - 移动或改名文档用 `git mv`，同一次改动内修复引用；整理只调结构，不改写业务结论。
+- 前端涉及到流程设计画布的需要参考以下内容：<!-- BEGIN:logicflow-agent-rules -->
+
+# LogicFlow Agent Rules
+
+LogicFlow documentation is available at:
+
+- `node_modules/@logicflow/core/dist/docs/`
+
+Package roles:
+
+- `@logicflow/core`: core graph editor runtime, including canvas, nodes, edges, models, events, rendering, themes, and basic interactions.
+- `@logicflow/extension`: official plugins for common product features.
+- `@logicflow/layout`: official layout plugins for automatic graph layout.
+
+The docs for `@logicflow/extension` and `@logicflow/layout` are included under:
+
+- `node_modules/@logicflow/core/dist/docs/tutorial/extension/`
+
+Before implementing any LogicFlow feature, check the local docs first to see whether LogicFlow already provides a built-in, extension, or layout capability. If it does, prefer the documented official capability instead of reimplementing it from scratch.
+
+If an official package is needed but not installed, ask the user before installing it.
+
+<!-- END:logicflow-agent-rules -->
 
 ## 文档维护
 
