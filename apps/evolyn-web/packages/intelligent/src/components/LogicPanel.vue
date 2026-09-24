@@ -3,6 +3,7 @@ import LogicFlow, { PolylineEdge, PolylineEdgeModel } from '@logicflow/core';
 import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue';
 import type {
   IntelligentActionType,
+  IntelligentDesignerResources,
   IntelligentDocument,
   IntelligentNode,
   IntelligentPosition,
@@ -20,6 +21,7 @@ defineOptions({ name: 'LogicPanel' });
 const props = defineProps<{
   document: IntelligentDocument;
   selectedNodeId: string | null;
+  resources?: IntelligentDesignerResources;
 }>();
 
 const emit = defineEmits<{
@@ -246,6 +248,7 @@ onBeforeUnmount(() => {
     <IntelligentPropertyPanel
       :node="selectedNode"
       :trigger="document.trigger"
+      :resources="resources"
       @close="selectNode(null)"
       @remove="emit('removeNode', $event)"
       @update="(nodeId, patch) => emit('updateNode', nodeId, patch)"

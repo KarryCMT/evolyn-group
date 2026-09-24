@@ -2,7 +2,7 @@
 import { RiArrowLeftSLine } from '@remixicon/vue';
 import { ElButton } from 'element-plus';
 import { computed, useTemplateRef, watch } from 'vue';
-import type { IntelligentDocument } from '../schema';
+import type { IntelligentDesignerResources, IntelligentDocument } from '../schema';
 import LogicPanel from '../components/LogicPanel.vue';
 import IntelligentToolbar from '../tool/toolbar/index.vue';
 import { useIntelligentDesigner } from './useIntelligentDesigner';
@@ -11,6 +11,7 @@ defineOptions({ name: 'IntelligentDesigner' });
 
 const props = defineProps<{
   document: IntelligentDocument;
+  resources?: IntelligentDesignerResources;
 }>();
 
 const emit = defineEmits<{
@@ -103,6 +104,7 @@ watch(
       class="intelligent-designer__canvas"
       :document="document"
       :selected-node-id="selectedNodeId"
+      :resources="resources"
       @select-node="selectedNodeId = $event"
       @move-node="moveNode"
       @add-node="addNode"

@@ -4,6 +4,7 @@ import { computed } from 'vue';
 import type {
   IntelligentActionConfig,
   IntelligentActionType,
+  IntelligentDesignerResources,
   IntelligentNode,
   IntelligentTrigger,
   IntelligentValueSource,
@@ -12,12 +13,14 @@ import { intelligentNodeTemplates } from '../../mock/nodeTemplates';
 import IntelligentPageTip from '../pageTip/index.vue';
 import IntelligentValueCollector from '../valueCollector/index.vue';
 import FormTriggerPropertyPanel from './FormTriggerPropertyPanel.vue';
+import CreateRecordPropertyPanel from './createRecord/CreateRecordPropertyPanel.vue';
 
 defineOptions({ name: 'IntelligentPropertyPanel' });
 
 const props = defineProps<{
   node: IntelligentNode | null;
   trigger: IntelligentTrigger;
+  resources?: IntelligentDesignerResources;
 }>();
 
 const emit = defineEmits<{
@@ -29,6 +32,9 @@ const emit = defineEmits<{
 
 const isAction = computed(() => props.node?.type === 'action');
 const isTrigger = computed(() => props.node?.type === 'trigger');
+const isCreateRecord = computed(
+  () => props.node?.type === 'action' && props.node.actionType === 'create-record',
+);
 const valueSource = computed<IntelligentValueSource>({
   get: () => props.node?.config?.valueSource ?? { type: 'constant' },
   set: (source) => updateConfig({ valueSource: source }),
@@ -61,13 +67,16 @@ function updateActionType(event: Event): void {
   <aside
     v-if="node"
     class="intelligent-property-panel"
-    :class="{ 'intelligent-property-panel--trigger': isTrigger }"
+    :class="{
+      'intelligent-property-panel--trigger': isTrigger,
+      'intelligent-property-panel--data-action': isCreateRecord,
+    }"
     aria-label="节点属性"
   >
     <header class="intelligent-property-panel__header" :class="{ 'is-trigger': isTrigger }">
       <div>
-        <small v-if="!isTrigger">执行节点</small>
-        <h2>{{ isTrigger ? '表单触发' : node.name }}</h2>
+        <small v-if="!isTrigger && !isCreateRecord">执行节点</small>
+        <h2>{{ isTrigger ? '表单触发' : isCreateRecord ? '新增数据' : node.name }}</h2>
       </div>
       <button v-if="!isTrigger" type="button" aria-label="关闭属性面板" @click="emit('close')"><RiCloseLine /></button>
     </header>
@@ -76,6 +85,13 @@ function updateActionType(event: Event): void {
       v-if="isTrigger"
       :trigger="trigger"
       @update="emit('updateTrigger', $event)"
+    />
+
+    <CreateRecordPropertyPanel
+      v-else-if="isCreateRecord"
+      :node="node"
+      :resources="resources"
+      @update="emit('update', node.id, $event)"
     />
 
     <div v-else class="intelligent-property-panel__body">
@@ -159,7 +175,7 @@ function updateActionType(event: Event): void {
       </template>
     </div>
 
-    <footer v-if="isAction" class="intelligent-property-panel__footer">
+    <footer v-if="isAction && !isCreateRecord" class="intelligent-property-panel__footer">
       <button type="button" @click="emit('remove', node.id)"><RiDeleteBinLine />删除节点</button>
     </footer>
   </aside>
@@ -194,6 +210,20 @@ function updateActionType(event: Event): void {
     overflow-y: auto;
   }
 
+  &--data-action {
+    position: fixed;
+    z-index: 60;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(1260px, 72vw);
+    border-width: 0 0 0 1px;
+    border-radius: 0;
+    box-shadow: -8px 0 24px rgb(31 43 61 / 10%);
+    grid-template-rows: 76px minmax(0, 1fr);
+    overflow-y: auto;
+  }
+
   &__header {
     display: flex;
     min-height: 68px;
@@ -203,6 +233,8 @@ function updateActionType(event: Event): void {
     border-bottom: 1px solid #e8ebf0;
 
     &.is-trigger { min-height: 76px; padding: 0 32px; }
+
+    .intelligent-property-panel--data-action & { min-height: 76px; padding: 0 32px; }
 
     small { color: #8a94a3; }
     h2 { margin: 3px 0 0; color: #172033; font-size: 17px; }
@@ -258,10 +290,12 @@ function updateActionType(event: Event): void {
 }
 
 @media (max-width: 980px) {
-  .intelligent-property-panel--trigger { width: min(720px, 76vw); }
+  .intelligent-property-panel--trigger,
+  .intelligent-property-panel--data-action { width: min(820px, 84vw); }
 }
 
 @media (max-width: 720px) {
-  .intelligent-property-panel--trigger { width: 100%; }
+  .intelligent-property-panel--trigger,
+  .intelligent-property-panel--data-action { width: 100%; }
 }
 </style>

@@ -11,6 +11,70 @@ export type IntelligentActionType =
 
 export type IntelligentValueSourceType = 'constant' | 'trigger-field' | 'node-output';
 
+/** 智能助手资源层使用的 JSON 值；配置文档不得保存组件实例或函数。 */
+export type IntelligentJsonValue =
+  | string
+  | number
+  | boolean
+  | null
+  | IntelligentJsonValue[]
+  | { [key: string]: IntelligentJsonValue };
+
+/** 表单字段的运行时值形态，用于来源过滤和自定义编辑器分派。 */
+export type IntelligentFieldValueKind =
+  | 'text'
+  | 'number'
+  | 'date'
+  | 'choice'
+  | 'multi-choice'
+  | 'member'
+  | 'members'
+  | 'department'
+  | 'departments'
+  | 'address';
+
+export interface IntelligentFormOption {
+  code: string;
+  name: string;
+  formType: 'standard' | 'workflow';
+  publishedVersion: number;
+  disabled?: boolean;
+}
+
+export interface IntelligentFieldOption {
+  /** 表单协议 v8 后稳定字段标识；历史协议回退为 widgetName。 */
+  fieldId: string;
+  widgetName: string;
+  label: string;
+  widgetType: string;
+  valueKind: IntelligentFieldValueKind;
+  required: boolean;
+  choices?: readonly { label: string; value: string }[];
+}
+
+export interface IntelligentSourceFieldGroup {
+  nodeId: string;
+  nodeName: string;
+  fields: readonly IntelligentFieldOption[];
+}
+
+export interface IntelligentActorOption {
+  value: string;
+  label: string;
+}
+
+/** 宿主应用向共享设计器注入业务目录，包内不直接依赖宿主 API。 */
+export interface IntelligentDesignerResources {
+  forms: readonly IntelligentFormOption[];
+  sourceGroups: readonly IntelligentSourceFieldGroup[];
+  members?: readonly IntelligentActorOption[];
+  departments?: readonly IntelligentActorOption[];
+  loadFormFields?: (
+    formCode: string,
+    signal: AbortSignal,
+  ) => Promise<readonly IntelligentFieldOption[]>;
+}
+
 export type FormTriggerActionType = 'create' | 'update' | 'delete';
 export type FormTriggerUpdateScope = 'any-field' | 'specified-fields';
 export type FormTriggerConditionMode = 'all' | 'any';
@@ -43,9 +107,37 @@ export interface IntelligentValueSource {
   nodeId?: string;
 }
 
+export interface IntelligentNodeFieldValueSource {
+  type: 'node-field';
+  nodeId: string;
+  field: string;
+}
+
+export interface IntelligentCustomValueSource {
+  type: 'custom';
+  value: IntelligentJsonValue;
+}
+
+export interface IntelligentEmptyValueSource {
+  type: 'empty';
+}
+
+export type IntelligentFieldValueSource =
+  | IntelligentNodeFieldValueSource
+  | IntelligentCustomValueSource
+  | IntelligentEmptyValueSource;
+
+export interface IntelligentFieldAssignment {
+  targetFieldId: string;
+  targetWidgetName: string;
+  source: IntelligentFieldValueSource;
+}
+
 export interface IntelligentActionConfig {
   targetFormCode?: string;
   targetFormName?: string;
+  targetFormPublishedVersion?: number;
+  fieldAssignments?: IntelligentFieldAssignment[];
   requestMethod?: 'GET' | 'POST';
   requestUrl?: string;
   message?: string;
