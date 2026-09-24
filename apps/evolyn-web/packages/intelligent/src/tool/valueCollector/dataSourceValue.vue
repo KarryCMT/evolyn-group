@@ -15,14 +15,14 @@
         :options="fieldOptions"
         placeholder="请选择返回字段"
       />
-      <div class="custom-field" v-else>
+      <div v-else class="custom-field">
         <el-input
+          v-model="field"
           class="custom-input"
           size="small"
-          v-model="field"
           placeholder="支持以.分割的多级属性"
           @change="handleCustomField"
-        ></el-input>
+        />
         <!-- <el-select v-model="dataType" size="small" placeholder="请选择数据类型" filterable>
           <el-option v-for="item in TypeOptions" :key="item.value" :label="item.label" size="small" :value="item.value">
             <span style="float: left">

@@ -9,14 +9,14 @@
         size="small" 
         placeholder="请选择"
         @change="handleChange"
-        >
+      >
         <el-option
           v-for="item in eventOptions"
           :key="item.value"
           :label="item.label"
           size="small"
-          :value="item.value">
-        </el-option>
+          :value="item.value"
+        />
       </el-select>
     </div>
   </div>

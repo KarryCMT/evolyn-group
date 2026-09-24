@@ -1,18 +1,18 @@
 <template>
   <div class="curl-import">
-  <el-button class="import-btn" text @click="openDialog">从 cURL 语句导入</el-button>
-  <el-dialog v-model="dialogInfo.visible" destroy-on-close title="cURL 语句导入" class="ds-dialog__import" append-to-body>
-    <div>
-      <el-input type="textarea" v-model="dialogInfo.value" :autosize="{minRows: 8}"></el-input>
-    </div>
-    <template #footer>
-      <div class="btns">
-        <el-button size="small" @click="cancelImport">取消</el-button>
-        <el-button size="small" type="primary" @click="confirmImport">导入</el-button>
+    <el-button class="import-btn" text @click="openDialog">从 cURL 语句导入</el-button>
+    <el-dialog v-model="dialogInfo.visible" destroy-on-close title="cURL 语句导入" class="ds-dialog__import" append-to-body>
+      <div>
+        <el-input v-model="dialogInfo.value" type="textarea" :autosize="{minRows: 8}" />
       </div>
-    </template>
-  </el-dialog>
-</div>
+      <template #footer>
+        <div class="btns">
+          <el-button size="small" @click="cancelImport">取消</el-button>
+          <el-button size="small" type="primary" @click="confirmImport">导入</el-button>
+        </div>
+      </template>
+    </el-dialog>
+  </div>
 </template>
 
 <script setup lang="ts">
@@ -76,7 +76,7 @@ function parseCurl(source: string): ImportedRequest {
   // 支持常见的 -d/--data* 单引号或双引号写法，导入后统一转成当前值协议。
   const dataExpression = /(?:^|\s)(?:-d|--data(?:-urlencode|-raw|-binary|-ascii)?)\s+(['"])([\s\S]*?)\1/g;
   for (const match of source.matchAll(dataExpression)) {
-    const rawValue = match[2];
+    const rawValue = match[2] ?? '';
     let values: Record<string, unknown> = {};
     try {
       const parsed = JSON.parse(rawValue) as unknown;

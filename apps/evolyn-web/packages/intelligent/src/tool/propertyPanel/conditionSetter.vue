@@ -2,39 +2,38 @@
   <div class="setter-wrapper">
     <condition-item
       v-for="(item, index) in conditions"
-      :key="index"
+      :key="`${item.operator}-${index}`"
       v-model="conditions[index]"
       :title="`条件${index + 1}（C${index + 1}）`"
       :context="context"
       :current="current"
       :lf="lf"
+      class="setter-item"
       @change="handleConditionChange($event, index)"
       @delete="handleConditionDelete(index)"
-      class="setter-item"
-    ></condition-item>
+    />
     <el-link 
       type="primary" 
       :underline="false"
       class="add-button"
       @click="addCondition"
     >
-      <i class="el-icon-circle-plus-outline"></i>
+      <i class="el-icon-circle-plus-outline" />
       添加条件
     </el-link>
     <el-row class="setter-footer">
-      <el-radio-group v-model="combineType" size="small" v-if="conditions.length" @change="handleCombineTypeChange">
+      <el-radio-group v-if="conditions.length" v-model="combineType" size="small" @change="handleCombineTypeChange">
         <el-radio :label="1" size="small">满足所有条件</el-radio>
         <el-radio :label="2">满足任意条件</el-radio>
         <el-radio :label="3">自定义</el-radio>
         <el-input 
+          v-model="combineRule"
           class="input"
-          v-model="combineRule" 
           placeholder="例如：C1&&(C2||C3)" 
           size="small"
           :disabled="combineType!==3"
           @change="handleCombineTypeChange"
-        >
-        </el-input>
+        />
       </el-radio-group>
     </el-row>
   </div>

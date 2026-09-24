@@ -13,7 +13,7 @@ export class IntelligentNodeModel extends HtmlNodeModel {
 }
 
 /**
- * 使用 Vue 3 createApp 挂载节点组件，替代旧实现中的 new Vue/$mount。
+ * 使用 Vue 3 createApp 挂载节点组件，并显式管理每个节点应用实例的生命周期。
  * 每个节点视图持有独立应用实例，并在刷新或销毁时显式卸载。
  */
 export class IntelligentVueNodeView extends HtmlNode {

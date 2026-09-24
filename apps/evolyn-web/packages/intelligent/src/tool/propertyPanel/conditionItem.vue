@@ -3,7 +3,7 @@
     <div class="header">
       {{ title }}
       <span class="delete" style="cursor: pointer" @click="handleDelete">
-        <i class="el-icon-delete"></i>
+        <i class="el-icon-delete" />
         删除
       </span>
     </div>
@@ -22,8 +22,7 @@
           placeholder="请选择"
           @change="handleOperatorChange"
         >
-          <el-option v-for="(item, index) in comparisonOperators" :key="index" :label="item.value" :value="item.value">
-          </el-option>
+          <el-option v-for="(item, index) in comparisonOperators" :key="index" :label="item.value" :value="item.value" />
         </el-select>
       </el-col>
       <el-col :span="10">

@@ -34,8 +34,7 @@
         :label="item.label"
         size="small"
         :value="item.value"
-      >
-      </el-option>
+      />
     </el-select>
     <el-input
       v-show="showFieldInput"
@@ -44,8 +43,7 @@
       size="small"
       class="field-input"
       @change="handleFieldChange"
-    >
-    </el-input>
+    />
   </div>
 </template>
 

@@ -1,8 +1,8 @@
 <template>
   <div>
     <el-select 
+      v-model="localValue"
       filterable
-      v-model="localValue" 
       class="use-property" 
       size="small" 
       placeholder="请选择"
@@ -14,8 +14,7 @@
         :label="item.label"
         size="small"
         :value="item.value"
-        >
-      </el-option>
+      />
     </el-select>
   </div>
 </template>
@@ -39,8 +38,8 @@ interface OptionValueModel {
 }
 
 const props = withDefaults(
-  defineProps<{ context?: unknown; options?: OptionItem[]; value?: Partial<OptionValueModel> }>(),
-  { options: () => [] },
+  defineProps<{ options?: OptionItem[]; value?: Partial<OptionValueModel> }>(),
+  { options: () => [], value: () => ({}) },
 );
 const emit = defineEmits<{ change: [value: OptionValueModel] }>();
 const localValue = shallowRef('');

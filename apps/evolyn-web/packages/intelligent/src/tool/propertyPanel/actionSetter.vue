@@ -8,17 +8,17 @@
       :context="context"
       :current="current"
       :lf="lf"
+      class="action-item"
       @change="handleActionChange($event, index)"
       @delete="handleActionDelete(index)"
-      class="action-item"
-    ></action-item>
+    />
     <el-link 
       type="primary" 
       :underline="false"
       class="add-button"
       @click="addAction"
     >
-      <i class="el-icon-circle-plus-outline"></i>
+      <i class="el-icon-circle-plus-outline" />
       添加行为
     </el-link>
   </div>
@@ -40,7 +40,18 @@ interface ActionValue {
   valueDefine: string;
 }
 
-const props = defineProps<{ lf?: unknown; context?: unknown; current?: unknown }>();
+interface LogicProperty {
+  name: string;
+  description: string;
+  propType: string;
+  optionValue?: Array<{ description: string; value: unknown }>;
+}
+
+defineProps<{
+  lf?: unknown;
+  context?: unknown;
+  current?: { getLogic: () => { props?: LogicProperty[] } };
+}>();
 const model = defineModel<ActionValue[]>({ default: () => [] });
 const emit = defineEmits<{ change: [value: ActionValue[]] }>();
 const actions = ref<ActionValue[]>([]);

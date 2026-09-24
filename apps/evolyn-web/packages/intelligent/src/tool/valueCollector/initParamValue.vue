@@ -5,8 +5,7 @@
       placeholder="请输入值" 
       size="small"
       @change="handleChange"
-    >
-    </el-input>
+    />
   </div>
 </template>
 

@@ -13,8 +13,7 @@
             placeholder="请输入"
             size="small"
             @change="handleKeyChange($event, row)"
-          >
-          </el-input>
+          />
         </template>
       </el-table-column>
       <el-table-column prop="value" label="VALUE">
@@ -22,10 +21,6 @@
           <ValueCollector
             class="value-select"
             :model-value="param[row.key]"
-            :context="context"
-            :types="types"
-            :default-value="defaultValue"
-            :lf="lf"
             @update:model-value="handleValueChange($event, row)"
           />
         </template>
@@ -39,12 +34,14 @@
             :disabled="!!row.required"
             aria-label="删除参数"
             @click="removeParam(row)"
-          >×</el-button>
+          >
+            ×
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
     <el-link type="primary" :underline="false" class="add-button" @click="addCustom">
-      <i class="el-icon-circle-plus-outline"></i>
+      <i class="el-icon-circle-plus-outline" />
       添加自定义参数
     </el-link>
   </div>
@@ -67,16 +64,12 @@ interface ParamRow {
 
 const props = withDefaults(
   defineProps<{
-    context?: unknown;
-    defaultValue?: unknown;
-    lf?: unknown;
     paramList?: ParamRow[];
   }>(),
   { paramList: () => [] },
 );
 const model = defineModel<ParamRow[]>({ default: () => [] });
 const emit = defineEmits<{ change: [value: ParamRow[]] }>();
-const types = ['input', 'dataSource', 'dataConvert', 'urlParam', 'initParam'];
 const localParamList = ref<ParamRow[]>([]);
 const param = reactive<Record<string, IntelligentValueSource>>({});
 
@@ -97,14 +90,14 @@ watch(
 watch(model, syncParam, { immediate: true, deep: true });
 
 function formatParam(): ParamRow[] {
-  return Object.keys(param).map((key) => {
+  return Object.entries(param).map(([key, value]) => {
     const row = localParamList.value.find((item) => item.key === key);
     return {
       key,
       keyType: row?.keyType ?? 'custom',
       paramType: row?.paramType,
       required: row?.required,
-      value: { ...param[key] },
+      value: { ...value },
     };
   });
 }

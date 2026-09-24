@@ -1,17 +1,17 @@
 <template>
   <div class="line-content" :class="isSelected && 'selected'">
     <el-popover
+      v-if="properties?.condition?.conditions?.length"
+      v-model:visible="popVisible"
       placement="right"
       :width="200"
       trigger="click"
-      v-model:visible="popVisible"
-      v-if="properties.condition && properties.condition && properties.condition.conditions && properties.condition.conditions.length"
     >
       <div class="popover-content">
         <div class="condition-wrap">
           <div class="condition-title">我配置的条件</div>
           <div class="condition-content">
-            <div class="condition-item" v-for="(item, index) in properties.condition.conditions" :key="index">
+            <div v-for="(item, index) in properties?.condition?.conditions ?? []" :key="index" class="condition-item">
               <img
                 class="icon"
                 src=""

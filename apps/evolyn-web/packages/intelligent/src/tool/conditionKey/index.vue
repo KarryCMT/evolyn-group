@@ -7,13 +7,14 @@
       placeholder="请选择页面组件"
       filterable
       @change="handleChange"
-      >
+    >
       <el-option
         v-for="item in options"
         :key="item.value"
         size="small"
         :label="item.name"
-        :value="item.value">
+        :value="item.value"
+      >
         <span 
           style="display: block"
           @mouseenter.stop="handleMouseEnter(item.modelId)"

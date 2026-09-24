@@ -3,7 +3,7 @@
     <div class="header">
       {{ title }}
       <span class="delete" style="cursor: pointer" @click="handleDelete">
-        <i class="el-icon-delete"></i>
+        <i class="el-icon-delete" />
         删除
       </span>
     </div>
@@ -11,7 +11,7 @@
       <el-col :span="10">
         <div class="action-label">属性:</div>
         <el-select v-model="propName" class="use-property" size="small" placeholder="请选择属性" @change="handlePropChange">
-          <el-option v-for="item in propOptions" :key="item.value" :label="item.label" size="small" :value="item.value"> </el-option>
+          <el-option v-for="item in propOptions" :key="item.value" :label="item.label" size="small" :value="item.value" />
         </el-select>
       </el-col>
       <el-col :span="14">

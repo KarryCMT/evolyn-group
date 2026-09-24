@@ -25,7 +25,7 @@
         <el-radio label="_blank">打开新 Tab</el-radio>
       </el-radio-group>
     </div>
-    <div class="panel-item item-wrap" v-if="params.jumpType === 'custom'">
+    <div v-if="params.jumpType === 'custom'" class="panel-item item-wrap">
       <div class="pj-label">目标系统：</div>
       <el-radio-group
         v-model="params.system"
@@ -53,7 +53,7 @@
             :key="item.formKey + item.version"
             :label="item.name"
             :value="item.formKey"
-          ></el-option>
+          />
         </el-select>
       </div>
       <div class="panel-item item-wrap">
@@ -64,34 +64,34 @@
           placeholder="请输入系统路由，例如：'preview'"
           size="small"
           @change="handleParamChange('path')"
-        ></el-input>
+        />
       </div>
     </div>
-    <div class="panel-item item-wrap" v-else>
+    <div v-else class="panel-item item-wrap">
       <div class="pj-label">目标页面：</div>
       <el-input
         v-if="params.system === '_current'"
-        type="url"
         v-model="params.customUrl"
+        type="url"
         class="pj-input"
         placeholder="请输入目标页面系统路径，例如：'path1/path2/path3'"
         size="small"
         @change="handleParamChange('customUrl')"
-      ></el-input>
+      />
       <el-input
         v-else
-        type="url"
         v-model="params.customUrl"
+        type="url"
         class="pj-input"
         placeholder="请输入目标页面，例如：'https://www.lingyanyun.com/path?q=xxx'"
         size="small"
         @change="handleCustomUrlChange"
-      ></el-input>
+      />
     </div>
 
     <div class="item-wrap">
       <div class="pj-label">路由参数：</div>
-      <div class="param-wrapper" v-for="(route, idx) in params.routeParams" :key="idx">
+      <div v-for="(route, idx) in params.routeParams" :key="idx" class="param-wrapper">
         <div class="pj-label">KEY</div>
         <el-input
           v-model="route.key"
@@ -99,7 +99,7 @@
           placeholder="请输入"
           size="small"
           @change="handleRouteParamKeyChange($event, idx)"
-        ></el-input>
+        />
         <div class="pj-label">VALUE</div>
         <ValueCollector
           class="value-select"
@@ -238,12 +238,16 @@ function handleCustomUrlChange(value: string): void {
 }
 
 function handleRouteParamKeyChange(value: string, index: number): void {
-  params.value.routeParams[index].key = value;
+  const item = params.value.routeParams[index];
+  if (!item) return;
+  item.key = value;
   publish();
 }
 
 function handleRouteParamValueChange(value: IntelligentValueSource, index: number): void {
-  params.value.routeParams[index].value = value;
+  const item = params.value.routeParams[index];
+  if (!item) return;
+  item.value = value;
   publish();
 }
 </script>

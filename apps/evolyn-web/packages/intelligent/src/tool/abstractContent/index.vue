@@ -3,13 +3,13 @@
     <div class="title">{{ title }}</div>
     <div class="content">
       <div v-if="content && content.length">
-        <div class="item" v-for="(item, index) in content" :key="index">
+        <div v-for="(item, index) in content" :key="index" class="item">
           <img :src="item.type === 'event' ? eventIcon : reactionIcon" class="icon" />
           <span>{{ item.desc }}</span>
         </div>
       </div>
       <div v-else>暂未配置</div>
-      <div class="button" @click="goConfig" v-if="showButton">去配置</div>
+      <div v-if="showButton" class="button" @click="goConfig">去配置</div>
     </div>
   </div>
 </template>

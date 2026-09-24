@@ -1,15 +1,14 @@
 <template>
   <div>
     <el-input 
+      v-model="localValue"
       class="input"
-      v-model="localValue" 
       placeholder="请输入值" 
       size="small"
       type="textarea"
       :rows="1"
       @change="handleChange"
-    >
-    </el-input>
+    />
     <el-select v-model="dataType" size="small" placeholder="请选择数据类型" filterable @change="handleTypeChange">
       <el-option v-for="item in typeOptions" :key="item.value" :label="item.label" size="small" :value="item.value">
         <span style="float: left">

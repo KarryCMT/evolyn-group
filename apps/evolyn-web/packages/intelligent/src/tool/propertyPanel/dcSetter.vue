@@ -10,7 +10,7 @@
           placeholder="请输入"
           size="small"
           @change="handleResourceKeyChange($event, idx)"
-        ></el-input>
+        />
         <div class="dc-label"><span>=</span>VALUE:</div>
         <ValueCollector
           class="value-select"
@@ -27,8 +27,8 @@
 
     <div class="item-wrap">
       <div class="dc-label">转换函数体：</div>
-      <el-alert title="如上配置的转换源数据 key 可直接作为变量名在下面函数体中使用" type="warning"> </el-alert>
-      <div id="my-editor"></div>
+      <el-alert title="如上配置的转换源数据 key 可直接作为变量名在下面函数体中使用" type="warning" />
+      <div id="my-editor" />
     </div>
   </div>
 </template>
@@ -94,12 +94,16 @@ function deleteParam(index: number): void {
 }
 
 function handleResourceKeyChange(value: string, index: number): void {
-  params.value.convertList[index].key = value;
+  const item = params.value.convertList[index];
+  if (!item) return;
+  item.key = value;
   publish();
 }
 
 function handleResourceValueChange(value: IntelligentValueSource, index: number): void {
-  params.value.convertList[index].value = value;
+  const item = params.value.convertList[index];
+  if (!item) return;
+  item.value = value;
   publish();
 }
 </script>

@@ -1,7 +1,7 @@
 <template>
   <div class="setter-wrap">
     <label class="label">节点名称:</label>
-    <el-input class="input" v-model="model" placeholder="请输入值" size="small" @change="handleChange"> </el-input>
+    <el-input v-model="model" class="input" placeholder="请输入值" size="small" @change="handleChange" />
     <div class="tip"><span>*</span> 建议为节点设置名称，以免后续出现同名节点</div>
   </div>
 </template>

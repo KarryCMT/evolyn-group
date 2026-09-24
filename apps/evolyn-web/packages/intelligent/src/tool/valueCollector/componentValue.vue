@@ -6,7 +6,7 @@
       placeholder="请选择页面组件"
       filterable
       @change="handleChange"
-      >
+    >
       <el-option
         v-for="item in options"
         :key="item.value"
@@ -14,7 +14,7 @@
         size="small"
         :value="item.value"
         @mouseenter="handleMouseEnter(item.value)"
-        >
+      >
         <span 
           style="float: left"
         >
@@ -29,8 +29,7 @@
       size="small"
       class="field-input"
       @change="handleFieldChange"
-    >
-    </el-input>
+    />
   </div>
 </template>
 

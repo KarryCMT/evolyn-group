@@ -1,11 +1,11 @@
 <template>
-  <div class="ds-panel-wrapper" v-loading="isFetching">
+  <div v-loading="isFetching" class="ds-panel-wrapper">
     <div class="panel-item item-wrap">
       <div class="ds-label">请求来源：</div>
       <el-radio-group
+        v-model="fetchMode"
         class="ds-type-radio"
         size="small"
-        v-model="fetchMode"
         @change="handleDsTypeChange"
       >
         <!-- 直连模式 -->
@@ -16,15 +16,15 @@
         <el-radio label="custom">自定义</el-radio>
       </el-radio-group>
     </div>
-    <div class="panel-item item-wrap" v-if="fetchMode !== 'custom'">
+    <div v-if="fetchMode !== 'custom'" class="panel-item item-wrap">
       <div class="ds-label">请求接口：</div>
       <el-select
-        filterable
+        v-if="fetchMode === 'direct'"
         v-model="apiId"
+        filterable
         class="ds-select"
         size="small"
         placeholder="请选择"
-        v-if="fetchMode === 'direct'"
         @change="handleApiChange"
       >
         <el-option
@@ -33,17 +33,16 @@
           :label="item.label"
           size="small"
           :value="item.value"
-        >
-        </el-option>
+        />
       </el-select>
 
       <el-select
-        filterable
+        v-else-if="fetchMode === 'redirect'"
         v-model="apiId"
+        filterable
         class="ds-select"
         size="small"
         placeholder="请选择"
-        v-else-if="fetchMode === 'redirect'"
         @change="handleApiChange"
       >
         <el-option
@@ -52,39 +51,36 @@
           :label="item.label"
           size="small"
           :value="item.value"
-        >
-        </el-option>
+        />
       </el-select>
     </div>
     <!-- curl语句导入 -->
-    <div class="panel-item item-wrap" v-if="fetchMode === 'custom'">
-      <CurlImport @import="$_importData"></CurlImport>
+    <div v-if="fetchMode === 'custom'" class="panel-item item-wrap">
+      <CurlImport @import="$_importData" />
     </div>
-    <div class="panel-item item-wrap" v-if="fetchMode === 'custom'">
+    <div v-if="fetchMode === 'custom'" class="panel-item item-wrap">
       <div class="ds-label">请求接口名称：</div>
       <el-input
         v-model="requestName"
         placeholder="请输入"
         size="small"
         @change="handleChange"
-      >
-      </el-input>
+      />
     </div>
-    <div class="panel-item item-wrap" v-if="fetchMode === 'custom'">
+    <div v-if="fetchMode === 'custom'" class="panel-item item-wrap">
       <div class="ds-label">请求接口地址：</div>
       <el-input
         v-model="requestUrl"
         placeholder="请输入"
         size="small"
         @change="handleChange"
-      >
-      </el-input>
+      />
     </div>
-    <div class="panel-item item-wrap" v-if="fetchMode === 'custom'">
+    <div v-if="fetchMode === 'custom'" class="panel-item item-wrap">
       <div class="ds-label">请求方法：</div>
       <el-select
-        filterable
         v-model="requestMethod"
+        filterable
         class="ds-select"
         size="small"
         placeholder="请选择"
@@ -96,8 +92,7 @@
           :label="item.label"
           size="small"
           :value="item.value"
-        >
-        </el-option>
+        />
       </el-select>
     </div>
     <div class="item-wrap">
@@ -106,34 +101,30 @@
         <el-tab-pane label="Query" name="query">
           <param-collector
             v-model="queryParams"
-            :lf="lf"
             :param-list="queryParamList"
-            :context="context"
             @change="handleQueryParamsChange"
-          ></param-collector>
+          />
         </el-tab-pane>
         <el-tab-pane label="Body" name="body">
           <param-collector
             v-model="bodyParams"
-            :lf="lf"
             :param-list="bodyParamList"
-            :context="context"
             @change="handleBodyParamsChange"
-          ></param-collector>
+          />
         </el-tab-pane>
       </el-tabs>
     </div>
-    <div class="item-wrap" v-if="fetchMode === 'direct'">
+    <div v-if="fetchMode === 'direct'" class="item-wrap">
       <div class="ds-label">请求失败配置：</div>
       <div>
         当请求失败时，是否继续执行后续逻辑：
         <el-switch
           v-model="continueOnError"
-          @change="handleErrorChange"
           active-text="是"
           inactive-text="否"
           size="mini"
-        ></el-switch>
+          @change="handleErrorChange"
+        />
       </div>
     </div>
   </div>
