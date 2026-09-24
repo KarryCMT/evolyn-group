@@ -1,11 +1,14 @@
 <script setup lang="ts">
+import { showConfirmDialog } from 'vant';
 import { computed, onMounted, shallowRef, useId, useTemplateRef } from 'vue';
 import type { FormSchemaDocument } from '../schema/types';
 import type { FormRuntimeAdapter } from '../runtime/adapters/types';
 import type { FormRuntimeActionDefinition } from '../runtime/actions/types';
 import type { FormRendererExpose } from '../runtime/renderer/types';
-import type { FormRuntime } from '../runtime/store/createFormRuntime';
-import type { FormSubmitConfirmationContext } from '../runtime/store/createFormRuntime';
+import type {
+  FormRuntime,
+  FormSubmitConfirmationContext,
+} from '../runtime/store/createFormRuntime';
 import type {
   FormDraftPayload,
   FormIssue,
@@ -15,7 +18,7 @@ import type {
 } from '../runtime/types';
 import type { FormFieldRegistry } from '../runtime/widgets/registry';
 import FormRenderer from '../runtime/renderer/FormRenderer.vue';
-import { createMobileFieldRegistry } from '../runtime/widgets/registry';
+import { createMobileFieldRegistry } from './widgets/registry';
 import FormMobileActionBar from './FormMobileActionBar.vue';
 import FormMobileMultitabRenderer from './FormMobileMultitabRenderer.vue';
 
@@ -99,29 +102,48 @@ function setRuntime(nextRuntime: FormRuntime | null): void {
 
 onMounted(() => setRuntime(rendererRef.value?.getRuntime() ?? null));
 
-function confirmAction(action: FormRuntimeActionDefinition): boolean {
+async function confirmAction(action: FormRuntimeActionDefinition): Promise<boolean> {
   if (!action.confirmText || typeof window === 'undefined') return true;
-  return window.confirm(action.confirmText);
+  try {
+    await showConfirmDialog({
+      title: '请确认',
+      message: action.confirmText,
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+    });
+    return true;
+  } catch {
+    return false;
+  }
 }
 
-function confirmSubmit(context: FormSubmitConfirmationContext): boolean {
+async function confirmSubmit(context: FormSubmitConfirmationContext): Promise<boolean> {
   if (typeof window === 'undefined') return true;
-  if (context.warnings.length > 0) {
-    const accepted = window.confirm(
-      `以下校验未通过，是否忽略并继续？\n${context.warnings
-        .map((warning) => `• ${warning.remind}`)
-        .join('\n')}`,
-    );
-    if (!accepted) return false;
+  try {
+    if (context.warnings.length > 0) {
+      await showConfirmDialog({
+        title: '部分校验未通过',
+        message: context.warnings.map((warning) => `• ${warning.remind}`).join('\n'),
+        confirmButtonText: '忽略并继续',
+        cancelButtonText: '返回修改',
+      });
+    }
+    if (context.confirmation) {
+      await showConfirmDialog({
+        title: context.confirmation.title,
+        message: context.confirmation.content,
+        confirmButtonText: '确认提交',
+        cancelButtonText: '取消',
+      });
+    }
+    return true;
+  } catch {
+    return false;
   }
-  return (
-    !context.confirmation ||
-    window.confirm(`${context.confirmation.title}\n\n${context.confirmation.content}`)
-  );
 }
 
 async function handleAction(action: FormRuntimeActionDefinition): Promise<void> {
-  if (!confirmAction(action)) return;
+  if (!(await confirmAction(action))) return;
   if (action.behavior === 'submit') {
     await rendererRef.value?.submit();
   } else if (action.behavior === 'save-draft') {
@@ -191,8 +213,8 @@ defineExpose({
   min-width: 0;
   height: 100%;
   min-height: 0;
-  color: var(--el-text-color-primary);
-  background: var(--el-bg-color);
+  color: var(--van-text-color);
+  background: var(--van-background-2);
 }
 
 .evf-mobile-runtime-surface__scroll {
@@ -204,37 +226,57 @@ defineExpose({
 
 .evf-mobile-runtime-surface__canvas {
   min-height: 100%;
-  padding: var(--el-space-lg) 0 var(--el-space-3xl);
+  padding: var(--van-padding-sm) 0 var(--van-padding-xl);
 }
 
 .evf-mobile-runtime-surface :deep(.evf-form) {
   --evf-columns: 1;
   --evf-control-height: 44px;
-  --evf-color-text: var(--el-text-color-primary);
-  --evf-color-text-regular: var(--el-text-color-regular);
-  --evf-color-text-secondary: var(--el-text-color-secondary);
-  --evf-color-text-placeholder: var(--el-text-color-placeholder);
-  --evf-color-text-disabled: var(--el-text-color-disabled);
-  --evf-color-border: var(--el-border-color);
-  --evf-color-border-light: var(--el-border-color-light);
-  --evf-color-border-lighter: var(--el-border-color-lighter);
-  --evf-color-fill-light: var(--el-fill-color-light);
-  --evf-color-bg: var(--el-bg-color);
-  --evf-color-primary: var(--el-color-primary);
-  --evf-color-danger: var(--el-color-danger);
-  --evf-font-size-base: var(--el-font-size-base);
-  --evf-font-size-small: var(--el-font-size-small);
-  --evf-font-size-extra-small: var(--el-font-size-extra-small);
-  --evf-space-sm: var(--el-space-sm);
-  --evf-space-md: var(--el-space-md);
-  --evf-space-lg: var(--el-space-lg);
-  --evf-space-xl: var(--el-space-xl);
-  --evf-space-3xl: var(--el-space-3xl);
-  --evf-radius-base: var(--el-border-radius-base);
-  --evf-radius-medium: var(--el-border-radius-medium);
+  --evf-color-text: var(--van-text-color);
+  --evf-color-text-regular: var(--van-text-color-2);
+  --evf-color-text-secondary: var(--van-text-color-3);
+  --evf-color-text-placeholder: var(--van-text-color-3);
+  --evf-color-text-disabled: var(--van-gray-5);
+  --evf-color-border: var(--van-border-color);
+  --evf-color-border-light: var(--van-gray-3);
+  --evf-color-border-lighter: var(--van-gray-2);
+  --evf-color-fill-light: var(--van-background);
+  --evf-color-bg: var(--van-background-2);
+  --evf-color-primary: var(--van-primary-color);
+  --evf-color-danger: var(--van-danger-color);
+  --evf-font-size-base: var(--van-font-size-md);
+  --evf-font-size-small: var(--van-font-size-sm);
+  --evf-font-size-extra-small: var(--van-font-size-xs);
+  --evf-space-sm: var(--van-padding-base);
+  --evf-space-md: var(--van-padding-xs);
+  --evf-space-lg: var(--van-padding-sm);
+  --evf-space-xl: var(--van-padding-md);
+  --evf-space-3xl: var(--van-padding-xl);
+  --evf-radius-base: var(--van-radius-md);
+  --evf-radius-medium: var(--van-radius-lg);
 }
 
 .evf-mobile-runtime-surface :deep(.evf-form__body) {
-  padding: var(--el-space-xl);
+  padding: var(--van-padding-md);
+}
+
+.evf-mobile-runtime-surface :deep(.evf-mobile-field) {
+  padding: 0;
+}
+
+.evf-mobile-runtime-surface :deep(.evf-mobile-field::after) {
+  display: none;
+}
+
+.evf-mobile-runtime-surface :deep(.evf-mobile-choice-group) {
+  display: flex;
+  flex-direction: column;
+  gap: var(--van-padding-sm);
+  min-height: 44px;
+}
+
+.evf-mobile-runtime-surface :deep(.evf-mobile-choice-group--horizontal) {
+  flex-flow: row wrap;
+  align-items: center;
 }
 </style>

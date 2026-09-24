@@ -1,0 +1,35 @@
+{
+  "name": "@evolyn.do/mobile",
+  "type": "module",
+  "version": "1.0.0",
+  "private": true,
+  "packageManager": "pnpm@12.4.2",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "vue-tsc --noEmit"
+  },
+  "dependencies": {
+    "@evolyn.do/form": "workspace:*",
+    "@evolyn.do/utils": "workspace:*",
+    "pinia": "catalog:frontend",
+    "vant": "catalog:ui",
+    "vue": "catalog:frontend",
+    "vue-router": "catalog:frontend"
+  },
+  "devDependencies": {
+    "@antfu/eslint-config": "^5.1.0",
+    "@types/node": "catalog:types",
+    "@vitejs/plugin-vue": "catalog:build",
+    "@vue/test-utils": "catalog:test",
+    "eslint": "catalog:lint",
+    "happy-dom": "catalog:test",
+    "sass": "catalog:dev",
+    "typescript": "catalog:types",
+    "vite": "catalog:build",
+    "vitest": "catalog:test",
+    "vue-tsc": "catalog:build"
+  }
+}

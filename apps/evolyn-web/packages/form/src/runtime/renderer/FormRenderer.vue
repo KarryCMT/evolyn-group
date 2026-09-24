@@ -18,7 +18,7 @@ import type {
   FormSubmitPayload,
   FormValue,
 } from '../types';
-import { type FormFieldRegistry, createMobileFieldRegistry } from '../widgets/registry';
+import { type FormFieldRegistry, createNativeFieldRegistry } from '../widgets/registry';
 import FormSectionRenderer from './FormSectionRenderer.vue';
 import type { FormRendererExpose } from './types';
 import FormPlainMultitabRenderer from '../../runtime-core/FormPlainMultitabRenderer.vue';
@@ -83,7 +83,7 @@ const runtimeRef = shallowRef<FormRuntime | null>(null);
 const schemaIssues = shallowRef<FormSchemaIssue[]>([]);
 const operationController = shallowRef<AbortController | null>(null);
 // 注册表在会话间复用：字段组件解析与异步包装缓存不应随 Schema 替换丢失。
-const fieldRegistry = props.registry ?? createMobileFieldRegistry();
+const fieldRegistry = props.registry ?? createNativeFieldRegistry();
 const focusRegistry = createFocusRegistry();
 
 provideFormRendererContext({

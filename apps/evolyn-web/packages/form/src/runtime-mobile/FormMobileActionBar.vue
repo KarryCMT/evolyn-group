@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Button as VanButton } from 'vant';
 import { computed } from 'vue';
 import type { FormIssue } from '../runtime/types';
 import type { FormRuntimeActionDefinition } from '../runtime/actions/types';
@@ -35,18 +36,20 @@ function emitAction(action: FormRuntimeActionDefinition): void {
       {{ issue.message }}
     </p>
     <div class="evf-mobile-action-bar__actions">
-      <button
+      <VanButton
         v-for="action in directActions"
         :key="action.key"
         class="evf-mobile-action-bar__action"
-        :class="`evf-mobile-action-bar__action--${action.intent ?? 'plain'}`"
-        type="button"
+        :type="action.intent === 'primary' ? 'primary' : action.intent === 'danger' ? 'danger' : 'default'"
+        size="large"
+        round
         :disabled="action.disabled || action.loading"
+        :loading="action.loading"
         :data-action-key="action.key"
         @click="emitAction(action)"
       >
-        {{ action.loading ? '处理中…' : action.label }}
-      </button>
+        {{ action.label }}
+      </VanButton>
     </div>
   </footer>
 </template>
@@ -77,26 +80,6 @@ function emitAction(action: FormRuntimeActionDefinition): void {
 .evf-mobile-action-bar__action {
   flex: 1;
   min-width: 0;
-  min-height: 44px;
-  padding: 0 var(--evf-space-xl);
-  font: inherit;
-  color: var(--evf-color-text-regular);
-  cursor: pointer;
-  background: var(--evf-color-bg);
-  border: 1px solid var(--evf-color-border);
-  border-radius: var(--evf-radius-base);
-}
-
-.evf-mobile-action-bar__action--primary {
-  color: #fff;
-  background: var(--evf-color-primary);
-  border-color: var(--evf-color-primary);
-}
-
-.evf-mobile-action-bar__action--danger {
-  color: #fff;
-  background: var(--evf-color-danger);
-  border-color: var(--evf-color-danger);
 }
 
 .evf-mobile-action-bar__action:disabled {
