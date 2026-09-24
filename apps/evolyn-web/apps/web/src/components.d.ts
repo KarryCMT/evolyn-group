@@ -37,6 +37,8 @@ declare module 'vue' {
     AppWorkspaceHeader: typeof import('./components/app/workspace/AppWorkspaceHeader.vue')['default']
     AppWorkspaceShell: typeof import('./components/app/workspace/AppWorkspaceShell.vue')['default']
     AppWorkspaceSidebar: typeof import('./components/app/workspace/AppWorkspaceSidebar.vue')['default']
+    AssistantCreateDialog: typeof import('./components/form/assistant/AssistantCreateDialog.vue')['default']
+    AssistantList: typeof import('./components/form/assistant/AssistantList.vue')['default']
     AuthLayout: typeof import('./components/auth/AuthLayout.vue')['default']
     AvatarEditorDialog: typeof import('./components/dashboard/account/AvatarEditorDialog.vue')['default']
     BlankAppDialog: typeof import('./components/app/create/BlankAppDialog.vue')['default']

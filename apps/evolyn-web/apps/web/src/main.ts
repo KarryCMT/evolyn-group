@@ -1,7 +1,7 @@
-import { createPinia } from 'pinia';
-import { createApp } from 'vue';
 import { initGlobSetting, setupRequestMessage } from '@evolyn.do/hooks';
 import { ERROR_CODES, setUnauthorizedHandler } from '@evolyn.do/utils';
+import { createPinia } from 'pinia';
+import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
 import { useAuthStore } from './stores/auth';
@@ -11,6 +11,7 @@ import '@evolyn.do/ui/style.css';
 import '@evolyn.do/dashboard/style.css';
 import '@evolyn.do/data-workspace/style.css';
 import '@evolyn.do/form/style.css';
+import '@evolyn.do/intelligent/style.css';
 import '@evolyn.do/workflow/style.css';
 import 'element-plus/theme-chalk/src/message.scss';
 import 'element-plus/theme-chalk/src/message-box.scss';

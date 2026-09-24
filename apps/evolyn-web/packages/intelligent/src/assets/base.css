@@ -1,0 +1,18 @@
+/* 设计器令牌仅挂载在包命名空间下，避免覆盖宿主应用的全局主题。 */
+.intelligent-designer,
+.logic-panel {
+  --intelligent-color-primary: #00afa2;
+  --intelligent-color-text: #172033;
+  --intelligent-color-muted: #7a8596;
+  --intelligent-color-border: #e1e5eb;
+  --intelligent-color-canvas: #f7f8fa;
+}
+
+.intelligent-designer *,
+.intelligent-designer *::before,
+.intelligent-designer *::after,
+.logic-panel *,
+.logic-panel *::before,
+.logic-panel *::after {
+  box-sizing: border-box;
+}

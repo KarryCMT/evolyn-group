@@ -36,7 +36,7 @@ const extensionNavigationItems: ExtensionNavigationItem[] = [
     dividerBefore: true,
   },
   { name: 'form-extension-print', label: '打印模板', icon: markRaw(RiPrinterFill) },
-  { name: 'form-extension-ai', label: '智能助手', icon: markRaw(RiAiGenerate2) },
+  { name: 'form-extension-ai', label: '智能助手 Pro', icon: markRaw(RiAiGenerate2) },
   { name: 'form-extension-payment', label: '在线支付', icon: markRaw(RiWallet3Fill) },
   { name: 'form-extension-actions', label: '自定义按钮', icon: markRaw(RiPushpin2Fill) },
   { name: 'form-extension-push', label: '数据推送', icon: markRaw(RiFileList2Fill) },

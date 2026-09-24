@@ -23,6 +23,7 @@
     "@evolyn.do/data-workspace": "workspace:*",
     "@evolyn.do/form": "workspace:*",
     "@evolyn.do/hooks": "workspace:*",
+    "@evolyn.do/intelligent": "workspace:*",
     "@evolyn.do/label": "workspace:*",
     "@evolyn.do/query": "workspace:*",
     "@evolyn.do/ui": "workspace:*",

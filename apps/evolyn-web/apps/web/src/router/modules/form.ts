@@ -32,6 +32,13 @@ const formRoutes: RouteRecordRaw[] = [
     component: () => import('~/pages/form/preview.vue'),
     meta: { public: false, title: '表单预览' },
   },
+  // 智能助手设计器使用独立全屏工作区，避免继承表单扩展功能的侧栏与顶部页签。
+  {
+    path: '/app/:appCode/form/:formCode/assistant/:assistantId/designer',
+    name: 'form-assistant-designer',
+    component: () => import('~/pages/form/assistant/designer.vue'),
+    meta: { public: false, title: '智能助手设计器' },
+  },
   {
     path: '/app/:appCode/form/:formCode',
     name: 'form',
@@ -100,10 +107,8 @@ const formRoutes: RouteRecordRaw[] = [
           {
             path: 'ai',
             name: 'form-extension-ai',
-            ...extensionFeature({
-              title: '智能助手',
-              description: '配置可用于该表单的智能能力与使用范围。',
-            }),
+            component: () => import('~/pages/form/extensions/ai.vue'),
+            meta: { title: '智能助手 Pro' },
           },
           {
             path: 'payment',

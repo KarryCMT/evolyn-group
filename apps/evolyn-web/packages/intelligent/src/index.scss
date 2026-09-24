@@ -1,0 +1,11 @@
+// 包级全局样式只约束智能助手命名空间，避免作为共享包污染宿主页面。
+.intelligent-designer,
+.logic-panel {
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.logic-panel foreignObject {
+  overflow: visible !important;
+}
