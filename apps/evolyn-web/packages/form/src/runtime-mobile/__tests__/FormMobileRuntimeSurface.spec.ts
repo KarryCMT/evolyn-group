@@ -42,7 +42,7 @@ const schema = (): FormSchemaDocument => ({
 });
 
 describe('FormMobileRuntimeSurface', () => {
-  it('使用原生字段与独立移动操作栏，不装配 Element Plus Web 外壳', () => {
+  it('使用 Vant 字段与独立移动操作栏，不装配 Element Plus Web 外壳', () => {
     const wrapper = mount(FormMobileRuntimeSurface, {
       props: {
         schema: schema(),
@@ -53,6 +53,8 @@ describe('FormMobileRuntimeSurface', () => {
     expect(wrapper.find('.evf-mobile-runtime-surface').exists()).toBe(true);
     expect(wrapper.find('.evf-mobile-action-bar').exists()).toBe(true);
     expect(wrapper.find('.el-scrollbar').exists()).toBe(false);
+    expect(wrapper.find('.van-field').exists()).toBe(true);
+    expect(wrapper.find('.van-button').exists()).toBe(true);
     expect(wrapper.find('input').exists()).toBe(true);
   });
 

@@ -27,7 +27,8 @@ function resolveEntryFileNames({ format }: { format: string }) {
 const shared = {
   clean: false,
   deps: {
-    neverBundle: ['vue'],
+    // Web 与移动 Surface 分别由宿主提供 UI 框架，包产物只保留按入口可摇树的引用。
+    neverBundle: ['vue', 'element-plus', 'vant', '@remixicon/vue'],
   },
   format: ['esm', 'cjs'],
   hash: false,

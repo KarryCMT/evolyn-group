@@ -1,4 +1,4 @@
-import { defineAsyncComponent, type Component } from 'vue';
+import { type Component, defineAsyncComponent } from 'vue';
 import CheckboxGroupField from './base/CheckboxGroupField.vue';
 import DateTimeField from './base/DateTimeField.vue';
 import DecimalField from './base/DecimalField.vue';
@@ -64,11 +64,10 @@ export class FormFieldRegistry {
 }
 
 /**
- * 移动端注册表：仅含 P2 基础字段（原生 HTML 控件 + 最小 Vue 包装），
- * 注册键与目标协议 widget.type 一一对应。后续阶段按白名单追加，例如：
- *   registry.register('user', () => import('./heavy/UserField.vue'))
+ * UI 无关的原生字段回退注册表。Runtime Core 与测试环境可直接使用；终端宿主应在
+ * 此基础上覆盖自身组件实现，例如 runtime-web 的 Element Plus、runtime-mobile 的 Vant。
  */
-export function createMobileFieldRegistry(): FormFieldRegistry {
+export function createNativeFieldRegistry(): FormFieldRegistry {
   const registry = new FormFieldRegistry();
   registry.register('text', { component: TextField });
   registry.register('textarea', { component: TextAreaField });

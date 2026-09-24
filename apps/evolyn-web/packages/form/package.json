@@ -67,7 +67,19 @@
   "peerDependencies": {
     "@remixicon/vue": "catalog:ui",
     "element-plus": "catalog:ui",
+    "vant": "catalog:ui",
     "vue": "catalog:frontend"
+  },
+  "peerDependenciesMeta": {
+    "@remixicon/vue": {
+      "optional": true
+    },
+    "element-plus": {
+      "optional": true
+    },
+    "vant": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@evolyn.do/typescript-config": "workspace:*",
@@ -84,6 +96,7 @@
     "unplugin-vue": "catalog:build",
     "vite": "catalog:build",
     "vitest": "catalog:test",
+    "vant": "catalog:ui",
     "vue": "catalog:frontend",
     "vue-tsc": "catalog:build"
   },

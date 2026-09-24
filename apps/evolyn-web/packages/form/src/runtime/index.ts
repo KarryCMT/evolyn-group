@@ -67,7 +67,7 @@ export { default as FormSectionRenderer } from './renderer/FormSectionRenderer.v
 export { default as FormFieldHost } from './renderer/FormFieldHost.vue';
 export { default as FormFieldError } from './renderer/FormFieldError.vue';
 export {
-  createMobileFieldRegistry,
+  createNativeFieldRegistry,
   FormFieldRegistry,
   type FieldWidgetDefinition,
   type FieldWidgetLoader,
