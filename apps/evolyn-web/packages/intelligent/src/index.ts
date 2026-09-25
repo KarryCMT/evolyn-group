@@ -2,6 +2,7 @@
 // 在公共入口显式声明设计器实际使用的主题片，保证包可被任意 Vue 3 宿主直接消费。
 import 'element-plus/theme-chalk/src/base.scss';
 import 'element-plus/theme-chalk/src/button.scss';
+import 'element-plus/theme-chalk/src/drawer.scss';
 import 'element-plus/theme-chalk/src/popper.scss';
 import 'element-plus/theme-chalk/src/tooltip.scss';
 import '@logicflow/core/dist/index.css';

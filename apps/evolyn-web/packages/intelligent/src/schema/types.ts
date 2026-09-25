@@ -133,10 +133,34 @@ export interface IntelligentFieldAssignment {
   source: IntelligentFieldValueSource;
 }
 
+export type IntelligentUpdateTargetMode = 'form' | 'node';
+export type IntelligentUpdateMatchMode = 'all' | 'any';
+export type IntelligentUpdateFilterOperator =
+  | 'equals'
+  | 'not-equals'
+  | 'equals-any'
+  | 'not-equals-any'
+  | 'is-empty'
+  | 'is-not-empty';
+
+/** 修改数据节点的一条筛选条件；一元运算符不保存 source。 */
+export interface IntelligentUpdateFilter {
+  id: string;
+  targetFieldId: string;
+  targetWidgetName: string;
+  operator: IntelligentUpdateFilterOperator;
+  source?: Exclude<IntelligentFieldValueSource, IntelligentEmptyValueSource>;
+}
+
 export interface IntelligentActionConfig {
   targetFormCode?: string;
   targetFormName?: string;
   targetFormPublishedVersion?: number;
+  updateTargetMode?: IntelligentUpdateTargetMode;
+  targetNodeId?: string;
+  updateMatchMode?: IntelligentUpdateMatchMode;
+  updateFilters?: IntelligentUpdateFilter[];
+  createWhenNoMatch?: boolean;
   fieldAssignments?: IntelligentFieldAssignment[];
   requestMethod?: 'GET' | 'POST';
   requestUrl?: string;
@@ -201,4 +225,6 @@ export interface CreateIntelligentActionInput {
   name?: string;
   description?: string;
   config?: IntelligentActionConfig;
+  /** 指定需要拆分的连线；省略时兼容为在结束节点前追加。 */
+  sourceEdgeId?: string;
 }

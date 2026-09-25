@@ -10,6 +10,7 @@ defineOptions({ name: 'IntelligentBaseNode' });
 interface NodeProperties {
   assistantType?: IntelligentNodeType;
   actionType?: IntelligentActionType;
+  configured?: boolean;
   label?: string;
   description?: string;
   selected?: boolean;
@@ -20,6 +21,9 @@ const props = defineProps<{
 }>();
 
 const nodeType = computed(() => props.node.properties?.assistantType ?? 'action');
+const isInvalid = computed(
+  () => nodeType.value !== 'end' && props.node.properties?.configured === false,
+);
 const actionColor = computed(() => {
   const actionType = props.node.properties?.actionType ?? 'create-record';
   return ACTION_COLORS[actionType];
@@ -31,8 +35,12 @@ const actionColor = computed(() => {
     class="intelligent-base-node"
     :class="[
       `intelligent-base-node--${nodeType}`,
-      { 'intelligent-base-node--selected': node.properties?.selected },
+      {
+        'intelligent-base-node--invalid': isInvalid,
+        'intelligent-base-node--selected': node.properties?.selected,
+      },
     ]"
+    :aria-invalid="isInvalid"
   >
     <span
       v-if="nodeType !== 'end'"
@@ -69,12 +77,28 @@ const actionColor = computed(() => {
   box-shadow: 0 5px 14px rgb(31 43 61 / 14%);
   box-sizing: border-box;
   cursor: pointer;
-  transition: border-color 160ms ease, box-shadow 160ms ease;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
 
-  &:hover,
+  &:hover {
+    border-color: #2f7cf6;
+    box-shadow: 0 0 0 5px rgb(47 124 246 / 12%), 0 8px 20px rgb(31 43 61 / 16%);
+    transform: translateY(-1px);
+  }
+
   &--selected {
-    border-color: #00afa2;
-    box-shadow: 0 7px 18px rgb(0 175 162 / 16%);
+    border-color: #2f7cf6;
+    box-shadow: 0 0 0 5px rgb(47 124 246 / 14%), 0 8px 20px rgb(31 43 61 / 18%);
+  }
+
+  &--invalid {
+    border-color: #ff4d4f;
+  }
+
+  &--invalid:hover,
+  &--invalid.intelligent-base-node--selected {
+    // 蓝色外环表达交互状态，红色描边持续表达校验失败，两个状态互不覆盖。
+    border-color: #ff4d4f;
+    box-shadow: 0 0 0 5px rgb(47 124 246 / 14%), 0 8px 20px rgb(31 43 61 / 18%);
   }
 
   &__icon {
@@ -119,6 +143,11 @@ const actionColor = computed(() => {
     color: #fff;
     background: #121d30;
     border-radius: 999px;
+  }
+
+  &--end:hover,
+  &--end.intelligent-base-node--selected {
+    border-color: #2f7cf6;
   }
 
   &--end &__copy { flex: 0 1 auto; }

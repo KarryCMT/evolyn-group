@@ -26,6 +26,7 @@ export class IntelligentNodeView extends HtmlNode {
       properties?: {
         actionType?: IntelligentActionType;
         assistantType?: IntelligentNodeType;
+        configured?: boolean;
         description?: string;
         label?: string;
         selected?: boolean;

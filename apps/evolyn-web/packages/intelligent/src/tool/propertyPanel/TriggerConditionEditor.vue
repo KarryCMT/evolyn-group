@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { RiAddLine, RiDeleteBin6Line } from '@remixicon/vue';
-import { computed } from 'vue';
+import { computed, watch } from 'vue';
 import type { IntelligentFormFieldOption } from '../../mock/nodeTemplates';
-import type {
-  FormTriggerAction,
-  FormTriggerCondition,
-  FormTriggerConditionMode,
-  FormTriggerConditionOperator,
+import {
+  type FormTriggerAction,
+  type FormTriggerCondition,
+  type FormTriggerConditionMode,
+  type FormTriggerConditionOperator,
+  firstAvailableTriggerFieldId,
+  uniqueFormTriggerConditions,
 } from '../../schema';
 import TriggerConditionValue from './TriggerConditionValue.vue';
 import TriggerFieldSelect from './TriggerFieldSelect.vue';
@@ -41,17 +43,28 @@ const actionSentence = computed(() => {
   });
   return labels.length > 0 ? `${labels.join(' 或 ')} 的数据满足` : '表单数据满足';
 });
+const selectedFieldIds = computed(
+  () => new Set(conditions.value.map((condition) => condition.fieldId).filter(Boolean)),
+);
+const canAddCondition = computed(() =>
+  props.fields.some((field) => !selectedFieldIds.value.has(field.value)),
+);
 
 function createId(): string {
   return `trigger_condition_${globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
 }
 
 function addCondition(): void {
+  const fieldId = firstAvailableTriggerFieldId(
+    props.fields.map((field) => field.value),
+    conditions.value,
+  );
+  if (!fieldId) return;
   conditions.value = [
-    ...conditions.value,
+    ...uniqueFormTriggerConditions(conditions.value),
     {
       id: createId(),
-      fieldId: props.fields[0]?.value ?? '',
+      fieldId,
       operator: 'equals-any',
       values: [],
     },
@@ -75,7 +88,18 @@ function updateCondition(conditionId: string, patch: Partial<FormTriggerConditio
 }
 
 function updateField(conditionId: string, fieldId: string): void {
+  const isSelectedByAnotherCondition = conditions.value.some(
+    (condition) => condition.id !== conditionId && condition.fieldId === fieldId,
+  );
+  if (isSelectedByAnotherCondition) return;
   updateCondition(conditionId, { fieldId, values: [] });
+}
+
+function disabledFieldIds(conditionId: string): string[] {
+  return conditions.value
+    .filter((condition) => condition.id !== conditionId)
+    .map((condition) => condition.fieldId)
+    .filter(Boolean);
 }
 
 function updateOperator(conditionId: string, value: string): void {
@@ -98,6 +122,16 @@ function selectedField(fieldId: string): IntelligentFormFieldOption | undefined 
 function isValueDisabled(operator: FormTriggerConditionOperator): boolean {
   return operator === 'is-empty' || operator === 'is-not-empty';
 }
+
+// 历史文档可能由旧版界面写入重复字段，加载属性面板时保留首项并清理重复项。
+watch(
+  conditions,
+  (value) => {
+    const uniqueConditions = uniqueFormTriggerConditions(value);
+    if (uniqueConditions.length !== value.length) conditions.value = uniqueConditions;
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -108,7 +142,12 @@ function isValueDisabled(operator: FormTriggerConditionOperator): boolean {
       <TriggerOptionSelect v-model="mode" :options="modeOptions" control-label="条件匹配方式" />
       <span>条件时，触发后续动作</span>
     </div>
-    <button type="button" class="trigger-condition-editor__add" @click="addCondition">
+    <button
+      type="button"
+      class="trigger-condition-editor__add"
+      :disabled="!canAddCondition"
+      @click="addCondition"
+    >
       <RiAddLine />添加条件
     </button>
 
@@ -121,6 +160,7 @@ function isValueDisabled(operator: FormTriggerConditionOperator): boolean {
       <TriggerFieldSelect
         :model-value="condition.fieldId"
         :options="fields"
+        :disabled-values="disabledFieldIds(condition.id)"
         control-label="选择条件字段"
         @update:model-value="updateField(condition.id, $event)"
       />
@@ -181,6 +221,7 @@ function isValueDisabled(operator: FormTriggerConditionOperator): boolean {
     font-size: 16px;
 
     svg { width: 22px; height: 22px; }
+    &:disabled { color: #aab2be; cursor: not-allowed; }
   }
 
   &__row {

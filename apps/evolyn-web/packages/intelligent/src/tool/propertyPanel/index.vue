@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { RiCloseLine, RiDeleteBinLine } from '@remixicon/vue';
+import { RiDeleteBinLine } from '@remixicon/vue';
+import { ElDrawer } from 'element-plus';
 import { computed } from 'vue';
 import type {
   IntelligentActionConfig,
@@ -14,11 +15,13 @@ import IntelligentPageTip from '../pageTip/index.vue';
 import IntelligentValueCollector from '../valueCollector/index.vue';
 import FormTriggerPropertyPanel from './FormTriggerPropertyPanel.vue';
 import CreateRecordPropertyPanel from './createRecord/CreateRecordPropertyPanel.vue';
+import UpdateRecordPropertyPanel from './updateRecord/UpdateRecordPropertyPanel.vue';
 
 defineOptions({ name: 'IntelligentPropertyPanel' });
 
 const props = defineProps<{
   node: IntelligentNode | null;
+  nodes: readonly IntelligentNode[];
   trigger: IntelligentTrigger;
   resources?: IntelligentDesignerResources;
 }>();
@@ -35,6 +38,35 @@ const isTrigger = computed(() => props.node?.type === 'trigger');
 const isCreateRecord = computed(
   () => props.node?.type === 'action' && props.node.actionType === 'create-record',
 );
+const isUpdateRecord = computed(
+  () => props.node?.type === 'action' && props.node.actionType === 'update-record',
+);
+const isDeleteRecord = computed(
+  () => props.node?.type === 'action' && props.node.actionType === 'delete-record',
+);
+const isDataAction = computed(
+  () => isCreateRecord.value || isUpdateRecord.value || isDeleteRecord.value,
+);
+const hasDedicatedPanel = computed(() => isCreateRecord.value || isUpdateRecord.value);
+const drawerVisible = computed({
+  get: () => props.node !== null,
+  set: (visible) => {
+    if (!visible) emit('close');
+  },
+});
+const drawerTitle = computed(() => {
+  if (isTrigger.value) return '表单触发';
+  if (isCreateRecord.value) return '新增数据';
+  if (isUpdateRecord.value) return '修改数据';
+  if (isDeleteRecord.value) return '删除数据';
+  return props.node?.name ?? '节点属性';
+});
+// 数据操作需要容纳字段映射等复杂配置，其余动作沿用紧凑宽度。
+const drawerSize = computed(() => {
+  if (isTrigger.value) return 'min(1120px, 62vw)';
+  if (isDataAction.value) return 'min(1260px, 72vw)';
+  return 'min(380px, calc(100% - 32px))';
+});
 const valueSource = computed<IntelligentValueSource>({
   get: () => props.node?.config?.valueSource ?? { type: 'constant' },
   set: (source) => updateConfig({ valueSource: source }),
@@ -64,22 +96,31 @@ function updateActionType(event: Event): void {
 </script>
 
 <template>
-  <aside
+  <ElDrawer
     v-if="node"
-    class="intelligent-property-panel"
+    v-model="drawerVisible"
+    append-to-body
+    class="intelligent-property-drawer"
     :class="{
-      'intelligent-property-panel--trigger': isTrigger,
-      'intelligent-property-panel--data-action': isCreateRecord,
+      'intelligent-property-drawer--trigger': isTrigger,
+      'intelligent-property-drawer--data-action': isDataAction,
     }"
-    aria-label="节点属性"
+    direction="rtl"
+    :lock-scroll="false"
+    :modal="false"
+    modal-penetrable
+    :size="drawerSize"
+    :title="drawerTitle"
+    header-class="intelligent-property-drawer__header"
+    body-class="intelligent-property-drawer__body"
+    footer-class="intelligent-property-drawer__footer"
   >
-    <header class="intelligent-property-panel__header" :class="{ 'is-trigger': isTrigger }">
-      <div>
-        <small v-if="!isTrigger && !isCreateRecord">执行节点</small>
-        <h2>{{ isTrigger ? '表单触发' : isCreateRecord ? '新增数据' : node.name }}</h2>
+    <template #header="{ titleId, titleClass }">
+      <div class="intelligent-property-panel__heading">
+        <small v-if="!isTrigger && !isDataAction">执行节点</small>
+        <h2 :id="titleId" :class="titleClass">{{ drawerTitle }}</h2>
       </div>
-      <button v-if="!isTrigger" type="button" aria-label="关闭属性面板" @click="emit('close')"><RiCloseLine /></button>
-    </header>
+    </template>
 
     <FormTriggerPropertyPanel
       v-if="isTrigger"
@@ -94,10 +135,22 @@ function updateActionType(event: Event): void {
       @update="emit('update', node.id, $event)"
     />
 
+    <UpdateRecordPropertyPanel
+      v-else-if="isUpdateRecord"
+      :node="node"
+      :nodes="nodes"
+      :resources="resources"
+      @update="emit('update', node.id, $event)"
+    />
+
     <div v-else class="intelligent-property-panel__body">
       <label class="intelligent-property-panel__field">
         <span>节点名称</span>
-        <input :value="node.name" maxlength="40" @input="updateNode({ name: inputValue($event) })">
+        <input
+          :value="node.name"
+          maxlength="40"
+          @input="updateNode({ name: inputValue($event) })"
+        />
       </label>
 
       <template v-if="isAction">
@@ -110,16 +163,13 @@ function updateActionType(event: Event): void {
           </select>
         </label>
 
-        <label
-          v-if="['create-record', 'update-record', 'delete-record'].includes(node.actionType ?? '')"
-          class="intelligent-property-panel__field"
-        >
+        <label v-if="node.actionType === 'delete-record'" class="intelligent-property-panel__field">
           <span>目标表单</span>
           <input
             :value="node.config?.targetFormName ?? ''"
             placeholder="请选择或输入目标表单"
             @input="updateConfig({ targetFormName: inputValue($event) })"
-          >
+          />
         </label>
 
         <template v-if="node.actionType === 'http-request'">
@@ -139,11 +189,14 @@ function updateActionType(event: Event): void {
               :value="node.config?.requestUrl ?? ''"
               placeholder="https://api.lingyanyun.com"
               @input="updateConfig({ requestUrl: inputValue($event) })"
-            >
+            />
           </label>
         </template>
 
-        <label v-if="node.actionType === 'send-notification'" class="intelligent-property-panel__field">
+        <label
+          v-if="node.actionType === 'send-notification'"
+          class="intelligent-property-panel__field"
+        >
           <span>通知内容</span>
           <textarea
             :value="node.config?.message ?? ''"
@@ -175,81 +228,48 @@ function updateActionType(event: Event): void {
       </template>
     </div>
 
-    <footer v-if="isAction && !isCreateRecord" class="intelligent-property-panel__footer">
-      <button type="button" @click="emit('remove', node.id)"><RiDeleteBinLine />删除节点</button>
-    </footer>
-  </aside>
+    <template v-if="isAction && !hasDedicatedPanel" #footer>
+      <button
+        class="intelligent-property-panel__remove"
+        type="button"
+        @click="emit('remove', node.id)"
+      >
+        <RiDeleteBinLine />删除节点
+      </button>
+    </template>
+  </ElDrawer>
 </template>
 
 <style scoped lang="scss">
 .intelligent-property-panel {
-  position: absolute;
-  z-index: 10;
-  top: 16px;
-  right: 16px;
-  bottom: 16px;
-  display: grid;
-  width: min(380px, calc(100% - 32px));
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  background: #fff;
-  border: 1px solid #e0e5ec;
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgb(31 43 61 / 15%);
+  &__heading {
+    small {
+      color: #8a94a3;
+    }
+    h2 {
+      margin: 3px 0 0;
+      color: #172033;
+      font-size: 17px;
+      line-height: 24px;
+    }
+  }
 
-  &--trigger {
-    position: fixed;
-    z-index: 60;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(1120px, 62vw);
-    border-width: 0 0 0 1px;
-    border-radius: 0;
-    box-shadow: -8px 0 24px rgb(31 43 61 / 10%);
-    grid-template-rows: 76px minmax(0, 1fr);
+  &__body {
+    display: grid;
+    padding: 18px 16px;
+    align-content: start;
     overflow-y: auto;
+    gap: 18px;
   }
-
-  &--data-action {
-    position: fixed;
-    z-index: 60;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(1260px, 72vw);
-    border-width: 0 0 0 1px;
-    border-radius: 0;
-    box-shadow: -8px 0 24px rgb(31 43 61 / 10%);
-    grid-template-rows: 76px minmax(0, 1fr);
-    overflow-y: auto;
-  }
-
-  &__header {
-    display: flex;
-    min-height: 68px;
-    padding: 14px 16px;
-    align-items: center;
-    justify-content: space-between;
-    border-bottom: 1px solid #e8ebf0;
-
-    &.is-trigger { min-height: 76px; padding: 0 32px; }
-
-    .intelligent-property-panel--data-action & { min-height: 76px; padding: 0 32px; }
-
-    small { color: #8a94a3; }
-    h2 { margin: 3px 0 0; color: #172033; font-size: 17px; }
-    button { display: inline-flex; padding: 6px; color: #586477; background: transparent; border: 0; cursor: pointer; }
-    svg { width: 20px; height: 20px; }
-  }
-
-  &__body { display: grid; padding: 18px 16px; align-content: start; overflow-y: auto; gap: 18px; }
   &__field {
     display: grid;
     gap: 8px;
     color: #303b4d;
     font-size: 13px;
 
-    > span { font-weight: 600; }
+    > span {
+      font-weight: 600;
+    }
     input,
     select,
     textarea {
@@ -264,38 +284,73 @@ function updateActionType(event: Event): void {
       outline: none;
       resize: vertical;
 
-      &:focus { border-color: #00afa2; }
+      &:focus {
+        border-color: #00afa2;
+      }
     }
   }
 
-  &__footer {
-    display: flex;
-    padding: 12px 16px;
-    justify-content: flex-end;
-    border-top: 1px solid #e8ebf0;
+  &__remove {
+    display: inline-flex;
+    padding: 8px 12px;
+    align-items: center;
+    gap: 6px;
+    color: #e24b4b;
+    background: #fff3f3;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
 
-    button {
-      display: inline-flex;
-      padding: 8px 12px;
-      align-items: center;
-      gap: 6px;
-      color: #e24b4b;
-      background: #fff3f3;
-      border: 0;
-      border-radius: 6px;
-      cursor: pointer;
+    svg {
+      width: 16px;
+      height: 16px;
     }
-    svg { width: 16px; height: 16px; }
+  }
+}
+</style>
+
+<style lang="scss">
+.intelligent-property-drawer {
+  --el-drawer-padding-primary: 0;
+
+  border-left: 1px solid #e0e5ec;
+
+  .intelligent-property-drawer__header {
+    min-height: 68px;
+    padding: 14px 16px;
+    margin: 0;
+    border-bottom: 1px solid #e8ebf0;
+  }
+
+  .intelligent-property-drawer__body {
+    padding: 0;
+  }
+
+  .intelligent-property-drawer__footer {
+    padding: 12px 16px;
+    border-top: 1px solid #e8ebf0;
+  }
+
+  &--trigger,
+  &--data-action {
+    .intelligent-property-drawer__header {
+      min-height: 76px;
+      padding: 0 32px;
+    }
   }
 }
 
 @media (max-width: 980px) {
-  .intelligent-property-panel--trigger,
-  .intelligent-property-panel--data-action { width: min(820px, 84vw); }
+  .intelligent-property-drawer--trigger,
+  .intelligent-property-drawer--data-action {
+    width: min(820px, 84vw) !important;
+  }
 }
 
 @media (max-width: 720px) {
-  .intelligent-property-panel--trigger,
-  .intelligent-property-panel--data-action { width: 100%; }
+  .intelligent-property-drawer--trigger,
+  .intelligent-property-drawer--data-action {
+    width: 100% !important;
+  }
 }
 </style>

@@ -47,8 +47,8 @@ export const intelligentNodeTemplates: readonly IntelligentNodeTemplate[] = [
   },
   {
     type: 'data-transform',
-    name: '数据转换',
-    description: '将前序节点数据转换为目标结构',
+    name: '计算节点',
+    description: '基于公式计算和转换数据',
     group: 'logic',
   },
 ] as const;

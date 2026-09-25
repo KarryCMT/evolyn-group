@@ -58,6 +58,49 @@ describe('intelligent document', () => {
     });
   });
 
+  it('从指定连线插入下级节点并保持执行顺序', () => {
+    const initial = createIntelligentDocument({ id: 'assistant_edge', name: '连线插入' });
+    const withFirstAction = addActionNode(initial, {
+      actionType: 'update-record',
+      name: '修改数据',
+    });
+    const firstAction = withFirstAction.nodes.find((node) => node.type === 'action')!;
+    const trigger = withFirstAction.nodes.find((node) => node.type === 'trigger')!;
+    const insertionEdge = withFirstAction.edges.find(
+      (edge) => edge.source === trigger.id && edge.target === firstAction.id,
+    )!;
+
+    const inserted = addActionNode(withFirstAction, {
+      actionType: 'create-record',
+      name: '新增数据',
+      sourceEdgeId: insertionEdge.id,
+    });
+    const actionNodes = inserted.nodes.filter((node) => node.type === 'action');
+    const insertedAction = actionNodes[0]!;
+
+    expect(actionNodes.map((node) => node.name)).toEqual(['新增数据', '修改数据']);
+    expect(insertedAction.position.y).toBe(firstAction.position.y);
+    expect(actionNodes[1]?.position.y).toBe(firstAction.position.y + 154);
+    expect(inserted.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: trigger.id, target: insertedAction.id }),
+        expect.objectContaining({ source: insertedAction.id, target: firstAction.id }),
+      ]),
+    );
+    expect(inserted.edges.some((edge) => edge.id === insertionEdge.id)).toBe(false);
+  });
+
+  it('连线 id 失效时回退到结束节点前追加', () => {
+    const initial = createIntelligentDocument({ id: 'assistant_stale_edge', name: '失效连线' });
+    const inserted = addActionNode(initial, {
+      actionType: 'create-record',
+      sourceEdgeId: 'edge_missing',
+    });
+
+    expect(inserted.nodes.map((node) => node.type)).toEqual(['trigger', 'action', 'end']);
+    expect(inserted.edges).toHaveLength(2);
+  });
+
   it('更新表单触发动作与条件并同步画布节点摘要', () => {
     const initial = createIntelligentDocument({
       id: 'assistant_3',

@@ -43,17 +43,22 @@ export function useIntelligentDesigner(options: UseIntelligentDesignerOptions) {
     context.events.emit('document:change', document);
   }
 
-  function addNode(actionType: IntelligentActionType = 'create-record'): void {
+  function addNode(
+    actionType: IntelligentActionType = 'create-record',
+    sourceEdgeId?: string,
+  ): void {
+    const currentDocument = options.getDocument();
     const template = intelligentNodeTemplates.find((item) => item.type === actionType);
-    const next = addActionNode(options.getDocument(), {
+    const next = addActionNode(currentDocument, {
       actionType,
       name: template?.name,
       description: template?.description,
+      sourceEdgeId,
     });
-    if (next === options.getDocument()) return;
+    if (next === currentDocument) return;
     commit(next);
-    const actions = next.nodes.filter((node) => node.type === 'action');
-    selectedNodeId.value = actions[actions.length - 1]?.id ?? null;
+    // 新建后保持画布浏览态，属性抽屉只由用户显式点击节点打开。
+    selectedNodeId.value = null;
   }
 
   function deleteSelected(): void {

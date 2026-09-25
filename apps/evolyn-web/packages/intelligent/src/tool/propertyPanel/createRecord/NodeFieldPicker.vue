@@ -7,12 +7,10 @@ import {
   RiSearchLine,
 } from '@remixicon/vue';
 import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef } from 'vue';
-import type {
-  IntelligentFieldOption,
-  IntelligentNodeFieldValueSource,
-  IntelligentSourceFieldGroup,
-} from '../../../schema';
 import {
+  type IntelligentFieldOption,
+  type IntelligentNodeFieldValueSource,
+  type IntelligentSourceFieldGroup,
   intelligentFieldRecommendationScore,
   isIntelligentFieldCompatible,
 } from '../../../schema';
@@ -23,6 +21,7 @@ const props = defineProps<{
   modelValue: IntelligentNodeFieldValueSource | null;
   targetField: IntelligentFieldOption;
   groups: readonly IntelligentSourceFieldGroup[];
+  placement?: 'top' | 'bottom';
 }>();
 
 const emit = defineEmits<{
@@ -109,10 +108,16 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
       <RiArrowDownSLine aria-hidden="true" />
     </button>
 
-    <div v-if="open" class="node-field-picker__menu" role="dialog" aria-label="选择节点字段">
+    <div
+      v-if="open"
+      class="node-field-picker__menu"
+      :class="`is-${placement ?? 'top'}`"
+      role="dialog"
+      aria-label="选择节点字段"
+    >
       <label class="node-field-picker__search">
         <RiSearchLine aria-hidden="true" />
-        <input v-model="keyword" placeholder="搜索" autocomplete="off">
+        <input v-model="keyword" placeholder="搜索" autocomplete="off" />
       </label>
 
       <div class="node-field-picker__body">
@@ -130,8 +135,16 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
           </button>
         </section>
 
-        <section v-for="group in compatibleGroups" :key="group.nodeId" class="node-field-picker__group">
-          <button type="button" class="node-field-picker__group-title" @click="toggleGroup(group.nodeId)">
+        <section
+          v-for="group in compatibleGroups"
+          :key="group.nodeId"
+          class="node-field-picker__group"
+        >
+          <button
+            type="button"
+            class="node-field-picker__group-title"
+            @click="toggleGroup(group.nodeId)"
+          >
             <RiArrowDownSLine :class="{ 'is-collapsed': collapsedGroups.has(group.nodeId) }" />
             <RiFileList3Line />
             <strong>{{ group.nodeName }}</strong>
@@ -176,21 +189,35 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
     font: inherit;
     text-align: left;
 
-    &.is-open { box-shadow: inset 0 0 0 1px #11b8ad; }
-    .is-placeholder { color: #a0a8b5; }
-    svg { width: 21px; height: 21px; flex: 0 0 auto; }
+    &.is-open {
+      box-shadow: inset 0 0 0 1px #11b8ad;
+    }
+    .is-placeholder {
+      color: #a0a8b5;
+    }
+    svg {
+      width: 21px;
+      height: 21px;
+      flex: 0 0 auto;
+    }
   }
 
   &__menu {
     position: absolute;
     z-index: 85;
     right: 0;
-    bottom: calc(100% + 8px);
     width: min(690px, 70vw);
     background: #fff;
     border: 1px solid #e0e5ec;
     border-radius: 9px;
     box-shadow: 0 14px 36px rgb(31 43 61 / 18%);
+
+    &.is-top {
+      bottom: calc(100% + 8px);
+    }
+    &.is-bottom {
+      top: calc(100% + 8px);
+    }
   }
 
   &__search {
@@ -202,12 +229,30 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
     color: #596579;
     border-bottom: 1px solid #e1e5eb;
 
-    svg { width: 21px; height: 21px; }
-    input { min-width: 0; flex: 1; border: 0; outline: 0; font: inherit; font-size: 15px; }
+    svg {
+      width: 21px;
+      height: 21px;
+    }
+    input {
+      min-width: 0;
+      flex: 1;
+      border: 0;
+      outline: 0;
+      font: inherit;
+      font-size: 15px;
+    }
   }
 
-  &__body { max-height: 430px; padding: 9px 15px 14px; overflow-y: auto; }
-  &__body > p { margin: 30px 0; color: #9aa3af; text-align: center; }
+  &__body {
+    max-height: 430px;
+    padding: 9px 15px 14px;
+    overflow-y: auto;
+  }
+  &__body > p {
+    margin: 30px 0;
+    color: #9aa3af;
+    text-align: center;
+  }
 
   &__group {
     display: grid;
@@ -222,7 +267,10 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
       color: #2998e9;
       font-size: 14px;
     }
-    h4 svg { width: 19px; height: 19px; }
+    h4 svg {
+      width: 19px;
+      height: 19px;
+    }
 
     > button:not(.node-field-picker__group-title) {
       display: flex;
@@ -238,8 +286,15 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
       font: inherit;
       text-align: left;
 
-      &:hover { color: #247cf0; background: #f3f7fc; }
-      svg { width: 18px; height: 18px; flex: 0 0 auto; }
+      &:hover {
+        color: #247cf0;
+        background: #f3f7fc;
+      }
+      svg {
+        width: 18px;
+        height: 18px;
+        flex: 0 0 auto;
+      }
     }
   }
 
@@ -256,8 +311,14 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
     font: inherit;
     text-align: left;
 
-    svg { width: 19px; height: 19px; transition: transform 0.16s ease; }
-    svg.is-collapsed { transform: rotate(-90deg); }
+    svg {
+      width: 19px;
+      height: 19px;
+      transition: transform 0.16s ease;
+    }
+    svg.is-collapsed {
+      transform: rotate(-90deg);
+    }
   }
 }
 </style>

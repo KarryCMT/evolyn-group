@@ -7,6 +7,10 @@ import type {
   IntelligentPosition,
   IntelligentTrigger,
 } from './types';
+import {
+  uniqueFormTriggerActions,
+  uniqueFormTriggerConditions,
+} from './triggerSelections';
 
 const CANVAS_CENTER_X = 520;
 const CANVAS_TOP = 130;
@@ -104,9 +108,11 @@ export function updateIntelligentTrigger(
   const trigger: IntelligentTrigger = {
     ...document.trigger,
     ...patch,
-    actions: patch.actions ? patch.actions.map((action) => ({ ...action })) : document.trigger.actions,
+    actions: patch.actions
+      ? uniqueFormTriggerActions(patch.actions)
+      : document.trigger.actions,
     conditions: patch.conditions
-      ? patch.conditions.map((condition) => ({ ...condition, values: [...condition.values] }))
+      ? uniqueFormTriggerConditions(patch.conditions)
       : document.trigger.conditions,
   };
   return {
@@ -124,16 +130,23 @@ export function updateIntelligentTrigger(
   };
 }
 
-/** 在结束节点前插入执行节点，并保持纵向布局稳定。 */
+/** 拆分指定连线插入执行节点；未指定连线时兼容为在结束节点前追加。 */
 export function addActionNode(
   document: IntelligentDocument,
   input: CreateIntelligentActionInput = {},
 ): IntelligentDocument {
   const endNode = document.nodes.find((node) => node.type === 'end');
-  const predecessorEdge = endNode
-    ? document.edges.find((edge) => edge.target === endNode.id)
+  const requestedEdge = input.sourceEdgeId
+    ? document.edges.find((edge) => edge.id === input.sourceEdgeId)
     : undefined;
-  if (!endNode || !predecessorEdge) return document;
+  // 画布重绘期间若连线 id 已失效，仍回退到末尾追加，避免用户点击后无反馈。
+  const insertionEdge =
+    requestedEdge ??
+    (endNode ? document.edges.find((edge) => edge.target === endNode.id) : undefined);
+  const targetNode = insertionEdge
+    ? document.nodes.find((node) => node.id === insertionEdge.target)
+    : undefined;
+  if (!endNode || !insertionEdge || !targetNode) return document;
 
   const actionCount = document.nodes.filter((node) => node.type === 'action').length;
   const actionId = createId('action');
@@ -142,30 +155,32 @@ export function addActionNode(
     type: 'action',
     name: input.name ?? `执行节点 ${actionCount + 1}`,
     description: input.description ?? '待配置执行操作',
-    position: { x: CANVAS_CENTER_X, y: endNode.position.y },
+    position: { x: targetNode.position.x, y: targetNode.position.y },
     actionType: input.actionType ?? 'create-record',
     config: input.config ? { ...input.config } : {},
   };
-  const nodes = document.nodes.map((candidate) =>
-    candidate.id === endNode.id
+  const shiftedNodes = document.nodes.map((candidate) =>
+    candidate.position.y >= targetNode.position.y
       ? {
           ...candidate,
           position: { ...candidate.position, y: candidate.position.y + NODE_GAP },
         }
       : candidate,
   );
+  const targetIndex = shiftedNodes.findIndex((candidate) => candidate.id === targetNode.id);
+  const nodes = [
+    ...shiftedNodes.slice(0, targetIndex),
+    node,
+    ...shiftedNodes.slice(targetIndex),
+  ];
 
   return {
     ...document,
-    nodes: [
-      ...nodes.filter((candidate) => candidate.type !== 'end'),
-      node,
-      ...nodes.filter((candidate) => candidate.type === 'end'),
-    ],
+    nodes,
     edges: [
-      ...document.edges.filter((edge) => edge.id !== predecessorEdge.id),
-      { id: createId('edge'), source: predecessorEdge.source, target: actionId },
-      { id: createId('edge'), source: actionId, target: endNode.id },
+      ...document.edges.filter((edge) => edge.id !== insertionEdge.id),
+      { id: createId('edge'), source: insertionEdge.source, target: actionId },
+      { id: createId('edge'), source: actionId, target: insertionEdge.target },
     ],
   };
 }

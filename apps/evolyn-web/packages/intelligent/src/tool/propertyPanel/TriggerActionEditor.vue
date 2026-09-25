@@ -1,11 +1,12 @@
 <script setup lang="ts">
 import { RiAddLine, RiDeleteBin6Line } from '@remixicon/vue';
-import { onBeforeUnmount, onMounted, shallowRef, useTemplateRef } from 'vue';
+import { computed, onBeforeUnmount, onMounted, shallowRef, useTemplateRef, watch } from 'vue';
 import type { IntelligentFormFieldOption } from '../../mock/nodeTemplates';
-import type {
-  FormTriggerAction,
-  FormTriggerActionType,
-  FormTriggerUpdateScope,
+import {
+  type FormTriggerAction,
+  type FormTriggerActionType,
+  type FormTriggerUpdateScope,
+  uniqueFormTriggerActions,
 } from '../../schema';
 import TriggerFieldSelect from './TriggerFieldSelect.vue';
 import TriggerOptionSelect from './TriggerOptionSelect.vue';
@@ -28,14 +29,20 @@ const updateScopeOptions = [
   { value: 'any-field', label: '任意字段' },
   { value: 'specified-fields', label: '任意指定字段' },
 ] as const;
+const selectedActionTypes = computed(
+  () => new Set(actions.value.map((action) => action.type)),
+);
+const canAddAction = computed(
+  () => actionOptions.some((option) => !selectedActionTypes.value.has(option.value)),
+);
 function createId(): string {
   return `trigger_action_${globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2)}`;
 }
 
-// 同类动作允许重复配置，例如针对不同字段分别建立多条“修改数据时”规则。
 function addAction(type: FormTriggerActionType): void {
+  if (selectedActionTypes.value.has(type)) return;
   actions.value = [
-    ...actions.value,
+    ...uniqueFormTriggerActions(actions.value),
     type === 'update'
       ? {
           id: createId(),
@@ -46,6 +53,10 @@ function addAction(type: FormTriggerActionType): void {
       : { id: createId(), type },
   ];
   menuOpen.value = false;
+}
+
+function isActionSelected(type: FormTriggerActionType): boolean {
+  return selectedActionTypes.value.has(type);
 }
 
 function removeAction(actionId: string): void {
@@ -86,6 +97,16 @@ function closeOnOutside(event: PointerEvent): void {
 
 onMounted(() => document.addEventListener('pointerdown', closeOnOutside));
 onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside));
+
+// 自动修复旧文档中的重复动作，保证模型事实源与当前选择约束一致。
+watch(
+  actions,
+  (value) => {
+    const uniqueActions = uniqueFormTriggerActions(value);
+    if (uniqueActions.length !== value.length) actions.value = uniqueActions;
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -96,6 +117,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
         type="button"
         class="trigger-action-editor__add"
         :aria-expanded="menuOpen"
+        :disabled="!canAddAction"
         @click="menuOpen = !menuOpen"
       >
         <RiAddLine />添加动作
@@ -106,6 +128,7 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
           v-for="option in actionOptions"
           :key="option.value"
           type="button"
+          :disabled="isActionSelected(option.value)"
           @click="addAction(option.value)"
         >
           {{ option.label }}
@@ -200,10 +223,13 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
       text-align: left;
 
       &:hover { color: #263247; background: #eef8f7; }
+      &:disabled { color: #b7bec8; background: #f7f8fa; cursor: not-allowed; }
     }
   }
 
   &__empty { margin: 18px 0 0; color: #e05252; font-size: 13px; }
+
+  &__add:disabled { color: #aab2be; cursor: not-allowed; }
 
   &__row {
     display: grid;

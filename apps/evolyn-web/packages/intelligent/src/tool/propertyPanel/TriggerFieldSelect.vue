@@ -14,17 +14,22 @@ import type { IntelligentFormFieldKind, IntelligentFormFieldOption } from '../..
 
 defineOptions({ name: 'TriggerFieldSelect' });
 
-const props = defineProps<{
-  options: readonly IntelligentFormFieldOption[];
-  controlLabel: string;
-  placeholder?: string;
-}>();
+const props = withDefaults(
+  defineProps<{
+    options: readonly IntelligentFormFieldOption[];
+    controlLabel: string;
+    disabledValues?: readonly string[];
+    placeholder?: string;
+  }>(),
+  { disabledValues: () => [], placeholder: '请选择字段' },
+);
 
 const model = defineModel<string>({ default: '' });
 const rootRef = useTemplateRef<HTMLElement>('rootRef');
 const open = shallowRef(false);
 const keyword = shallowRef('');
 const selected = computed(() => props.options.find((option) => option.value === model.value));
+const disabledValueSet = computed(() => new Set(props.disabledValues));
 // 字段量较大时在前端即时筛选，保留与截图一致的下拉搜索体验。
 const visibleOptions = computed(() => {
   const normalized = keyword.value.trim().toLocaleLowerCase();
@@ -48,9 +53,14 @@ function fieldIcon(option?: IntelligentFormFieldOption): Component {
 }
 
 function choose(value: string): void {
+  if (disabledValueSet.value.has(value)) return;
   model.value = value;
   open.value = false;
   keyword.value = '';
+}
+
+function isDisabled(value: string): boolean {
+  return disabledValueSet.value.has(value);
 }
 
 function closeOnOutside(event: PointerEvent): void {
@@ -87,7 +97,11 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
           v-for="option in visibleOptions"
           :key="option.value"
           type="button"
-          :class="{ 'is-selected': option.value === model }"
+          :class="{
+            'is-selected': option.value === model,
+            'is-disabled': isDisabled(option.value),
+          }"
+          :disabled="isDisabled(option.value)"
           role="option"
           :aria-selected="option.value === model"
           @click="choose(option.value)"
@@ -175,6 +189,11 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
 
       &:hover,
       &.is-selected { background: #edf1f5; }
+      &.is-disabled {
+        color: #aeb6c2;
+        background: transparent;
+        cursor: not-allowed;
+      }
       svg { width: 18px; height: 18px; color: #536075; }
     }
 

@@ -1,24 +1,42 @@
 <script setup lang="ts">
 import { RiArrowDownSFill, RiCloseLine, RiEditBoxLine, RiText } from '@remixicon/vue';
-import { type Component, onBeforeUnmount, onMounted, shallowRef, useTemplateRef } from 'vue';
+import {
+  type Component,
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  shallowRef,
+  useTemplateRef,
+} from 'vue';
 
 defineOptions({ name: 'IntelligentValueSourceTypeSelect' });
 
 type AssignmentSourceMode = 'node-field' | 'custom' | 'empty';
 
-const props = defineProps<{ modelValue: AssignmentSourceMode }>();
+const props = withDefaults(
+  defineProps<{
+    modelValue: AssignmentSourceMode;
+    allowEmpty?: boolean;
+  }>(),
+  {
+    allowEmpty: true,
+  },
+);
 const emit = defineEmits<{ 'update:modelValue': [mode: AssignmentSourceMode] }>();
 const rootRef = useTemplateRef<HTMLElement>('rootRef');
 const open = shallowRef(false);
 
-const options: readonly { value: AssignmentSourceMode; label: string; icon: Component }[] = [
+const allOptions: readonly { value: AssignmentSourceMode; label: string; icon: Component }[] = [
   { value: 'node-field', label: '节点字段值', icon: RiText },
   { value: 'custom', label: '自定义', icon: RiEditBoxLine },
   { value: 'empty', label: '空值', icon: RiCloseLine },
 ];
+const options = computed(() =>
+  props.allowEmpty ? allOptions : allOptions.filter((item) => item.value !== 'empty'),
+);
 
 function selectedIcon(): Component {
-  return options.find((item) => item.value === props.modelValue)?.icon ?? RiText;
+  return options.value.find((item) => item.value === props.modelValue)?.icon ?? RiText;
 }
 
 function choose(mode: AssignmentSourceMode): void {
@@ -76,7 +94,10 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
     border-right: 1px solid #d8dee8;
     cursor: pointer;
   }
-  svg { width: 20px; height: 20px; }
+  svg {
+    width: 20px;
+    height: 20px;
+  }
 
   &__menu {
     position: absolute;
@@ -106,8 +127,13 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOnOutside
       font: inherit;
 
       &:hover,
-      &.is-selected { background: #e9f7f6; }
-      svg { width: 20px; height: 20px; }
+      &.is-selected {
+        background: #e9f7f6;
+      }
+      svg {
+        width: 20px;
+        height: 20px;
+      }
     }
   }
 }
