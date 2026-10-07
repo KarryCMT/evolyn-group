@@ -2,7 +2,7 @@
 import type { BlankAppDraft } from '~/components/app/create/BlankAppDialog.vue';
 import type { AppItem } from '~/types';
 import type { DashboardWidgetContent } from '~/types/dashboard';
-import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
+import { LayoutWidgetFrame } from '@evolyn.do/dashboard';
 import { EvolynIconPicker } from '@evolyn.do/ui';
 import { ApiError, ERROR_CODES } from '@evolyn.do/utils';
 import { RiAddFill, RiSearchFill } from '@remixicon/vue';
@@ -78,7 +78,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <DashboardWidgetFrame :title="widget.title">
+  <LayoutWidgetFrame :title="widget.title">
     <template v-if="!props.editorMode" #actions>
       <div class="apps-widget__actions">
         <el-input
@@ -120,7 +120,7 @@ onMounted(() => {
         <span class="apps-widget__item-name" :title="app.name">{{ app.name }}</span>
       </button>
     </div>
-  </DashboardWidgetFrame>
+  </LayoutWidgetFrame>
   <CreateAppDialog v-model="createAppVisible" :submit-blank="handleCreateBlank" />
 </template>
 

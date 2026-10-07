@@ -1,0 +1,22 @@
+import { describe, expect, it } from 'vitest';
+import { createDefaultWorkbenchSchema } from '~/dashboard/defaultWorkbench';
+import dashboardRoutes from '~/router/modules/dashboard';
+
+describe('dashboard routes and workbench isolation', () => {
+  it('registers independent design and revision preview routes', () => {
+    expect(dashboardRoutes.find((route) => route.name === 'dashboard-design')?.path).toBe(
+      '/app/:appCode/dashboard/:dashboardCode/design',
+    );
+    expect(dashboardRoutes.find((route) => route.name === 'dashboard-preview')?.path).toBe(
+      '/app/:appCode/dashboard/:dashboardCode/preview',
+    );
+  });
+
+  it('keeps the enterprise workbench on the layout-only protocol', () => {
+    const document = createDefaultWorkbenchSchema() as unknown as Record<string, unknown>;
+    expect(document.version).toBe(1);
+    expect(document.widgets).toBeInstanceOf(Array);
+    expect(document).not.toHaveProperty('datasets');
+    expect(document).not.toHaveProperty('publishScope');
+  });
+});

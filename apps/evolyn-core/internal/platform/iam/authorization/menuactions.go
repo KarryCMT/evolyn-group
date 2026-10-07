@@ -44,8 +44,8 @@ type MenuActionSpec struct {
 
 // 节点类型字面量与 tn_app_menu_nodes.menu_type 对齐（form 节点的
 // target.formType 只影响「切换类型」的展示文案，不影响授权键，注册表按
-// menu_type 建档即可）。仪表盘资产域未落地，动作先以 Landed=false 占位，
-// 避免仪表盘节点出现后投影出死按钮。
+// menu_type 建档即可）。动作仅在对应端点与前端行为完成验证后标记 Landed，
+// 避免菜单投影出没有真实行为的按钮。
 const (
 	menuAssetTypeGroup     = "group"
 	menuAssetTypeForm      = "form"
@@ -78,11 +78,11 @@ var menuActionRegistry = map[string][]MenuActionSpec{
 		{Code: MenuActionDelete, Grants: []string{"forms:delete"}, Landed: true},
 	},
 	menuAssetTypeDashboard: {
-		{Code: MenuActionEdit, Grants: nil, Landed: false},
-		{Code: MenuActionRename, Grants: nil, Landed: false},
-		{Code: MenuActionCopyInApp, Grants: nil, Landed: false},
-		{Code: MenuActionMove, Grants: nil, Landed: false},
-		{Code: MenuActionDelete, Grants: nil, Landed: false},
+		{Code: MenuActionEdit, Grants: []string{"dashboards:update", "dashboard-actions:design"}, Landed: true},
+		{Code: MenuActionRename, Grants: []string{"dashboards:patch"}, Landed: true},
+		{Code: MenuActionCopyInApp, Grants: []string{"dashboards:create", "dashboard-actions:copy"}, Landed: false},
+		{Code: MenuActionMove, Grants: []string{"dashboards:patch", "apps:patch"}, Landed: true},
+		{Code: MenuActionDelete, Grants: []string{"dashboards:delete"}, Landed: true},
 	},
 }
 

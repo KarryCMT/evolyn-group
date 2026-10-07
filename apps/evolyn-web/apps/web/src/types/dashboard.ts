@@ -1,9 +1,9 @@
 import {
-  isDashboardWidgetPresetInLayout,
-  type DashboardSchema as BaseDashboardSchema,
-  type DashboardWidget as BaseDashboardWidget,
-  type DashboardWidgetContent as BaseDashboardWidgetContent,
-  type DashboardWidgetPreset as BaseDashboardWidgetPreset,
+  isLayoutPresetInDocument,
+  type LayoutSchema as BaseDashboardSchema,
+  type LayoutWidget as BaseDashboardWidget,
+  type LayoutWidgetContent as BaseDashboardWidgetContent,
+  type LayoutWidgetPreset as BaseDashboardWidgetPreset,
 } from '@evolyn.do/dashboard';
 
 export type DashboardWidgetType =
@@ -50,4 +50,4 @@ export type DashboardWidget = BaseDashboardWidget<DashboardWidgetType>;
 export type DashboardSchema = BaseDashboardSchema<DashboardWidgetType>;
 
 /** 同类组件以业务类型和展示标题确定唯一性，避免配置项差异导致重复添加。 */
-export { isDashboardWidgetPresetInLayout };
+export { isLayoutPresetInDocument as isDashboardWidgetPresetInLayout };

@@ -5,6 +5,18 @@ import type { RouteRecordRaw } from 'vue-router';
  */
 const dashboardRoutes: RouteRecordRaw[] = [
   {
+    path: '/app/:appCode/dashboard/:dashboardCode/design',
+    name: 'dashboard-design',
+    component: () => import('~/pages/dashboard/design.vue'),
+    meta: { public: false, title: '仪表盘设计' },
+  },
+  {
+    path: '/app/:appCode/dashboard/:dashboardCode/preview',
+    name: 'dashboard-preview',
+    component: () => import('~/pages/dashboard/preview.vue'),
+    meta: { public: false, title: '仪表盘预览' },
+  },
+  {
     path: '/dashboard',
     name: 'dashboard',
     component: () => import('~/pages/dashboard/index.vue'),

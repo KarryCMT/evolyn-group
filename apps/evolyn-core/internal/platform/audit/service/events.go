@@ -129,6 +129,9 @@ var resourceRegistry = map[string]ResourceMeta{
 		"create": "创建", "update": "更新", "publish": "发布",
 		"delete": "删除", "switch-type": "切换", "copy": "复制",
 	}},
+	"dashboard/dashboard": {CategoryProductDashboard, "仪表盘", map[string]string{
+		"create": "创建", "update": "更新", "delete": "删除",
+	}},
 	// 流程定义（产品日志）
 	"workflow/workflow": {CategoryProductWorkflow, "流程", map[string]string{
 		"create": "创建", "update": "更新", "publish": "发布", "delete": "删除",
@@ -203,8 +206,9 @@ var resourceActions = map[string][]string{
 	"notification/notification_setting": {"update"},
 	"notification/custom_recipient":     {"create", "delete"},
 	"app/app":                           {"create", "update", "delete"},
-	"app/app_menu_node":                {"create", "update"},
+	"app/app_menu_node":                 {"create", "update"},
 	"form/form":                         {"create", "update", "publish", "delete", "switch-type", "copy"},
+	"dashboard/dashboard":               {"create", "update", "delete"},
 	"workflow/workflow":                 {"create", "update", "publish", "delete"},
 	"form/form_record":                  {"submit"},
 	"form/form_permission_group":        {"create", "update", "delete"},

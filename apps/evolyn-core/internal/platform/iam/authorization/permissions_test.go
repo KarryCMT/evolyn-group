@@ -111,6 +111,21 @@ func TestPermissionsOfMenuActionCodes(t *testing.T) {
 	assert.False(t, permissions["form-actions:switch-type"])
 }
 
+func TestPermissionsOfDashboardActionCodes(t *testing.T) {
+	permissions := PermissionsOf(&model.User{ID: 1, Roles: []model.Role{
+		{Rules: model.Rules{{Resource: model.DashboardActionResource, Operation: model.AllOperation}}},
+	}})
+	for _, action := range []string{"design", "preview", "publish", "copy", "view"} {
+		assert.True(t, permissions[model.DashboardActionResource+":"+action])
+	}
+
+	viewOnly := PermissionsOf(&model.User{ID: 2, Roles: []model.Role{
+		{Rules: model.Rules{{Resource: model.DashboardActionResource, Operation: "view"}}},
+	}})
+	assert.True(t, viewOnly["dashboard-actions:view"])
+	assert.False(t, viewOnly["dashboard-actions:design"])
+}
+
 // TestPermissionsOfFormDataAdmin 表单权限 P1（设计 §7.1 通配展开定版）：
 // 精确授权 form-data:admin、资源通配 form-data:*（AllOperation）、全局通配
 // *:*（All + AllOperation）三者等价产出 form-data:admin；form-permissions:*

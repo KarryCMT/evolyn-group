@@ -169,6 +169,14 @@ func (r *menuRepository) FindByCode(ctx context.Context, appID uint, code string
 // CreateFormNode 在表单创建事务内插入 form 资产节点（根级或指定分组下、
 // target 指向表单 ID）；code 冲突由唯一索引兜底，随机空间下可忽略。
 func (r *menuRepository) CreateFormNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
+	return r.createAssetNode(ctx, node)
+}
+
+func (r *menuRepository) CreateDashboardNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
+	return r.createAssetNode(ctx, node)
+}
+
+func (r *menuRepository) createAssetNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error) {
 	code, err := newMenuNodeCode()
 	if err != nil {
 		return nil, err
@@ -178,6 +186,32 @@ func (r *menuRepository) CreateFormNode(ctx context.Context, node *model.MenuNod
 		return nil, err
 	}
 	return node, nil
+}
+
+func (r *menuRepository) FindByAssetTarget(ctx context.Context, appID uint, assetType string, targetID uint) (*model.MenuNode, error) {
+	var node model.MenuNode
+	err := infrastructure.ResolveDB(ctx, r.db).
+		Where("app_id = ? AND menu_type = ? AND target_id = ?", appID, assetType, targetID).
+		First(&node).Error
+	if err != nil {
+		return nil, err
+	}
+	return &node, nil
+}
+
+func (r *menuRepository) UpdateDashboardTargetFields(ctx context.Context, appID, dashboardID uint, fields map[string]interface{}) error {
+	if len(fields) == 0 {
+		return nil
+	}
+	return infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuNode{}).
+		Where("app_id = ? AND menu_type = ? AND target_id = ?", appID, model.MenuTypeDashboard, dashboardID).
+		Updates(fields).Error
+}
+
+func (r *menuRepository) SoftDeleteByDashboardTarget(ctx context.Context, appID, dashboardID uint) error {
+	return infrastructure.ResolveDB(ctx, r.db).
+		Where("app_id = ? AND menu_type = ? AND target_id = ?", appID, model.MenuTypeDashboard, dashboardID).
+		Delete(&model.MenuNode{}).Error
 }
 
 // CreateGroupNode 创建菜单分组；group 不携带 target，数据库 CHECK 约束与
@@ -339,6 +373,15 @@ func (r *menuRepository) DeleteFavoritesByFormTarget(ctx context.Context, appID,
 			infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuNode{}).
 				Select("id").
 				Where("app_id = ? AND menu_type = ? AND target_id = ?", appID, model.MenuTypeForm, formID)).
+		Delete(&model.MenuFavorite{}).Error
+}
+
+func (r *menuRepository) DeleteFavoritesByDashboardTarget(ctx context.Context, appID, dashboardID uint) error {
+	return infrastructure.ResolveDB(ctx, r.db).
+		Where("app_id = ? AND menu_id IN (?)", appID,
+			infrastructure.ResolveDB(ctx, r.db).Model(&model.MenuNode{}).
+				Select("id").
+				Where("app_id = ? AND menu_type = ? AND target_id = ?", appID, model.MenuTypeDashboard, dashboardID)).
 		Delete(&model.MenuFavorite{}).Error
 }
 

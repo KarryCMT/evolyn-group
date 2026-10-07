@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
+import { LayoutWidgetFrame } from '@evolyn.do/dashboard';
 import { RiCloseFill } from '@remixicon/vue';
 import { ElMessage } from 'element-plus';
 import { computed, shallowRef } from 'vue';
@@ -53,7 +53,7 @@ async function removeFavorite(item: MenuFavoriteItem) {
 </script>
 
 <template>
-  <DashboardWidgetFrame :title="widget.title">
+  <LayoutWidgetFrame :title="widget.title">
     <template #actions>
       <el-button
         v-if="!props.editorMode && !isRecent"
@@ -103,7 +103,7 @@ async function removeFavorite(item: MenuFavoriteItem) {
         收藏加载失败，点击重试
       </el-button>
     </div>
-  </DashboardWidgetFrame>
+  </LayoutWidgetFrame>
   <FavoritesWorkspaceDialog v-model="favoritesVisible" />
 </template>
 

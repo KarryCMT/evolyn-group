@@ -33,16 +33,17 @@ func enterpriseCategoryNameOf(code string) string {
 
 func TestCatalogProductCategoriesCoversCoreEvents(t *testing.T) {
 	categories := CatalogProductCategories()
-	assert.Len(t, categories, 6)
+	assert.Len(t, categories, 7)
 	assert.Equal(t, "app", categories[0].Code)
 	assert.Equal(t, "应用管理", categories[0].Name)
 
 	// 设计文档 §3.3 点名的核心事件齐备（3 段式事件码与注册表机械拼接一致）
 	expect := map[string]bool{
 		"app.app.create":                    false,
-		"app.app_menu_node.create":         false,
+		"app.app_menu_node.create":          false,
 		"form.form.create":                  false,
 		"form.form.delete":                  false,
+		"dashboard.dashboard.create":        false,
 		"workflow.workflow.publish":         false,
 		"form.form_record.submit":           false,
 		"form.form_permission_group.create": false,
@@ -67,6 +68,7 @@ func TestKnownProductCodes(t *testing.T) {
 
 	assert.True(t, KnownProductEvent("form.form.create"))
 	assert.True(t, KnownProductEvent("form.form_record.submit"))
+	assert.True(t, KnownProductEvent("dashboard.dashboard.update"))
 	// 未登记动作（草稿保存刻意不进筛选项）与企业日志事件不可用作产品筛选
 	assert.False(t, KnownProductEvent("form.form.update-draft"))
 	assert.False(t, KnownProductEvent("iam.member.update"))
@@ -77,6 +79,7 @@ func TestProductEventNamesUseResourceVerbs(t *testing.T) {
 	// 资源级动词覆盖生效：应用/表单用「创建」而非全局「添加」
 	assert.Equal(t, "创建应用", EventName("app.app.create"))
 	assert.Equal(t, "删除表单", EventName("form.form.delete"))
+	assert.Equal(t, "创建仪表盘", EventName("dashboard.dashboard.create"))
 	assert.Equal(t, "提交表单数据", EventName("form.form_record.submit"))
 	assert.Equal(t, "发布流程", EventName("workflow.workflow.publish"))
 	// 草稿保存共用「更新」口径展示（不进筛选项，读取侧仍可解析名称）

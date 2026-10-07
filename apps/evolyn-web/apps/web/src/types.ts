@@ -1,4 +1,5 @@
 import type { EvolynIconPickerValue } from '@evolyn.do/ui';
+import type { BusinessDashboardDocument } from '@evolyn.do/dashboard';
 import type { App } from 'vue';
 
 // 模块安装函数：不依赖 vite-ssg 上下文，直接接收 Vue 应用实例
@@ -631,6 +632,37 @@ export interface FormPage {
 /** PUT /forms/:code/draft 结果：新口令供下次保存回传 */
 export interface FormDraftSaveResult {
   draftRevision: number;
+}
+
+// ---- 业务仪表盘资产域（与企业工作台 DashboardSchema 明确隔离） ----
+
+export type DashboardDocumentV1 = BusinessDashboardDocument;
+
+export interface DashboardPublishedSummary {
+  version: number;
+  publishedAt: string | null;
+}
+
+/** 管理态仪表盘详情；公开调用方只使用 dashboard_ code，不使用内部 ID。 */
+export interface DashboardDetail {
+  appId: number;
+  appCode: string;
+  code: string;
+  name: string;
+  icon: string;
+  color: string;
+  protocolVersion: 1;
+  draftRevision: number;
+  draft: DashboardDocumentV1;
+  publishedVersion: number;
+  published: DashboardPublishedSummary;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DashboardDraftSaveResult {
+  draftRevision: number;
+  document: DashboardDocumentV1;
 }
 
 /** POST /forms/:code/publish 结果：发布双口令 */

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DashboardRenderer } from '@evolyn.do/dashboard';
+import { LayoutRenderer } from '@evolyn.do/dashboard';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
 import { useDashboardWorkspace } from '~/composables/useDashboardWorkspace';
 import {
@@ -13,7 +13,7 @@ const { schema } = useDashboardWorkspace();
 <template>
   <div class="dashboard-page">
     <TopNavigation />
-    <DashboardRenderer
+    <LayoutRenderer
       :schema="schema"
       :widget-registry="dashboardWidgetRegistry"
       :get-component-props="getDashboardWidgetComponentProps"

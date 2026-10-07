@@ -48,6 +48,9 @@ import (
 	authservice "evolyn/internal/platform/auth/service"
 	"evolyn/internal/platform/auth/sms"
 	"evolyn/internal/platform/controller"
+	dashboardcontroller "evolyn/internal/platform/dashboard/controller"
+	dashboardrepository "evolyn/internal/platform/dashboard/repository"
+	dashboardservice "evolyn/internal/platform/dashboard/service"
 	editioncontroller "evolyn/internal/platform/edition/controller"
 	editionrepository "evolyn/internal/platform/edition/repository"
 	editionservice "evolyn/internal/platform/edition/service"
@@ -182,6 +185,8 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	productLogRepo := productlogrepository.NewRepository(db)
 	// 表单资产域仓储（000037/000038，ADR-010）：表单+草稿、不可变发布快照、记录
 	formRepo := formrepository.NewRepository(db)
+	// 仪表盘资产域仓储（000088）：资产草稿、发布快照与预创建幂等绑定。
+	dashboardRepo := dashboardrepository.NewRepository(db)
 	formVersionRepo := formrepository.NewVersionRepository(db)
 	formRecordRepo := formrepository.NewRecordRepository(db)
 	formSerialCounterRepo := formrepository.NewFormSerialCounterRepository(db)
@@ -250,6 +255,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 			return nil, err
 		}
 		if err := formRepo.Migrate(); err != nil {
+			return nil, err
+		}
+		if err := dashboardRepo.Migrate(); err != nil {
 			return nil, err
 		}
 		if err := formVersionRepo.Migrate(); err != nil {
@@ -327,6 +335,9 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// 错误直接返回，不允许「表面配置了配额实际不生效」
 	if injector, ok := quotaSvc.(tenantservice.QuotaFormCounterInjector); ok {
 		injector.UseFormCounter(formRepo)
+	}
+	if injector, ok := quotaSvc.(tenantservice.QuotaDashboardCounterInjector); ok {
+		injector.UseDashboardCounter(dashboardRepo)
 	}
 	storageQuotaSvc, ok := quotaSvc.(tenantservice.StorageQuotaService)
 	if !ok {
@@ -564,6 +575,11 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	if injector, ok := menuService.(appservice.MenuFormDirectoryInjector); ok {
 		injector.UseFormDirectory(formMenuDirectory{forms: formRepo})
 	}
+	// 仪表盘 Stage 2：菜单节点投影稳定公开编码，管理动作据此调用资产接口；
+	// 发布范围与普通成员可见性在后续 DashboardDirectory 扩展中收敛。
+	if injector, ok := menuService.(appservice.DashboardDirectoryInjector); ok {
+		injector.UseDashboardDirectory(dashboardRepo)
+	}
 
 	// 表单资产域（ADR-010）：草稿/发布/提交；权限集、应用只读目录与菜单
 	// 节点维护端口均经窄端口适配（域间不直接耦合 app），访问判定
@@ -633,6 +649,14 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	)
 	permissionGroupController := formcontroller.NewPermissionGroupController(permissionGroupService)
 	formController := formcontroller.NewFormController(formService)
+
+	// 仪表盘资产域：预创建、展示信息、草稿保存与删除共用表单资产已验证的
+	// 应用访问判定及菜单维护端口，跨域写入由同一 TxManager 保证原子性。
+	dashboardService := dashboardservice.NewDashboardService(
+		txManager, dashboardRepo, quotaSvc, auditSvc, appAccess,
+		dashboardAppDirectory{apps: appRepo}, formMenuMaintenance,
+	)
+	dashboardController := dashboardcontroller.NewDashboardController(dashboardService)
 
 	// 二维码标签域：表单目录与真实记录均经窄端口桥接，正式渲染读取
 	// 不可变发布快照；记录范围和字段矩阵由 form 域先行裁剪。
@@ -723,7 +747,7 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 	// 自定义工作台域（000077）控制器：成员个人配置，挂租户域链
 	workbenchController := workbenchcontroller.NewWorkbenchController(workbenchSvc)
 
-	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, appController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, productLogController, formController, permissionGroupController, labelController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController, workbenchController}
+	controllers := []controller.Controller{userController, groupController, authController, rbacController, organizationRoleController, tenantController, tenantProfileController, accountController, platformAccountController, departmentController, appController, menuController, fileController, editionController, platformEditionController, memberFieldController, memberProfileController, adminGroupController, adminScopesController, tenantProductController, securityController, enterpriseLogController, productLogController, formController, dashboardController, permissionGroupController, labelController, notificationController, notificationSettingController, workflowController, workflowInstanceController, workflowTaskController, workbenchController}
 
 	// 流程延时任务 Worker（Phase 5，000052）：超时自动动作/待办提醒，
 	// 领取走 FOR UPDATE SKIP LOCKED，claim+执行同事务（crash 自动回滚），
@@ -1178,6 +1202,12 @@ type formAppDirectory struct {
 	apps apprepository.AppRepository
 }
 
+// dashboardAppDirectory 把应用域模型投影成仪表盘域只读视图；仓储查询沿用
+// 请求上下文中的 tenant_id，跨租户与不存在统一表现为 notFound。
+type dashboardAppDirectory struct {
+	apps apprepository.AppRepository
+}
+
 // formReferenceSource 表单引用视图只读窄端口适配（ADR-011）：app
 // 域不反向依赖 form 域，装配层以菜单仓储桥接；租户上下文由请求 ctx 承载，
 // 仓储查询显式携带租户条件
@@ -1273,6 +1303,28 @@ func (d formAppDirectory) AppByCode(ctx context.Context, code string) (formservi
 		return formservice.AppView{}, false, err
 	}
 	return formservice.AppView{ID: app.ID, Status: app.Status, Code: app.Code, Name: app.Name}, false, nil
+}
+
+func (d dashboardAppDirectory) AppByID(ctx context.Context, id uint) (dashboardservice.AppView, bool, error) {
+	app, err := d.apps.GetByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return dashboardservice.AppView{}, true, nil
+		}
+		return dashboardservice.AppView{}, false, err
+	}
+	return dashboardservice.AppView{ID: app.ID, TenantID: app.TenantID, Status: app.Status, Code: app.Code, Name: app.Name}, false, nil
+}
+
+func (d dashboardAppDirectory) AppByCode(ctx context.Context, code string) (dashboardservice.AppView, bool, error) {
+	app, err := d.apps.GetByCode(ctx, code)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return dashboardservice.AppView{}, true, nil
+		}
+		return dashboardservice.AppView{}, false, err
+	}
+	return dashboardservice.AppView{ID: app.ID, TenantID: app.TenantID, Status: app.Status, Code: app.Code, Name: app.Name}, false, nil
 }
 
 // auditActorNamer 审计操作者显示名解析窄端口适配（000036 企业日志）：

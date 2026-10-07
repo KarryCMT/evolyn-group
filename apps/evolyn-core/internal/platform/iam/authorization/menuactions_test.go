@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// adminPerms 租户管理员权限集：URL 门全量 + form-actions 全量。
+// adminPerms 租户管理员权限集：URL 门全量 + 菜单动作全量。
 func adminPerms() map[string]bool {
 	return map[string]bool{
 		"apps:create": true, "apps:get": true, "apps:list": true,
@@ -15,6 +15,9 @@ func adminPerms() map[string]bool {
 		"forms:update": true, "forms:patch": true, "forms:delete": true,
 		"form-actions:switch-type": true, "form-actions:copy-in-app": true,
 		"form-actions:copy-cross-app": true, "form-actions:hide": true,
+		"dashboards:create": true, "dashboards:get": true, "dashboards:list": true,
+		"dashboards:update": true, "dashboards:patch": true, "dashboards:delete": true,
+		"dashboard-actions:design": true, "dashboard-actions:copy": true,
 	}
 }
 
@@ -84,12 +87,14 @@ func TestMenuActionsOfPartialGrants(t *testing.T) {
 	assert.False(t, actions[MenuActionDelete])
 }
 
-func TestMenuActionsOfDashboardNotLanded(t *testing.T) {
-	// 仪表盘资产域未落地：动作占位恒 false（与 MenuFeatures.workflow 同口径）
+func TestMenuActionsOfDashboardStageTwo(t *testing.T) {
+	// 阶段二已接通编辑、改名、移动、删除；复制仍等待阶段五事务实现。
 	actions := MenuActionsOf(adminPerms(), "dashboard")
-	for code, granted := range actions {
-		assert.False(t, granted, "dashboard action %s must stay unlanded", code)
-	}
+	assert.True(t, actions[MenuActionEdit])
+	assert.True(t, actions[MenuActionRename])
+	assert.True(t, actions[MenuActionMove])
+	assert.True(t, actions[MenuActionDelete])
+	assert.False(t, actions[MenuActionCopyInApp])
 }
 
 func TestMenuActionsOfUnknownAssetType(t *testing.T) {

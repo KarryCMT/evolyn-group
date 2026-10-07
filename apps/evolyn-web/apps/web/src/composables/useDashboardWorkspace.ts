@@ -1,5 +1,5 @@
 import { shallowRef } from 'vue';
-import { normalizeDashboardSchema, type DashboardPersistenceAdapter } from '@evolyn.do/dashboard';
+import { normalizeLayoutDocument, type LayoutPersistenceAdapter } from '@evolyn.do/dashboard';
 import { getWorkbench, saveWorkbench } from '~/api/workbench';
 import { createDefaultWorkbenchSchema } from '~/dashboard/defaultWorkbench';
 import {
@@ -17,7 +17,7 @@ import {
  */
 let workbenchRevision = 0;
 
-export const dashboardWorkspaceAdapter: DashboardPersistenceAdapter<DashboardWidgetType> = {
+export const dashboardWorkspaceAdapter: LayoutPersistenceAdapter<DashboardWidgetType> = {
   async load() {
     const view = await getWorkbench();
     if (!view) return null; // 行缺失：持久化层回退默认布局
@@ -52,7 +52,7 @@ export function useDashboardWorkspace() {
 /** 服务端 JSON 或未知结构统一归一化；未知类型或损坏数据回退默认布局。 */
 function resolveDashboardSchema(input: unknown): DashboardSchema {
   return (
-    normalizeDashboardSchema(input, { isWidgetType: isDashboardWidgetType }) ??
+    normalizeLayoutDocument(input, { isWidgetType: isDashboardWidgetType }) ??
     createDefaultWorkbenchSchema()
   );
 }

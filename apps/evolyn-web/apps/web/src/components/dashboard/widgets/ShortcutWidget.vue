@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
+import { LayoutWidgetFrame } from '@evolyn.do/dashboard';
 import { computed } from 'vue';
 import type { DashboardWidgetContent } from '~/types/dashboard';
 
@@ -12,9 +12,9 @@ const placeholder = computed(() => {
 </script>
 
 <template>
-  <DashboardWidgetFrame :title="widget.title">
+  <LayoutWidgetFrame :title="widget.title">
     <div class="shortcut-widget">{{ placeholder }}</div>
-  </DashboardWidgetFrame>
+  </LayoutWidgetFrame>
 </template>
 
 <style scoped lang="scss">

@@ -320,12 +320,45 @@ func TestMenuFormTargetUsesPublicCodeAndFormType(t *testing.T) {
 	}
 }
 
+func TestMenuDashboardTargetUsesPublicCode(t *testing.T) {
+	dashboard := menuNodeFixture(2, "menu_dashboard", nil, model.MenuTypeDashboard, 1024)
+	snap := emptySnapshot("app_a")
+	snap.Nodes = []model.MenuNode{dashboard}
+
+	repo := &fakeMenuRepo{snapshots: map[string]*repository.MenuSnapshot{"app_a": snap}}
+	svc := newMenuTestService(repo, fullPerms()).(*menuService)
+	svc.UseDashboardDirectory(fakeDashboardDirectory{existing: map[uint]string{
+		902: "dashboard_0123456789abcdef",
+	}})
+
+	menu, err := svc.GetMenu(alphaCtx(), alphaMember(), "app_a")
+	assert.NoError(t, err)
+	target := menu.NodeMap["menu_dashboard"].Target
+	if assert.NotNil(t, target) {
+		assert.Equal(t, model.MenuTypeDashboard, target.Type)
+		assert.Equal(t, "dashboard_0123456789abcdef", target.Code)
+		assert.Empty(t, target.FormType)
+		payload, marshalErr := json.Marshal(target)
+		assert.NoError(t, marshalErr)
+		assert.JSONEq(t, `{"type":"dashboard","code":"dashboard_0123456789abcdef"}`, string(payload))
+	}
+}
+
 // fakeFormDirectory 表单目录端口桩（M2-资产-1）：existing 为内部 ID → 菜单目标投影。
 type fakeFormDirectory struct {
 	existing map[uint]FormTargetProjection
 }
 
 func (f fakeFormDirectory) ExistingFormTargets(ctx context.Context, ids []uint) (map[uint]FormTargetProjection, error) {
+	return f.existing, nil
+}
+
+// fakeDashboardDirectory 仪表盘目录端口桩：existing 为内部 ID → 公开编码。
+type fakeDashboardDirectory struct {
+	existing map[uint]string
+}
+
+func (f fakeDashboardDirectory) ExistingDashboardTargets(ctx context.Context, ids []uint) (map[uint]string, error) {
 	return f.existing, nil
 }
 

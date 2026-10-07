@@ -2,7 +2,7 @@
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { onMounted, onUnmounted, shallowRef, watch } from 'vue';
 import { onBeforeRouteLeave, useRouter } from 'vue-router';
-import { useDashboardPersistence } from '@evolyn.do/dashboard';
+import { useLayoutPersistence } from '@evolyn.do/dashboard';
 import { ApiError } from '@evolyn.do/utils';
 import WorkbenchEditorShell from '~/components/dashboard/editor/WorkbenchEditorShell.vue';
 import WorkbenchEditorToolbar from '~/components/dashboard/editor/WorkbenchEditorToolbar.vue';
@@ -18,7 +18,7 @@ const router = useRouter();
 const { isSystemAdmin } = useAdminScope();
 
 const device = shallowRef<'desktop' | 'mobile'>('desktop');
-const { document, isDirty, isLoading, isSaving, issues, load, save } = useDashboardPersistence({
+const { document, isDirty, isLoading, isSaving, issues, load, save } = useLayoutPersistence({
   initialDocument: createDefaultWorkbenchSchema(),
   adapter: dashboardWorkspaceAdapter,
   isWidgetType: isDashboardWidgetType,

@@ -35,6 +35,7 @@ type menuService struct {
 	access   AppAccessEvaluator
 	formDir  FormDirectory
 	formPerm FormPermissionDirectory
+	dashDir  DashboardDirectory
 }
 
 // NewMenuService 构造菜单服务；访问判定与鉴权中间件同源（复用应用域
@@ -55,6 +56,12 @@ func (s *menuService) UseFormPermissionDirectory(dir FormPermissionDirectory) {
 // 旧行为（节点按存在性出网、target 不投影），存量测试桩无需调整。
 func (s *menuService) UseFormDirectory(dir FormDirectory) {
 	s.formDir = dir
+}
+
+// UseDashboardDirectory 注入仪表盘公开编码目录。Stage 2 仅负责 target
+// 投影，成员发布可见性将在仪表盘发布阶段通过同一窄端口继续收敛。
+func (s *menuService) UseDashboardDirectory(dir DashboardDirectory) {
+	s.dashDir = dir
 }
 
 // MenuFormDirectoryInjector 装配期注入能力（可选）。
@@ -102,8 +109,12 @@ func (s *menuService) GetMenu(ctx context.Context, member *iammodel.User, code s
 	if err != nil {
 		return nil, err
 	}
+	existingDashboardTargets, err := s.dashboardTargets(ctx, dashboardTargetIDsOf(snap.Nodes))
+	if err != nil {
+		return nil, err
+	}
 
-	return buildMenuSnapshot(perms, snap, existingFormTargets, favorites, visibleFormIDs)
+	return buildMenuSnapshot(perms, snap, existingFormTargets, favorites, visibleFormIDs, existingDashboardTargets)
 }
 
 // formTargetIDsOf 收集节点集合中的表单资产内部 ID（目录/权限端口入参）。
@@ -115,6 +126,27 @@ func formTargetIDsOf(nodes []model.MenuNode) []uint {
 		}
 	}
 	return formIDs
+}
+
+// dashboardTargetIDsOf 收集节点集合中的仪表盘资产内部 ID。
+func dashboardTargetIDsOf(nodes []model.MenuNode) []uint {
+	dashboardIDs := make([]uint, 0)
+	for i := range nodes {
+		if nodes[i].MenuType == model.MenuTypeDashboard && nodes[i].TargetID != nil {
+			dashboardIDs = append(dashboardIDs, *nodes[i].TargetID)
+		}
+	}
+	return dashboardIDs
+}
+
+// dashboardTargets 返回仪表盘公开编码投影；nil 表示目录尚未接入，保持
+// 历史菜单读取行为。接入后的空 map 只令 target 为空，不在 Stage 2 改变
+// 普通成员可见性，避免提前引入发布范围语义。
+func (s *menuService) dashboardTargets(ctx context.Context, dashboardIDs []uint) (map[uint]string, error) {
+	if s.dashDir == nil || len(dashboardIDs) == 0 {
+		return nil, nil
+	}
+	return s.dashDir.ExistingDashboardTargets(ctx, dashboardIDs)
 }
 
 // formVisibilityInputs 表单资产可见性端口输入（读侧统一事实源，P1 收敛）：
@@ -802,7 +834,7 @@ var assetVisible = func(node *model.MenuNode, existingFormTargets map[uint]FormT
 // ADR-011：可见性叠加「对成员隐藏」裁剪；capabilities 携带按钮级 actions
 // （动作注册表 × 权限集 × 应用状态派生）与当前成员收藏状态。
 // 表单权限 P1：visibleFormIDs 为权限组入口判定结果（nil = 端口未接入）。
-func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, existingFormTargets map[uint]FormTargetProjection, favorites map[uint]bool, visibleFormIDs map[uint]bool) (*model.MenuSnapshot, error) {
+func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, existingFormTargets map[uint]FormTargetProjection, favorites map[uint]bool, visibleFormIDs map[uint]bool, existingDashboardTargets map[uint]string) (*model.MenuSnapshot, error) {
 	byID := make(map[uint]*model.MenuNode, len(snap.Nodes))
 	for i := range snap.Nodes {
 		byID[snap.Nodes[i].ID] = &snap.Nodes[i]
@@ -869,7 +901,7 @@ func buildMenuSnapshot(perms map[string]bool, snap *repository.MenuSnapshot, exi
 			Favorite: editable && node.MenuType != model.MenuTypeGroup,
 			Actions:  menuNodeActions(perms, node, editable),
 		}
-		detail := menuNodeDetail(node, byID, caps, existingFormTargets)
+		detail := menuNodeDetail(node, byID, caps, existingFormTargets, existingDashboardTargets)
 		detail.Favorited = favorites[node.ID]
 		out.NodeMap[node.Code] = detail
 		if node.ParentMenuID == nil {
@@ -970,9 +1002,9 @@ func hasVisibleDescendant(byID map[uint]*model.MenuNode, group *model.MenuNode, 
 // menuNodeDetail 节点出网投影：icon/color 空串投影为 null；parentMenuId
 // 由 byID 反查父节点编码（null 即根节点）。M2-资产-1 起 form 节点按目录
 // 存在集投影 target（表单公开编码为 form_ 前缀稳定编码，formType 为表单域事实）；
-// 目录未接入（existingFormTargets nil）时 target 保持不投影。仪表盘/页面域随
-// 各自资产批次扩展
-func menuNodeDetail(node *model.MenuNode, byID map[uint]*model.MenuNode, caps model.MenuNodeCapabilities, existingFormTargets map[uint]FormTargetProjection) model.MenuNodeDetail {
+// 目录未接入（existingFormTargets nil）时 target 保持不投影。仪表盘 Stage 2
+// 同样按目录投影公开编码；发布与成员可见性语义由后续资产批次扩展。
+func menuNodeDetail(node *model.MenuNode, byID map[uint]*model.MenuNode, caps model.MenuNodeCapabilities, existingFormTargets map[uint]FormTargetProjection, existingDashboardTargets map[uint]string) model.MenuNodeDetail {
 	detail := model.MenuNodeDetail{
 		MenuID:       node.Code,
 		Type:         node.MenuType,
@@ -1003,6 +1035,11 @@ func menuNodeDetail(node *model.MenuNode, byID map[uint]*model.MenuNode, caps mo
 			Type:     model.MenuTypeForm,
 			Code:     target.Code,
 			FormType: target.FormType,
+		}
+	}
+	if node.MenuType == model.MenuTypeDashboard && node.TargetID != nil && existingDashboardTargets != nil {
+		if code := existingDashboardTargets[*node.TargetID]; code != "" {
+			detail.Target = &model.MenuNodeTarget{Type: model.MenuTypeDashboard, Code: code}
 		}
 	}
 	return detail

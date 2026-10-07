@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
 import type { DashboardWidgetContent } from '~/types/dashboard';
-import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
+import { LayoutWidgetFrame } from '@evolyn.do/dashboard';
 import {
   RiCalendarCheckFill,
   RiHandHeartFill,
@@ -35,7 +35,7 @@ const actionEntries: WorkflowEntry[] = [
 </script>
 
 <template>
-  <DashboardWidgetFrame :title="widget.title">
+  <LayoutWidgetFrame :title="widget.title">
     <nav class="todo-widget" aria-label="流程中心快捷入口">
       <div class="todo-widget__group">
         <button
@@ -63,7 +63,7 @@ const actionEntries: WorkflowEntry[] = [
         </button>
       </div>
     </nav>
-  </DashboardWidgetFrame>
+  </LayoutWidgetFrame>
 </template>
 
 <style scoped lang="scss">

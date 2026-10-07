@@ -17,6 +17,7 @@ const (
 const (
 	QuotaApps              = "apps"                // 应用数
 	QuotaForms             = "forms"               // 表单数
+	QuotaDashboards        = "dashboards"          // 仪表盘数
 	QuotaMembers           = "members"             // 成员数
 	QuotaStorageGB         = "storage_gb"          // 附件存储容量（GB）
 	QuotaWorkflowRunsMonth = "workflow_runs_month" // 月度流程发起量
@@ -40,6 +41,7 @@ func DefaultQuotas(plan string) Quotas {
 		return Quotas{
 			QuotaApps:              10,
 			QuotaForms:             50,
+			QuotaDashboards:        20,
 			QuotaMembers:           30, // 对齐灵衍云试用版 users:30
 			QuotaStorageGB:         5,
 			QuotaWorkflowRunsMonth: 10000,
@@ -48,6 +50,7 @@ func DefaultQuotas(plan string) Quotas {
 		return Quotas{
 			QuotaApps:              -1,
 			QuotaForms:             -1,
+			QuotaDashboards:        -1,
 			QuotaMembers:           -1,
 			QuotaStorageGB:         -1,
 			QuotaWorkflowRunsMonth: -1,
@@ -56,6 +59,7 @@ func DefaultQuotas(plan string) Quotas {
 		return Quotas{
 			QuotaApps:              3,
 			QuotaForms:             10,
+			QuotaDashboards:        3,
 			QuotaMembers:           5,
 			QuotaStorageGB:         1,
 			QuotaWorkflowRunsMonth: 100,

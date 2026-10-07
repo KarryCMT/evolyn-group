@@ -14,8 +14,9 @@ var formDataActionCodes = []string{"admin"}
 // actionResourceRegistry 动作资源注册表：form-actions 为既有注册项（ADR-011
 // 菜单按钮动作），form-data 为表单权限组数据面旁路追加注册项（P1）。
 var actionResourceRegistry = map[string][]string{
-	model.FormMenuActionResource: menuActionCodes,
-	model.FormDataResource:       formDataActionCodes,
+	model.FormMenuActionResource:  menuActionCodes,
+	model.FormDataResource:        formDataActionCodes,
+	model.DashboardActionResource: dashboardActionCodes,
 }
 
 // expandActionKeys 判断 (resource, AllOperation) 通配规则应展开出的动作键：

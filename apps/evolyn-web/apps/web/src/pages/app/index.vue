@@ -24,12 +24,14 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, markRaw, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { createAppMenuGroup, updateAppMenuNode } from '~/api/apps';
+import { deleteDashboard, updateDashboard } from '~/api/dashboard';
 import { createForm, deleteForm, updateForm } from '~/api/form';
 import AppWorkspaceShell from '~/components/app/workspace/AppWorkspaceShell.vue';
 import FormAppearanceDialog from '~/components/app/workspace/FormAppearanceDialog.vue';
 import MoveMenuNodeDialog from '~/components/app/workspace/MoveMenuNodeDialog.vue';
 import FavoritesWorkspaceDialog from '~/components/dashboard/favorites/FavoritesWorkspaceDialog.vue';
 import TopNavigation from '~/components/navigation/TopNavigation.vue';
+import { precreateDashboardAsset } from '~/composables/precreateDashboardAsset';
 import { useAppHome } from '~/composables/useAppHome';
 import { useAppMenu } from '~/composables/useAppMenu';
 import { useMenuFavorites } from '~/composables/useMenuFavorites';
@@ -114,6 +116,9 @@ const creatingAssetType = shallowRef<AppAssetType | null>(null);
 const creatingGroup = shallowRef(false);
 /** 正在改名的分组节点；请求期间拦截同一操作重复提交。 */
 const renamingGroupCode = shallowRef('');
+/** 仪表盘改名与删除分别加锁，防止确认框关闭后的请求窗口内重复提交。 */
+const renamingDashboardCode = shallowRef('');
+const deletingDashboardCode = shallowRef('');
 /** 当前正修改展示信息的表单节点；仅表单节点可打开此弹窗。 */
 const formAppearanceTarget = shallowRef<AppWorkspaceAsset | null>(null);
 const formAppearanceVisible = shallowRef(false);
@@ -314,8 +319,41 @@ async function startNewForm(
   }
 }
 
+/** 仪表盘预创建成功即成为真实资产；后续路由异常不得自动重复提交。 */
+async function startNewDashboard(parentMenuCode?: string) {
+  if (creatingAssetType.value) return;
+  if (!app.value) {
+    ElMessage.error('应用信息尚未就绪，请稍后重试');
+    return;
+  }
+
+  creatingAssetType.value = 'dashboard';
+  try {
+    const outcome = await precreateDashboardAsset(appCode.value, parentMenuCode, (detail) =>
+      router.push({
+        name: 'dashboard-design',
+        params: { appCode: appCode.value, dashboardCode: detail.code },
+      }),
+    );
+    if (outcome.navigationFailed) {
+      ElMessage.error('仪表盘已创建，但打开设计器失败，请从应用菜单重新进入');
+    }
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'QUOTA_EXCEEDED') {
+      ElMessage.error('仪表盘数量已达套餐上限，请升级套餐或删除闲置仪表盘');
+    } else if (error instanceof ApiError && error.errCode === 'APP_MENU_PARENT_INVALID') {
+      ElMessage.error('目标分组不存在或已删除，请刷新页面后重试');
+      reloadMenu();
+    } else {
+      ElMessage.error('创建仪表盘失败，请稍后重试');
+    }
+  } finally {
+    creatingAssetType.value = null;
+  }
+}
+
 function showAssetGuide() {
-  ElMessage.info('表单和仪表盘能力将在后续版本接入');
+  ElMessage.info('选择资产类型后即可在当前应用中开始搭建');
 }
 
 /** 应用后台已具备基础壳，入口保留当前应用编码以维持同一应用上下文。 */
@@ -473,10 +511,7 @@ function createWorkspaceAsset(payload: {
     void createMenuGroup(payload.parent);
     return;
   }
-
-  const assetLabel = '仪表盘';
-  const location = payload.parent ? `在「${payload.parent.label}」中` : '';
-  ElMessage.info(`${location}新建${assetLabel}的能力将在后续版本接入`);
+  void startNewDashboard(payload.parent?.code);
 }
 
 /**
@@ -604,6 +639,11 @@ function handleWorkspaceAssetAction(payload: {
     return;
   }
 
+  if (payload.action === 'rename' && payload.asset.type === 'dashboard') {
+    void renameWorkspaceDashboard(payload.asset);
+    return;
+  }
+
   if (payload.action === 'edit' && payload.asset.type === 'form') {
     if (!payload.asset.targetCode) {
       ElMessage.error('表单信息不完整，暂无法打开设计器');
@@ -617,8 +657,25 @@ function handleWorkspaceAssetAction(payload: {
     return;
   }
 
+  if (payload.action === 'edit' && payload.asset.type === 'dashboard') {
+    if (!payload.asset.targetCode) {
+      ElMessage.error('仪表盘信息不完整，暂无法打开设计器');
+      return;
+    }
+    void router.push({
+      name: 'dashboard-design',
+      params: { appCode: appCode.value, dashboardCode: payload.asset.targetCode },
+    });
+    return;
+  }
+
   if (payload.action === 'delete' && payload.asset.type === 'form') {
     void deleteWorkspaceForm(payload.asset);
+    return;
+  }
+
+  if (payload.action === 'delete' && payload.asset.type === 'dashboard') {
+    void deleteWorkspaceDashboard(payload.asset);
     return;
   }
 
@@ -635,6 +692,83 @@ function handleWorkspaceAssetAction(payload: {
     delete: '删除',
   };
   ElMessage.info(`${actionLabels[payload.action]}「${payload.asset.label}」功能将在后续版本接入`);
+}
+
+/** 仪表盘改名走资产接口，由后端同事务同步菜单展示并推进一次 revision。 */
+async function renameWorkspaceDashboard(asset: AppWorkspaceAsset) {
+  const dashboardCode = asset.targetCode;
+  if (!dashboardCode || renamingDashboardCode.value) return;
+  let name = '';
+  try {
+    const result = await ElMessageBox.prompt('', '修改仪表盘名称', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      inputValue: asset.label,
+      inputPlaceholder: '请输入仪表盘名称',
+      inputValidator: (value) => {
+        const normalized = value.trim();
+        if (!normalized) return '请输入仪表盘名称';
+        if (Array.from(normalized).length > 128) return '名称不能超过 128 个字符';
+        return true;
+      },
+      closeOnClickModal: false,
+      showClose: false,
+    });
+    name = result.value.trim();
+  } catch {
+    return;
+  }
+  if (name === asset.label.trim()) return;
+
+  renamingDashboardCode.value = dashboardCode;
+  try {
+    await updateDashboard(dashboardCode, { name });
+    await reloadMenu();
+    ElMessage.success('仪表盘名称已修改');
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'DASHBOARD_NOT_FOUND') {
+      ElMessage.warning('仪表盘已不存在，已为你刷新菜单');
+      await reloadMenu();
+    } else if (error instanceof ApiError && error.errCode === 'DASHBOARD_NAME_INVALID') {
+      ElMessage.error('仪表盘名称不能为空，且不能超过 128 个字符');
+    } else {
+      ElMessage.error('修改仪表盘名称失败，请稍后重试');
+    }
+  } finally {
+    renamingDashboardCode.value = '';
+  }
+}
+
+/** 删除仪表盘会由后端原子软删资产、菜单节点和个人收藏。 */
+async function deleteWorkspaceDashboard(asset: AppWorkspaceAsset) {
+  const dashboardCode = asset.targetCode;
+  if (!dashboardCode || deletingDashboardCode.value) return;
+  try {
+    await ElMessageBox.confirm(
+      `删除「${asset.label}」后将无法继续设计或预览，是否继续？`,
+      '删除仪表盘',
+      { confirmButtonText: '删除', cancelButtonText: '取消', type: 'warning' },
+    );
+  } catch {
+    return;
+  }
+
+  deletingDashboardCode.value = dashboardCode;
+  try {
+    await deleteDashboard(dashboardCode);
+    if (activeAssetCode.value === asset.code) activeAssetCode.value = '';
+    await reloadMenu();
+    ElMessage.success('仪表盘已删除，并已从应用菜单移除');
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'DASHBOARD_NOT_FOUND') {
+      ElMessage.warning('仪表盘已不存在，已为你刷新菜单');
+      await reloadMenu();
+    } else {
+      ElMessage.error('删除仪表盘失败，请稍后重试');
+    }
+  } finally {
+    deletingDashboardCode.value = '';
+  }
 }
 
 /**
@@ -698,10 +832,15 @@ async function submitMenuMove(parentMenuCode: string): Promise<boolean> {
   if (!target || menuRevision.value < 1) return false;
 
   try {
-    await updateAppMenuNode(appCode.value, target.code, {
-      parentMenuCode,
-      baseMenuRevision: menuRevision.value,
-    });
+    if (target.type === 'dashboard' && target.targetCode) {
+      // 仪表盘移动必须通过资产域事务，确保资产审计与菜单 revision 同口径。
+      await updateDashboard(target.targetCode, { parentMenuCode });
+    } else {
+      await updateAppMenuNode(appCode.value, target.code, {
+        parentMenuCode,
+        baseMenuRevision: menuRevision.value,
+      });
+    }
     await reloadMenu();
     ElMessage.success(
       parentMenuCode ? `已将「${target.label}」移入目标分组` : `已将「${target.label}」移至根目录`,
@@ -779,7 +918,9 @@ function reloadWorkspace() {
         :sub-title="menuErrorMessage"
       >
         <template #extra>
-          <el-button type="primary" @click="reloadMenu()"> 重新加载 </el-button>
+          <el-button type="primary" @click="reloadMenu()">
+            重新加载
+          </el-button>
         </template>
       </el-result>
 
@@ -872,7 +1013,9 @@ function reloadWorkspace() {
         sub-title="请返回工作台后重新选择应用。"
       >
         <template #extra>
-          <el-button type="primary" @click="returnToDashboard"> 返回工作台 </el-button>
+          <el-button type="primary" @click="returnToDashboard">
+            返回工作台
+          </el-button>
         </template>
       </el-result>
 
@@ -884,7 +1027,9 @@ function reloadWorkspace() {
         :sub-title="errorMessage"
       >
         <template #extra>
-          <el-button type="primary" @click="reloadWorkspace()"> 重新加载 </el-button>
+          <el-button type="primary" @click="reloadWorkspace()">
+            重新加载
+          </el-button>
         </template>
       </el-result>
     </template>

@@ -168,6 +168,16 @@ func (r *RequestInfoFactory) NewRequestInfo(req *http.Request) (*RequestInfo, er
 		requestInfo.Verb = GetOperation
 	}
 
+	// 仪表盘预创建挂在应用公开编码之下，但仍属于 dashboards:create 管理面，
+	// 不能误用 apps:create 放大到应用创建权限。仅精确映射该条 POST 路由。
+	if req.Method == http.MethodPost && requestInfo.Resource == "apps" && requestInfo.Name == "code" &&
+		len(requestInfo.Parts) == 4 && requestInfo.Parts[3] == "dashboards" {
+		requestInfo.Resource = "dashboards"
+		requestInfo.Name = ""
+		requestInfo.Subresource = ""
+		requestInfo.Verb = CreateOperation
+	}
+
 	// 关联选项查询与数据联动相同，属于表单记录的只读数据面。表单、字段与
 	// 排序均从已发布快照读取，URL 中的 fieldId 只定位配置，不能落入
 	// forms:create 管理门，否则普通填表成员无法加载下拉选项。

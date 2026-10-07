@@ -17,6 +17,7 @@ const (
 	CategoryProductApp           = "app"            // 应用管理
 	CategoryProductAppMenu       = "app_menu"       // 菜单配置
 	CategoryProductForm          = "form"           // 表单管理
+	CategoryProductDashboard     = "dashboard"      // 仪表盘管理
 	CategoryProductWorkflow      = "workflow"       // 流程管理
 	CategoryProductData          = "data"           // 应用数据
 	CategoryProductAppPermission = "app_permission" // 应用权限
@@ -30,6 +31,7 @@ var productCategoryCatalog = []struct {
 	{CategoryProductApp, "应用管理"},
 	{CategoryProductAppMenu, "菜单配置"},
 	{CategoryProductForm, "表单管理"},
+	{CategoryProductDashboard, "仪表盘管理"},
 	{CategoryProductWorkflow, "流程管理"},
 	{CategoryProductData, "应用数据"},
 	{CategoryProductAppPermission, "应用权限"},

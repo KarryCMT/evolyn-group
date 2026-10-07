@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { watch } from 'vue';
-import { DashboardDesignCanvas, useDashboardEditor } from '@evolyn.do/dashboard';
+import { LayoutDesignCanvas, useLayoutEditor } from '@evolyn.do/dashboard';
 import { createDefaultWorkbenchSchema } from '~/dashboard/defaultWorkbench';
 import {
   type DashboardSchema,
@@ -33,7 +33,7 @@ const {
   selectWidget,
   replaceSchema,
   updateWidget,
-} = useDashboardEditor<DashboardWidget, DashboardWidget['type']>({
+} = useLayoutEditor<DashboardWidget, DashboardWidget['type']>({
   initialSchema: props.modelValue ?? createDefaultWorkbenchSchema(),
   isPresetRepeatable: isDashboardWidgetPresetRepeatable,
   getWidgetSize: (preset) => ({
@@ -77,7 +77,7 @@ function getEditorWidgetProps(widget: DashboardWidgetContent) {
 <template>
   <div class="workbench-editor-shell">
     <WidgetPalette :disabled-keys="disabledPresetKeys" @add="addWidget" />
-    <DashboardDesignCanvas
+    <LayoutDesignCanvas
       v-model="schema"
       :widget-registry="dashboardWidgetRegistry"
       :get-component-props="getEditorWidgetProps"

@@ -136,3 +136,13 @@ type MenuRepository interface {
 	// Migrate 开发/测试 AutoMigrate 路径（生产只走 SQL 迁移）
 	Migrate() error
 }
+
+// DashboardMenuRepository 是仪表盘资产对应用菜单仓储的窄扩展。独立接口使
+// 既有菜单读写测试替身无需感知尚未落地的仪表盘能力。
+type DashboardMenuRepository interface {
+	CreateDashboardNode(ctx context.Context, node *model.MenuNode) (*model.MenuNode, error)
+	FindByAssetTarget(ctx context.Context, appID uint, assetType string, targetID uint) (*model.MenuNode, error)
+	UpdateDashboardTargetFields(ctx context.Context, appID, dashboardID uint, fields map[string]interface{}) error
+	SoftDeleteByDashboardTarget(ctx context.Context, appID, dashboardID uint) error
+	DeleteFavoritesByDashboardTarget(ctx context.Context, appID, dashboardID uint) error
+}

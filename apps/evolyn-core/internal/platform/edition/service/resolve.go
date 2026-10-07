@@ -187,6 +187,8 @@ func compatKey(key string, value int64) (string, int64, bool) {
 		return tenantmodel.QuotaMembers, value, true
 	case model.ResourceForms:
 		return tenantmodel.QuotaForms, value, true
+	case model.ResourceDashboards:
+		return tenantmodel.QuotaDashboards, value, true
 	case model.ResourceWorkflowMo:
 		return tenantmodel.QuotaWorkflowRunsMonth, value, true
 	default:

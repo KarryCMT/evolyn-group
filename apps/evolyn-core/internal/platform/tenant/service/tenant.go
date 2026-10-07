@@ -539,6 +539,10 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 表单资产（ADR-010）：表单设计/发布/删除全量；存量租户由 000037
 			// 按「管理员规则签名」补授（与角色名无关）
 			{Resource: iammodel.FormResource, Operation: iammodel.AllOperation},
+			// 业务仪表盘资产与设计/预览/发布/复制动作；存量租户由 000088
+			// 按管理员规则签名补授，新租户在基线直接获得完整管理能力。
+			{Resource: iammodel.DashboardResource, Operation: iammodel.AllOperation},
+			{Resource: iammodel.DashboardActionResource, Operation: iammodel.AllOperation},
 			// 数据管理删除是 form-records 数据面独立动作；租户管理员拥有全量
 			// 记录处置权限，存量租户由 000073 按管理员规则签名补授。
 			{Resource: iammodel.FormRecordResource, Operation: request.DeleteOperation},
@@ -598,6 +602,9 @@ func (s *tenantService) seedTenantBaseline(bctx context.Context, tenantID uint) 
 			// 我的收藏跨应用列表（P2）：读自己的收藏（数据范围恒为本人），
 			// 存量租户由 000081 按 authenticated 系统分组补授
 			{Resource: iammodel.MenuFavoriteResource, Operation: request.ListOperation},
+			// 仪表盘运行查看动作基线；是否命中发布范围与底层数据权限仍由
+			// dashboard 域在运行时继续收窄。
+			{Resource: iammodel.DashboardActionResource, Operation: iammodel.ViewOperation},
 			// 全体成员可发起/查看自己参与的流程实例并处理待办；
 			// 具体实例与任务仍由 Runtime 的发起人/TaskActor 校验收窄。
 			{Resource: iammodel.WorkflowInstanceResource, Operation: request.CreateOperation},

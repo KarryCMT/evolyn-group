@@ -26,6 +26,10 @@ var menuActionCodes = []string{
 	string(MenuActionHide),
 }
 
+// dashboardActionCodes 是仪表盘管理/运行态的稳定动作词汇。动作资源不直接
+// 对应 URL 首段，由 dashboard 服务在 CRUD 门之后继续复核。
+var dashboardActionCodes = []string{"design", "preview", "publish", "copy", "view"}
+
 // PermissionsOf 由成员已有角色（含分组角色）推导权限布尔集，键为 "resource:verb"。
 // edit/view 等聚合操作按 Contain 语义展开为具体动词；通配规则产出 "*:verb"。
 // 纯函数不触碰仓储，供 /auth/permissions 与前端按钮级控制使用（M1 P2-6）

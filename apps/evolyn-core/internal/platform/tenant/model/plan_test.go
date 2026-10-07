@@ -10,12 +10,15 @@ func TestDefaultQuotas(t *testing.T) {
 	// free 兜底：未知套餐按 free
 	free := DefaultQuotas("unknown")
 	assert.Equal(t, int64(3), free[QuotaApps])
+	assert.Equal(t, int64(3), free[QuotaDashboards])
 
 	trial := DefaultQuotas(PlanTrial)
 	assert.Equal(t, int64(30), trial[QuotaMembers]) // 对齐灵衍云试用版
+	assert.Equal(t, int64(20), trial[QuotaDashboards])
 
 	pro := DefaultQuotas(PlanPro)
 	assert.Equal(t, int64(-1), pro[QuotaStorageGB]) // pro 不限量
+	assert.Equal(t, int64(-1), pro[QuotaDashboards])
 }
 
 func TestQuotasGet(t *testing.T) {
@@ -25,6 +28,7 @@ func TestQuotasGet(t *testing.T) {
 	assert.Equal(t, int64(8), q.Get(PlanTrial, QuotaMembers, -2))
 	// 缺键回落套餐默认
 	assert.Equal(t, int64(50), q.Get(PlanTrial, QuotaForms, -2))
+	assert.Equal(t, int64(20), q.Get(PlanTrial, QuotaDashboards, -2))
 	// 套餐默认也缺的键回落 def
 	assert.Equal(t, int64(-2), q.Get(PlanTrial, "some_future_key", -2))
 }

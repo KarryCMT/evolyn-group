@@ -288,11 +288,12 @@ func (f *fakeAudit) Record(ctx context.Context, e auditservice.Entry) {
 func seedCatalog(repo *fakeRepo) {
 	repo.plans = map[uint]*model.EditionPlan{}
 	repo.versions = map[uint]*model.EditionPlanVersion{}
-	quotaOf := func(apps, members, forms, storage, workflow int64) []model.ResourceRule {
+	quotaOf := func(apps, members, forms, dashboards, storage, workflow int64) []model.ResourceRule {
 		return []model.ResourceRule{
 			{Key: model.ResourceApps, Category: model.CategoryStock, Limit: apps, Unit: "count"},
 			{Key: model.ResourceMembers, Category: model.CategoryStock, Limit: members, Unit: "person"},
 			{Key: model.ResourceForms, Category: model.CategoryStock, Limit: forms, Unit: "count"},
+			{Key: model.ResourceDashboards, Category: model.CategoryStock, Limit: dashboards, Unit: "count"},
 			{Key: model.ResourceStorage, Category: model.CategoryStock, Limit: storage, Unit: "byte"},
 			{Key: model.ResourceWorkflowMo, Category: model.CategoryPeriodic, Limit: workflow, Unit: "count", ResetCycle: "monthly"},
 		}
@@ -301,9 +302,9 @@ func seedCatalog(repo *fakeRepo) {
 		code, name string
 		rules      []model.ResourceRule
 	}{
-		{"free", "免费版", quotaOf(3, 5, 10, 1*model.GiB, 100)},
-		{"trial", "试用版", quotaOf(10, 30, 50, 5*model.GiB, 10000)},
-		{"pro", "专业版", quotaOf(-1, -1, -1, -1, -1)},
+		{"free", "免费版", quotaOf(3, 5, 10, 3, 1*model.GiB, 100)},
+		{"trial", "试用版", quotaOf(10, 30, 50, 20, 5*model.GiB, 10000)},
+		{"pro", "专业版", quotaOf(-1, -1, -1, -1, -1, -1)},
 	} {
 		planID := uint(i + 1)
 		repo.plans[planID] = &model.EditionPlan{ID: planID, Code: spec.code, Name: spec.name, Status: "active", Kind: "base"}
@@ -366,6 +367,7 @@ func TestProjectCompatQuotas(t *testing.T) {
 		model.ResourceStorage:    5 * model.GiB, // 与 trial 默认一致 → 省略
 		model.ResourceWorkflowMo: 10000,         // 与 trial 默认一致 → 省略
 		model.ResourceForms:      0,             // 与默认 50 不同 → 写入 0
+		model.ResourceDashboards: 20,            // 与 trial 默认一致 → 省略
 	}
 	projected := projectCompatQuotas(tenantmodel.PlanTrial, effective)
 	assert.Equal(t, tenantmodel.Quotas{
@@ -511,7 +513,7 @@ func TestGrantReplacesSubscriptionAndSyncsProjection(t *testing.T) {
 	svc := newTestService(repo, tenantRepo, audit)
 
 	trialVer := repo.versionByCompat(tenantmodel.PlanTrial)
-	ends := kernel.JSONTime(mustTime("2026-09-30 23:59:59"))
+	ends := kernel.JSONTime(mustTime("2099-09-30 23:59:59"))
 	err := svc.Grant(context.Background(), 12, 42, &model.GrantRequest{
 		PlanVersionID: trialVer.ID,
 		GrantType:     model.GrantTrial,
@@ -577,7 +579,7 @@ func TestGrantValidation(t *testing.T) {
 	// 非整 GiB 存储
 	err = svc.Grant(context.Background(), 13, 1, &model.GrantRequest{
 		PlanVersionID: trialVer.ID, GrantType: model.GrantTrial,
-		EndsAt: ptrTime(mustTime("2026-09-30 23:59:59")),
+		EndsAt: ptrTime(mustTime("2099-09-30 23:59:59")),
 		Overrides: &[]model.OverrideInput{
 			{Key: model.ResourceStorage, Value: 500 * 1024 * 1024},
 		},
@@ -587,7 +589,7 @@ func TestGrantValidation(t *testing.T) {
 	// 未知覆盖键
 	err = svc.Grant(context.Background(), 13, 1, &model.GrantRequest{
 		PlanVersionID: trialVer.ID, GrantType: model.GrantTrial,
-		EndsAt:    ptrTime(mustTime("2026-09-30 23:59:59")),
+		EndsAt:    ptrTime(mustTime("2099-09-30 23:59:59")),
 		Overrides: &[]model.OverrideInput{{Key: "unknown_key", Value: 1}},
 	})
 	assertBizCode(t, err, apperrors.ErrOverrideInvalid)

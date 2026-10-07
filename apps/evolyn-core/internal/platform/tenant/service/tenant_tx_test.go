@@ -507,6 +507,8 @@ func TestTXTenant005HappyPathBaselineComplete(t *testing.T) {
 	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowResource, Operation: iammodel.AllOperation}, "创建者必须拥有流程定义管理权限")
 	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowInstanceResource, Operation: iammodel.AllOperation}, "创建者必须拥有流程实例管理权限")
 	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowTaskResource, Operation: iammodel.AllOperation}, "创建者必须拥有流程任务管理权限")
+	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.DashboardResource, Operation: iammodel.AllOperation}, "创建者必须拥有仪表盘管理权限")
+	assert.Contains(t, boundRole.Rules, iammodel.Rule{Resource: iammodel.DashboardActionResource, Operation: iammodel.AllOperation}, "创建者必须拥有仪表盘动作权限")
 
 	var authenticatedRole *iammodel.Role
 	for _, role := range store.roles {
@@ -520,6 +522,7 @@ func TestTXTenant005HappyPathBaselineComplete(t *testing.T) {
 		assert.Contains(t, authenticatedRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowInstanceResource, Operation: iammodel.ViewOperation})
 		assert.Contains(t, authenticatedRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowTaskResource, Operation: request.CreateOperation})
 		assert.Contains(t, authenticatedRole.Rules, iammodel.Rule{Resource: iammodel.WorkflowTaskResource, Operation: iammodel.ViewOperation})
+		assert.Contains(t, authenticatedRole.Rules, iammodel.Rule{Resource: iammodel.DashboardActionResource, Operation: iammodel.ViewOperation})
 	}
 
 	for _, role := range store.roles {

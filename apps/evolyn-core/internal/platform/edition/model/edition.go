@@ -56,6 +56,7 @@ const (
 	ResourceApps       = "apps"
 	ResourceMembers    = "members"
 	ResourceForms      = "forms"
+	ResourceDashboards = "dashboards"
 	ResourceStorage    = "storage_bytes"
 	ResourceWorkflowMo = "workflow_runs_month"
 )

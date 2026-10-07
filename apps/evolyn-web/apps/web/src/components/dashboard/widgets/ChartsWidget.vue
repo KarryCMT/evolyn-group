@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ElEmpty } from 'element-plus';
-import { DashboardWidgetFrame } from '@evolyn.do/dashboard';
+import { LayoutWidgetFrame } from '@evolyn.do/dashboard';
 import type { DashboardWidgetContent } from '~/types/dashboard';
 
 defineOptions({ name: 'ChartsWidget' });
@@ -14,12 +14,12 @@ const props = withDefaults(
 </script>
 
 <template>
-  <DashboardWidgetFrame :title="widget.title">
+  <LayoutWidgetFrame :title="widget.title">
     <template v-if="!props.editorMode" #actions>
       <el-button text type="primary">添加</el-button>
     </template>
     <el-empty class="charts-widget" description="暂无图表" :image-size="48" />
-  </DashboardWidgetFrame>
+  </LayoutWidgetFrame>
 </template>
 
 <style scoped lang="scss">

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"gorm.io/gorm"
 
@@ -26,6 +27,18 @@ type FormDirectory interface {
 type FormTargetProjection struct {
 	Code     string
 	FormType string
+}
+
+// DashboardDirectory 仪表盘目录窄端口（仪表盘资产 Stage 2）：菜单读侧只
+// 消费内部 ID 到公开编码的最小投影，使编辑、改名、移动、删除动作能够以
+// 稳定 code 调用资产接口；发布可见性仍由后续 DashboardDirectory 扩展负责。
+type DashboardDirectory interface {
+	ExistingDashboardTargets(ctx context.Context, ids []uint) (map[uint]string, error)
+}
+
+// DashboardDirectoryInjector 菜单服务装配期注入能力（可选）。
+type DashboardDirectoryInjector interface {
+	UseDashboardDirectory(dir DashboardDirectory)
 }
 
 // FormPermissionDirectory 表单资产权限裁剪窄端口（表单权限 P1，S5/S8）：
@@ -68,8 +81,16 @@ type menuMaintenanceService struct {
 	repo repository.MenuRepository
 }
 
+func (s *menuMaintenanceService) dashboardRepo() (repository.DashboardMenuRepository, error) {
+	repo, ok := s.repo.(repository.DashboardMenuRepository)
+	if !ok {
+		return nil, fmt.Errorf("dashboard menu repository is not configured")
+	}
+	return repo, nil
+}
+
 // NewMenuMaintenanceService 构造菜单维护端口实现（server 装配注入表单域）。
-func NewMenuMaintenanceService(repo repository.MenuRepository) MenuMaintenance {
+func NewMenuMaintenanceService(repo repository.MenuRepository) *menuMaintenanceService {
 	return &menuMaintenanceService{repo: repo}
 }
 
@@ -139,4 +160,104 @@ func (s *menuMaintenanceService) DetachFormNode(ctx context.Context, appID, form
 		return err
 	}
 	return s.repo.BumpMenuRevision(ctx, appID)
+}
+
+// AttachDashboardNode 在仪表盘预创建事务内挂载节点；父分组校验、排序和
+// revision 推进与表单节点同口径。
+func (s *menuMaintenanceService) AttachDashboardNode(ctx context.Context, appID, dashboardID uint, name, icon, color, parentMenuCode string) error {
+	dashboardRepo, err := s.dashboardRepo()
+	if err != nil {
+		return err
+	}
+	parentMenuID, err := s.resolveDashboardParent(ctx, appID, parentMenuCode)
+	if err != nil {
+		return err
+	}
+	sortOrder, err := s.repo.MaxSortOrder(ctx, appID, parentMenuID)
+	if err != nil {
+		return err
+	}
+	targetType := model.MenuTypeDashboard
+	_, err = dashboardRepo.CreateDashboardNode(ctx, &model.MenuNode{
+		AppID: appID, ParentMenuID: parentMenuID, MenuType: model.MenuTypeDashboard,
+		Name: name, Icon: icon, Color: color, TargetType: &targetType,
+		TargetID: &dashboardID, SortOrder: sortOrder + 1024,
+	})
+	if err != nil {
+		return err
+	}
+	return s.repo.BumpMenuRevision(ctx, appID)
+}
+
+// SyncDashboardNode 把展示信息与可选移动合并为一次节点 UPDATE，并且无论组合
+// 了多少字段都只推进一次 menu_revision。
+func (s *menuMaintenanceService) SyncDashboardNode(ctx context.Context, appID, dashboardID uint, name, icon, color *string, parentMenuCode *string) error {
+	dashboardRepo, err := s.dashboardRepo()
+	if err != nil {
+		return err
+	}
+	fields := map[string]interface{}{}
+	if name != nil {
+		fields["name"] = *name
+	}
+	if icon != nil {
+		fields["icon"] = *icon
+	}
+	if color != nil {
+		fields["color"] = *color
+	}
+	if parentMenuCode != nil {
+		parentID, err := s.resolveDashboardParent(ctx, appID, *parentMenuCode)
+		if err != nil {
+			return err
+		}
+		sortOrder, err := s.repo.MaxSortOrder(ctx, appID, parentID)
+		if err != nil {
+			return err
+		}
+		fields["parent_menu_id"] = parentID
+		fields["sort_order"] = sortOrder + 1024
+	}
+	if len(fields) == 0 {
+		return nil
+	}
+	if _, err := dashboardRepo.FindByAssetTarget(ctx, appID, model.MenuTypeDashboard, dashboardID); err != nil {
+		return err
+	}
+	if err := dashboardRepo.UpdateDashboardTargetFields(ctx, appID, dashboardID, fields); err != nil {
+		return err
+	}
+	return s.repo.BumpMenuRevision(ctx, appID)
+}
+
+func (s *menuMaintenanceService) DetachDashboardNode(ctx context.Context, appID, dashboardID uint) error {
+	dashboardRepo, err := s.dashboardRepo()
+	if err != nil {
+		return err
+	}
+	if err := dashboardRepo.DeleteFavoritesByDashboardTarget(ctx, appID, dashboardID); err != nil {
+		return err
+	}
+	if err := dashboardRepo.SoftDeleteByDashboardTarget(ctx, appID, dashboardID); err != nil {
+		return err
+	}
+	return s.repo.BumpMenuRevision(ctx, appID)
+}
+
+func (s *menuMaintenanceService) resolveDashboardParent(ctx context.Context, appID uint, parentMenuCode string) (*uint, error) {
+	parentMenuCode = strings.TrimSpace(parentMenuCode)
+	if parentMenuCode == "" {
+		return nil, nil
+	}
+	parent, err := s.repo.FindByCode(ctx, appID, parentMenuCode)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, httpx.Wrap(apperrors.ErrMenuParentInvalid, fmt.Errorf("parent node %q not found in app %d", parentMenuCode, appID))
+		}
+		return nil, err
+	}
+	if parent.MenuType != model.MenuTypeGroup {
+		return nil, httpx.Wrap(apperrors.ErrMenuParentInvalid, fmt.Errorf("parent node %q is not group", parentMenuCode))
+	}
+	return &parent.ID, nil
 }

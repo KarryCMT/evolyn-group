@@ -129,6 +129,10 @@ const (
 	// FormResource 与 /forms 路由保持一致，代表表单资产的设计与管理权限
 	//（创建/列表/详情/改名/草稿/发布/删除，ADR-010）。发布复用 create 动词。
 	FormResource = "forms"
+	// DashboardResource 是业务仪表盘资产管理面；DashboardActionResource
+	// 承载设计、预览、发布、复制和运行查看等非 CRUD 动作。
+	DashboardResource       = "dashboards"
+	DashboardActionResource = "dashboard-actions"
 	// FormRecordResource 代表表单记录的数据面（提交与受权限组约束的查看），
 	// 包含 /form-records 和兼容公开路由 /forms/:code/records；authenticated
 	// authenticated 基线只授 create/view；delete 仅由租户管理员或明确授权的

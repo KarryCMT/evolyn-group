@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Component } from 'vue';
 import type { DashboardWidgetPreset } from '~/types/dashboard';
-import { DashboardWidgetPalette } from '@evolyn.do/dashboard';
+import { LayoutWidgetPalette } from '@evolyn.do/dashboard';
 import {
   RiApps2Fill,
   RiArticleFill,
@@ -143,7 +143,7 @@ const palette: PaletteItem[] = [
 </script>
 
 <template>
-  <DashboardWidgetPalette
+  <LayoutWidgetPalette
     :presets="palette"
     :disabled-preset-keys="disabledKeys"
     @add="emit('add', $event)"
@@ -152,7 +152,7 @@ const palette: PaletteItem[] = [
       <component :is="preset.icon" class="widget-palette__icon" aria-hidden="true" />
       <span>{{ preset.label }}</span>
     </template>
-  </DashboardWidgetPalette>
+  </LayoutWidgetPalette>
 </template>
 
 <style scoped lang="scss">

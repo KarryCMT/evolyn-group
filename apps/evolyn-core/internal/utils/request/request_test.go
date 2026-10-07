@@ -114,6 +114,15 @@ func TestRequestInfo(t *testing.T) {
 			Name:              "form_01",
 			Parts:             []string{"forms", "form_01", "frontend-events", "evt_1234", "debug"},
 		}},
+		{"nested dashboard create maps to dashboards create", "POST", "/api/v1/apps/code/app_01/dashboards", false, &RequestInfo{
+			IsResourceRequest: true,
+			Verb:              "create",
+			APIPrefix:         "api",
+			APIVersion:        "v1",
+			Namespace:         "root",
+			Resource:          "dashboards",
+			Parts:             []string{"apps", "code", "app_01", "dashboards"},
+		}},
 		{"label QR scan inherits form-records get permission", "GET", "/api/v1/labels/qr-tokens/abc123", false, &RequestInfo{
 			IsResourceRequest: true,
 			Verb:              "get",

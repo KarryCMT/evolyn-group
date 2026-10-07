@@ -43,6 +43,10 @@ type (
 	FormCounter interface {
 		CountBillableFormsByTenant(ctx context.Context, tenantID uint) (int64, error)
 	}
+	// DashboardCounter 计费仪表盘数；只统计未软删资产。
+	DashboardCounter interface {
+		CountBillableDashboardsByTenant(ctx context.Context, tenantID uint) (int64, error)
+	}
 )
 
 // QuotaService 配额执行服务（FIX-011）：统一入口校验「当前用量是否仍在上限内」。
@@ -83,22 +87,24 @@ type QuotaGuardInjector interface {
 	UseExpiryGuard(guard ExpiryGuard)
 }
 
-// 存量键在权益解析器（新键空间）中的对应键：守卫只拦这三个
+// 存量键在权益解析器（新键空间）中的对应键。
 const (
-	guardKeyMembers = "members"
-	guardKeyApps    = "apps"
-	guardKeyStorage = "storage_bytes"
-	guardKeyForms   = "forms"
+	guardKeyMembers    = "members"
+	guardKeyApps       = "apps"
+	guardKeyStorage    = "storage_bytes"
+	guardKeyForms      = "forms"
+	guardKeyDashboards = "dashboards"
 )
 
 type quotaService struct {
-	tenants tenantReader
-	locker  tenantLocker
-	members memberCounter
-	apps    appCounter
-	storage storageCounter
-	forms   FormCounter
-	guard   ExpiryGuard
+	tenants    tenantReader
+	locker     tenantLocker
+	members    memberCounter
+	apps       appCounter
+	storage    storageCounter
+	forms      FormCounter
+	dashboards DashboardCounter
+	guard      ExpiryGuard
 }
 
 // UseExpiryGuard 注入到期守卫（装配期一次性调用；版本信息服务就绪后由
@@ -117,6 +123,14 @@ func (s *quotaService) UseFormCounter(counter FormCounter) {
 // 返回接口类型，装配处断言本接口后注入，不污染 QuotaService 契约与存量测试桩
 type QuotaFormCounterInjector interface {
 	UseFormCounter(counter FormCounter)
+}
+
+func (s *quotaService) UseDashboardCounter(counter DashboardCounter) {
+	s.dashboards = counter
+}
+
+type QuotaDashboardCounterInjector interface {
+	UseDashboardCounter(counter DashboardCounter)
 }
 
 // NewQuotaService 构造配额服务。locker/apps 为应用域落地后的扩展依赖
@@ -213,6 +227,11 @@ func (s *quotaService) limitAndUsage(ctx context.Context, tenantID uint, key str
 			return 0, 0, fmt.Errorf("quota counter not configured: %s", key)
 		}
 		usage, err = s.forms.CountBillableFormsByTenant(ctx, tenantID)
+	case tenantmodel.QuotaDashboards:
+		if s.dashboards == nil {
+			return 0, 0, fmt.Errorf("quota counter not configured: %s", key)
+		}
+		usage, err = s.dashboards.CountBillableDashboardsByTenant(ctx, tenantID)
 	default:
 		return 0, 0, fmt.Errorf("quota key not supported yet: %s", key)
 	}
@@ -283,6 +302,8 @@ func (s *quotaService) guardLimit(ctx context.Context, tenantID uint, key string
 		return s.guard.GuardLimit(ctx, tenantID, guardKeyStorage)
 	case tenantmodel.QuotaForms:
 		return s.guard.GuardLimit(ctx, tenantID, guardKeyForms)
+	case tenantmodel.QuotaDashboards:
+		return s.guard.GuardLimit(ctx, tenantID, guardKeyDashboards)
 	default:
 		return 0, false, nil
 	}
