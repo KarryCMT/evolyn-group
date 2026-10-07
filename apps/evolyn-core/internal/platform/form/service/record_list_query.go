@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	queryengine "evolyn/internal/engine/query"
 	"evolyn/internal/platform/form/model"
 )
 
@@ -29,10 +30,79 @@ func CompileRecordListQuery(document model.RecordQueryDocument, mappings []Snaps
 	if err := options.validatePhysicalColumns(fields); err != nil {
 		return CompiledRecordQuery{}, err
 	}
-	if document.Filter == nil {
+	page, pageSize := normalizeRecordListPaging(document.Paging)
+	version := document.Version
+	if version == 0 {
+		version = queryengine.Version
+	}
+	validated := queryengine.Validate(queryengine.Document{
+		Version: version,
+		Filter:  document.Filter,
+		Sorts:   document.Sorts,
+		Paging:  queryengine.Paging{Page: page, PageSize: pageSize},
+	}, recordQueryCapabilities(fields), queryengine.Budget{MaxSorts: 3})
+	if len(validated.Issues) > 0 {
+		issue := validated.Issues[0]
+		return CompiledRecordQuery{}, fmt.Errorf("%s at %s", issue.Code, issue.Path)
+	}
+	if validated.Document == nil || validated.Document.Filter == nil {
 		return CompiledRecordQuery{Where: "TRUE"}, nil
 	}
-	return compileRecordExpression(*document.Filter, fields, 0, options)
+	return compileRecordExpression(*validated.Document.Filter, fields, 0, options)
+}
+
+// recordQueryCapabilities 把发布字段解析结果投影为纯查询内核能力目录。目录是
+// SQL 编译前的共同白名单，dashboard 聚合适配器也复用同一字段解析结论。
+func recordQueryCapabilities(fields map[string]recordQueryField) queryengine.FieldCatalog {
+	catalog := make(queryengine.FieldCatalog, len(fields)+len(systemFieldColumns))
+	for name, field := range fields {
+		fieldType := queryFieldTypeOf(field)
+		catalog[name] = queryengine.FieldCapability{
+			Type: fieldType, Filterable: true, Projectable: true,
+			Groupable: fieldType != queryengine.FieldDepartment,
+			Sortable:  false, Aggregates: queryAggregatesOf(fieldType),
+		}
+	}
+	for name := range systemFieldColumns {
+		fieldType := queryengine.FieldText
+		switch name {
+		case SysFieldSubmittedAt, SysFieldUpdatedAt, SysFieldWorkflowUpdatedAt:
+			fieldType = queryengine.FieldDateTime
+		case SysFieldSubmittedBy, SysFieldUpdatedBy:
+			fieldType = queryengine.FieldMember
+		}
+		catalog[name] = queryengine.FieldCapability{
+			Type: fieldType, Filterable: true, Sortable: true, Projectable: true,
+			Groupable: true, Aggregates: queryAggregatesOf(fieldType),
+		}
+	}
+	return catalog
+}
+
+func queryFieldTypeOf(field recordQueryField) queryengine.FieldType {
+	switch field.class {
+	case permFieldClassNumber:
+		return queryengine.FieldDecimal
+	case permFieldClassDateTime:
+		return queryengine.FieldDateTime
+	case permFieldClassSingleOption, permFieldClassMultiOption:
+		switch field.mapping.WidgetType {
+		case "user", "usergroup":
+			return queryengine.FieldMember
+		case "dept", "deptgroup":
+			return queryengine.FieldDepartment
+		}
+		return queryengine.FieldEnum
+	default:
+		return queryengine.FieldText
+	}
+}
+
+func queryAggregatesOf(fieldType queryengine.FieldType) []queryengine.AggregateOperator {
+	if fieldType == queryengine.FieldNumber || fieldType == queryengine.FieldDecimal {
+		return []queryengine.AggregateOperator{queryengine.AggregateCount, queryengine.AggregateSum, queryengine.AggregateAvg, queryengine.AggregateMin, queryengine.AggregateMax}
+	}
+	return []queryengine.AggregateOperator{queryengine.AggregateCount, queryengine.AggregateMin, queryengine.AggregateMax}
 }
 
 func compileRecordExpression(expression model.RecordQueryExpression, fields map[string]recordQueryField, depth int, options RecordQueryCompileOptions) (CompiledRecordQuery, error) {

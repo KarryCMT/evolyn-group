@@ -27,6 +27,25 @@ type Config struct {
 	Storage      StorageConfig          `yaml:"storage"`
 	Notification NotificationConfig     `yaml:"notification"`
 	Workflow     WorkflowConfig         `yaml:"workflow"`
+	Dashboard    DashboardConfig        `yaml:"dashboard"`
+}
+
+type DashboardConfig struct {
+	Query DashboardQueryConfig `yaml:"query"`
+}
+
+type DashboardQueryConfig struct {
+	TimeoutSeconds int `yaml:"timeoutSeconds"`
+	MaxConcurrent  int `yaml:"maxConcurrent"`
+}
+
+func (c *DashboardQueryConfig) normalize() {
+	if c.TimeoutSeconds <= 0 {
+		c.TimeoutSeconds = 10
+	}
+	if c.MaxConcurrent <= 0 {
+		c.MaxConcurrent = 8
+	}
 }
 
 // WorkflowConfig 流程引擎运行参数（Phase 7）：目前仅服务节点出站调用
@@ -373,6 +392,7 @@ func Parse(appConfig string) (*Config, error) {
 	}
 	// 认证域运行参数零值回落默认（失败锁定阈值等）
 	config.Auth.normalize()
+	config.Dashboard.Query.normalize()
 	// CORS 白名单归一化：去首尾空白、丢弃空串项（形如 ["", " "] 的配置等价
 	// 于未配置，release 的空白名单 fail-fast 才不会被空项绕过）
 	config.Server.AllowedOrigins = normalizeOrigins(config.Server.AllowedOrigins)

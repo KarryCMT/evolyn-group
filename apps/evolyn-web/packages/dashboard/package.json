@@ -29,6 +29,7 @@
     "publish": "pnpm publish"
   },
   "dependencies": {
+    "@evolyn.do/query": "workspace:*",
     "@evolyn.do/ui": "workspace:*",
     "gridstack": "catalog:frontend"
   },

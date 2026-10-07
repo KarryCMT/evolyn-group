@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 
+	queryengine "evolyn/internal/engine/query"
 	"evolyn/internal/platform/form/model"
 	iammodel "evolyn/internal/platform/iam/model"
 )
@@ -157,6 +158,32 @@ type FormService interface {
 	QueryRelatedOptions(ctx context.Context, member *iammodel.User, code, fieldID string, req *model.QueryRelatedOptionsRequest) (*model.RelatedOptionPage, error)
 	// PreviewRelatedOptions 按已保存草稿口令查询设计器预览选项，仅表单设计者可用。
 	PreviewRelatedOptions(ctx context.Context, member *iammodel.User, code, fieldID string, req *model.PreviewRelatedOptionsRequest) (*model.RelatedOptionPage, error)
+}
+
+// FormDataCatalog 是表单域提供给数据消费方的权限感知只读窄口。调用方只能
+// 获取已发布、同租户且当前成员具有 view 权限的数据源与字段。
+type FormDataCatalog interface {
+	ListDashboardDataSources(ctx context.Context, member *iammodel.User, appID uint) ([]model.DashboardDataSource, error)
+	GetDashboardFieldCatalog(ctx context.Context, member *iammodel.User, formCode string) (*model.DashboardFieldCatalog, error)
+}
+
+// DashboardQueryExecutor 只接受纯内核已经构建的逻辑计划。实现必须基于当前
+// 发布快照重新解析 fieldId，并在执行时重新合并当前成员字段/行级权限。
+type DashboardQueryExecutor interface {
+	ExecuteDashboardQuery(ctx context.Context, member *iammodel.User, formCode string, plan queryengine.LogicalPlan) (*DashboardQueryResult, error)
+}
+
+type DashboardQueryColumn struct {
+	Key, Label string
+	Type       queryengine.FieldType
+}
+
+type DashboardQueryResult struct {
+	Columns  []DashboardQueryColumn
+	Rows     []map[string]any
+	Total    int64
+	Page     int
+	PageSize int
 }
 
 // FrontendEventInvokerInjector 是生产装配期注入点；未注入时调试明确失败，

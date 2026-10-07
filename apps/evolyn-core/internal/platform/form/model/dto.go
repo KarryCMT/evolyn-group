@@ -1,6 +1,7 @@
 package model
 
 import (
+	queryengine "evolyn/internal/engine/query"
 	kernel "evolyn/internal/model"
 )
 
@@ -225,39 +226,23 @@ type DeleteFormRecordsResult struct {
 	DeletedCount int `json:"deletedCount"`
 }
 
-// RecordQueryExpression 是 POST /forms/:code/records 的受控 Query DSL AST。
-// field 只接受发布快照 field_mappings 中的 widgetName；服务端绝不接收 JSONB
-// 路径、数据库列名或 SQL 片段。
-type RecordQueryExpression struct {
-	Type        string                  `json:"type"`
-	Conjunction string                  `json:"conjunction,omitempty"`
-	Children    []RecordQueryExpression `json:"children,omitempty"`
-	Field       string                  `json:"field,omitempty"`
-	Operator    string                  `json:"operator,omitempty"`
-	Value       any                     `json:"value,omitempty"`
-}
-
-type RecordQuerySort struct {
-	Field     string `json:"field"`
-	Direction string `json:"direction"`
-}
+// 表单记录列表直接复用纯查询内核 AST，避免与 dashboard 维护两套筛选、排序
+// 和分页协议。字段身份仍由各平台适配器解释并映射到发布快照。
+type RecordQueryExpression = queryengine.Expression
+type RecordQuerySort = queryengine.Sort
+type RecordQueryPaging = queryengine.Paging
 
 // RecordQueryDocument 与 @evolyn.do/query 的可序列化文档同形；列表当前只执行
 // filter 与 paging，其他能力必须在服务端具备明确结果语义后才会开放。
 type RecordQueryDocument struct {
-	Version    int                    `json:"version"`
-	Filter     *RecordQueryExpression `json:"filter,omitempty"`
-	Sorts      []RecordQuerySort      `json:"sorts,omitempty"`
-	Projection []string               `json:"projection,omitempty"`
-	GroupBy    []string               `json:"groupBy,omitempty"`
-	Aggregates []any                  `json:"aggregates,omitempty"`
-	Paging     RecordQueryPaging      `json:"paging"`
-	Keyword    string                 `json:"keyword,omitempty"`
-}
-
-type RecordQueryPaging struct {
-	Page     int `json:"page"`
-	PageSize int `json:"pageSize"`
+	Version    int                     `json:"version"`
+	Filter     *RecordQueryExpression  `json:"filter,omitempty"`
+	Sorts      []RecordQuerySort       `json:"sorts,omitempty"`
+	Projection []string                `json:"projection,omitempty"`
+	GroupBy    []string                `json:"groupBy,omitempty"`
+	Aggregates []queryengine.Aggregate `json:"aggregates,omitempty"`
+	Paging     RecordQueryPaging       `json:"paging"`
+	Keyword    string                  `json:"keyword,omitempty"`
 }
 
 // FormRecordDTO 是受 record-level view 权限及字段矩阵裁剪后的记录投影。

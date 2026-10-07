@@ -1,10 +1,13 @@
 import { type Ref, computed, shallowRef } from 'vue';
 import {
   BUSINESS_DASHBOARD_COLUMNS,
+  type BusinessDashboardDataset,
+  type BusinessDashboardDatasetPatch,
   type BusinessDashboardDocument,
   type BusinessDashboardLayout,
   type BusinessDashboardWidget,
   type BusinessDashboardWidgetDescriptor,
+  type BusinessDashboardWidgetPatch,
 } from './types.js';
 
 export interface UseBusinessDashboardEditorOptions {
@@ -26,8 +29,8 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
       type: descriptor.type,
       title: descriptor.defaultTitle,
       layout,
-      settings: { ...descriptor.defaultSettings },
-    };
+      settings: structuredClone(descriptor.defaultSettings),
+    } as BusinessDashboardWidget;
     replaceWidgets([...options.document.value.widgets, widget]);
     selectedWidgetId.value = widget.id;
   }
@@ -37,20 +40,17 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
       id && options.document.value.widgets.some((item) => item.id === id) ? id : null;
   }
 
-  function updateWidget(
-    id: string,
-    patch: Partial<Pick<BusinessDashboardWidget, 'title' | 'settings'>>,
-  ) {
+  function updateWidget(id: string, patch: BusinessDashboardWidgetPatch) {
     replaceWidgets(
       options.document.value.widgets.map((widget) =>
         widget.id === id
           ? {
               ...widget,
               ...patch,
-              ...(patch.settings ? { settings: { ...patch.settings } } : {}),
+              ...(patch.settings ? { settings: structuredClone(patch.settings) } : {}),
             }
           : widget,
-      ),
+      ) as BusinessDashboardWidget[],
     );
   }
 
@@ -77,6 +77,46 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
     if (selectedWidgetId.value === id) selectedWidgetId.value = null;
   }
 
+  function addFormDataset(formCode: string, name: string) {
+    const id = createDatasetID();
+    const dataset: BusinessDashboardDataset = {
+      id,
+      name,
+      source: { type: 'form', formCode },
+      query: { version: 1, sorts: [], paging: { page: 1, pageSize: 20 }, projection: [] },
+    };
+    options.document.value = {
+      ...options.document.value,
+      datasets: [...options.document.value.datasets, dataset],
+    };
+    return id;
+  }
+
+  function updateDataset(id: string, patch: BusinessDashboardDatasetPatch) {
+    options.document.value = {
+      ...options.document.value,
+      datasets: options.document.value.datasets.map((dataset) =>
+        dataset.id === id
+          ? {
+              ...dataset,
+              ...patch,
+              ...(patch.query ? { query: structuredClone(patch.query) } : {}),
+            }
+          : dataset,
+      ),
+    };
+  }
+
+  function removeDataset(id: string) {
+    options.document.value = {
+      ...options.document.value,
+      datasets: options.document.value.datasets.filter((dataset) => dataset.id !== id),
+      widgets: options.document.value.widgets.map((widget) =>
+        widget.datasetId === id ? { ...widget, datasetId: undefined } : widget,
+      ) as BusinessDashboardWidget[],
+    };
+  }
+
   function replaceWidgets(widgets: BusinessDashboardWidget[]) {
     options.document.value = { ...options.document.value, widgets };
   }
@@ -90,7 +130,16 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
     updateLayout,
     replaceLayouts,
     removeWidget,
+    addFormDataset,
+    updateDataset,
+    removeDataset,
   };
+}
+
+function createDatasetID(): string {
+  const value =
+    globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `dataset_${value.replaceAll('-', '')}`;
 }
 
 function findAvailablePosition(

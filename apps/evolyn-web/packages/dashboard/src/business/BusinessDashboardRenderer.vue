@@ -3,9 +3,16 @@ import { computed, markRaw } from 'vue';
 import DashboardRenderer from '../renderer/DashboardRenderer.vue';
 import type { DashboardSchema } from '../schema/types.js';
 import BusinessDashboardWidgetView from './BusinessDashboardWidget.vue';
-import type { BusinessDashboardDocument } from './types.js';
+import type { BusinessDashboardDocument, BusinessDashboardWidgetRuntime } from './types.js';
 
-const props = defineProps<{ document: BusinessDashboardDocument }>();
+const props = defineProps<{
+  document: BusinessDashboardDocument;
+  runtimes?: Record<string, BusinessDashboardWidgetRuntime>;
+}>();
+const emit = defineEmits<{
+  retry: [widgetId: string];
+  pageChange: [widgetId: string, page: number];
+}>();
 const widgetRegistry = {
   chart: markRaw(BusinessDashboardWidgetView),
   table: markRaw(BusinessDashboardWidgetView),
@@ -22,7 +29,13 @@ const schema = computed<DashboardSchema<'chart' | 'table'>>(() => ({
 }));
 
 function componentProps(content: { config?: Record<string, unknown> }) {
-  return { widget: content.config?.businessWidget };
+  const widget = content.config?.businessWidget as { id?: string } | undefined;
+  return {
+    widget,
+    runtime: widget?.id ? props.runtimes?.[widget.id] : undefined,
+    onRetry: (widgetId: string) => emit('retry', widgetId),
+    onPageChange: (widgetId: string, page: number) => emit('pageChange', widgetId, page),
+  };
 }
 </script>
 

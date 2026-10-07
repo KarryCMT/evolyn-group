@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import type { DashboardFormDataSource } from '~/types';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { computed, watch } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import DashboardDesignerShell from '~/components/dashboard/designer/DashboardDesignerShell.vue';
+import { useDashboardDataCatalog } from '~/composables/useDashboardDataCatalog';
 import { prepareDashboardPreview, useDashboardDesigner } from '~/composables/useDashboardDesigner';
 import { useUnsavedChangesGuard } from '~/composables/useUnsavedChangesGuard';
 
@@ -13,14 +15,21 @@ const router = useRouter();
 const dashboardCode = computed(() => String(route.params.dashboardCode ?? ''));
 const appCode = computed(() => String(route.params.appCode ?? ''));
 const designer = useDashboardDesigner();
+const dataCatalog = useDashboardDataCatalog();
+const selectedDatasetId = shallowRef<string | null>(null);
 
 watch(
   dashboardCode,
   async (code) => {
     if (!code) return;
     const loaded = await designer.load(code);
-    if (loaded && designer.detail.value)
+    if (loaded && designer.detail.value) {
       document.title = `${designer.detail.value.name} - 仪表盘设计`;
+      await dataCatalog.load(code);
+      selectedDatasetId.value = designer.editingDocument.value.datasets[0]?.id ?? null;
+      const selected = designer.editingDocument.value.datasets[0];
+      if (selected) await dataCatalog.ensureCatalog(selected.source.formCode);
+    }
   },
   { immediate: true },
 );
@@ -84,6 +93,20 @@ async function reloadConflict() {
   }
   await designer.reloadServerVersion(dashboardCode.value);
 }
+
+async function addDataset(source: DashboardFormDataSource) {
+  const existing = designer.editingDocument.value.datasets.find(
+    (item) => item.source.formCode === source.code,
+  );
+  const id = existing?.id ?? designer.addFormDataset(source.code, source.name);
+  selectedDatasetId.value = id;
+  await dataCatalog.ensureCatalog(source.code);
+}
+
+function removeDataset(id: string) {
+  designer.removeDataset(id);
+  selectedDatasetId.value = designer.editingDocument.value.datasets[0]?.id ?? null;
+}
 </script>
 
 <template>
@@ -121,6 +144,11 @@ async function reloadConflict() {
     :dirty="designer.isDirty.value"
     :save-status="designer.saveStatus.value"
     :conflict-message="designer.errorMessage.value"
+    :data-sources="dataCatalog.sources.value"
+    :data-catalogs="dataCatalog.catalogs.value"
+    :data-loading="dataCatalog.loading.value"
+    :data-error-message="dataCatalog.errorMessage.value"
+    :selected-dataset-id="selectedDatasetId"
     @back="returnToApp"
     @save="saveDraft"
     @preview="openPreview"
@@ -131,6 +159,11 @@ async function reloadConflict() {
     @update-widget="designer.updateWidget"
     @update-layouts="designer.replaceLayouts"
     @focus-issue="designer.focusIssue"
+    @add-dataset="addDataset"
+    @select-dataset="selectedDatasetId = $event"
+    @update-dataset="designer.updateDataset"
+    @remove-dataset="removeDataset"
+    @request-catalog="dataCatalog.ensureCatalog"
   />
 </template>
 

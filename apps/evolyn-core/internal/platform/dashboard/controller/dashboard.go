@@ -2,16 +2,22 @@
 package controller
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
+	"evolyn/internal/metrics"
 	platformcontroller "evolyn/internal/platform/controller"
+	dashboarderrors "evolyn/internal/platform/dashboard"
 	dashboardmodel "evolyn/internal/platform/dashboard/model"
 	"evolyn/internal/platform/dashboard/service"
 	"evolyn/internal/platform/ginctx"
 	"evolyn/internal/platform/httpx"
+	"evolyn/internal/utils/trace"
 
 	"github.com/gin-gonic/gin"
 )
@@ -150,6 +156,142 @@ func (d *DashboardController) SaveDraft(c *gin.Context) {
 	httpx.ResponseSuccess(c, result)
 }
 
+// ListFormDataSources godoc
+// @Summary 列出仪表盘可用表单数据源
+// @Description 仅返回同应用内已发布且当前成员具有记录查看权限的表单
+// @Produce json
+// @Tags 仪表盘管理
+// @Security JWT
+// @Param code path string true "dashboard_ 公开编码"
+// @Success 200 {object} httpx.Response{data=[]dashboardmodel.FormDataSource}
+// @Failure 404 {object} httpx.Response "errCode=DASHBOARD_DATA_SOURCE_UNAVAILABLE"
+// @Router /api/v1/dashboards/{code}/data-sources/forms [get]
+func (d *DashboardController) ListFormDataSources(c *gin.Context) {
+	code, ok := dashboardCode(c)
+	if !ok {
+		return
+	}
+	items, err := d.service.ListFormDataSources(c.Request.Context(), ginctx.GetUser(c), code)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, items)
+}
+
+// GetFormFieldCatalog godoc
+// @Summary 获取仪表盘表单字段目录
+// @Description 从不可变发布快照返回稳定 fieldId 与权限裁剪后的 Query DSL 能力
+// @Produce json
+// @Tags 仪表盘管理
+// @Security JWT
+// @Param code path string true "dashboard_ 公开编码"
+// @Param formCode path string true "form_ 公开编码"
+// @Success 200 {object} httpx.Response{data=dashboardmodel.FormFieldCatalog}
+// @Failure 404 {object} httpx.Response "errCode=DASHBOARD_DATA_SOURCE_UNAVAILABLE"
+// @Router /api/v1/dashboards/{code}/data-sources/forms/{formCode}/fields [get]
+func (d *DashboardController) GetFormFieldCatalog(c *gin.Context) {
+	code, ok := dashboardCode(c)
+	if !ok {
+		return
+	}
+	formCode := strings.TrimSpace(c.Param("formCode"))
+	if !strings.HasPrefix(formCode, "form_") {
+		httpx.ResponseFailed(c, http.StatusBadRequest, fmt.Errorf("无效的表单编码"))
+		return
+	}
+	catalog, err := d.service.GetFormFieldCatalog(c.Request.Context(), ginctx.GetUser(c), code, formCode)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, catalog)
+}
+
+// PreviewWidgetQuery godoc
+// @Summary 查询单个草稿组件预览数据
+// @Description 查询语义仅从指定已保存草稿 revision 恢复，请求不能提交 Dataset 或 Query AST
+// @Accept json
+// @Produce json
+// @Tags 仪表盘管理
+// @Security JWT
+// @Param code path string true "dashboard_ 公开编码"
+// @Param widgetId path string true "组件稳定 ID"
+// @Param query body dashboardmodel.PreviewQueryRequest true "草稿 revision 与运行时分页"
+// @Success 200 {object} httpx.Response{data=dashboardmodel.PreviewQueryResult}
+// @Failure 400 {object} httpx.Response "errCode=DASHBOARD_QUERY_INVALID"
+// @Failure 409 {object} httpx.Response "errCode=DASHBOARD_DRAFT_CONFLICT"
+// @Failure 422 {object} httpx.Response "errCode=DASHBOARD_QUERY_LIMIT_EXCEEDED"
+// @Router /api/v1/dashboards/{code}/widgets/{widgetId}/preview-query [post]
+func (d *DashboardController) PreviewWidgetQuery(c *gin.Context) {
+	startedAt := time.Now()
+	code, ok := dashboardCode(c)
+	if !ok {
+		return
+	}
+	req := new(dashboardmodel.PreviewQueryRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := d.service.PreviewWidgetQuery(c.Request.Context(), ginctx.GetUser(c), code, c.Param("widgetId"), req)
+	resultClass := dashboardQueryResultClass(err)
+	rows := 0
+	if result != nil {
+		rows = len(result.Rows)
+	}
+	duration := time.Since(startedAt)
+	metrics.DashboardQueryTotal.WithLabelValues(resultClass).Inc()
+	metrics.DashboardQueryDuration.WithLabelValues(resultClass).Observe(duration.Seconds())
+	if err == nil {
+		metrics.DashboardQueryRows.Observe(float64(rows))
+	}
+	member := ginctx.GetUser(c)
+	tenantID := uint(0)
+	if member != nil {
+		tenantID = member.TenantID
+	}
+	ginctx.TraceStep(c, "dashboard widget query",
+		trace.Field{Key: "tenantId", Value: tenantID},
+		trace.Field{Key: "dashboardCode", Value: code},
+		trace.Field{Key: "widgetId", Value: c.Param("widgetId")},
+		trace.Field{Key: "draftRevision", Value: req.DraftRevision},
+		trace.Field{Key: "result", Value: resultClass},
+		trace.Field{Key: "rowCount", Value: rows},
+		trace.Field{Key: "durationMs", Value: duration.Milliseconds()},
+	)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
+// dashboardQueryResultClass 将内部错误收敛为低基数稳定分类；超时通过
+// BizError 的 unwrap 链识别，仍对客户端复用 QUERY_LIMIT_EXCEEDED。
+func dashboardQueryResultClass(err error) string {
+	if err == nil {
+		return "success"
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		return "timeout"
+	}
+	if errors.Is(err, dashboarderrors.ErrQueryLimitExceeded) {
+		return "limit_exceeded"
+	}
+	if errors.Is(err, dashboarderrors.ErrQueryInvalid) || errors.Is(err, dashboarderrors.ErrSchemaInvalid) {
+		return "invalid"
+	}
+	if errors.Is(err, dashboarderrors.ErrForbidden) {
+		return "forbidden"
+	}
+	var biz *httpx.BizError
+	if errors.As(err, &biz) {
+		return "biz_" + strconv.Itoa(biz.HTTP)
+	}
+	return "internal"
+}
+
 // Delete godoc
 // @Summary 删除仪表盘
 // @Description 软删除资产并在同一事务内摘除菜单节点与个人收藏
@@ -176,6 +318,9 @@ func (d *DashboardController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/dashboards/:code", d.Get)
 	api.PATCH("/dashboards/:code", d.Update)
 	api.PUT("/dashboards/:code/draft", d.SaveDraft)
+	api.GET("/dashboards/:code/data-sources/forms", d.ListFormDataSources)
+	api.GET("/dashboards/:code/data-sources/forms/:formCode/fields", d.GetFormFieldCatalog)
+	api.POST("/dashboards/:code/widgets/:widgetId/preview-query", d.PreviewWidgetQuery)
 	api.DELETE("/dashboards/:code", d.Delete)
 }
 

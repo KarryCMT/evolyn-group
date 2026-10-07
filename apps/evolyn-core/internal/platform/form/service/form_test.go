@@ -374,6 +374,10 @@ func (f *fakeRecordRepo) ListControlled(ctx context.Context, params repository.R
 	return rows[start:end], int64(len(rows)), nil
 }
 
+func (f *fakeRecordRepo) QueryDashboard(context.Context, repository.DashboardQueryParams) (*repository.DashboardQueryRows, error) {
+	return &repository.DashboardQueryRows{Rows: []map[string]any{}}, nil
+}
+
 func (f *fakeRecordRepo) Migrate() error { return nil }
 
 // ---- 服务工厂 ----

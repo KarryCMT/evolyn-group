@@ -82,6 +82,20 @@ func (r *ResolvedFormPermission) EntranceAllowed() bool {
 	return false
 }
 
+// AllowsViewRecords 判断成员是否具备读取既有记录的能力。仪表盘数据源不得
+// 沿用 EntranceAllowed，因为仅有 add 权限的成员只能填写，不能读取数据集。
+func (r *ResolvedFormPermission) AllowsViewRecords() bool {
+	if r.Admin || r.Baseline {
+		return true
+	}
+	for i := range r.Matched {
+		if r.Matched[i].Operations[model.PermissionOpView] {
+			return true
+		}
+	}
+	return false
+}
+
 // AllowsNewRecord 新记录操作判定（add/import 与 copy 的新记录侧语义，S8）：
 // 不受数据范围约束（数据范围是已有数据的管理边界，「仅录入」合法）。
 func (r *ResolvedFormPermission) AllowsNewRecord(op string) bool {

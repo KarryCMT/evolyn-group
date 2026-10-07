@@ -4,11 +4,13 @@ import (
 	"context"
 	"fmt"
 
+	"evolyn/internal/engine/data/storage"
 	"evolyn/internal/infrastructure"
 	"evolyn/internal/platform/form/model"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
+	"strings"
 	"time"
 )
 
@@ -172,6 +174,73 @@ func (r *formRecordRepository) ListControlled(ctx context.Context, params Record
 		return nil, 0, err
 	}
 	return records, total, nil
+}
+
+// QueryDashboard 将服务端编译的表达式放入固定查询骨架。动态表名先过存储层
+// 白名单，租户/表单/筛选值全部绑定参数，排序仅接受 cN 别名和稳定 r.id。
+func (r *formRecordRepository) QueryDashboard(ctx context.Context, params DashboardQueryParams) (*DashboardQueryRows, error) {
+	if params.TenantID == 0 || params.FormID == 0 || len(params.Selects) == 0 || len(params.Selects) != len(params.Keys) || params.Limit < 1 {
+		return nil, fmt.Errorf("invalid dashboard query parameters")
+	}
+	from := "FROM tn_form_records r"
+	if params.PhysicalTable != "" {
+		if err := storage.ValidateDynamicTableName(params.PhysicalTable); err != nil {
+			return nil, err
+		}
+		from += fmt.Sprintf(" JOIN %q d ON d.record_id = r.id AND d.tenant_id = r.tenant_id", params.PhysicalTable)
+	}
+	where := "WHERE r.tenant_id = ? AND r.form_id = ?"
+	whereArgs := append([]any{params.TenantID, params.FormID}, params.WhereArgs...)
+	if strings.TrimSpace(params.Where) != "" && params.Where != "TRUE" {
+		where += " AND (" + params.Where + ")"
+	}
+
+	result := &DashboardQueryRows{Rows: make([]map[string]any, 0, params.Limit)}
+	if !params.Aggregate {
+		if err := infrastructure.ResolveDB(ctx, r.db).Raw("SELECT count(*) "+from+" "+where, whereArgs...).Scan(&result.Total).Error; err != nil {
+			return nil, err
+		}
+	}
+	query := "SELECT " + strings.Join(params.Selects, ", ") + " " + from + " " + where
+	if params.GroupByCount > 0 {
+		positions := make([]string, params.GroupByCount)
+		for i := range positions {
+			positions[i] = fmt.Sprintf("%d", i+1)
+		}
+		query += " GROUP BY " + strings.Join(positions, ", ")
+	}
+	if params.OrderBy != "" {
+		query += " ORDER BY " + params.OrderBy
+	}
+	query += fmt.Sprintf(" LIMIT %d OFFSET %d", params.Limit, params.Offset)
+	args := append(append([]any{}, params.SelectArgs...), whereArgs...)
+	rows, err := infrastructure.ResolveDB(ctx, r.db).Raw(query, args...).Rows()
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		values := make([]any, len(params.Keys))
+		targets := make([]any, len(values))
+		for i := range values {
+			targets[i] = &values[i]
+		}
+		if err := rows.Scan(targets...); err != nil {
+			return nil, err
+		}
+		item := make(map[string]any, len(values))
+		for i, key := range params.Keys {
+			item[key] = values[i]
+		}
+		result.Rows = append(result.Rows, item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if params.Aggregate {
+		result.Total = int64(len(result.Rows))
+	}
+	return result, nil
 }
 
 func (r *formRecordRepository) Migrate() error {

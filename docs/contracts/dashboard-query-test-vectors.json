@@ -1,0 +1,108 @@
+{
+  "fields": {
+    "region": {
+      "type": "text",
+      "filterable": true,
+      "sortable": true,
+      "projectable": true,
+      "groupable": true,
+      "aggregates": ["count", "min", "max"]
+    },
+    "amount": {
+      "type": "decimal",
+      "filterable": true,
+      "sortable": true,
+      "projectable": true,
+      "groupable": false,
+      "aggregates": ["count", "sum", "avg", "min", "max"]
+    },
+    "secret": {
+      "type": "text",
+      "filterable": false,
+      "sortable": false,
+      "projectable": false,
+      "groupable": false,
+      "aggregates": []
+    }
+  },
+  "vectors": [
+    {
+      "name": "normalizes aggregate query",
+      "query": {
+        "version": 1,
+        "filter": {
+          "type": "condition",
+          "field": " region ",
+          "operator": "eq",
+          "value": "华东"
+        },
+        "projection": [" region "],
+        "groupBy": [" region "],
+        "aggregates": [
+          { "field": " amount ", "operator": "sum", "alias": " totalAmount " }
+        ],
+        "sorts": [{ "field": " totalAmount ", "direction": "desc" }],
+        "paging": { "page": 1, "pageSize": 20 }
+      },
+      "expectedIssues": [],
+      "expectedNormalized": {
+        "version": 1,
+        "filter": { "type": "condition", "field": "region", "operator": "eq", "value": "华东" },
+        "sorts": [{ "field": "totalAmount", "direction": "desc" }],
+        "paging": { "page": 1, "pageSize": 20 },
+        "projection": ["region"],
+        "groupBy": ["region"],
+        "aggregates": [{ "field": "amount", "operator": "sum", "alias": "totalAmount" }]
+      }
+    },
+    {
+      "name": "rejects unknown projection field",
+      "query": {
+        "version": 1,
+        "projection": ["missing"],
+        "sorts": [],
+        "paging": { "page": 1, "pageSize": 20 }
+      },
+      "expectedIssues": [
+        { "path": "projection[0]", "code": "QUERY_UNKNOWN_FIELD" }
+      ]
+    },
+    {
+      "name": "rejects forbidden field capabilities",
+      "query": {
+        "version": 1,
+        "groupBy": ["secret"],
+        "aggregates": [{ "field": "secret", "operator": "count", "alias": "secretCount" }],
+        "sorts": [{ "field": "secret", "direction": "asc" }],
+        "paging": { "page": 1, "pageSize": 20 }
+      },
+      "expectedIssues": [
+        { "path": "groupBy[0]", "code": "QUERY_FIELD_NOT_GROUPABLE" },
+        { "path": "aggregates[0].operator", "code": "QUERY_AGGREGATE_NOT_ALLOWED" }
+      ]
+    },
+    {
+      "name": "rejects page size over budget",
+      "query": {
+        "version": 1,
+        "sorts": [],
+        "paging": { "page": 1, "pageSize": 101 }
+      },
+      "expectedIssues": [
+        { "path": "paging.pageSize", "code": "QUERY_COMPLEXITY_EXCEEDED" }
+      ]
+    },
+    {
+      "name": "rejects arbitrary SQL",
+      "query": {
+        "version": 1,
+        "sorts": [],
+        "paging": { "page": 1, "pageSize": 20 },
+        "sql": "select * from tenant_data"
+      },
+      "expectedIssues": [
+        { "path": "sql", "code": "QUERY_DOCUMENT_INVALID" }
+      ]
+    }
+  ]
+}

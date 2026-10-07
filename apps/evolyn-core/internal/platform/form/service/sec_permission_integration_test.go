@@ -15,6 +15,7 @@ import (
 	"testing"
 
 	"evolyn/internal/contextx"
+	queryengine "evolyn/internal/engine/query"
 	"evolyn/internal/infrastructure"
 	appmodel "evolyn/internal/platform/app/model"
 	apprepository "evolyn/internal/platform/app/repository"
@@ -690,14 +691,44 @@ func TestSECFPERMRecordListScopeTenantAndUnknownField(t *testing.T) {
 	assert.Equal(t, int64(1), page.Total, "total must use the permission predicate before paging")
 	assert.Len(t, page.Items, 1)
 	assert.Equal(t, "销售记录", page.Items[0].Values["name"])
+	queryExecutor := env.formSvc.(DashboardQueryExecutor)
+	aggregated, err := queryExecutor.ExecuteDashboardQuery(ctx, env.plainMember, form.Code, queryengine.LogicalPlan{
+		Aggregate: true,
+		GroupBy:   []string{"0000000002"},
+		Aggregates: []queryengine.Aggregate{{
+			Field: "0000000001", Operator: queryengine.AggregateCount, Alias: "record_count",
+		}},
+		Sorts: []queryengine.Sort{}, Paging: queryengine.Paging{Page: 1, PageSize: 20},
+	})
+	assert.NoError(t, err)
+	if assert.Len(t, aggregated.Rows, 1, "dashboard aggregate must apply the same row scope") {
+		assert.Equal(t, "sales", aggregated.Rows[0]["0000000002"])
+		assert.Equal(t, "1", aggregated.Rows[0]["record_count"])
+	}
+	catalogPort := env.formSvc.(FormDataCatalog)
+	sources, err := catalogPort.ListDashboardDataSources(ctx, env.plainMember, app.ID)
+	assert.NoError(t, err)
+	if assert.Len(t, sources, 1) {
+		assert.Equal(t, form.Code, sources[0].Code)
+	}
+	catalog, err := catalogPort.GetDashboardFieldCatalog(ctx, env.plainMember, form.Code)
+	assert.NoError(t, err)
+	if assert.Len(t, catalog.Fields, 2) {
+		assert.Equal(t, "0000000001", catalog.Fields[0].FieldID)
+		assert.NotEmpty(t, catalog.Fields[0].Aggregates)
+	}
 	noViewMember := env.createPlainMember(t, env.alpha, "fperm-no-record-view")
 	page, err = env.formSvc.ListRecords(ctx, noViewMember, form.Code, model.RecordQueryDocument{Version: 1})
 	assert.NoError(t, err)
 	assert.Empty(t, page.Items, "unmatched view member must not receive rows")
 	assert.Zero(t, page.Total)
+	_, err = catalogPort.GetDashboardFieldCatalog(ctx, noViewMember, form.Code)
+	assert.ErrorIs(t, err, apperrors.ErrPermissionDenied)
 
 	_, err = env.formSvc.ListRecords(fpermCtx(env.beta.ID), env.betaOwner, form.Code, model.RecordQueryDocument{Version: 1})
 	assert.ErrorIs(t, err, apperrors.ErrFormNotFound, "tenant callback must hide alpha form and records")
+	_, err = catalogPort.GetDashboardFieldCatalog(fpermCtx(env.beta.ID), env.betaOwner, form.Code)
+	assert.ErrorIs(t, err, apperrors.ErrFormNotFound)
 	_, err = env.formSvc.ListRecords(ctx, env.plainMember, form.Code, model.RecordQueryDocument{
 		Version: 1, Filter: &model.RecordQueryExpression{Type: "condition", Field: "values ->> 'secret'", Operator: "eq", Value: "x"},
 	})

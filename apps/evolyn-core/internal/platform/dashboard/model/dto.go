@@ -26,6 +26,27 @@ type SaveDraftResult struct {
 	Document      JSONContent `json:"document"`
 }
 
+type PreviewQueryRequest struct {
+	DraftRevision int64          `json:"draftRevision" binding:"required"`
+	Page          int            `json:"page"`
+	FilterValues  map[string]any `json:"filterValues"`
+}
+
+type QueryResultColumn struct {
+	Key   string `json:"key"`
+	Label string `json:"label"`
+	Type  string `json:"type"`
+}
+
+type PreviewQueryResult struct {
+	DatasetID string              `json:"datasetId"`
+	Columns   []QueryResultColumn `json:"columns"`
+	Rows      []map[string]any    `json:"rows"`
+	Total     int64               `json:"total"`
+	Page      int                 `json:"page"`
+	PageSize  int                 `json:"pageSize"`
+}
+
 type PublishedSummary struct {
 	Version     int              `json:"version"`
 	PublishedAt *kernel.JSONTime `json:"publishedAt"`

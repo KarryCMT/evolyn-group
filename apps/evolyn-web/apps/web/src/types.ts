@@ -1,5 +1,5 @@
-import type { EvolynIconPickerValue } from '@evolyn.do/ui';
 import type { BusinessDashboardDocument } from '@evolyn.do/dashboard';
+import type { EvolynIconPickerValue } from '@evolyn.do/ui';
 import type { App } from 'vue';
 
 // 模块安装函数：不依赖 vite-ssg 上下文，直接接收 Vue 应用实例
@@ -663,6 +663,44 @@ export interface DashboardDetail {
 export interface DashboardDraftSaveResult {
   draftRevision: number;
   document: DashboardDocumentV1;
+}
+
+export interface DashboardFormDataSource {
+  code: string;
+  name: string;
+  publishedVersion: number;
+  schemaRevision: string;
+}
+
+export type DashboardDataFieldType =
+  | 'text'
+  | 'decimal'
+  | 'number'
+  | 'boolean'
+  | 'date'
+  | 'datetime'
+  | 'enum'
+  | 'member'
+  | 'department';
+
+export interface DashboardDataSourceField {
+  fieldId: string;
+  fieldCode: string;
+  label: string;
+  type: DashboardDataFieldType;
+  filterable: boolean;
+  sortable: boolean;
+  projectable: boolean;
+  groupable: boolean;
+  aggregates: Array<'count' | 'sum' | 'avg' | 'min' | 'max'>;
+}
+
+export interface DashboardFormFieldCatalog {
+  formCode: string;
+  formName: string;
+  publishedVersion: number;
+  schemaRevision: string;
+  fields: DashboardDataSourceField[];
 }
 
 /** POST /forms/:code/publish 结果：发布双口令 */

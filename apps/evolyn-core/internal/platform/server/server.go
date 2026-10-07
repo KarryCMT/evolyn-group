@@ -656,6 +656,26 @@ func New(conf *config.Config, logger *logrus.Logger) (*Server, error) { //nolint
 		txManager, dashboardRepo, quotaSvc, auditSvc, appAccess,
 		dashboardAppDirectory{apps: appRepo}, formMenuMaintenance,
 	)
+	formDataCatalog, ok := formService.(formservice.FormDataCatalog)
+	if !ok {
+		return nil, fmt.Errorf("form data catalog not configured")
+	}
+	if injector, ok := dashboardService.(dashboardservice.FormDataCatalogInjector); ok {
+		injector.UseFormDataCatalog(dashboardFormDataCatalog{forms: formDataCatalog})
+	}
+	formQueryExecutor, ok := formService.(formservice.DashboardQueryExecutor)
+	if !ok {
+		return nil, fmt.Errorf("dashboard query executor not configured")
+	}
+	if injector, ok := dashboardService.(dashboardservice.DashboardQueryExecutorInjector); ok {
+		injector.UseDashboardQueryExecutor(dashboardFormQueryExecutor{forms: formQueryExecutor})
+	}
+	if injector, ok := dashboardService.(dashboardservice.QueryRuntimeConfigInjector); ok {
+		injector.UseQueryRuntimeConfig(dashboardservice.QueryRuntimeConfig{
+			Timeout:       time.Duration(conf.Dashboard.Query.TimeoutSeconds) * time.Second,
+			MaxConcurrent: conf.Dashboard.Query.MaxConcurrent,
+		})
+	}
 	dashboardController := dashboardcontroller.NewDashboardController(dashboardService)
 
 	// 二维码标签域：表单目录与真实记录均经窄端口桥接，正式渲染读取

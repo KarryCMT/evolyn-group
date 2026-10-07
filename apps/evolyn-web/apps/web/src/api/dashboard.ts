@@ -1,7 +1,10 @@
+import type { BusinessDashboardDatasetResult } from '@evolyn.do/dashboard';
 import type {
   DashboardDetail,
   DashboardDocumentV1,
   DashboardDraftSaveResult,
+  DashboardFormDataSource,
+  DashboardFormFieldCatalog,
 } from '~/types';
 import { http } from '@evolyn.do/utils';
 
@@ -50,4 +53,29 @@ export function saveDashboardDraft(
     protocolVersion: document.version,
     document,
   });
+}
+
+export function listDashboardFormDataSources(code: string): Promise<DashboardFormDataSource[]> {
+  return http.get(`/dashboards/${encodeURIComponent(code)}/data-sources/forms`);
+}
+
+export function getDashboardFormFieldCatalog(
+  code: string,
+  formCode: string,
+): Promise<DashboardFormFieldCatalog> {
+  return http.get(
+    `/dashboards/${encodeURIComponent(code)}/data-sources/forms/${encodeURIComponent(formCode)}/fields`,
+  );
+}
+
+export function previewDashboardWidget(
+  code: string,
+  widgetId: string,
+  draftRevision: number,
+  page = 1,
+): Promise<BusinessDashboardDatasetResult> {
+  return http.post(
+    `/dashboards/${encodeURIComponent(code)}/widgets/${encodeURIComponent(widgetId)}/preview-query`,
+    { draftRevision, page, filterValues: {} },
+  );
 }

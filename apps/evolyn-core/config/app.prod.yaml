@@ -114,3 +114,8 @@ workflow:
   service:
     allowPrivateNetwork: false # 是否允许服务节点调用私网/回环地址（本地联调显式开启；生产必须 false）。
     allowedHosts: [] # 服务节点出站主机白名单（精确主机名；空=不限制，私网仍拒绝）。示例：[api.example.com]。
+
+dashboard:
+  query:
+    timeoutSeconds: 10
+    maxConcurrent: 8

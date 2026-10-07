@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"evolyn/internal/contextx"
@@ -33,17 +34,38 @@ const (
 )
 
 type dashboardService struct {
-	tx     TxManager
-	repo   repository.DashboardRepository
-	quota  tenantservice.QuotaService
-	audit  auditservice.Recorder
-	access AccessEvaluator
-	apps   AppDirectory
-	menu   MenuMaintenance
+	tx           TxManager
+	repo         repository.DashboardRepository
+	quota        tenantservice.QuotaService
+	audit        auditservice.Recorder
+	access       AccessEvaluator
+	apps         AppDirectory
+	menu         MenuMaintenance
+	forms        FormDataCatalog
+	queries      DashboardQueryExecutor
+	queryTimeout time.Duration
+	querySlots   chan struct{}
 }
 
 func NewDashboardService(tx TxManager, repo repository.DashboardRepository, quota tenantservice.QuotaService, audit auditservice.Recorder, access AccessEvaluator, apps AppDirectory, menu MenuMaintenance) DashboardService {
-	return &dashboardService{tx: tx, repo: repo, quota: quota, audit: audit, access: access, apps: apps, menu: menu}
+	return &dashboardService{tx: tx, repo: repo, quota: quota, audit: audit, access: access, apps: apps, menu: menu, queryTimeout: 10 * time.Second, querySlots: make(chan struct{}, 8)}
+}
+
+func (s *dashboardService) UseQueryRuntimeConfig(config QueryRuntimeConfig) {
+	if config.Timeout > 0 {
+		s.queryTimeout = config.Timeout
+	}
+	if config.MaxConcurrent > 0 {
+		s.querySlots = make(chan struct{}, config.MaxConcurrent)
+	}
+}
+
+// UseFormDataCatalog 在装配期注入权限感知表单数据目录。未注入时数据源端点
+// 明确返回不可用，不允许绕过 form 域权限读取仓储。
+func (s *dashboardService) UseFormDataCatalog(catalog FormDataCatalog) { s.forms = catalog }
+
+func (s *dashboardService) UseDashboardQueryExecutor(executor DashboardQueryExecutor) {
+	s.queries = executor
 }
 
 func (s *dashboardService) Precreate(ctx context.Context, member *iammodel.User, appCode string, req *model.PrecreateRequest) (*model.Detail, error) {

@@ -98,8 +98,32 @@ type FormRecordRepository interface {
 	// 应用于数据库分页之前，并返回相同谓词下的总数。Predicate/OrderBy 不接受
 	// 任何来自 HTTP 的原始 SQL；唯一生产构造者是 form/service 的 Query 与权限编译器。
 	ListControlled(ctx context.Context, params RecordListParams) ([]model.FormRecord, int64, error)
+	// QueryDashboard 执行由 form Service 编译出的受控投影/聚合查询。SQL 片段
+	// 只允许来自发布快照编译器，HTTP/Query DSL 字符串不得直达此接口。
+	QueryDashboard(ctx context.Context, params DashboardQueryParams) (*DashboardQueryRows, error)
 	// Migrate 开发/测试 AutoMigrate 路径
 	Migrate() error
+}
+
+type DashboardQueryParams struct {
+	TenantID      uint
+	FormID        uint
+	PhysicalTable string
+	Selects       []string
+	SelectArgs    []any
+	Keys          []string
+	Where         string
+	WhereArgs     []any
+	GroupByCount  int
+	OrderBy       string
+	Limit         int
+	Offset        int
+	Aggregate     bool
+}
+
+type DashboardQueryRows struct {
+	Rows  []map[string]any
+	Total int64
 }
 
 // FormSerialCounterRepository 为流水号分配递增值。Allocate 必须在记录提交事务内调用，

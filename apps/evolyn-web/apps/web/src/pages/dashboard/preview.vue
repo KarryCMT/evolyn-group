@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import type { BusinessDashboardDocument } from '@evolyn.do/dashboard';
+import type {
+  BusinessDashboardDocument,
+  BusinessDashboardWidgetRuntime,
+} from '@evolyn.do/dashboard';
 import {
   BusinessDashboardRenderer,
   normalizeBusinessDashboardDocument,
 } from '@evolyn.do/dashboard';
 import { computed, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { getDashboard } from '~/api/dashboard';
+import { getDashboard, previewDashboardWidget } from '~/api/dashboard';
 
 defineOptions({ name: 'DashboardPreviewPage' });
 
@@ -19,6 +22,7 @@ const status = shallowRef<'loading' | 'ready' | 'error'>('loading');
 const name = shallowRef('仪表盘预览');
 const previewDocument = shallowRef<BusinessDashboardDocument | null>(null);
 const errorMessage = shallowRef('');
+const runtimes = shallowRef<Record<string, BusinessDashboardWidgetRuntime>>({});
 
 watch(
   [dashboardCode, requestedRevision],
@@ -34,8 +38,19 @@ watch(
       if (!normalized.document) throw new Error('草稿内容无法渲染。');
       name.value = detail.name;
       previewDocument.value = normalized.document;
+      runtimes.value = Object.fromEntries(
+        normalized.document.widgets.map((widget) => [
+          widget.id,
+          { status: widget.datasetId ? 'loading' : 'idle' },
+        ]),
+      );
       document.title = `${detail.name} - 草稿预览`;
       status.value = 'ready';
+      await Promise.all(
+        normalized.document.widgets
+          .filter((widget) => widget.datasetId)
+          .map((widget) => loadWidget(widget.id)),
+      );
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '预览加载失败。';
       status.value = 'error';
@@ -43,6 +58,32 @@ watch(
   },
   { immediate: true },
 );
+
+async function loadWidget(widgetId: string, page = 1) {
+  runtimes.value = { ...runtimes.value, [widgetId]: { status: 'loading' } };
+  try {
+    const result = await previewDashboardWidget(
+      dashboardCode.value,
+      widgetId,
+      requestedRevision.value,
+      page,
+    );
+    runtimes.value = { ...runtimes.value, [widgetId]: { status: 'success', result } };
+  } catch (error) {
+    runtimes.value = {
+      ...runtimes.value,
+      [widgetId]: {
+        status: 'error',
+        message: error instanceof Error ? error.message : '数据加载失败',
+      },
+    };
+  }
+}
+
+function retryWidget(widgetId: string) {
+  if (!previewDocument.value?.widgets.some((widget) => widget.id === widgetId)) return;
+  void loadWidget(widgetId);
+}
 
 function backToDesign() {
   void router.push({
@@ -81,6 +122,9 @@ function backToDesign() {
       v-else-if="previewDocument"
       class="preview-page__body"
       :document="previewDocument"
+      :runtimes="runtimes"
+      @retry="retryWidget"
+      @page-change="loadWidget"
     />
   </main>
 </template>

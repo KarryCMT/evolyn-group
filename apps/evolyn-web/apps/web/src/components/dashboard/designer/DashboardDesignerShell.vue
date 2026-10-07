@@ -1,14 +1,18 @@
 <script setup lang="ts">
 import type {
+  BusinessDashboardDatasetPatch,
   BusinessDashboardDocument,
   BusinessDashboardIssue,
   BusinessDashboardLayout,
   BusinessDashboardWidget,
   BusinessDashboardWidgetDescriptor,
+  BusinessDashboardWidgetPatch,
 } from '@evolyn.do/dashboard';
 import type { DashboardDesignerSaveStatus } from '~/composables/useDashboardDesigner';
+import type { DashboardFormDataSource, DashboardFormFieldCatalog } from '~/types';
 import { BusinessDashboardCanvas, businessDashboardWidgetDescriptors } from '@evolyn.do/dashboard';
 import DashboardComponentPalette from './DashboardComponentPalette.vue';
+import DashboardDataPanel from './DashboardDataPanel.vue';
 import DashboardDesignerToolbar from './DashboardDesignerToolbar.vue';
 import DashboardPropertiesPanel from './DashboardPropertiesPanel.vue';
 
@@ -24,6 +28,11 @@ defineProps<{
   dirty: boolean;
   saveStatus: DashboardDesignerSaveStatus;
   conflictMessage: string;
+  dataSources: DashboardFormDataSource[];
+  dataCatalogs: Record<string, DashboardFormFieldCatalog>;
+  dataLoading: boolean;
+  dataErrorMessage: string;
+  selectedDatasetId: string | null;
 }>();
 const emit = defineEmits<{
   back: [];
@@ -33,9 +42,14 @@ const emit = defineEmits<{
   add: [descriptor: BusinessDashboardWidgetDescriptor];
   select: [id: string | null];
   remove: [id: string];
-  updateWidget: [id: string, patch: Partial<Pick<BusinessDashboardWidget, 'title' | 'settings'>>];
+  updateWidget: [id: string, patch: BusinessDashboardWidgetPatch];
   updateLayouts: [layouts: Array<{ id: string; layout: BusinessDashboardLayout }>];
   focusIssue: [issue: BusinessDashboardIssue];
+  addDataset: [source: DashboardFormDataSource];
+  selectDataset: [id: string | null];
+  updateDataset: [id: string, patch: BusinessDashboardDatasetPatch];
+  removeDataset: [id: string];
+  requestCatalog: [formCode: string];
 }>();
 </script>
 
@@ -64,6 +78,19 @@ const emit = defineEmits<{
         :descriptors="businessDashboardWidgetDescriptors"
         @add="emit('add', $event)"
       />
+      <DashboardDataPanel
+        :sources="dataSources"
+        :datasets="document.datasets"
+        :catalogs="dataCatalogs"
+        :loading="dataLoading"
+        :error-message="dataErrorMessage"
+        :selected-dataset-id="selectedDatasetId"
+        @add-dataset="emit('addDataset', $event)"
+        @select-dataset="emit('selectDataset', $event)"
+        @update-dataset="(id, patch) => emit('updateDataset', id, patch)"
+        @remove-dataset="emit('removeDataset', $event)"
+        @request-catalog="emit('requestCatalog', $event)"
+      />
       <BusinessDashboardCanvas
         :document="document"
         :selected-widget-id="selectedWidgetId"
@@ -76,9 +103,12 @@ const emit = defineEmits<{
         :widget="selectedWidget"
         :issues="issues"
         :focused-issue-path="focusedIssuePath"
+        :datasets="document.datasets"
+        :catalogs="dataCatalogs"
         @update="(id, patch) => emit('updateWidget', id, patch)"
         @remove="emit('remove', $event)"
         @focus-issue="emit('focusIssue', $event)"
+        @request-catalog="emit('requestCatalog', $event)"
       />
     </section>
   </main>
