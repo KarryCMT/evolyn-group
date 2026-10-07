@@ -3,6 +3,7 @@ import type { DashboardFormDataSource } from '~/types';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { appWorkspaceRoute } from '~/components/app/workspace/appWorkspaceNavigation';
 import DashboardDesignerShell from '~/components/dashboard/designer/DashboardDesignerShell.vue';
 import { useDashboardDataCatalog } from '~/composables/useDashboardDataCatalog';
 import { prepareDashboardPreview, useDashboardDesigner } from '~/composables/useDashboardDesigner';
@@ -78,7 +79,7 @@ async function openPreview() {
 }
 
 function returnToApp() {
-  void router.push({ name: 'App', params: { appCode: appCode.value } });
+  void router.push(appWorkspaceRoute(appCode.value, dashboardCode.value));
 }
 
 async function reloadConflict() {

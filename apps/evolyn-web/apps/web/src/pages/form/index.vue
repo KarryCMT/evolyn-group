@@ -6,6 +6,7 @@ import { ElMessage } from 'element-plus';
 import { computed, provide, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getForm, updateFormName } from '~/api/form';
+import { appWorkspaceRoute } from '~/components/app/workspace/appWorkspaceNavigation';
 import FormWorkspaceTitleEditor from '~/components/form/FormWorkspaceTitleEditor.vue';
 import UserMenu from '~/components/navigation/UserMenu.vue';
 import { formWorkspaceContextKey } from './workspace-context';
@@ -177,11 +178,9 @@ watch(
 );
 
 function returnToApp() {
-  void router.push({
-    name: 'App',
-    // 继续使用 formCode 路由参数，应用页据此恢复当前表单菜单选中态。
-    params: { appCode: appCode.value, formCode: formCode.value === 'new' ? '' : formCode.value },
-  });
+  void router.push(
+    appWorkspaceRoute(appCode.value, formCode.value === 'new' ? '' : formCode.value),
+  );
 }
 
 function navigateTo(name: FormRouteName) {

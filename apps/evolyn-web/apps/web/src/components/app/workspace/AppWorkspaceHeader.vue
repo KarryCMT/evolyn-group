@@ -10,12 +10,15 @@ import { computed, shallowRef } from 'vue';
 import MessageCenterDrawer from '~/components/dashboard/messageCenter/MessageCenterDrawer.vue';
 import UserMenu from '~/components/navigation/UserMenu.vue';
 import { useNotificationStore } from '~/stores/notification';
-import type { AppWorkspaceMode } from './appWorkspace.types';
+import type { AppWorkspaceAsset, AppWorkspaceMode } from './appWorkspace.types';
 
 defineOptions({ name: 'AppWorkspaceHeader' });
 
 const props = defineProps<{
   mode: AppWorkspaceMode;
+  /** 当前资产类型决定可展示的模式；按钮权限仍以菜单能力投影为准。 */
+  assetType: AppWorkspaceAsset['type'] | null;
+  canEdit: boolean;
   sidebarCollapsed: boolean;
   /** 个人流程入口激活时，替换表单模式操作为当前视图标题。 */
   personalTitle: string | null;
@@ -31,11 +34,21 @@ const messageCenterVisible = shallowRef(false);
 const notificationStore = useNotificationStore();
 const unreadMessageCount = computed(() => notificationStore.unreadTotal);
 
-const modeItems: { mode: AppWorkspaceMode; label: string; icon: typeof RiEditBoxFill }[] = [
+const allModeItems: { mode: AppWorkspaceMode; label: string; icon: typeof RiEditBoxFill }[] = [
   { mode: 'fill', label: '仅添加数据', icon: RiEditBoxFill },
   { mode: 'design', label: '编辑', icon: RiEditBoxFill },
   { mode: 'data', label: '数据管理', icon: RiDatabase2Fill },
 ];
+
+const modeItems = computed(() => {
+  if (props.assetType === 'dashboard') {
+    return props.canEdit ? allModeItems.filter((item) => item.mode === 'design') : [];
+  }
+  if (props.assetType === 'form') {
+    return allModeItems.filter((item) => item.mode !== 'design' || props.canEdit);
+  }
+  return [];
+});
 </script>
 
 <template>

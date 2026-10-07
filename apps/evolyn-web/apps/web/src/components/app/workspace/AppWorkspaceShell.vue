@@ -106,6 +106,8 @@ function toggleSidebar() {
     <section class="app-workspace-shell__surface">
       <AppWorkspaceHeader
         :mode="props.mode"
+        :asset-type="props.activeAsset?.type ?? null"
+        :can-edit="props.activeAsset?.capabilities.actions.edit ?? false"
         :sidebar-collapsed="sidebarCollapsed"
         :personal-title="props.personalTitle"
         @toggle-sidebar="toggleSidebar"

@@ -26,6 +26,11 @@ import { useRoute, useRouter } from 'vue-router';
 import { createAppMenuGroup, updateAppMenuNode } from '~/api/apps';
 import { deleteDashboard, updateDashboard } from '~/api/dashboard';
 import { createForm, deleteForm, updateForm } from '~/api/form';
+import {
+  appWorkspaceRoute,
+  findWorkspaceAssetByTargetCode,
+  resolveWorkspaceAssetRoute,
+} from '~/components/app/workspace/appWorkspaceNavigation';
 import AppWorkspaceShell from '~/components/app/workspace/AppWorkspaceShell.vue';
 import FormAppearanceDialog from '~/components/app/workspace/FormAppearanceDialog.vue';
 import MoveMenuNodeDialog from '~/components/app/workspace/MoveMenuNodeDialog.vue';
@@ -78,8 +83,8 @@ const iconByKey: Record<AppIconKey, Component> = {
 const appIcon = computed(
   () => iconByKey[getAppIconName(app.value?.icon) as AppIconKey] ?? iconByKey.bookmark,
 );
-// 设计器返回时携带表单公开编码，应用菜单加载完成后据此恢复对应节点选中态。
-const requestedFormCode = computed(() => String(route.params.formCode ?? ''));
+// 设计器返回时携带资产公开编码，应用菜单加载完成后据此恢复表单或仪表盘节点。
+const requestedAssetCode = computed(() => String(route.params.assetCode ?? ''));
 const activeAssetCode = shallowRef('');
 const workspaceMode = shallowRef<AppWorkspaceMode>('fill');
 /** 顶部星标是全局菜单收藏的快捷入口，收藏状态由 useMenuFavorites 统一维护。 */
@@ -168,18 +173,6 @@ function findAsset(assets: AppWorkspaceAsset[], code: string): AppWorkspaceAsset
   return null;
 }
 
-/** 递归按表单公开编码定位菜单节点，分组与其他资产不会参与匹配。 */
-function findFormAsset(assets: AppWorkspaceAsset[], formCode: string): AppWorkspaceAsset | null {
-  for (const asset of assets) {
-    if (asset.type === 'form' && asset.targetCode === formCode) return asset;
-    if (asset.children?.length) {
-      const matched = findFormAsset(asset.children, formCode);
-      if (matched) return matched;
-    }
-  }
-  return null;
-}
-
 /** 应用资产树只提供流程表单的展示信息，不能作为「我的待办」的筛选事实源。 */
 function collectWorkflowForms(assets: AppWorkspaceAsset[]): WorkflowNavigationForm[] {
   return assets.flatMap((asset) => {
@@ -241,9 +234,9 @@ function firstSelectableAsset(assets: AppWorkspaceAsset[]): AppWorkspaceAsset | 
 }
 
 watch(
-  [menuAssets, requestedFormCode],
-  ([assets, formCode]) => {
-    const requestedAsset = findFormAsset(assets, formCode);
+  [menuAssets, requestedAssetCode],
+  ([assets, assetCode]) => {
+    const requestedAsset = findWorkspaceAssetByTargetCode(assets, assetCode);
     if (requestedAsset) {
       activeAssetCode.value = requestedAsset.code;
       return;
@@ -368,12 +361,9 @@ function selectWorkspaceAsset(asset: AppWorkspaceAsset) {
   activeAssetCode.value = asset.code;
   workspaceMode.value = 'fill';
 
-  const formCode = asset.type === 'form' ? asset.targetCode : null;
-  if (requestedFormCode.value === (formCode ?? '')) return;
-  void router.replace({
-    name: 'App',
-    params: { appCode: appCode.value, formCode: formCode ?? '' },
-  });
+  const assetCode = asset.targetCode ?? '';
+  if (requestedAssetCode.value === assetCode) return;
+  void router.replace(appWorkspaceRoute(appCode.value, assetCode));
 }
 
 /**
@@ -404,10 +394,7 @@ function updatePendingWorkflowSummary(summary: WorkflowPendingTaskSummaryDto | n
   pendingWorkflowSummary.value = summary;
 }
 
-/**
- * 顶栏模式入口只对当前表单生效：填写留在应用运行态，编辑与数据管理
- * 携带菜单目标资产的公开 formCode 进入各自独立工作区。
- */
+/** 顶栏按当前资产类型进入对应工作区；填写模式继续留在应用运行态。 */
 function updateWorkspaceMode(mode: AppWorkspaceMode) {
   if (mode === 'fill') {
     workspaceMode.value = 'fill';
@@ -415,15 +402,18 @@ function updateWorkspaceMode(mode: AppWorkspaceMode) {
   }
 
   const asset = activeWorkspaceAsset.value;
-  if (!asset || asset.type !== 'form' || !asset.targetCode) {
-    ElMessage.info(`请先从左侧选择要${mode === 'design' ? '编辑' : '管理数据'}的表单`);
+  const target = resolveWorkspaceAssetRoute(appCode.value, asset, mode);
+  if (target) {
+    void router.push(target);
     return;
   }
 
-  void router.push({
-    name: mode === 'design' ? 'form-design' : 'form-data',
-    params: { appCode: appCode.value, formCode: asset.targetCode },
-  });
+  if (asset?.type === 'dashboard' && mode === 'data') {
+    ElMessage.info('仪表盘不提供独立数据管理，请在编辑界面配置数据集');
+    return;
+  }
+
+  ElMessage.info(`请先从左侧选择要${mode === 'design' ? '编辑' : '管理数据'}的资产`);
 }
 
 /**
@@ -644,28 +634,18 @@ function handleWorkspaceAssetAction(payload: {
     return;
   }
 
-  if (payload.action === 'edit' && payload.asset.type === 'form') {
-    if (!payload.asset.targetCode) {
-      ElMessage.error('表单信息不完整，暂无法打开设计器');
+  if (
+    payload.action === 'edit' &&
+    (payload.asset.type === 'form' || payload.asset.type === 'dashboard')
+  ) {
+    const target = resolveWorkspaceAssetRoute(appCode.value, payload.asset, 'design');
+    if (!target) {
+      ElMessage.error(
+        `${payload.asset.type === 'form' ? '表单' : '仪表盘'}信息不完整，暂无法打开设计器`,
+      );
       return;
     }
-
-    void router.push({
-      name: 'form-design',
-      params: { appCode: appCode.value, formCode: payload.asset.targetCode },
-    });
-    return;
-  }
-
-  if (payload.action === 'edit' && payload.asset.type === 'dashboard') {
-    if (!payload.asset.targetCode) {
-      ElMessage.error('仪表盘信息不完整，暂无法打开设计器');
-      return;
-    }
-    void router.push({
-      name: 'dashboard-design',
-      params: { appCode: appCode.value, dashboardCode: payload.asset.targetCode },
-    });
+    void router.push(target);
     return;
   }
 
@@ -807,7 +787,7 @@ async function deleteWorkspaceForm(asset: AppWorkspaceAsset) {
     }
     await reloadMenu();
     // 路由参数不能再保留已删除表单，否则页面刷新会反复尝试恢复不存在的节点。
-    await router.replace({ name: 'App', params: { appCode: appCode.value, formCode: '' } });
+    await router.replace(appWorkspaceRoute(appCode.value));
     ElMessage.success('表单已删除，并已从应用菜单移除');
   } catch (error) {
     if (error instanceof ApiError && error.errCode === 'FORM_NOT_FOUND') {

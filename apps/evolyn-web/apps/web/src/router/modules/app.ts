@@ -20,8 +20,8 @@ function settingFeature(props: AppSettingFeatureProps) {
  */
 const appRoutes: RouteRecordRaw[] = [
   {
-    // formCode 为应用工作区当前表单的可选路由参数，设计器返回时据此恢复菜单选中态。
-    path: '/app/:appCode/:formCode?',
+    // assetCode 是当前资产的公开编码，设计器返回、刷新及前进后退均据此恢复菜单选中态。
+    path: '/app/:appCode/:assetCode?',
     name: 'App',
     component: () => import('~/pages/app/index.vue'),
     meta: { public: false, title: '应用' },
