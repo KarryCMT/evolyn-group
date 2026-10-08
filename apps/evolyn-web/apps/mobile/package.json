@@ -14,6 +14,7 @@
   "dependencies": {
     "@evolyn.do/form": "workspace:*",
     "@evolyn.do/utils": "workspace:*",
+    "jsencrypt": "catalog:utils",
     "pinia": "catalog:frontend",
     "vant": "catalog:ui",
     "vue": "catalog:frontend",

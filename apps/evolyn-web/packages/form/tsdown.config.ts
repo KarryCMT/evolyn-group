@@ -88,6 +88,7 @@ export default defineConfig([
   {
     ...shared,
     entry: ['src/runtime/style.ts'],
+    dts: false,
     css: {
       fileName: 'runtime/style.css',
       minify: false,
@@ -97,6 +98,7 @@ export default defineConfig([
   {
     ...shared,
     entry: ['src/runtime-core/style.ts'],
+    dts: false,
     css: {
       fileName: 'runtime-core/style.css',
       minify: false,
@@ -106,6 +108,7 @@ export default defineConfig([
   {
     ...shared,
     entry: ['src/runtime-web/style.ts'],
+    dts: false,
     css: {
       fileName: 'runtime-web/style.css',
       minify: false,
@@ -115,6 +118,7 @@ export default defineConfig([
   {
     ...shared,
     entry: ['src/runtime-mobile/style.ts'],
+    dts: false,
     css: {
       fileName: 'runtime-mobile/style.css',
       minify: false,

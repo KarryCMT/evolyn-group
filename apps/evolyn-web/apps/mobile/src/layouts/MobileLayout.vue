@@ -1,16 +1,9 @@
 <script setup lang="ts">
-import {
-  NavBar as VanNavBar,
-  Tabbar as VanTabbar,
-  TabbarItem as VanTabbarItem,
-} from 'vant';
-import { computed } from 'vue';
+import { NavBar as VanNavBar } from 'vant';
 import { useRoute, useRouter } from 'vue-router';
 
 const route = useRoute();
 const router = useRouter();
-const activeTab = computed(() => route.meta.tab ?? '');
-const showTabbar = computed(() => Boolean(route.meta.tab));
 
 function goBack(): void {
   if (window.history.length > 1) router.back();
@@ -29,20 +22,9 @@ function goBack(): void {
       safe-area-inset-top
       @click-left="goBack"
     />
-    <main class="mobile-layout__content" :class="{ 'mobile-layout__content--with-tabs': showTabbar }">
+    <main class="mobile-layout__content">
       <RouterView />
     </main>
-    <VanTabbar v-if="showTabbar" :model-value="activeTab" route fixed safe-area-inset-bottom>
-      <VanTabbarItem name="home" to="/" replace icon="apps-o">
-        工作台
-      </VanTabbarItem>
-      <VanTabbarItem name="tasks" to="/tasks" replace icon="todo-list-o">
-        待办
-      </VanTabbarItem>
-      <VanTabbarItem name="me" to="/me" replace icon="user-o">
-        我的
-      </VanTabbarItem>
-    </VanTabbar>
   </div>
 </template>
 
@@ -60,7 +42,4 @@ function goBack(): void {
   min-height: calc(100dvh - var(--van-nav-bar-height));
 }
 
-.mobile-layout__content--with-tabs {
-  padding-bottom: calc(var(--van-tabbar-height) + env(safe-area-inset-bottom));
-}
 </style>

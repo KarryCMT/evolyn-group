@@ -1,10 +1,11 @@
 import type { RequestMessageContent } from '@evolyn.do/utils';
-import { setRequestMessage, setupGlobSetting } from '@evolyn.do/utils';
+import { setRequestMessage, setUnauthorizedHandler, setupGlobSetting } from '@evolyn.do/utils';
 import { createPinia } from 'pinia';
 import { showDialog, showFailToast } from 'vant';
 import { createApp } from 'vue';
 import App from './App.vue';
 import router from './router';
+import { useAuthStore } from './stores/auth';
 // Vant 作为宿主 UI 框架由应用显式加载，表单包只发布自身的 Core/Mobile 样式。
 import 'vant/lib/index.css';
 // 品牌变量必须位于 Vant 默认值之后，才能稳定覆盖组件库主题。
@@ -38,6 +39,19 @@ setupGlobSetting({
 });
 
 const app = createApp(App);
-app.use(createPinia());
+const pinia = createPinia();
+app.use(pinia);
+
+// 业务请求发现会话失效时统一清空内存镜像，并携带当前地址回到登录页。
+setUnauthorizedHandler(() => {
+  useAuthStore(pinia).clearSession();
+  if (router.currentRoute.value.name !== 'login') {
+    void router.replace({
+      path: '/auth/login',
+      query: { redirect: router.currentRoute.value.fullPath },
+    });
+  }
+});
+
 app.use(router);
 app.mount('#app');
