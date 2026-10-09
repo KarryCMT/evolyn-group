@@ -103,10 +103,12 @@ type QueryRuntimeConfigInjector interface {
 type DashboardService interface {
 	Precreate(ctx context.Context, member *iammodel.User, appCode string, req *model.PrecreateRequest) (*model.Detail, error)
 	Get(ctx context.Context, member *iammodel.User, code string) (*model.Detail, error)
+	GetRuntime(ctx context.Context, member *iammodel.User, code string) (*model.RuntimeBootstrap, error)
 	Update(ctx context.Context, member *iammodel.User, code string, req *model.UpdateRequest) (*model.Detail, error)
 	SaveDraft(ctx context.Context, member *iammodel.User, code string, req *model.SaveDraftRequest) (*model.SaveDraftResult, error)
 	ListFormDataSources(ctx context.Context, member *iammodel.User, code string) ([]model.FormDataSource, error)
 	GetFormFieldCatalog(ctx context.Context, member *iammodel.User, code, formCode string) (*model.FormFieldCatalog, error)
 	PreviewWidgetQuery(ctx context.Context, member *iammodel.User, code, widgetID string, req *model.PreviewQueryRequest) (*model.PreviewQueryResult, error)
+	RuntimeWidgetQuery(ctx context.Context, member *iammodel.User, code, widgetID string, req *model.RuntimeQueryRequest) (*model.PreviewQueryResult, error)
 	Delete(ctx context.Context, member *iammodel.User, code string) error
 }

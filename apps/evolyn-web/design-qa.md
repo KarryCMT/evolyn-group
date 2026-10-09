@@ -28,3 +28,84 @@
 无待修复的 P0/P1/P2 问题。剩余差异为浏览器视口密度、现有管理后台全局主题色及顶部公共导航的既有样式，均属于项目已存在的系统级呈现。
 
 final result: passed
+
+---
+
+# Dashboard Designer Design QA
+
+## Target
+
+- Source visual 1: `/var/folders/s4/f6855yyx2j70w2r7crpmnv7h0000gn/T/codex-clipboard-dfafc2b9-3600-4a19-ab58-955b9cc27c79.png`
+- Source visual 2: `/var/folders/s4/f6855yyx2j70w2r7crpmnv7h0000gn/T/codex-clipboard-bd1fa930-4676-4711-8096-ddbb81a00290.png`
+- Previous implementation: `/var/folders/s4/f6855yyx2j70w2r7crpmnv7h0000gn/T/codex-clipboard-f4c5b34d-38a0-440b-a47d-5f2509e0c8c4.png`
+- Scope: dashboard designer shell, navigation, command bar, component palette, canvas density, widget selection state, data panel, properties panel, and device preview.
+
+## Implementation capture
+
+- Preview URL used during QA: `http://127.0.0.1:4174/`
+- Viewport: `1510 × 770` CSS pixels.
+- State: desktop canvas, component palette expanded, first widget selected; data and properties drawers also verified independently.
+- Capture: in-session browser screenshot taken from the temporary local visual-QA harness rendering the production `DashboardDesignerShell` and dashboard package components.
+
+## Comparison
+
+The target establishes a two-level horizontal header, a narrow left component palette, a large uninterrupted design canvas, dense widget spacing, a teal selection outline, and contextual tools. The updated implementation now follows that hierarchy. The former permanently visible dataset and inspector columns were moved to right-side drawers, returning most horizontal space to the canvas. Widget cards use flat borders, compact padding, and four-pixel grid gaps. The selected widget exposes edit, duplicate, and delete controls in its upper-right corner, matching the interaction pattern shown in source visual 2.
+
+The product currently supports only the `统计图` and `明细表` widget types, so the palette intentionally does not reproduce unsupported reference items. QA fixture widgets were intentionally unbound and therefore display the existing empty-Dataset state; this verifies layout and interaction without introducing fake production data.
+
+## Functional checks
+
+- Component selection displays the teal outline and action tray.
+- Component settings opens the contextual property drawer and closes cleanly.
+- Data configuration opens the dataset drawer and closes cleanly.
+- Component palette collapses to an icon rail and restores canvas width.
+- Desktop and mobile canvas modes switch successfully.
+- Dashboard style drawer changes the persisted grid row height and updates the canvas immediately.
+- `统计图` and `明细表` both support click-to-add and drag-to-place; dropping preserves GridStack's resolved coordinates, persists a formal widget ID, and selects the new widget.
+- The dashboard title switches to inline edit mode on click, supports Enter/blur to submit and Escape to cancel, and keeps unsaved canvas changes intact while the asset name is updated.
+- No dashboard implementation runtime error was observed in the QA harness.
+
+## Findings and resolution history
+
+1. Initial capture showed the permanent `232 + 292 + 286px` side columns compressing the working canvas. Resolved by keeping only a narrow/collapsible palette and moving data/properties into drawers.
+2. Initial cards used large spacing, rounded surfaces, and heavy empty-state panels. Resolved with a denser grid, flat borders, reduced padding, and neutral canvas background.
+3. The initial implementation lacked reference-style selection actions. Resolved with contextual edit, duplicate, and delete controls plus a teal selected outline.
+4. Visual QA initially missed shared UI package styles in the temporary harness, which prevented the grid layout from rendering correctly. The harness was corrected to load the same shared styles as the application, then the comparison was repeated.
+5. The second pass found that the canvas ignored the document's persisted `rowHeight`, making the reference proportions impossible to reproduce consistently. The grid now consumes that setting, the default 80px density matches the reference card heights, and the new `仪表盘样式` drawer exposes compact, standard, and relaxed presets.
+6. The second pass aligned the top navigation labels with the reference (`仪表盘设计 / 扩展功能 / 仪表盘发布`) and verified the final 1510 × 770 desktop state with zero browser warnings or errors.
+7. Drag QA found two interaction blockers: native `button` palette items were ignored by GridStack's draggable guard, and an empty grid had no drop height. Palette items now use keyboard-accessible drag surfaces, and the designer reserves a 12-row empty grid. Both widget types were dragged into distinct positions with no duplicate click insertion or browser warnings.
+8. The dashboard title now reuses the same shared inline title editor as the form workspace. The asset rename request updates only dashboard metadata and the browser title, so a successful rename cannot replace unsaved widget or layout edits.
+
+## Final result
+
+final result: passed
+
+The dashboard designer's structure, spatial hierarchy, density, selection treatment, and contextual panel behavior now match the supplied references within the capabilities currently implemented by the product.
+
+---
+
+# Dashboard Widget Action Placement QA
+
+## Target and evidence
+
+- Source visual outside placement: `/var/folders/s4/f6855yyx2j70w2r7crpmnv7h0000gn/T/codex-clipboard-882674a5-0ae8-4e8c-ad63-858b9586e588.png`.
+- Source visual inside placement: `/var/folders/s4/f6855yyx2j70w2r7crpmnv7h0000gn/T/codex-clipboard-a4459009-dde7-4ba3-a8c6-32e7cd1c89bb.png`.
+- Implementation capture: Codex in-app browser tab 6 at `http://127.0.0.1:4174/`; the browser backend returned the screenshot pixels directly and did not expose a filesystem path.
+- Viewport: `1280 × 720` CSS pixels, device scale factor `2`.
+- States checked: a selected first-row widget and a selected lower-row widget.
+
+## Focused comparison
+
+- First row: the selected operation tray renders inside the card with a measured `6px` top and right inset, matching the reference fallback placement.
+- Lower row: the selected operation tray renders above the card, right-aligned, with a measured `6px` gap between the tray bottom and card top, matching the reference external placement.
+- The selected grid item rises above adjacent items and the card content remains clipped inside its own content layer, so the external tray is visible without allowing chart content to leak.
+- Typography, colors, icons, copy, and card surfaces were not changed by this scoped iteration. Existing Remix icons remain sharp vector assets; no raster or generated image assets were required.
+- Both placement states were exercised through the visible selector controls. The clean verification tab reported no console errors or warnings.
+
+## Comparison history
+
+1. Previous implementation always positioned the operation tray at `top: 4px; right: 6px`, covering card content regardless of row.
+2. The canvas now derives placement from the persisted grid row: row zero uses `inside`, later rows use `outside`.
+3. Post-fix browser measurements confirmed the intended `6px` inside inset and `6px` outside gap; no P0/P1/P2 mismatch remains for this interaction.
+
+final result: passed

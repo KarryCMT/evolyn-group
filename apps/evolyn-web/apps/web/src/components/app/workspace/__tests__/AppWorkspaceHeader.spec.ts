@@ -1,9 +1,9 @@
-import { createPinia, setActivePinia } from 'pinia';
 import { shallowMount } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
 import { beforeEach, describe, expect, it } from 'vitest';
 import AppWorkspaceHeader from '../AppWorkspaceHeader.vue';
 
-describe('AppWorkspaceHeader asset modes', () => {
+describe('app workspace header asset modes', () => {
   beforeEach(() => {
     setActivePinia(createPinia());
   });

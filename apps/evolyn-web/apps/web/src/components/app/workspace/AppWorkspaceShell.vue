@@ -12,6 +12,7 @@ import type { AppIcon, WorkflowPendingTaskSummaryDto } from '~/types';
 import { computed, shallowRef } from 'vue';
 import WorkflowCenter from '~/components/workflow-center/WorkflowCenter.vue';
 import AppEmptyState from '../runtime/AppEmptyState.vue';
+import AppWorkspaceDashboardRuntime from '../runtime/AppWorkspaceDashboardRuntime.vue';
 import AppWorkspaceFormRuntime from '../runtime/AppWorkspaceFormRuntime.vue';
 import AppContentPlaceholder from './AppContentPlaceholder.vue';
 import AppWorkspaceAppSwitcherDrawer from './AppWorkspaceAppSwitcherDrawer.vue';
@@ -124,6 +125,10 @@ function toggleSidebar() {
       <AppWorkspaceFormRuntime
         v-else-if="props.activeAsset?.type === 'form' && props.mode === 'fill'"
         :app-code="props.appCode"
+        :asset="props.activeAsset"
+      />
+      <AppWorkspaceDashboardRuntime
+        v-else-if="props.activeAsset?.type === 'dashboard' && props.mode === 'fill'"
         :asset="props.activeAsset"
       />
       <!--

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { AppWorkspaceAsset, AppWorkspaceMode } from './appWorkspace.types';
 import {
   RiArrowRightDoubleFill,
   RiDatabase2Fill,
@@ -10,7 +11,6 @@ import { computed, shallowRef } from 'vue';
 import MessageCenterDrawer from '~/components/dashboard/messageCenter/MessageCenterDrawer.vue';
 import UserMenu from '~/components/navigation/UserMenu.vue';
 import { useNotificationStore } from '~/stores/notification';
-import type { AppWorkspaceAsset, AppWorkspaceMode } from './appWorkspace.types';
 
 defineOptions({ name: 'AppWorkspaceHeader' });
 

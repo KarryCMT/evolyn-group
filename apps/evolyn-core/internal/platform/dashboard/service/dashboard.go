@@ -182,6 +182,26 @@ func (s *dashboardService) Get(ctx context.Context, member *iammodel.User, code 
 	return s.detail(ctx, dashboard, app)
 }
 
+// GetRuntime 只向拥有运行查看动作的成员返回渲染所需文档，不复用管理态
+// dashboards:get 权限。发布链路开放前以当前已保存草稿作为稳定运行源。
+func (s *dashboardService) GetRuntime(ctx context.Context, member *iammodel.User, code string) (*model.RuntimeBootstrap, error) {
+	if !s.access.Permissions(ctx, member)["dashboard-actions:view"] {
+		return nil, httpx.Wrap(dashboarderrors.ErrForbidden, fmt.Errorf("member cannot view dashboard runtime"))
+	}
+	dashboard, err := s.load(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	normalized := enginedashboard.Normalize(dashboard.DraftContent)
+	if len(normalized.Issues) > 0 {
+		return nil, httpx.Wrap(dashboarderrors.ErrSchemaInvalid.WithData(map[string]any{"issues": normalized.Issues}), fmt.Errorf("saved dashboard draft invalid"))
+	}
+	return &model.RuntimeBootstrap{
+		Code: dashboard.Code, Name: dashboard.Name, ProtocolVersion: dashboard.ProtocolVersion,
+		Version: dashboard.DraftRevision, Document: model.JSONContent(normalized.Content),
+	}, nil
+}
+
 func (s *dashboardService) Update(ctx context.Context, member *iammodel.User, code string, req *model.UpdateRequest) (*model.Detail, error) {
 	if !s.access.Permissions(ctx, member)["dashboards:patch"] {
 		return nil, httpx.Wrap(dashboarderrors.ErrForbidden, fmt.Errorf("member cannot update dashboard"))

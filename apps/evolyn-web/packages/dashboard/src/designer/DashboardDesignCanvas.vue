@@ -1,15 +1,16 @@
 <script setup lang="ts" generic="TType extends string">
 import { EvolynGrid, type EvolynGridItem, type EvolynGridOptions } from '@evolyn.do/ui';
 import type { GridStack as GridStackInstance, GridStackNode } from 'gridstack';
-import { computed, markRaw, type Component, useTemplateRef } from 'vue';
+import { type Component, computed, markRaw, useTemplateRef } from 'vue';
 import {
-  createDashboardGridItems,
-  mergeDashboardWidgetLayout,
-  toDashboardWidgetContent,
   type DashboardSchema,
   type DashboardWidget,
   type DashboardWidgetContent,
+  createDashboardGridItems,
+  mergeDashboardWidgetLayout,
+  toDashboardWidgetContent,
 } from '../schema';
+import { resolveDashboardWidgetActionPlacement } from './actionPlacement';
 import DashboardDesignWidgetHost from './DashboardDesignWidgetHost.vue';
 
 const props = withDefaults(
@@ -19,11 +20,17 @@ const props = withDefaults(
     getComponentProps?: (widget: DashboardWidgetContent<TType>) => Record<string, unknown>;
     selectedWidgetId?: string | null;
     preview?: 'desktop' | 'mobile';
+    interactionMode?: 'move' | 'resize';
+    rowHeight?: number;
     disabledPresetKeys?: string[];
     dragSourceSelector?: string;
   }>(),
   {
     preview: 'desktop',
+    interactionMode: 'move',
+    rowHeight: 72,
+    getComponentProps: undefined,
+    selectedWidgetId: null,
     disabledPresetKeys: () => [],
     dragSourceSelector: '.dashboard-widget-palette__drag-source',
   },
@@ -32,6 +39,8 @@ const emit = defineEmits<{
   'update:modelValue': [value: DashboardSchema<TType>];
   remove: [id: string];
   select: [id: string];
+  edit: [id: string];
+  duplicate: [id: string];
 }>();
 
 const grid = useTemplateRef<{ getGrid: () => GridStackInstance | null }>('grid');
@@ -44,17 +53,22 @@ const editorItems = computed(() =>
 );
 const gridOptions = computed<EvolynGridOptions>(() => ({
   column: props.preview === 'desktop' ? 12 : 1,
-  cellHeight: props.preview === 'desktop' ? 72 : 92,
-  // 相邻卡片的上下边距各 8px，视觉间距为 16px。
-  margin: '8px 14px',
+  cellHeight: props.rowHeight,
+  // 行高由业务文档控制，组件间距保持紧凑以形成连续的仪表盘画布。
+  margin: '4px',
   float: true,
+  // 设计态即使没有组件也保留完整的垂直网格，作为外部拖入的命中区域。
+  minRow: 12,
+  // 移动模式仍保留卡片边缘缩放；“调整尺寸”只收紧为专用模式，避免误拖卡片位置。
+  disableDrag: props.interactionMode === 'resize',
+  disableResize: false,
   acceptWidgets: (element: Element) =>
     element instanceof HTMLElement &&
     element.matches(props.dragSourceSelector) &&
     !props.disabledPresetKeys.includes(element.dataset.widgetKey ?? ''),
   draggable: { handle: '.dashboard-widget__drag-handle' },
-  // 右侧拖宽，右下角对角手柄同时调整宽高；仅悬停时显示操作入口。
-  resizable: { handles: 'e,se', autoHide: true },
+  // 右侧拖宽，右下角对角手柄同时调整宽高；常驻手柄与参考设计保持一致。
+  resizable: { handles: 'e,se', autoHide: false },
 }));
 
 /** GridStack 返回运行时节点；回写前只保留 schema 允许持久化的布局字段。 */
@@ -74,8 +88,12 @@ function getWidgetProps(widget: DashboardWidget<TType>) {
     widgetRegistry: props.widgetRegistry,
     getComponentProps: props.getComponentProps,
     selected: widget.id === props.selectedWidgetId,
+    // 首行上方没有安全空间，操作条回落到卡片内部；其余行浮在卡片外避免遮挡内容。
+    actionPlacement: resolveDashboardWidgetActionPlacement(widget.y),
     onRemove: () => emit('remove', widget.id),
     onSelect: () => emit('select', widget.id),
+    onEdit: () => emit('edit', widget.id),
+    onDuplicate: () => emit('duplicate', widget.id),
   };
 }
 
@@ -135,7 +153,10 @@ function emitSchema(widgets: DashboardWidget<TType>[]) {
 
 <template>
   <section class="dashboard-design-canvas">
-    <div class="dashboard-design-canvas__scroll">
+    <div
+      class="dashboard-design-canvas__scroll"
+      :class="{ 'dashboard-design-canvas__scroll--mobile': preview === 'mobile' }"
+    >
       <div
         class="dashboard-design-canvas__surface"
         :class="`dashboard-design-canvas__surface--${preview}`"
@@ -155,31 +176,66 @@ function emitSchema(widgets: DashboardWidget<TType>[]) {
 </template>
 
 <style scoped lang="scss">
+/* Vue 的 :deep() 用于定制 GridStack 运行时生成的拖拽与缩放节点。 */
+/* stylelint-disable selector-pseudo-class-no-unknown */
 .dashboard-design-canvas {
   box-sizing: border-box;
   flex: 1;
   width: 100%;
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   background: var(--el-bg-color-page);
 
   &__scroll {
+    box-sizing: border-box;
     width: 100%;
+    min-width: 0;
     height: 100%;
-    overflow: auto;
+    overflow: hidden auto;
   }
+
+  /* 窄屏预览有固定最小宽度，仅该模式允许横向查看完整画布。 */
+  &__scroll--mobile {
+    overflow-x: auto;
+  }
+
   &__surface {
     box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    height: 100%;
     min-height: 100%;
-    padding: 12px;
+    padding: 8px;
   }
+
   &__surface--desktop {
     min-width: 0;
   }
+
   &__surface--mobile {
+    width: 100%;
     min-width: 420px;
     max-width: 480px;
     margin: 0 auto;
+  }
+
+  /* GridStack 必须收敛到画布内容宽度，避免缩放手柄制造像素级横向溢出。 */
+  :deep(.evolyn-grid) {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* 设计态允许操作条越过卡片边界，业务内容由宿主内部的裁切层负责收口。 */
+  :deep(.evolyn-grid .grid-stack-item-content) {
+    overflow: visible !important;
+  }
+
+  /* 浮在卡片外的操作条需要高于相邻网格项，选中和键盘聚焦状态保持一致。 */
+  :deep(.evolyn-grid .grid-stack-item:has(.dashboard-design-widget--selected)),
+  :deep(.evolyn-grid .grid-stack-item:focus-within),
+  :deep(.evolyn-grid .grid-stack-item:hover) {
+    z-index: 10;
   }
 
   /* 拖拽把手只在设计画布显示，成员端保持静态、干净的卡片外观。 */
@@ -224,8 +280,8 @@ function emitSchema(widgets: DashboardWidget<TType>[]) {
       height: 12px;
       content: '';
       background: var(--el-text-color-secondary);
-      clip-path: polygon(100% 0, 100% 100%, 0 100%);
       opacity: 0.5;
+      clip-path: polygon(100% 0, 100% 100%, 0 100%);
     }
   }
 

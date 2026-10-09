@@ -318,140 +318,166 @@ function patchTableSortDirection(direction: 'asc' | 'desc') {
 </template>
 
 <style scoped>
+/* Vue 的 :deep() 用于保证抽屉中的 Element Plus 控件占满可用宽度。 */
+/* stylelint-disable selector-pseudo-class-no-unknown */
 .properties-panel {
   display: flex;
-  flex: 0 0 286px;
   flex-direction: column;
+  width: 100%;
+  height: 100%;
   min-height: 0;
-  color: #172033;
-  background: #fff;
-  border-left: 1px solid rgba(23, 32, 51, 0.09);
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color);
 }
+
 .properties-panel__header {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  padding: 22px 20px 17px;
-  border-bottom: 1px solid rgba(23, 32, 51, 0.07);
+  padding: 22px 52px 17px 20px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
+
 .properties-panel__header span,
 .properties-panel__empty > span {
-  color: #0f8f84;
   font:
     800 9px/1 ui-monospace,
     monospace;
+  color: var(--el-color-primary);
   letter-spacing: 0.15em;
 }
+
 .properties-panel__header strong {
   font-size: 16px;
 }
+
 .properties-panel__body {
   padding: 20px;
+  overflow: auto;
 }
+
 .properties-panel__type {
   display: flex;
   flex-direction: column;
   gap: 5px;
   padding: 14px;
   margin-bottom: 20px;
-  background: #f4f7f9;
+  background: var(--el-fill-color-light);
   border-radius: 11px;
 }
+
 .properties-panel__type span {
   font-size: 13px;
   font-weight: 700;
 }
+
 .properties-panel__type code {
   overflow: hidden;
-  color: #8994a5;
-  font-size: 10px;
   text-overflow: ellipsis;
+  font-size: 10px;
+  color: var(--el-text-color-secondary);
 }
+
 .properties-panel__layout {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 6px;
 }
+
 .properties-panel__switches {
   display: flex;
   flex-wrap: wrap;
   gap: 8px 14px;
 }
+
 .properties-panel__layout span {
   display: flex;
   flex-direction: column;
   gap: 3px;
   padding: 9px;
   text-align: center;
-  background: #f6f8fa;
+  background: var(--el-fill-color-light);
   border-radius: 8px;
 }
+
 .properties-panel__layout small {
-  color: #99a3b2;
   font:
     700 9px/1 ui-monospace,
     monospace;
+  color: var(--el-text-color-placeholder);
 }
+
 .properties-panel__layout strong {
   font-size: 13px;
 }
+
 .properties-panel__hint {
-  color: #8a95a7;
   font-size: 11px;
   line-height: 1.6;
+  color: var(--el-text-color-secondary);
 }
+
 .properties-panel__delete {
   margin-top: 12px;
 }
+
 .properties-panel__empty {
   display: flex;
-  padding: 34px 24px;
   flex-direction: column;
   gap: 9px;
+  padding: 34px 24px;
 }
+
 .properties-panel__empty strong {
   font-size: 15px;
 }
+
 .properties-panel__empty p {
   margin: 0;
-  color: #8b95a7;
   font-size: 12px;
   line-height: 1.6;
+  color: var(--el-text-color-secondary);
 }
+
 .properties-panel__issues {
   display: flex;
+  flex-direction: column;
+  gap: 8px;
   max-height: 230px;
   padding: 16px 18px;
   margin-top: auto;
   overflow: auto;
-  flex-direction: column;
-  gap: 8px;
-  background: #fff7f3;
-  border-top: 1px solid #f1d0c5;
+  background: var(--el-color-danger-light-9);
+  border-top: 1px solid var(--el-color-danger-light-7);
 }
+
 .properties-panel__issues > strong {
-  color: #a74731;
   font-size: 12px;
+  color: var(--el-color-danger);
 }
+
 .properties-panel__issues button {
   display: flex;
-  padding: 9px;
-  text-align: left;
-  color: #7f3827;
-  cursor: pointer;
-  background: #fff;
-  border: 1px solid #efd5cc;
-  border-radius: 8px;
   flex-direction: column;
   gap: 4px;
+  padding: 9px;
+  color: var(--el-color-danger-dark-2);
+  text-align: left;
+  cursor: pointer;
+  background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-color-danger-light-7);
+  border-radius: 8px;
 }
+
 .properties-panel__issues code {
   font-size: 9px;
 }
+
 .properties-panel__issues span {
   font-size: 11px;
 }
+
 .is-issue :deep(.el-input__wrapper) {
-  box-shadow: 0 0 0 1px #d6533c inset;
+  box-shadow: 0 0 0 1px var(--el-color-danger) inset;
 }
 </style>

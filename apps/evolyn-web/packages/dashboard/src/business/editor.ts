@@ -24,6 +24,21 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
 
   function addWidget(descriptor: BusinessDashboardWidgetDescriptor) {
     const layout = findAvailablePosition(options.document.value.widgets, descriptor.defaultLayout);
+    return addWidgetAtLayout(descriptor, layout);
+  }
+
+  /** 外部拖入已由 GridStack 完成碰撞计算，此处只收敛边界并生成正式业务组件。 */
+  function addWidgetAtLayout(
+    descriptor: BusinessDashboardWidgetDescriptor,
+    requestedLayout: BusinessDashboardLayout,
+  ) {
+    const width = Math.min(Math.max(requestedLayout.w, 1), BUSINESS_DASHBOARD_COLUMNS);
+    const layout: BusinessDashboardLayout = {
+      x: Math.min(Math.max(requestedLayout.x, 0), BUSINESS_DASHBOARD_COLUMNS - width),
+      y: Math.max(requestedLayout.y, 0),
+      w: width,
+      h: Math.max(requestedLayout.h, 1),
+    };
     const widget: BusinessDashboardWidget = {
       id: options.createID?.() ?? createWidgetID(),
       type: descriptor.type,
@@ -33,6 +48,7 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
     } as BusinessDashboardWidget;
     replaceWidgets([...options.document.value.widgets, widget]);
     selectedWidgetId.value = widget.id;
+    return widget.id;
   }
 
   function selectWidget(id: string | null) {
@@ -52,6 +68,19 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
           : widget,
       ) as BusinessDashboardWidget[],
     );
+  }
+
+  /** 复制组件时重新计算空闲位置，避免新副本与原组件完全重叠。 */
+  function duplicateWidget(id: string) {
+    const source = options.document.value.widgets.find((widget) => widget.id === id);
+    if (!source) return;
+    const layout = findAvailablePosition(options.document.value.widgets, source.layout);
+    const widget = structuredClone(source);
+    widget.id = options.createID?.() ?? createWidgetID();
+    widget.title = `${source.title || '未命名组件'} 副本`;
+    widget.layout = layout;
+    replaceWidgets([...options.document.value.widgets, widget]);
+    selectedWidgetId.value = widget.id;
   }
 
   function updateLayout(id: string, layout: BusinessDashboardLayout) {
@@ -75,6 +104,19 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
   function removeWidget(id: string) {
     replaceWidgets(options.document.value.widgets.filter((widget) => widget.id !== id));
     if (selectedWidgetId.value === id) selectedWidgetId.value = null;
+  }
+
+  /** 桌面画布参数属于业务文档的一部分，更新时保持不可变数据流以正确驱动 dirty 状态。 */
+  function updateDesktopSettings(
+    patch: Partial<BusinessDashboardDocument['settings']['desktop']>,
+  ) {
+    options.document.value = {
+      ...options.document.value,
+      settings: {
+        ...options.document.value.settings,
+        desktop: { ...options.document.value.settings.desktop, ...patch },
+      },
+    };
   }
 
   function addFormDataset(formCode: string, name: string) {
@@ -125,11 +167,14 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
     selectedWidgetId,
     selectedWidget,
     addWidget,
+    addWidgetAtLayout,
     selectWidget,
     updateWidget,
+    duplicateWidget,
     updateLayout,
     replaceLayouts,
     removeWidget,
+    updateDesktopSettings,
     addFormDataset,
     updateDataset,
     removeDataset,

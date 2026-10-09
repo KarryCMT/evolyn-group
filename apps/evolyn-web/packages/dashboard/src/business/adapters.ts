@@ -5,6 +5,12 @@ import type {
   BusinessDashboardTableWidget,
 } from './types.js';
 
+// VTable 使用 Canvas 绘制单元格，无法直接解析组件 CSS 变量，因此在适配层按主题提供实色。
+const TABLE_THEME_COLORS = {
+  light: { striped: '#f8fafb', border: '#e4e9ed' },
+  dark: { striped: '#202225', border: '#414243' },
+} as const;
+
 /** 平台图表语义到 VChart 的唯一适配点；持久化文档中禁止出现原生 spec。 */
 export function buildBusinessChartSpec(
   widget: BusinessDashboardChartWidget,
@@ -43,7 +49,9 @@ export function buildBusinessChartSpec(
 export function buildBusinessTableAdapter(
   widget: BusinessDashboardTableWidget,
   result: BusinessDashboardDatasetResult,
+  theme: 'light' | 'dark' = 'light',
 ): { columns: EvolynTableColumn[]; options: EvolynTableOptions } {
+  const colors = TABLE_THEME_COLORS[theme];
   const metadata = new Map(result.columns.map((item) => [item.key, item]));
   const rowHeight = { compact: 32, default: 40, comfortable: 48 }[widget.settings.display.density];
   const columns: EvolynTableColumn[] = widget.settings.columns.map((item) => ({
@@ -54,8 +62,10 @@ export function buildBusinessTableAdapter(
     sortable: widget.settings.sorts.some((sort) => sort.field.fieldId === item.field.fieldId),
     format: (record) => formatTableValue(record[item.field.fieldId], item.format),
     style: (args: { row: number }) => ({
-      ...(widget.settings.display.striped && args.row % 2 === 0 ? { bgColor: '#f8fafb' } : {}),
-      borderColor: '#e4e9ed',
+      ...(widget.settings.display.striped && args.row % 2 === 0
+        ? { bgColor: colors.striped }
+        : {}),
+      borderColor: colors.border,
       borderLineWidth: widget.settings.display.bordered ? 1 : 0,
     }),
   }));

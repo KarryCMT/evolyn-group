@@ -3,17 +3,35 @@ import type { DashboardSchema } from '../schema/types.js';
 import { computed, markRaw } from 'vue';
 import DashboardDesignCanvas from '../designer/DashboardDesignCanvas.vue';
 import BusinessDashboardWidgetView from './BusinessDashboardWidget.vue';
-import type { BusinessDashboardDocument, BusinessDashboardWidget } from './types.js';
+import type {
+  BusinessDashboardDocument,
+  BusinessDashboardWidget,
+  BusinessDashboardWidgetType,
+} from './types.js';
 
-const props = defineProps<{
-  document: BusinessDashboardDocument;
-  selectedWidgetId: string | null;
-  issueWidgetIds?: string[];
-}>();
+const props = withDefaults(
+  defineProps<{
+    document: BusinessDashboardDocument;
+    selectedWidgetId: string | null;
+    issueWidgetIds?: string[];
+    preview?: 'desktop' | 'mobile';
+    interactionMode?: 'move' | 'resize';
+    theme?: 'light' | 'dark';
+  }>(),
+  {
+    issueWidgetIds: () => [],
+    preview: 'desktop',
+    interactionMode: 'move',
+    theme: 'light',
+  },
+);
 const emit = defineEmits<{
   'update-layouts': [value: Array<{ id: string; layout: BusinessDashboardWidget['layout'] }>];
   remove: [id: string];
   select: [id: string];
+  edit: [id: string];
+  duplicate: [id: string];
+  drop: [type: BusinessDashboardWidgetType, layout: BusinessDashboardWidget['layout']];
 }>();
 
 const widgetRegistry = {
@@ -32,17 +50,25 @@ const schema = computed<DashboardSchema<'chart' | 'table'>>(() => ({
 }));
 
 function updateSchema(value: DashboardSchema<'chart' | 'table'>) {
+  const existingIDs = new Set(props.document.widgets.map((widget) => widget.id));
+  for (const widget of value.widgets) {
+    if (!existingIDs.has(widget.id)) {
+      emit('drop', widget.type, { x: widget.x, y: widget.y, w: widget.w, h: widget.h });
+    }
+  }
   emit(
     'update-layouts',
-    value.widgets.map((widget) => ({
-      id: widget.id,
-      layout: { x: widget.x, y: widget.y, w: widget.w, h: widget.h },
-    })),
+    value.widgets
+      .filter((widget) => existingIDs.has(widget.id))
+      .map((widget) => ({
+        id: widget.id,
+        layout: { x: widget.x, y: widget.y, w: widget.w, h: widget.h },
+      })),
   );
 }
 
 function componentProps(content: { config?: Record<string, unknown> }) {
-  return { widget: content.config?.businessWidget };
+  return { widget: content.config?.businessWidget, theme: props.theme };
 }
 </script>
 
@@ -53,9 +79,14 @@ function componentProps(content: { config?: Record<string, unknown> }) {
       :widget-registry="widgetRegistry"
       :get-component-props="componentProps"
       :selected-widget-id="selectedWidgetId"
+      :preview="preview"
+      :interaction-mode="interactionMode"
+      :row-height="document.settings.desktop.rowHeight"
       @update:model-value="updateSchema"
       @remove="emit('remove', $event)"
       @select="emit('select', $event)"
+      @edit="emit('edit', $event)"
+      @duplicate="emit('duplicate', $event)"
     />
     <div v-if="document.widgets.length === 0" class="business-canvas__empty">
       <span class="business-canvas__empty-index">01</span>
@@ -71,55 +102,62 @@ function componentProps(content: { config?: Record<string, unknown> }) {
 <style scoped>
 .business-canvas {
   position: relative;
+  display: flex;
   flex: 1;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
-  background-image: radial-gradient(circle at 1px 1px, rgba(32, 45, 69, 0.12) 1px, transparent 0);
-  background-size: 22px 22px;
+  background: var(--el-bg-color-page);
 }
+
 .business-canvas__empty {
   position: absolute;
   top: 50%;
   left: 50%;
   width: min(420px, calc(100% - 64px));
   padding: 34px;
-  color: #263248;
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(38, 50, 72, 0.12);
+  color: var(--el-text-color-primary);
+  pointer-events: none;
+  background: color-mix(in srgb, var(--el-bg-color) 92%, transparent);
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 18px;
-  box-shadow: 0 20px 60px rgba(24, 38, 61, 0.1);
-  transform: translate(-50%, -50%);
+  box-shadow: var(--el-box-shadow-dark);
   backdrop-filter: blur(12px);
+  transform: translate(-50%, -50%);
 }
+
 .business-canvas__empty-index {
   display: block;
   margin-bottom: 18px;
-  color: #0f8f84;
   font:
     800 12px/1 ui-monospace,
     monospace;
+  color: var(--el-color-primary);
   letter-spacing: 0.16em;
 }
+
 .business-canvas__empty strong {
   font-size: 22px;
   letter-spacing: -0.02em;
 }
+
 .business-canvas__empty p {
   max-width: 340px;
   margin: 10px 0 0;
-  color: #748096;
   font-size: 13px;
   line-height: 1.7;
+  color: var(--el-text-color-secondary);
 }
+
 .business-canvas__issue-count {
   position: absolute;
   right: 18px;
   bottom: 18px;
   padding: 8px 12px;
-  color: #a54029;
-  background: #fff2ed;
-  border: 1px solid #f0c5b8;
-  border-radius: 999px;
   font-size: 12px;
+  color: var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+  border: 1px solid var(--el-color-danger-light-7);
+  border-radius: 999px;
 }
 </style>

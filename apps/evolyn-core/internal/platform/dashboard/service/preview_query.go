@@ -24,15 +24,33 @@ func (s *dashboardService) PreviewWidgetQuery(ctx context.Context, member *iammo
 	if req == nil || req.DraftRevision <= 0 || strings.TrimSpace(widgetID) == "" {
 		return nil, httpx.Wrap(dashboarderrors.ErrQueryInvalid, fmt.Errorf("invalid preview query request"))
 	}
-	if len(req.FilterValues) > 0 {
+	return s.querySavedDashboardWidget(ctx, member, code, widgetID, req.DraftRevision, req.Page, req.FilterValues)
+}
+
+// RuntimeWidgetQuery 与设计预览共用服务端已保存文档和资源护栏，但只接受
+// dashboard-actions:view。浏览器不能提交 Dataset 或 Query AST。
+func (s *dashboardService) RuntimeWidgetQuery(ctx context.Context, member *iammodel.User, code, widgetID string, req *model.RuntimeQueryRequest) (*model.PreviewQueryResult, error) {
+	if !s.access.Permissions(ctx, member)["dashboard-actions:view"] {
+		return nil, httpx.Wrap(dashboarderrors.ErrForbidden, fmt.Errorf("member cannot query dashboard runtime"))
+	}
+	if req == nil || req.Version <= 0 || strings.TrimSpace(widgetID) == "" {
+		return nil, httpx.Wrap(dashboarderrors.ErrQueryInvalid, fmt.Errorf("invalid runtime query request"))
+	}
+	return s.querySavedDashboardWidget(ctx, member, code, widgetID, req.Version, req.Page, req.FilterValues)
+}
+
+// querySavedDashboardWidget 从服务端文档恢复可信查询。version 既防止资产切换
+// 的迟到请求，也确保定义与组件结果来自同一个已保存修订。
+func (s *dashboardService) querySavedDashboardWidget(ctx context.Context, member *iammodel.User, code, widgetID string, version int64, page int, filterValues map[string]any) (*model.PreviewQueryResult, error) {
+	if len(filterValues) > 0 {
 		return nil, httpx.Wrap(dashboarderrors.ErrQueryInvalid, fmt.Errorf("runtime filters are not declared in dashboard v1"))
 	}
 	dashboard, err := s.load(ctx, code)
 	if err != nil {
 		return nil, err
 	}
-	if dashboard.DraftRevision != req.DraftRevision {
-		return nil, httpx.Wrap(dashboarderrors.ErrDraftConflict, fmt.Errorf("preview revision stale"))
+	if dashboard.DraftRevision != version {
+		return nil, httpx.Wrap(dashboarderrors.ErrDraftConflict, fmt.Errorf("dashboard revision stale"))
 	}
 	normalized := enginedashboard.Normalize(dashboard.DraftContent)
 	if len(normalized.Issues) > 0 {
@@ -56,7 +74,6 @@ func (s *dashboardService) PreviewWidgetQuery(ctx context.Context, member *iammo
 		for _, sort := range settings.Sorts {
 			document.Sorts = append(document.Sorts, queryengine.Sort{Field: sort.Field.FieldID, Direction: sort.Direction})
 		}
-		page := req.Page
 		if page < 1 {
 			page = 1
 		}

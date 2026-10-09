@@ -97,6 +97,30 @@ func (d *DashboardController) Get(c *gin.Context) {
 	httpx.ResponseSuccess(c, detail)
 }
 
+// GetRuntime godoc
+// @Summary 获取仪表盘运行时定义
+// @Description 仅返回成员运行页需要的已保存文档与版本口令，不暴露管理态字段
+// @Produce json
+// @Tags 仪表盘运行时
+// @Security JWT
+// @Param code path string true "dashboard_ 公开编码"
+// @Success 200 {object} httpx.Response{data=dashboardmodel.RuntimeBootstrap}
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN"
+// @Failure 404 {object} httpx.Response "errCode=DASHBOARD_NOT_FOUND"
+// @Router /api/v1/dashboards/{code}/runtime [get]
+func (d *DashboardController) GetRuntime(c *gin.Context) {
+	code, ok := dashboardCode(c)
+	if !ok {
+		return
+	}
+	bootstrap, err := d.service.GetRuntime(c.Request.Context(), ginctx.GetUser(c), code)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, bootstrap)
+}
+
 // Update godoc
 // @Summary 更新仪表盘展示信息或移动菜单节点
 // @Accept json
@@ -235,6 +259,42 @@ func (d *DashboardController) PreviewWidgetQuery(c *gin.Context) {
 		return
 	}
 	result, err := d.service.PreviewWidgetQuery(c.Request.Context(), ginctx.GetUser(c), code, c.Param("widgetId"), req)
+	d.respondWidgetQuery(c, startedAt, code, c.Param("widgetId"), req.DraftRevision, "preview", result, err)
+}
+
+// RuntimeWidgetQuery godoc
+// @Summary 查询单个运行时组件数据
+// @Description 查询语义仅从运行时 version 对应的服务端已保存文档恢复
+// @Accept json
+// @Produce json
+// @Tags 仪表盘运行时
+// @Security JWT
+// @Param code path string true "dashboard_ 公开编码"
+// @Param widgetId path string true "组件稳定 ID"
+// @Param query body dashboardmodel.RuntimeQueryRequest true "运行时版本口令与分页"
+// @Success 200 {object} httpx.Response{data=dashboardmodel.PreviewQueryResult}
+// @Failure 400 {object} httpx.Response "errCode=DASHBOARD_QUERY_INVALID"
+// @Failure 409 {object} httpx.Response "errCode=DASHBOARD_DRAFT_CONFLICT"
+// @Failure 422 {object} httpx.Response "errCode=DASHBOARD_QUERY_LIMIT_EXCEEDED"
+// @Router /api/v1/dashboards/{code}/widgets/{widgetId}/query [post]
+func (d *DashboardController) RuntimeWidgetQuery(c *gin.Context) {
+	startedAt := time.Now()
+	code, ok := dashboardCode(c)
+	if !ok {
+		return
+	}
+	req := new(dashboardmodel.RuntimeQueryRequest)
+	if err := c.BindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := d.service.RuntimeWidgetQuery(c.Request.Context(), ginctx.GetUser(c), code, c.Param("widgetId"), req)
+	d.respondWidgetQuery(c, startedAt, code, c.Param("widgetId"), req.Version, "runtime", result, err)
+}
+
+// respondWidgetQuery 统一运行态和设计预览的指标、Trace 与 HTTP 映射，避免
+// 两条入口在资源治理和可观测性口径上逐步分叉。
+func (d *DashboardController) respondWidgetQuery(c *gin.Context, startedAt time.Time, code, widgetID string, version int64, source string, result *dashboardmodel.PreviewQueryResult, err error) {
 	resultClass := dashboardQueryResultClass(err)
 	rows := 0
 	if result != nil {
@@ -254,8 +314,9 @@ func (d *DashboardController) PreviewWidgetQuery(c *gin.Context) {
 	ginctx.TraceStep(c, "dashboard widget query",
 		trace.Field{Key: "tenantId", Value: tenantID},
 		trace.Field{Key: "dashboardCode", Value: code},
-		trace.Field{Key: "widgetId", Value: c.Param("widgetId")},
-		trace.Field{Key: "draftRevision", Value: req.DraftRevision},
+		trace.Field{Key: "widgetId", Value: widgetID},
+		trace.Field{Key: "source", Value: source},
+		trace.Field{Key: "version", Value: version},
 		trace.Field{Key: "result", Value: resultClass},
 		trace.Field{Key: "rowCount", Value: rows},
 		trace.Field{Key: "durationMs", Value: duration.Milliseconds()},
@@ -316,11 +377,13 @@ func (d *DashboardController) Delete(c *gin.Context) {
 func (d *DashboardController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/apps/code/:code/dashboards", d.Precreate)
 	api.GET("/dashboards/:code", d.Get)
+	api.GET("/dashboards/:code/runtime", d.GetRuntime)
 	api.PATCH("/dashboards/:code", d.Update)
 	api.PUT("/dashboards/:code/draft", d.SaveDraft)
 	api.GET("/dashboards/:code/data-sources/forms", d.ListFormDataSources)
 	api.GET("/dashboards/:code/data-sources/forms/:formCode/fields", d.GetFormFieldCatalog)
 	api.POST("/dashboards/:code/widgets/:widgetId/preview-query", d.PreviewWidgetQuery)
+	api.POST("/dashboards/:code/widgets/:widgetId/query", d.RuntimeWidgetQuery)
 	api.DELETE("/dashboards/:code", d.Delete)
 }
 

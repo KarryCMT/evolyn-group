@@ -5,6 +5,7 @@ import type {
   DashboardDraftSaveResult,
   DashboardFormDataSource,
   DashboardFormFieldCatalog,
+  DashboardRuntimeBootstrap,
 } from '~/types';
 import { http } from '@evolyn.do/utils';
 
@@ -28,8 +29,16 @@ export function precreateDashboard(
   return http.post(`/apps/code/${encodeURIComponent(appCode)}/dashboards`, payload);
 }
 
-export function getDashboard(code: string): Promise<DashboardDetail> {
-  return http.get(`/dashboards/${encodeURIComponent(code)}`);
+export function getDashboard(code: string, signal?: AbortSignal): Promise<DashboardDetail> {
+  return http.get(`/dashboards/${encodeURIComponent(code)}`, undefined, signal);
+}
+
+/** 成员运行页只读取最小定义，不依赖管理态 dashboards:get 权限。 */
+export function getDashboardRuntime(
+  code: string,
+  signal?: AbortSignal,
+): Promise<DashboardRuntimeBootstrap> {
+  return http.get(`/dashboards/${encodeURIComponent(code)}/runtime`, undefined, signal);
 }
 
 export function updateDashboard(
@@ -73,9 +82,26 @@ export function previewDashboardWidget(
   widgetId: string,
   draftRevision: number,
   page = 1,
+  signal?: AbortSignal,
 ): Promise<BusinessDashboardDatasetResult> {
   return http.post(
     `/dashboards/${encodeURIComponent(code)}/widgets/${encodeURIComponent(widgetId)}/preview-query`,
     { draftRevision, page, filterValues: {} },
+    { signal },
+  );
+}
+
+/** 运行态查询由 dashboard-actions:view 授权，查询语义始终从服务端定义恢复。 */
+export function queryDashboardWidget(
+  code: string,
+  widgetId: string,
+  version: number,
+  page = 1,
+  signal?: AbortSignal,
+): Promise<BusinessDashboardDatasetResult> {
+  return http.post(
+    `/dashboards/${encodeURIComponent(code)}/widgets/${encodeURIComponent(widgetId)}/query`,
+    { version, page, filterValues: {} },
+    { signal },
   );
 }

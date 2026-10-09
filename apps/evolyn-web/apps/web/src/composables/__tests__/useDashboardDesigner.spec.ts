@@ -102,6 +102,20 @@ describe('useDashboardDesigner', () => {
     expect(designer.focusedIssuePath.value).toBe('widgets[0].layout');
     expect(designer.editingDocument.value.widgets).toHaveLength(1);
   });
+
+  it('patches asset metadata without replacing unsaved canvas content', async () => {
+    const designer = useDashboardDesigner(gateway(vi.fn()));
+    await designer.load('dashboard_demo');
+    designer.addWidget(businessDashboardWidgetDescriptors[0]);
+    const localDocument = designer.editingDocument.value;
+
+    designer.patchDetail({ name: '销售分析看板', updatedAt: '2026-10-09 08:00:00' });
+
+    expect(designer.detail.value?.name).toBe('销售分析看板');
+    expect(designer.editingDocument.value).toBe(localDocument);
+    expect(designer.editingDocument.value.widgets).toHaveLength(1);
+    expect(designer.isDirty.value).toBe(true);
+  });
 });
 
 describe('prepareDashboardPreview', () => {

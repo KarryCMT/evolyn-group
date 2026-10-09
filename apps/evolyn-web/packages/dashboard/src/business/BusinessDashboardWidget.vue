@@ -5,10 +5,14 @@ import { computed } from 'vue';
 import { buildBusinessChartSpec, buildBusinessTableAdapter } from './adapters.js';
 
 defineOptions({ name: 'BusinessDashboardWidget' });
-const props = defineProps<{
-  widget: BusinessDashboardWidget;
-  runtime?: BusinessDashboardWidgetRuntime;
-}>();
+const props = withDefaults(
+  defineProps<{
+    widget: BusinessDashboardWidget;
+    runtime?: BusinessDashboardWidgetRuntime;
+    theme?: 'light' | 'dark';
+  }>(),
+  { runtime: undefined, theme: 'light' },
+);
 const emit = defineEmits<{
   retry: [widgetId: string];
   pageChange: [widgetId: string, page: number];
@@ -21,7 +25,7 @@ const chartSpec = computed(() =>
 );
 const tableAdapter = computed(() =>
   props.widget.type === 'table' && props.runtime?.result
-    ? buildBusinessTableAdapter(props.widget, props.runtime.result)
+    ? buildBusinessTableAdapter(props.widget, props.runtime.result, props.theme)
     : null,
 );
 </script>
@@ -59,7 +63,7 @@ const tableAdapter = computed(() =>
       <span>调整筛选条件或确认数据源中已有记录。</span>
     </div>
     <div v-else-if="chartSpec" class="business-widget__content">
-      <EvolynChart :spec="chartSpec" width="100%" height="100%" />
+      <EvolynChart :spec="chartSpec" :theme="theme" width="100%" height="100%" />
     </div>
     <div
       v-else-if="tableAdapter && runtime?.result"
@@ -69,6 +73,7 @@ const tableAdapter = computed(() =>
         :columns="tableAdapter.columns"
         :records="runtime.result.rows"
         :options="tableAdapter.options"
+        :theme="theme"
         :empty-text="widget.type === 'table' ? widget.settings.display.emptyText : '暂无数据'"
         width="100%"
         height="calc(100% - 34px)"
@@ -100,98 +105,116 @@ const tableAdapter = computed(() =>
 <style scoped>
 .business-widget {
   box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
-  padding: 18px;
+  padding: 12px;
   overflow: hidden;
-  color: #172033;
-  background: #fff;
-  border: 1px solid rgba(23, 32, 51, 0.08);
-  border-radius: 14px;
-  box-shadow: 0 10px 30px rgba(33, 48, 77, 0.07);
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 2px;
 }
+
 .business-widget__header {
   display: flex;
-  align-items: baseline;
+  flex: 0 0 auto;
   gap: 10px;
+  align-items: baseline;
+  min-width: 0;
 }
+
 .business-widget__eyebrow {
-  color: #0f8f84;
-  font:
-    700 10px/1 ui-monospace,
-    monospace;
-  letter-spacing: 0.12em;
+  display: none;
 }
+
 .business-widget__title {
   overflow: hidden;
-  font-size: 14px;
   text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 600;
   white-space: nowrap;
 }
+
 .business-widget__content,
 .business-widget__state {
   position: relative;
+  box-sizing: border-box;
   display: flex;
-  height: calc(100% - 34px);
-  margin-top: 16px;
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  margin-top: 8px;
   overflow: hidden;
-  color: #8b95a7;
-  background: #f5f7fa;
-  border-radius: 8px;
+  color: var(--el-text-color-secondary);
+  background: var(--el-fill-color-light);
+  border-radius: 0;
 }
+
 .business-widget__state {
-  align-items: center;
-  justify-content: center;
   flex-direction: column;
   gap: 6px;
+  align-items: center;
+  justify-content: center;
   padding: 14px;
   text-align: center;
 }
+
 .business-widget__state strong {
-  color: #536075;
   font-size: 12px;
+  color: var(--el-text-color-regular);
 }
+
 .business-widget__state span {
   font-size: 11px;
 }
+
 .business-widget__state button {
   padding: 5px 11px;
-  color: #fff;
+  color: var(--el-color-white);
   cursor: pointer;
-  background: #0f8f84;
+  background: var(--el-color-primary);
   border: 0;
   border-radius: 6px;
 }
+
 .business-widget__state--error strong {
-  color: #b54734;
+  color: var(--el-color-danger);
 }
+
 .business-widget__content {
   display: block;
-  background: #fff;
+  background: var(--el-bg-color);
 }
+
 .business-widget__content--table {
   display: flex;
   flex-direction: column;
 }
+
 .business-widget__pager {
   display: flex;
-  height: 34px;
+  gap: 10px;
   align-items: center;
   justify-content: flex-end;
-  gap: 10px;
-  color: #68758a;
+  height: 34px;
   font-size: 11px;
+  color: var(--el-text-color-secondary);
 }
+
 .business-widget__pager button {
   padding: 3px 7px;
-  color: #0f766e;
+  color: var(--el-color-primary);
   cursor: pointer;
   background: transparent;
-  border: 1px solid #d7e0e6;
+  border: 1px solid var(--el-border-color);
   border-radius: 5px;
 }
+
 .business-widget__pager button:disabled {
-  color: #aab2bf;
+  color: var(--el-text-color-disabled);
   cursor: not-allowed;
 }
 </style>

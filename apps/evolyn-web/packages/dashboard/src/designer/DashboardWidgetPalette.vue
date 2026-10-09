@@ -4,9 +4,9 @@
   generic="TType extends string, TPreset extends DashboardWidgetPreset<TType>"
 >
 import { ElScrollbar } from 'element-plus';
-import { GridStack as GridStackCore } from 'gridstack';
-import { computed, nextTick, onMounted } from 'vue';
+import { computed, onMounted } from 'vue';
 import type { DashboardWidgetContent, DashboardWidgetPreset } from '../schema';
+import { setupDashboardWidgetDragSources } from './drag.js';
 
 const props = withDefaults(
   defineProps<{
@@ -18,6 +18,7 @@ const props = withDefaults(
   {
     disabledPresetKeys: () => [],
     widgetComponent: 'DashboardDesignWidgetHost',
+    getWidgetProps: undefined,
   },
 );
 const emit = defineEmits<{
@@ -35,46 +36,13 @@ function addPreset(preset: TPreset) {
   emit('add', preset);
 }
 
-/**
- * 与 DashboardDesignCanvas 的默认 dragSourceSelector 对齐。
- * 业务应用通常只传预设，GridStack 的拖放协议和设计器 Widget Host 均在包内维护。
- */
-async function setupDragSources() {
-  await nextTick();
-  const widgets = props.presets.map((preset) => {
-    const widget = toWidgetContent(preset);
-    return {
-      id: widget.id,
-      x: 0,
-      y: 0,
-      w: preset.w,
-      h: preset.h,
-      minW: preset.minW,
-      minH: preset.minH,
-      maxW: preset.maxW,
-      maxH: preset.maxH,
-      component: props.widgetComponent,
-      props: props.getWidgetProps?.(widget) ?? { widget },
-    };
-  });
-
-  GridStackCore.setupDragIn(
-    '.dashboard-widget-palette__drag-source',
-    { appendTo: 'body', helper: 'clone' },
-    widgets,
-  );
-}
-
-function toWidgetContent(preset: DashboardWidgetPreset<TType>): DashboardWidgetContent<TType> {
-  return {
-    id: `palette-${preset.key}`,
-    type: preset.type,
-    title: preset.title,
-    config: preset.config,
-  };
-}
-
-onMounted(setupDragSources);
+onMounted(() =>
+  setupDashboardWidgetDragSources({
+    presets: props.presets,
+    widgetComponent: props.widgetComponent,
+    getWidgetProps: props.getWidgetProps,
+  }),
+);
 </script>
 
 <template>
@@ -108,9 +76,9 @@ onMounted(setupDragSources);
 
 <style scoped lang="scss">
 .dashboard-widget-palette {
-  flex: 0 0 168px;
   box-sizing: border-box;
   display: flex;
+  flex: 0 0 168px;
   flex-direction: column;
   min-height: 0;
   padding: 14px 12px;
@@ -124,43 +92,47 @@ onMounted(setupDragSources);
     margin-bottom: 8px;
     font-size: var(--el-font-size-base);
   }
+
   &__scrollbar {
     flex: 1;
     min-height: 0;
   }
+
   &__list {
     display: flex;
     flex-direction: column;
     gap: 6px;
   }
+
   &__item {
     box-sizing: border-box;
     display: flex;
-    align-items: center;
     gap: 8px;
+    align-items: center;
     width: 100%;
     height: var(--el-component-size);
-    margin: 0;
     padding: 0 15px;
-    cursor: grab;
+    margin: 0;
     color: var(--el-text-color-regular);
+    cursor: grab;
     background: var(--el-fill-color-light);
     border-radius: var(--el-border-radius-base);
 
     &:hover,
     &:focus-visible {
       color: var(--el-color-primary);
-      background: var(--el-color-primary-light-9);
       outline: none;
+      background: var(--el-color-primary-light-9);
     }
 
     &:active {
       cursor: grabbing;
     }
+
     &--disabled {
+      color: var(--el-text-color-disabled);
       pointer-events: none;
       cursor: not-allowed;
-      color: var(--el-text-color-disabled);
       background: var(--el-fill-color-lighter);
     }
   }

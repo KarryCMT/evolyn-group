@@ -5,10 +5,14 @@ import type { DashboardSchema } from '../schema/types.js';
 import BusinessDashboardWidgetView from './BusinessDashboardWidget.vue';
 import type { BusinessDashboardDocument, BusinessDashboardWidgetRuntime } from './types.js';
 
-const props = defineProps<{
-  document: BusinessDashboardDocument;
-  runtimes?: Record<string, BusinessDashboardWidgetRuntime>;
-}>();
+const props = withDefaults(
+  defineProps<{
+    document: BusinessDashboardDocument;
+    runtimes?: Record<string, BusinessDashboardWidgetRuntime>;
+    theme?: 'light' | 'dark';
+  }>(),
+  { runtimes: () => ({}), theme: 'light' },
+);
 const emit = defineEmits<{
   retry: [widgetId: string];
   pageChange: [widgetId: string, page: number];
@@ -33,6 +37,7 @@ function componentProps(content: { config?: Record<string, unknown> }) {
   return {
     widget,
     runtime: widget?.id ? props.runtimes?.[widget.id] : undefined,
+    theme: props.theme,
     onRetry: (widgetId: string) => emit('retry', widgetId),
     onPageChange: (widgetId: string, page: number) => emit('pageChange', widgetId, page),
   };
@@ -60,35 +65,39 @@ function componentProps(content: { config?: Record<string, unknown> }) {
 .business-renderer {
   display: flex;
   min-height: 100%;
-  color: #172033;
-  background: #eef2f5;
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color-page);
 }
+
 .business-renderer__empty {
   width: min(520px, calc(100% - 48px));
-  margin: auto;
   padding: 48px;
+  margin: auto;
   text-align: center;
-  background: #fff;
-  border: 1px solid rgba(23, 32, 51, 0.08);
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 20px;
-  box-shadow: 0 24px 70px rgba(30, 44, 68, 0.09);
+  box-shadow: var(--el-box-shadow-dark);
 }
+
 .business-renderer__empty span {
   display: block;
   margin-bottom: 18px;
-  color: #0f8f84;
   font:
     800 11px/1 ui-monospace,
     monospace;
+  color: var(--el-color-primary);
   letter-spacing: 0.16em;
 }
+
 .business-renderer__empty strong {
   display: block;
   font-size: 24px;
 }
+
 .business-renderer__empty p {
   margin: 10px 0 0;
-  color: #7b8699;
   font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 </style>

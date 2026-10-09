@@ -665,6 +665,15 @@ export interface DashboardDraftSaveResult {
   document: DashboardDocumentV1;
 }
 
+/** 成员运行页最小引导；version 与组件查询共同锁定同一份已保存文档。 */
+export interface DashboardRuntimeBootstrap {
+  code: string;
+  name: string;
+  protocolVersion: 1;
+  version: number;
+  document: DashboardDocumentV1;
+}
+
 export interface DashboardFormDataSource {
   code: string;
   name: string;

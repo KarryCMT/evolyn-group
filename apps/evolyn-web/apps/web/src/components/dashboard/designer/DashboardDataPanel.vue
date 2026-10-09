@@ -405,93 +405,110 @@ function aggregateOperators(fieldId: string): readonly QueryAggregateOperator[] 
 </template>
 
 <style scoped>
+/* Vue 的 :deep() 用于覆盖 Element Plus 内部控件宽度。 */
+/* stylelint-disable selector-pseudo-class-no-unknown */
 .data-panel {
   display: flex;
-  width: 292px;
-  min-height: 0;
   flex-direction: column;
-  color: #172033;
-  background: #fbfcfd;
-  border-right: 1px solid rgba(23, 32, 51, 0.09);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color);
 }
+
 .data-panel header {
   display: flex;
-  padding: 18px 16px 12px;
   flex-direction: column;
   gap: 5px;
+  padding: 22px 52px 16px 20px;
 }
+
 .data-panel header span {
-  color: #0f8f84;
   font:
     800 9px/1 ui-monospace,
     monospace;
+  color: var(--el-color-primary);
   letter-spacing: 0.15em;
 }
+
 .data-panel header strong {
   font-size: 15px;
 }
+
 .data-panel__scroll {
   padding: 0 14px 20px;
   overflow: auto;
 }
+
 .data-panel section {
   display: flex;
-  padding: 12px 0;
   flex-direction: column;
   gap: 8px;
-  border-top: 1px solid #e8edf0;
+  padding: 12px 0;
+  border-top: 1px solid var(--el-border-color-lighter);
 }
+
 .data-panel label {
-  color: #667085;
   font-size: 11px;
   font-weight: 700;
+  color: var(--el-text-color-regular);
 }
+
 .data-panel__source {
   display: flex;
-  padding: 9px 10px;
   align-items: center;
   justify-content: space-between;
-  text-align: left;
+  padding: 9px 10px;
   color: inherit;
+  text-align: left;
   cursor: pointer;
-  background: #fff;
-  border: 1px solid #e3e8ec;
+  background: var(--el-bg-color-overlay);
+  border: 1px solid var(--el-border-color);
   border-radius: 9px;
 }
+
 .data-panel__source span {
   display: flex;
-  min-width: 0;
   flex-direction: column;
   gap: 2px;
+  min-width: 0;
 }
+
 .data-panel__source strong {
   overflow: hidden;
-  font-size: 12px;
   text-overflow: ellipsis;
+  font-size: 12px;
   white-space: nowrap;
 }
+
 .data-panel__source small,
 .data-panel__empty {
-  color: #98a1af;
   font-size: 10px;
+  color: var(--el-text-color-secondary);
 }
+
 .data-panel__source b {
-  color: #0f8f84;
   font-size: 18px;
+  color: var(--el-color-primary);
 }
+
 .data-panel__section-title {
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
+
 .data-panel__row {
   display: grid;
   grid-template-columns: 1.25fr 0.8fr 1fr auto;
   gap: 5px;
 }
+
 .data-panel__row--sort {
   grid-template-columns: 1.6fr 1fr auto;
 }
+
 .data-panel :deep(.el-select),
 .data-panel :deep(.el-input-number) {
   width: 100%;

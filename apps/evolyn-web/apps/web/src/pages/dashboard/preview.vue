@@ -10,6 +10,7 @@ import {
 import { computed, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { getDashboard, previewDashboardWidget } from '~/api/dashboard';
+import { isDark } from '~/composables/dark';
 
 defineOptions({ name: 'DashboardPreviewPage' });
 
@@ -123,6 +124,7 @@ function backToDesign() {
       class="preview-page__body"
       :document="previewDocument"
       :runtimes="runtimes"
+      :theme="isDark ? 'dark' : 'light'"
       @retry="retryWidget"
       @page-change="loadWidget"
     />
@@ -132,39 +134,45 @@ function backToDesign() {
 <style scoped>
 .preview-page {
   display: flex;
-  min-height: 100vh;
   flex-direction: column;
-  background: #eef2f5;
+  min-height: 100vh;
+  background: var(--el-bg-color-page);
 }
+
 .preview-page__header {
   display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
   min-height: 64px;
   padding: 0 22px;
-  align-items: center;
-  grid-template-columns: 1fr auto 1fr;
-  background: #fff;
-  border-bottom: 1px solid rgba(23, 32, 51, 0.08);
+  background: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
+
 .preview-page__header > div {
   display: flex;
-  align-items: center;
   gap: 11px;
+  align-items: center;
 }
+
 .preview-page__header span {
-  color: #0f8f84;
   font:
     800 9px/1 ui-monospace,
     monospace;
+  color: var(--el-color-primary);
   letter-spacing: 0.14em;
 }
+
 .preview-page__header strong {
   font-size: 14px;
 }
+
 .preview-page__header code {
   justify-self: end;
-  color: #7c8799;
   font-size: 11px;
+  color: var(--el-text-color-secondary);
 }
+
 .preview-page__body {
   flex: 1;
   min-height: calc(100vh - 64px);

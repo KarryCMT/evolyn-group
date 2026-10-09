@@ -34,6 +34,24 @@ describe('dashboard design flow e2e', () => {
     expect(designer.editingDocument.value.widgets).toEqual([]);
     designer.addWidget(businessDashboardWidgetDescriptors[0]);
     designer.updateWidget(designer.selectedWidgetId.value!, { title: '月度经营趋势' });
+    const sourceWidgetID = designer.selectedWidgetId.value!;
+    designer.duplicateWidget(sourceWidgetID);
+    designer.updateDesktopSettings({ rowHeight: 96 });
+    const droppedWidgetID = designer.addWidgetAtLayout(businessDashboardWidgetDescriptors[1], {
+      x: 2,
+      y: 6,
+      w: 8,
+      h: 3,
+    });
+
+    expect(designer.editingDocument.value.widgets).toHaveLength(3);
+    expect(designer.selectedWidgetId.value).toBe(droppedWidgetID);
+    expect(designer.selectedWidget.value?.layout).toEqual({ x: 2, y: 6, w: 8, h: 3 });
+    expect(designer.editingDocument.value.widgets[1]?.title).toBe('月度经营趋势 副本');
+    expect(designer.editingDocument.value.widgets[1]?.layout).not.toEqual(
+      designer.editingDocument.value.widgets[0]?.layout,
+    );
+    expect(designer.editingDocument.value.settings.desktop.rowHeight).toBe(96);
 
     const revision = await prepareDashboardPreview({
       dirty: designer.isDirty.value,
@@ -43,6 +61,7 @@ describe('dashboard design flow e2e', () => {
     expect(revision).toBe(2);
     expect(save).toHaveBeenCalledOnce();
     expect(designer.serverSnapshot.value?.widgets[0].title).toBe('月度经营趋势');
+    expect(designer.serverSnapshot.value?.settings.desktop.rowHeight).toBe(96);
     expect(designer.isDirty.value).toBe(false);
   });
 });

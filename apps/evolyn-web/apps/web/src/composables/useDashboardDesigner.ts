@@ -178,6 +178,14 @@ export function useDashboardDesigner(gateway: DashboardDesignerGateway = default
     editor.selectWidget(widget?.id ?? null);
   }
 
+  /** 资产展示信息独立于草稿协议；局部更新不得覆盖画布中的未保存修改。 */
+  function patchDetail(
+    patch: Partial<Pick<DashboardDetail, 'name' | 'icon' | 'color' | 'updatedAt'>>,
+  ) {
+    if (!detail.value) return;
+    detail.value = { ...detail.value, ...patch };
+  }
+
   function adoptDetail(response: DashboardDetail, document: BusinessDashboardDocument) {
     const snapshot = cloneBusinessDashboardDocument(document);
     detail.value = response;
@@ -206,6 +214,7 @@ export function useDashboardDesigner(gateway: DashboardDesignerGateway = default
     save,
     reloadServerVersion,
     focusIssue,
+    patchDetail,
   };
 }
 

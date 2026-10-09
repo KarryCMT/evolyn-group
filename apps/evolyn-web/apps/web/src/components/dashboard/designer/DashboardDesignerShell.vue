@@ -7,16 +7,22 @@ import type {
   BusinessDashboardWidget,
   BusinessDashboardWidgetDescriptor,
   BusinessDashboardWidgetPatch,
+  BusinessDashboardWidgetType,
 } from '@evolyn.do/dashboard';
 import type { DashboardDesignerSaveStatus } from '~/composables/useDashboardDesigner';
 import type { DashboardFormDataSource, DashboardFormFieldCatalog } from '~/types';
 import { BusinessDashboardCanvas, businessDashboardWidgetDescriptors } from '@evolyn.do/dashboard';
+import { RiCloseLine } from '@remixicon/vue';
+import { shallowRef, watch } from 'vue';
+import { isDark } from '~/composables/dark';
 import DashboardComponentPalette from './DashboardComponentPalette.vue';
 import DashboardDataPanel from './DashboardDataPanel.vue';
+import DashboardDesignerCommandBar from './DashboardDesignerCommandBar.vue';
 import DashboardDesignerToolbar from './DashboardDesignerToolbar.vue';
 import DashboardPropertiesPanel from './DashboardPropertiesPanel.vue';
+import DashboardStylePanel from './DashboardStylePanel.vue';
 
-defineProps<{
+const props = defineProps<{
   name: string;
   revision: number;
   document: BusinessDashboardDocument;
@@ -27,6 +33,7 @@ defineProps<{
   focusedIssuePath: string;
   dirty: boolean;
   saveStatus: DashboardDesignerSaveStatus;
+  renaming: boolean;
   conflictMessage: string;
   dataSources: DashboardFormDataSource[];
   dataCatalogs: Record<string, DashboardFormFieldCatalog>;
@@ -38,12 +45,16 @@ const emit = defineEmits<{
   back: [];
   save: [];
   preview: [];
+  rename: [name: string, onSuccess: () => void];
   reloadConflict: [];
   add: [descriptor: BusinessDashboardWidgetDescriptor];
+  drop: [descriptor: BusinessDashboardWidgetDescriptor, layout: BusinessDashboardLayout];
   select: [id: string | null];
   remove: [id: string];
+  duplicate: [id: string];
   updateWidget: [id: string, patch: BusinessDashboardWidgetPatch];
   updateLayouts: [layouts: Array<{ id: string; layout: BusinessDashboardLayout }>];
+  updateDesktopSettings: [patch: Partial<BusinessDashboardDocument['settings']['desktop']>];
   focusIssue: [issue: BusinessDashboardIssue];
   addDataset: [source: DashboardFormDataSource];
   selectDataset: [id: string | null];
@@ -51,6 +62,49 @@ const emit = defineEmits<{
   removeDataset: [id: string];
   requestCatalog: [formCode: string];
 }>();
+
+// 面板显隐与画布工具属于当前编辑会话，不写入仪表盘业务协议。
+const paletteCollapsed = shallowRef(false);
+const dataPanelOpen = shallowRef(false);
+const propertiesPanelOpen = shallowRef(false);
+const stylePanelOpen = shallowRef(false);
+const interactionMode = shallowRef<'move' | 'resize'>('move');
+const preview = shallowRef<'desktop' | 'mobile'>('desktop');
+
+// 保存校验定位到具体组件时自动打开设置抽屉，避免只高亮而没有修复入口。
+watch(
+  () => [props.focusedIssuePath, props.selectedWidgetId] as const,
+  ([issuePath, widgetID]) => {
+    if (issuePath && widgetID) openWidgetProperties(widgetID);
+    if (!widgetID) propertiesPanelOpen.value = false;
+  },
+);
+
+function openWidgetProperties(id?: string) {
+  if (id) emit('select', id);
+  if (id || props.selectedWidget) {
+    dataPanelOpen.value = false;
+    stylePanelOpen.value = false;
+    propertiesPanelOpen.value = true;
+  }
+}
+
+function openDataPanel() {
+  propertiesPanelOpen.value = false;
+  stylePanelOpen.value = false;
+  dataPanelOpen.value = true;
+}
+
+function openStylePanel() {
+  dataPanelOpen.value = false;
+  propertiesPanelOpen.value = false;
+  stylePanelOpen.value = true;
+}
+
+function dropWidget(type: BusinessDashboardWidgetType, layout: BusinessDashboardLayout) {
+  const descriptor = businessDashboardWidgetDescriptors.find((item) => item.type === type);
+  if (descriptor) emit('drop', descriptor, layout);
+}
 </script>
 
 <template>
@@ -60,9 +114,11 @@ const emit = defineEmits<{
       :revision="revision"
       :dirty="dirty"
       :save-status="saveStatus"
+      :renaming="renaming"
       @back="emit('back')"
       @save="emit('save')"
       @preview="emit('preview')"
+      @rename="(name, onSuccess) => emit('rename', name, onSuccess)"
     />
     <section v-if="saveStatus === 'conflict'" class="designer-shell__conflict" role="alert">
       <div>
@@ -73,11 +129,56 @@ const emit = defineEmits<{
         重新加载服务端版本
       </el-button>
     </section>
+    <DashboardDesignerCommandBar
+      :selected-widget="selectedWidget"
+      :interaction-mode="interactionMode"
+      :preview="preview"
+      :palette-collapsed="paletteCollapsed"
+      @update-interaction-mode="interactionMode = $event"
+      @update-preview="preview = $event"
+      @toggle-palette="paletteCollapsed = !paletteCollapsed"
+      @open-data="openDataPanel"
+      @open-style="openStylePanel"
+      @remove="emit('remove', $event)"
+    />
     <section class="designer-shell__workspace">
       <DashboardComponentPalette
         :descriptors="businessDashboardWidgetDescriptors"
+        :collapsed="paletteCollapsed"
         @add="emit('add', $event)"
+        @toggle="paletteCollapsed = !paletteCollapsed"
       />
+      <BusinessDashboardCanvas
+        :document="document"
+        :selected-widget-id="selectedWidgetId"
+        :issue-widget-ids="issueWidgetIds"
+        :preview="preview"
+        :interaction-mode="interactionMode"
+        :theme="isDark ? 'dark' : 'light'"
+        @select="emit('select', $event || null)"
+        @remove="emit('remove', $event)"
+        @edit="openWidgetProperties"
+        @duplicate="emit('duplicate', $event)"
+        @drop="dropWidget"
+        @update-layouts="emit('updateLayouts', $event)"
+      />
+    </section>
+    <el-drawer
+      v-model="dataPanelOpen"
+      class="dashboard-designer-drawer"
+      direction="rtl"
+      size="400px"
+      :show-close="false"
+      :with-header="false"
+    >
+      <button
+        class="designer-shell__drawer-close"
+        type="button"
+        aria-label="关闭数据配置"
+        @click="dataPanelOpen = false"
+      >
+        <RiCloseLine aria-hidden="true" />
+      </button>
       <DashboardDataPanel
         :sources="dataSources"
         :datasets="document.datasets"
@@ -91,14 +192,44 @@ const emit = defineEmits<{
         @remove-dataset="emit('removeDataset', $event)"
         @request-catalog="emit('requestCatalog', $event)"
       />
-      <BusinessDashboardCanvas
-        :document="document"
-        :selected-widget-id="selectedWidgetId"
-        :issue-widget-ids="issueWidgetIds"
-        @select="emit('select', $event || null)"
-        @remove="emit('remove', $event)"
-        @update-layouts="emit('updateLayouts', $event)"
+    </el-drawer>
+    <el-drawer
+      v-model="stylePanelOpen"
+      class="dashboard-designer-drawer"
+      direction="rtl"
+      size="360px"
+      :show-close="false"
+      :with-header="false"
+    >
+      <button
+        class="designer-shell__drawer-close"
+        type="button"
+        aria-label="关闭仪表盘样式"
+        @click="stylePanelOpen = false"
+      >
+        <RiCloseLine aria-hidden="true" />
+      </button>
+      <DashboardStylePanel
+        :desktop="document.settings.desktop"
+        @update="emit('updateDesktopSettings', $event)"
       />
+    </el-drawer>
+    <el-drawer
+      v-model="propertiesPanelOpen"
+      class="dashboard-designer-drawer"
+      direction="rtl"
+      size="380px"
+      :show-close="false"
+      :with-header="false"
+    >
+      <button
+        class="designer-shell__drawer-close"
+        type="button"
+        aria-label="关闭组件设置"
+        @click="propertiesPanelOpen = false"
+      >
+        <RiCloseLine aria-hidden="true" />
+      </button>
       <DashboardPropertiesPanel
         :widget="selectedWidget"
         :issues="issues"
@@ -110,51 +241,88 @@ const emit = defineEmits<{
         @focus-issue="emit('focusIssue', $event)"
         @request-catalog="emit('requestCatalog', $event)"
       />
-    </section>
+    </el-drawer>
   </main>
 </template>
 
 <style scoped>
+/* Vue 的 :global()/:deep() 用于抽屉 Teleport 与响应式子组件覆盖。 */
+/* stylelint-disable selector-pseudo-class-no-unknown */
 .designer-shell {
   display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  flex-direction: column;
-  background: #eef2f5;
+  background: var(--el-bg-color-page);
 }
+
 .designer-shell__workspace {
   display: flex;
   flex: 1;
   min-height: 0;
   overflow: hidden;
 }
+
+:global(.dashboard-designer-drawer .el-drawer__body) {
+  position: relative;
+  padding: 0;
+}
+
+.designer-shell__drawer-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 4;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  background: var(--el-fill-color-light);
+  border: 0;
+  border-radius: 4px;
+}
+
+.designer-shell__drawer-close:hover {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.designer-shell__drawer-close svg {
+  width: 18px;
+  height: 18px;
+}
+
 .designer-shell__conflict {
   display: flex;
-  padding: 10px 18px;
+  gap: 18px;
   align-items: center;
   justify-content: space-between;
-  gap: 18px;
-  color: #7d3828;
-  background: #fff2ed;
-  border-bottom: 1px solid #edc9bd;
+  padding: 10px 18px;
+  color: var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+  border-bottom: 1px solid var(--el-color-danger-light-7);
 }
+
 .designer-shell__conflict div {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
+
 .designer-shell__conflict strong {
   font-size: 13px;
 }
+
 .designer-shell__conflict span {
   font-size: 11px;
 }
-@media (max-width: 980px) {
+
+@media (width <= 980px) {
   .designer-shell__workspace :deep(.component-palette) {
-    flex-basis: 190px;
-  }
-  .designer-shell__workspace :deep(.properties-panel) {
-    flex-basis: 240px;
+    flex-basis: 176px;
   }
 }
 </style>

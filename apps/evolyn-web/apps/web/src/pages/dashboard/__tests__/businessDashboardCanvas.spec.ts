@@ -10,11 +10,13 @@ import {
   businessDashboardWidgetDescriptors,
   BusinessDashboardWidgetView,
   createEmptyBusinessDashboardDocument,
+  DashboardDesignCanvas,
   useBusinessDashboardEditor,
 } from '@evolyn.do/dashboard';
 import { shallowMount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
 import { shallowRef } from 'vue';
+import { resolveDashboardWidgetActionPlacement } from '../../../../../../packages/dashboard/src/designer/actionPlacement';
 
 describe('business dashboard canvas', () => {
   it('renders a genuine empty state and removes it after adding a component', async () => {
@@ -45,6 +47,68 @@ describe('business dashboard canvas', () => {
     });
 
     expect(wrapper.find('.business-canvas__issue-count').text()).toBe('2 个组件需要处理');
+  });
+
+  it('uses the persisted desktop row height for the design grid', () => {
+    const document = createEmptyBusinessDashboardDocument();
+    document.settings.desktop.rowHeight = 96;
+    const wrapper = shallowMount(BusinessDashboardCanvas, {
+      props: { document, selectedWidgetId: null },
+    });
+
+    expect(wrapper.findComponent({ name: 'DashboardDesignCanvas' }).props('rowHeight')).toBe(96);
+  });
+
+  it('keeps the resize handle available while the canvas is in move mode', () => {
+    const wrapper = shallowMount(DashboardDesignCanvas, {
+      props: {
+        modelValue: { version: 1, widgets: [] },
+        widgetRegistry: {},
+        interactionMode: 'move',
+      },
+    });
+    const options = wrapper.findComponent({ name: 'EvolynGrid' }).props('options');
+
+    expect(options).toMatchObject({
+      disableDrag: false,
+      disableResize: false,
+      resizable: { handles: 'e,se', autoHide: false },
+    });
+  });
+
+  it('moves the component action bar outside after the widget leaves the first row', () => {
+    expect(resolveDashboardWidgetActionPlacement(0)).toBe('inside');
+    expect(resolveDashboardWidgetActionPlacement(2)).toBe('outside');
+  });
+
+  it('projects an external palette drop into a business widget placement event', async () => {
+    const wrapper = shallowMount(BusinessDashboardCanvas, {
+      props: {
+        document: createEmptyBusinessDashboardDocument(),
+        selectedWidgetId: null,
+      },
+    });
+    const canvas = wrapper.findComponent({ name: 'DashboardDesignCanvas' });
+
+    canvas.vm.$emit('update:modelValue', {
+      version: 1,
+      widgets: [
+        {
+          id: 'palette-chart',
+          type: 'chart',
+          title: '未命名统计图',
+          x: 3,
+          y: 2,
+          w: 6,
+          h: 4,
+          config: {},
+        },
+      ],
+    });
+    await wrapper.vm.$nextTick();
+
+    expect(wrapper.emitted('drop')).toEqual([['chart', { x: 3, y: 2, w: 6, h: 4 }]]);
+    expect(wrapper.emitted('update-layouts')).toEqual([[[]]]);
   });
 
   it('adapts platform chart and table semantics without coercing decimal strings', () => {
@@ -106,10 +170,18 @@ describe('business dashboard canvas', () => {
 
     const chartSpec = buildBusinessChartSpec(chart, result) as unknown as Record<string, unknown>;
     const tableAdapter = buildBusinessTableAdapter(table, result);
+    const darkTableAdapter = buildBusinessTableAdapter(table, result, 'dark');
+    const darkCellStyle = darkTableAdapter.columns[0].style as unknown as (args: {
+      row: number;
+    }) => Record<string, unknown>;
     expect(chartSpec.xField).toEqual(['field_region']);
     expect(chartSpec.yField).toEqual(['total_amount']);
     expect((chartSpec.data as Array<{ values: unknown[] }>)[0].values[0]).toEqual(result.rows[0]);
     expect(tableAdapter.columns[0].format?.(result.rows[0])).toBe('9007199254740993.123456');
+    expect(darkCellStyle({ row: 0 })).toMatchObject({
+      bgColor: '#202225',
+      borderColor: '#414243',
+    });
   });
 
   it('keeps a failed component mounted and emits a scoped retry', async () => {
@@ -129,6 +201,37 @@ describe('business dashboard canvas', () => {
     expect(wrapper.text()).toContain('查询超时');
     await wrapper.get('button').trigger('click');
     expect(wrapper.emitted('retry')).toEqual([['widget_retry']]);
+  });
+
+  it('passes dark mode to the chart renderer', () => {
+    const widget: BusinessDashboardChartWidget = {
+      id: 'widget_dark_chart',
+      type: 'chart',
+      title: '暗黑图表',
+      datasetId: 'dataset_dark',
+      layout: { x: 0, y: 0, w: 6, h: 4 },
+      settings: businessDashboardWidgetDescriptors[0]
+        .defaultSettings as BusinessDashboardChartWidget['settings'],
+    };
+    const wrapper = shallowMount(BusinessDashboardWidgetView, {
+      props: {
+        widget,
+        theme: 'dark',
+        runtime: {
+          status: 'success',
+          result: {
+            datasetId: 'dataset_dark',
+            columns: [],
+            rows: [{}],
+            total: 1,
+            page: 1,
+            pageSize: 20,
+          },
+        },
+      },
+    });
+
+    expect(wrapper.findComponent({ name: 'EvolynChart' }).props('theme')).toBe('dark');
   });
 
   it('requests the next table page without changing the saved Dataset', async () => {

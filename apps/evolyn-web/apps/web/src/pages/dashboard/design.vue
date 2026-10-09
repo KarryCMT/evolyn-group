@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import type { DashboardFormDataSource } from '~/types';
+import { ApiError } from '@evolyn.do/utils';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { updateDashboard } from '~/api/dashboard';
 import { appWorkspaceRoute } from '~/components/app/workspace/appWorkspaceNavigation';
 import DashboardDesignerShell from '~/components/dashboard/designer/DashboardDesignerShell.vue';
 import { useDashboardDataCatalog } from '~/composables/useDashboardDataCatalog';
@@ -18,6 +20,7 @@ const appCode = computed(() => String(route.params.appCode ?? ''));
 const designer = useDashboardDesigner();
 const dataCatalog = useDashboardDataCatalog();
 const selectedDatasetId = shallowRef<string | null>(null);
+const renaming = shallowRef(false);
 
 watch(
   dashboardCode,
@@ -82,6 +85,41 @@ function returnToApp() {
   void router.push(appWorkspaceRoute(appCode.value, dashboardCode.value));
 }
 
+/** 名称属于仪表盘资产，改名成功后只更新详情，不覆盖画布中的未保存草稿。 */
+async function renameDashboard(name: string, onSuccess: () => void): Promise<void> {
+  const code = dashboardCode.value;
+  const normalizedName = name.trim();
+  if (!code || renaming.value || !normalizedName) return;
+
+  renaming.value = true;
+  try {
+    const detail = await updateDashboard(code, { name: normalizedName });
+    // 请求期间可能切换到另一张仪表盘，旧响应不能覆盖当前工作区标题。
+    if (dashboardCode.value !== code) return;
+    designer.patchDetail({
+      name: detail.name,
+      icon: detail.icon,
+      color: detail.color,
+      updatedAt: detail.updatedAt,
+    });
+    document.title = `${detail.name} - 仪表盘设计`;
+    onSuccess();
+    ElMessage.success('仪表盘名称已修改');
+  } catch (error) {
+    if (error instanceof ApiError && error.errCode === 'DASHBOARD_NAME_INVALID') {
+      ElMessage.error('仪表盘名称不能为空，且不能超过 128 个字符');
+    } else if (error instanceof ApiError && error.errCode === 'FORBIDDEN') {
+      ElMessage.error('没有修改仪表盘名称的权限');
+    } else if (error instanceof ApiError && error.errCode === 'DASHBOARD_NOT_FOUND') {
+      ElMessage.error('仪表盘已不存在，请返回应用后刷新');
+    } else {
+      ElMessage.error('仪表盘名称修改失败，请稍后重试');
+    }
+  } finally {
+    renaming.value = false;
+  }
+}
+
 async function reloadConflict() {
   try {
     await ElMessageBox.confirm(
@@ -144,6 +182,7 @@ function removeDataset(id: string) {
     :focused-issue-path="designer.focusedIssuePath.value"
     :dirty="designer.isDirty.value"
     :save-status="designer.saveStatus.value"
+    :renaming="renaming"
     :conflict-message="designer.errorMessage.value"
     :data-sources="dataCatalog.sources.value"
     :data-catalogs="dataCatalog.catalogs.value"
@@ -153,12 +192,16 @@ function removeDataset(id: string) {
     @back="returnToApp"
     @save="saveDraft"
     @preview="openPreview"
+    @rename="renameDashboard"
     @reload-conflict="reloadConflict"
     @add="designer.addWidget"
+    @drop="designer.addWidgetAtLayout"
     @select="designer.selectWidget"
     @remove="designer.removeWidget"
+    @duplicate="designer.duplicateWidget"
     @update-widget="designer.updateWidget"
     @update-layouts="designer.replaceLayouts"
+    @update-desktop-settings="designer.updateDesktopSettings"
     @focus-issue="designer.focusIssue"
     @add-dataset="addDataset"
     @select-dataset="selectedDatasetId = $event"

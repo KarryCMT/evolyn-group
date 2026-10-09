@@ -32,6 +32,22 @@ type PreviewQueryRequest struct {
 	FilterValues  map[string]any `json:"filterValues"`
 }
 
+// RuntimeBootstrap 是成员运行页所需的最小投影。仪表盘发布能力开放前，
+// Version 对应当前已保存草稿 revision；运行页查询必须回传同一口令。
+type RuntimeBootstrap struct {
+	Code            string      `json:"code"`
+	Name            string      `json:"name"`
+	ProtocolVersion int         `json:"protocolVersion"`
+	Version         int64       `json:"version"`
+	Document        JSONContent `json:"document"`
+}
+
+type RuntimeQueryRequest struct {
+	Version      int64          `json:"version" binding:"required"`
+	Page         int            `json:"page"`
+	FilterValues map[string]any `json:"filterValues"`
+}
+
 type QueryResultColumn struct {
 	Key   string `json:"key"`
 	Label string `json:"label"`

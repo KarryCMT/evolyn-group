@@ -2,14 +2,21 @@
 import type { DashboardDesignerSaveStatus } from '~/composables/useDashboardDesigner';
 import { RiArrowLeftLine, RiEyeLine, RiSave3Line } from '@remixicon/vue';
 import { computed } from 'vue';
+import WorkspaceTitleEditor from '~/components/WorkspaceTitleEditor.vue';
 
 const props = defineProps<{
   name: string;
   revision: number;
   dirty: boolean;
   saveStatus: DashboardDesignerSaveStatus;
+  renaming?: boolean;
 }>();
-const emit = defineEmits<{ back: []; save: []; preview: [] }>();
+const emit = defineEmits<{
+  back: [];
+  save: [];
+  preview: [];
+  rename: [name: string, onSuccess: () => void];
+}>();
 
 const statusLabel = computed(() => {
   if (props.saveStatus === 'saving') return '正在保存';
@@ -31,20 +38,34 @@ const statusLabel = computed(() => {
     >
       <RiArrowLeftLine />
     </button>
-    <div class="designer-toolbar__identity">
-      <span class="designer-toolbar__kicker">DASHBOARD STUDIO</span>
-      <strong>{{ name }}</strong>
+    <WorkspaceTitleEditor
+      class="designer-toolbar__identity"
+      :name="name"
+      resource-label="仪表盘"
+      :saving="renaming"
+      @submit="(name, onSuccess) => emit('rename', name, onSuccess)"
+    />
+    <nav class="designer-toolbar__tabs" aria-label="仪表盘设计导航">
+      <button class="designer-toolbar__tab is-active" type="button">
+        仪表盘设计
+      </button>
+      <button class="designer-toolbar__tab" type="button" disabled title="扩展能力即将开放">
+        扩展功能
+      </button>
+      <button class="designer-toolbar__tab" type="button" disabled title="发布能力即将开放">
+        仪表盘发布
+      </button>
+    </nav>
+    <div class="designer-toolbar__meta">
+      <span class="designer-toolbar__revision">草稿 / {{ revision }}</span>
+      <span
+        class="designer-toolbar__status"
+        :class="`designer-toolbar__status--${saveStatus}`"
+        data-testid="dashboard-save-status"
+      >
+        <i />{{ statusLabel }}
+      </span>
     </div>
-    <div class="designer-toolbar__revision">
-      DRAFT / {{ revision }}
-    </div>
-    <span
-      class="designer-toolbar__status"
-      :class="`designer-toolbar__status--${saveStatus}`"
-      data-testid="dashboard-save-status"
-    >
-      <i />{{ statusLabel }}
-    </span>
     <div class="designer-toolbar__actions">
       <el-button :disabled="saveStatus === 'saving'" @click="emit('preview')">
         <RiEyeLine />预览
@@ -62,109 +83,158 @@ const statusLabel = computed(() => {
 </template>
 
 <style scoped>
+/* Vue 的 :deep() 用于统一 Element Plus 按钮内图标尺寸。 */
+/* stylelint-disable selector-pseudo-class-no-unknown */
 .designer-toolbar {
   display: grid;
-  grid-template-columns: 36px minmax(180px, 1fr) auto auto auto;
+  grid-template-columns: 36px minmax(180px, 1fr) auto minmax(180px, 1fr) auto;
+  gap: 12px;
   align-items: center;
-  gap: 16px;
-  min-height: 64px;
-  padding: 0 20px;
-  color: #152033;
-  background: rgba(255, 255, 255, 0.96);
-  border-bottom: 1px solid rgba(26, 39, 62, 0.09);
-  box-shadow: 0 8px 28px rgba(26, 39, 62, 0.05);
-  backdrop-filter: blur(14px);
+  min-height: 56px;
+  padding: 0 18px;
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
+
 .designer-toolbar__back {
   display: grid;
-  width: 34px;
-  height: 34px;
-  padding: 0;
   place-items: center;
-  color: #445067;
-  cursor: pointer;
-  background: #f3f6f8;
-  border: 0;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   font-size: 19px;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
 }
+
 .designer-toolbar__back:hover {
-  color: #0f8f84;
-  background: #e9f6f4;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
 }
+
 .designer-toolbar__identity {
-  display: flex;
   min-width: 0;
-  flex-direction: column;
-  gap: 3px;
 }
-.designer-toolbar__identity strong {
-  overflow: hidden;
+
+.designer-toolbar__tabs {
+  display: flex;
+  gap: 38px;
+  align-items: stretch;
+  justify-content: center;
+  height: 56px;
+}
+
+.designer-toolbar__tab {
+  position: relative;
+  padding: 0;
   font-size: 15px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: var(--el-text-color-primary);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
 }
-.designer-toolbar__kicker {
-  color: #0f8f84;
-  font:
-    800 9px/1 ui-monospace,
-    monospace;
-  letter-spacing: 0.14em;
+
+.designer-toolbar__tab.is-active {
+  font-weight: 600;
+  color: var(--el-color-primary);
 }
+
+.designer-toolbar__tab.is-active::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 3px;
+  content: '';
+  background: var(--el-color-primary);
+}
+
+.designer-toolbar__tab:disabled {
+  color: var(--el-text-color-disabled);
+  cursor: not-allowed;
+}
+
+.designer-toolbar__meta {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
 .designer-toolbar__revision {
-  color: #7d8798;
   font:
     700 11px/1 ui-monospace,
     monospace;
-  letter-spacing: 0.08em;
+  color: var(--el-text-color-secondary);
+  letter-spacing: 0.04em;
 }
+
 .designer-toolbar__status {
   display: inline-flex;
-  align-items: center;
   gap: 7px;
-  color: #69758a;
+  align-items: center;
   font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
+
 .designer-toolbar__status i {
   width: 7px;
   height: 7px;
-  background: #9aa4b4;
+  background: var(--el-text-color-placeholder);
   border-radius: 50%;
 }
+
 .designer-toolbar__status--idle i {
-  background: #e6a23c;
+  background: var(--el-color-warning);
 }
+
 .designer-toolbar__status--saving i {
-  background: #409eff;
+  background: var(--el-color-primary);
   animation: pulse 1s infinite;
 }
+
 .designer-toolbar__status--saved i {
-  background: #0f9f74;
+  background: var(--el-color-success);
 }
+
 .designer-toolbar__status--error i,
 .designer-toolbar__status--conflict i {
-  background: #d6533c;
+  background: var(--el-color-danger);
 }
+
 .designer-toolbar__actions {
   display: flex;
   gap: 8px;
 }
+
 .designer-toolbar__actions :deep(svg) {
   width: 16px;
   margin-right: 5px;
 }
+
 @keyframes pulse {
   50% {
     opacity: 0.35;
     transform: scale(0.8);
   }
 }
-@media (max-width: 760px) {
+
+@media (width <= 760px) {
   .designer-toolbar {
     grid-template-columns: 36px 1fr auto;
   }
+
+  .designer-toolbar__tabs,
   .designer-toolbar__revision,
   .designer-toolbar__status {
+    display: none;
+  }
+
+  .designer-toolbar__meta {
     display: none;
   }
 }

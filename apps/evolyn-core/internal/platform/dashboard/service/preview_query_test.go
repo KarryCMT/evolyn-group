@@ -8,6 +8,7 @@ import (
 
 	queryengine "evolyn/internal/engine/query"
 	dashboarderrors "evolyn/internal/platform/dashboard"
+	"evolyn/internal/platform/dashboard/model"
 	iammodel "evolyn/internal/platform/iam/model"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +16,12 @@ import (
 )
 
 type blockingDashboardQueryExecutor struct{}
+
+type staticDashboardAccess map[string]bool
+
+func (a staticDashboardAccess) Permissions(context.Context, *iammodel.User) map[string]bool {
+	return a
+}
 
 func (blockingDashboardQueryExecutor) Execute(ctx context.Context, _ *iammodel.User, _ string, _ queryengine.LogicalPlan) (*DashboardQueryResultView, error) {
 	<-ctx.Done()
@@ -39,4 +46,20 @@ func TestExecutePreviewPlanTimeoutAndConcurrencyLimit(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, dashboarderrors.ErrQueryLimitExceeded))
 	assert.NotErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestRuntimeWidgetQueryUsesViewPermission(t *testing.T) {
+	member := &iammodel.User{ID: 1}
+	request := &model.RuntimeQueryRequest{}
+
+	denied := &dashboardService{access: staticDashboardAccess{}}
+	_, err := denied.RuntimeWidgetQuery(context.Background(), member, "dashboard_demo", "widget_demo", request)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, dashboarderrors.ErrForbidden)
+
+	viewOnly := &dashboardService{access: staticDashboardAccess{"dashboard-actions:view": true}}
+	_, err = viewOnly.RuntimeWidgetQuery(context.Background(), member, "dashboard_demo", "widget_demo", request)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, dashboarderrors.ErrQueryInvalid)
+	assert.NotErrorIs(t, err, dashboarderrors.ErrForbidden)
 }
