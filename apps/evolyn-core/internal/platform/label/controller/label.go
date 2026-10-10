@@ -208,14 +208,14 @@ func (f *LabelController) Render(c *gin.Context) {
 // @Produce json
 // @Param body body model.BatchRenderRequest true "批量渲染参数"
 // @Success 202 {object} httpx.Response{data=model.BatchRenderCreated}
-// @Router /api/v1/forms/{formCode}/labels/batch-render [post]
+// @Router /api/v1/forms/{code}/labels/batch-render [post]
 func (f *LabelController) BatchRender(c *gin.Context) {
 	req := new(model.BatchRenderRequest)
 	if err := c.ShouldBindJSON(req); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	req.FormCode = strings.TrimSpace(c.Param("formCode"))
+	req.FormCode = strings.TrimSpace(c.Param("code"))
 	result, err := f.service.BatchRender(c.Request.Context(), ginctx.GetUser(c), req)
 	if err != nil {
 		responseError(c, err)
@@ -229,9 +229,9 @@ func (f *LabelController) BatchRender(c *gin.Context) {
 // @Tags 二维码标签
 // @Security JWT
 // @Produce json
-// @Router /api/v1/forms/{formCode}/labels/profile [get]
+// @Router /api/v1/forms/{code}/labels/profile [get]
 func (f *LabelController) RuntimeProfile(c *gin.Context) {
-	result, err := f.service.RuntimeProfile(c.Request.Context(), ginctx.GetUser(c), strings.TrimSpace(c.Param("formCode")))
+	result, err := f.service.RuntimeProfile(c.Request.Context(), ginctx.GetUser(c), strings.TrimSpace(c.Param("code")))
 	if err != nil {
 		responseError(c, err)
 		return
@@ -245,14 +245,14 @@ func (f *LabelController) RuntimeProfile(c *gin.Context) {
 // @Security JWT
 // @Accept json
 // @Produce image/svg+xml
-// @Router /api/v1/forms/{formCode}/labels/preview [post]
+// @Router /api/v1/forms/{code}/labels/preview [post]
 func (f *LabelController) RuntimePreview(c *gin.Context) {
 	req := new(model.RuntimePreviewRequest)
 	if err := c.ShouldBindJSON(req); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
-	result, err := f.service.RuntimePreview(c.Request.Context(), ginctx.GetUser(c), strings.TrimSpace(c.Param("formCode")), req)
+	result, err := f.service.RuntimePreview(c.Request.Context(), ginctx.GetUser(c), strings.TrimSpace(c.Param("code")), req)
 	if err != nil {
 		responseError(c, err)
 		return
@@ -318,9 +318,10 @@ func (f *LabelController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/label-templates/:code/preview", f.Preview)
 	api.DELETE("/label-templates/:code", f.Delete)
 	api.POST("/labels/render", f.Render)
-	api.GET("/forms/:formCode/labels/profile", f.RuntimeProfile)
-	api.POST("/forms/:formCode/labels/preview", f.RuntimePreview)
-	api.POST("/forms/:formCode/labels/batch-render", f.BatchRender)
+	// Gin 要求同一路径层级的通配符名称完全一致；表单域统一使用 :code。
+	api.GET("/forms/:code/labels/profile", f.RuntimeProfile)
+	api.POST("/forms/:code/labels/preview", f.RuntimePreview)
+	api.POST("/forms/:code/labels/batch-render", f.BatchRender)
 	api.GET("/labels/render-tasks/:taskCode", f.GetRenderTask)
 	api.GET("/labels/render-tasks/:taskCode/download", f.DownloadRenderTask)
 	api.GET("/labels/qr-tokens/:token", f.ResolveQRToken)

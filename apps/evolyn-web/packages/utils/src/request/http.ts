@@ -1,6 +1,7 @@
 // defHttp 的路径式门面：request(path, { method, body, query, signal }) 形态的便捷调用层，
 // 业务侧（应用 api 模块）统一从这里发起请求，不必感知 AxiosRequestConfig 细节。
 import { ApiError } from './error';
+import { isSessionInvalidatingErrorCode } from './errorCodes';
 import { defHttp } from './instance';
 
 /** 门面层调用参数 */
@@ -45,8 +46,8 @@ function cleanQuery(
 
 /**
  * 发起请求并解包统一响应，返回 data 字段（失败抛 ApiError）。
- * 会话过期（受保护接口收到 401 且非认证接口）时触发注入的处理器，
- * 排除 /auth/token 前缀避免登录失败（401）被误判为会话过期造成循环跳转。
+ * 仅当 401 携带稳定的会话失效错误码时触发注入的处理器。业务型 401
+ * （登录失败、验证码错误、MFA 失败等）保留原始 ApiError 交给调用方处理。
  */
 export async function request<T>(path: string, options: HttpRequestOptions = {}): Promise<T> {
   const { method = 'GET', body, query, signal, skipUnauthorizedHandler = false } = options;
@@ -62,11 +63,10 @@ export async function request<T>(path: string, options: HttpRequestOptions = {})
     if (
       err instanceof ApiError &&
       err.status === 401 &&
-      !path.startsWith('/auth/token') &&
+      isSessionInvalidatingErrorCode(err.errCode) &&
       !skipUnauthorizedHandler
     ) {
       unauthorizedHandler?.(err);
-      throw new ApiError('登录已过期，请重新登录', 401);
     }
     throw err;
   }

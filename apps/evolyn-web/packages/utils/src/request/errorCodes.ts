@@ -24,6 +24,9 @@ export const ERROR_CODES = {
   AUTH_PASSWORD_DECRYPT_FAILED: 'AUTH_PASSWORD_DECRYPT_FAILED',
   AUTH_SESSION_INVALIDATED: 'AUTH_SESSION_INVALIDATED',
   AUTH_SESSION_REPLACED: 'AUTH_SESSION_REPLACED',
+  AUTH_SESSION_REVOKED: 'AUTH_SESSION_REVOKED',
+  AUTH_SESSION_EXPIRED: 'AUTH_SESSION_EXPIRED',
+  AUTH_SESSION_STALE: 'AUTH_SESSION_STALE',
   AUTH_TOKEN_REVOKED: 'AUTH_TOKEN_REVOKED',
   AUTH_SMS_IP_LIMIT: 'AUTH_SMS_IP_LIMIT',
   AUTH_LOGIN_LOCKED: 'AUTH_LOGIN_LOCKED',
@@ -287,6 +290,30 @@ export const ERROR_CODES = {
 } as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[keyof typeof ERROR_CODES];
+
+// 仅这些 401 表示当前浏览器会话已经不可继续使用。登录、验证码、MFA、
+// 二次验证等业务型 401 不在此列，必须保留原始 errCode 和后端文案给页面处理。
+export const SESSION_INVALIDATING_ERROR_CODES = [
+  ERROR_CODES.UNAUTHORIZED,
+  ERROR_CODES.AUTH_STALE_TENANT,
+  ERROR_CODES.AUTH_SESSION_INVALIDATED,
+  ERROR_CODES.AUTH_SESSION_REPLACED,
+  ERROR_CODES.AUTH_SESSION_REVOKED,
+  ERROR_CODES.AUTH_SESSION_EXPIRED,
+  ERROR_CODES.AUTH_SESSION_STALE,
+  ERROR_CODES.AUTH_TOKEN_REVOKED,
+] as const;
+
+export type SessionInvalidatingErrorCode = (typeof SESSION_INVALIDATING_ERROR_CODES)[number];
+
+const sessionInvalidatingErrorCodeSet = new Set<string>(SESSION_INVALIDATING_ERROR_CODES);
+
+/** errCode 是否要求清理当前会话并重新登录。 */
+export function isSessionInvalidatingErrorCode(
+  errCode: string | undefined,
+): errCode is SessionInvalidatingErrorCode {
+  return !!errCode && sessionInvalidatingErrorCodeSet.has(errCode);
+}
 
 /** errCode 是否为表中已知码（未知码按通用失败兜底） */
 export function isKnownErrorCode(errCode: string | undefined): errCode is ErrorCode {
