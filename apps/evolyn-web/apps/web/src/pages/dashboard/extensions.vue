@@ -80,7 +80,8 @@ function showHelp(): void {
   overflow: hidden;
   flex-direction: column;
   color: var(--el-text-color-primary);
-  background: #f4f6f8;
+  /* 跟随 Element Plus 页面级主题变量，避免暗黑模式下出现亮色画布。 */
+  background: var(--el-bg-color-page);
 }
 
 .dashboard-extensions-page__scroll {

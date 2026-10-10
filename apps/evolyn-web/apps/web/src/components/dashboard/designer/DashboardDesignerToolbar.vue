@@ -23,51 +23,55 @@ const emit = defineEmits<{
 
 <template>
   <header class="designer-toolbar">
-    <button
-      class="designer-toolbar__back"
-      type="button"
-      aria-label="返回应用"
-      @click="emit('back')"
-    >
-      <RiArrowLeftLine />
-    </button>
-    <WorkspaceTitleEditor
-      class="designer-toolbar__identity"
-      :name="name"
-      resource-label="仪表盘"
-      :saving="renaming"
-      @submit="(name, onSuccess) => emit('rename', name, onSuccess)"
-    />
+    <div class="designer-toolbar__leading">
+      <button
+        class="designer-toolbar__back"
+        type="button"
+        aria-label="返回应用"
+        @click="emit('back')"
+      >
+        <RiArrowLeftLine />
+      </button>
+      <WorkspaceTitleEditor
+        class="designer-toolbar__identity"
+        :name="name"
+        resource-label="仪表盘"
+        :saving="renaming"
+        @submit="(name, onSuccess) => emit('rename', name, onSuccess)"
+      />
+    </div>
     <DashboardWorkspaceNavigation
       class="designer-toolbar__tabs"
       active-tab="design"
       publish-disabled
       @navigate="emit('navigate', $event)"
     />
-    <div class="designer-toolbar__utility">
-      <el-tooltip content="帮助" placement="bottom">
-        <button
-          class="designer-toolbar__help"
-          type="button"
-          aria-label="帮助"
-          @click="emit('help')"
+    <div class="designer-toolbar__trailing">
+      <div class="designer-toolbar__utility">
+        <el-tooltip content="帮助" placement="bottom">
+          <button
+            class="designer-toolbar__help"
+            type="button"
+            aria-label="帮助"
+            @click="emit('help')"
+          >
+            <RiQuestionFill aria-hidden="true" />
+          </button>
+        </el-tooltip>
+      </div>
+      <div class="designer-toolbar__actions">
+        <el-button :disabled="saveStatus === 'saving'" @click="emit('preview')">
+          <RiEyeLine />预览
+        </el-button>
+        <el-button
+          type="primary"
+          :disabled="!dirty || saveStatus === 'saving'"
+          :loading="saveStatus === 'saving'"
+          @click="emit('save')"
         >
-          <RiQuestionFill aria-hidden="true" />
-        </button>
-      </el-tooltip>
-    </div>
-    <div class="designer-toolbar__actions">
-      <el-button :disabled="saveStatus === 'saving'" @click="emit('preview')">
-        <RiEyeLine />预览
-      </el-button>
-      <el-button
-        type="primary"
-        :disabled="!dirty || saveStatus === 'saving'"
-        :loading="saveStatus === 'saving'"
-        @click="emit('save')"
-      >
-        <RiSave3Line />保存
-      </el-button>
+          <RiSave3Line />保存
+        </el-button>
+      </div>
     </div>
   </header>
 </template>
@@ -77,7 +81,7 @@ const emit = defineEmits<{
 /* stylelint-disable selector-pseudo-class-no-unknown */
 .designer-toolbar {
   display: grid;
-  grid-template-columns: 36px minmax(180px, 1fr) auto minmax(180px, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
   gap: 12px;
   align-items: center;
   min-height: 56px;
@@ -85,6 +89,19 @@ const emit = defineEmits<{
   color: var(--el-text-color-primary);
   background: var(--el-bg-color);
   border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+/* 左右使用等宽弹性轨道，保证中间导航相对整个工具栏精确居中。 */
+.designer-toolbar__leading,
+.designer-toolbar__trailing {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.designer-toolbar__trailing {
+  justify-content: flex-end;
 }
 
 .designer-toolbar__back {
@@ -157,7 +174,7 @@ const emit = defineEmits<{
 
 @media (width <= 760px) {
   .designer-toolbar {
-    grid-template-columns: 36px 1fr auto;
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .designer-toolbar__tabs,

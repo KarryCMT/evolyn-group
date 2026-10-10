@@ -17,12 +17,14 @@ const props = withDefaults(
     preview?: 'desktop' | 'mobile';
     interactionMode?: 'move' | 'resize';
     theme?: 'light' | 'dark';
+    emptyIllustration?: string;
   }>(),
   {
     issueWidgetIds: () => [],
     preview: 'desktop',
     interactionMode: 'move',
     theme: 'light',
+    emptyIllustration: '',
   },
 );
 const emit = defineEmits<{
@@ -32,6 +34,7 @@ const emit = defineEmits<{
   edit: [id: string];
   duplicate: [id: string];
   drop: [type: BusinessDashboardWidgetType, layout: BusinessDashboardWidget['layout']];
+  learn: [];
 }>();
 
 const widgetRegistry = {
@@ -89,9 +92,14 @@ function componentProps(content: { config?: Record<string, unknown> }) {
       @duplicate="emit('duplicate', $event)"
     />
     <div v-if="document.widgets.length === 0" class="business-canvas__empty">
-      <span class="business-canvas__empty-index">01</span>
-      <strong>从左侧加入第一个组件</strong>
-      <p>空画布不会自动生成示例图表。你的每个组件都来自明确的设计选择。</p>
+      <img
+        v-if="emptyIllustration"
+        class="business-canvas__empty-image"
+        :src="emptyIllustration"
+        alt=""
+      >
+      <p>从左侧拖拽或点击添加图表/组件</p>
+      <button type="button" @click="emit('learn')">了解仪表盘和组件</button>
     </div>
     <div v-if="issueWidgetIds?.length" class="business-canvas__issue-count">
       {{ issueWidgetIds.length }} 个组件需要处理
@@ -114,39 +122,41 @@ function componentProps(content: { config?: Record<string, unknown> }) {
   position: absolute;
   top: 50%;
   left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   width: min(420px, calc(100% - 64px));
-  padding: 34px;
   color: var(--el-text-color-primary);
-  pointer-events: none;
-  background: color-mix(in srgb, var(--el-bg-color) 92%, transparent);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 18px;
-  box-shadow: var(--el-box-shadow-dark);
-  backdrop-filter: blur(12px);
+  text-align: center;
   transform: translate(-50%, -50%);
 }
 
-.business-canvas__empty-index {
-  display: block;
-  margin-bottom: 18px;
-  font:
-    800 12px/1 ui-monospace,
-    monospace;
-  color: var(--el-color-primary);
-  letter-spacing: 0.16em;
-}
-
-.business-canvas__empty strong {
-  font-size: 22px;
-  letter-spacing: -0.02em;
+.business-canvas__empty-image {
+  width: 156px;
+  height: 118px;
+  object-fit: contain;
 }
 
 .business-canvas__empty p {
-  max-width: 340px;
-  margin: 10px 0 0;
-  font-size: 13px;
-  line-height: 1.7;
+  margin: 18px 0 8px;
+  font-size: 14px;
   color: var(--el-text-color-secondary);
+}
+
+.business-canvas__empty button {
+  padding: 0;
+  font: inherit;
+  font-size: 14px;
+  color: var(--el-color-primary);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid currentcolor;
+}
+
+.business-canvas__empty button:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 4px;
 }
 
 .business-canvas__issue-count {

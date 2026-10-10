@@ -30,7 +30,7 @@ export function useEvolynChart(options: UseEvolynChartOptions) {
         ...options.options(),
         dom: container,
         autoFit: options.autoFit(),
-        theme: createElementChartTheme(options.theme()),
+        theme: createElementChartTheme(options.theme(), container),
       });
       chart.renderSync();
       options.onReady(chart);

@@ -1,4 +1,8 @@
-import type { BusinessDashboardDocument } from '@evolyn.do/dashboard';
+import type {
+  BusinessDashboardChartSettings,
+  BusinessDashboardChartWidget,
+  BusinessDashboardDocument,
+} from '@evolyn.do/dashboard';
 import {
   businessDashboardWidgetDescriptors,
   createEmptyBusinessDashboardDocument,
@@ -47,5 +51,44 @@ describe('business dashboard document', () => {
     editor.removeWidget('widget_chart');
     expect(document.value.widgets).toEqual([]);
     expect(editor.selectedWidgetId.value).toBeNull();
+  });
+
+  it('commits a configured chart and its dataset atomically', () => {
+    const document = shallowRef<BusinessDashboardDocument>(createEmptyBusinessDashboardDocument());
+    const editor = useBusinessDashboardEditor({ document });
+    const descriptor = businessDashboardWidgetDescriptors.find((item) => item.type === 'chart')!;
+    const dataset = {
+      id: 'dataset_employee',
+      name: '员工档案',
+      source: { type: 'form' as const, formCode: 'form_employee' },
+      query: {
+        version: 1 as const,
+        sorts: [],
+        paging: { page: 1, pageSize: 20 },
+        projection: [],
+        groupBy: ['field_name'],
+        aggregates: [{ field: 'field_department', operator: 'count' as const, alias: 'department_count' }],
+      },
+    };
+    const widget = {
+      id: 'widget_employee',
+      type: 'chart' as const,
+      title: descriptor.defaultTitle,
+      layout: { x: 0, y: 0, ...descriptor.defaultLayout },
+      datasetId: dataset.id,
+      settings: {
+        ...(descriptor.defaultSettings as BusinessDashboardChartSettings),
+        encoding: {
+          dimensions: [{ field: { fieldId: 'field_name' } }],
+          metrics: [{ aggregateAlias: 'department_count' }],
+        },
+      },
+    } satisfies BusinessDashboardChartWidget;
+
+    editor.upsertWidgetWithDataset(widget, dataset);
+
+    expect(document.value.widgets).toEqual([widget]);
+    expect(document.value.datasets).toEqual([dataset]);
+    expect(editor.selectedWidgetId.value).toBe(widget.id);
   });
 });

@@ -15,23 +15,23 @@ const ELEMENT_FALLBACKS = {
 } as const;
 
 /** SSR 或宿主未引入 Element Plus 样式时，使用视觉接近的稳定兜底值。 */
-function cssVar(name: string, fallback: string) {
+function cssVar(name: string, fallback: string, source?: Element) {
   if (typeof window === 'undefined') return fallback;
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
+  return getComputedStyle(source ?? document.documentElement).getPropertyValue(name).trim() || fallback;
 }
 
-/** 将 Element Plus 的实际级联色映射为 VChart 主题，支持 html.dark 运行时切换。 */
-export function createElementChartTheme(mode: 'light' | 'dark'): ITheme {
-  const primary = cssVar('--el-color-primary', ELEMENT_FALLBACKS.primary);
-  const success = cssVar('--el-color-success', ELEMENT_FALLBACKS.success);
-  const warning = cssVar('--el-color-warning', ELEMENT_FALLBACKS.warning);
-  const danger = cssVar('--el-color-danger', ELEMENT_FALLBACKS.danger);
-  const info = cssVar('--el-color-info', ELEMENT_FALLBACKS.info);
-  const text = cssVar('--el-text-color-primary', ELEMENT_FALLBACKS.text);
-  const regular = cssVar('--el-text-color-regular', ELEMENT_FALLBACKS.regular);
-  const border = cssVar('--el-border-color-lighter', ELEMENT_FALLBACKS.border);
-  const background = cssVar('--el-bg-color', ELEMENT_FALLBACKS.background);
-  const fontFamily = cssVar('--el-font-family', ELEMENT_FALLBACKS.fontFamily);
+/** 将图表容器实际继承的 Element Plus 色值映射为 VChart 主题，支持局部浅/深色边界。 */
+export function createElementChartTheme(mode: 'light' | 'dark', source?: Element): ITheme {
+  const primary = cssVar('--el-color-primary', ELEMENT_FALLBACKS.primary, source);
+  const success = cssVar('--el-color-success', ELEMENT_FALLBACKS.success, source);
+  const warning = cssVar('--el-color-warning', ELEMENT_FALLBACKS.warning, source);
+  const danger = cssVar('--el-color-danger', ELEMENT_FALLBACKS.danger, source);
+  const info = cssVar('--el-color-info', ELEMENT_FALLBACKS.info, source);
+  const text = cssVar('--el-text-color-primary', ELEMENT_FALLBACKS.text, source);
+  const regular = cssVar('--el-text-color-regular', ELEMENT_FALLBACKS.regular, source);
+  const border = cssVar('--el-border-color-lighter', ELEMENT_FALLBACKS.border, source);
+  const background = cssVar('--el-bg-color', ELEMENT_FALLBACKS.background, source);
+  const fontFamily = cssVar('--el-font-family', ELEMENT_FALLBACKS.fontFamily, source);
 
   return {
     type: mode,

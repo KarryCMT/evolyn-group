@@ -4,14 +4,18 @@ import dashboardRoutes from '~/router/modules/dashboard';
 
 describe('dashboard routes and workbench isolation', () => {
   it('registers independent design and revision preview routes', () => {
-    expect(dashboardRoutes.find((route) => route.name === 'dashboard-design')?.path).toBe(
-      '/app/:appCode/dashboard/:dashboardCode/design',
+    const designRoute = dashboardRoutes.find(
+      (route) => route.path === '/app/:appCode/dashboard/:dashboardCode/design',
     );
+    expect(designRoute?.children?.find((route) => route.name === 'dashboard-design')?.path).toBe('');
     expect(dashboardRoutes.find((route) => route.name === 'dashboard-preview')?.path).toBe(
       '/app/:appCode/dashboard/:dashboardCode/preview',
     );
     expect(dashboardRoutes.find((route) => route.name === 'dashboard-extensions')?.path).toBe(
       '/app/:appCode/dashboard/:dashboardCode/extensions',
+    );
+    expect(designRoute?.children?.find((route) => route.name === 'dashboard-widget-edit')?.path).toBe(
+      'widgets/:widgetId',
     );
   });
 

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import type { DashboardWorkspaceTab } from '~/components/dashboard/workspace/dashboardWorkspace.types';
-import type { DashboardFormDataSource } from '~/types';
 import { ApiError } from '@evolyn.do/utils';
 import { ElMessage, ElMessageBox } from 'element-plus';
-import { computed, shallowRef, watch } from 'vue';
+import { computed, provide, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { updateDashboard } from '~/api/dashboard';
 import { appWorkspaceRoute } from '~/components/app/workspace/appWorkspaceNavigation';
-import DashboardDesignerShell from '~/components/dashboard/designer/DashboardDesignerShell.vue';
+import { dashboardDesignWorkspaceKey } from '~/components/dashboard/designer/dashboardDesignWorkspace';
+import { useDashboardChartEditorSession } from '~/composables/useDashboardChartEditorSession';
 import { useDashboardDataCatalog } from '~/composables/useDashboardDataCatalog';
 import { prepareDashboardPreview, useDashboardDesigner } from '~/composables/useDashboardDesigner';
 import { useUnsavedChangesGuard } from '~/composables/useUnsavedChangesGuard';
@@ -22,11 +22,19 @@ const designer = useDashboardDesigner();
 const dataCatalog = useDashboardDataCatalog();
 const selectedDatasetId = shallowRef<string | null>(null);
 const renaming = shallowRef(false);
+const chartEditor = useDashboardChartEditorSession({
+  commit(widget, dataset) {
+    designer.upsertWidgetWithDataset(widget, dataset);
+    selectedDatasetId.value = dataset.id;
+  },
+});
+const workspaceDirty = computed(() => designer.isDirty.value || chartEditor.isDirty.value);
 
 watch(
   dashboardCode,
   async (code) => {
     if (!code) return;
+    chartEditor.discard();
     const loaded = await designer.load(code);
     if (loaded && designer.detail.value) {
       document.title = `${designer.detail.value.name} - 仪表盘设计`;
@@ -40,7 +48,7 @@ watch(
 );
 
 useUnsavedChangesGuard({
-  dirty: designer.isDirty,
+  dirty: workspaceDirty,
   async confirmLeave() {
     try {
       await ElMessageBox.confirm('当前修改尚未保存，离开后将丢失本次编辑。', '未保存的修改', {
@@ -86,7 +94,6 @@ function returnToApp() {
   void router.push(appWorkspaceRoute(appCode.value, dashboardCode.value));
 }
 
-/** 帮助中心尚未接入时提供明确反馈，避免图标按钮成为无响应入口。 */
 function showHelp() {
   ElMessage.info('仪表盘帮助中心正在建设中');
 }
@@ -112,7 +119,7 @@ async function renameDashboard(name: string, onSuccess: () => void): Promise<voi
   renaming.value = true;
   try {
     const detail = await updateDashboard(code, { name: normalizedName });
-    // 请求期间可能切换到另一张仪表盘，旧响应不能覆盖当前工作区标题。
+    // 请求返回时路由可能已经切换，避免旧请求覆盖新仪表盘的标题与详情。
     if (dashboardCode.value !== code) return;
     designer.patchDetail({
       name: detail.name,
@@ -151,19 +158,22 @@ async function reloadConflict() {
   await designer.reloadServerVersion(dashboardCode.value);
 }
 
-async function addDataset(source: DashboardFormDataSource) {
-  const existing = designer.editingDocument.value.datasets.find(
-    (item) => item.source.formCode === source.code,
-  );
-  const id = existing?.id ?? designer.addFormDataset(source.code, source.name);
-  selectedDatasetId.value = id;
-  await dataCatalog.ensureCatalog(source.code);
-}
-
-function removeDataset(id: string) {
-  designer.removeDataset(id);
-  selectedDatasetId.value = designer.editingDocument.value.datasets[0]?.id ?? null;
-}
+provide(dashboardDesignWorkspaceKey, {
+  appCode,
+  dashboardCode,
+  designer,
+  dataCatalog,
+  chartEditor,
+  selectedDatasetId,
+  renaming,
+  saveDraft,
+  openPreview,
+  returnToApp,
+  showHelp,
+  navigateWorkspace,
+  renameDashboard,
+  reloadConflict,
+});
 </script>
 
 <template>
@@ -188,51 +198,12 @@ function removeDataset(id: string) {
       </el-button>
     </template>
   </el-result>
-  <DashboardDesignerShell
-    v-else-if="designer.loadStatus.value === 'ready' && designer.detail.value"
-    :name="designer.detail.value.name"
-    :document="designer.editingDocument.value"
-    :selected-widget="designer.selectedWidget.value"
-    :selected-widget-id="designer.selectedWidgetId.value"
-    :issue-widget-ids="designer.issueWidgetIds.value"
-    :issues="designer.issues.value"
-    :focused-issue-path="designer.focusedIssuePath.value"
-    :dirty="designer.isDirty.value"
-    :save-status="designer.saveStatus.value"
-    :renaming="renaming"
-    :conflict-message="designer.errorMessage.value"
-    :data-sources="dataCatalog.sources.value"
-    :data-catalogs="dataCatalog.catalogs.value"
-    :data-loading="dataCatalog.loading.value"
-    :data-error-message="dataCatalog.errorMessage.value"
-    :selected-dataset-id="selectedDatasetId"
-    @back="returnToApp"
-    @help="showHelp"
-    @save="saveDraft"
-    @preview="openPreview"
-    @navigate="navigateWorkspace"
-    @rename="renameDashboard"
-    @reload-conflict="reloadConflict"
-    @add="designer.addWidget"
-    @drop="designer.addWidgetAtLayout"
-    @select="designer.selectWidget"
-    @remove="designer.removeWidget"
-    @duplicate="designer.duplicateWidget"
-    @update-widget="designer.updateWidget"
-    @update-layouts="designer.replaceLayouts"
-    @update-desktop-settings="designer.updateDesktopSettings"
-    @focus-issue="designer.focusIssue"
-    @add-dataset="addDataset"
-    @select-dataset="selectedDatasetId = $event"
-    @update-dataset="designer.updateDataset"
-    @remove-dataset="removeDataset"
-    @request-catalog="dataCatalog.ensureCatalog"
-  />
+  <RouterView v-else-if="designer.loadStatus.value === 'ready' && designer.detail.value" />
 </template>
 
 <style scoped>
 .design-page__state {
   min-height: 100vh;
-  background: #eef2f5;
+  background: var(--el-bg-color-page);
 }
 </style>

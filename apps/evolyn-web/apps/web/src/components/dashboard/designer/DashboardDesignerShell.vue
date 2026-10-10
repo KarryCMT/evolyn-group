@@ -15,6 +15,7 @@ import type { DashboardFormDataSource, DashboardFormFieldCatalog } from '~/types
 import { BusinessDashboardCanvas, businessDashboardWidgetDescriptors } from '@evolyn.do/dashboard';
 import { RiCloseLine } from '@remixicon/vue';
 import { shallowRef, watch } from 'vue';
+import dashboardEmptyState from '~/assets/images/dashboard-empty-state.png';
 import { isDark } from '~/composables/dark';
 import DashboardComponentPalette from './DashboardComponentPalette.vue';
 import DashboardDataPanel from './DashboardDataPanel.vue';
@@ -54,6 +55,7 @@ const emit = defineEmits<{
   select: [id: string | null];
   remove: [id: string];
   duplicate: [id: string];
+  edit: [id: string];
   updateWidget: [id: string, patch: BusinessDashboardWidgetPatch];
   updateLayouts: [layouts: Array<{ id: string; layout: BusinessDashboardLayout }>];
   updateDesktopSettings: [patch: Partial<BusinessDashboardDocument['settings']['desktop']>];
@@ -158,10 +160,12 @@ function dropWidget(type: BusinessDashboardWidgetType, layout: BusinessDashboard
         :preview="preview"
         :interaction-mode="interactionMode"
         :theme="isDark ? 'dark' : 'light'"
+        :empty-illustration="dashboardEmptyState"
         @select="emit('select', $event || null)"
         @remove="emit('remove', $event)"
-        @edit="openWidgetProperties"
+        @edit="emit('edit', $event)"
         @duplicate="emit('duplicate', $event)"
+        @learn="emit('help')"
         @drop="dropWidget"
         @update-layouts="emit('updateLayouts', $event)"
       />

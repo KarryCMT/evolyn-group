@@ -7,6 +7,6 @@ export {
   createEmptyBusinessDashboardDocument,
   normalizeBusinessDashboardDocument,
 } from './document.js';
-export { useBusinessDashboardEditor } from './editor.js';
+export { findAvailableWidgetPosition, useBusinessDashboardEditor } from './editor.js';
 export * from './adapters.js';
 export * from './types.js';

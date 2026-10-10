@@ -18,12 +18,39 @@ export function buildBusinessChartSpec(
 ): EvolynChartSpec {
   const dimensions = widget.settings.encoding.dimensions.map((item) => item.field.fieldId);
   const metrics = widget.settings.encoding.metrics.map((item) => item.aggregateAlias);
+  const columnLabels = new Map(result.columns.map((item) => [item.key, item.label]));
+  const metricLabels = new Map(
+    widget.settings.encoding.metrics.map((item) => [
+      item.aggregateAlias,
+      item.label || columnLabels.get(item.aggregateAlias) || item.aggregateAlias,
+    ]),
+  );
   const variant = widget.settings.display.variant;
+  const primaryCategoryCount = dimensions[0]
+    ? new Set(result.rows.map((row) => String(row[dimensions[0]!]))).size
+    : 0;
+  const singleCategoryBarWidth = Math.max(
+    24,
+    Math.min(74, Math.floor(600 / Math.max(result.rows.length, 1))),
+  );
   const common = {
     data: [{ id: 'dataset', values: result.rows }],
+    // 设计器与运行态共用稳定的多系列色板，避免主题主色覆盖全部业务序列。
+    color: ['#59a7df', '#70d28c', '#f2c774', '#f58c7e', '#75cbc7', '#9494ad', '#738fd9', '#efa15e'],
     legends: {
       visible: widget.settings.display.legend.visible,
       orient: widget.settings.display.legend.position,
+      // VChart 默认会展示内部系列 ID；在适配层映射回业务指标名，避免泄露实现细节。
+      item: {
+        label: {
+          formatMethod: (text: string | number, _item: unknown, index: number) =>
+            dimensions.length > 1
+              ? String(text)
+              : metricLabels.get(String(text)) ??
+                metricLabels.get(metrics[index] ?? '') ??
+                String(text),
+        },
+      },
     },
     label: { visible: widget.settings.display.labels.visible },
   };
@@ -38,6 +65,17 @@ export function buildBusinessChartSpec(
   return {
     ...common,
     type: variant,
+    // 单个主分类即使拆成多个系列也应放宽柱体；多分类仍交由 VChart 自适应避免重叠。
+    ...(variant === 'bar' && primaryCategoryCount === 1
+      ? {
+          barWidth: singleCategoryBarWidth,
+          // 单分类图缩小类目轴两侧留白，使多系列柱体在宽画布中保持目标稿的视觉占比。
+          axes:
+            widget.settings.display.orientation === 'vertical'
+              ? [{ orient: 'bottom', bandPadding: 0.08 }, { orient: 'left' }]
+              : [{ orient: 'left', bandPadding: 0.08 }, { orient: 'bottom' }],
+        }
+      : {}),
     xField: widget.settings.display.orientation === 'vertical' ? dimensions : metrics,
     yField: widget.settings.display.orientation === 'vertical' ? metrics : dimensions,
     seriesField: dimensions.length > 1 ? dimensions[1] : undefined,

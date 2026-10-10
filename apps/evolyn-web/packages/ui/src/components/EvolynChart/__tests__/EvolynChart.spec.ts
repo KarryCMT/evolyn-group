@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => {
 vi.mock('@visactor/vchart', () => ({ VChart: mocks.VChartMock }));
 
 import EvolynChart from '../EvolynChart.vue';
+import { createElementChartTheme } from '../theme';
 
 describe('EvolynChart', () => {
   beforeEach(() => {
@@ -38,5 +39,20 @@ describe('EvolynChart', () => {
     await wrapper.setProps({ spec: { type: 'bar', data: [] } });
 
     expect(mocks.chart.updateSpec).toHaveBeenCalledWith({ type: 'bar', data: [] });
+  });
+
+  it('优先读取图表容器的局部主题变量', () => {
+    const source = document.createElement('div');
+    source.style.setProperty('--el-color-primary', '#08aaa3');
+    source.style.setProperty('--el-bg-color', '#ffffff');
+    document.body.append(source);
+
+    const theme = createElementChartTheme('light', source);
+    source.remove();
+
+    expect(theme.background).toBe('#ffffff');
+    expect(theme.colorScheme).toEqual({
+      default: ['#08aaa3', '#67c23a', '#e6a23c', '#f56c6c', '#909399'],
+    });
   });
 });

@@ -6,9 +6,21 @@ import type { RouteRecordRaw } from 'vue-router';
 const dashboardRoutes: RouteRecordRaw[] = [
   {
     path: '/app/:appCode/dashboard/:dashboardCode/design',
-    name: 'dashboard-design',
     component: () => import('~/pages/dashboard/design.vue'),
     meta: { public: false, title: '仪表盘设计' },
+    children: [
+      {
+        path: '',
+        name: 'dashboard-design',
+        component: () => import('~/pages/dashboard/design-canvas.vue'),
+      },
+      {
+        path: 'widgets/:widgetId',
+        name: 'dashboard-widget-edit',
+        component: () => import('~/pages/dashboard/chart-editor.vue'),
+        meta: { public: false, title: '图表配置' },
+      },
+    ],
   },
   {
     path: '/app/:appCode/dashboard/:dashboardCode/preview',

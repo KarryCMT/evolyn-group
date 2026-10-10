@@ -30,7 +30,8 @@ describe('business dashboard canvas', () => {
     });
 
     expect(wrapper.find('.business-canvas__empty').exists()).toBe(true);
-    expect(wrapper.text()).toContain('空画布不会自动生成示例图表');
+    expect(wrapper.text()).toContain('从左侧拖拽或点击添加图表/组件');
+    expect(wrapper.text()).toContain('了解仪表盘和组件');
 
     editor.addWidget(businessDashboardWidgetDescriptors[0]);
     await wrapper.setProps({ document: document.value, selectedWidgetId: 'widget_chart' });
@@ -131,7 +132,7 @@ describe('business dashboard canvas', () => {
       settings: {
         encoding: {
           dimensions: [{ field: { fieldId: 'field_region' } }],
-          metrics: [{ aggregateAlias: 'total_amount' }],
+          metrics: [{ aggregateAlias: 'total_amount', label: '销售额' }],
         },
         display: {
           variant: 'bar',
@@ -176,6 +177,21 @@ describe('business dashboard canvas', () => {
     }) => Record<string, unknown>;
     expect(chartSpec.xField).toEqual(['field_region']);
     expect(chartSpec.yField).toEqual(['total_amount']);
+    expect(chartSpec.barWidth).toBe(74);
+    expect(chartSpec.color).toEqual([
+      '#59a7df',
+      '#70d28c',
+      '#f2c774',
+      '#f58c7e',
+      '#75cbc7',
+      '#9494ad',
+      '#738fd9',
+      '#efa15e',
+    ]);
+    const legend = chartSpec.legends as {
+      item: { label: { formatMethod: (text: string) => string } };
+    };
+    expect(legend.item.label.formatMethod('total_amount')).toBe('销售额');
     expect((chartSpec.data as Array<{ values: unknown[] }>)[0].values[0]).toEqual(result.rows[0]);
     expect(tableAdapter.columns[0].format?.(result.rows[0])).toBe('9007199254740993.123456');
     expect(darkCellStyle({ row: 0 })).toMatchObject({

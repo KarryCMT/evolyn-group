@@ -23,7 +23,10 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
   );
 
   function addWidget(descriptor: BusinessDashboardWidgetDescriptor) {
-    const layout = findAvailablePosition(options.document.value.widgets, descriptor.defaultLayout);
+    const layout = findAvailableWidgetPosition(
+      options.document.value.widgets,
+      descriptor.defaultLayout,
+    );
     return addWidgetAtLayout(descriptor, layout);
   }
 
@@ -74,7 +77,7 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
   function duplicateWidget(id: string) {
     const source = options.document.value.widgets.find((widget) => widget.id === id);
     if (!source) return;
-    const layout = findAvailablePosition(options.document.value.widgets, source.layout);
+    const layout = findAvailableWidgetPosition(options.document.value.widgets, source.layout);
     const widget = structuredClone(source);
     widget.id = options.createID?.() ?? createWidgetID();
     widget.title = `${source.title || '未命名组件'} 副本`;
@@ -159,6 +162,32 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
     };
   }
 
+  /**
+   * 组件编辑页以隔离草稿同时编辑 Dataset 与组件；完成时在一次不可变替换中提交，
+   * 避免画布观察到只写入其中一半的中间状态。
+   */
+  function upsertWidgetWithDataset(
+    widget: BusinessDashboardWidget,
+    dataset: BusinessDashboardDataset,
+  ) {
+    const hasWidget = options.document.value.widgets.some((item) => item.id === widget.id);
+    const hasDataset = options.document.value.datasets.some((item) => item.id === dataset.id);
+    options.document.value = {
+      ...options.document.value,
+      datasets: hasDataset
+        ? options.document.value.datasets.map((item) =>
+            item.id === dataset.id ? structuredClone(dataset) : item,
+          )
+        : [...options.document.value.datasets, structuredClone(dataset)],
+      widgets: hasWidget
+        ? options.document.value.widgets.map((item) =>
+            item.id === widget.id ? structuredClone(widget) : item,
+          )
+        : [...options.document.value.widgets, structuredClone(widget)],
+    };
+    selectedWidgetId.value = widget.id;
+  }
+
   function replaceWidgets(widgets: BusinessDashboardWidget[]) {
     options.document.value = { ...options.document.value, widgets };
   }
@@ -178,6 +207,7 @@ export function useBusinessDashboardEditor(options: UseBusinessDashboardEditorOp
     addFormDataset,
     updateDataset,
     removeDataset,
+    upsertWidgetWithDataset,
   };
 }
 
@@ -187,7 +217,7 @@ function createDatasetID(): string {
   return `dataset_${value.replaceAll('-', '')}`;
 }
 
-function findAvailablePosition(
+export function findAvailableWidgetPosition(
   widgets: BusinessDashboardWidget[],
   size: Pick<BusinessDashboardLayout, 'w' | 'h'>,
 ): BusinessDashboardLayout {

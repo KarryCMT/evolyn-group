@@ -211,7 +211,7 @@ onMounted(() =>
   position: relative;
   z-index: 1;
   display: flex;
-  flex: 0 0 190px;
+  flex: 0 0 200px;
   flex-direction: column;
   min-height: 0;
   /* 折叠按钮需要跨出侧栏边界，列表滚动仍由内部滚动容器负责裁剪。 */

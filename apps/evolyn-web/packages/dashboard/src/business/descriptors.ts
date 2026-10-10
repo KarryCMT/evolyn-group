@@ -4,9 +4,9 @@ import type { BusinessDashboardWidgetDescriptor } from './types.js';
 export const businessDashboardWidgetDescriptors: readonly BusinessDashboardWidgetDescriptor[] = [
   {
     type: 'chart',
-    label: '统计图',
+    label: '统计表',
     description: '用维度与指标观察趋势和分布',
-    defaultTitle: '未命名统计图',
+    defaultTitle: '未命名统计表',
     defaultLayout: { w: 6, h: 4 },
     defaultSettings: {
       encoding: { dimensions: [], metrics: [] },
@@ -14,8 +14,8 @@ export const businessDashboardWidgetDescriptors: readonly BusinessDashboardWidge
         variant: 'bar',
         orientation: 'vertical',
         stack: 'none',
-        legend: { visible: true, position: 'top' },
-        labels: { visible: false },
+        legend: { visible: true, position: 'bottom' },
+        labels: { visible: true },
       },
     },
   },
