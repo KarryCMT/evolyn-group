@@ -11,6 +11,8 @@ import {
   RiDeleteBin6Fill,
   RiDownload2Fill,
   RiHistoryFill,
+  RiMoreFill,
+  RiQrCodeFill,
   RiUpload2Fill,
 } from '@remixicon/vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -19,6 +21,7 @@ import { useRoute } from 'vue-router';
 import { deleteFormRecords } from '~/api/form';
 import FormRecordCreateDialog from '~/components/form/data/FormRecordCreateDialog.vue';
 import FormRecordFilterPanel from '~/components/form/data/FormRecordFilterPanel.vue';
+import FormRecordLabelDownloadDialog from '~/components/form/data/FormRecordLabelDownloadDialog.vue';
 import FormRecordMemberCardPopover from '~/components/form/data/FormRecordMemberCardPopover.vue';
 import {
   memberReferencesOf,
@@ -53,6 +56,7 @@ const {
   total,
   status,
   errorMessage,
+  runtime,
   reload,
 } = useFormRecordDataSource({ appCode, formCode, query });
 // 数据源对外只读；表格接收独立行副本，避免渲染层意外改写领域缓存。
@@ -63,6 +67,10 @@ const memberCardVisible = shallowRef(false);
 const memberCardReferences = shallowRef<FormRecordMemberReference[]>([]);
 const memberCardPosition = shallowRef<{ x: number; y: number } | null>(null);
 const createDialogVisible = shallowRef(false);
+const labelDownloadVisible = shallowRef(false);
+const canBatchPrint = computed(() =>
+  runtime.value?.permissions?.operations?.includes('batch_print') ?? false,
+);
 
 function positiveRouteID(value: unknown): number | undefined {
   const raw = Array.isArray(value) ? value[0] : value;
@@ -87,7 +95,20 @@ const actions = computed<DataAction[]>(() => {
   return [
     { key: 'clear-selection', label: `已选 ${selectedRecordIds.value.length}/${total.value}` },
     { key: 'export', label: '导出', icon: markRaw(RiDownload2Fill) },
-    { key: 'remove', label: '删除', icon: markRaw(RiDeleteBin6Fill), tone: 'danger' },
+    {
+      key: 'more',
+      label: '更多',
+      icon: markRaw(RiMoreFill),
+      children: [
+        {
+          key: 'download-labels',
+          label: '下载二维码标签',
+          icon: markRaw(RiQrCodeFill),
+          disabled: !canBatchPrint.value,
+        },
+        { key: 'remove', label: '批量删除', icon: markRaw(RiDeleteBin6Fill), tone: 'danger' },
+      ],
+    },
   ];
 });
 
@@ -99,6 +120,18 @@ async function handleAction(key: string) {
   if (key === 'clear-selection') {
     selectedRecordIds.value = [];
     selectionResetVersion.value += 1;
+    return;
+  }
+  if (key === 'download-labels') {
+    if (selectedRecordIds.value.length === 0) {
+      ElMessage.warning('请先勾选需要下载标签的数据');
+      return;
+    }
+    if (!canBatchPrint.value) {
+      ElMessage.warning('没有批量打印当前表单数据的权限');
+      return;
+    }
+    labelDownloadVisible.value = true;
     return;
   }
   if (key === 'remove') {
@@ -218,6 +251,11 @@ function isRecordCellClick(value: unknown): value is {
       :app-code="appCode"
       :form-code="formCode"
       @submitted="handleRecordCreated"
+    />
+    <FormRecordLabelDownloadDialog
+      v-model="labelDownloadVisible"
+      :form-code="formCode"
+      :record-ids="selectedRecordIds"
     />
   </section>
 </template>

@@ -641,6 +641,21 @@ func (f fakePermEvaluator) Evaluate(ctx context.Context, member *iammodel.User, 
 	return f.resolved, nil
 }
 
+func TestRuntimeOperationsProjectsBatchPrintWithoutReplacingRowChecks(t *testing.T) {
+	baseline := (&ResolvedFormPermission{Baseline: true}).RuntimeOperations()
+	assert.Contains(t, baseline, model.PermissionOpBatchPrint)
+
+	matched := (&ResolvedFormPermission{Matched: []MatchedGroup{{
+		Code: "fpg_print", Operations: map[string]bool{model.PermissionOpBatchPrint: true},
+	}}}).RuntimeOperations()
+	assert.Contains(t, matched, model.PermissionOpBatchPrint)
+
+	denied := (&ResolvedFormPermission{Matched: []MatchedGroup{{
+		Code: "fpg_view", Operations: map[string]bool{model.PermissionOpView: true},
+	}}}).RuntimeOperations()
+	assert.NotContains(t, denied, model.PermissionOpBatchPrint)
+}
+
 func (f fakePermEvaluator) EvaluateForForms(ctx context.Context, member *iammodel.User, formIDs []uint) (map[uint]*ResolvedFormPermission, error) {
 	result := map[uint]*ResolvedFormPermission{}
 	for _, id := range formIDs {

@@ -57,7 +57,6 @@ interface LabelTemplate {
   kind: TemplateKind;
   name: string;
   ratio: '3:2' | '2:3';
-  downloadSize: string;
   maxFields: number;
   accent: boolean;
   qrPosition: 'left' | 'right' | 'center';
@@ -84,7 +83,6 @@ const templates: LabelTemplate[] = [
     kind: 'wide-left',
     name: '蓝色标题·左文右码',
     ratio: '3:2',
-    downloadSize: '150 X 100mm、60 X 40mm',
     maxFields: 4,
     accent: true,
     qrPosition: 'right',
@@ -93,7 +91,6 @@ const templates: LabelTemplate[] = [
     kind: 'wide-right',
     name: '蓝色标题·左文右码',
     ratio: '3:2',
-    downloadSize: '150 X 100mm、60 X 40mm',
     maxFields: 4,
     accent: true,
     qrPosition: 'right',
@@ -102,7 +99,6 @@ const templates: LabelTemplate[] = [
     kind: 'split-left',
     name: '蓝色分栏·左码右文',
     ratio: '3:2',
-    downloadSize: '150 X 100mm、60 X 40mm',
     maxFields: 4,
     accent: true,
     qrPosition: 'left',
@@ -111,7 +107,6 @@ const templates: LabelTemplate[] = [
     kind: 'portrait',
     name: '竖版蓝色标题',
     ratio: '2:3',
-    downloadSize: '100 X 150mm、40 X 60mm',
     maxFields: 4,
     accent: true,
     qrPosition: 'center',
@@ -120,7 +115,6 @@ const templates: LabelTemplate[] = [
     kind: 'plain-right',
     name: '简洁左文右码',
     ratio: '3:2',
-    downloadSize: '150 X 100mm、60 X 40mm',
     maxFields: 4,
     accent: false,
     qrPosition: 'right',
@@ -129,7 +123,6 @@ const templates: LabelTemplate[] = [
     kind: 'plain-left',
     name: '简洁左码右文',
     ratio: '3:2',
-    downloadSize: '150 X 100mm、60 X 40mm',
     maxFields: 4,
     accent: false,
     qrPosition: 'left',
@@ -138,7 +131,6 @@ const templates: LabelTemplate[] = [
     kind: 'compact-right',
     name: '紧凑左文右码',
     ratio: '3:2',
-    downloadSize: '100 X 60mm、60 X 40mm',
     maxFields: 4,
     accent: false,
     qrPosition: 'right',
@@ -147,7 +139,6 @@ const templates: LabelTemplate[] = [
     kind: 'compact-left',
     name: '紧凑左码右文',
     ratio: '3:2',
-    downloadSize: '100 X 60mm、60 X 40mm',
     maxFields: 4,
     accent: false,
     qrPosition: 'left',
@@ -156,7 +147,6 @@ const templates: LabelTemplate[] = [
     kind: 'table',
     name: '表格标签',
     ratio: '3:2',
-    downloadSize: '150 X 100mm、60 X 40mm',
     maxFields: 4,
     accent: false,
     qrPosition: 'right',
@@ -165,7 +155,6 @@ const templates: LabelTemplate[] = [
     kind: 'qr-only',
     name: '纯二维码',
     ratio: '3:2',
-    downloadSize: '60 X 60mm、40 X 40mm',
     maxFields: 4,
     accent: false,
     qrPosition: 'center',
@@ -400,9 +389,28 @@ const labelSchema = computed<LabelSchema>(() => {
     page: { width: pageWidth, height: pageHeight, unit: 'mm', dpi: 300, background: '#ffffff' },
     source: { type: 'form', formId: detail.value?.code ?? '' },
     elements,
-    settings: { snapToGrid: true, gridSize: 1, showGrid: false },
+    settings: {
+      snapToGrid: true,
+      gridSize: 1,
+      showGrid: false,
+      outputPresets: portrait
+        ? [
+            { id: 'large', name: '大尺寸', width: 100, height: 150, unit: 'mm', dpi: 300 },
+            { id: 'small', name: '小尺寸', width: 40, height: 60, unit: 'mm', dpi: 300 },
+          ]
+        : [
+            { id: 'large', name: '大尺寸', width: 150, height: 100, unit: 'mm', dpi: 300 },
+            { id: 'small', name: '小尺寸', width: 60, height: 40, unit: 'mm', dpi: 300 },
+          ],
+    },
   };
 });
+
+const outputSizeText = computed(() =>
+  (labelSchema.value.settings.outputPresets ?? [])
+    .map((preset) => `${preset.width} X ${preset.height}${preset.unit}`)
+    .join('、'),
+);
 
 const previewData = computed<LabelRenderData>(() => ({
   fields: Object.fromEntries([
@@ -775,7 +783,7 @@ onBeforeUnmount(() => {
             <img :src="svgPreviewUrl" alt="SVG 标签实时预览">
           </div>
           <p>
-            当前标签比例{{ currentTemplate.ratio }}，可下载尺寸：{{ currentTemplate.downloadSize }}
+            当前标签比例{{ currentTemplate.ratio }}，可下载尺寸：{{ outputSizeText }}
           </p>
           <p>
             标签样式及字段规则修改后，将对当前表单的所有数据的二维码生效

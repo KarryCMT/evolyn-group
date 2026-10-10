@@ -26,6 +26,7 @@ var (
 	ErrFormInvalid          = httpx.NewBiz("LABEL_FORM_INVALID", "绑定表单不存在或无权访问", http.StatusBadRequest)
 	ErrFormatUnsupported    = httpx.NewBiz("LABEL_FORMAT_UNSUPPORTED", "暂不支持该标签输出格式", http.StatusBadRequest)
 	ErrBatchInvalid         = httpx.NewBiz("LABEL_BATCH_INVALID", "批量标签请求不符合要求", http.StatusBadRequest)
+	ErrOutputPresetInvalid  = httpx.NewBiz("LABEL_OUTPUT_PRESET_INVALID", "标签输出尺寸不可用", http.StatusBadRequest)
 	ErrTaskNotFound         = httpx.NewBiz("LABEL_TASK_NOT_FOUND", "标签渲染任务不存在或无权访问", http.StatusNotFound)
 	ErrTaskQueueUnavailable = httpx.NewBiz("LABEL_TASK_QUEUE_UNAVAILABLE", "标签渲染队列暂不可用，请稍后重试", http.StatusServiceUnavailable)
 	ErrTaskNotReady         = httpx.NewBiz("LABEL_TASK_NOT_READY", "标签渲染任务尚未生成可下载文件", http.StatusConflict)

@@ -208,19 +208,56 @@ func (f *LabelController) Render(c *gin.Context) {
 // @Produce json
 // @Param body body model.BatchRenderRequest true "批量渲染参数"
 // @Success 202 {object} httpx.Response{data=model.BatchRenderCreated}
-// @Router /api/v1/labels/batch-render [post]
+// @Router /api/v1/forms/{formCode}/labels/batch-render [post]
 func (f *LabelController) BatchRender(c *gin.Context) {
 	req := new(model.BatchRenderRequest)
 	if err := c.ShouldBindJSON(req); err != nil {
 		httpx.ResponseFailed(c, http.StatusBadRequest, err)
 		return
 	}
+	req.FormCode = strings.TrimSpace(c.Param("formCode"))
 	result, err := f.service.BatchRender(c.Request.Context(), ginctx.GetUser(c), req)
 	if err != nil {
 		responseError(c, err)
 		return
 	}
 	httpx.NewResponse(c, http.StatusAccepted, result, "任务已创建")
+}
+
+// RuntimeProfile 返回数据管理下载弹窗所需的最小发布配置，不暴露模板草稿。
+// @Summary 获取表单二维码标签运行态配置
+// @Tags 二维码标签
+// @Security JWT
+// @Produce json
+// @Router /api/v1/forms/{formCode}/labels/profile [get]
+func (f *LabelController) RuntimeProfile(c *gin.Context) {
+	result, err := f.service.RuntimeProfile(c.Request.Context(), ginctx.GetUser(c), strings.TrimSpace(c.Param("formCode")))
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.ResponseSuccess(c, result)
+}
+
+// RuntimePreview 使用已发布模板、batch_print 数据权限与指定预设返回 SVG。
+// @Summary 预览表单数据二维码标签
+// @Tags 二维码标签
+// @Security JWT
+// @Accept json
+// @Produce image/svg+xml
+// @Router /api/v1/forms/{formCode}/labels/preview [post]
+func (f *LabelController) RuntimePreview(c *gin.Context) {
+	req := new(model.RuntimePreviewRequest)
+	if err := c.ShouldBindJSON(req); err != nil {
+		httpx.ResponseFailed(c, http.StatusBadRequest, err)
+		return
+	}
+	result, err := f.service.RuntimePreview(c.Request.Context(), ginctx.GetUser(c), strings.TrimSpace(c.Param("formCode")), req)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	c.Data(http.StatusOK, result.MIMEType, result.Content)
 }
 
 func (f *LabelController) GetRenderTask(c *gin.Context) {
@@ -281,7 +318,9 @@ func (f *LabelController) RegisterRoute(api *gin.RouterGroup) {
 	api.POST("/label-templates/:code/preview", f.Preview)
 	api.DELETE("/label-templates/:code", f.Delete)
 	api.POST("/labels/render", f.Render)
-	api.POST("/labels/batch-render", f.BatchRender)
+	api.GET("/forms/:formCode/labels/profile", f.RuntimeProfile)
+	api.POST("/forms/:formCode/labels/preview", f.RuntimePreview)
+	api.POST("/forms/:formCode/labels/batch-render", f.BatchRender)
 	api.GET("/labels/render-tasks/:taskCode", f.GetRenderTask)
 	api.GET("/labels/render-tasks/:taskCode/download", f.DownloadRenderTask)
 	api.GET("/labels/qr-tokens/:token", f.ResolveQRToken)

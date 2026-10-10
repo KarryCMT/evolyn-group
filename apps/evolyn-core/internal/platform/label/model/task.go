@@ -28,6 +28,11 @@ type RenderTask struct {
 	TemplateVersionID   uint             `json:"-" gorm:"not null"`
 	TemplateVersionNo   int              `json:"templateVersion" gorm:"not null"`
 	OutputFormat        string           `json:"format" gorm:"size:12;not null"`
+	OutputPresetID      string           `json:"outputPresetId" gorm:"size:32"`
+	OutputWidth         float64          `json:"outputWidth" gorm:"type:numeric(12,4)"`
+	OutputHeight        float64          `json:"outputHeight" gorm:"type:numeric(12,4)"`
+	OutputUnit          string           `json:"outputUnit" gorm:"size:8"`
+	OutputDPI           int              `json:"outputDpi"`
 	Status              string           `json:"status" gorm:"size:24;not null"`
 	TotalCount          int              `json:"totalCount" gorm:"not null"`
 	SuccessCount        int              `json:"successCount" gorm:"not null"`

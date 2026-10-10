@@ -101,8 +101,8 @@ func TestLoadMigrationsEmbedded(t *testing.T) {
 	files, err := loadMigrations(migrations.FS)
 	assert.NoError(t, err)
 
-	// 176 个文件 = 88 版本 × up/down（000088 业务仪表盘资产）
-	assert.Len(t, files, 176)
+	// 178 个文件 = 89 版本 × up/down（000089 标签输出预设冻结）
+	assert.Len(t, files, 178)
 	for i := 0; i+1 < len(files); i += 2 {
 		assert.Equal(t, files[i].version, files[i+1].version, "up/down 应相邻成对")
 		assert.Equal(t, "down", files[i].direction)

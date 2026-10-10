@@ -1,6 +1,15 @@
 export type LabelUnit = 'mm' | 'px';
 export type LabelDpi = 96 | 203 | 300 | 600;
 
+export interface LabelOutputPreset {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  unit: LabelUnit;
+  dpi: LabelDpi;
+}
+
 export interface LabelSchema {
   schemaVersion: '1.0';
   id?: string;
@@ -22,6 +31,7 @@ export interface LabelSchema {
     snapToGrid: boolean;
     gridSize: number;
     showGrid: boolean;
+    outputPresets?: LabelOutputPreset[];
   };
 }
 

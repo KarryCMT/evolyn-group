@@ -17,6 +17,7 @@ const systemKeys = new Set([
   'currentUser',
   'currentDate',
 ]);
+const outputPresetIdPattern = /^[a-z][a-z0-9-]{0,31}$/;
 
 function finite(value: number): boolean {
   return Number.isFinite(value);
@@ -151,6 +152,30 @@ export function validateLabelSchema(schema: LabelSchema | null | undefined): Lab
   if (!supportedDpi.has(schema.page.dpi)) add('$.page.dpi', 'PAGE_DPI_INVALID', 'DPI 仅支持 96、203、300、600');
   if (!validColor(schema.page.background)) add('$.page.background', 'COLOR_INVALID', '页面背景色必须为十六进制颜色');
   if (!positiveFinite(schema.settings.gridSize)) add('$.settings.gridSize', 'GRID_SIZE_INVALID', '网格尺寸必须为正数');
+  const outputPresets = schema.settings.outputPresets ?? [];
+  if (outputPresets.length > 8) {
+    add('$.settings.outputPresets', 'OUTPUT_PRESET_LIMIT_EXCEEDED', '输出尺寸预设不能超过 8 个');
+  }
+  const presetIds = new Set<string>();
+  outputPresets.forEach((preset, index) => {
+    const path = `$.settings.outputPresets[${index}]`;
+    if (!outputPresetIdPattern.test(preset.id) || presetIds.has(preset.id)) {
+      add(`${path}.id`, 'OUTPUT_PRESET_ID_INVALID', '输出尺寸预设 ID 无效或重复');
+    }
+    presetIds.add(preset.id);
+    if (!preset.name) add(`${path}.name`, 'OUTPUT_PRESET_NAME_REQUIRED', '输出尺寸预设名称不能为空');
+    if (!positiveFinite(preset.width) || !positiveFinite(preset.height)) {
+      add(path, 'OUTPUT_PRESET_SIZE_INVALID', '输出尺寸预设宽高必须为正数');
+    } else if (Math.abs(preset.width / preset.height - schema.page.width / schema.page.height) > 0.000001) {
+      add(path, 'OUTPUT_PRESET_RATIO_INVALID', '输出尺寸预设必须与设计画布保持相同宽高比');
+    }
+    if (preset.unit !== schema.page.unit) {
+      add(`${path}.unit`, 'OUTPUT_PRESET_UNIT_INVALID', '输出尺寸预设单位必须与设计画布一致');
+    }
+    if (!supportedDpi.has(preset.dpi)) {
+      add(`${path}.dpi`, 'OUTPUT_PRESET_DPI_INVALID', '输出尺寸预设 DPI 无效');
+    }
+  });
   if (schema.elements.length > 200) add('$.elements', 'ELEMENT_LIMIT_EXCEEDED', '元素数量不能超过 200');
 
   const ids = new Set<string>();

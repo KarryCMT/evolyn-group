@@ -9,6 +9,7 @@ import (
 const maxElements = 200
 
 var colorPattern = regexp.MustCompile(`^#[0-9a-fA-F]{6}([0-9a-fA-F]{2})?$`)
+var outputPresetIDPattern = regexp.MustCompile(`^[a-z][a-z0-9-]{0,31}$`)
 
 var systemKeys = map[string]bool{
 	"recordId": true, "createdAt": true, "updatedAt": true,
@@ -52,6 +53,7 @@ func Validate(schema *Schema) []Issue {
 	if schema.Settings.GridSize <= 0 || math.IsNaN(schema.Settings.GridSize) {
 		add("$.settings.gridSize", "GRID_SIZE_INVALID", "网格尺寸必须为正数")
 	}
+	validateOutputPresets(schema, add)
 	if len(schema.Elements) > maxElements {
 		add("$.elements", "ELEMENT_LIMIT_EXCEEDED", fmt.Sprintf("元素数量不能超过 %d", maxElements))
 	}
@@ -77,6 +79,38 @@ func Validate(schema *Schema) []Issue {
 		validateElement(element, path, add)
 	}
 	return issues
+}
+
+func validateOutputPresets(schema *Schema, add func(string, string, string)) {
+	if len(schema.Settings.OutputPresets) > 8 {
+		add("$.settings.outputPresets", "OUTPUT_PRESET_LIMIT_EXCEEDED", "输出尺寸预设不能超过 8 个")
+	}
+	seen := make(map[string]bool, len(schema.Settings.OutputPresets))
+	pageRatio := schema.Page.Width / schema.Page.Height
+	for index := range schema.Settings.OutputPresets {
+		preset := &schema.Settings.OutputPresets[index]
+		path := fmt.Sprintf("$.settings.outputPresets[%d]", index)
+		if !outputPresetIDPattern.MatchString(preset.ID) || seen[preset.ID] {
+			add(path+".id", "OUTPUT_PRESET_ID_INVALID", "输出尺寸预设 ID 无效或重复")
+		}
+		seen[preset.ID] = true
+		if preset.Name == "" {
+			add(path+".name", "OUTPUT_PRESET_NAME_REQUIRED", "输出尺寸预设名称不能为空")
+		}
+		if !positiveFinite(preset.Width) || !positiveFinite(preset.Height) {
+			add(path, "OUTPUT_PRESET_SIZE_INVALID", "输出尺寸预设宽高必须为正数")
+			continue
+		}
+		if preset.Unit != schema.Page.Unit {
+			add(path+".unit", "OUTPUT_PRESET_UNIT_INVALID", "输出尺寸预设单位必须与设计画布一致")
+		}
+		if preset.DPI != 96 && preset.DPI != 203 && preset.DPI != 300 && preset.DPI != 600 {
+			add(path+".dpi", "OUTPUT_PRESET_DPI_INVALID", "输出尺寸预设 DPI 无效")
+		}
+		if finite(pageRatio) && math.Abs(preset.Width/preset.Height-pageRatio) > 0.000001 {
+			add(path, "OUTPUT_PRESET_RATIO_INVALID", "输出尺寸预设必须与设计画布保持相同宽高比")
+		}
+	}
 }
 
 func validateElement(element *Element, path string, add func(string, string, string)) {

@@ -158,14 +158,23 @@ func (r *ResolvedFormPermission) FieldsForNew(op string) map[string]FieldPermiss
 	return unionFieldPermissions(r.fieldList, matched)
 }
 
-// RuntimeOperations 运行时投影的记录无关操作可用性（设计 §8.2）：字典中
-// 「新建记录」语义的操作键（add/import）。记录级操作（view/edit/delete/copy/
-// batch_*/export 与流程特有操作）由记录接口逐行判定，不在本投影内。
+// RuntimeOperations 运行时投影包含新记录操作，以及用于控制数据管理批量入口
+// 粗粒度可见性的 batch_print。后者仍必须在具体记录接口逐行判定数据范围。
 func (r *ResolvedFormPermission) RuntimeOperations() []string {
-	operations := make([]string, 0, 2)
+	operations := make([]string, 0, 3)
 	for _, op := range []string{model.PermissionOpAdd, model.PermissionOpImport} {
 		if r.AllowsNewRecord(op) {
 			operations = append(operations, op)
+		}
+	}
+	if r.Admin || r.Baseline {
+		operations = append(operations, model.PermissionOpBatchPrint)
+	} else {
+		for index := range r.Matched {
+			if r.Matched[index].Operations[model.PermissionOpBatchPrint] {
+				operations = append(operations, model.PermissionOpBatchPrint)
+				break
+			}
 		}
 	}
 	return operations

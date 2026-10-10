@@ -109,12 +109,13 @@ func newCode() (string, error) {
 }
 
 func defaultSchema(name, formCode string, width, height float64, unit string, dpi int) model.SchemaContent {
+	page := enginelabel.Page{Width: width, Height: height, Unit: unit, DPI: dpi, Background: "#ffffff"}
 	schema := enginelabel.Schema{
 		SchemaVersion: "1.0", Name: name,
-		Page:     enginelabel.Page{Width: width, Height: height, Unit: unit, DPI: dpi, Background: "#ffffff"},
+		Page:     page,
 		Source:   &enginelabel.Source{Type: "form", FormID: formCode},
 		Elements: []enginelabel.Element{},
-		Settings: enginelabel.Settings{SnapToGrid: true, GridSize: 1, ShowGrid: false},
+		Settings: enginelabel.Settings{SnapToGrid: true, GridSize: 1, ShowGrid: false, OutputPresets: enginelabel.StandardOutputPresets(page)},
 	}
 	encoded, _ := json.Marshal(schema)
 	return model.SchemaContent(encoded)
@@ -262,10 +263,16 @@ func (s *templateService) SaveDraft(ctx context.Context, member *iammodel.User, 
 	if req.DraftRevision != template.DraftRevision {
 		return nil, httpx.Wrap(labelapp.ErrRevisionConflict, fmt.Errorf("label template revision mismatch"))
 	}
-	schema, issues, err := decodeAndValidate(req.Schema)
+	schema, _, err := decodeAndValidate(req.Schema)
 	if err != nil {
 		return nil, httpx.Wrap(labelapp.ErrSchemaInvalid, err)
 	}
+	// 存量客户端未携带 outputPresets 时，由服务端把标准规格写入草稿；
+	// 从此发布快照不再依赖展示层硬编码尺寸。
+	if len(schema.Settings.OutputPresets) == 0 {
+		schema.Settings.OutputPresets = enginelabel.StandardOutputPresets(schema.Page)
+	}
+	issues := enginelabel.Validate(schema)
 	if len(issues) > 0 {
 		return nil, httpx.Wrap(
 			bizWithData(labelapp.ErrSchemaInvalid, map[string]any{"issues": issues}),
@@ -275,7 +282,11 @@ func (s *templateService) SaveDraft(ctx context.Context, member *iammodel.User, 
 	if schema.Source == nil || schema.Source.Type != "form" || schema.Source.FormID != template.FormCode {
 		return nil, httpx.Wrap(labelapp.ErrSchemaInvalid, fmt.Errorf("schema source must bind form %s", template.FormCode))
 	}
-	saved, err := s.templates.SaveDraft(ctx, template.ID, req.DraftRevision, model.SchemaContent(req.Schema), schema.Page.Width, schema.Page.Height, schema.Page.Unit, schema.Page.DPI)
+	normalizedSchema, err := json.Marshal(schema)
+	if err != nil {
+		return nil, httpx.Wrap(labelapp.ErrSchemaInvalid, err)
+	}
+	saved, err := s.templates.SaveDraft(ctx, template.ID, req.DraftRevision, model.SchemaContent(normalizedSchema), schema.Page.Width, schema.Page.Height, schema.Page.Unit, schema.Page.DPI)
 	if err != nil {
 		return nil, err
 	}
@@ -324,10 +335,12 @@ func (s *templateService) Publish(ctx context.Context, member *iammodel.User, co
 			versionNo = template.PublishedVersion
 			return nil
 		}
-		schema, issues, err := decodeAndValidate(template.DraftSchema)
+		schema, _, err := decodeAndValidate(template.DraftSchema)
 		if err != nil {
 			return httpx.Wrap(labelapp.ErrSchemaInvalid, err)
 		}
+		enginelabel.EnsureOutputPresets(schema)
+		issues := enginelabel.Validate(schema)
 		if len(issues) > 0 {
 			return httpx.Wrap(
 				bizWithData(labelapp.ErrSchemaInvalid, map[string]any{"issues": issues}),
@@ -360,9 +373,13 @@ func (s *templateService) Publish(ctx context.Context, member *iammodel.User, co
 		}
 		versionNo = maxVersion + 1
 		now := time.Now()
+		publishedSnapshot, err := json.Marshal(schema)
+		if err != nil {
+			return httpx.Wrap(labelapp.ErrSchemaInvalid, err)
+		}
 		version, err := s.versions.Create(txCtx, &model.TemplateVersion{
 			TemplateID: template.ID, VersionNo: versionNo, SchemaVersion: schema.SchemaVersion,
-			SchemaSnapshot: model.SchemaContent(template.DraftSchema), PublishedByMemberID: member.ID,
+			SchemaSnapshot: model.SchemaContent(publishedSnapshot), PublishedByMemberID: member.ID,
 			PublishedAt: kernel.JSONTime(now), TenantID: template.TenantID,
 		})
 		if err != nil {

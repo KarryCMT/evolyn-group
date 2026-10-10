@@ -22,7 +22,7 @@ import (
 const maxBatchRecords = 1000
 
 func (s *templateService) BatchRender(ctx context.Context, member *iammodel.User, req *model.BatchRenderRequest) (*model.BatchRenderCreated, error) {
-	tenantID, err := s.authorize(ctx, member, iammodel.LabelResource, "create")
+	tenantID, err := s.ensureMember(ctx, member)
 	if err != nil {
 		return nil, err
 	}
@@ -42,16 +42,49 @@ func (s *templateService) BatchRender(ctx context.Context, member *iammodel.User
 	if format != "pdf" {
 		return nil, labelapp.ErrFormatUnsupported
 	}
-	template, err := s.load(ctx, strings.TrimSpace(req.TemplateCode))
+	template, available, err := s.runtimeTemplate(ctx, member, strings.TrimSpace(req.FormCode))
 	if err != nil {
 		return nil, err
 	}
-	if template.LatestVersionID == nil || template.PublishedVersion == 0 || template.Status != model.StatusPublished {
+	if !available || template == nil || template.LatestVersionID == nil {
 		return nil, labelapp.ErrTemplateNotPublished
 	}
 	recordIDs, err := normalizeBatchRecordIDs(req.RecordIDs)
 	if err != nil {
 		return nil, err
+	}
+	version, err := s.versions.GetByID(ctx, *template.LatestVersionID)
+	if err != nil {
+		return nil, err
+	}
+	schema, issues, err := decodeAndValidate(version.SchemaSnapshot)
+	if err != nil || len(issues) > 0 {
+		return nil, httpx.Wrap(labelapp.ErrSchemaInvalid, fmt.Errorf("invalid published label snapshot"))
+	}
+	scaled, preset, err := enginelabel.WithOutputPreset(*schema, strings.TrimSpace(req.OutputPresetID))
+	if errors.Is(err, enginelabel.ErrOutputPresetNotFound) {
+		return nil, labelapp.ErrOutputPresetInvalid
+	}
+	if err != nil {
+		return nil, err
+	}
+	// 创建任务前用一次受控批量查询完成 batch_print 记录范围与字段校验；
+	// 任一越权都拒绝整批，partial_success 仅用于入队后的数据变化或渲染错误。
+	bulkResolver, ok := s.records.(BatchOperationRecordResolver)
+	if !ok {
+		return nil, fmt.Errorf("label batch operation record resolver is not configured")
+	}
+	records, err := bulkResolver.GetRecordsForOperation(ctx, member, template.FormID, recordIDs, batchPrintOperation)
+	if err != nil {
+		return nil, err
+	}
+	if len(records) != len(recordIDs) {
+		return nil, labelapp.ErrRecordNoPermission
+	}
+	for _, record := range records {
+		if err := validateRuntimeRecord(record, &scaled); err != nil {
+			return nil, err
+		}
 	}
 	taskCode, err := newRenderTaskCode()
 	if err != nil {
@@ -60,7 +93,9 @@ func (s *templateService) BatchRender(ctx context.Context, member *iammodel.User
 	task := &model.RenderTask{
 		TenantID: tenantID, Code: taskCode, TemplateID: template.ID, AppID: template.AppID, FormID: template.FormID,
 		TemplateVersionID: *template.LatestVersionID, TemplateVersionNo: template.PublishedVersion,
-		OutputFormat: format, Status: model.RenderTaskPending, TotalCount: len(recordIDs),
+		OutputFormat: format, OutputPresetID: preset.ID, OutputWidth: preset.Width,
+		OutputHeight: preset.Height, OutputUnit: preset.Unit, OutputDPI: preset.DPI,
+		Status: model.RenderTaskPending, TotalCount: len(recordIDs),
 		RequestedByMemberID: member.ID,
 	}
 	items := make([]model.RenderTaskItem, len(recordIDs))
@@ -81,7 +116,7 @@ func (s *templateService) BatchRender(ctx context.Context, member *iammodel.User
 }
 
 func (s *templateService) GetRenderTask(ctx context.Context, member *iammodel.User, taskCode string) (*model.RenderTaskDetail, error) {
-	if _, err := s.authorize(ctx, member, iammodel.LabelResource, "get"); err != nil {
+	if _, err := s.ensureMember(ctx, member); err != nil {
 		return nil, err
 	}
 	if s.tasks == nil || !validRenderTaskCode(taskCode) {
@@ -93,6 +128,9 @@ func (s *templateService) GetRenderTask(ctx context.Context, member *iammodel.Us
 	}
 	if err != nil {
 		return nil, err
+	}
+	if task.RequestedByMemberID != member.ID && !s.permissions(ctx, member)[iammodel.LabelResource+":get"] {
+		return nil, labelapp.ErrTaskNotFound
 	}
 	items, err := s.tasks.ListItems(ctx, task.ID)
 	if err != nil {
@@ -112,7 +150,7 @@ func (s *templateService) GetRenderTask(ctx context.Context, member *iammodel.Us
 }
 
 func (s *templateService) DownloadRenderTask(ctx context.Context, member *iammodel.User, taskCode string) (*ArtifactDownload, error) {
-	if _, err := s.authorize(ctx, member, iammodel.LabelResource, "get"); err != nil {
+	if _, err := s.ensureMember(ctx, member); err != nil {
 		return nil, err
 	}
 	if s.tasks == nil || s.artifacts == nil || !validRenderTaskCode(taskCode) {
@@ -124,6 +162,9 @@ func (s *templateService) DownloadRenderTask(ctx context.Context, member *iammod
 	}
 	if err != nil {
 		return nil, err
+	}
+	if task.RequestedByMemberID != member.ID && !s.permissions(ctx, member)[iammodel.LabelResource+":get"] {
+		return nil, labelapp.ErrTaskNotFound
 	}
 	if (task.Status != model.RenderTaskSuccess && task.Status != model.RenderTaskPartialSuccess) || task.FileCode == "" {
 		return nil, labelapp.ErrTaskNotReady
@@ -162,6 +203,27 @@ func (s *templateService) ProcessBatch(ctx context.Context, taskCode string) (ru
 	if err != nil || len(issues) > 0 {
 		return s.tasks.Finish(ctx, task.ID, model.RenderTaskFailed, "", labelapp.ErrSchemaInvalid.Code, "模板发布快照无效", 0, task.TotalCount)
 	}
+	// 000089 起任务行冻结完整物理规格。Worker 只使用冻结值缩放，不能在
+	// 排队期间重新从模板预设读取尺寸；历史任务五列全空时才回退 original。
+	schemaForOutput := *schema
+	presetID := task.OutputPresetID
+	if presetID == "" {
+		presetID = "original"
+	} else {
+		if task.OutputWidth <= 0 || task.OutputHeight <= 0 || task.OutputDPI <= 0 ||
+			(task.OutputUnit != "mm" && task.OutputUnit != "px") {
+			return s.tasks.Finish(ctx, task.ID, model.RenderTaskFailed, "", labelapp.ErrOutputPresetInvalid.Code, "标签输出尺寸不可用", 0, task.TotalCount)
+		}
+		schemaForOutput.Settings.OutputPresets = []enginelabel.OutputPreset{{
+			ID: presetID, Name: presetID, Width: task.OutputWidth, Height: task.OutputHeight,
+			Unit: task.OutputUnit, DPI: task.OutputDPI,
+		}}
+	}
+	scaled, _, err := enginelabel.WithOutputPreset(schemaForOutput, presetID)
+	if err != nil {
+		return s.tasks.Finish(ctx, task.ID, model.RenderTaskFailed, "", labelapp.ErrOutputPresetInvalid.Code, "标签输出尺寸不可用", 0, task.TotalCount)
+	}
+	schema = &scaled
 	member, err := s.members.MemberByID(ctx, task.RequestedByMemberID)
 	if err != nil {
 		return err
@@ -233,28 +295,10 @@ func (s *templateService) FailBatch(ctx context.Context, taskCode string, cause 
 }
 
 func (s *templateService) batchRecordData(ctx context.Context, member *iammodel.User, appID, formID, templateID uint, schema *enginelabel.Schema, recordID uint) (enginelabel.RenderData, error) {
-	record, err := s.records.GetRecord(ctx, member, formID, recordID)
+	data, err := s.runtimeRecordData(ctx, member, &model.Template{ID: templateID, AppID: appID, FormID: formID}, schema, recordID)
 	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return enginelabel.RenderData{}, httpx.Wrap(labelapp.ErrRecordNotFound, err)
-		}
-		var biz *httpx.BizError
-		if errors.As(err, &biz) && biz.HTTP == 403 {
-			return enginelabel.RenderData{}, httpx.Wrap(labelapp.ErrRecordNoPermission, err)
-		}
 		return enginelabel.RenderData{}, err
 	}
-	for _, fieldID := range fieldReferences(schema) {
-		if _, allowed := record.Fields[fieldID]; !allowed {
-			return enginelabel.RenderData{}, httpx.Wrap(labelapp.ErrFieldNoPermission, fmt.Errorf("field %s denied", fieldID))
-		}
-	}
-	if usesScanToken(schema) {
-		if err := s.attachQRURL(ctx, member, appID, formID, templateID, recordID, record.System); err != nil {
-			return enginelabel.RenderData{}, err
-		}
-	}
-	data := enginelabel.RenderData{Fields: record.Fields, System: record.System}
 	// 单页预渲染在逐项边界捕获二维码或字体问题，避免一条坏数据拖垮整批。
 	if _, err := s.renderer.Render(ctx, enginelabel.RenderRequest{Schema: *schema, Format: "pdf", Data: data}); err != nil {
 		if errors.Is(err, enginelabel.ErrQRGenerate) {

@@ -1,4 +1,4 @@
-import type { LabelSchema } from '@evolyn.do/label';
+import type { LabelOutputPreset, LabelSchema } from '@evolyn.do/label';
 import { ApiError, http, useGlobSetting } from '@evolyn.do/utils';
 
 export type LabelRenderFormat = 'svg' | 'png' | 'pdf';
@@ -56,6 +56,11 @@ export interface LabelRenderTaskDto {
   taskId: string;
   templateVersion: number;
   format: 'pdf';
+  outputPresetId: string;
+  outputWidth: number;
+  outputHeight: number;
+  outputUnit: 'mm' | 'px';
+  outputDpi: number;
   status: LabelRenderTaskStatus;
   totalCount: number;
   successCount: number;
@@ -69,6 +74,20 @@ export interface LabelRenderTaskDto {
   createdAt: string;
   updatedAt: string;
   items: LabelRenderTaskItemDto[];
+}
+
+export interface LabelRuntimeOutputPresetDto extends LabelOutputPreset {
+  pixelWidth: number;
+  pixelHeight: number;
+}
+
+export interface LabelRuntimeProfileDto {
+  available: boolean;
+  templateCode?: string;
+  templateName?: string;
+  publishedVersion?: number;
+  outputPresets: LabelRuntimeOutputPresetDto[];
+  canManageTemplate: boolean;
 }
 
 interface LabelArtifactDownloadDto {
@@ -129,13 +148,18 @@ export function deleteLabelTemplate(code: string): Promise<void> {
   return http.delete(`/label-templates/${code}`);
 }
 
-async function requestLabelFile(path: string, payload: Record<string, unknown>): Promise<Blob> {
+async function requestLabelFile(
+  path: string,
+  payload: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<Blob> {
   const { apiUrl } = useGlobSetting();
   const response = await fetch(`${apiUrl}${path}`, {
     method: 'POST',
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+    signal,
   });
   if (!response.ok) {
     let message = '标签生成失败';
@@ -175,11 +199,32 @@ export async function renderPublishedLabel(payload: {
 
 /** 创建异步批量 PDF；recordIds 保持字符串，避免未来后端 64 位 ID 精度丢失。 */
 export function createLabelBatchRender(payload: {
-  templateCode: string;
+  formCode: string;
   recordIds: string[];
+  outputPresetId: string;
   format?: 'pdf';
 }): Promise<{ taskId: string; status: LabelRenderTaskStatus }> {
-  return http.post('/labels/batch-render', { ...payload, format: payload.format ?? 'pdf' });
+  const { formCode, ...body } = payload;
+  return http.post(`/forms/${encodeURIComponent(formCode)}/labels/batch-render`, {
+    ...body,
+    format: payload.format ?? 'pdf',
+  });
+}
+
+export function getFormLabelProfile(formCode: string): Promise<LabelRuntimeProfileDto> {
+  return http.get(`/forms/${encodeURIComponent(formCode)}/labels/profile`);
+}
+
+export function previewFormLabel(
+  formCode: string,
+  payload: { recordId: string; outputPresetId: string },
+  signal?: AbortSignal,
+): Promise<Blob> {
+  return requestLabelFile(
+    `/forms/${encodeURIComponent(formCode)}/labels/preview`,
+    payload,
+    signal,
+  );
 }
 
 export function getLabelRenderTask(taskId: string): Promise<LabelRenderTaskDto> {

@@ -45,6 +45,22 @@ type RecordResolver interface {
 	GetRecord(ctx context.Context, member *iammodel.User, formID, recordID uint) (*RecordView, error)
 }
 
+// OperationRecordResolver 是数据运行态使用的增强窄端口；不能把 batch_print
+// 静默降级成 view，否则会扩大记录数据范围。
+type OperationRecordResolver interface {
+	GetRecordForOperation(ctx context.Context, member *iammodel.User, formID, recordID uint, operation string) (*RecordView, error)
+}
+
+// BatchOperationRecordResolver 在一个受控查询内完成整批记录范围与字段裁剪，
+// 任务创建不得回退为逐条读取，避免最多 1000 条输入造成 N+1 查询。
+type BatchOperationRecordResolver interface {
+	GetRecordsForOperation(ctx context.Context, member *iammodel.User, formID uint, recordIDs []uint, operation string) ([]*RecordView, error)
+}
+
+type OperationAccessResolver interface {
+	CanUseOperation(ctx context.Context, member *iammodel.User, formID uint, operation string) (bool, error)
+}
+
 type MemberDirectory interface {
 	MemberByID(ctx context.Context, memberID uint) (*iammodel.User, error)
 }
@@ -80,6 +96,8 @@ type TemplateService interface {
 	Delete(ctx context.Context, member *iammodel.User, code string) error
 	Preview(ctx context.Context, member *iammodel.User, code string, req *model.PreviewRequest) (*enginelabel.RenderResult, error)
 	Render(ctx context.Context, member *iammodel.User, req *model.RenderRequest) (*enginelabel.RenderResult, error)
+	RuntimeProfile(ctx context.Context, member *iammodel.User, formCode string) (*model.RuntimeProfile, error)
+	RuntimePreview(ctx context.Context, member *iammodel.User, formCode string, req *model.RuntimePreviewRequest) (*enginelabel.RenderResult, error)
 	BatchRender(ctx context.Context, member *iammodel.User, req *model.BatchRenderRequest) (*model.BatchRenderCreated, error)
 	GetRenderTask(ctx context.Context, member *iammodel.User, taskCode string) (*model.RenderTaskDetail, error)
 	DownloadRenderTask(ctx context.Context, member *iammodel.User, taskCode string) (*ArtifactDownload, error)

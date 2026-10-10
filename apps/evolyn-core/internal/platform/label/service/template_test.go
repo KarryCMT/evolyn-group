@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -21,12 +22,113 @@ func (immediateTx) WithinTransaction(ctx context.Context, fn func(context.Contex
 	return fn(ctx)
 }
 
-type templateRepoStub struct{ template *model.Template }
+type lifecycleTemplateRepo struct {
+	*templateRepoStub
+	savedSchema model.SchemaContent
+}
+
+func (r *lifecycleTemplateRepo) SaveDraft(_ context.Context, _ uint, revision int64, schema model.SchemaContent, _ float64, _ float64, _ string, _ int) (bool, error) {
+	if revision != r.template.DraftRevision {
+		return false, nil
+	}
+	r.savedSchema = append(model.SchemaContent(nil), schema...)
+	r.template.DraftSchema = append(model.SchemaContent(nil), schema...)
+	r.template.DraftRevision++
+	return true, nil
+}
+
+func (r *lifecycleTemplateRepo) MarkPublished(_ context.Context, _ uint, versionID uint, versionNo int, draftRevision int64) error {
+	r.template.LatestVersionID = &versionID
+	r.template.PublishedVersion = versionNo
+	r.template.PublishedDraftRevision = draftRevision
+	r.template.Status = model.StatusPublished
+	return nil
+}
+
+type lifecycleVersionRepo struct{ versions []*model.TemplateVersion }
+
+func (r *lifecycleVersionRepo) MaxVersionNo(context.Context, uint) (int, error) {
+	return len(r.versions), nil
+}
+func (r *lifecycleVersionRepo) Create(_ context.Context, version *model.TemplateVersion) (*model.TemplateVersion, error) {
+	clone := *version
+	clone.ID = uint(len(r.versions) + 1)
+	clone.SchemaSnapshot = append(model.SchemaContent(nil), version.SchemaSnapshot...)
+	r.versions = append(r.versions, &clone)
+	return &clone, nil
+}
+func (r *lifecycleVersionRepo) GetByID(_ context.Context, id uint) (*model.TemplateVersion, error) {
+	return r.versions[id-1], nil
+}
+func (*lifecycleVersionRepo) Migrate() error { return nil }
+
+const legacyDraftSchema = `{
+  "schemaVersion":"1.0","name":"用户标签",
+  "page":{"width":90,"height":60,"unit":"mm","dpi":300,"background":"#ffffff"},
+  "source":{"type":"form","formId":"form_users"},
+  "elements":[],
+  "settings":{"snapToGrid":true,"gridSize":1,"showGrid":false}
+}`
+
+func TestSaveAndPublishFreezeOutputPresetsForLegacyDraft(t *testing.T) {
+	template := &model.Template{
+		ID: 1, Code: "label_users", FormID: 7, FormCode: "form_users", DraftRevision: 1,
+		DraftSchema: model.SchemaContent(legacyDraftSchema),
+	}
+	template.TenantID = 1
+	repo := &lifecycleTemplateRepo{templateRepoStub: &templateRepoStub{template: template}}
+	versions := &lifecycleVersionRepo{}
+	service := NewTemplateService(
+		immediateTx{}, repo, versions,
+		runtimeFormDirectory{form: FormView{ID: 7, Code: "form_users", Published: true, Fields: map[string]bool{}}},
+		nil, accessStub{permissions: map[string]bool{
+			iammodel.LabelTemplateResource + ":update": true,
+			iammodel.LabelTemplateResource + ":create": true,
+		}}, nil,
+	)
+	member := &iammodel.User{ID: 2}
+	member.TenantID = 1
+	ctx := contextx.NewTenantContext(context.Background(), 1)
+	saved, err := service.SaveDraft(ctx, member, template.Code, &model.SaveDraftRequest{
+		DraftRevision: 1, Schema: json.RawMessage(legacyDraftSchema),
+	})
+	require.NoError(t, err)
+	require.Equal(t, int64(2), saved.DraftRevision)
+	var savedSchema map[string]any
+	require.NoError(t, json.Unmarshal(repo.savedSchema, &savedSchema))
+	presets := savedSchema["settings"].(map[string]any)["outputPresets"].([]any)
+	require.Len(t, presets, 2)
+
+	template.PreviewedDraftRevision = template.DraftRevision
+	published, err := service.Publish(ctx, member, template.Code, &model.PublishRequest{DraftRevision: template.DraftRevision})
+	require.NoError(t, err)
+	require.Equal(t, 1, published.VersionNo)
+	require.Len(t, versions.versions, 1)
+	firstSnapshot := string(versions.versions[0].SchemaSnapshot)
+	require.Contains(t, firstSnapshot, `"outputPresets"`)
+	// 同一草稿重复发布幂等，不改写已经冻结的历史版本。
+	published, err = service.Publish(ctx, member, template.Code, &model.PublishRequest{DraftRevision: template.DraftRevision})
+	require.NoError(t, err)
+	require.Equal(t, 1, published.VersionNo)
+	require.Len(t, versions.versions, 1)
+	require.Equal(t, firstSnapshot, string(versions.versions[0].SchemaSnapshot))
+}
+
+type templateRepoStub struct {
+	template  *model.Template
+	byFormErr error
+}
 
 func (s *templateRepoStub) Create(context.Context, *model.Template) (*model.Template, error) {
 	panic("unexpected Create")
 }
 func (s *templateRepoStub) GetByCode(context.Context, string) (*model.Template, error) {
+	return s.template, nil
+}
+func (s *templateRepoStub) GetByFormCode(context.Context, string) (*model.Template, error) {
+	if s.byFormErr != nil {
+		return nil, s.byFormErr
+	}
 	return s.template, nil
 }
 func (s *templateRepoStub) GetByCodeForUpdate(context.Context, string) (*model.Template, error) {

@@ -27,9 +27,21 @@ type Source struct {
 }
 
 type Settings struct {
-	SnapToGrid bool    `json:"snapToGrid"`
-	GridSize   float64 `json:"gridSize"`
-	ShowGrid   bool    `json:"showGrid"`
+	SnapToGrid    bool           `json:"snapToGrid"`
+	GridSize      float64        `json:"gridSize"`
+	ShowGrid      bool           `json:"showGrid"`
+	OutputPresets []OutputPreset `json:"outputPresets,omitempty"`
+}
+
+// OutputPreset 是随发布快照冻结的输出规格。运行态只提交稳定 ID，不能
+// 自行传入任意页面尺寸，避免预览与最终 PDF 使用不同的缩放语义。
+type OutputPreset struct {
+	ID     string  `json:"id"`
+	Name   string  `json:"name"`
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
+	Unit   string  `json:"unit"`
+	DPI    int     `json:"dpi"`
 }
 
 // Element 使用单结构承载受控元素并按 Type 解释对应字段，避免任意 SVG/XML 注入。

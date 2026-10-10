@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ElInput } from 'element-plus';
+import { ElDropdown, ElDropdownItem, ElDropdownMenu, ElInput } from 'element-plus';
 import type { DataAction } from '../types.js';
 
 defineOptions({ name: 'DataToolbar' });
@@ -14,26 +14,64 @@ defineProps<{
 const emit = defineEmits<{
   action: [key: string];
 }>();
+
+function emitDropdown(key: string | number | object): void {
+  if (typeof key === 'string') emit('action', key);
+}
 </script>
 
 <template>
   <header class="data-toolbar">
     <div class="data-toolbar__actions" aria-label="数据操作">
-      <button
-        v-for="action in actions"
-        :key="action.key"
-        class="data-toolbar__action"
-        :class="{
-          'data-toolbar__action--primary': action.tone === 'primary',
-          'data-toolbar__action--danger': action.tone === 'danger',
-        }"
-        type="button"
-        :disabled="action.disabled"
-        @click="emit('action', action.key)"
-      >
-        <component :is="action.icon" v-if="action.icon" />
-        <span>{{ action.label }}</span>
-      </button>
+      <template v-for="action in actions" :key="action.key">
+        <ElDropdown
+          v-if="action.children?.length"
+          :disabled="action.disabled"
+          trigger="click"
+          @command="emitDropdown"
+        >
+          <button
+            class="data-toolbar__action"
+            :class="{
+              'data-toolbar__action--primary': action.tone === 'primary',
+              'data-toolbar__action--danger': action.tone === 'danger',
+            }"
+            type="button"
+            :disabled="action.disabled"
+          >
+            <component :is="action.icon" v-if="action.icon" />
+            <span>{{ action.label }}</span>
+            <span class="data-toolbar__caret" aria-hidden="true">⌄</span>
+          </button>
+          <template #dropdown>
+            <ElDropdownMenu>
+              <ElDropdownItem
+                v-for="child in action.children"
+                :key="child.key"
+                :command="child.key"
+                :disabled="child.disabled"
+              >
+                <component :is="child.icon" v-if="child.icon" class="data-toolbar__menu-icon" />
+                <span>{{ child.label }}</span>
+              </ElDropdownItem>
+            </ElDropdownMenu>
+          </template>
+        </ElDropdown>
+        <button
+          v-else
+          class="data-toolbar__action"
+          :class="{
+            'data-toolbar__action--primary': action.tone === 'primary',
+            'data-toolbar__action--danger': action.tone === 'danger',
+          }"
+          type="button"
+          :disabled="action.disabled"
+          @click="emit('action', action.key)"
+        >
+          <component :is="action.icon" v-if="action.icon" />
+          <span>{{ action.label }}</span>
+        </button>
+      </template>
     </div>
 
     <div class="data-toolbar__suffix">
@@ -121,6 +159,17 @@ const emit = defineEmits<{
         background: var(--el-color-danger-light-9);
       }
     }
+  }
+
+  &__caret {
+    color: var(--el-text-color-placeholder);
+    font-size: var(--el-font-size-small);
+  }
+
+  &__menu-icon {
+    width: var(--el-font-size-base);
+    height: var(--el-font-size-base);
+    margin-right: var(--el-space-xs);
   }
 
   &__suffix {

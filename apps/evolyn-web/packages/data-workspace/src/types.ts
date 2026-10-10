@@ -8,6 +8,8 @@ export interface DataAction {
   icon?: Component;
   disabled?: boolean;
   tone?: 'default' | 'primary' | 'danger';
+  /** 可选层级动作；工具栏统一渲染下拉菜单，叶子节点仍派发其 key。 */
+  children?: readonly DataAction[];
 }
 
 /**

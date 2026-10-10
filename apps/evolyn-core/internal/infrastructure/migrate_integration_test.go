@@ -29,8 +29,8 @@ func TestMigrateINT001EmptyDatabaseUp(t *testing.T) {
 	// 版本登记完整：全部版本（与 migrations/*.up.sql 数量一致，新增随链顺延）落库
 	var count int64
 	assert.NoError(t, db.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&count).Error)
-	// 与 migrations/*.up.sql 数量一致（当前最新为 000085 流程设计器版本工作区）。
-	assert.EqualValues(t, 85, count)
+	// 与 migrations/*.up.sql 数量一致（当前最新为 000089 标签输出预设冻结）。
+	assert.EqualValues(t, 89, count)
 
 	// 关键业务表已建齐（表名与迁移链一致；000063 起 pf_/sys_/tn_ 命名空间前缀）
 	for _, table := range []string{
@@ -50,6 +50,9 @@ func TestMigrateINT001EmptyDatabaseUp(t *testing.T) {
 		"tn_notification_custom_recipients",
 		"tn_forms", "tn_form_versions", "tn_form_records",
 		"tn_label_templates", "tn_label_template_versions",
+		"tn_label_render_tasks", "tn_label_render_task_items", "tn_label_qr_tokens",
+		"tn_dashboards", "tn_dashboard_versions", "tn_dashboard_version_subjects",
+		"tn_dashboard_create_bindings",
 		"wf_definition", "wf_definition_version",
 		"wf_instance", "wf_execution", "wf_node_instance",
 		"wf_task", "wf_task_actor", "wf_operation",
@@ -74,7 +77,7 @@ func TestMigrateINT002IdempotentReplay(t *testing.T) {
 
 	var count int64
 	assert.NoError(t, db.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&count).Error)
-	assert.EqualValues(t, 85, count, "重放不得产生重复版本记录")
+	assert.EqualValues(t, 89, count, "重放不得产生重复版本记录")
 }
 
 // MIGRATE-INT-003：已执行迁移内容被篡改（checksum 改变）必须拒绝
@@ -153,7 +156,7 @@ func TestMigrateINT006SnapshotSeedsMigrationsNoReplay(t *testing.T) {
 	// 快照种子版本数 = 迁移链版本数（新增迁移须同步补种并顺延此断言）
 	var seeded int64
 	assert.NoError(t, snapshot.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&seeded).Error)
-	assert.EqualValues(t, 85, seeded)
+	assert.EqualValues(t, 89, seeded)
 
 	// 启动迁移器：版本齐全 + checksum 一致 → 不执行任何迁移且成功，重复亦幂等
 	assert.NoError(t, infrastructure.NewMigrator(snapshot).Up(), "快照库上迁移器必须零重放成功")
@@ -161,7 +164,7 @@ func TestMigrateINT006SnapshotSeedsMigrationsNoReplay(t *testing.T) {
 
 	var count int64
 	assert.NoError(t, snapshot.Raw("SELECT COUNT(*) FROM schema_migrations").Scan(&count).Error)
-	assert.EqualValues(t, 85, count, "零重放不得产生重复版本记录")
+	assert.EqualValues(t, 89, count, "零重放不得产生重复版本记录")
 }
 
 // MIGRATE-INT-007：000084 的 down/up 必须对称恢复标签表、索引和管理员授权。

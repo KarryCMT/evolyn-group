@@ -230,6 +230,7 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
     total: readonly(total),
     status: readonly(status),
     errorMessage: readonly(errorMessage),
+    runtime: readonly(runtime),
     reload: load,
     source,
   };

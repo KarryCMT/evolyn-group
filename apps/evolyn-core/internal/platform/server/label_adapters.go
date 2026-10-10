@@ -129,3 +129,31 @@ func (r labelRecordResolver) GetRecord(ctx context.Context, member *iammodel.Use
 	}
 	return &labelservice.RecordView{FormID: record.FormID, Fields: record.Fields, System: record.System}, nil
 }
+
+func (r labelRecordResolver) GetRecordForOperation(ctx context.Context, member *iammodel.User, formID, recordID uint, operation string) (*labelservice.RecordView, error) {
+	record, err := r.source.ReadLabelRecordForOperation(ctx, member, formID, recordID, operation)
+	if err != nil {
+		return nil, err
+	}
+	return &labelservice.RecordView{FormID: record.FormID, Fields: record.Fields, System: record.System}, nil
+}
+
+func (r labelRecordResolver) GetRecordsForOperation(ctx context.Context, member *iammodel.User, formID uint, recordIDs []uint, operation string) ([]*labelservice.RecordView, error) {
+	records, err := r.source.ReadLabelRecordsForOperation(ctx, member, formID, recordIDs, operation)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]*labelservice.RecordView, 0, len(records))
+	for _, record := range records {
+		result = append(result, &labelservice.RecordView{FormID: record.FormID, Fields: record.Fields, System: record.System})
+	}
+	return result, nil
+}
+
+func (r labelRecordResolver) CanUseOperation(ctx context.Context, member *iammodel.User, formID uint, operation string) (bool, error) {
+	source, ok := r.source.(formservice.LabelOperationSource)
+	if !ok {
+		return false, errors.New("label operation source not configured")
+	}
+	return source.CanUseLabelOperation(ctx, member, formID, operation)
+}

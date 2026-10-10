@@ -3079,6 +3079,288 @@ ALTER TABLE wf_definition
 COMMENT ON COLUMN wf_definition.draft_version_no IS '当前工作区版本号：has_draft=true 时为待启用设计版本；false 时等于当前启用版本';
 COMMENT ON COLUMN wf_definition.has_draft IS '是否存在可编辑设计版本；启用成功后置 false，必须显式添加新版本后才能继续编辑';
 
+-- ============================================================
+-- 000086: 二维码标签批量渲染任务
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tn_label_render_tasks (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    code VARCHAR(64) NOT NULL,
+    template_id BIGINT NOT NULL REFERENCES tn_label_templates(id),
+    app_id BIGINT NOT NULL REFERENCES tn_apps(id),
+    form_id BIGINT NOT NULL REFERENCES tn_forms(id),
+    template_version_id BIGINT NOT NULL REFERENCES tn_label_template_versions(id),
+    template_version_no INTEGER NOT NULL,
+    output_format VARCHAR(12) NOT NULL DEFAULT 'pdf',
+    status VARCHAR(24) NOT NULL DEFAULT 'pending',
+    total_count INTEGER NOT NULL,
+    success_count INTEGER NOT NULL DEFAULT 0,
+    failed_count INTEGER NOT NULL DEFAULT 0,
+    progress INTEGER NOT NULL DEFAULT 0,
+    file_code VARCHAR(64),
+    error_code VARCHAR(64) NOT NULL DEFAULT '',
+    error_message VARCHAR(500) NOT NULL DEFAULT '',
+    requested_by_member_id BIGINT NOT NULL,
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uk_tn_label_render_tasks_code UNIQUE (tenant_id, code),
+    CONSTRAINT ck_tn_label_render_tasks_format CHECK (output_format = 'pdf'),
+    CONSTRAINT ck_tn_label_render_tasks_status CHECK (status IN ('pending', 'running', 'success', 'partial_success', 'failed', 'cancelled')),
+    CONSTRAINT ck_tn_label_render_tasks_counts CHECK (total_count > 0 AND success_count >= 0 AND failed_count >= 0 AND success_count + failed_count <= total_count),
+    CONSTRAINT ck_tn_label_render_tasks_progress CHECK (progress BETWEEN 0 AND 100)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tn_label_render_tasks_tenant_created
+    ON tn_label_render_tasks (tenant_id, created_at DESC, id DESC);
+
+CREATE TABLE IF NOT EXISTS tn_label_render_task_items (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    task_id BIGINT NOT NULL REFERENCES tn_label_render_tasks(id) ON DELETE CASCADE,
+    record_id BIGINT NOT NULL,
+    sequence_no INTEGER NOT NULL,
+    status VARCHAR(16) NOT NULL DEFAULT 'pending',
+    error_code VARCHAR(64) NOT NULL DEFAULT '',
+    error_message VARCHAR(500) NOT NULL DEFAULT '',
+    started_at TIMESTAMPTZ,
+    finished_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uk_tn_label_render_task_items_sequence UNIQUE (task_id, sequence_no),
+    CONSTRAINT ck_tn_label_render_task_items_status CHECK (status IN ('pending', 'running', 'success', 'failed')),
+    CONSTRAINT ck_tn_label_render_task_items_sequence CHECK (sequence_no > 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tn_label_render_task_items_task
+    ON tn_label_render_task_items (tenant_id, task_id, sequence_no);
+
+COMMENT ON TABLE tn_label_render_tasks IS '二维码标签批量渲染任务：固定模板发布快照，任务事务提交后由 Asynq 消费';
+COMMENT ON TABLE tn_label_render_task_items IS '批量标签逐记录进度与安全错误摘要，不保存业务字段快照';
+
+-- ============================================================
+-- 000087: 二维码短 Token
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS tn_label_qr_tokens (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    token VARCHAR(64) NOT NULL,
+    app_id BIGINT NOT NULL REFERENCES tn_apps(id),
+    form_id BIGINT NOT NULL REFERENCES tn_forms(id),
+    record_id BIGINT NOT NULL REFERENCES tn_form_records(id),
+    template_id BIGINT NOT NULL REFERENCES tn_label_templates(id),
+    target_type VARCHAR(32) NOT NULL DEFAULT 'form_record',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    expire_at TIMESTAMPTZ,
+    creator_member_id BIGINT NOT NULL,
+    last_scan_at TIMESTAMPTZ,
+    scan_count BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uk_tn_label_qr_tokens_token UNIQUE (token),
+    CONSTRAINT uk_tn_label_qr_tokens_target UNIQUE (tenant_id, form_id, record_id, template_id, target_type),
+    CONSTRAINT ck_tn_label_qr_tokens_target_type CHECK (target_type = 'form_record'),
+    CONSTRAINT ck_tn_label_qr_tokens_scan_count CHECK (scan_count >= 0)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tn_label_qr_tokens_record
+    ON tn_label_qr_tokens (tenant_id, form_id, record_id);
+
+COMMENT ON TABLE tn_label_qr_tokens IS '二维码不可猜测短 Token；命中后仍按当前租户成员重新校验表单记录权限';
+
+-- ============================================================
+-- 000088: 业务仪表盘资产域一期
+-- ============================================================
+
+UPDATE pf_edition_plan_versions pv
+SET entitlements = jsonb_set(
+    pv.entitlements::jsonb,
+    '{resources}',
+    COALESCE(pv.entitlements::jsonb->'resources', '[]'::jsonb) ||
+      jsonb_build_array(jsonb_build_object(
+        'key', 'dashboards',
+        'category', 'stock',
+        'limit', CASE pv.compatibility_plan_code
+          WHEN 'free' THEN 3
+          WHEN 'trial' THEN 20
+          WHEN 'pro' THEN -1
+          ELSE 0
+        END,
+        'unit', 'count'
+      )),
+    true
+)
+WHERE pv.compatibility_plan_code IN ('free', 'trial', 'pro')
+  AND NOT EXISTS (
+    SELECT 1
+    FROM jsonb_array_elements(COALESCE(pv.entitlements::jsonb->'resources', '[]'::jsonb)) resource
+    WHERE resource->>'key' = 'dashboards'
+  );
+
+CREATE TABLE IF NOT EXISTS tn_dashboards (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    app_id BIGINT NOT NULL REFERENCES tn_apps(id),
+    code VARCHAR(64) NOT NULL,
+    name VARCHAR(128) NOT NULL,
+    icon VARCHAR(32) NOT NULL DEFAULT '',
+    color VARCHAR(32) NOT NULL DEFAULT '',
+    protocol_version INTEGER NOT NULL DEFAULT 1,
+    draft_content JSONB NOT NULL,
+    draft_revision BIGINT NOT NULL DEFAULT 1,
+    latest_version_id BIGINT,
+    published_version INTEGER NOT NULL DEFAULT 0,
+    creator_member_id BIGINT NOT NULL,
+    creator_id BIGINT,
+    updater_id BIGINT,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ,
+    deleted_at TIMESTAMPTZ,
+    CONSTRAINT ck_tn_dashboards_draft_object CHECK (jsonb_typeof(draft_content) = 'object'),
+    CONSTRAINT ck_tn_dashboards_protocol_version CHECK (protocol_version > 0),
+    CONSTRAINT ck_tn_dashboards_draft_revision CHECK (draft_revision > 0),
+    CONSTRAINT ck_tn_dashboards_published_version CHECK (published_version >= 0)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_dashboards_tenant_code
+    ON tn_dashboards (tenant_id, code) WHERE deleted_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_tn_dashboards_tenant_app
+    ON tn_dashboards (tenant_id, app_id, id DESC) WHERE deleted_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS tn_dashboard_versions (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    dashboard_id BIGINT NOT NULL REFERENCES tn_dashboards(id),
+    version_no INTEGER NOT NULL,
+    source_draft_revision BIGINT NOT NULL,
+    protocol_version INTEGER NOT NULL,
+    content JSONB NOT NULL,
+    content_checksum CHAR(64) NOT NULL,
+    published_by_member_id BIGINT NOT NULL,
+    published_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    created_at TIMESTAMPTZ,
+    CONSTRAINT uk_tn_dashboard_versions_no UNIQUE (dashboard_id, version_no),
+    CONSTRAINT ck_tn_dashboard_versions_content_object CHECK (jsonb_typeof(content) = 'object')
+);
+
+CREATE INDEX IF NOT EXISTS idx_tn_dashboard_versions_tenant_dashboard
+    ON tn_dashboard_versions (tenant_id, dashboard_id, version_no DESC);
+
+ALTER TABLE tn_dashboards
+    ADD CONSTRAINT fk_tn_dashboards_latest_version
+    FOREIGN KEY (latest_version_id) REFERENCES tn_dashboard_versions(id);
+
+CREATE TABLE IF NOT EXISTS tn_dashboard_version_subjects (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    dashboard_version_id BIGINT NOT NULL REFERENCES tn_dashboard_versions(id),
+    subject_type VARCHAR(20) NOT NULL,
+    subject_id BIGINT,
+    created_at TIMESTAMPTZ,
+    CONSTRAINT ck_tn_dashboard_version_subject_type
+      CHECK (subject_type IN ('all', 'member', 'department', 'role', 'group')),
+    CONSTRAINT ck_tn_dashboard_version_subject_value
+      CHECK ((subject_type = 'all' AND subject_id IS NULL) OR
+             (subject_type <> 'all' AND subject_id IS NOT NULL))
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS uk_tn_dashboard_version_subjects_identity
+    ON tn_dashboard_version_subjects (
+      dashboard_version_id,
+      subject_type,
+      COALESCE(subject_id, 0)
+    );
+CREATE INDEX IF NOT EXISTS idx_tn_dashboard_version_subjects_tenant_version
+    ON tn_dashboard_version_subjects (tenant_id, dashboard_version_id);
+
+CREATE TABLE IF NOT EXISTS tn_dashboard_create_bindings (
+    id BIGSERIAL PRIMARY KEY,
+    tenant_id BIGINT NOT NULL,
+    member_id BIGINT NOT NULL,
+    request_id VARCHAR(64) NOT NULL,
+    request_hash CHAR(64) NOT NULL,
+    dashboard_id BIGINT REFERENCES tn_dashboards(id),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uk_tn_dashboard_create_bindings_request
+      UNIQUE (tenant_id, member_id, request_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tn_dashboard_create_bindings_tenant_dashboard
+    ON tn_dashboard_create_bindings (tenant_id, dashboard_id);
+
+UPDATE tn_roles AS r
+SET rules = (
+    r.rules::jsonb || COALESCE((
+        SELECT jsonb_agg(candidate.rule)
+        FROM jsonb_array_elements('[
+          {"resource":"dashboards","operation":"*"},
+          {"resource":"dashboard-actions","operation":"*"}
+        ]'::jsonb) AS candidate(rule)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM jsonb_array_elements(r.rules::jsonb) existing(rule)
+            WHERE existing.rule->>'resource' = candidate.rule->>'resource'
+              AND existing.rule->>'operation' = candidate.rule->>'operation'
+        )
+    ), '[]'::jsonb)
+)::json
+WHERE r.deleted_at IS NULL
+  AND json_typeof(COALESCE(r.rules, '[]'::json)) = 'array'
+  AND EXISTS (SELECT 1 FROM json_array_elements(r.rules) rule WHERE rule->>'resource' = 'members' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(r.rules) rule WHERE rule->>'resource' = 'roles' AND rule->>'operation' = '*')
+  AND EXISTS (SELECT 1 FROM json_array_elements(r.rules) rule WHERE rule->>'resource' = 'departments' AND rule->>'operation' = '*');
+
+WITH authenticated_roles AS (
+    SELECT DISTINCT r.id
+    FROM tn_roles r
+    INNER JOIN tn_group_roles gr ON gr.role_id = r.id
+    INNER JOIN tn_groups g ON g.id = gr.group_id
+    WHERE g.name = 'system:authenticated'
+      AND g.kind = 'system'
+      AND r.deleted_at IS NULL
+)
+UPDATE tn_roles r
+SET rules = (r.rules::jsonb || '[{"resource":"dashboard-actions","operation":"view"}]'::jsonb)::json
+WHERE r.id IN (SELECT id FROM authenticated_roles)
+  AND json_typeof(COALESCE(r.rules, '[]'::json)) = 'array'
+  AND NOT EXISTS (
+    SELECT 1 FROM json_array_elements(r.rules) rule
+    WHERE rule->>'resource' = 'dashboard-actions' AND rule->>'operation' = 'view'
+  );
+
+COMMENT ON TABLE tn_dashboards IS '应用业务仪表盘资产：draft_content 为版本化草稿事实源，draft_revision 为乐观锁口令，公开 API 只使用 dashboard_ code';
+COMMENT ON TABLE tn_dashboard_versions IS '仪表盘不可变发布快照；业务代码只追加和读取，不提供更新内容路径';
+COMMENT ON TABLE tn_dashboard_version_subjects IS '发布版本冻结的成员范围主体定义；访问时按当前有效组织关系重新求值';
+COMMENT ON TABLE tn_dashboard_create_bindings IS '仪表盘预创建幂等绑定：(tenant_id, member_id, request_id) 唯一，请求 hash 不同即冲突';
+
+-- ============================================================
+-- 000089: 标签批量任务冻结发布输出预设
+-- ============================================================
+
+ALTER TABLE tn_label_render_tasks
+    ADD COLUMN IF NOT EXISTS output_preset_id VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS output_width NUMERIC(12,4),
+    ADD COLUMN IF NOT EXISTS output_height NUMERIC(12,4),
+    ADD COLUMN IF NOT EXISTS output_unit VARCHAR(4),
+    ADD COLUMN IF NOT EXISTS output_dpi INTEGER;
+
+ALTER TABLE tn_label_render_tasks
+    ADD CONSTRAINT ck_tn_label_render_tasks_output_preset CHECK (
+        (output_preset_id IS NULL AND output_width IS NULL AND output_height IS NULL AND output_unit IS NULL AND output_dpi IS NULL)
+        OR
+        (output_preset_id IS NOT NULL AND output_preset_id <> '' AND output_width > 0 AND output_height > 0
+            AND output_unit IN ('mm', 'px') AND output_dpi BETWEEN 72 AND 1200)
+    );
+
+COMMENT ON COLUMN tn_label_render_tasks.output_preset_id IS '创建任务时冻结的发布输出预设 ID；NULL 仅表示 000089 前历史任务';
+COMMENT ON COLUMN tn_label_render_tasks.output_width IS '创建任务时冻结的物理输出宽度';
+COMMENT ON COLUMN tn_label_render_tasks.output_height IS '创建任务时冻结的物理输出高度';
+COMMENT ON COLUMN tn_label_render_tasks.output_unit IS '创建任务时冻结的输出尺寸单位：mm 或 px';
+COMMENT ON COLUMN tn_label_render_tasks.output_dpi IS '创建任务时冻结的输出 DPI；PDF 页面和 SVG 像素换算均以此为准';
+
 -- 迁移版本登记（与 migrations/ 全链一致）：make postgres 导入快照后，
 -- 启动迁移器识别全部版本已应用，零重放（checksum 与迁移文件 sha256 一致，
 -- 文件被篡改时迁移器按既有防漂移机制拒绝启动）。种子幂等：ON CONFLICT 不覆盖。
@@ -3174,5 +3456,9 @@ INSERT INTO schema_migrations (version, name, checksum) VALUES
     (82, 'repair_workflow_baseline_rules', 'ab3db75795a82285ea254054f10be647023a57b7e95e10f103cd50fd53ebf469'),
     (83, 'form_field_formulas', '9a5e5d3af1f6459687541e16919eda066154968d81acc8ec5151d39b75a63ad0'),
     (84, 'label_templates', '4db1c0bd24cdeb3df0a52818f3ce80a18be633b1c7aa9151028ef10de5e69172'),
-    (85, 'workflow_version_workspace', '8f069fed181f9e34ef0eaf7ba3d65b7e97b33367b3f8cf3faa0b4d753c44f360')
+    (85, 'workflow_version_workspace', '8f069fed181f9e34ef0eaf7ba3d65b7e97b33367b3f8cf3faa0b4d753c44f360'),
+    (86, 'label_render_tasks', 'bb1a7b7bea4174c0ef208fff1aa213d43cb77345f616e0fc7bcbdc312fa61ac8'),
+    (87, 'label_qr_tokens', 'ae0c2c4f5478d50b208cefce85d4b46e3fa1bc8ae3b07b227e1c70539e747c9e'),
+    (88, 'dashboard_assets', '87d0c5ea8265072b876408256f0f8cbac668e9f70b204041a583e73e64dba32a'),
+    (89, 'label_output_presets', '37cfadd2f0d0adb6fd09c2cd36de714d015742e2ef0a5c9be5edc3296ee15124')
 ON CONFLICT (version) DO NOTHING;

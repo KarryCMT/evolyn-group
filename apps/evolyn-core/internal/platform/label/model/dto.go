@@ -45,9 +45,35 @@ type RenderRequest struct {
 }
 
 type BatchRenderRequest struct {
-	TemplateCode string   `json:"templateCode"`
-	RecordIDs    []string `json:"recordIds"`
-	Format       string   `json:"format"`
+	FormCode       string   `json:"formCode"`
+	RecordIDs      []string `json:"recordIds"`
+	OutputPresetID string   `json:"outputPresetId"`
+	Format         string   `json:"format"`
+}
+
+type RuntimePreviewRequest struct {
+	RecordID       string `json:"recordId"`
+	OutputPresetID string `json:"outputPresetId"`
+}
+
+type RuntimeOutputPreset struct {
+	ID          string  `json:"id"`
+	Name        string  `json:"name"`
+	Width       float64 `json:"width"`
+	Height      float64 `json:"height"`
+	Unit        string  `json:"unit"`
+	DPI         int     `json:"dpi"`
+	PixelWidth  int     `json:"pixelWidth"`
+	PixelHeight int     `json:"pixelHeight"`
+}
+
+type RuntimeProfile struct {
+	Available         bool                  `json:"available"`
+	TemplateCode      string                `json:"templateCode,omitempty"`
+	TemplateName      string                `json:"templateName,omitempty"`
+	PublishedVersion  int                   `json:"publishedVersion,omitempty"`
+	OutputPresets     []RuntimeOutputPreset `json:"outputPresets"`
+	CanManageTemplate bool                  `json:"canManageTemplate"`
 }
 
 type BatchRenderCreated struct {

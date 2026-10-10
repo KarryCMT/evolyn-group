@@ -24,6 +24,7 @@ type ListParams struct {
 type TemplateRepository interface {
 	Create(ctx context.Context, template *model.Template) (*model.Template, error)
 	GetByCode(ctx context.Context, code string) (*model.Template, error)
+	GetByFormCode(ctx context.Context, formCode string) (*model.Template, error)
 	GetByCodeForUpdate(ctx context.Context, code string) (*model.Template, error)
 	List(ctx context.Context, params ListParams) ([]model.Template, bool, error)
 	SaveDraft(ctx context.Context, id uint, revision int64, schema model.SchemaContent, width, height float64, unit string, dpi int) (bool, error)
@@ -60,6 +61,12 @@ func (r *templateRepository) Create(ctx context.Context, template *model.Templat
 func (r *templateRepository) GetByCode(ctx context.Context, code string) (*model.Template, error) {
 	var template model.Template
 	err := r.session(ctx).Where("code = ?", code).First(&template).Error
+	return &template, err
+}
+
+func (r *templateRepository) GetByFormCode(ctx context.Context, formCode string) (*model.Template, error) {
+	var template model.Template
+	err := r.session(ctx).Where("form_code = ?", formCode).First(&template).Error
 	return &template, err
 }
 
