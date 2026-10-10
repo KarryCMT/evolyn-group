@@ -24,7 +24,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { computed, markRaw, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { createAppMenuGroup, updateAppMenuNode } from '~/api/apps';
-import { deleteDashboard, updateDashboard } from '~/api/dashboard';
+import { copyDashboard, deleteDashboard, updateDashboard } from '~/api/dashboard';
 import { createForm, deleteForm, updateForm } from '~/api/form';
 import {
   appWorkspaceRoute,
@@ -121,10 +121,10 @@ const creatingAssetType = shallowRef<AppAssetType | null>(null);
 const creatingGroup = shallowRef(false);
 /** 正在改名的分组节点；请求期间拦截同一操作重复提交。 */
 const renamingGroupCode = shallowRef('');
-/** 仪表盘改名与删除分别加锁，防止确认框关闭后的请求窗口内重复提交。 */
-const renamingDashboardCode = shallowRef('');
+/** 仪表盘复制与删除分别加锁，防止请求窗口内重复提交。 */
+const copyingDashboardCode = shallowRef('');
 const deletingDashboardCode = shallowRef('');
-/** 当前正修改展示信息的表单节点；仅表单节点可打开此弹窗。 */
+/** 当前正修改展示信息的表单或仪表盘节点。 */
 const formAppearanceTarget = shallowRef<AppWorkspaceAsset | null>(null);
 const formAppearanceVisible = shallowRef(false);
 /** 当前准备移动的菜单节点；实际位置仅在确认后由服务端原子更新。 */
@@ -623,14 +623,17 @@ function handleWorkspaceAssetAction(payload: {
     return;
   }
 
-  if (payload.action === 'rename' && payload.asset.type === 'form') {
+  if (
+    payload.action === 'rename' &&
+    (payload.asset.type === 'form' || payload.asset.type === 'dashboard')
+  ) {
     formAppearanceTarget.value = payload.asset;
     formAppearanceVisible.value = true;
     return;
   }
 
-  if (payload.action === 'rename' && payload.asset.type === 'dashboard') {
-    void renameWorkspaceDashboard(payload.asset);
+  if (payload.action === 'copy-in-app' && payload.asset.type === 'dashboard') {
+    void copyWorkspaceDashboard(payload.asset);
     return;
   }
 
@@ -674,48 +677,29 @@ function handleWorkspaceAssetAction(payload: {
   ElMessage.info(`${actionLabels[payload.action]}「${payload.asset.label}」功能将在后续版本接入`);
 }
 
-/** 仪表盘改名走资产接口，由后端同事务同步菜单展示并推进一次 revision。 */
-async function renameWorkspaceDashboard(asset: AppWorkspaceAsset) {
+/** 复制仪表盘后重载菜单，新副本由后端放到源节点所在分组末尾。 */
+async function copyWorkspaceDashboard(asset: AppWorkspaceAsset) {
   const dashboardCode = asset.targetCode;
-  if (!dashboardCode || renamingDashboardCode.value) return;
-  let name = '';
-  try {
-    const result = await ElMessageBox.prompt('', '修改仪表盘名称', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      inputValue: asset.label,
-      inputPlaceholder: '请输入仪表盘名称',
-      inputValidator: (value) => {
-        const normalized = value.trim();
-        if (!normalized) return '请输入仪表盘名称';
-        if (Array.from(normalized).length > 128) return '名称不能超过 128 个字符';
-        return true;
-      },
-      closeOnClickModal: false,
-      showClose: false,
-    });
-    name = result.value.trim();
-  } catch {
-    return;
-  }
-  if (name === asset.label.trim()) return;
+  if (!dashboardCode || copyingDashboardCode.value) return;
 
-  renamingDashboardCode.value = dashboardCode;
+  copyingDashboardCode.value = dashboardCode;
   try {
-    await updateDashboard(dashboardCode, { name });
+    await copyDashboard(dashboardCode);
     await reloadMenu();
-    ElMessage.success('仪表盘名称已修改');
+    ElMessage.success(`已复制「${asset.label}」`);
   } catch (error) {
     if (error instanceof ApiError && error.errCode === 'DASHBOARD_NOT_FOUND') {
       ElMessage.warning('仪表盘已不存在，已为你刷新菜单');
       await reloadMenu();
-    } else if (error instanceof ApiError && error.errCode === 'DASHBOARD_NAME_INVALID') {
-      ElMessage.error('仪表盘名称不能为空，且不能超过 128 个字符');
+    } else if (error instanceof ApiError && error.errCode === 'QUOTA_EXCEEDED') {
+      ElMessage.error('仪表盘数量已达套餐上限，请升级套餐或删除闲置仪表盘');
+    } else if (error instanceof ApiError && error.errCode === 'FORBIDDEN') {
+      ElMessage.error('你没有复制该仪表盘的权限');
     } else {
-      ElMessage.error('修改仪表盘名称失败，请稍后重试');
+      ElMessage.error('复制仪表盘失败，请稍后重试');
     }
   } finally {
-    renamingDashboardCode.value = '';
+    copyingDashboardCode.value = '';
   }
 }
 
@@ -858,18 +842,31 @@ async function submitFormAppearance(payload: { name: string; icon: string }): Pr
   if (!target?.targetCode) return false;
 
   try {
-    await updateForm(target.targetCode, payload);
+    if (target.type === 'dashboard') {
+      await updateDashboard(target.targetCode, payload);
+    } else {
+      await updateForm(target.targetCode, payload);
+    }
     // 等最新菜单快照回填后才关闭弹窗，确保保存的图标会立即按当前类型展示。
     await reloadMenu();
     ElMessage.success('名称和图标已修改');
     return true;
   } catch (error) {
-    if (error instanceof ApiError && error.errCode === 'FORM_NAME_INVALID') {
+    if (
+      error instanceof ApiError &&
+      (error.errCode === 'FORM_NAME_INVALID' || error.errCode === 'DASHBOARD_NAME_INVALID')
+    ) {
       ElMessage.error('名称不能为空，且不能超过 128 个字符');
-    } else if (error instanceof ApiError && error.errCode === 'FORM_ICON_INVALID') {
+    } else if (
+      error instanceof ApiError &&
+      (error.errCode === 'FORM_ICON_INVALID' || error.errCode === 'DASHBOARD_APPEARANCE_INVALID')
+    ) {
       ElMessage.error('图标信息无效，请重新选择');
-    } else if (error instanceof ApiError && error.errCode === 'FORM_NOT_FOUND') {
-      ElMessage.error('表单不存在或已被删除，已为你刷新菜单');
+    } else if (
+      error instanceof ApiError &&
+      (error.errCode === 'FORM_NOT_FOUND' || error.errCode === 'DASHBOARD_NOT_FOUND')
+    ) {
+      ElMessage.error('资产不存在或已被删除，已为你刷新菜单');
       await reloadMenu();
     } else {
       ElMessage.error('修改名称和图标失败，请稍后重试');

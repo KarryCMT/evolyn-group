@@ -69,6 +69,7 @@ func TestKnownProductCodes(t *testing.T) {
 	assert.True(t, KnownProductEvent("form.form.create"))
 	assert.True(t, KnownProductEvent("form.form_record.submit"))
 	assert.True(t, KnownProductEvent("dashboard.dashboard.update"))
+	assert.True(t, KnownProductEvent("dashboard.dashboard.copy"))
 	// 未登记动作（草稿保存刻意不进筛选项）与企业日志事件不可用作产品筛选
 	assert.False(t, KnownProductEvent("form.form.update-draft"))
 	assert.False(t, KnownProductEvent("iam.member.update"))
@@ -80,6 +81,7 @@ func TestProductEventNamesUseResourceVerbs(t *testing.T) {
 	assert.Equal(t, "创建应用", EventName("app.app.create"))
 	assert.Equal(t, "删除表单", EventName("form.form.delete"))
 	assert.Equal(t, "创建仪表盘", EventName("dashboard.dashboard.create"))
+	assert.Equal(t, "复制仪表盘", EventName("dashboard.dashboard.copy"))
 	assert.Equal(t, "提交表单数据", EventName("form.form_record.submit"))
 	assert.Equal(t, "发布流程", EventName("workflow.workflow.publish"))
 	// 草稿保存共用「更新」口径展示（不进筛选项，读取侧仍可解析名称）

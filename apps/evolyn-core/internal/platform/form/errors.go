@@ -116,8 +116,8 @@ var (
 	// ErrStorageBusy 同一表单存在待执行/执行中的物理模型 Job，新发布请求被拒
 	ErrStorageBusy = httpx.NewBiz("FORM_STORAGE_BUSY", "表单结构变更正在执行，请稍后重试", http.StatusConflict)
 
-	// ErrStorageUnsupportedField 发布快照命中尚不具备物理模型的控件（多选/
-	// 附件等）；data 携带 issues:[{path,message}]
+	// ErrStorageUnsupportedField 发布快照命中尚不具备物理模型的控件（附件/
+	// 地址等）；data 携带 issues:[{path,message}]
 	ErrStorageUnsupportedField = httpx.NewBiz("FORM_STORAGE_UNSUPPORTED_FIELD", "存在暂不支持物理存储的字段，请先移除或等待能力开放", http.StatusBadRequest)
 
 	// ErrStorageModelInvalid 物理模型构建/校验失败（快照与冻结映射不一致等

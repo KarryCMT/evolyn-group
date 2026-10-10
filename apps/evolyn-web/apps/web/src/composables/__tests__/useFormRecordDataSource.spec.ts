@@ -112,6 +112,7 @@ describe('useFormRecordDataSource', () => {
     expect(api.listFormRecords).toHaveBeenCalledWith(
       'form_a',
       expect.objectContaining({
+        version: 1,
         keyword: '灵衍',
         paging: { page: 2, pageSize: 50 },
       }),

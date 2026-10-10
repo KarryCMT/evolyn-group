@@ -1,31 +1,24 @@
 <script setup lang="ts">
+import type { DashboardWorkspaceTab } from '../workspace/dashboardWorkspace.types';
 import type { DashboardDesignerSaveStatus } from '~/composables/useDashboardDesigner';
-import { RiArrowLeftLine, RiEyeLine, RiSave3Line } from '@remixicon/vue';
-import { computed } from 'vue';
+import { RiArrowLeftLine, RiEyeLine, RiQuestionFill, RiSave3Line } from '@remixicon/vue';
 import WorkspaceTitleEditor from '~/components/WorkspaceTitleEditor.vue';
+import DashboardWorkspaceNavigation from '../workspace/DashboardWorkspaceNavigation.vue';
 
-const props = defineProps<{
+defineProps<{
   name: string;
-  revision: number;
   dirty: boolean;
   saveStatus: DashboardDesignerSaveStatus;
   renaming?: boolean;
 }>();
 const emit = defineEmits<{
   back: [];
+  help: [];
   save: [];
   preview: [];
+  navigate: [tab: DashboardWorkspaceTab];
   rename: [name: string, onSuccess: () => void];
 }>();
-
-const statusLabel = computed(() => {
-  if (props.saveStatus === 'saving') return '正在保存';
-  if (props.saveStatus === 'conflict') return '版本冲突';
-  if (props.saveStatus === 'error') return '保存失败';
-  if (props.dirty) return '未保存';
-  if (props.saveStatus === 'saved') return '已保存';
-  return '已同步';
-});
 </script>
 
 <template>
@@ -45,26 +38,23 @@ const statusLabel = computed(() => {
       :saving="renaming"
       @submit="(name, onSuccess) => emit('rename', name, onSuccess)"
     />
-    <nav class="designer-toolbar__tabs" aria-label="仪表盘设计导航">
-      <button class="designer-toolbar__tab is-active" type="button">
-        仪表盘设计
-      </button>
-      <button class="designer-toolbar__tab" type="button" disabled title="扩展能力即将开放">
-        扩展功能
-      </button>
-      <button class="designer-toolbar__tab" type="button" disabled title="发布能力即将开放">
-        仪表盘发布
-      </button>
-    </nav>
-    <div class="designer-toolbar__meta">
-      <span class="designer-toolbar__revision">草稿 / {{ revision }}</span>
-      <span
-        class="designer-toolbar__status"
-        :class="`designer-toolbar__status--${saveStatus}`"
-        data-testid="dashboard-save-status"
-      >
-        <i />{{ statusLabel }}
-      </span>
+    <DashboardWorkspaceNavigation
+      class="designer-toolbar__tabs"
+      active-tab="design"
+      publish-disabled
+      @navigate="emit('navigate', $event)"
+    />
+    <div class="designer-toolbar__utility">
+      <el-tooltip content="帮助" placement="bottom">
+        <button
+          class="designer-toolbar__help"
+          type="button"
+          aria-label="帮助"
+          @click="emit('help')"
+        >
+          <RiQuestionFill aria-hidden="true" />
+        </button>
+      </el-tooltip>
     </div>
     <div class="designer-toolbar__actions">
       <el-button :disabled="saveStatus === 'saving'" @click="emit('preview')">
@@ -120,90 +110,39 @@ const statusLabel = computed(() => {
   min-width: 0;
 }
 
-.designer-toolbar__tabs {
+.designer-toolbar__utility {
   display: flex;
-  gap: 38px;
-  align-items: stretch;
-  justify-content: center;
-  height: 56px;
-}
-
-.designer-toolbar__tab {
-  position: relative;
-  padding: 0;
-  font-size: 15px;
-  color: var(--el-text-color-primary);
-  cursor: pointer;
-  background: transparent;
-  border: 0;
-}
-
-.designer-toolbar__tab.is-active {
-  font-weight: 600;
-  color: var(--el-color-primary);
-}
-
-.designer-toolbar__tab.is-active::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 3px;
-  content: '';
-  background: var(--el-color-primary);
-}
-
-.designer-toolbar__tab:disabled {
-  color: var(--el-text-color-disabled);
-  cursor: not-allowed;
-}
-
-.designer-toolbar__meta {
-  display: flex;
-  gap: 12px;
   align-items: center;
   justify-content: flex-end;
 }
 
-.designer-toolbar__revision {
-  font:
-    700 11px/1 ui-monospace,
-    monospace;
-  color: var(--el-text-color-secondary);
-  letter-spacing: 0.04em;
+.designer-toolbar__help {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 20px;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+  place-items: center;
 }
 
-.designer-toolbar__status {
-  display: inline-flex;
-  gap: 7px;
-  align-items: center;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+.designer-toolbar__help:hover {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
 }
 
-.designer-toolbar__status i {
-  width: 7px;
-  height: 7px;
-  background: var(--el-text-color-placeholder);
-  border-radius: 50%;
+.designer-toolbar__help:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 2px;
 }
 
-.designer-toolbar__status--idle i {
-  background: var(--el-color-warning);
-}
-
-.designer-toolbar__status--saving i {
-  background: var(--el-color-primary);
-  animation: pulse 1s infinite;
-}
-
-.designer-toolbar__status--saved i {
-  background: var(--el-color-success);
-}
-
-.designer-toolbar__status--error i,
-.designer-toolbar__status--conflict i {
-  background: var(--el-color-danger);
+.designer-toolbar__help svg {
+  width: 20px;
+  height: 20px;
 }
 
 .designer-toolbar__actions {
@@ -216,25 +155,13 @@ const statusLabel = computed(() => {
   margin-right: 5px;
 }
 
-@keyframes pulse {
-  50% {
-    opacity: 0.35;
-    transform: scale(0.8);
-  }
-}
-
 @media (width <= 760px) {
   .designer-toolbar {
     grid-template-columns: 36px 1fr auto;
   }
 
   .designer-toolbar__tabs,
-  .designer-toolbar__revision,
-  .designer-toolbar__status {
-    display: none;
-  }
-
-  .designer-toolbar__meta {
+  .designer-toolbar__utility {
     display: none;
   }
 }

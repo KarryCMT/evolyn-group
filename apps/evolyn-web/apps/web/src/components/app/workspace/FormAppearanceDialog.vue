@@ -3,6 +3,7 @@ import type { FormInstance, FormRules } from 'element-plus';
 import type { AppMenuType, FormType } from '~/types';
 import { RiCloseFill } from '@remixicon/vue';
 import { reactive, shallowRef, watch } from 'vue';
+import { defaultMenuIconKey } from '../menuIcon';
 import MenuIconPicker from './MenuIconPicker.vue';
 
 defineOptions({ name: 'FormAppearanceDialog' });
@@ -43,7 +44,8 @@ watch(
   (isVisible) => {
     if (!isVisible) return;
     draft.name = props.initialName;
-    draft.icon = props.initialIcon || 'file-list';
+    const menuType = props.menuType === 'folder' ? 'group' : props.menuType;
+    draft.icon = props.initialIcon || defaultMenuIconKey(menuType, props.formType);
     formRef.value?.clearValidate();
   },
   { immediate: true },
@@ -76,7 +78,9 @@ async function confirm() {
   >
     <template #header>
       <header class="form-appearance-dialog__header">
-        <h2 class="form-appearance-dialog__heading">修改名称和图标</h2>
+        <h2 class="form-appearance-dialog__heading">
+          修改名称和图标
+        </h2>
         <button
           class="form-appearance-dialog__close"
           type="button"
@@ -113,8 +117,12 @@ async function confirm() {
 
     <template #footer>
       <footer class="form-appearance-dialog__footer">
-        <el-button :disabled="submitting" @click="visible = false"> 取消 </el-button>
-        <el-button type="primary" :loading="submitting" @click="confirm"> 确定 </el-button>
+        <el-button :disabled="submitting" @click="visible = false">
+          取消
+        </el-button>
+        <el-button type="primary" :loading="submitting" @click="confirm">
+          确定
+        </el-button>
       </footer>
     </template>
   </el-dialog>

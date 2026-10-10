@@ -9,6 +9,7 @@ import type {
   BusinessDashboardWidgetPatch,
   BusinessDashboardWidgetType,
 } from '@evolyn.do/dashboard';
+import type { DashboardWorkspaceTab } from '../workspace/dashboardWorkspace.types';
 import type { DashboardDesignerSaveStatus } from '~/composables/useDashboardDesigner';
 import type { DashboardFormDataSource, DashboardFormFieldCatalog } from '~/types';
 import { BusinessDashboardCanvas, businessDashboardWidgetDescriptors } from '@evolyn.do/dashboard';
@@ -24,7 +25,6 @@ import DashboardStylePanel from './DashboardStylePanel.vue';
 
 const props = defineProps<{
   name: string;
-  revision: number;
   document: BusinessDashboardDocument;
   selectedWidget: BusinessDashboardWidget | null;
   selectedWidgetId: string | null;
@@ -43,8 +43,10 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{
   back: [];
+  help: [];
   save: [];
   preview: [];
+  navigate: [tab: DashboardWorkspaceTab];
   rename: [name: string, onSuccess: () => void];
   reloadConflict: [];
   add: [descriptor: BusinessDashboardWidgetDescriptor];
@@ -111,13 +113,14 @@ function dropWidget(type: BusinessDashboardWidgetType, layout: BusinessDashboard
   <main class="designer-shell">
     <DashboardDesignerToolbar
       :name="name"
-      :revision="revision"
       :dirty="dirty"
       :save-status="saveStatus"
       :renaming="renaming"
       @back="emit('back')"
+      @help="emit('help')"
       @save="emit('save')"
       @preview="emit('preview')"
+      @navigate="emit('navigate', $event)"
       @rename="(name, onSuccess) => emit('rename', name, onSuccess)"
     />
     <section v-if="saveStatus === 'conflict'" class="designer-shell__conflict" role="alert">

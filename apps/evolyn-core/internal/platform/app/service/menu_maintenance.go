@@ -189,6 +189,32 @@ func (s *menuMaintenanceService) AttachDashboardNode(ctx context.Context, appID,
 	return s.repo.BumpMenuRevision(ctx, appID)
 }
 
+// AttachDashboardCopyNode 将副本放在源仪表盘所在分组的末尾。父节点从服务端
+// 菜单事实源读取，避免客户端提交过期或越权的父分组编码。
+func (s *menuMaintenanceService) AttachDashboardCopyNode(ctx context.Context, appID, sourceDashboardID, dashboardID uint, name, icon, color string) error {
+	dashboardRepo, err := s.dashboardRepo()
+	if err != nil {
+		return err
+	}
+	source, err := dashboardRepo.FindByAssetTarget(ctx, appID, model.MenuTypeDashboard, sourceDashboardID)
+	if err != nil {
+		return err
+	}
+	sortOrder, err := s.repo.MaxSortOrder(ctx, appID, source.ParentMenuID)
+	if err != nil {
+		return err
+	}
+	targetType := model.MenuTypeDashboard
+	if _, err := dashboardRepo.CreateDashboardNode(ctx, &model.MenuNode{
+		AppID: appID, ParentMenuID: source.ParentMenuID, MenuType: model.MenuTypeDashboard,
+		Name: name, Icon: icon, Color: color, TargetType: &targetType,
+		TargetID: &dashboardID, SortOrder: sortOrder + 1024,
+	}); err != nil {
+		return err
+	}
+	return s.repo.BumpMenuRevision(ctx, appID)
+}
+
 // SyncDashboardNode 把展示信息与可选移动合并为一次节点 UPDATE，并且无论组合
 // 了多少字段都只推进一次 menu_revision。
 func (s *menuMaintenanceService) SyncDashboardNode(ctx context.Context, appID, dashboardID uint, name, icon, color *string, parentMenuCode *string) error {

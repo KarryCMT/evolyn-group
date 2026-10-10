@@ -224,6 +224,39 @@ func TestDashboardStage1Integration(t *testing.T) {
 		assert.EqualValues(t, 1, env.count(t, "SELECT menu_revision FROM tn_apps WHERE id = ?", target.ID))
 	})
 
+	t.Run("copy preserves draft appearance and source menu group", func(t *testing.T) {
+		app := env.createApp(t, env.alpha, env.alphaMember, "复制应用")
+		group, err := env.menuSvc.CreateGroup(alphaCtx, env.alphaMember, app.Code, &appmodel.CreateMenuGroupRequest{Name: "经营分析", BaseMenuRevision: 1})
+		require.NoError(t, err)
+		source, err := env.dashboardSvc.Precreate(alphaCtx, env.alphaMember, app.Code, precreateRequest("copy-source", "经营总览", group.MenuID))
+		require.NoError(t, err)
+		name, icon, color := source.Name, "bar-chart-box", "purple"
+		source, err = env.dashboardSvc.Update(alphaCtx, env.alphaMember, source.Code, &dashboardmodel.UpdateRequest{Name: &name, Icon: &icon, Color: &color})
+		require.NoError(t, err)
+		source, err = env.dashboardSvc.Get(alphaCtx, env.alphaMember, source.Code)
+		require.NoError(t, err)
+
+		copied, err := env.dashboardSvc.Copy(alphaCtx, env.alphaMember, source.Code)
+		require.NoError(t, err)
+		assert.NotEqual(t, source.Code, copied.Code)
+		assert.Equal(t, "经营总览（副本）", copied.Name)
+		assert.Equal(t, source.Icon, copied.Icon)
+		assert.Equal(t, source.Color, copied.Color)
+		assert.JSONEq(t, string(source.Draft), string(copied.Draft))
+		assert.EqualValues(t, 1, copied.DraftRevision)
+		assert.Zero(t, copied.PublishedVersion)
+
+		type menuPosition struct {
+			ParentMenuID *uint
+		}
+		var sourcePosition, copiedPosition menuPosition
+		query := `SELECT n.parent_menu_id FROM tn_app_menu_nodes n JOIN tn_dashboards d ON d.id = n.target_id WHERE n.app_id = ? AND n.menu_type = 'dashboard' AND d.code = ? AND n.deleted_at IS NULL`
+		require.NoError(t, env.db.Raw(query, app.ID, source.Code).Scan(&sourcePosition).Error)
+		require.NoError(t, env.db.Raw(query, app.ID, copied.Code).Scan(&copiedPosition).Error)
+		assert.Equal(t, sourcePosition.ParentMenuID, copiedPosition.ParentMenuID)
+		assert.EqualValues(t, 1, env.count(t, "SELECT COUNT(*) FROM tn_audit_logs WHERE tenant_id = ? AND module = 'dashboard' AND action = 'copy' AND resource_id = ?", env.alpha.ID, copied.Code))
+	})
+
 	t.Run("failure after asset and menu inserts rolls back binding quota and audit", func(t *testing.T) {
 		app := env.createApp(t, env.alpha, env.alphaMember, "中途失败应用")
 		// BumpMenuRevision 位于菜单节点 INSERT 之后；把 revision 置为 bigint

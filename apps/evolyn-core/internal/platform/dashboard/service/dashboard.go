@@ -28,9 +28,10 @@ import (
 )
 
 const (
-	maxNameRunes       = 128
-	maxAppearanceRunes = 32
-	appStatusActive    = "active"
+	maxNameRunes        = 128
+	maxAppearanceRunes  = 32
+	appStatusActive     = "active"
+	dashboardCopySuffix = "（副本）"
 )
 
 type dashboardService struct {
@@ -276,6 +277,68 @@ func (s *dashboardService) Update(ctx context.Context, member *iammodel.User, co
 	return s.detail(ctx, updated, app)
 }
 
+// Copy 在同一应用内复制仪表盘草稿与展示信息。发布快照不复制，新资产从
+// draftRevision=1 开始，并保留在源菜单节点所在分组。
+func (s *dashboardService) Copy(ctx context.Context, member *iammodel.User, code string) (*model.Detail, error) {
+	tenantID, ok := contextx.TenantIDFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("tenant context required")
+	}
+	if member == nil || member.ID == 0 || member.TenantID != tenantID {
+		return nil, httpx.Wrap(dashboarderrors.ErrForbidden, fmt.Errorf("member not in tenant %d", tenantID))
+	}
+	perms := s.access.Permissions(ctx, member)
+	if !perms["dashboards:create"] || !perms["dashboard-actions:copy"] {
+		return nil, httpx.Wrap(dashboarderrors.ErrForbidden, fmt.Errorf("member cannot copy dashboard"))
+	}
+	source, err := s.load(ctx, code)
+	if err != nil {
+		return nil, err
+	}
+	app, notFound, err := s.apps.AppByID(ctx, source.AppID)
+	if err != nil {
+		return nil, err
+	}
+	if notFound || app.Status != appStatusActive {
+		return nil, httpx.Wrap(dashboarderrors.ErrAppInvalid, fmt.Errorf("dashboard app unavailable"))
+	}
+	newCode, err := newDashboardCode()
+	if err != nil {
+		return nil, err
+	}
+	name := dashboardCopyName(source.Name)
+	var created *model.Dashboard
+	if err := s.tx.WithinTransaction(ctx, func(tctx context.Context) error {
+		return s.quota.CheckAndReserve(tctx, tenantID, tenantmodel.QuotaDashboards, func(qctx context.Context) error {
+			var createErr error
+			created, createErr = s.repo.Create(qctx, &model.Dashboard{
+				AppID: source.AppID, Code: newCode, Name: name, Icon: source.Icon, Color: source.Color,
+				ProtocolVersion: source.ProtocolVersion,
+				DraftContent:    append(model.JSONContent(nil), source.DraftContent...), DraftRevision: 1,
+				CreatorMemberID: member.ID,
+				TenantBaseModel: kernel.TenantBaseModel{TenantID: tenantID},
+			})
+			if createErr != nil {
+				return createErr
+			}
+			if s.menu != nil {
+				return s.menu.AttachDashboardCopyNode(qctx, source.AppID, source.ID, created.ID, created.Name, created.Icon, created.Color)
+			}
+			return nil
+		})
+	}); err != nil {
+		return nil, err
+	}
+	if s.audit != nil {
+		s.audit.Record(ctx, auditservice.Entry{
+			Module: "dashboard", Action: "copy", ResourceType: "dashboard", ResourceID: created.Code,
+			TargetName: created.Name, AppID: app.ID, AppCode: app.Code, AppName: app.Name,
+			After: map[string]any{"sourceCode": source.Code, "appCode": app.Code},
+		})
+	}
+	return s.detail(ctx, created, app)
+}
+
 func (s *dashboardService) SaveDraft(ctx context.Context, member *iammodel.User, code string, req *model.SaveDraftRequest) (*model.SaveDraftResult, error) {
 	perms := s.access.Permissions(ctx, member)
 	if !perms["dashboards:update"] || !perms["dashboard-actions:design"] {
@@ -366,4 +429,14 @@ func newDashboardCode() (string, error) {
 		return "", err
 	}
 	return "dashboard_" + hex.EncodeToString(buf), nil
+}
+
+func dashboardCopyName(name string) string {
+	base := []rune(strings.TrimSpace(name))
+	suffix := []rune(dashboardCopySuffix)
+	maxBase := maxNameRunes - len(suffix)
+	if len(base) > maxBase {
+		base = base[:maxBase]
+	}
+	return string(base) + dashboardCopySuffix
 }

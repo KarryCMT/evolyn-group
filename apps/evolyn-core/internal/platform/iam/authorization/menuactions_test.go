@@ -87,14 +87,14 @@ func TestMenuActionsOfPartialGrants(t *testing.T) {
 	assert.False(t, actions[MenuActionDelete])
 }
 
-func TestMenuActionsOfDashboardStageTwo(t *testing.T) {
-	// 阶段二已接通编辑、改名、移动、删除；复制仍等待阶段五事务实现。
+func TestMenuActionsOfDashboard(t *testing.T) {
+	// 仪表盘菜单动作均已接通真实端点，按钮投影不得继续隐藏复制。
 	actions := MenuActionsOf(adminPerms(), "dashboard")
 	assert.True(t, actions[MenuActionEdit])
 	assert.True(t, actions[MenuActionRename])
 	assert.True(t, actions[MenuActionMove])
 	assert.True(t, actions[MenuActionDelete])
-	assert.False(t, actions[MenuActionCopyInApp])
+	assert.True(t, actions[MenuActionCopyInApp])
 }
 
 func TestMenuActionsOfUnknownAssetType(t *testing.T) {

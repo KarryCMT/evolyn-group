@@ -34,8 +34,9 @@ type RecordQueryCompileOptions struct {
 	Physical bool
 	// PhysicalColumns widgetName → 物理列名（来自已应用 StorageModel.Columns）。
 	PhysicalColumns map[string]string
-	// PhysicalArrayColumns 标识采用 PostgreSQL BIGINT[] 的多部门列。它们不能
-	// 复用 legacy JSONB 数组函数，须按数组成员关系编译为 ANY/cardinality。
+	// PhysicalArrayColumns 标识采用 PostgreSQL 原生数组的列（多部门
+	// BIGINT[]，多选项/多成员 TEXT[]）。它们不能复用 legacy JSONB
+	// 数组函数，须按数组成员关系编译为 ANY/cardinality。
 	PhysicalArrayColumns map[string]bool
 }
 
@@ -281,21 +282,31 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		}
 		return id, nil
 	}
-	physicalArrayText := func() (int64, error) { return departmentID(value) }
-	physicalArraySet := func() ([]int64, error) {
+	physicalArrayElement := func(raw any) (any, error) {
+		if field.mapping.WidgetType == "deptgroup" {
+			return departmentID(raw)
+		}
+		text, ok := raw.(string)
+		if !ok || text == "" {
+			return nil, fmt.Errorf("query value for %q must be a non-empty string", field.mapping.WidgetName)
+		}
+		return text, nil
+	}
+	physicalArrayText := func() (any, error) { return physicalArrayElement(value) }
+	physicalArraySet := func() ([]any, error) {
 		values, err := setValues()
 		if err != nil {
 			return nil, err
 		}
-		ids := make([]int64, 0, len(values))
+		out := make([]any, 0, len(values))
 		for _, raw := range values {
-			id, err := departmentID(raw)
+			item, err := physicalArrayElement(raw)
 			if err != nil {
 				return nil, err
 			}
-			ids = append(ids, id)
+			out = append(out, item)
 		}
-		return ids, nil
+		return out, nil
 	}
 
 	switch operator {
@@ -303,11 +314,11 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		// Query DSL 的 enum=多选控件时，eq 表示“包含该选项”；权限范围
 		// 配置并不开放 multiOption 的 eq，因此不会改变 permissionScopeMatches。
 		if physicalArray {
-			id, err := physicalArrayText()
+			item, err := physicalArrayText()
 			if err != nil {
 				return CompiledRecordQuery{}, err
 			}
-			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND ? = ANY(" + vSQL + ")", Args: append(copyArgs(2), id)}, nil
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND ? = ANY(" + vSQL + ")", Args: append(copyArgs(2), item)}, nil
 		}
 		if isArray {
 			text, err := textValue()
@@ -331,11 +342,11 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		return where2("(%s) IS NOT NULL AND (%s) = ?", append(copyArgs(2), text)), nil
 	case "ne", "neq":
 		if physicalArray {
-			id, err := physicalArrayText()
+			item, err := physicalArrayText()
 			if err != nil {
 				return CompiledRecordQuery{}, err
 			}
-			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND NOT (? = ANY(" + vSQL + "))", Args: append(copyArgs(2), id)}, nil
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND NOT (? = ANY(" + vSQL + "))", Args: append(copyArgs(2), item)}, nil
 		}
 		if isArray {
 			text, err := textValue()
@@ -377,11 +388,11 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		return where2("(%s) IS NOT NULL AND (%s) "+comparison+" ?", append(copyArgs(2), rhs)), nil
 	case "contains":
 		if physicalArray {
-			id, err := physicalArrayText()
+			item, err := physicalArrayText()
 			if err != nil {
 				return CompiledRecordQuery{}, err
 			}
-			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND ? = ANY(" + vSQL + ")", Args: append(copyArgs(2), id)}, nil
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NOT NULL AND ? = ANY(" + vSQL + ")", Args: append(copyArgs(2), item)}, nil
 		}
 		text, err := textValue()
 		if err != nil {
@@ -393,11 +404,11 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		return where2("(%s) IS NOT NULL AND position(? in (%s)) > 0", append(copyArgs(2), text)), nil
 	case "notContains":
 		if physicalArray {
-			id, err := physicalArrayText()
+			item, err := physicalArrayText()
 			if err != nil {
 				return CompiledRecordQuery{}, err
 			}
-			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NULL OR NOT (? = ANY(" + vSQL + "))", Args: append(copyArgs(2), id)}, nil
+			return CompiledRecordQuery{Where: "(" + vSQL + ") IS NULL OR NOT (? = ANY(" + vSQL + "))", Args: append(copyArgs(2), item)}, nil
 		}
 		text, err := textValue()
 		if err != nil {
@@ -424,21 +435,21 @@ func compileCondition(field recordQueryField, operator string, value any, vc val
 		return where2("(%s) IS NOT NULL AND (%s) LIKE ? ESCAPE '\\\\'", append(copyArgs(2), pattern)), nil
 	case "in", "not_in", "notIn":
 		if physicalArray {
-			ids, err := physicalArraySet()
+			items, err := physicalArraySet()
 			if err != nil {
 				return CompiledRecordQuery{}, err
 			}
-			if len(ids) == 0 {
+			if len(items) == 0 {
 				if operator == "not_in" || operator == "notIn" {
 					return CompiledRecordQuery{Where: "TRUE"}, nil
 				}
 				return CompiledRecordQuery{Where: "FALSE"}, nil
 			}
-			atoms := make([]string, 0, len(ids))
-			args := make([]any, 0, len(ids)*2+1)
-			for _, id := range ids {
+			atoms := make([]string, 0, len(items))
+			args := make([]any, 0, len(items)*2+1)
+			for _, item := range items {
 				atoms = append(atoms, "? = ANY("+vSQL+")")
-				args = append(args, id)
+				args = append(args, item)
 				args = append(args, vArgs...)
 			}
 			membership := strings.Join(atoms, " OR ")

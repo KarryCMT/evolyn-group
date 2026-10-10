@@ -17,6 +17,12 @@ const dashboardRoutes: RouteRecordRaw[] = [
     meta: { public: false, title: '仪表盘预览' },
   },
   {
+    path: '/app/:appCode/dashboard/:dashboardCode/extensions',
+    name: 'dashboard-extensions',
+    component: () => import('~/pages/dashboard/extensions.vue'),
+    meta: { public: false, title: '仪表盘扩展功能' },
+  },
+  {
     path: '/dashboard',
     name: 'dashboard',
     component: () => import('~/pages/dashboard/index.vue'),

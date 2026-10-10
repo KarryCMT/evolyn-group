@@ -820,6 +820,42 @@ func TestPhysINTMonthTimeFields(t *testing.T) {
 	assert.Contains(t, recordColumnComment, "tn_form_records", "preset column comment must exist")
 }
 
+// SEC-PHYS-013 文本数组字段：复选/下拉多选/成员多选以 TEXT[]
+// 发布、写入、无损回读，并以 PostgreSQL ANY 语义执行多值筛选。
+func TestPhysINTTextArrayFields(t *testing.T) {
+	env := newPhysEnv(t)
+	member := memberOfTenant(1)
+	items := `[
+		{"widget":{"type":"checkboxgroup","widgetName":"_widget_c","fieldId":"aaaaaaaa09","enable":true,"visible":true,"allowBlank":true,"options":[{"value":"alpha","label":"A"},{"value":"comma,value","label":"逗号"}]},"label":"复选","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"combocheck","widgetName":"_widget_k","fieldId":"aaaaaaaa10","enable":true,"visible":true,"allowBlank":true,"options":[{"value":"x","label":"X"},{"value":"y","label":"Y"}]},"label":"下拉多选","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"usergroup","widgetName":"_widget_u","fieldId":"aaaaaaaa11","enable":true,"visible":true,"allowBlank":true},"label":"成员多选","description":"","labelHidden":false,"lineWidth":6}]`
+	code, tableName := env.publishPhysical(t, items, `"_widget_c","_widget_k","_widget_u"`, member)
+	ctx := tenantCtx(1)
+
+	result, err := env.formSvc.SubmitRecord(ctx, member, &model.SubmitRecordRequest{
+		AppCode: "app_phys", FormCode: code, PublishedVersion: 1, SchemaRevision: env.firstSchemaRevision(t, ctx, code),
+		HasResult: submitBool(true), DataOpID: "eeeeeee2-5555-4555-8555-555555555555",
+		Values: map[string]model.SubmitFieldValue{
+			"_widget_c": {Data: model.JSONContent(`["alpha","comma,value"]`), Visible: submitBool(true)},
+			"_widget_k": {Data: model.JSONContent(`["x","y"]`), Visible: submitBool(true)},
+			"_widget_u": {Data: model.JSONContent(`["mb_019ab","mb_019ac"]`), Visible: submitBool(true)},
+		},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, env.countInt(t, fmt.Sprintf(
+		`SELECT count(*) FROM %q WHERE record_id = %d AND "f_aaaaaaaa09" = ARRAY['alpha','comma,value']::text[] AND "f_aaaaaaaa10" = ARRAY['x','y']::text[] AND "f_aaaaaaaa11" = ARRAY['mb_019ab','mb_019ac']::text[]`,
+		tableName, result.RecordID)))
+
+	// Query DSL 对多选 enum 以 eq 表达“数组包含该选项”。
+	filter := model.RecordQueryExpression{Type: "condition", Field: "_widget_c", Operator: "eq", Value: "comma,value"}
+	page, err := env.formSvc.ListRecords(ctx, member, code, model.RecordQueryDocument{Version: 1, Filter: &filter})
+	require.NoError(t, err)
+	require.Len(t, page.Items, 1)
+	assert.Equal(t, []any{"alpha", "comma,value"}, page.Items[0].Values["_widget_c"])
+	assert.Equal(t, []any{"x", "y"}, page.Items[0].Values["_widget_k"])
+	assert.Equal(t, []any{"mb_019ab", "mb_019ac"}, page.Items[0].Values["_widget_u"])
+}
+
 // physSubformItems 子表单发布草稿（children 为子字段 JSON；空串=零子字段）。
 func physSubformItems(children string) string {
 	return fmt.Sprintf(`[

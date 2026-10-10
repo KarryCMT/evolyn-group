@@ -29,8 +29,11 @@ func TestEncodeSQLValue(t *testing.T) {
 		{KindTime, nil, nil},
 		{KindRef, "42", int64(42)},
 		{KindRef, "", nil},
-		{KindRefArray, []any{"42", "7"}, []int64{42, 7}},
+		{KindRefArray, []any{"42", "7"}, postgresArrayValue(`{42,7}`)},
 		{KindRefArray, []any{}, nil},
+		{KindTextArray, []any{"alpha", "comma,value"}, postgresArrayValue(`{"alpha","comma,value"}`)},
+		{KindTextArray, []string{"mb_019ab", "mb_019ac"}, postgresArrayValue(`{"mb_019ab","mb_019ac"}`)},
+		{KindTextArray, []any{}, nil},
 	}
 	for _, testCase := range cases {
 		got, err := EncodeSQLValue(testCase.kind, testCase.value)
@@ -73,6 +76,10 @@ func TestEncodeSQLValueRejectsMalformed(t *testing.T) {
 		{KindRefArray, []any{"42", "42"}},
 		{KindRefArray, []any{"not-a-number"}},
 		{KindRefArray, []string{"42"}},
+		{KindTextArray, "alpha"},
+		{KindTextArray, []any{"alpha", "alpha"}},
+		{KindTextArray, []any{""}},
+		{KindTextArray, []any{42}},
 	}
 	for _, testCase := range cases {
 		if _, err := EncodeSQLValue(testCase.kind, testCase.value); err == nil {
@@ -108,6 +115,12 @@ func TestDecodeSQLValue(t *testing.T) {
 	}
 	if got, err := DecodeSQLValue(KindRefArray, "{42,7}"); err != nil || !reflect.DeepEqual(got, []any{"42", "7"}) {
 		t.Fatalf("reference array decode: %v, %v", got, err)
+	}
+	if got, err := DecodeSQLValue(KindTextArray, `{"alpha","comma,value","quote\"value","slash\\value"}`); err != nil || !reflect.DeepEqual(got, []any{"alpha", "comma,value", `quote"value`, `slash\value`}) {
+		t.Fatalf("text array decode: %v, %v", got, err)
+	}
+	if _, err := DecodeSQLValue(KindTextArray, `{alpha,NULL}`); err == nil {
+		t.Fatal("text array NULL element must reject")
 	}
 	// month/time 原形 TEXT 直存：字符串/字节回传原样出网，空串=未填写，
 	// 非法形状（脏数据破坏字典序前提）拒绝。
@@ -159,6 +172,7 @@ func TestKindOfSupportMatrix(t *testing.T) {
 		{"datetime", ""}, // format 非必填：缺省兜底 datetime（与 value.go 口径一致）
 		{"datetime", "month"}, {"datetime", "time"},
 		{"user", ""}, {"dept", ""}, {"deptgroup", ""},
+		{"checkboxgroup", ""}, {"combocheck", ""}, {"usergroup", ""},
 	}
 	for _, testCase := range supported {
 		if _, ok := KindOf(testCase.widgetType, testCase.format); !ok {
@@ -166,7 +180,6 @@ func TestKindOfSupportMatrix(t *testing.T) {
 		}
 	}
 	rejected := []struct{ widgetType, format string }{
-		{"checkboxgroup", ""}, {"combocheck", ""}, {"usergroup", ""},
 		{"datetime", "week"},
 		{"image", ""}, {"upload", ""}, {"address", ""}, {"location", ""},
 		{"signature", ""}, {"richtext", ""},
@@ -181,6 +194,15 @@ func TestKindOfSupportMatrix(t *testing.T) {
 	}
 	if kind, _ := KindOf("deptgroup", ""); kind != KindRefArray || ColumnTypeOf(kind) != ColumnTypeBigintArray {
 		t.Fatal("deptgroup maps to BIGINT[]")
+	}
+	if kind, _ := KindOf("checkboxgroup", ""); kind != KindTextArray || ColumnTypeOf(kind) != ColumnTypeTextArray {
+		t.Fatal("checkboxgroup maps to TEXT[]")
+	}
+	if kind, _ := KindOf("combocheck", ""); kind != KindTextArray || ColumnTypeOf(kind) != ColumnTypeTextArray {
+		t.Fatal("combocheck maps to TEXT[]")
+	}
+	if kind, _ := KindOf("usergroup", ""); kind != KindTextArray || ColumnTypeOf(kind) != ColumnTypeTextArray {
+		t.Fatal("usergroup maps to TEXT[]")
 	}
 	if kind, _ := KindOf("datetime", "date"); kind != KindDate {
 		t.Fatal("datetime/date maps to date")

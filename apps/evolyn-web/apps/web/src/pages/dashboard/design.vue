@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { DashboardWorkspaceTab } from '~/components/dashboard/workspace/dashboardWorkspace.types';
 import type { DashboardFormDataSource } from '~/types';
 import { ApiError } from '@evolyn.do/utils';
 import { ElMessage, ElMessageBox } from 'element-plus';
@@ -83,6 +84,23 @@ async function openPreview() {
 
 function returnToApp() {
   void router.push(appWorkspaceRoute(appCode.value, dashboardCode.value));
+}
+
+/** 帮助中心尚未接入时提供明确反馈，避免图标按钮成为无响应入口。 */
+function showHelp() {
+  ElMessage.info('仪表盘帮助中心正在建设中');
+}
+
+function navigateWorkspace(tab: DashboardWorkspaceTab) {
+  if (tab === 'design') return;
+  if (tab === 'publish') {
+    ElMessage.info('仪表盘发布能力正在建设中');
+    return;
+  }
+  void router.push({
+    name: 'dashboard-extensions',
+    params: { appCode: appCode.value, dashboardCode: dashboardCode.value },
+  });
 }
 
 /** 名称属于仪表盘资产，改名成功后只更新详情，不覆盖画布中的未保存草稿。 */
@@ -173,7 +191,6 @@ function removeDataset(id: string) {
   <DashboardDesignerShell
     v-else-if="designer.loadStatus.value === 'ready' && designer.detail.value"
     :name="designer.detail.value.name"
-    :revision="designer.draftRevision.value"
     :document="designer.editingDocument.value"
     :selected-widget="designer.selectedWidget.value"
     :selected-widget-id="designer.selectedWidgetId.value"
@@ -190,8 +207,10 @@ function removeDataset(id: string) {
     :data-error-message="dataCatalog.errorMessage.value"
     :selected-dataset-id="selectedDatasetId"
     @back="returnToApp"
+    @help="showHelp"
     @save="saveDraft"
     @preview="openPreview"
+    @navigate="navigateWorkspace"
     @rename="renameDashboard"
     @reload-conflict="reloadConflict"
     @add="designer.addWidget"

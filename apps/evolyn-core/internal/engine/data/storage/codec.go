@@ -5,10 +5,12 @@
 // canonical decimal string（设计 §15/§27，高精度禁 float 中转）、
 // date="YYYY-MM-DD"、datetime="YYYY-MM-DD HH:MM:SS"（本地形状直存，与
 // JSONTime 口径一致）、month="YYYY-MM"、time="HH:MM"（两者原形 TEXT 直存）、
-// 单成员/单部门引用=string(十进制 ID)，多部门引用=[]string(十进制 ID)。
+// 单成员=string(member_code)，单部门=string(十进制 ID)，多部门=
+// []string(十进制 ID)，多选项/多成员=[]string（选项值或 member_code）。
 package storage
 
 import (
+	"database/sql/driver"
 	"fmt"
 	"strconv"
 	"strings"
@@ -115,10 +117,47 @@ func EncodeSQLValue(kind FieldKind, value any) (any, error) {
 			seen[id] = struct{}{}
 			ids = append(ids, id)
 		}
-		return ids, nil
+		return postgresArrayValue(formatReferenceArray(ids)), nil
+	case KindTextArray:
+		// JSON 解码主路径产出 []any，域内写回也可直接传 []string。
+		// 空数组与未填写统一收敛为 NULL，与已有多部门语义一致。
+		values, err := normalizeTextArray(value)
+		if err != nil {
+			return nil, err
+		}
+		if len(values) == 0 {
+			return nil, nil
+		}
+		return postgresArrayValue(formatTextArray(values)), nil
 	default:
 		return nil, fmt.Errorf("未知值语义 %q", kind)
 	}
+}
+
+// postgresArrayValue 以 driver.Valuer 包装 PostgreSQL 数组文本，防止 GORM
+// 把 Go slice 自动展开成 SQL row constructor（('a','b')）。参数仍经
+// 驱动绑定，PostgreSQL 根据目标列 OID 按 TEXT[]/BIGINT[] 解析。
+type postgresArrayValue string
+
+func (value postgresArrayValue) Value() (driver.Value, error) { return string(value), nil }
+
+func formatReferenceArray(ids []int64) string {
+	parts := make([]string, len(ids))
+	for i, id := range ids {
+		parts[i] = strconv.FormatInt(id, 10)
+	}
+	return "{" + strings.Join(parts, ",") + "}"
+}
+
+func formatTextArray(values []string) string {
+	parts := make([]string, len(values))
+	for i, value := range values {
+		// 所有元素统一引用，避免空格、逗号、NULL、花括号等
+		// PostgreSQL 数组特殊语法改变业务值。
+		escaped := strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(value)
+		parts[i] = `"` + escaped + `"`
+	}
+	return "{" + strings.Join(parts, ",") + "}"
 }
 
 // DecodeSQLValue 把物理列扫描值（database/sql 驱动返回形态）还原为协议
@@ -234,9 +273,155 @@ func DecodeSQLValue(kind FieldKind, value any) (any, error) {
 			values[i] = strconv.FormatInt(id, 10)
 		}
 		return values, nil
+	case KindTextArray:
+		values, err := decodeTextArray(value)
+		if err != nil {
+			return nil, err
+		}
+		if len(values) == 0 {
+			return nil, nil
+		}
+		out := make([]any, len(values))
+		for i, item := range values {
+			out[i] = item
+		}
+		return out, nil
 	default:
 		return nil, fmt.Errorf("未知值语义 %q", kind)
 	}
+}
+
+// normalizeTextArray 将协议数组收敛为 pgx 可直接编码的 []string。
+// 数组元素不允许空值或重复：前者不是合法选项/成员标识，后者会
+// 破坏多选控件的集合语义。
+func normalizeTextArray(value any) ([]string, error) {
+	var values []string
+	switch raw := value.(type) {
+	case []string:
+		values = append([]string(nil), raw...)
+	case []any:
+		values = make([]string, len(raw))
+		for i, item := range raw {
+			text, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("文本数组元素必须是字符串，得到 %T", item)
+			}
+			values[i] = text
+		}
+	default:
+		return nil, fmt.Errorf("文本数组字段值必须是字符串数组，得到 %T", value)
+	}
+	seen := make(map[string]struct{}, len(values))
+	for _, item := range values {
+		if item == "" {
+			return nil, fmt.Errorf("文本数组不允许空字符串元素")
+		}
+		if _, duplicate := seen[item]; duplicate {
+			return nil, fmt.Errorf("文本数组值 %q 重复", item)
+		}
+		seen[item] = struct{}{}
+	}
+	return values, nil
+}
+
+// decodeTextArray 兼容 pgx/database/sql 对 TEXT[] 的常见扫描形态。
+// 字符串形态使用 PostgreSQL 数组文本语法解析，覆盖逗号、引号与
+// 反斜杠等合法选项值，避免简单 strings.Split 造成数据损坏。
+func decodeTextArray(value any) ([]string, error) {
+	var values []string
+	var err error
+	switch raw := value.(type) {
+	case []string:
+		values = append([]string(nil), raw...)
+	case []any:
+		values = make([]string, len(raw))
+		for i, item := range raw {
+			text, ok := item.(string)
+			if !ok {
+				return nil, fmt.Errorf("文本数组列元素扫描到未知类型 %T", item)
+			}
+			values[i] = text
+		}
+	case string:
+		values, err = parseTextArray(raw)
+	case []byte:
+		values, err = parseTextArray(string(raw))
+	default:
+		return nil, fmt.Errorf("文本数组列扫描到未知类型 %T", value)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if _, err := normalizeTextArray(values); err != nil {
+		return nil, fmt.Errorf("文本数组列值非法: %w", err)
+	}
+	return values, nil
+}
+
+// parseTextArray 解析一维 PostgreSQL TEXT[] 文本形态。物理模型只产出
+// 一维数组，因此嵌套花括号、未引用 NULL 元素和多维边界均拒绝。
+func parseTextArray(text string) ([]string, error) {
+	if len(text) < 2 || text[0] != '{' || text[len(text)-1] != '}' {
+		return nil, fmt.Errorf("文本数组列扫描值 %q 不是 PostgreSQL 数组", text)
+	}
+	if len(text) == 2 {
+		return nil, nil
+	}
+	values := make([]string, 0)
+	for index := 1; index < len(text)-1; {
+		var value strings.Builder
+		quoted := text[index] == '"'
+		if quoted {
+			index++
+		}
+		closed := !quoted
+		for index < len(text)-1 {
+			char := text[index]
+			if char == '\\' {
+				index++
+				if index >= len(text)-1 {
+					return nil, fmt.Errorf("文本数组列扫描值 %q 包含断裂转义", text)
+				}
+				value.WriteByte(text[index])
+				index++
+				continue
+			}
+			if quoted {
+				if char == '"' {
+					closed = true
+					index++
+					break
+				}
+			} else if char == ',' {
+				break
+			} else if char == '{' || char == '}' || char == '"' {
+				return nil, fmt.Errorf("文本数组列扫描值 %q 语法非法", text)
+			}
+			value.WriteByte(char)
+			index++
+		}
+		if !closed {
+			return nil, fmt.Errorf("文本数组列扫描值 %q 引号未闭合", text)
+		}
+		if quoted && index < len(text)-1 && text[index] != ',' {
+			return nil, fmt.Errorf("文本数组列扫描值 %q 语法非法", text)
+		}
+		item := value.String()
+		if !quoted && strings.EqualFold(item, "NULL") {
+			return nil, fmt.Errorf("文本数组列扫描值 %q 不允许 NULL 元素", text)
+		}
+		values = append(values, item)
+		if index < len(text)-1 {
+			if text[index] != ',' {
+				return nil, fmt.Errorf("文本数组列扫描值 %q 语法非法", text)
+			}
+			index++
+			if index == len(text)-1 {
+				return nil, fmt.Errorf("文本数组列扫描值 %q 包含空尾元素", text)
+			}
+		}
+	}
+	return values, nil
 }
 
 // decodeReferenceArray 兼容 pgx/driver 对 BIGINT[] 的常见扫描形态。数组元素只

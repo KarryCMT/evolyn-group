@@ -1,8 +1,9 @@
 // 控件 → 物理列类型映射（方案 §4.3 支持矩阵的唯一后端事实源）。
 //
-// 只开放可无损转换且筛选语义明确的顶层字段；多部门经 BIGINT[] 建模，其余
-// 数组类（多选/多成员）与尚未建模的控件仍拒绝物理发布，禁止为兼容把用户业务值退回
-// JSONB。本矩阵与前端物理类型映射口径一致：成员关系使用全局 member_code 文本，
+// 只开放可无损转换且筛选语义明确的顶层字段；多部门经 BIGINT[] 建模，
+// 多选项/多成员经 TEXT[] 建模，既保留选择顺序也可使用 PostgreSQL 数组语义
+// 筛选。其余尚未建模的控件仍拒绝物理发布，禁止为兼容把用户业务值退回
+// JSONB。本矩阵与前端值协议口径一致：成员关系使用全局 member_code 文本，
 // 不把分库后会冲突的自增 ID 持久化为业务引用。
 //
 // month/time 采用「原形 TEXT 直存 + 字典序比较」：YYYY-MM 与 HH:MM 均为
@@ -38,6 +39,9 @@ const (
 	KindRef FieldKind = "ref"
 	// KindRefArray 多部门引用（BIGINT[]；协议值形态是有序字符串 ID 数组）。
 	KindRefArray FieldKind = "ref_array"
+	// KindTextArray 多选项/多成员（TEXT[]；协议值形态是有序且去重的
+	// 字符串数组）。选项值与 member_code 均不做数字 ID 假设。
+	KindTextArray FieldKind = "text_array"
 )
 
 // ColumnType PostgreSQL 列类型（DDL 输出的稳定枚举，不带长度/精度修饰）。
@@ -50,6 +54,7 @@ const (
 	ColumnTypeTimestamp   ColumnType = "TIMESTAMP"
 	ColumnTypeBigint      ColumnType = "BIGINT"
 	ColumnTypeBigintArray ColumnType = "BIGINT[]"
+	ColumnTypeTextArray   ColumnType = "TEXT[]"
 	ColumnTypeInteger     ColumnType = "INTEGER"
 )
 
@@ -99,9 +104,12 @@ func KindOf(widgetType, format string) (FieldKind, bool) {
 		// 多部门保持协议中的选择顺序，以 BIGINT[] 无损存储；目录有效性在
 		// 表单提交管线终审，物理层只承担确定的 ID 编解码。
 		return KindRefArray, true
+	case "checkboxgroup", "combocheck", "usergroup":
+		// 选项值与全局 member_code 都是文本标识；TEXT[] 无损保留
+		// 顺序，并与 contains/in/empty 等查询语义直接对齐。
+		return KindTextArray, true
 	default:
-		// checkboxgroup/combocheck/usergroup（数组）、subform（独立子表，由子表
-		// 建模分支处理）与全部未开放控件。
+		// subform（独立子表，由子表建模分支处理）与全部未开放控件。
 		return "", false
 	}
 }
@@ -126,6 +134,8 @@ func ColumnTypeOf(kind FieldKind) ColumnType {
 		return ColumnTypeBigint
 	case KindRefArray:
 		return ColumnTypeBigintArray
+	case KindTextArray:
+		return ColumnTypeTextArray
 	default:
 		return ""
 	}

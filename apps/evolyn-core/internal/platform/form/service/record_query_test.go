@@ -60,6 +60,26 @@ func TestCompileRecordListQueryCompilesPhysicalDepartmentGroup(t *testing.T) {
 	assert.Equal(t, []any{int64(12), int64(25)}, compiled.Args)
 }
 
+func TestCompileRecordListQueryCompilesPhysicalTextArray(t *testing.T) {
+	mappings := []SnapshotFieldMapping{{
+		WidgetName: "reviewers", WidgetType: "usergroup", JSONBKey: "reviewers",
+	}}
+	fields := []permissionFieldMeta{{Key: "reviewers", WidgetType: "usergroup"}}
+	options := RecordQueryCompileOptions{
+		Physical:             true,
+		PhysicalColumns:      map[string]string{"reviewers": "f_abcdefghij"},
+		PhysicalArrayColumns: map[string]bool{"reviewers": true},
+	}
+	compiled, err := CompileRecordListQuery(model.RecordQueryDocument{
+		Version: 1,
+		Filter:  &model.RecordQueryExpression{Type: "condition", Field: "reviewers", Operator: "in", Value: []any{"mb_a", "mb_b"}},
+	}, mappings, fields, options)
+	require.NoError(t, err)
+	assert.Contains(t, compiled.Where, "ANY(d.f_abcdefghij)")
+	assert.NotContains(t, compiled.Where, "jsonb_exists")
+	assert.Equal(t, []any{"mb_a", "mb_b"}, compiled.Args)
+}
+
 func TestSnapshotFieldMappingsDerivesLegacyPublishedSnapshot(t *testing.T) {
 	version := &model.FormVersion{
 		// 000065 之前的不可变版本仅有 content；读取侧不得清空这些历史

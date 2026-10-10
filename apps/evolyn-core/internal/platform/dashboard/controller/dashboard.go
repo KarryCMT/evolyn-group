@@ -149,6 +149,31 @@ func (d *DashboardController) Update(c *gin.Context) {
 	httpx.ResponseSuccess(c, detail)
 }
 
+// Copy godoc
+// @Summary 复制仪表盘
+// @Description 在同一应用、同一菜单分组内复制草稿与展示信息；不复制发布快照
+// @Accept json
+// @Produce json
+// @Tags 仪表盘管理
+// @Security JWT
+// @Param code path string true "dashboard_ 公开编码"
+// @Success 201 {object} httpx.Response{data=dashboardmodel.Detail}
+// @Failure 403 {object} httpx.Response "errCode=FORBIDDEN/QUOTA_EXCEEDED"
+// @Failure 404 {object} httpx.Response "errCode=DASHBOARD_NOT_FOUND"
+// @Router /api/v1/dashboards/{code}/copy [post]
+func (d *DashboardController) Copy(c *gin.Context) {
+	code, ok := dashboardCode(c)
+	if !ok {
+		return
+	}
+	detail, err := d.service.Copy(c.Request.Context(), ginctx.GetUser(c), code)
+	if err != nil {
+		responseError(c, err)
+		return
+	}
+	httpx.NewResponse(c, http.StatusCreated, detail, "复制成功")
+}
+
 // SaveDraft godoc
 // @Summary 保存仪表盘草稿
 // @Description 服务端规范化完整文档，并按 expectedRevision 条件更新；冲突返回 HTTP 409
@@ -379,6 +404,7 @@ func (d *DashboardController) RegisterRoute(api *gin.RouterGroup) {
 	api.GET("/dashboards/:code", d.Get)
 	api.GET("/dashboards/:code/runtime", d.GetRuntime)
 	api.PATCH("/dashboards/:code", d.Update)
+	api.POST("/dashboards/:code/copy", d.Copy)
 	api.PUT("/dashboards/:code/draft", d.SaveDraft)
 	api.GET("/dashboards/:code/data-sources/forms", d.ListFormDataSources)
 	api.GET("/dashboards/:code/data-sources/forms/:formCode/fields", d.GetFormFieldCatalog)

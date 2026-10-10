@@ -128,6 +128,7 @@ declare module 'vue' {
     FormDesignPreviewDrawer: typeof import('./components/form/FormDesignPreviewDrawer.vue')['default']
     FormRecordCreateDialog: typeof import('./components/form/data/FormRecordCreateDialog.vue')['default']
     FormRecordFilterPanel: typeof import('./components/form/data/FormRecordFilterPanel.vue')['default']
+    FormRecordLabelDownloadDialog: typeof import('./components/form/data/FormRecordLabelDownloadDialog.vue')['default']
     FormRecordMemberCardPopover: typeof import('./components/form/data/FormRecordMemberCardPopover.vue')['default']
     FormWorkspaceTitleEditor: typeof import('./components/form/FormWorkspaceTitleEditor.vue')['default']
     GreetingWidget: typeof import('./components/dashboard/widgets/GreetingWidget.vue')['default']

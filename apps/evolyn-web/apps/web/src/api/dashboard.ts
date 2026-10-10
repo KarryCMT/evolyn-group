@@ -48,6 +48,11 @@ export function updateDashboard(
   return http.patch(`/dashboards/${encodeURIComponent(code)}`, payload);
 }
 
+/** 在源节点所在应用与分组内复制仪表盘草稿；发布快照由新资产重新建立。 */
+export function copyDashboard(code: string): Promise<DashboardDetail> {
+  return http.post(`/dashboards/${encodeURIComponent(code)}/copy`, {});
+}
+
 export function deleteDashboard(code: string): Promise<null> {
   return http.delete(`/dashboards/${encodeURIComponent(code)}`);
 }

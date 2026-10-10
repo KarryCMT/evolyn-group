@@ -10,6 +10,9 @@ describe('dashboard routes and workbench isolation', () => {
     expect(dashboardRoutes.find((route) => route.name === 'dashboard-preview')?.path).toBe(
       '/app/:appCode/dashboard/:dashboardCode/preview',
     );
+    expect(dashboardRoutes.find((route) => route.name === 'dashboard-extensions')?.path).toBe(
+      '/app/:appCode/dashboard/:dashboardCode/extensions',
+    );
   });
 
   it('keeps the enterprise workbench on the layout-only protocol', () => {

@@ -57,6 +57,7 @@ interface ActionItem {
   label: string;
   icon: typeof RiEditFill;
   danger?: boolean;
+  divided?: boolean;
 }
 
 // 按钮集完全按后端 actions 按钮图出网（ADR-011「按钮不撒谎」）：投影
@@ -80,8 +81,20 @@ const actionItems = computed<ActionItem[]>(() => {
   }
 
   if (props.asset.type === 'dashboard') {
-    // 仪表盘资产域未落地（actions 占位恒 false）：仅出收藏个人状态动作，
-    // 其余按钮随仪表盘域端点落地由后端翻转投影。
+    // 仪表盘保持截图约定的六项顺序；每一项仍以服务端 actions 投影为准，
+    // 权限不足或应用只读时不会渲染无效按钮。
+    if (actions.edit) {
+      items.push({ action: 'edit', label: '编辑', icon: RiEditFill });
+    }
+    if (actions.rename) {
+      items.push({ action: 'rename', label: '修改名称和图标', icon: RiPencilFill });
+    }
+    if (actions.copyInApp) {
+      items.push({ action: 'copy-in-app', label: '复制', icon: RiFileCopyFill, divided: true });
+    }
+    if (actions.move) {
+      items.push({ action: 'move', label: '移动', icon: RiDragMove2Fill });
+    }
     if (props.asset.capabilities.favorite) {
       items.push({
         action: 'favorite',
@@ -228,6 +241,7 @@ function handleAction(command: string | number | object) {
                 v-for="item in actionItems"
                 :key="item.action"
                 :command="item.action"
+                :divided="item.divided"
                 :class="{ 'app-workspace-asset-actions__item--danger': item.danger }"
               >
                 <component :is="item.icon" aria-hidden="true" />

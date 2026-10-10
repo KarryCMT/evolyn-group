@@ -184,7 +184,7 @@ func (s *formService) physicalListBinding(ctx context.Context, form *model.Form)
 	columns := make([]repository.PhysicalColumn, 0, len(applied.Columns))
 	for _, column := range activeColumns(applied.Columns) {
 		physicalColumns[column.WidgetName] = column.ColumnName()
-		if column.Kind == storagepkg.KindRefArray {
+		if column.Kind == storagepkg.KindRefArray || column.Kind == storagepkg.KindTextArray {
 			physicalArrayColumns[column.WidgetName] = true
 		}
 		columns = append(columns, repository.PhysicalColumn{WidgetName: column.WidgetName, Column: column})

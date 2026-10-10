@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	storagepkg "evolyn/internal/engine/data/storage"
 	apperrors "evolyn/internal/platform/form"
 	"evolyn/internal/platform/form/model"
 	"evolyn/internal/platform/httpx"
@@ -378,18 +379,37 @@ func TestPublishPhysicalBusyRejected(t *testing.T) {
 	assert.ErrorIs(t, err, apperrors.ErrStorageBusy)
 }
 
-// 无物理模型的控件（多选）发布拒绝并列出 issues（方案 §4.3/§16.11）。
-func TestPublishPhysicalUnsupportedFieldRejected(t *testing.T) {
+// 多选项/多成员字段以 TEXT[] 建模，发布不再返回
+// FORM_STORAGE_UNSUPPORTED_FIELD。
+func TestPublishPhysicalTextArrayFieldsSupported(t *testing.T) {
 	env := newPhysicalTestEnv()
-	multiSelect := `{"widget":{"type":"checkboxgroup","widgetName":"_widget_m","fieldId":"aaaaaaaa03","enable":true,"visible":true,"allowBlank":true,"options":[{"value":"a","label":"A"}]},"label":"多选","description":"","labelHidden":false,"lineWidth":6}`
-	code, revision := env.createPhysicalForm(t, v8PhysicalDraft(multiSelect))
-	_, err := env.svc.Publish(tenantCtx(1), memberOfTenant(1), code, &model.PublishRequest{DraftRevision: revision})
-	require.ErrorIs(t, err, apperrors.ErrStorageUnsupportedField)
-	biz := bizOf(t, err)
-	issues, ok := biz.Data.(map[string]any)["issues"].([]SchemaIssue)
-	require.True(t, ok, "data carries issues")
-	assert.NotEmpty(t, issues)
-	assert.Contains(t, issues[0].Message, "不支持物理存储")
+	items := `[
+		{"widget":{"type":"text","widgetName":"_widget_a","fieldId":"aaaaaaaa01","enable":true,"visible":true,"allowBlank":true},"label":"姓名","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"checkboxgroup","widgetName":"_widget_c","fieldId":"aaaaaaaa03","enable":true,"visible":true,"allowBlank":true,"options":[{"value":"a","label":"A"}]},"label":"复选","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"combocheck","widgetName":"_widget_k","fieldId":"aaaaaaaa04","enable":true,"visible":true,"allowBlank":true,"options":[{"value":"b","label":"B"}]},"label":"下拉多选","description":"","labelHidden":false,"lineWidth":6},
+		{"widget":{"type":"usergroup","widgetName":"_widget_u","fieldId":"aaaaaaaa05","enable":true,"visible":true,"allowBlank":true},"label":"成员多选","description":"","labelHidden":false,"lineWidth":6}]`
+	code, revision := env.createPhysicalForm(t, draftWithItems(items, `"_widget_a","_widget_c","_widget_k","_widget_u"`))
+	result, err := env.svc.Publish(tenantCtx(1), memberOfTenant(1), code, &model.PublishRequest{DraftRevision: revision})
+	require.NoError(t, err)
+	require.True(t, result.Async)
+	require.Len(t, env.versions.versions, 1)
+	var storageModel storagepkg.StorageModel
+	require.NoError(t, decodeJSONB(env.versions.versions[0].Model, &storageModel))
+	for _, name := range []string{"_widget_c", "_widget_k", "_widget_u"} {
+		column := findStorageColumn(storageModel.Columns, name)
+		require.NotNil(t, column, "column %s", name)
+		assert.Equal(t, storagepkg.KindTextArray, column.Kind)
+		assert.Equal(t, storagepkg.ColumnTypeTextArray, column.Type)
+	}
+}
+
+func findStorageColumn(columns []storagepkg.ColumnSpec, widgetName string) *storagepkg.ColumnSpec {
+	for i := range columns {
+		if columns[i].WidgetName == widgetName {
+			return &columns[i]
+		}
+	}
+	return nil
 }
 
 // 已应用字段的类型变更拒绝：FORM_STORAGE_TYPE_CHANGE_UNSUPPORTED（§16.11）。

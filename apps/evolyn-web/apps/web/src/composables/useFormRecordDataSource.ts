@@ -237,7 +237,9 @@ export function useFormRecordDataSource(options: UseFormRecordDataSourceOptions)
 }
 
 function queryDocument(query: DataQuery): QueryDocument & { keyword?: string } {
-  const validation = validateQuery({
+  // DataQuery 只保存工作台交互字段；先归一化为完整 DSL 文档，补齐
+  // version/sorts/paging 等必需成员，再执行严格校验。
+  const document = normalizeQuery({
     filter: query.filter,
     sorts: query.sorts,
     paging: { page: query.page, pageSize: query.pageSize },
@@ -245,11 +247,12 @@ function queryDocument(query: DataQuery): QueryDocument & { keyword?: string } {
     groupBy: query.groupBy,
     aggregates: query.aggregates,
   });
+  const validation = validateQuery(document);
   if (!validation.document) {
     throw new Error(validation.diagnostics[0]?.message ?? '筛选条件无效');
   }
   return {
-    ...normalizeQuery(validation.document),
+    ...validation.document,
     ...(query.keyword ? { keyword: query.keyword } : {}),
   };
 }

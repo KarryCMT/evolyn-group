@@ -32,6 +32,7 @@ type AppDirectory interface {
 // 单次 menu_revision 推进，避免名称、外观和移动组合更新时多次递增。
 type MenuMaintenance interface {
 	AttachDashboardNode(ctx context.Context, appID, dashboardID uint, name, icon, color, parentMenuCode string) error
+	AttachDashboardCopyNode(ctx context.Context, appID, sourceDashboardID, dashboardID uint, name, icon, color string) error
 	SyncDashboardNode(ctx context.Context, appID, dashboardID uint, name, icon, color *string, parentMenuCode *string) error
 	DetachDashboardNode(ctx context.Context, appID, dashboardID uint) error
 }
@@ -105,6 +106,7 @@ type DashboardService interface {
 	Get(ctx context.Context, member *iammodel.User, code string) (*model.Detail, error)
 	GetRuntime(ctx context.Context, member *iammodel.User, code string) (*model.RuntimeBootstrap, error)
 	Update(ctx context.Context, member *iammodel.User, code string, req *model.UpdateRequest) (*model.Detail, error)
+	Copy(ctx context.Context, member *iammodel.User, code string) (*model.Detail, error)
 	SaveDraft(ctx context.Context, member *iammodel.User, code string, req *model.SaveDraftRequest) (*model.SaveDraftResult, error)
 	ListFormDataSources(ctx context.Context, member *iammodel.User, code string) ([]model.FormDataSource, error)
 	GetFormFieldCatalog(ctx context.Context, member *iammodel.User, code, formCode string) (*model.FormFieldCatalog, error)

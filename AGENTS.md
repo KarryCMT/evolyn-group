@@ -334,8 +334,10 @@ internal/
                       发布经模型 Diff——涉及结构变更返回 202 + DDL Job
                       （tn_form_storage_schema_versions + tn_form_ddl_jobs，
                       FORM_STORAGE_BUSY 并发收口，类型变更拒绝
-                      FORM_STORAGE_TYPE_CHANGE_UNSUPPORTED，多选/附件等无
-                      物理模型控件发布拒绝 FORM_STORAGE_UNSUPPORTED_FIELD），
+                      FORM_STORAGE_TYPE_CHANGE_UNSUPPORTED；复选/下拉多选/
+                      成员多选以 TEXT[] 物理存储，部门多选以
+                      BIGINT[] 物理存储；附件等无物理模型控件
+                      发布拒绝 FORM_STORAGE_UNSUPPORTED_FIELD），
                       DDL Worker（form/worker）FOR UPDATE SKIP LOCKED 领取、
                       advisory lock 串行、checksum 复核、claim+执行+回写
                       同事务并在成功后推进 tn_forms 发布指针，动态 DDL 执行

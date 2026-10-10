@@ -80,7 +80,7 @@ var menuActionRegistry = map[string][]MenuActionSpec{
 	menuAssetTypeDashboard: {
 		{Code: MenuActionEdit, Grants: []string{"dashboards:update", "dashboard-actions:design"}, Landed: true},
 		{Code: MenuActionRename, Grants: []string{"dashboards:patch"}, Landed: true},
-		{Code: MenuActionCopyInApp, Grants: []string{"dashboards:create", "dashboard-actions:copy"}, Landed: false},
+		{Code: MenuActionCopyInApp, Grants: []string{"dashboards:create", "dashboard-actions:copy"}, Landed: true},
 		{Code: MenuActionMove, Grants: []string{"dashboards:patch", "apps:patch"}, Landed: true},
 		{Code: MenuActionDelete, Grants: []string{"dashboards:delete"}, Landed: true},
 	},
