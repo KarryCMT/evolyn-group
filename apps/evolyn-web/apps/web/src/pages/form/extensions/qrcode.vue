@@ -282,7 +282,10 @@ const labelSchema = computed<LabelSchema>(() => {
   const pageHeight = portrait ? 90 : 60;
   const accent = settings.value.background;
   const isPlain = !template.accent;
-  const headerHeight = template.kind === 'qr-only' ? 12 : 16;
+  const hasSubtitle = Boolean(settings.value.subtitle.label || settings.value.subtitle.value);
+  const singleLineHeaderHeight = template.kind === 'qr-only' ? 12 : 16;
+  // 副标题属于标题区：双行标题使用独立高度，正文和二维码从标题栏底部继续布局。
+  const headerHeight = hasSubtitle ? Math.max(singleLineHeaderHeight, 18) : singleLineHeaderHeight;
   const bodyTop = headerHeight;
   const contentHeight = pageHeight - bodyTop;
   const qrSize = portrait ? 31 : 29;
@@ -321,19 +324,19 @@ const labelSchema = computed<LabelSchema>(() => {
     radius: template.accent ? 1.2 : 0,
   });
   elements.push({
-    ...elementBase('title', 5, 1.5, pageWidth - 10, headerHeight - 3, 3),
+    ...elementBase('title', 5, 1.5, pageWidth - 10, hasSubtitle ? 7 : headerHeight - 3, 3),
     type: 'text',
     value: rowValueSource(settings.value.title, true),
     style: textStyle(settings.value.title, isPlain ? '#1b2129' : '#ffffff', 700),
   });
-  if (settings.value.subtitle.label || settings.value.subtitle.value) {
+  if (hasSubtitle) {
     elements.push({
-      ...elementBase('subtitle', textX, bodyTop + 2, textWidth, 6, 4),
+      ...elementBase('subtitle', 5, 8.5, pageWidth - 10, 7, 4),
       type: 'field',
       label: settings.value.subtitle.label,
       value: rowValueSource(settings.value.subtitle),
       separator: settings.value.subtitle.label ? ': ' : '',
-      style: textStyle(settings.value.subtitle, '#1b2129'),
+      style: textStyle(settings.value.subtitle, isPlain ? '#1b2129' : '#ffffff'),
     });
   }
   if (template.kind !== 'qr-only') {
@@ -386,7 +389,14 @@ const labelSchema = computed<LabelSchema>(() => {
   return {
     schemaVersion: '1.0',
     name: `${detail.value?.name ?? '未命名表单'}二维码标签`,
-    page: { width: pageWidth, height: pageHeight, unit: 'mm', dpi: 300, background: '#ffffff' },
+    // 强调色模板以同色整页底层承接圆角抗锯齿，避免内缩边框外侧透出白角。
+    page: {
+      width: pageWidth,
+      height: pageHeight,
+      unit: 'mm',
+      dpi: 300,
+      background: template.accent ? accent : '#ffffff',
+    },
     source: { type: 'form', formId: detail.value?.code ?? '' },
     elements,
     settings: {
@@ -632,7 +642,7 @@ function showFilePreview(blob: Blob): void {
   svgPreviewUrl.value = nextUrl;
 }
 
-/** 真实数据预览成功后，后端会为当前 draftRevision 写入发布准入标记。 */
+/** 真实数据预览是可选质量检查；成功后记录本次精确草稿修订，供页面展示检查状态。 */
 async function previewRealData(): Promise<void> {
   if (realPreviewing.value) return;
   try {
@@ -651,7 +661,7 @@ async function previewRealData(): Promise<void> {
     const blob = await previewLabelTemplate(target.code, { recordId: value, format: 'svg' });
     showFilePreview(blob);
     persistedTemplate.value = withPreviewedLabelDraft(target);
-    ElMessage.success('真实数据预览通过，当前草稿可以发布');
+    ElMessage.success('真实数据预览通过');
   } catch (error) {
     if (error === 'cancel' || error === 'close') return;
     showLifecycleError(error, 'preview');
@@ -660,35 +670,19 @@ async function previewRealData(): Promise<void> {
   }
 }
 
-/** 保存草稿不隐式发布；新修订会使旧真实预览准入自然失效。 */
-async function saveDraftOnly(): Promise<boolean> {
-  if (saving.value) return false;
-  saving.value = true;
-  try {
-    await persistDraft();
-    ElMessage.success('二维码标签草稿已保存');
-    return true;
-  } catch (error) {
-    showLifecycleError(error, 'save');
-    return false;
-  } finally {
-    saving.value = false;
-  }
-}
-
-/** 发布显式冻结不可变版本；若本地有新编辑，先 CAS 保存再检查真实预览。 */
-async function publishSettings(): Promise<boolean> {
+/** 一个保存动作完成草稿 CAS 写入与不可变版本发布，对用户隐藏内部两阶段生命周期。 */
+async function saveSettings(notify = true): Promise<boolean> {
   if (saving.value) return false;
   saving.value = true;
   try {
     const target = await persistDraft();
     if (target.publishedDraftRevision === target.draftRevision && target.publishedVersion > 0) {
-      ElMessage.success(`二维码标签当前已是发布版本 V${target.publishedVersion}`);
+      if (notify) ElMessage.success('二维码标签已保存');
       return true;
     }
     const published = await publishLabelTemplate(target.code, target.draftRevision);
     persistedTemplate.value = withPublishedLabelDraft(target, published.versionNo);
-    ElMessage.success(`二维码标签已发布 V${published.versionNo}`);
+    if (notify) ElMessage.success('二维码标签已保存');
     return true;
   } catch (error) {
     showLifecycleError(error, 'publish');
@@ -708,7 +702,7 @@ async function downloadLabel(): Promise<void> {
       inputErrorMessage: '记录 ID 必须是正整数',
     });
     downloading.value = true;
-    if (!(await publishSettings())) return;
+    if (!(await saveSettings(false))) return;
     const target = persistedTemplate.value;
     if (!target) return;
     const blob = await renderPublishedLabel({
@@ -974,11 +968,8 @@ onBeforeUnmount(() => {
     </div>
 
     <footer class="qr-settings__footer">
-      <el-button type="primary" :loading="saving" @click="saveDraftOnly">
-        保存草稿
-      </el-button>
-      <el-button plain type="primary" :loading="saving" @click="publishSettings">
-        发布
+      <el-button type="primary" :loading="saving" @click="saveSettings()">
+        保存
       </el-button>
       <el-button plain type="primary" :loading="downloading" @click="downloadLabel">
         下载/打印标签
@@ -1162,8 +1153,10 @@ onBeforeUnmount(() => {
 }
 
 .template-card {
+  box-sizing: border-box;
   position: relative;
   height: 66px;
+  overflow: hidden;
   padding: var(--el-space-xs);
   cursor: pointer;
   background: var(--el-bg-color);
@@ -1187,6 +1180,8 @@ onBeforeUnmount(() => {
   }
 
   &__mini {
+    // 蓝色标题边框计入缩略图固定高度，避免强调色模板额外向下溢出 9px。
+    box-sizing: border-box;
     position: relative;
     display: block;
     width: 100%;

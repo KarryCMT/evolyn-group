@@ -7,7 +7,7 @@ import type {
 import { RiArrowLeftSLine, RiArrowRightSLine, RiQuestionLine } from '@remixicon/vue';
 import { ElAlert, ElButton, ElDialog, ElEmpty, ElProgress, ElSkeleton } from 'element-plus';
 import { computed, onBeforeUnmount, shallowRef, watch } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import {
   createLabelBatchRender,
   downloadLabelRenderTask,
@@ -23,6 +23,7 @@ const props = defineProps<{
   recordIds: readonly number[];
 }>();
 const visible = defineModel<boolean>({ required: true });
+const route = useRoute();
 const router = useRouter();
 
 type DialogState =
@@ -54,6 +55,14 @@ const selectedPreset = computed<LabelRuntimeOutputPresetDto | undefined>(() =>
   profile.value?.outputPresets.find((preset) => preset.id === selectedPresetId.value),
 );
 const processing = computed(() => state.value === 'submitting' || state.value === 'processing');
+const hasUnpublishedTemplate = computed(
+  () => Boolean(profile.value?.templateCode) && !profile.value?.available,
+);
+const unavailableDescription = computed(() =>
+  hasUnpublishedTemplate.value
+    ? '二维码标签配置尚未生效，请前往设置页保存后再预览'
+    : '当前表单尚未保存二维码标签配置',
+);
 const actionLabel = computed(() => {
   if (state.value === 'submitting') return '正在创建任务…';
   if (state.value === 'processing') return `生成中 ${task.value?.progress ?? 0}%`;
@@ -235,13 +244,21 @@ async function submit(): Promise<void> {
 
 function editTemplate(): void {
   visible.value = false;
-  void router.push({ name: 'form-extension-qrcode' });
+  // 明确携带工作区参数，避免从弹窗按名称跳转时丢失当前应用或表单上下文。
+  void router.push({
+    name: 'form-extension-qrcode',
+    params: { appCode: route.params.appCode, formCode: props.formCode },
+  });
 }
 
-watch(visible, (open) => {
-  if (open) void loadProfile();
-  else reset();
-}, { immediate: true });
+watch(
+  visible,
+  (open) => {
+    if (open) void loadProfile();
+    else reset();
+  },
+  { immediate: true },
+);
 
 onBeforeUnmount(reset);
 </script>
@@ -250,7 +267,7 @@ onBeforeUnmount(reset);
   <ElDialog
     v-model="visible"
     class="label-download-dialog"
-    width="min(800px, calc(100vw - var(--el-space-xl)))"
+    width="min(800px, calc(100vw - 32px))"
     destroy-on-close
     :close-on-click-modal="!processing"
   >
@@ -264,10 +281,12 @@ onBeforeUnmount(reset);
     <ElSkeleton v-if="state === 'loading'" :rows="7" animated />
     <ElEmpty
       v-else-if="profile && !profile.available"
-      description="当前表单尚未配置并发布二维码标签"
+      class="label-download-dialog__empty"
+      :description="unavailableDescription"
+      :image-size="96"
     >
       <ElButton v-if="profile.canManageTemplate" type="primary" plain @click="editTemplate">
-        配置二维码标签
+        {{ hasUnpublishedTemplate ? '前往保存配置' : '配置二维码标签' }}
       </ElButton>
     </ElEmpty>
     <div v-else-if="profile?.available" class="label-download-dialog__body">
@@ -293,7 +312,7 @@ onBeforeUnmount(reset);
           字段内容超长时，将按模板规则自动截断，请认真核对标签展示样式！
         </p>
         <div class="label-download-dialog__canvas" :class="{ 'is-loading': previewLoading }">
-          <img v-if="previewUrl" :src="previewUrl" alt="二维码标签预览">
+          <img v-if="previewUrl" :src="previewUrl" alt="二维码标签预览" />
           <ElEmpty v-else-if="previewError" :description="previewError" :image-size="48" />
           <span v-else>正在生成预览…</span>
         </div>
@@ -318,7 +337,9 @@ onBeforeUnmount(reset);
           :disabled="processing"
           @click="selectPreset(preset.id)"
         >
-          <strong>{{ preset.name }}（{{ preset.width }} X {{ preset.height }}{{ preset.unit }}）</strong>
+          <strong
+            >{{ preset.name }}（{{ preset.width }} X {{ preset.height }}{{ preset.unit }}）</strong
+          >
           <span>{{ preset.pixelWidth }} X {{ preset.pixelHeight }} 像素</span>
           <i v-if="selectedPresetId === preset.id" aria-hidden="true">✓</i>
         </button>
@@ -363,10 +384,6 @@ onBeforeUnmount(reset);
 
 <style scoped lang="scss">
 .label-download-dialog {
-  --label-preview-panel-width: 480px;
-  --label-size-panel-width: 230px;
-  --label-preview-min-height: 320px;
-
   &__title,
   &__footer,
   &__pager {
@@ -387,13 +404,16 @@ onBeforeUnmount(reset);
 
   &__body {
     display: grid;
-    grid-template-columns: minmax(0, var(--label-preview-panel-width)) var(--label-size-panel-width);
-    gap: var(--el-space-lg);
+    grid-template-columns: 480px 200px;
+    gap: var(--el-space-2xl);
+    align-items: start;
   }
 
   &__preview-panel {
-    min-height: var(--label-preview-min-height);
-    padding: var(--el-space-md);
+    box-sizing: border-box;
+    width: 480px;
+    min-height: 428px;
+    padding: var(--el-space-2xl) var(--el-space-4xl) var(--el-space-xl);
     text-align: center;
     background: var(--el-fill-color-lighter);
   }
@@ -405,13 +425,13 @@ onBeforeUnmount(reset);
   }
 
   &__hint {
-    margin: var(--el-space-sm) 0;
+    margin: var(--el-space-md) 0 var(--el-space-lg);
     color: var(--el-text-color-secondary);
     font-size: var(--el-font-size-small);
   }
 
   &__canvas {
-    min-height: calc(var(--label-preview-min-height) - 90px);
+    min-height: 280px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -419,7 +439,7 @@ onBeforeUnmount(reset);
 
     img {
       max-width: 100%;
-      max-height: 260px;
+      max-height: 280px;
       box-shadow: var(--el-box-shadow-light);
     }
 
@@ -429,25 +449,33 @@ onBeforeUnmount(reset);
   }
 
   &__edit {
-    padding: 0;
+    padding: var(--el-space-md);
     color: var(--el-color-primary);
     background: transparent;
     border: 0;
     cursor: pointer;
+
+    &:hover {
+      background: var(--el-color-primary-light-9);
+      border-radius: var(--el-border-radius-base);
+    }
   }
 
   &__sizes {
+    width: 200px;
+
     h3 {
       margin: 0 0 var(--el-space-md);
       color: var(--el-text-color-primary);
+      font-size: var(--el-font-size-large);
     }
   }
 
   &__size {
     position: relative;
     width: 100%;
-    min-height: 82px;
-    padding: var(--el-space-sm) var(--el-space-md);
+    min-height: 80px;
+    padding: var(--el-space-lg);
     display: flex;
     align-items: flex-start;
     flex-direction: column;
@@ -460,7 +488,12 @@ onBeforeUnmount(reset);
     cursor: pointer;
 
     & + & {
-      margin-top: var(--el-space-sm);
+      margin-top: var(--el-space-lg);
+    }
+
+    &:hover:not(:disabled) {
+      background: var(--el-fill-color-light);
+      border-color: var(--el-color-primary-light-5);
     }
 
     span {
@@ -507,6 +540,11 @@ onBeforeUnmount(reset);
 @media (max-width: 720px) {
   .label-download-dialog__body {
     grid-template-columns: 1fr;
+  }
+
+  .label-download-dialog__preview-panel,
+  .label-download-dialog__sizes {
+    width: 100%;
   }
 
   .label-download-dialog__sizes {

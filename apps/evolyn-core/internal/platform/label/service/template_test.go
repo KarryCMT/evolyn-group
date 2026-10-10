@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"testing"
 
 	"evolyn/internal/contextx"
@@ -99,7 +98,7 @@ func TestSaveAndPublishFreezeOutputPresetsForLegacyDraft(t *testing.T) {
 	presets := savedSchema["settings"].(map[string]any)["outputPresets"].([]any)
 	require.Len(t, presets, 2)
 
-	template.PreviewedDraftRevision = template.DraftRevision
+	// 真实记录预览是可选检查；当前修订可直接保存为不可变发布版本。
 	published, err := service.Publish(ctx, member, template.Code, &model.PublishRequest{DraftRevision: template.DraftRevision})
 	require.NoError(t, err)
 	require.Equal(t, 1, published.VersionNo)
@@ -177,21 +176,6 @@ type recordResolverStub struct {
 
 func (s recordResolverStub) GetRecord(context.Context, *iammodel.User, uint, uint) (*RecordView, error) {
 	return s.record, s.err
-}
-
-func TestPublishRequiresRealDataPreviewForCurrentDraft(t *testing.T) {
-	template := &model.Template{ID: 1, Code: "label_test", DraftRevision: 3, PreviewedDraftRevision: 2}
-	template.TenantID = 1
-	service := NewTemplateService(
-		immediateTx{}, &templateRepoStub{template: template}, versionRepoStub{}, nil, nil,
-		accessStub{permissions: map[string]bool{iammodel.LabelTemplateResource + ":create": true}}, nil,
-	)
-	ctx := contextx.NewTenantContext(context.Background(), 1)
-	member := &iammodel.User{ID: 2}
-	member.TenantID = 1
-	_, err := service.Publish(ctx, member, "label_test", &model.PublishRequest{DraftRevision: 3})
-	require.Error(t, err)
-	require.True(t, errors.Is(err, labelapp.ErrRealPreviewRequired))
 }
 
 func TestTemplateAccessRejectsMissingPermissionAndCrossTenantRows(t *testing.T) {

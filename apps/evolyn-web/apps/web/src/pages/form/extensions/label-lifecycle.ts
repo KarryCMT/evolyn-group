@@ -19,9 +19,7 @@ export function withSavedLabelDraft(
   return { ...target, draft: schema, draftRevision };
 }
 
-export function withPreviewedLabelDraft(
-  target: LabelTemplateDetailDto,
-): LabelTemplateDetailDto {
+export function withPreviewedLabelDraft(target: LabelTemplateDetailDto): LabelTemplateDetailDto {
   return { ...target, previewedDraftRevision: target.draftRevision };
 }
 
@@ -35,10 +33,6 @@ export function withPublishedLabelDraft(
     publishedVersion: versionNo,
     publishedDraftRevision: target.draftRevision,
   };
-}
-
-export function isCurrentLabelDraftPreviewed(target: LabelTemplateDetailDto): boolean {
-  return target.previewedDraftRevision === target.draftRevision;
 }
 
 /**
@@ -60,12 +54,6 @@ export function labelLifecycleFeedback(
   switch (error.errCode) {
     case 'LABEL_REVISION_CONFLICT':
       return { message: '标签配置已被他人更新，正在重新加载', reload: true, tone: 'warning' };
-    case 'LABEL_REAL_PREVIEW_REQUIRED':
-      return {
-        message: '请先使用一条真实表单记录完成预览校验',
-        reload: false,
-        tone: 'warning',
-      };
     case 'LABEL_FORM_ALREADY_BOUND':
       return { message: '该表单已经绑定标签模板', reload: true, tone: 'warning' };
     case 'LABEL_SCHEMA_INVALID':

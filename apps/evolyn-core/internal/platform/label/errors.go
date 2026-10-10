@@ -19,7 +19,6 @@ var (
 	ErrQRGenerate           = httpx.NewBiz("LABEL_QR_GENERATE_ERROR", "二维码生成失败", http.StatusInternalServerError)
 	ErrRender               = httpx.NewBiz("LABEL_RENDER_ERROR", "标签渲染失败", http.StatusInternalServerError)
 	ErrRevisionConflict     = httpx.NewBiz("LABEL_REVISION_CONFLICT", "标签模板已被他人更新，请刷新后重试", http.StatusConflict)
-	ErrRealPreviewRequired  = httpx.NewBiz("LABEL_REAL_PREVIEW_REQUIRED", "发布前必须使用真实表单记录完成预览", http.StatusBadRequest)
 	ErrFormAlreadyBound     = httpx.NewBiz("LABEL_FORM_ALREADY_BOUND", "该表单已绑定二维码标签模板", http.StatusConflict)
 	ErrCodeInvalid          = httpx.NewBiz("LABEL_TEMPLATE_CODE_INVALID", "无效的标签模板编码", http.StatusBadRequest)
 	ErrNameInvalid          = httpx.NewBiz("LABEL_TEMPLATE_NAME_INVALID", "标签模板名称不符合要求", http.StatusBadRequest)

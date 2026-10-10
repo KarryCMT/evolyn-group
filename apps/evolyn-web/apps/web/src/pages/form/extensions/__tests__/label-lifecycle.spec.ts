@@ -3,7 +3,6 @@ import type { LabelTemplateDetailDto } from '~/api/label';
 import { ApiError } from '@evolyn.do/utils';
 import { describe, expect, it } from 'vitest';
 import {
-  isCurrentLabelDraftPreviewed,
   labelLifecycleFeedback,
   withPreviewedLabelDraft,
   withPublishedLabelDraft,
@@ -49,7 +48,6 @@ describe('label lifecycle state', () => {
     expect(saved.draftRevision).toBe(4);
     expect(saved.previewedDraftRevision).toBe(3);
     expect(saved.publishedDraftRevision).toBe(3);
-    expect(isCurrentLabelDraftPreviewed(saved)).toBe(false);
   });
 
   it('真实预览和发布只推进各自精确修订标记', () => {
@@ -57,7 +55,6 @@ describe('label lifecycle state', () => {
     const previewed = withPreviewedLabelDraft(saved);
     const published = withPublishedLabelDraft(previewed, 2);
 
-    expect(isCurrentLabelDraftPreviewed(previewed)).toBe(true);
     expect(published).toMatchObject({
       status: 'published',
       publishedVersion: 2,
@@ -70,17 +67,17 @@ describe('label lifecycle state', () => {
 describe('label lifecycle error feedback', () => {
   it('修订冲突要求重新加载且不执行静默覆盖', () => {
     expect(
-      labelLifecycleFeedback(
-        new ApiError('conflict', 409, 'LABEL_REVISION_CONFLICT'),
-        'save',
-      ),
+      labelLifecycleFeedback(new ApiError('conflict', 409, 'LABEL_REVISION_CONFLICT'), 'save'),
     ).toEqual({ message: '标签配置已被他人更新，正在重新加载', reload: true, tone: 'warning' });
   });
 
   it.each(['LABEL_RECORD_NOT_FOUND', 'LABEL_RECORD_NO_PERMISSION'])(
     '%s 使用相同安全文案，不泄露记录是否存在',
     (errCode) => {
-      const feedback = labelLifecycleFeedback(new ApiError('server detail', 403, errCode), 'preview');
+      const feedback = labelLifecycleFeedback(
+        new ApiError('server detail', 403, errCode),
+        'preview',
+      );
       expect(feedback.message).toBe('记录不存在或无权访问');
       expect(feedback.message).not.toContain('server detail');
     },

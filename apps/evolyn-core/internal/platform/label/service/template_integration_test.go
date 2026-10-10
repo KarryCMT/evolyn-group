@@ -64,6 +64,10 @@ func (r *mutableRecordResolver) GetRecord(context.Context, *iammodel.User, uint,
 	return r.record, r.err
 }
 
+func (*mutableRecordResolver) CanUseOperation(context.Context, *iammodel.User, uint, string) (bool, error) {
+	return true, nil
+}
+
 func (r *mutableRecordResolver) set(record *RecordView, err error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -161,12 +165,8 @@ func TestTemplateLifecyclePostgres(t *testing.T) {
 	require.ErrorIs(t, err, labelapp.ErrFieldNoPermission)
 	records.set(&RecordView{FormID: form.ID, Fields: map[string]any{"asset_code": "A-001"}, System: map[string]any{}}, nil)
 
-	_, err = svc.Publish(ctx, member, created.Code, &labelmodel.PublishRequest{DraftRevision: 2})
-	require.ErrorIs(t, err, labelapp.ErrRealPreviewRequired)
-	_, err = svc.Preview(ctx, member, created.Code, &labelmodel.PreviewRequest{RecordID: "1"})
-	require.NoError(t, err)
-
-	// 快照已插入但发布指针推进失败时，统一事务必须回滚两者，不能留下孤儿版本。
+	// 未执行真实记录预览也允许发布；快照已插入但发布指针推进失败时，
+	// 统一事务必须回滚两者，不能留下孤儿版本。
 	failingSvc := NewTemplateService(
 		infrastructure.NewTxManager(db),
 		failingPublishRepository{TemplateRepository: templateRepo}, versionRepo,
@@ -185,6 +185,13 @@ func TestTemplateLifecyclePostgres(t *testing.T) {
 	v1, err := svc.Publish(ctx, member, created.Code, &labelmodel.PublishRequest{DraftRevision: 2})
 	require.NoError(t, err)
 	require.Equal(t, 1, v1.VersionNo)
+	// 配置页保存完成后，数据管理读取同一表单的运行态配置必须立即可用，
+	// 不得继续把已经冻结的版本投影成“尚未保存配置”。
+	profile, err := svc.RuntimeProfile(ctx, member, form.Code)
+	require.NoError(t, err)
+	require.True(t, profile.Available)
+	require.Equal(t, v1.VersionNo, profile.PublishedVersion)
+	require.NotEmpty(t, profile.OutputPresets)
 
 	// 同修订重试幂等，不新增快照。
 	v1Retry, err := svc.Publish(ctx, member, created.Code, &labelmodel.PublishRequest{DraftRevision: 2})

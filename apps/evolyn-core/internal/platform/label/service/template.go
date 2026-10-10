@@ -328,9 +328,6 @@ func (s *templateService) Publish(ctx context.Context, member *iammodel.User, co
 		if req.DraftRevision != template.DraftRevision {
 			return httpx.Wrap(labelapp.ErrRevisionConflict, fmt.Errorf("label template revision mismatch on publish"))
 		}
-		if template.PreviewedDraftRevision != template.DraftRevision {
-			return httpx.Wrap(labelapp.ErrRealPreviewRequired, fmt.Errorf("draft revision %d has not passed real-data preview", template.DraftRevision))
-		}
 		if template.PublishedDraftRevision == template.DraftRevision && template.PublishedVersion > 0 {
 			versionNo = template.PublishedVersion
 			return nil
